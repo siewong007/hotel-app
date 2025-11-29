@@ -1,0 +1,58 @@
+# Docker ignore file
+# Files and directories to exclude from Docker builds
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Node modules (for frontend)
+node_modules/
+npm-debug.log*
+
+# Build artifacts
+target/
+dist/
+build/
+*.o
+*.so
+
+# Database backups
+database/backups/
+*.sql.gz
+
+# Test files
+test/
+tests/
+*.test.*
+*.spec.*
+
+# Temporary files
+tmp/
+temp/
+*.tmp

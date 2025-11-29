@@ -1,0 +1,75 @@
+services:
+  # PostgreSQL Database
+  # All database setup (schema, seed data, migrations) runs automatically on first start
+  postgres:
+    image: postgres:15-alpine
+    container_name: hotel-postgres
+    environment:
+      POSTGRES_USER: hotel_admin
+      POSTGRES_PASSWORD: hotel_password_change_in_production
+      POSTGRES_DB: hotel_management
+      # PostgreSQL configuration for better performance
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=en_US.UTF-8"
+    ports:
+      - "5432:5432"
+    volumes:
+      # Persistent data storage
+      - postgres_data:/var/lib/postgresql/data
+      # Database initialization scripts (executed in alphabetical order on first start only)
+      # These files are only executed if the data directory is empty
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./database/03-migrations.sql:/docker-entrypoint-initdb.d/03-migrations.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotel_admin -d hotel_management"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - hotel-network
+    restart: unless-stopped
+
+  # Rust Backend API
+  backend:
+    build:
+      context: ./hotel-management-be
+      dockerfile: Dockerfile
+    container_name: hotel-backend
+    environment:
+      # Database connection URL - using postgres service name (Docker internal DNS)
+      DATABASE_URL: postgresql://hotel_admin:hotel_password_change_in_production@postgres:5432/hotel_management?sslmode=disable
+      JWT_SECRET: your-super-secret-jwt-key-change-in-production-min-32-chars-long
+      RUST_LOG: info
+      PORT: 3030
+    ports:
+      - "3030:3030"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - hotel-network
+    restart: unless-stopped
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./hotel-web-fe
+      dockerfile: Dockerfile
+    container_name: hotel-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:3030
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - hotel-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  hotel-network:
+    driver: bridge
