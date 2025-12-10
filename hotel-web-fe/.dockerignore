@@ -1,7 +1,58 @@
-node_modules
-.git
-.env
-*.log
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# package-lock.json - KEEP THIS FOR DOCKER BUILD
+yarn.lock
+
+# Build output
+build/
+dist/
+.cache/
+
+# Testing
+coverage/
+.nyc_output/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.history/
+
+# OS
 .DS_Store
-build
+Thumbs.db
+desktop.ini
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# Documentation
+*.md
+docs/
+README.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Misc
+.prettierrc
+.eslintrc
+.editorconfig
+# tsconfig.json - KEEP THIS FOR BUILD
 

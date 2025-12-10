@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { Hotel as HotelIcon, Lock as LockIcon, Fingerprint as FingerprintIcon } from '@mui/icons-material';
 import { useAuth } from '../auth/AuthContext';
+import FirstLoginPasskeyPrompt from './FirstLoginPasskeyPrompt';
 
 const LoginPage: React.FC = () => {
   const [tab, setTab] = useState(0);
@@ -21,6 +22,7 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showFirstLoginPrompt, setShowFirstLoginPrompt] = useState(false);
   const { login, loginWithPasskey, registerPasskey } = useAuth();
   const navigate = useNavigate();
 
@@ -30,11 +32,15 @@ const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await login(username, password);
-      navigate('/');
+      const isFirstLogin = await login(username, password);
+      if (isFirstLogin) {
+        setShowFirstLoginPrompt(true);
+        setLoading(false);
+      } else {
+        navigate('/');
+      }
     } catch (err: any) {
       setError(err.message || 'Login failed');
-    } finally {
       setLoading(false);
     }
   };
@@ -49,11 +55,15 @@ const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      await loginWithPasskey(username);
-      navigate('/');
+      const isFirstLogin = await loginWithPasskey(username);
+      if (isFirstLogin) {
+        setShowFirstLoginPrompt(true);
+        setLoading(false);
+      } else {
+        navigate('/');
+      }
     } catch (err: any) {
       setError(err.message || 'Passkey login failed');
-    } finally {
       setLoading(false);
     }
   };
@@ -232,6 +242,15 @@ const LoginPage: React.FC = () => {
           </Box>
         </Paper>
       </Container>
+
+      <FirstLoginPasskeyPrompt
+        open={showFirstLoginPrompt}
+        username={username}
+        onClose={() => {
+          setShowFirstLoginPrompt(false);
+          navigate('/');
+        }}
+      />
     </Box>
   );
 };

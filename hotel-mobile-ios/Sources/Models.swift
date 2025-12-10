@@ -16,6 +16,7 @@ struct AuthResponse: Codable {
     let user: User
     let roles: [String]
     let permissions: [String]
+    let is_first_login: Bool
 }
 
 struct LoginRequest: Codable {
@@ -153,6 +154,146 @@ struct ReportBooking: Codable, Identifiable {
     let check_out: String
     let total_price: String
     let status: String
+}
+
+// MARK: - Loyalty Models
+
+struct LoyaltyProgram: Codable, Identifiable {
+    let id: Int
+    let name: String
+    let description: String?
+    let tier_level: Int
+    let points_multiplier: Double
+    let minimum_points_required: Int
+    let is_active: Bool
+}
+
+struct LoyaltyMembership: Codable, Identifiable {
+    let id: Int
+    let guest_id: Int
+    let program_id: Int
+    let membership_number: String
+    let points_balance: Int
+    let lifetime_points: Int
+    let tier_level: Int
+    let status: String
+    let enrolled_date: String
+}
+
+struct LoyaltyMembershipWithDetails: Codable, Identifiable {
+    let id: Int
+    let guest_id: Int
+    let guest_name: String
+    let guest_email: String
+    let program_id: Int
+    let program_name: String
+    let program_description: String?
+    let points_multiplier: Double
+    let membership_number: String
+    let points_balance: Int
+    let lifetime_points: Int
+    let tier_level: Int
+    let status: String
+    let enrolled_date: String
+}
+
+struct PointsTransaction: Codable, Identifiable {
+    let id: String
+    let membership_id: Int
+    let transaction_type: String
+    let points_amount: Int
+    let balance_after: Int
+    let description: String?
+    let created_at: String
+}
+
+struct TierStatistics: Codable {
+    let tier_level: Int
+    let tier_name: String
+    let count: Int
+    let percentage: Double
+}
+
+struct TopMember: Codable {
+    let guest_name: String
+    let guest_email: String
+    let points_balance: Int
+    let lifetime_points: Int
+    let tier_level: Int
+    let membership_number: String
+}
+
+struct RecentTransaction: Codable, Identifiable {
+    let id: String
+    let guest_name: String
+    let transaction_type: String
+    let points_amount: Int
+    let description: String?
+    let created_at: String
+}
+
+struct MembershipGrowth: Codable {
+    let date: String
+    let new_members: Int
+    let total_members: Int
+}
+
+struct PointsActivity: Codable {
+    let date: String
+    let points_earned: Int
+    let points_redeemed: Int
+}
+
+struct LoyaltyStatistics: Codable {
+    let total_members: Int
+    let active_members: Int
+    let members_by_tier: [TierStatistics]
+    let total_points_issued: Int
+    let total_points_redeemed: Int
+    let total_points_active: Int
+    let average_points_per_member: Double
+    let top_members: [TopMember]
+    let recent_transactions: [RecentTransaction]
+    let membership_growth: [MembershipGrowth]
+    let points_activity: [PointsActivity]
+}
+
+// MARK: - User Profile Models
+
+struct UserProfile: Codable, Identifiable {
+    let id: Int
+    let username: String
+    let email: String
+    let full_name: String?
+    let phone: String?
+    let avatar_url: String?
+    let created_at: String
+    let updated_at: String
+    let last_login_at: String?
+}
+
+struct UserProfileUpdate: Codable {
+    let full_name: String?
+    let email: String?
+    let phone: String?
+    let avatar_url: String?
+}
+
+struct PasswordUpdate: Codable {
+    let current_password: String
+    let new_password: String
+}
+
+struct PasskeyInfo: Codable, Identifiable {
+    let id: Int
+    let credential_id: String
+    let device_name: String?
+    let created_at: String
+    let last_used_at: String?
+}
+
+struct PasskeyUpdateInput: Codable {
+    let device_name: String
 }
 
 // MARK: - API Error

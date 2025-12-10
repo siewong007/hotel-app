@@ -21,7 +21,9 @@ import {
   MenuItem,
   Alert,
   CircularProgress,
-  Snackbar
+  Snackbar,
+  Box as MuiBox,
+  Autocomplete
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -31,6 +33,7 @@ import {
 } from '@mui/icons-material';
 import { HotelAPIService } from '../api';
 import { BookingWithDetails, Room, Guest } from '../types';
+import { getBookingStatusColor, getBookingStatusText } from '../utils/bookingUtils';
 
 const BookingsPage: React.FC = () => {
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
@@ -45,6 +48,8 @@ const BookingsPage: React.FC = () => {
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [checkInDate, setCheckInDate] = useState('');
   const [checkOutDate, setCheckOutDate] = useState('');
+  const [postType, setPostType] = useState<'normal_stay' | 'same_day'>('normal_stay');
+  const [rateCode, setRateCode] = useState('RACK');
   const [creating, setCreating] = useState(false);
 
   // Notifications
@@ -85,8 +90,10 @@ const BookingsPage: React.FC = () => {
       await HotelAPIService.createBooking({
         guest_id: selectedGuestId,
         room_id: selectedRoomId,
-        check_in: new Date(checkInDate).toISOString(),
-        check_out: new Date(checkOutDate).toISOString()
+        check_in_date: new Date(checkInDate).toISOString(),
+        check_out_date: new Date(checkOutDate).toISOString(),
+        post_type: postType,
+        rate_code: rateCode
       });
 
       setSnackbarMessage('Booking created successfully!');
@@ -111,15 +118,17 @@ const BookingsPage: React.FC = () => {
     setSelectedRoomId('');
     setCheckInDate('');
     setCheckOutDate('');
+    setPostType('normal_stay');
+    setRateCode('RACK');
   };
 
   const isFormValid = selectedGuestId && selectedRoomId && checkInDate && checkOutDate;
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+      <MuiBox sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
         <CircularProgress />
-      </Box>
+      </MuiBox>
     );
   }
 
@@ -199,27 +208,41 @@ const BookingsPage: React.FC = () => {
           <TableHead>
             <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
               <TableCell><strong>Booking ID</strong></TableCell>
+              <TableCell><strong>Folio #</strong></TableCell>
               <TableCell><strong>Guest Name</strong></TableCell>
               <TableCell><strong>Room Type</strong></TableCell>
+              <TableCell><strong>Room Code</strong></TableCell>
               <TableCell><strong>Room ID</strong></TableCell>
               <TableCell><strong>Check-in</strong></TableCell>
               <TableCell><strong>Check-out</strong></TableCell>
+              <TableCell><strong>Post Type</strong></TableCell>
+              <TableCell><strong>Rate</strong></TableCell>
               <TableCell><strong>Status</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {bookings.map((booking) => (
               <TableRow key={booking.id} hover>
-                <TableCell>#{booking.id}</TableCell>
-                <TableCell>{booking.guestName}</TableCell>
-                <TableCell>{booking.roomType}</TableCell>
-                <TableCell>Room {booking.room_id}</TableCell>
-                <TableCell>{booking.checkInDate}</TableCell>
-                <TableCell>{booking.checkOutDate}</TableCell>
+                <TableCell>#{String(booking.id).substring(0, 8)}</TableCell>
+                <TableCell>{booking.folio_number || '-'}</TableCell>
+                <TableCell>{booking.guest_name}</TableCell>
+                <TableCell>{booking.room_type}</TableCell>
+                <TableCell>{booking.room_type_code || '-'}</TableCell>
+                <TableCell>Room {booking.room_number}</TableCell>
+                <TableCell>{booking.formatted_check_in || booking.check_in_date}</TableCell>
+                <TableCell>{booking.formatted_check_out || booking.check_out_date}</TableCell>
+                <TableCell>
+                  {booking.post_type === 'same_day' ? (
+                    <Chip label="Same Day" size="small" color="warning" />
+                  ) : (
+                    <Chip label="Normal Stay" size="small" color="default" />
+                  )}
+                </TableCell>
+                <TableCell>{booking.rate_code || 'RACK'}</TableCell>
                 <TableCell>
                   <Chip
-                    label="Active"
-                    color="success"
+                    label={getBookingStatusText(booking.status)}
+                    color={getBookingStatusColor(booking.status)}
                     size="small"
                   />
                 </TableCell>
@@ -245,35 +268,41 @@ const BookingsPage: React.FC = () => {
         <DialogTitle>Create New Booking</DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField
-              select
+            <Autocomplete
               fullWidth
-              label="Select Guest"
-              value={selectedGuestId}
-              onChange={(e) => setSelectedGuestId(e.target.value)}
-            >
-              <MenuItem value="">Choose a guest</MenuItem>
-              {guests.map((guest) => (
-                <MenuItem key={guest.id} value={guest.id}>
-                  {guest.name} ({guest.email})
-                </MenuItem>
-              ))}
-            </TextField>
+              options={guests}
+              getOptionLabel={(option) => `${option.full_name} (${option.email})`}
+              value={guests.find(g => g.id === selectedGuestId) || null}
+              onChange={(event, newValue) => {
+                setSelectedGuestId(newValue?.id || '');
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Select Guest"
+                  placeholder="Search guests..."
+                />
+              )}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+            />
 
-            <TextField
-              select
+            <Autocomplete
               fullWidth
-              label="Select Room"
-              value={selectedRoomId}
-              onChange={(e) => setSelectedRoomId(e.target.value)}
-            >
-              <MenuItem value="">Choose an available room</MenuItem>
-              {availableRooms.map((room) => (
-                <MenuItem key={room.id} value={room.id}>
-                  Room {room.id} - {room.room_type} (${room.price_per_night}/night)
-                </MenuItem>
-              ))}
-            </TextField>
+              options={availableRooms}
+              getOptionLabel={(option) => `Room ${option.id} - ${option.room_type} ($${option.price_per_night}/night)`}
+              value={availableRooms.find(r => r.id === selectedRoomId) || null}
+              onChange={(event, newValue) => {
+                setSelectedRoomId(newValue?.id || '');
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Select Room"
+                  placeholder="Search available rooms..."
+                />
+              )}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+            />
 
             <Box display="flex" gap={2}>
               <TextField
@@ -293,6 +322,30 @@ const BookingsPage: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Box>
+
+            <Box display="flex" gap={2}>
+              <TextField
+                select
+                fullWidth
+                label="Post Type"
+                value={postType}
+                onChange={(e) => setPostType(e.target.value as 'normal_stay' | 'same_day')}
+              >
+                <MenuItem value="normal_stay">Normal Stay</MenuItem>
+                <MenuItem value="same_day">Same Day</MenuItem>
+              </TextField>
+
+              <TextField
+                select
+                fullWidth
+                label="Rate Code"
+                value={rateCode}
+                onChange={(e) => setRateCode(e.target.value)}
+              >
+                <MenuItem value="RACK">RACK (Standard Rate)</MenuItem>
+                <MenuItem value="OVR">OVR (Override Rate)</MenuItem>
+              </TextField>
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>
@@ -302,7 +355,7 @@ const BookingsPage: React.FC = () => {
             variant="contained"
             disabled={creating || !isFormValid}
           >
-            {creating ? <CircularProgress size={20} /> : 'Create Booking'}
+            {creating ? 'Creating...' : 'Create Booking'}
           </Button>
         </DialogActions>
       </Dialog>

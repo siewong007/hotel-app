@@ -1,0 +1,47 @@
+# ============================================================================
+# Translation Service Dependencies
+# ============================================================================
+
+# Core Framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.4
+pydantic-settings==2.6.1
+
+# Machine Learning / NLP
+transformers==4.47.1
+torch==2.5.1
+adapters==0.2.2
+sentencepiece==0.2.0
+sacremoses==0.1.1
+
+# Performance Optimization
+accelerate==1.2.1
+optimum==1.23.3
+
+# Database Clients
+cassandra-driver==3.29.2
+redis==5.2.1
+scylla-driver==3.29.7
+
+# HTTP Client
+httpx==0.28.1
+aiohttp==3.11.11
+
+# Utilities
+python-dotenv==1.0.1
+python-multipart==0.0.20
+pyyaml==6.0.2
+
+# Monitoring & Logging
+prometheus-client==0.21.0
+python-json-logger==3.2.1
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.25.0
+pytest-cov==6.0.0
+pytest-httpx==0.30.0
+
+# Type Hints
+types-redis==4.6.0.20241202

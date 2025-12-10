@@ -25,8 +25,8 @@ yarn-error.log*
 
 # Build outputs
 hotel-web-fe/build/
-hotel-management-be/target/
-hotel-management-be/Cargo.lock
+hotel-app-be/target/
+hotel-app-be/Cargo.lock
 
 # Node modules (already in .dockerignore)
 node_modules/

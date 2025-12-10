@@ -65,13 +65,19 @@ const GuestsPage: React.FC = () => {
 
     try {
       setCreating(true);
+      // Split name into first and last name
+      const nameParts = newGuestName.trim().split(' ');
+      const first_name = nameParts[0] || '';
+      const last_name = nameParts.slice(1).join(' ') || '';
+
       const newGuest = await HotelAPIService.createGuest({
-        name: newGuestName,
+        first_name,
+        last_name,
         email: newGuestEmail
       });
 
       setGuests(prev => [...prev, newGuest]);
-      setSnackbarMessage(`Guest "${newGuest.name}" created successfully!`);
+      setSnackbarMessage(`Guest "${newGuest.full_name}" created successfully!`);
       setSnackbarOpen(true);
 
       // Reset form and close dialog
@@ -157,7 +163,7 @@ const GuestsPage: React.FC = () => {
             {guests.map((guest) => (
               <TableRow key={guest.id} hover>
                 <TableCell>{guest.id}</TableCell>
-                <TableCell>{guest.name}</TableCell>
+                <TableCell>{guest.full_name}</TableCell>
                 <TableCell>{guest.email}</TableCell>
                 <TableCell>
                   {new Date().toLocaleDateString()} {/* In a real app, you'd store registration date */}

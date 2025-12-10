@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import axios from 'axios';
+import ky from 'ky';
 import { HotelAPIService } from '../api';
+import { storage } from '../utils/storage';
 
 export interface User {
   id: string;
@@ -18,15 +19,18 @@ export interface AuthState {
   refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  shouldPromptPasskey: boolean;
 }
 
 interface AuthContextType extends AuthState {
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
   registerPasskey: (username: string) => Promise<void>;
-  loginWithPasskey: (username: string) => Promise<void>;
+  loginWithPasskey: (username: string) => Promise<boolean>;
+  dismissPasskeyPrompt: () => void;
+  checkPasskeys: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,42 +56,90 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     refreshToken: null,
     isAuthenticated: false,
     isLoading: true,
+    shouldPromptPasskey: false,
   });
 
   useEffect(() => {
-    // Check for stored auth on mount
-    const storedToken = localStorage.getItem('accessToken');
-    const storedUser = localStorage.getItem('user');
-    const storedRoles = localStorage.getItem('roles');
-    const storedPermissions = localStorage.getItem('permissions');
+    // Batch read all stored auth data
+    const { accessToken, user, roles, permissions, refreshToken } = storage.getItems([
+      'accessToken',
+      'user',
+      'roles',
+      'permissions',
+      'refreshToken',
+    ]);
 
-    if (storedToken && storedUser) {
+    if (accessToken && user) {
       setAuthState({
-        user: JSON.parse(storedUser),
-        roles: storedRoles ? JSON.parse(storedRoles) : [],
-        permissions: storedPermissions ? JSON.parse(storedPermissions) : [],
-        accessToken: storedToken,
-        refreshToken: localStorage.getItem('refreshToken'),
+        user,
+        roles: roles || [],
+        permissions: permissions || [],
+        accessToken,
+        refreshToken,
         isAuthenticated: true,
         isLoading: false,
+        shouldPromptPasskey: false,
       });
-
-      // Set axios default header
-      axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
     } else {
       setAuthState(prev => ({ ...prev, isLoading: false }));
     }
   }, []);
 
-  const login = async (username: string, password: string) => {
-    try {
-      const response = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:3030'}/auth/login`, {
-        username,
-        password,
+  // Listen for unauthorized events from API interceptor
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      // Clear auth state
+      setAuthState({
+        user: null,
+        roles: [],
+        permissions: [],
+        accessToken: null,
+        refreshToken: null,
+        isAuthenticated: false,
+        isLoading: false,
+        shouldPromptPasskey: false,
       });
 
-      const { access_token, refresh_token, user, roles, permissions } = response.data;
+      // Use window.location since we're outside Router context
+      // This will cause a full page reload, which is acceptable for auth errors
+      window.location.href = '/login';
+    };
 
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, []);
+
+  const checkPasskeys = async (): Promise<boolean> => {
+    try {
+      const passkeys = await HotelAPIService.listPasskeys();
+      return passkeys.length > 0;
+    } catch (error) {
+      console.error('Failed to check passkeys:', error);
+      return false;
+    }
+  };
+
+  const login = async (username: string, password: string): Promise<boolean> => {
+    try {
+      const data = await ky.post(`${process.env.REACT_APP_API_URL || 'http://localhost:3030'}/auth/login`, {
+        json: { username, password },
+      }).json<{ access_token: string; refresh_token: string; user: User; roles: string[]; permissions: string[]; is_first_login: boolean }>();
+
+      const { access_token, refresh_token, user, roles, permissions, is_first_login } = data;
+
+      // IMPORTANT: Store auth data BEFORE calling checkPasskeys so the API client can use the token
+      storage.setItems({
+        accessToken: access_token,
+        refreshToken: refresh_token,
+        user,
+        roles,
+        permissions,
+      });
+
+      // Invalidate cache to ensure immediate availability
+      storage.invalidateCache();
+
+      // Set authenticated state immediately after successful login
       setAuthState({
         user,
         roles,
@@ -96,19 +148,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         refreshToken: refresh_token,
         isAuthenticated: true,
         isLoading: false,
+        shouldPromptPasskey: false, // Will update below if needed
       });
 
-      // Store in localStorage
-      localStorage.setItem('accessToken', access_token);
-      localStorage.setItem('refreshToken', refresh_token);
-      localStorage.setItem('user', JSON.stringify(user));
-      localStorage.setItem('roles', JSON.stringify(roles));
-      localStorage.setItem('permissions', JSON.stringify(permissions));
+      // Check if user has any passkeys (non-blocking, won't affect login success)
+      // This is a best-effort check - if it fails, we just won't show the passkey prompt
+      try {
+        const hasPasskeys = await checkPasskeys();
+        if (!hasPasskeys) {
+          setAuthState(prev => ({ ...prev, shouldPromptPasskey: true }));
+        }
+      } catch (error) {
+        console.warn('Failed to check passkeys, skipping passkey prompt:', error);
+        // Don't fail login if passkey check fails
+      }
 
-      // Set axios default header
-      axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+      return is_first_login;
     } catch (error: any) {
-      throw new Error(error.response?.data?.error || 'Login failed');
+      const errorMessage = error.response ? await error.response.json().then((data: any) => data.error) : 'Login failed';
+      throw new Error(errorMessage || 'Login failed');
     }
   };
 
@@ -121,15 +179,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
+      shouldPromptPasskey: false,
     });
 
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    localStorage.removeItem('roles');
-    localStorage.removeItem('permissions');
+    // Clear only auth-related data, preserve language preferences
+    storage.removeItem('accessToken');
+    storage.removeItem('refreshToken');
+    storage.removeItem('user');
+    storage.removeItem('roles');
+    storage.removeItem('permissions');
+  };
 
-    delete axios.defaults.headers.common['Authorization'];
+  const dismissPasskeyPrompt = () => {
+    setAuthState(prev => ({
+      ...prev,
+      shouldPromptPasskey: false,
+    }));
   };
 
   const hasPermission = (permission: string): boolean => {
@@ -143,13 +208,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const registerPasskey = async (username: string) => {
     try {
       // Start passkey registration
-      const startResponse = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:3030'}/auth/passkey/register/start`, {
-        username,
-      });
+      const startResponse = await ky.post(`${process.env.REACT_APP_API_URL || 'http://localhost:3030'}/auth/passkey/register/start`, {
+        json: { username },
+      }).json<{ challenge: string; rp: any; user: any }>();
 
-      const { challenge, rp, user } = startResponse.data;
+      const { challenge, rp, user } = startResponse;
 
-      // Use WebAuthn API
+      // Use WebAuthn API with fingerprint/biometric support
       const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
         challenge: Uint8Array.from(atob(challenge), (c: string) => c.charCodeAt(0)),
         rp: {
@@ -161,10 +226,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           name: user.name,
           displayName: user.displayName,
         },
-        pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
+        pubKeyCredParams: [
+          { alg: -7, type: 'public-key' },  // ES256
+          { alg: -257, type: 'public-key' } // RS256
+        ],
         authenticatorSelection: {
-          authenticatorAttachment: 'cross-platform',
-          userVerification: 'preferred',
+          // Support both platform (built-in fingerprint/Face ID) and cross-platform (security keys)
+          authenticatorAttachment: 'platform',
+          // Require user verification (fingerprint, Face ID, PIN, etc.)
+          userVerification: 'required',
+          // Prefer creating a resident key for passwordless login
+          residentKey: 'preferred',
+          requireResidentKey: false,
         },
         timeout: 60000,
         attestation: 'direct',
@@ -190,27 +263,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       };
 
       // Finish passkey registration
-      await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:3030'}/auth/passkey/register/finish`, {
-        username,
-        credential: JSON.stringify(credentialJson),
-        challenge,
+      await ky.post(`${process.env.REACT_APP_API_URL || 'http://localhost:3030'}/auth/passkey/register/finish`, {
+        json: {
+          username,
+          credential: JSON.stringify(credentialJson),
+          challenge,
+        },
       });
 
       // After successful registration, login the user
       // Note: In a real implementation, you'd need to handle this differently
     } catch (error: any) {
-      throw new Error(error.response?.data?.error || 'Passkey registration failed');
+      const errorMessage = error.response ? await error.response.json().then((data: any) => data.error) : 'Passkey registration failed';
+      throw new Error(errorMessage || 'Passkey registration failed');
     }
   };
 
-  const loginWithPasskey = async (username: string) => {
+  const loginWithPasskey = async (username: string): Promise<boolean> => {
     try {
       // Start passkey authentication
-      const startResponse = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:3030'}/auth/passkey/login/start`, {
-        username,
-      });
+      const startResponse = await ky.post(`${process.env.REACT_APP_API_URL || 'http://localhost:3030'}/auth/passkey/login/start`, {
+        json: { username },
+      }).json<{ challenge: string; allowCredentials: any[] }>();
 
-      const { challenge, allowCredentials } = startResponse.data;
+      const { challenge, allowCredentials } = startResponse;
 
       const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
         challenge: Uint8Array.from(atob(challenge), (c: string) => c.charCodeAt(0)),
@@ -219,7 +295,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           type: 'public-key',
         })),
         timeout: 60000,
-        userVerification: 'preferred',
+        // Require user verification (fingerprint, Face ID, PIN, etc.)
+        userVerification: 'required',
       };
 
       const assertion = await navigator.credentials.get({
@@ -244,17 +321,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       };
 
       // Finish passkey authentication
-      const finishResponse = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:3030'}/auth/passkey/login/finish`, {
-        username,
-        credential_id: assertion.id,
-        authenticator_data: btoa(String.fromCharCode(...assertionJson.response.authenticatorData)),
-        client_data_json: btoa(String.fromCharCode(...assertionJson.response.clientDataJSON)),
-        signature: btoa(String.fromCharCode(...assertionJson.response.signature)),
-        challenge,
+      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:3030';
+      const finishResponse = await ky.post(`${apiUrl}/auth/passkey/login/finish`, {
+        json: {
+          username,
+          credential_id: assertion.id,
+          authenticator_data: btoa(String.fromCharCode(...assertionJson.response.authenticatorData)),
+          client_data_json: btoa(String.fromCharCode(...assertionJson.response.clientDataJSON)),
+          signature: btoa(String.fromCharCode(...assertionJson.response.signature)),
+          challenge,
+        },
+      }).json<{ access_token: string; refresh_token: string; user: User; roles: string[]; permissions: string[]; is_first_login: boolean }>();
+
+      const { access_token, refresh_token, user, roles, permissions, is_first_login } = finishResponse;
+
+      // Store auth data first
+      storage.setItems({
+        accessToken: access_token,
+        refreshToken: refresh_token,
+        user,
+        roles,
+        permissions,
       });
 
-      const { access_token, refresh_token, user, roles, permissions } = finishResponse.data;
+      // Invalidate cache to ensure immediate availability
+      storage.invalidateCache();
 
+      // Set authenticated state
       setAuthState({
         user,
         roles,
@@ -263,17 +356,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         refreshToken: refresh_token,
         isAuthenticated: true,
         isLoading: false,
+        shouldPromptPasskey: false,
       });
 
-      localStorage.setItem('accessToken', access_token);
-      localStorage.setItem('refreshToken', refresh_token);
-      localStorage.setItem('user', JSON.stringify(user));
-      localStorage.setItem('roles', JSON.stringify(roles));
-      localStorage.setItem('permissions', JSON.stringify(permissions));
-
-      axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+      return is_first_login;
     } catch (error: any) {
-      throw new Error(error.response?.data?.error || 'Passkey authentication failed');
+      const errorMessage = error.response ? await error.response.json().then((data: any) => data.error) : 'Passkey authentication failed';
+      throw new Error(errorMessage || 'Passkey authentication failed');
     }
   };
 
@@ -287,6 +376,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         hasRole,
         registerPasskey,
         loginWithPasskey,
+        dismissPasskeyPrompt,
+        checkPasskeys,
       }}
     >
       {children}

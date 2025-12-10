@@ -11,30 +11,30 @@ class AuthManager {
     
     private init() {}
     
-    // MARK: - Token Management
+    // MARK: - Token Management (Secure Keychain Storage)
     
     var accessToken: String? {
         get {
-            return UserDefaults.standard.string(forKey: accessTokenKey)
+            return try? KeychainHelper.loadString(key: accessTokenKey)
         }
         set {
             if let token = newValue {
-                UserDefaults.standard.set(token, forKey: accessTokenKey)
+                try? KeychainHelper.save(key: accessTokenKey, string: token)
             } else {
-                UserDefaults.standard.removeObject(forKey: accessTokenKey)
+                try? KeychainHelper.delete(key: accessTokenKey)
             }
         }
     }
     
     var refreshToken: String? {
         get {
-            return UserDefaults.standard.string(forKey: refreshTokenKey)
+            return try? KeychainHelper.loadString(key: refreshTokenKey)
         }
         set {
             if let token = newValue {
-                UserDefaults.standard.set(token, forKey: refreshTokenKey)
+                try? KeychainHelper.save(key: refreshTokenKey, string: token)
             } else {
-                UserDefaults.standard.removeObject(forKey: refreshTokenKey)
+                try? KeychainHelper.delete(key: refreshTokenKey)
             }
         }
     }

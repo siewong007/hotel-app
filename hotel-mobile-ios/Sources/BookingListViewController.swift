@@ -4,6 +4,7 @@ class BookingListViewController: UIViewController {
 
     private let tableView = UITableView()
     private var bookings: [BookingWithDetails] = []
+    private let refreshControl = UIRefreshControl()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -11,13 +12,30 @@ class BookingListViewController: UIViewController {
         setupUI()
         loadBookings()
     }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        loadBookings()
+    }
 
     private func setupUI() {
         view.backgroundColor = .systemBackground
+        
+        // Filter button
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            title: "Filter",
+            style: .plain,
+            target: self,
+            action: #selector(filterTapped)
+        )
 
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.register(BookingCell.self, forCellReuseIdentifier: "BookingCell")
         tableView.dataSource = self
+        tableView.delegate = self
+        tableView.refreshControl = refreshControl
+        
+        refreshControl.addTarget(self, action: #selector(refreshBookings), for: .valueChanged)
 
         view.addSubview(tableView)
 
@@ -28,6 +46,43 @@ class BookingListViewController: UIViewController {
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
     }
+    
+    @objc private func refreshBookings() {
+        loadBookings()
+    }
+    
+    @objc private func filterTapped() {
+        let alert = UIAlertController(title: "Filter Bookings", message: "Select status", preferredStyle: .actionSheet)
+        
+        alert.addAction(UIAlertAction(title: "All", style: .default) { [weak self] _ in
+            self?.loadBookings()
+        })
+        alert.addAction(UIAlertAction(title: "Confirmed", style: .default) { [weak self] _ in
+            self?.filterByStatus("confirmed")
+        })
+        alert.addAction(UIAlertAction(title: "Cancelled", style: .default) { [weak self] _ in
+            self?.filterByStatus("cancelled")
+        })
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        
+        present(alert, animated: true)
+    }
+    
+    private func filterByStatus(_ status: String) {
+        Task {
+            do {
+                let allBookings = try await HotelAPIService.shared.getAllBookings()
+                self.bookings = allBookings.filter { $0.status == status }
+                await MainActor.run {
+                    tableView.reloadData()
+                }
+            } catch {
+                await MainActor.run {
+                    showError("Failed to filter bookings: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
 
     private func loadBookings() {
         Task {
@@ -35,10 +90,42 @@ class BookingListViewController: UIViewController {
                 self.bookings = try await HotelAPIService.shared.getAllBookings()
                 await MainActor.run {
                     tableView.reloadData()
+                    refreshControl.endRefreshing()
                 }
             } catch {
                 await MainActor.run {
+                    refreshControl.endRefreshing()
                     showError("Failed to load bookings: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+    
+    private func cancelBooking(id: String) {
+        Task {
+            do {
+                _ = try await HotelAPIService.shared.cancelBooking(id: id)
+                await MainActor.run {
+                    loadBookings()
+                }
+            } catch {
+                await MainActor.run {
+                    showError("Failed to cancel booking: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+    
+    private func deleteBooking(id: String) {
+        Task {
+            do {
+                try await HotelAPIService.shared.deleteBooking(id: id)
+                await MainActor.run {
+                    loadBookings()
+                }
+            } catch {
+                await MainActor.run {
+                    showError("Failed to delete booking: \(error.localizedDescription)")
                 }
             }
         }
@@ -64,10 +151,94 @@ extension BookingListViewController: UITableViewDataSource {
     }
 }
 
+extension BookingListViewController: UITableViewDelegate {
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+        let booking = bookings[indexPath.row]
+        showBookingDetails(booking)
+    }
+    
+    func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+        let booking = bookings[indexPath.row]
+        
+        var actions: [UIContextualAction] = []
+        
+        // Cancel action (only for confirmed bookings)
+        if booking.status == "confirmed" {
+            let cancelAction = UIContextualAction(style: .normal, title: "Cancel") { [weak self] _, _, completion in
+                let alert = UIAlertController(
+                    title: "Cancel Booking",
+                    message: "Are you sure you want to cancel this booking?",
+                    preferredStyle: .alert
+                )
+                
+                alert.addAction(UIAlertAction(title: "Cancel Booking", style: .destructive) { _ in
+                    self?.cancelBooking(id: booking.id)
+                    completion(true)
+                })
+                alert.addAction(UIAlertAction(title: "Keep", style: .cancel) { _ in
+                    completion(false)
+                })
+                
+                self?.present(alert, animated: true)
+            }
+            cancelAction.backgroundColor = .systemOrange
+            actions.append(cancelAction)
+        }
+        
+        // Delete action
+        let deleteAction = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, completion in
+            let alert = UIAlertController(
+                title: "Delete Booking",
+                message: "Are you sure you want to permanently delete this booking?",
+                preferredStyle: .alert
+            )
+            
+            alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { _ in
+                self?.deleteBooking(id: booking.id)
+                completion(true)
+            })
+            alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
+                completion(false)
+            })
+            
+            self?.present(alert, animated: true)
+        }
+        actions.append(deleteAction)
+        
+        return UISwipeActionsConfiguration(actions: actions)
+    }
+    
+    private func showBookingDetails(_ booking: BookingWithDetails) {
+        let details = """
+        Room: \(booking.room_number) (\(booking.room_type))
+        Guest: \(booking.guest_name)
+        Email: \(booking.guest_email)
+        Check-in: \(booking.checkInDate)
+        Check-out: \(booking.checkOutDate)
+        Total: $\(booking.total_price)
+        Status: \(booking.status.capitalized)
+        """
+        
+        let alert = UIAlertController(title: "Booking Details", message: details, preferredStyle: .alert)
+        
+        if booking.status == "confirmed" {
+            alert.addAction(UIAlertAction(title: "Cancel Booking", style: .destructive) { [weak self] _ in
+                self?.cancelBooking(id: booking.id)
+            })
+        }
+        
+        alert.addAction(UIAlertAction(title: "Close", style: .cancel))
+        present(alert, animated: true)
+    }
+}
+
 class BookingCell: UITableViewCell {
     private let roomLabel = UILabel()
     private let datesLabel = UILabel()
     private let guestLabel = UILabel()
+    private let statusLabel = UILabel()
+    private let priceLabel = UILabel()
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -79,7 +250,11 @@ class BookingCell: UITableViewCell {
     }
 
     private func setupUI() {
-        let stack = UIStackView(arrangedSubviews: [roomLabel, guestLabel, datesLabel])
+        let topStack = UIStackView(arrangedSubviews: [roomLabel, priceLabel])
+        topStack.axis = .horizontal
+        topStack.distribution = .equalSpacing
+        
+        let stack = UIStackView(arrangedSubviews: [topStack, guestLabel, datesLabel, statusLabel])
         stack.axis = .vertical
         stack.spacing = 4
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -95,13 +270,31 @@ class BookingCell: UITableViewCell {
     }
 
     func configure(with booking: BookingWithDetails) {
-        roomLabel.text = "Room \(booking.room_number) - \(booking.room_type)"
+        roomLabel.text = "Room \(booking.room_number)"
         roomLabel.font = .systemFont(ofSize: 18, weight: .semibold)
+        
+        priceLabel.text = "$\(booking.total_price)"
+        priceLabel.font = .systemFont(ofSize: 16, weight: .medium)
+        priceLabel.textColor = .systemGreen
 
-        guestLabel.text = "\(booking.guest_name) (\(booking.guest_email))"
+        guestLabel.text = "\(booking.guest_name)"
         guestLabel.font = .systemFont(ofSize: 14)
+        guestLabel.textColor = .secondaryLabel
 
-        datesLabel.text = "\(booking.checkInDate) to \(booking.checkOutDate)"
+        datesLabel.text = "\(booking.checkInDate) → \(booking.checkOutDate)"
         datesLabel.font = .systemFont(ofSize: 14)
+        
+        statusLabel.text = "Status: \(booking.status.capitalized)"
+        statusLabel.font = .systemFont(ofSize: 13)
+        
+        // Color code status
+        switch booking.status.lowercased() {
+        case "confirmed":
+            statusLabel.textColor = .systemGreen
+        case "cancelled":
+            statusLabel.textColor = .systemRed
+        default:
+            statusLabel.textColor = .systemOrange
+        }
     }
 }

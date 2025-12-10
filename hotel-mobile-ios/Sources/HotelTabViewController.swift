@@ -17,12 +17,18 @@ class HotelTabViewController: UITabBarController {
         let bookingListVC = BookingListViewController()
         bookingListVC.tabBarItem = UITabBarItem(title: "Bookings", image: UIImage(systemName: "calendar"), tag: 2)
 
+        let loyaltyVC = UINavigationController(rootViewController: LoyaltyStatisticsViewController())
+        loyaltyVC.tabBarItem = UITabBarItem(title: "Loyalty", image: UIImage(systemName: "star.circle"), tag: 3)
+
+        let profileVC = UINavigationController(rootViewController: UserProfileViewController())
+        profileVC.tabBarItem = UITabBarItem(title: "Profile", image: UIImage(systemName: "person.circle"), tag: 4)
+
         let reportsVC = PersonalizedReportsViewController()
-        reportsVC.tabBarItem = UITabBarItem(title: "Reports", image: UIImage(systemName: "chart.bar"), tag: 3)
+        reportsVC.tabBarItem = UITabBarItem(title: "Reports", image: UIImage(systemName: "chart.bar"), tag: 5)
 
         let settingsVC = SettingsViewController()
-        settingsVC.tabBarItem = UITabBarItem(title: "Settings", image: UIImage(systemName: "gear"), tag: 4)
+        settingsVC.tabBarItem = UITabBarItem(title: "Settings", image: UIImage(systemName: "gear"), tag: 6)
 
-        viewControllers = [roomSearchVC, guestListVC, bookingListVC, reportsVC, settingsVC]
+        viewControllers = [roomSearchVC, guestListVC, bookingListVC, loyaltyVC, profileVC, reportsVC, settingsVC]
     }
 }

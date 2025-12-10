@@ -16,7 +16,15 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "HotelMobileIOS",
-            dependencies: []
+            dependencies: [],
+            path: "Sources",
+            resources: [],
+            linkerSettings: [
+                .linkedFramework("UIKit"),
+                .linkedFramework("Foundation"),
+                .linkedFramework("Security"),
+                .linkedFramework("Network")
+            ]
         )
     ]
 )

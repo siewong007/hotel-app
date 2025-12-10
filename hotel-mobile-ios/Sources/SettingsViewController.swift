@@ -111,6 +111,15 @@ class SettingsViewController: UIViewController {
         infoLabel.numberOfLines = 0
         infoLabel.textAlignment = .center
         stack.addArrangedSubview(infoLabel)
+        
+        // Device Info Button (for testing)
+        let deviceInfoButton = UIButton(type: .system)
+        deviceInfoButton.setTitle("Show Device Info", for: .normal)
+        deviceInfoButton.backgroundColor = .systemPurple
+        deviceInfoButton.setTitleColor(.white, for: .normal)
+        deviceInfoButton.layer.cornerRadius = 8
+        deviceInfoButton.addTarget(self, action: #selector(showDeviceInfoTapped), for: .touchUpInside)
+        stack.addArrangedSubview(deviceInfoButton)
 
         contentView.addSubview(stack)
 
@@ -134,8 +143,13 @@ class SettingsViewController: UIViewController {
             logoutButton.heightAnchor.constraint(equalToConstant: 44),
             serverURLTextField.heightAnchor.constraint(equalToConstant: 44),
             saveButton.heightAnchor.constraint(equalToConstant: 44),
-            testConnectionButton.heightAnchor.constraint(equalToConstant: 44)
+            testConnectionButton.heightAnchor.constraint(equalToConstant: 44),
+            deviceInfoButton.heightAnchor.constraint(equalToConstant: 44)
         ])
+    }
+    
+    @objc private func showDeviceInfoTapped() {
+        showDeviceInfo()
     }
     
     @objc private func updateUserInfo() {

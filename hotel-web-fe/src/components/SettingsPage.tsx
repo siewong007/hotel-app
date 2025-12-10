@@ -8,41 +8,49 @@ import {
   Button,
   Alert,
   Chip,
-  Grid,
-  Divider,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Paper
+  Grid
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
   Error as ErrorIcon,
   Settings as SettingsIcon,
   Http as HttpIcon,
-  Security as SecurityIcon,
   HealthAndSafety as HealthIcon,
   Web as WebIcon,
-  VpnKey as VpnKeyIcon,
-  Group as GroupIcon,
-  Person as PersonIcon
+  Language as LanguageIcon
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 import { HotelAPIService } from '../api';
 import { useAuth } from '../auth/AuthContext';
+import { LanguageSwitcher } from './i18n/LanguageSwitcher';
+import { languageStorage } from '../utils/languageStorage';
+import { getLanguageByCode } from '../i18n/config';
 
 const SettingsPage: React.FC = () => {
   const { hasRole } = useAuth();
+  const { i18n } = useTranslation();
   const [apiUrl, setApiUrl] = useState('http://localhost:3030');
   const [connectionStatus, setConnectionStatus] = useState<'untested' | 'success' | 'error'>('untested');
   const [testing, setTesting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [healthStatus, setHealthStatus] = useState<{ status: string } | null>(null);
   const [wsStatus, setWsStatus] = useState<{ status: string; message: string } | null>(null);
+  const [currentLanguage, setCurrentLanguage] = useState(i18n.language);
 
   useEffect(() => {
     loadStatus();
-  }, []);
+
+    // Update current language when it changes
+    const handleLanguageChange = (lng: string) => {
+      setCurrentLanguage(lng);
+    };
+
+    i18n.on('languageChanged', handleLanguageChange);
+
+    return () => {
+      i18n.off('languageChanged', handleLanguageChange);
+    };
+  }, [i18n]);
 
   const loadStatus = async () => {
     try {
@@ -107,11 +115,59 @@ const SettingsPage: React.FC = () => {
     }
   };
 
+  const currentLangInfo = getLanguageByCode(currentLanguage);
+
   return (
     <Box>
       <Typography variant="h4" component="h1" gutterBottom>
         System Settings
       </Typography>
+
+      {/* Language Settings */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Typography variant="h6" gutterBottom>
+            <LanguageIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+            Language Preferences
+          </Typography>
+
+          <Grid container spacing={3} alignItems="center">
+            <Grid item xs={12} md={8}>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Current Language
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="h6" sx={{ fontSize: '2rem' }}>
+                    {currentLangInfo?.flag}
+                  </Typography>
+                  <Box>
+                    <Typography variant="body1" fontWeight={600}>
+                      {currentLangInfo?.nativeName}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {currentLangInfo?.name}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                Select your preferred language for the application interface.
+                Your choice will be saved and applied automatically on your next visit.
+              </Typography>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                <LanguageSwitcher variant="button" showQualityBadge={true} />
+              </Box>
+            </Grid>
+          </Grid>
+
+          <Alert severity="info" sx={{ mt: 2 }}>
+            Language changes are applied immediately and saved to your browser's local storage.
+          </Alert>
+        </CardContent>
+      </Card>
 
       {/* API Configuration */}
       <Card sx={{ mb: 3 }}>
@@ -300,150 +356,6 @@ const SettingsPage: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
-
-      {/* API Endpoints Documentation */}
-      <Card>
-        <CardContent>
-          <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <HttpIcon color="primary" />
-            Available API Endpoints
-          </Typography>
-          <Divider sx={{ my: 2 }} />
-
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
-              <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-                <Typography variant="subtitle1" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <SettingsIcon /> Room Operations
-                </Typography>
-                <List dense>
-                  <ListItem>
-                    <ListItemIcon><HttpIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="GET /rooms" secondary="Get all rooms" />
-                  </ListItem>
-                  <ListItem>
-                    <ListItemIcon><HttpIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="GET /rooms/available" secondary="Search available rooms (query: room_type, max_price)" />
-                  </ListItem>
-                </List>
-              </Paper>
-
-              <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-                <Typography variant="subtitle1" color="secondary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <PersonIcon /> Guest Operations
-                </Typography>
-                <List dense>
-                  <ListItem>
-                    <ListItemIcon><HttpIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="GET /guests" secondary="Get all guests" />
-                  </ListItem>
-                  <ListItem>
-                    <ListItemIcon><HttpIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="POST /guests" secondary="Create new guest" />
-                  </ListItem>
-                </List>
-              </Paper>
-
-              <Paper variant="outlined" sx={{ p: 2 }}>
-                <Typography variant="subtitle1" color="success" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <SettingsIcon /> Booking Operations
-                </Typography>
-                <List dense>
-                  <ListItem>
-                    <ListItemIcon><HttpIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="GET /bookings" secondary="Get all bookings with details" />
-                  </ListItem>
-                  <ListItem>
-                    <ListItemIcon><HttpIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="POST /bookings" secondary="Create new booking" />
-                  </ListItem>
-                </List>
-              </Paper>
-            </Grid>
-
-            <Grid item xs={12} md={6}>
-              <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-                <Typography variant="subtitle1" color="info" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <HealthIcon /> System Endpoints
-                </Typography>
-                <List dense>
-                  <ListItem>
-                    <ListItemIcon><HealthIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="GET /health" secondary="Health check endpoint (public)" />
-                  </ListItem>
-                  <ListItem>
-                    <ListItemIcon><WebIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="GET /ws/status" secondary="WebSocket status (public)" />
-                  </ListItem>
-                  <ListItem>
-                    <ListItemIcon><HttpIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText primary="POST /auth/login" secondary="User authentication" />
-                  </ListItem>
-                </List>
-              </Paper>
-
-              {hasRole('admin') && (
-                <Paper variant="outlined" sx={{ p: 2, border: '2px solid', borderColor: 'primary.main' }}>
-                  <Typography variant="subtitle1" color="primary" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, fontWeight: 600 }}>
-                    <SecurityIcon /> RBAC Management (Admin Only)
-                  </Typography>
-                  <List dense>
-                    <ListItem>
-                      <ListItemIcon><GroupIcon fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="GET /rbac/roles" secondary="Get all roles" />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon><GroupIcon fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="POST /rbac/roles" secondary="Create new role" />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon><VpnKeyIcon fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="GET /rbac/permissions" secondary="Get all permissions" />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon><VpnKeyIcon fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="POST /rbac/permissions" secondary="Create new permission" />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="GET /rbac/users" secondary="Get all users" />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="GET /rbac/users/:id" secondary="Get user with roles & permissions" />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon><GroupIcon fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="POST /rbac/users/roles" secondary="Assign role to user" />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon><GroupIcon fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="DELETE /rbac/users/:id/roles/:id" secondary="Remove role from user" />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon><VpnKeyIcon fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="POST /rbac/roles/permissions" secondary="Assign permission to role" />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon><VpnKeyIcon fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="DELETE /rbac/roles/:id/permissions/:id" secondary="Remove permission from role" />
-                    </ListItem>
-                    <ListItem>
-                      <ListItemIcon><GroupIcon fontSize="small" /></ListItemIcon>
-                      <ListItemText primary="GET /rbac/roles/:id/permissions" secondary="Get role with permissions" />
-                    </ListItem>
-                  </List>
-                </Paper>
-              )}
-
-              <Typography variant="body2" sx={{ mt: 2, fontStyle: 'italic', color: 'text.secondary' }}>
-                All POST endpoints accept JSON data in the request body.
-                CORS is enabled for development. Authentication required for most endpoints.
-              </Typography>
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
     </Box>
   );
 };

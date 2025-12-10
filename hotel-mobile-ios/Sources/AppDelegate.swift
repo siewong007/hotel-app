@@ -6,6 +6,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // Start network monitoring
+        NetworkMonitor.shared.startMonitoring()
+        
         return true
     }
 
@@ -14,5 +17,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, didDiscardSceneSessions sceneSessions: Set<UISceneSession>) {
+    }
+    
+    func applicationWillTerminate(_ application: UIApplication) {
+        // Stop network monitoring
+        NetworkMonitor.shared.stopMonitoring()
     }
 }

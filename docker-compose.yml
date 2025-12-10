@@ -1,27 +1,32 @@
+# Enhanced Docker Compose Configuration for Hotel Management System
+# Features: Health checks, resource limits, logging, multi-environment support
+
 services:
-  # PostgreSQL Database
-  # All database setup (schema, seed data, migrations) runs automatically on first start
+  # PostgreSQL Database with optimizations
   postgres:
     image: postgres:15-alpine
     container_name: hotel-postgres
     environment:
-      POSTGRES_USER: hotel_admin
-      POSTGRES_PASSWORD: hotel_password_change_in_production
-      POSTGRES_DB: hotel_management
-      # PostgreSQL configuration for better performance
+      POSTGRES_USER: ${POSTGRES_USER:-hotel_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotel_password_change_in_production}
+      POSTGRES_DB: ${POSTGRES_DB:-hotel_management}
       POSTGRES_INITDB_ARGS: "-E UTF8 --locale=en_US.UTF-8"
+      # Performance tuning
+      POSTGRES_MAX_CONNECTIONS: ${POSTGRES_MAX_CONNECTIONS:-100}
+      POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS:-256MB}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       # Persistent data storage
       - postgres_data:/var/lib/postgresql/data
       # Database initialization scripts (executed in alphabetical order on first start only)
-      # These files are only executed if the data directory is empty
-      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
-      - ./database/03-migrations.sql:/docker-entrypoint-initdb.d/03-migrations.sql:ro
+      - ./database/init-database.sql:/docker-entrypoint-initdb.d/00-init-database.sql:ro
+      - ./database/schema:/docker-entrypoint-initdb.d/schema:ro
+      - ./database/seed-data:/docker-entrypoint-initdb.d/seed-data:ro
+      # Backup directory
+      - postgres_backups:/backups
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hotel_admin -d hotel_management"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hotel_admin} -d ${POSTGRES_DB:-hotel_management}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,47 +34,389 @@ services:
     networks:
       - hotel-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '${POSTGRES_CPU_LIMIT:-1.0}'
+          memory: ${POSTGRES_MEMORY_LIMIT:-512M}
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # Rust Backend API
+  # Redis Cache (for session storage, caching, and translation cache)
+  redis:
+    image: redis:7-alpine
+    container_name: hotel-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password_change_me}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - hotel-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # ScyllaDB - High-performance NoSQL database for multilingual content
+  scylladb:
+    image: scylladb/scylla:5.2
+    container_name: hotel-scylladb
+    command: --smp 2 --memory 2G --overprovisioned 1 --developer-mode 1
+    ports:
+      - "${SCYLLA_CQL_PORT:-9042}:9042"   # CQL port
+      - "${SCYLLA_REST_PORT:-10000}:10000" # REST API
+    volumes:
+      - scylla_data:/var/lib/scylla
+      - ./database/scylla-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "SELECT release_version FROM system.local"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - hotel-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '${SCYLLA_CPU_LIMIT:-2.0}'
+          memory: ${SCYLLA_MEMORY_LIMIT:-3G}
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # Translation Service - mBART + Adapter Fusion for multilingual support
+  # TEMPORARILY COMMENTED OUT - Docker build failing, will fix later
+  # translation-service:
+  #   build:
+  #     context: ./translation-service
+  #     dockerfile: Dockerfile
+  #   container_name: hotel-translation
+  #   environment:
+  #     # Model configuration
+  #     MODEL_CACHE_DIR: /app/models
+  #     ADAPTER_DIR: /app/adapters
+  #
+  #     # Database connections
+  #     SCYLLA_HOSTS: scylladb
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: 6379
+  #     REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password_change_me}
+  #
+  #     # Service configuration
+  #     LOG_LEVEL: ${TRANSLATION_LOG_LEVEL:-INFO}
+  #     WORKERS: ${TRANSLATION_WORKERS:-2}
+  #
+  #     # Performance
+  #     BATCH_SIZE: ${TRANSLATION_BATCH_SIZE:-10}
+  #     CACHE_TTL: ${TRANSLATION_CACHE_TTL:-2592000}
+  #   ports:
+  #     - "${TRANSLATION_PORT:-8001}:8000"
+  #   volumes:
+  #     - translation_models:/app/models
+  #     - translation_adapters:/app/adapters
+  #     - translation_logs:/app/logs
+  #   depends_on:
+  #     scylladb:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 120s  # Model loading takes time
+  #   networks:
+  #     - hotel-network
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '${TRANSLATION_CPU_LIMIT:-4.0}'
+  #         memory: ${TRANSLATION_MEMORY_LIMIT:-8G}
+  #       reservations:
+  #         cpus: '2.0'
+  #         memory: 4G
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "50m"
+  #       max-file: "5"
+
+  # Rust Backend API with health checks
   backend:
     build:
-      context: ./hotel-management-be
+      context: ./hotel-app-be
       dockerfile: Dockerfile
+      args:
+        - RUST_VERSION=${RUST_VERSION:-latest}
     container_name: hotel-backend
     environment:
-      # Database connection URL - using postgres service name (Docker internal DNS)
-      DATABASE_URL: postgresql://hotel_admin:hotel_password_change_in_production@postgres:5432/hotel_management?sslmode=disable
-      JWT_SECRET: your-super-secret-jwt-key-change-in-production-min-32-chars-long
-      RUST_LOG: info
-      PORT: 3030
+      # Database configuration
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hotel_admin}:${POSTGRES_PASSWORD:-hotel_password_change_in_production}@postgres:5432/${POSTGRES_DB:-hotel_management}?sslmode=disable
+      DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS:-10}
+
+      # Redis configuration (optional)
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password_change_me}@redis:6379
+
+      # Security
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production-min-32-chars-long}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-3600}
+      REFRESH_TOKEN_EXPIRATION: ${REFRESH_TOKEN_EXPIRATION:-604800}
+
+      # Server configuration
+      PORT: ${BACKEND_PORT:-3030}
+      HOST: ${BACKEND_HOST:-0.0.0.0}
+      RUST_LOG: ${RUST_LOG:-info}
+      RUST_BACKTRACE: ${RUST_BACKTRACE:-0}
+
+      # CORS settings
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:8080}
+
+      # Environment
+      ENVIRONMENT: ${ENVIRONMENT:-production}
     ports:
-      - "3030:3030"
+      - "${BACKEND_PORT:-3030}:3030"
+    volumes:
+      # Application logs
+      - backend_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3030/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - hotel-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '${BACKEND_CPU_LIMIT:-1.0}'
+          memory: ${BACKEND_MEMORY_LIMIT:-512M}
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+      replicas: ${BACKEND_REPLICAS:-1}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # React Frontend with Nginx
+  frontend:
+    build:
+      context: ./hotel-web-fe
+      dockerfile: Dockerfile
+      args:
+        - NODE_VERSION=${NODE_VERSION:-18}
+        - REACT_APP_API_URL=${REACT_APP_API_URL:-http://localhost:3030}
+        - REACT_APP_ENVIRONMENT=${ENVIRONMENT:-production}
+    container_name: hotel-frontend
+    environment:
+      REACT_APP_API_URL: ${REACT_APP_API_URL:-http://localhost:3030}
+      REACT_APP_WS_URL: ${REACT_APP_WS_URL:-ws://localhost:3030}
+      REACT_APP_ENVIRONMENT: ${ENVIRONMENT:-production}
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - hotel-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Nginx Reverse Proxy (Production)
+  nginx:
+    image: nginx:alpine
+    container_name: hotel-nginx
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - frontend
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - hotel-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    profiles:
+      - production
+
+  # Database backup service
+  postgres-backup:
+    image: postgres:15-alpine
+    container_name: hotel-postgres-backup
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hotel_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hotel_password_change_in_production}
+      POSTGRES_DB: ${POSTGRES_DB:-hotel_management}
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 2 * * *}
+    volumes:
+      - postgres_backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    command: sh -c "crond -f -l 2"
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - hotel-network
     restart: unless-stopped
+    profiles:
+      - production
 
-  # React Frontend
-  frontend:
-    build:
-      context: ./hotel-web-fe
-      dockerfile: Dockerfile
-    container_name: hotel-frontend
-    environment:
-      REACT_APP_API_URL: http://localhost:3030
+  # Monitoring - Prometheus (Optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: hotel-prometheus
     ports:
-      - "3000:3000"
-    depends_on:
-      - backend
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}'
     networks:
       - hotel-network
     restart: unless-stopped
+    profiles:
+      - monitoring
 
+  # Monitoring - Grafana (Optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: hotel-grafana
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: ${GRAFANA_PLUGINS:-}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - hotel-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+# Named volumes for persistent data
 volumes:
   postgres_data:
+    driver: local
+    name: hotel_postgres_data
+  postgres_backups:
+    driver: local
+    name: hotel_postgres_backups
+  redis_data:
+    driver: local
+    name: hotel_redis_data
+  scylla_data:
+    driver: local
+    name: hotel_scylla_data
+  translation_models:
+    driver: local
+    name: hotel_translation_models
+  translation_adapters:
+    driver: local
+    name: hotel_translation_adapters
+  translation_logs:
+    driver: local
+    name: hotel_translation_logs
+  backend_logs:
+    driver: local
+    name: hotel_backend_logs
+  nginx_logs:
+    driver: local
+    name: hotel_nginx_logs
+  prometheus_data:
+    driver: local
+    name: hotel_prometheus_data
+  grafana_data:
+    driver: local
+    name: hotel_grafana_data
 
+# Custom network with specific subnet
 networks:
   hotel-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: ${NETWORK_SUBNET:-172.28.0.0/16}
+    driver_opts:
+      com.docker.network.bridge.name: hotel-bridge

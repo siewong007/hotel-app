@@ -1,0 +1,24 @@
+{
+  "title": "酒店仪表板",
+  "subtitle": "欢迎回来！这是您酒店运营的概览。",
+  "stats": {
+    "totalRooms": "总房间数",
+    "availableRooms": "可用房间",
+    "totalGuests": "总客人数",
+    "totalBookings": "总预订数",
+    "totalRevenue": "总收入"
+  },
+  "messages": {
+    "roomsAvailable": "{{count}} 间房间可供预订",
+    "guestsRegistered": "系统中注册了 {{count}} 位客人",
+    "bookingsMade": "本期完成 {{count}} 个预订"
+  },
+  "recentActivity": "最近活动",
+  "systemStatus": "系统状态",
+  "backend": {
+    "title": "后端状态",
+    "connected": "已连接",
+    "active": "活跃",
+    "integrationReady": "集成就绪"
+  }
+}

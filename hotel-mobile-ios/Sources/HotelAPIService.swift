@@ -28,17 +28,35 @@ class HotelAPIService {
         return request
     }
     
-    private func performRequest<T: Decodable>(_ request: URLRequest) async throws -> T {
+    private func performRequest<T: Decodable>(_ request: URLRequest, retryCount: Int = 0) async throws -> T {
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError(error: "Invalid response")
         }
         
-        // Handle authentication errors
+        // Handle authentication errors with token refresh
         if httpResponse.statusCode == 401 {
-            authManager.logout()
-            throw APIError(error: "Authentication required. Please login again.")
+            // Try to refresh token if we haven't retried yet
+            if retryCount == 0, authManager.refreshToken != nil {
+                do {
+                    _ = try await refreshAccessToken()
+                    // Retry the original request with new token
+                    var newRequest = request
+                    if let token = authManager.accessToken {
+                        newRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                    }
+                    return try await performRequest(newRequest, retryCount: retryCount + 1)
+                } catch {
+                    // Refresh failed, logout
+                    authManager.logout()
+                    throw APIError(error: "Authentication expired. Please login again.")
+                }
+            } else {
+                // Already retried or no refresh token
+                authManager.logout()
+                throw APIError(error: "Authentication required. Please login again.")
+            }
         }
         
         guard (200...299).contains(httpResponse.statusCode) else {
@@ -68,10 +86,31 @@ class HotelAPIService {
         return authResponse
     }
     
+    func refreshAccessToken() async throws -> AuthResponse {
+        guard let refreshToken = authManager.refreshToken else {
+            throw APIError(error: "No refresh token available")
+        }
+        
+        let url = URL(string: "\(baseURL)/auth/refresh")!
+        var request = createRequest(url: url, method: "POST")
+        // Use refresh token for this request
+        request.setValue("Bearer \(refreshToken)", forHTTPHeaderField: "Authorization")
+        
+        let authResponse: AuthResponse = try await performRequest(request)
+        authManager.saveAuth(authResponse)
+        return authResponse
+    }
+    
     // MARK: - Room Operations
     
     func getAllRooms() async throws -> [Room] {
         let url = URL(string: "\(baseURL)/rooms")!
+        let request = createRequest(url: url)
+        return try await performRequest(request)
+    }
+    
+    func getRoom(id: String) async throws -> Room {
+        let url = URL(string: "\(baseURL)/rooms/\(id)")!
         let request = createRequest(url: url)
         return try await performRequest(request)
     }
@@ -96,10 +135,55 @@ class HotelAPIService {
         return try await performRequest(request)
     }
     
+    func createRoom(roomNumber: String, roomType: String, pricePerNight: Double, maxOccupancy: Int, description: String? = nil) async throws -> Room {
+        let url = URL(string: "\(baseURL)/rooms")!
+        let roomData: [String: Any] = [
+            "room_number": roomNumber,
+            "room_type": roomType,
+            "price_per_night": pricePerNight,
+            "max_occupancy": maxOccupancy,
+            "description": description as Any
+        ]
+        let body = try JSONSerialization.data(withJSONObject: roomData)
+        let request = createRequest(url: url, method: "POST", body: body)
+        
+        return try await performRequest(request)
+    }
+    
+    func updateRoom(id: String, roomNumber: String? = nil, roomType: String? = nil, pricePerNight: Double? = nil, available: Bool? = nil, maxOccupancy: Int? = nil, description: String? = nil) async throws -> Room {
+        let url = URL(string: "\(baseURL)/rooms/\(id)")!
+        var roomData: [String: Any] = [:]
+        
+        if let roomNumber = roomNumber { roomData["room_number"] = roomNumber }
+        if let roomType = roomType { roomData["room_type"] = roomType }
+        if let pricePerNight = pricePerNight { roomData["price_per_night"] = pricePerNight }
+        if let available = available { roomData["available"] = available }
+        if let maxOccupancy = maxOccupancy { roomData["max_occupancy"] = maxOccupancy }
+        if let description = description { roomData["description"] = description }
+        
+        let body = try JSONSerialization.data(withJSONObject: roomData)
+        let request = createRequest(url: url, method: "PUT", body: body)
+        
+        return try await performRequest(request)
+    }
+    
+    func deleteRoom(id: String) async throws {
+        let url = URL(string: "\(baseURL)/rooms/\(id)")!
+        let request = createRequest(url: url, method: "DELETE")
+        
+        let _: [String: String] = try await performRequest(request)
+    }
+    
     // MARK: - Guest Operations
     
     func getAllGuests() async throws -> [Guest] {
         let url = URL(string: "\(baseURL)/guests")!
+        let request = createRequest(url: url)
+        return try await performRequest(request)
+    }
+    
+    func getGuest(id: String) async throws -> Guest {
+        let url = URL(string: "\(baseURL)/guests/\(id)")!
         let request = createRequest(url: url)
         return try await performRequest(request)
     }
@@ -113,10 +197,38 @@ class HotelAPIService {
         return try await performRequest(request)
     }
     
+    func updateGuest(id: String, name: String? = nil, email: String? = nil, phone: String? = nil, address: String? = nil) async throws -> Guest {
+        let url = URL(string: "\(baseURL)/guests/\(id)")!
+        var guestData: [String: Any] = [:]
+        
+        if let name = name { guestData["name"] = name }
+        if let email = email { guestData["email"] = email }
+        if let phone = phone { guestData["phone"] = phone }
+        if let address = address { guestData["address"] = address }
+        
+        let body = try JSONSerialization.data(withJSONObject: guestData)
+        let request = createRequest(url: url, method: "PUT", body: body)
+        
+        return try await performRequest(request)
+    }
+    
+    func deleteGuest(id: String) async throws {
+        let url = URL(string: "\(baseURL)/guests/\(id)")!
+        let request = createRequest(url: url, method: "DELETE")
+        
+        let _: [String: String] = try await performRequest(request)
+    }
+    
     // MARK: - Booking Operations
     
     func getAllBookings() async throws -> [BookingWithDetails] {
         let url = URL(string: "\(baseURL)/bookings")!
+        let request = createRequest(url: url)
+        return try await performRequest(request)
+    }
+    
+    func getBooking(id: String) async throws -> BookingWithDetails {
+        let url = URL(string: "\(baseURL)/bookings/\(id)")!
         let request = createRequest(url: url)
         return try await performRequest(request)
     }
@@ -130,17 +242,150 @@ class HotelAPIService {
         return try await performRequest(request)
     }
     
-    // MARK: - Personalized Reports
+    func updateBooking(id: String, checkIn: String? = nil, checkOut: String? = nil, status: String? = nil) async throws -> Booking {
+        let url = URL(string: "\(baseURL)/bookings/\(id)")!
+        var bookingData: [String: Any] = [:]
+        
+        if let checkIn = checkIn { bookingData["check_in"] = checkIn }
+        if let checkOut = checkOut { bookingData["check_out"] = checkOut }
+        if let status = status { bookingData["status"] = status }
+        
+        let body = try JSONSerialization.data(withJSONObject: bookingData)
+        let request = createRequest(url: url, method: "PUT", body: body)
+        
+        return try await performRequest(request)
+    }
     
+    func cancelBooking(id: String) async throws -> Booking {
+        let url = URL(string: "\(baseURL)/bookings/\(id)/cancel")!
+        let request = createRequest(url: url, method: "POST")
+        
+        return try await performRequest(request)
+    }
+    
+    func deleteBooking(id: String) async throws {
+        let url = URL(string: "\(baseURL)/bookings/\(id)")!
+        let request = createRequest(url: url, method: "DELETE")
+        
+        let _: [String: String] = try await performRequest(request)
+    }
+    
+    // MARK: - Personalized Reports
+
     func getPersonalizedReport(period: String = "month") async throws -> PersonalizedReport {
         var components = URLComponents(string: "\(baseURL)/analytics/personalized")!
         components.queryItems = [URLQueryItem(name: "period", value: period)]
-        
+
         guard let url = components.url else {
             throw APIError(error: "Invalid URL")
         }
-        
+
         let request = createRequest(url: url)
         return try await performRequest(request)
+    }
+
+    // MARK: - Loyalty Program Operations
+
+    func getAllLoyaltyPrograms() async throws -> [LoyaltyProgram] {
+        let url = URL(string: "\(baseURL)/loyalty/programs")!
+        let request = createRequest(url: url)
+        return try await performRequest(request)
+    }
+
+    func getAllLoyaltyMemberships() async throws -> [LoyaltyMembershipWithDetails] {
+        let url = URL(string: "\(baseURL)/loyalty/memberships")!
+        let request = createRequest(url: url)
+        return try await performRequest(request)
+    }
+
+    func getLoyaltyMembershipsByGuest(guestId: String) async throws -> [LoyaltyMembership] {
+        let url = URL(string: "\(baseURL)/loyalty/guests/\(guestId)/memberships")!
+        let request = createRequest(url: url)
+        return try await performRequest(request)
+    }
+
+    func getPointsTransactions(membershipId: Int) async throws -> [PointsTransaction] {
+        let url = URL(string: "\(baseURL)/loyalty/memberships/\(membershipId)/transactions")!
+        let request = createRequest(url: url)
+        return try await performRequest(request)
+    }
+
+    func getLoyaltyStatistics() async throws -> LoyaltyStatistics {
+        let url = URL(string: "\(baseURL)/loyalty/statistics")!
+        let request = createRequest(url: url)
+        return try await performRequest(request)
+    }
+
+    func addPointsToMembership(membershipId: Int, points: Int, description: String? = nil) async throws -> PointsTransaction {
+        let url = URL(string: "\(baseURL)/loyalty/memberships/\(membershipId)/points/add")!
+        var pointsData: [String: Any] = ["points": points]
+        if let description = description {
+            pointsData["description"] = description
+        }
+        let body = try JSONSerialization.data(withJSONObject: pointsData)
+        let request = createRequest(url: url, method: "POST", body: body)
+
+        return try await performRequest(request)
+    }
+
+    func redeemPoints(membershipId: Int, points: Int, description: String? = nil) async throws -> PointsTransaction {
+        let url = URL(string: "\(baseURL)/loyalty/memberships/\(membershipId)/points/redeem")!
+        var pointsData: [String: Any] = ["points": points]
+        if let description = description {
+            pointsData["description"] = description
+        }
+        let body = try JSONSerialization.data(withJSONObject: pointsData)
+        let request = createRequest(url: url, method: "POST", body: body)
+
+        return try await performRequest(request)
+    }
+
+    // MARK: - User Profile Operations
+
+    func getUserProfile() async throws -> UserProfile {
+        let url = URL(string: "\(baseURL)/profile")!
+        let request = createRequest(url: url)
+        return try await performRequest(request)
+    }
+
+    func updateUserProfile(fullName: String? = nil, email: String? = nil, phone: String? = nil, address: String? = nil, city: String? = nil, country: String? = nil) async throws -> UserProfile {
+        let url = URL(string: "\(baseURL)/profile")!
+        var profileData: [String: Any] = [:]
+
+        if let fullName = fullName { profileData["full_name"] = fullName }
+        if let email = email { profileData["email"] = email }
+        if let phone = phone { profileData["phone"] = phone }
+        if let address = address { profileData["address"] = address }
+        if let city = city { profileData["city"] = city }
+        if let country = country { profileData["country"] = country }
+
+        let body = try JSONSerialization.data(withJSONObject: profileData)
+        let request = createRequest(url: url, method: "PATCH", body: body)
+
+        return try await performRequest(request)
+    }
+
+    func updatePassword(currentPassword: String, newPassword: String) async throws {
+        let url = URL(string: "\(baseURL)/profile/password")!
+        let passwordUpdate = PasswordUpdate(current_password: currentPassword, new_password: newPassword)
+        let body = try JSONEncoder().encode(passwordUpdate)
+        let request = createRequest(url: url, method: "POST", body: body)
+
+        let _: [String: String] = try await performRequest(request)
+    }
+
+    // MARK: - Passkey Management
+
+    func listPasskeys() async throws -> [PasskeyInfo] {
+        let url = URL(string: "\(baseURL)/profile/passkeys")!
+        let request = createRequest(url: url)
+        return try await performRequest(request)
+    }
+
+    func deletePasskey(passkeyId: Int) async throws {
+        let url = URL(string: "\(baseURL)/profile/passkeys/\(passkeyId)")!
+        let request = createRequest(url: url, method: "DELETE")
+
+        let _: [String: String] = try await performRequest(request)
     }
 }

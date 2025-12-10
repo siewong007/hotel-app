@@ -1,24 +1,53 @@
-import React from 'react';
+import React, { lazy, Suspense, useMemo, useState, useEffect } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Container, AppBar, Toolbar, Typography, Tabs, Tab, Box, Button } from '@mui/material';
 import HotelIcon from '@mui/icons-material/Hotel';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { AuthProvider, useAuth } from './auth/AuthContext';
+import { languageStorage } from './utils/languageStorage';
+import { getLanguageByCode } from './i18n/config';
 
-// Import components
-import Dashboard from './components/Dashboard';
-import RoomsPage from './components/RoomsPage';
-import GuestsPage from './components/GuestsPage';
-import BookingsPage from './components/BookingsPage';
-import AnalyticsDashboard from './components/AnalyticsDashboard';
-import PersonalizedReportsPage from './components/PersonalizedReportsPage';
-import SettingsPage from './components/SettingsPage';
-import RBACManagementPage from './components/RBACManagementPage';
-import LoginPage from './components/LoginPage';
+// Import only critical components (always needed)
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AnimatedRoute } from './components/AnimatedRoute';
+import HotelSpinner from './components/HotelSpinner';
+// import { LanguageSelectionWelcome } from './components/i18n/LanguageSelectionWelcome'; // DISABLED
+import { LanguageSwitcher } from './components/i18n/LanguageSwitcher';
+
+// Lazy load page components for code splitting
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const RoomsPage = lazy(() => import('./components/RoomsPage'));
+const GuestsPage = lazy(() => import('./components/GuestsPage'));
+const BookingsPage = lazy(() => import('./components/BookingsPage'));
+const MyBookingsPage = lazy(() => import('./components/MyBookingsPage'));
+const AnalyticsDashboard = lazy(() => import('./components/AnalyticsDashboard'));
+const ReportsPage = lazy(() => import('./components/ReportsPage'));
+const LoyaltyPortal = lazy(() => import('./components/LoyaltyPortal'));
+const LoyaltyDashboard = lazy(() => import('./components/LoyaltyDashboard'));
+const RewardsManagementPage = lazy(() => import('./components/RewardsManagementPage'));
+const UserProfilePage = lazy(() => import('./components/UserProfilePage'));
+const SettingsPage = lazy(() => import('./components/SettingsPage'));
+const RBACManagementPage = lazy(() => import('./components/RBACManagementPage'));
+const LoginPage = lazy(() => import('./components/LoginPage'));
+const APITestPage = lazy(() => import('./components/APITestPage'));
+const FirstLoginPasskeyPrompt = lazy(() => import('./components/FirstLoginPasskeyPrompt'));
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <Box
+    sx={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '60vh',
+    }}
+  >
+    <HotelSpinner size={120} />
+  </Box>
+);
 
 const theme = createTheme({
   palette: {
@@ -80,27 +109,7 @@ const theme = createTheme({
     '0px 4px 8px rgba(0,0,0,0.08)',
     '0px 8px 16px rgba(0,0,0,0.1)',
     '0px 12px 24px rgba(0,0,0,0.12)',
-    '0px 16px 32px rgba(0,0,0,0.14)',
-    '0px 20px 40px rgba(0,0,0,0.16)',
-    '0px 24px 48px rgba(0,0,0,0.18)',
-    '0px 28px 56px rgba(0,0,0,0.2)',
-    '0px 32px 64px rgba(0,0,0,0.22)',
-    '0px 36px 72px rgba(0,0,0,0.24)',
-    '0px 40px 80px rgba(0,0,0,0.26)',
-    '0px 44px 88px rgba(0,0,0,0.28)',
-    '0px 48px 96px rgba(0,0,0,0.3)',
-    '0px 52px 104px rgba(0,0,0,0.32)',
-    '0px 56px 112px rgba(0,0,0,0.34)',
-    '0px 60px 120px rgba(0,0,0,0.36)',
-    '0px 64px 128px rgba(0,0,0,0.38)',
-    '0px 68px 136px rgba(0,0,0,0.4)',
-    '0px 72px 144px rgba(0,0,0,0.42)',
-    '0px 76px 152px rgba(0,0,0,0.44)',
-    '0px 80px 160px rgba(0,0,0,0.46)',
-    '0px 84px 168px rgba(0,0,0,0.48)',
-    '0px 88px 176px rgba(0,0,0,0.5)',
-    '0px 92px 184px rgba(0,0,0,0.52)',
-  ],
+  ] as any,
   components: {
     MuiCard: {
       styleOverrides: {
@@ -135,31 +144,48 @@ const theme = createTheme({
   },
 });
 
-function NavigationTabs() {
+const NavigationTabs = React.memo(function NavigationTabs() {
   const location = useLocation();
   const { hasPermission, hasRole, logout, user } = useAuth();
-  const currentTab = location.pathname === '/rooms' ? 0 :
-                    location.pathname === '/guests' ? 1 :
-                    location.pathname === '/bookings' ? 2 :
-                    location.pathname === '/analytics' ? 3 :
-                    location.pathname === '/reports' ? 4 :
-                    location.pathname === '/rbac' ? 5 :
-                    location.pathname === '/settings' ? 6 : 0;
+  const { t } = useTranslation('common');
+
+  const pathToIndex: Record<string, number> = useMemo(() => ({
+    '/rooms': 0,
+    '/my-bookings': 1,
+    '/guests': 2,
+    '/bookings': 3,
+    '/analytics': 4,
+    '/reports': 5,
+    '/loyalty': 6,
+    '/my-rewards': 7,
+    '/rewards-admin': 8,
+    '/profile': 9,
+    '/rbac': 10,
+    '/api-test': 11,
+    '/settings': 12,
+  }), []);
+
+  const currentTab = pathToIndex[location.pathname] ?? 0;
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', width: '100%', gap: 2 }}>
-      <Tabs 
-        value={currentTab} 
-        textColor="inherit" 
-        sx={{ 
+      <Tabs
+        value={currentTab}
+        textColor="inherit"
+        sx={{
           flexGrow: 1,
           '& .MuiTab-root': {
             color: 'rgba(255, 255, 255, 0.7)',
             fontWeight: 500,
             minHeight: 48,
+            transition: 'all 0.2s ease-in-out',
             '&.Mui-selected': {
               color: 'white',
               fontWeight: 600,
+            },
+            '&:hover': {
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              transform: 'translateY(-1px)',
             },
           },
           '& .MuiTabs-indicator': {
@@ -168,25 +194,25 @@ function NavigationTabs() {
             borderRadius: '3px 3px 0 0',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           },
-          '& .MuiTab-root': {
-            transition: 'all 0.2s ease-in-out',
-            '&:hover': {
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              transform: 'translateY(-1px)',
-            },
-          },
         }}
       >
-        {hasPermission('rooms:read') && <Tab label="Rooms" component={Link} to="/rooms" />}
-        {hasPermission('guests:read') && <Tab label="Guests" component={Link} to="/guests" />}
-        {hasPermission('bookings:read') && <Tab label="Bookings" component={Link} to="/bookings" />}
-        {hasPermission('analytics:read') && <Tab label="Analytics" component={Link} to="/analytics" />}
-        {hasPermission('analytics:read') && <Tab label="My Reports" component={Link} to="/reports" />}
-        {hasRole('admin') && <Tab label="RBAC" component={Link} to="/rbac" />}
-        {hasPermission('settings:read') && <Tab label="Settings" component={Link} to="/settings" />}
+        {hasPermission('rooms:read') && <Tab label={t('rooms')} component={Link} to="/rooms" />}
+        <Tab label={t('myBookings')} component={Link} to="/my-bookings" />
+        {hasRole('admin') && <Tab label={t('guests')} component={Link} to="/guests" />}
+        {hasRole('admin') && <Tab label={t('bookings')} component={Link} to="/bookings" />}
+        {hasPermission('analytics:read') && <Tab label={t('analytics')} component={Link} to="/analytics" />}
+        {hasPermission('analytics:read') && <Tab label={t('myReports')} component={Link} to="/reports" />}
+        {hasPermission('analytics:read') && <Tab label={t('loyaltyPortal')} component={Link} to="/loyalty" />}
+        <Tab label={t('myRewards')} component={Link} to="/my-rewards" />
+        {hasRole('admin') && <Tab label="Rewards Admin" component={Link} to="/rewards-admin" />}
+        <Tab label={t('profile')} component={Link} to="/profile" />
+        {hasRole('admin') && <Tab label={t('roles')} component={Link} to="/rbac" />}
+        {hasRole('admin') && <Tab label={t('apiTest')} component={Link} to="/api-test" />}
+        {hasPermission('settings:read') && <Tab label={t('settings')} component={Link} to="/settings" />}
       </Tabs>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 2 }}>
-        <Box sx={{ 
+        <LanguageSwitcher variant="icon" />
+        <Box sx={{
           display: { xs: 'none', sm: 'flex' },
           alignItems: 'center',
           gap: 1,
@@ -213,29 +239,44 @@ function NavigationTabs() {
             },
           }}
         >
-          <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Logout</Box>
+          <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>{t('logout')}</Box>
         </Button>
       </Box>
     </Box>
   );
-}
+});
 
 function AppContent() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, shouldPromptPasskey, user, dismissPasskeyPrompt } = useAuth();
+  const { t, i18n } = useTranslation('common');
+
+  // TEMPORARILY DISABLED: Language selection to debug login issue
+  // Just load stored language or use default
+  useEffect(() => {
+    const hasStoredLanguage = languageStorage.getLanguagePreference();
+    if (hasStoredLanguage) {
+      i18n.changeLanguage(hasStoredLanguage.code).catch(() => {
+        // If loading fails, just use English
+        i18n.changeLanguage('en');
+      });
+    }
+  }, []); // Run only once on mount
 
   if (!isAuthenticated) {
     return (
-      <Routes>
-        <Route 
-          path="/login" 
-          element={
-            <AnimatedRoute animationType="fade">
-              <LoginPage />
-            </AnimatedRoute>
-          } 
-        />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <Suspense fallback={<LoadingFallback />}>
+        <Routes>
+          <Route
+            path="/login"
+            element={
+              <AnimatedRoute animationType="fade">
+                <LoginPage />
+              </AnimatedRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Suspense>
     );
   }
 
@@ -245,14 +286,24 @@ function AppContent() {
         <Toolbar sx={{ py: 1 }}>
           <HotelIcon sx={{ mr: 2, fontSize: 32, color: 'white' }} />
           <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 700, color: 'white' }}>
-            Hotel Management System
+            {t('appName')}
           </Typography>
           <NavigationTabs />
         </Toolbar>
       </AppBar>
 
+      {/* Passkey Registration Prompt */}
+      <Suspense fallback={null}>
+        <FirstLoginPasskeyPrompt
+          open={shouldPromptPasskey}
+          username={user?.username || ''}
+          onClose={dismissPasskeyPrompt}
+        />
+      </Suspense>
+
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4, px: { xs: 2, sm: 3 } }}>
-        <Routes>
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
           <Route 
             path="/" 
             element={
@@ -273,27 +324,35 @@ function AppContent() {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/guests" 
+          <Route
+            path="/guests"
             element={
-              <ProtectedRoute requiredPermission="guests:read">
+              <ProtectedRoute requiredRole="admin">
                 <AnimatedRoute animationType="slide">
                   <GuestsPage />
                 </AnimatedRoute>
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/bookings" 
+          <Route
+            path="/bookings"
             element={
-              <ProtectedRoute requiredPermission="bookings:read">
+              <ProtectedRoute requiredRole="admin">
                 <AnimatedRoute animationType="slide">
                   <BookingsPage />
                 </AnimatedRoute>
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
+          <Route
+            path="/my-bookings"
+            element={
+              <AnimatedRoute animationType="slide">
+                <MyBookingsPage />
+              </AnimatedRoute>
+            }
+          />
+          <Route
             path="/analytics" 
             element={
               <ProtectedRoute requiredPermission="analytics:read">
@@ -303,27 +362,77 @@ function AppContent() {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/reports" 
+          <Route
+            path="/reports"
             element={
               <ProtectedRoute requiredPermission="analytics:read">
                 <AnimatedRoute animationType="grow">
-                  <PersonalizedReportsPage />
+                  <ReportsPage />
                 </AnimatedRoute>
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/rbac" 
+          <Route
+            path="/loyalty"
+            element={
+              <ProtectedRoute requiredPermission="analytics:read">
+                <AnimatedRoute animationType="grow">
+                  <LoyaltyPortal />
+                </AnimatedRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/my-rewards"
+            element={
+              <ProtectedRoute>
+                <AnimatedRoute animationType="grow">
+                  <LoyaltyDashboard />
+                </AnimatedRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/rewards-admin"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AnimatedRoute animationType="grow">
+                  <RewardsManagementPage />
+                </AnimatedRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <AnimatedRoute animationType="fade">
+                  <UserProfilePage />
+                </AnimatedRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/rbac"
             element={
               <ProtectedRoute requiredRole="admin">
                 <AnimatedRoute animationType="fade">
                   <RBACManagementPage />
                 </AnimatedRoute>
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
+          <Route
+            path="/api-test"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AnimatedRoute animationType="fade">
+                  <APITestPage />
+                </AnimatedRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/settings" 
             element={
               <ProtectedRoute requiredPermission="settings:read">
@@ -334,7 +443,8 @@ function AppContent() {
             } 
           />
           <Route path="/login" element={<Navigate to="/" replace />} />
-        </Routes>
+          </Routes>
+        </Suspense>
       </Container>
     </Box>
   );
@@ -346,7 +456,9 @@ function App() {
       <CssBaseline />
       <AuthProvider>
         <Router>
-          <AppContent />
+          <Suspense fallback={<LoadingFallback />}>
+            <AppContent />
+          </Suspense>
         </Router>
       </AuthProvider>
     </ThemeProvider>

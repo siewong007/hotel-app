@@ -1,0 +1,61 @@
+{
+  "configurations" : [
+    {
+      "id" : "D8F8F8F8-F8F8-F8F8-F8F8-F8F8F8F8F8F8",
+      "name" : "iPhone SE Testing",
+      "options" : {
+        "targetForVariableExpansion" : {
+          "containerPath" : "container:HotelMobileIOS.xcodeproj",
+          "identifier" : "HotelMobileIOS",
+          "name" : "HotelMobileIOS"
+        },
+        "testExecutionOrdering" : "random"
+      }
+    },
+    {
+      "id" : "E9F9F9F9-F9F9-F9F9-F9F9-F9F9F9F9F9F9",
+      "name" : "iPhone 14 Pro Testing",
+      "options" : {
+        "targetForVariableExpansion" : {
+          "containerPath" : "container:HotelMobileIOS.xcodeproj",
+          "identifier" : "HotelMobileIOS",
+          "name" : "HotelMobileIOS"
+        }
+      }
+    },
+    {
+      "id" : "A1A1A1A1-A1A1-A1A1-A1A1-A1A1A1A1A1A1",
+      "name" : "iPad Testing",
+      "options" : {
+        "targetForVariableExpansion" : {
+          "containerPath" : "container:HotelMobileIOS.xcodeproj",
+          "identifier" : "HotelMobileIOS",
+          "name" : "HotelMobileIOS"
+        }
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : {
+      "targets" : [
+        {
+          "containerPath" : "container:HotelMobileIOS.xcodeproj",
+          "identifier" : "HotelMobileIOS",
+          "name" : "HotelMobileIOS"
+        }
+      ]
+    },
+    "testTimeoutsEnabled" : true,
+    "maximumTestExecutionTimeAllowance" : 60
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:HotelMobileIOS.xcodeproj",
+        "identifier" : "HotelAppDeviceTests",
+        "name" : "HotelAppDeviceTests"
+      }
+    }
+  ],
+  "version" : 1
+}

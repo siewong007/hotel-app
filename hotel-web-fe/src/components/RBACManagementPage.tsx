@@ -85,12 +85,21 @@ const RBACManagementPage: React.FC = () => {
   const [assignPermissionDialogOpen, setAssignPermissionDialogOpen] = useState(false);
   const [viewRoleDialogOpen, setViewRoleDialogOpen] = useState(false);
   const [viewUserDialogOpen, setViewUserDialogOpen] = useState(false);
-  
+  const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
+
   // Form states
   const [roleForm, setRoleForm] = useState<RoleInput>({ name: '', description: '' });
   const [permissionForm, setPermissionForm] = useState<PermissionInput>({ name: '', resource: '', action: '', description: '' });
   const [assignRoleForm, setAssignRoleForm] = useState<AssignRoleInput>({ user_id: '', role_id: '' });
   const [assignPermissionForm, setAssignPermissionForm] = useState<AssignPermissionInput>({ role_id: '', permission_id: '' });
+  const [createUserForm, setCreateUserForm] = useState<{
+    username: string;
+    email: string;
+    password: string;
+    full_name: string;
+    phone: string;
+    role_ids: string[];
+  }>({ username: '', email: '', password: '', full_name: '', phone: '', role_ids: [] });
   
   // View states
   const [selectedRole, setSelectedRole] = useState<RoleWithPermissions | null>(null);
@@ -214,6 +223,26 @@ const RBACManagementPage: React.FC = () => {
     }
   };
 
+  const handleCreateUser = async () => {
+    try {
+      const userData = {
+        username: createUserForm.username,
+        email: createUserForm.email,
+        password: createUserForm.password,
+        full_name: createUserForm.full_name || undefined,
+        phone: createUserForm.phone || undefined,
+        role_ids: createUserForm.role_ids.map(id => parseInt(id)).filter(id => !isNaN(id)),
+      };
+      await HotelAPIService.createUser(userData);
+      showSnackbar('User created successfully');
+      setCreateUserDialogOpen(false);
+      setCreateUserForm({ username: '', email: '', password: '', full_name: '', phone: '', role_ids: [] });
+      loadData();
+    } catch (error: any) {
+      showSnackbar(error.message || 'Failed to create user', 'error');
+    }
+  };
+
   if (!hasRole('admin')) {
     return (
       <Box sx={{ p: 3 }}>
@@ -226,7 +255,7 @@ const RBACManagementPage: React.FC = () => {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h4" component="h1" sx={{ fontWeight: 700, background: 'linear-gradient(135deg, #1a73e8 0%, #1557b0 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-          RBAC Management
+          Roles & Permissions
         </Typography>
         <Chip icon={<SecurityIcon />} label="Admin Only" color="primary" />
       </Box>
@@ -314,6 +343,13 @@ const RBACManagementPage: React.FC = () => {
 
         <TabPanel value={currentTab} index={2}>
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2, gap: 1 }}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => setCreateUserDialogOpen(true)}
+            >
+              Create User
+            </Button>
             <Button
               variant="outlined"
               startIcon={<GroupIcon />}
@@ -639,6 +675,90 @@ const RBACManagementPage: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setViewUserDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Create User Dialog */}
+      <Dialog open={createUserDialogOpen} onClose={() => setCreateUserDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PersonIcon color="primary" />
+            <Typography variant="h6">Create New User</Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Username"
+            value={createUserForm.username}
+            onChange={(e) => setCreateUserForm({ ...createUserForm, username: e.target.value })}
+            margin="normal"
+            required
+          />
+          <TextField
+            fullWidth
+            label="Email"
+            type="email"
+            value={createUserForm.email}
+            onChange={(e) => setCreateUserForm({ ...createUserForm, email: e.target.value })}
+            margin="normal"
+            required
+          />
+          <TextField
+            fullWidth
+            label="Password"
+            type="password"
+            value={createUserForm.password}
+            onChange={(e) => setCreateUserForm({ ...createUserForm, password: e.target.value })}
+            margin="normal"
+            required
+            helperText="Password must be at least 8 characters with uppercase, lowercase, number, and special character"
+          />
+          <TextField
+            fullWidth
+            label="Full Name"
+            value={createUserForm.full_name}
+            onChange={(e) => setCreateUserForm({ ...createUserForm, full_name: e.target.value })}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            label="Phone"
+            value={createUserForm.phone}
+            onChange={(e) => setCreateUserForm({ ...createUserForm, phone: e.target.value })}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            select
+            label="Assign Roles (Optional)"
+            value={createUserForm.role_ids}
+            onChange={(e) => {
+              const value = e.target.value;
+              setCreateUserForm({ ...createUserForm, role_ids: typeof value === 'string' ? value.split(',') : value });
+            }}
+            margin="normal"
+            SelectProps={{
+              multiple: true,
+            }}
+            helperText="Select one or more roles to assign to this user"
+          >
+            {roles.map((role) => (
+              <MenuItem key={role.id} value={role.id.toString()}>
+                {role.name} - {role.description}
+              </MenuItem>
+            ))}
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateUserDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleCreateUser}
+            variant="contained"
+            disabled={!createUserForm.username || !createUserForm.email || !createUserForm.password}
+          >
+            Create User
+          </Button>
         </DialogActions>
       </Dialog>
 

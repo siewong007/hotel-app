@@ -1,10 +1,12 @@
-import axios from 'axios';
+import ky, { HTTPError } from 'ky';
 import {
   Room,
   Guest,
   Booking,
   GuestCreateRequest,
   BookingCreateRequest,
+  BookingUpdateRequest,
+  BookingCancellationRequest,
   SearchQuery,
   RoomWithDisplay,
   BookingWithDetails,
@@ -16,52 +18,86 @@ import {
   AssignPermissionInput,
   RoleWithPermissions,
   User,
-  UserWithRolesAndPermissions
+  UserWithRolesAndPermissions,
+  LoyaltyProgram,
+  LoyaltyMembership,
+  PointsTransaction,
+  LoyaltyMembershipWithDetails,
+  LoyaltyStatistics,
+  UserLoyaltyMembership,
+  LoyaltyReward,
+  RedeemRewardInput,
+  UserProfile,
+  UserProfileUpdate,
+  PasswordUpdate,
+  PasskeyInfo,
+  PasskeyUpdateInput,
+  RewardInput,
+  RewardUpdateInput,
+  RewardRedemption
 } from './types';
+import { storage } from './utils/storage';
+import { validateBookingRequest, enhanceBookingDetails } from './utils/bookingUtils';
+
+// API Error class for better error handling
+export class APIError extends Error {
+  constructor(
+    message: string,
+    public statusCode?: number,
+    public details?: unknown
+  ) {
+    super(message);
+    this.name = 'APIError';
+  }
+}
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3030';
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
+// Create ky instance with hooks for auth and error handling
+const api = ky.create({
+  prefixUrl: API_BASE_URL,
+  hooks: {
+    beforeRequest: [
+      request => {
+        const token = storage.getItem<string>('accessToken');
+        if (token) {
+          request.headers.set('Authorization', `Bearer ${token}`);
+        }
+      }
+    ],
+    afterResponse: [
+      async (request, options, response) => {
+        if (response.status === 401) {
+          // Check if this is a login or auth endpoint - don't auto-logout for these
+          const url = request.url;
+          const isAuthEndpoint = url.includes('/auth/login') ||
+                                 url.includes('/auth/passkey') ||
+                                 url.includes('/auth/register');
+
+          // Only auto-logout for 401s on protected endpoints, not auth endpoints
+          if (!isAuthEndpoint) {
+            // Token expired or invalid - clear only auth data, preserve language preferences
+            storage.removeItem('accessToken');
+            storage.removeItem('refreshToken');
+            storage.removeItem('user');
+            storage.removeItem('roles');
+            storage.removeItem('permissions');
+
+            // Use React Router navigation instead of hard redirect
+            // Dispatch a custom event that AuthContext can listen to
+            window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+          }
+        }
+        return response;
+      }
+    ]
+  }
 });
-
-// Add request interceptor to include auth token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Add response interceptor for error handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid - redirect to login
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-      localStorage.removeItem('roles');
-      localStorage.removeItem('permissions');
-      window.location.href = '/login';
-    }
-    console.error('API Error:', error);
-    return Promise.reject(error);
-  }
-);
 
 export class HotelAPIService {
   // Room operations
   static async getAllRooms(): Promise<Room[]> {
-    const response = await api.get('/rooms');
-    return response.data;
+    return await api.get('rooms').json<Room[]>();
   }
 
   static async searchRooms(roomType?: string, maxPrice?: number): Promise<Room[]> {
@@ -69,30 +105,132 @@ export class HotelAPIService {
     if (roomType) params.room_type = roomType;
     if (maxPrice) params.max_price = maxPrice;
 
-    const response = await api.get('/rooms/available', { params });
-    return response.data;
+    return await api.get('rooms/available', { searchParams: params }).json<Room[]>();
   }
 
   // Guest operations
   static async getAllGuests(): Promise<Guest[]> {
-    const response = await api.get('/guests');
-    return response.data;
+    return await api.get('guests').json<Guest[]>();
   }
 
   static async createGuest(guestData: GuestCreateRequest): Promise<Guest> {
-    const response = await api.post('/guests', guestData);
-    return response.data;
+    return await api.post('guests', { json: guestData }).json<Guest>();
   }
 
-  // Booking operations
+  // Booking operations with enhanced validation and error handling
   static async getAllBookings(): Promise<Booking[]> {
-    const response = await api.get('/bookings');
-    return response.data;
+    try {
+      return await api.get('bookings').json<Booking[]>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to fetch bookings',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to fetch bookings');
+    }
+  }
+
+  static async getMyBookings(): Promise<BookingWithDetails[]> {
+    try {
+      return await api.get('bookings/my-bookings').json<BookingWithDetails[]>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to fetch your bookings',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to fetch your bookings');
+    }
   }
 
   static async createBooking(bookingData: BookingCreateRequest): Promise<Booking> {
-    const response = await api.post('/bookings', bookingData);
-    return response.data;
+    // Validate booking data before sending to API
+    const validation = validateBookingRequest(bookingData);
+    if (!validation.isValid) {
+      throw new APIError(
+        `Invalid booking data: ${validation.errors.join(', ')}`,
+        400,
+        { errors: validation.errors }
+      );
+    }
+
+    try {
+      return await api.post('bookings', { json: bookingData }).json<Booking>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to create booking',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to create booking');
+    }
+  }
+
+  static async updateBooking(
+    bookingId: string,
+    updateData: BookingUpdateRequest
+  ): Promise<Booking> {
+    try {
+      return await api
+        .patch(`bookings/${bookingId}`, { json: updateData })
+        .json<Booking>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to update booking',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to update booking');
+    }
+  }
+
+  static async cancelBooking(
+    cancellationData: BookingCancellationRequest
+  ): Promise<Booking> {
+    try {
+      return await api
+        .post('bookings/cancel', { json: cancellationData })
+        .json<Booking>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to cancel booking',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to cancel booking');
+    }
+  }
+
+  static async getBookingById(bookingId: string): Promise<Booking> {
+    try {
+      return await api.get(`bookings/${bookingId}`).json<Booking>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to fetch booking',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to fetch booking');
+    }
   }
 
   // Utility functions for UI display
@@ -105,94 +243,248 @@ export class HotelAPIService {
   }
 
   static async getBookingsWithDetails(): Promise<BookingWithDetails[]> {
-    const bookings = await this.getAllBookings();
-    // The backend now returns bookings with details, so we can use them directly
-    return bookings as any;
+    try {
+      const bookings = await this.getAllBookings();
+      // The backend now returns bookings with details, so we can use them directly
+      const bookingsWithDetails = bookings as any as BookingWithDetails[];
+
+      // Enhance each booking with computed fields
+      return bookingsWithDetails.map(booking => enhanceBookingDetails(booking));
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw error;
+      }
+      throw new APIError('Failed to fetch booking details');
+    }
   }
 
   // RBAC Operations (Admin only)
   static async getAllRoles(): Promise<Role[]> {
-    const response = await api.get('/rbac/roles');
-    return response.data;
+    return await api.get('rbac/roles').json<Role[]>();
   }
 
   static async createRole(roleData: RoleInput): Promise<Role> {
-    const response = await api.post('/rbac/roles', roleData);
-    return response.data;
+    return await api.post('rbac/roles', { json: roleData }).json<Role>();
   }
 
   static async getAllPermissions(): Promise<Permission[]> {
-    const response = await api.get('/rbac/permissions');
-    return response.data;
+    return await api.get('rbac/permissions').json<Permission[]>();
   }
 
   static async createPermission(permissionData: PermissionInput): Promise<Permission> {
-    const response = await api.post('/rbac/permissions', permissionData);
-    return response.data;
+    return await api.post('rbac/permissions', { json: permissionData }).json<Permission>();
   }
 
   static async assignRoleToUser(assignData: AssignRoleInput): Promise<void> {
-    await api.post('/rbac/users/roles', assignData);
+    await api.post('rbac/users/roles', { json: assignData });
   }
 
   static async removeRoleFromUser(userId: string, roleId: string): Promise<void> {
-    await api.delete(`/rbac/users/${userId}/roles/${roleId}`);
+    await api.delete(`rbac/users/${userId}/roles/${roleId}`);
   }
 
   static async assignPermissionToRole(assignData: AssignPermissionInput): Promise<void> {
-    await api.post('/rbac/roles/permissions', assignData);
+    await api.post('rbac/roles/permissions', { json: assignData });
   }
 
   static async removePermissionFromRole(roleId: string, permissionId: string): Promise<void> {
-    await api.delete(`/rbac/roles/${roleId}/permissions/${permissionId}`);
+    await api.delete(`rbac/roles/${roleId}/permissions/${permissionId}`);
   }
 
   static async getRolePermissions(roleId: string): Promise<RoleWithPermissions> {
-    const response = await api.get(`/rbac/roles/${roleId}/permissions`);
-    return response.data;
+    return await api.get(`rbac/roles/${roleId}/permissions`).json<RoleWithPermissions>();
   }
 
   static async getAllUsers(): Promise<User[]> {
-    const response = await api.get('/rbac/users');
-    return response.data;
+    return await api.get('rbac/users').json<User[]>();
+  }
+
+  static async createUser(userData: { username: string; email: string; password: string; full_name?: string; phone?: string; role_ids?: number[] }): Promise<User> {
+    return await api.post('rbac/users', { json: userData }).json<User>();
   }
 
   static async getUserRolesAndPermissions(userId: string): Promise<UserWithRolesAndPermissions> {
-    const response = await api.get(`/rbac/users/${userId}`);
-    return response.data;
+    return await api.get(`rbac/users/${userId}`).json<UserWithRolesAndPermissions>();
   }
 
   // Health and Status
   static async getHealth(): Promise<{ status: string }> {
-    const response = await api.get('/health');
-    return response.data;
+    return await api.get('health').json<{ status: string }>();
   }
 
   static async getWebSocketStatus(): Promise<{ status: string; protocol: string; endpoint: string; message: string }> {
-    const response = await api.get('/ws/status');
-    return response.data;
+    return await api.get('ws/status').json<{ status: string; protocol: string; endpoint: string; message: string }>();
   }
 
   // Analytics endpoints (MCP-compatible)
   static async getOccupancyReport(): Promise<any> {
-    const response = await api.get('/analytics/occupancy');
-    return response.data;
+    return await api.get('analytics/occupancy').json();
   }
 
   static async getBookingAnalytics(): Promise<any> {
-    const response = await api.get('/analytics/bookings');
-    return response.data;
+    return await api.get('analytics/bookings').json();
   }
 
   static async getBenchmarkReport(): Promise<any> {
-    const response = await api.get('/analytics/benchmark');
-    return response.data;
+    return await api.get('analytics/benchmark').json();
   }
 
   static async getPersonalizedReport(period?: string): Promise<any> {
-    const params = period ? { period } : {};
-    const response = await api.get('/analytics/personalized', { params });
-    return response.data;
+    const searchParams = period ? { period } : {};
+    return await api.get('analytics/personalized', { searchParams }).json();
+  }
+
+  // Loyalty Program Operations
+  static async getAllLoyaltyPrograms(): Promise<LoyaltyProgram[]> {
+    return await api.get('loyalty/programs').json<LoyaltyProgram[]>();
+  }
+
+  static async getAllLoyaltyMemberships(): Promise<LoyaltyMembershipWithDetails[]> {
+    return await api.get('loyalty/memberships').json<LoyaltyMembershipWithDetails[]>();
+  }
+
+  static async getLoyaltyMembershipsByGuest(guestId: string): Promise<LoyaltyMembership[]> {
+    return await api.get(`loyalty/guests/${guestId}/memberships`).json<LoyaltyMembership[]>();
+  }
+
+  static async getPointsTransactions(membershipId: number): Promise<PointsTransaction[]> {
+    return await api.get(`loyalty/memberships/${membershipId}/transactions`).json<PointsTransaction[]>();
+  }
+
+  static async getLoyaltyStatistics(): Promise<LoyaltyStatistics> {
+    return await api.get('loyalty/statistics').json<LoyaltyStatistics>();
+  }
+
+  static async addPointsToMembership(membershipId: number, points: number, description?: string): Promise<PointsTransaction> {
+    return await api.post(`loyalty/memberships/${membershipId}/points/add`, {
+      json: { points, description }
+    }).json<PointsTransaction>();
+  }
+
+  static async redeemPoints(membershipId: number, points: number, description?: string): Promise<PointsTransaction> {
+    return await api.post(`loyalty/memberships/${membershipId}/points/redeem`, {
+      json: { points, description }
+    }).json<PointsTransaction>();
+  }
+
+  // User Loyalty Operations (for logged-in users)
+  static async getUserLoyaltyMembership(): Promise<UserLoyaltyMembership> {
+    return await api.get('loyalty/my-membership').json<UserLoyaltyMembership>();
+  }
+
+  static async getLoyaltyRewards(): Promise<LoyaltyReward[]> {
+    return await api.get('loyalty/rewards').json<LoyaltyReward[]>();
+  }
+
+  static async redeemReward(input: RedeemRewardInput): Promise<any> {
+    return await api.post('loyalty/rewards/redeem', {
+      json: input
+    }).json();
+  }
+
+  // User Profile Operations
+  static async getUserProfile(): Promise<UserProfile> {
+    return await api.get('profile').json<UserProfile>();
+  }
+
+  static async updateUserProfile(data: UserProfileUpdate): Promise<UserProfile> {
+    return await api.patch('profile', { json: data }).json<UserProfile>();
+  }
+
+  static async updatePassword(data: PasswordUpdate): Promise<void> {
+    await api.post('profile/password', { json: data });
+  }
+
+  // Passkey Management
+  static async listPasskeys(): Promise<PasskeyInfo[]> {
+    return await api.get('profile/passkeys').json<PasskeyInfo[]>();
+  }
+
+  static async updatePasskey(passkeyId: string, data: PasskeyUpdateInput): Promise<void> {
+    await api.patch(`profile/passkeys/${passkeyId}`, { json: data });
+  }
+
+  static async deletePasskey(passkeyId: string): Promise<void> {
+    await api.delete(`profile/passkeys/${passkeyId}`);
+  }
+
+  // Room Reviews
+  static async getRoomReviews(roomType: string): Promise<any[]> {
+    return await api.get(`rooms/${encodeURIComponent(roomType)}/reviews`).json<any[]>();
+  }
+
+  // Rewards Management Operations (Admin only)
+  static async getRewards(category?: string): Promise<LoyaltyReward[]> {
+    const searchParams = category ? { category } : {};
+    return await api.get('rewards', { searchParams }).json<LoyaltyReward[]>();
+  }
+
+  static async getReward(id: number): Promise<LoyaltyReward> {
+    return await api.get(`rewards/${id}`).json<LoyaltyReward>();
+  }
+
+  static async createReward(data: RewardInput): Promise<LoyaltyReward> {
+    try {
+      return await api.post('rewards', { json: data }).json<LoyaltyReward>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to create reward',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to create reward');
+    }
+  }
+
+  static async updateReward(id: number, data: RewardUpdateInput): Promise<LoyaltyReward> {
+    try {
+      return await api.patch(`rewards/${id}`, { json: data }).json<LoyaltyReward>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to update reward',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to update reward');
+    }
+  }
+
+  static async deleteReward(id: number): Promise<void> {
+    try {
+      await api.delete(`rewards/${id}`);
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to delete reward',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to delete reward');
+    }
+  }
+
+  static async getRewardRedemptions(): Promise<RewardRedemption[]> {
+    try {
+      return await api.get('rewards/redemptions').json<RewardRedemption[]>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to fetch redemption history',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to fetch redemption history');
+    }
   }
 }
 
