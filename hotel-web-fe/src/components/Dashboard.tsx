@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Grid,
   Card,
@@ -18,14 +18,11 @@ import {
   Hotel as HotelIcon,
   Person as PersonIcon,
   EventNote as BookingIcon,
-  AttachMoney as MoneyIcon,
   LocalOffer as OfferIcon,
   CardGiftcard as VoucherIcon,
   Event as EventIcon
 } from '@mui/icons-material';
-import { useTranslation } from 'react-i18next';
 import { HotelAPIService } from '../api';
-import { Room, Guest, Booking } from '../types';
 import { CircularProgress, Box as MuiBox } from '@mui/material';
 
 // Memoized StatCard component to prevent unnecessary re-renders
@@ -94,7 +91,6 @@ interface UpcomingBooking {
 }
 
 const Dashboard: React.FC = () => {
-  const { t } = useTranslation('dashboard');
   const [stats, setStats] = useState({
     totalRooms: 0,
     availableRooms: 0,
@@ -178,17 +174,17 @@ const Dashboard: React.FC = () => {
     <Box>
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 700, color: 'text.primary' }}>
-          {t('title')}
+          Hotel Dashboard
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          {t('subtitle')}
+          Welcome back! Here's an overview of your hotel operations.
         </Typography>
       </Box>
 
       <Grid container spacing={3}>
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title={t('stats.totalRooms')}
+            title="Total Rooms"
             value={stats.totalRooms}
             icon={<HotelIcon sx={{ fontSize: 32, color: 'white' }} />}
             color="#1a73e8"
@@ -198,7 +194,7 @@ const Dashboard: React.FC = () => {
 
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title={t('stats.availableRooms')}
+            title="Available Rooms"
             value={stats.availableRooms}
             icon={<HotelIcon sx={{ fontSize: 32, color: 'white' }} />}
             color="#34a853"
@@ -208,7 +204,7 @@ const Dashboard: React.FC = () => {
 
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title={t('stats.totalGuests')}
+            title="Total Guests"
             value={stats.totalGuests}
             icon={<PersonIcon sx={{ fontSize: 32, color: 'white' }} />}
             color="#fbbc04"
@@ -218,7 +214,7 @@ const Dashboard: React.FC = () => {
 
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
-            title={t('stats.totalBookings')}
+            title="Total Bookings"
             value={stats.totalBookings}
             icon={<BookingIcon sx={{ fontSize: 32, color: 'white' }} />}
             color="#9c27b0"
@@ -232,26 +228,26 @@ const Dashboard: React.FC = () => {
               <Box display="flex" alignItems="center" mb={2}>
                 <BookingIcon sx={{ mr: 1, color: 'primary.main' }} />
                 <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  {t('recentActivity')}
+                  Recent Activity
                 </Typography>
               </Box>
               <Box sx={{ mt: 2, '& > *': { mb: 1.5 } }}>
                 <Box display="flex" alignItems="center">
                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'primary.main', mr: 2 }} />
                   <Typography variant="body1" color="text.primary">
-                    {t('messages.roomsAvailable', { count: stats.availableRooms })}
+                    {stats.availableRooms} rooms currently available for booking
                   </Typography>
                 </Box>
                 <Box display="flex" alignItems="center">
                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main', mr: 2 }} />
                   <Typography variant="body1" color="text.primary">
-                    {t('messages.guestsRegistered', { count: stats.totalGuests })}
+                    {stats.totalGuests} guests registered in the system
                   </Typography>
                 </Box>
                 <Box display="flex" alignItems="center">
                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'secondary.main', mr: 2 }} />
                   <Typography variant="body1" color="text.primary">
-                    {t('messages.bookingsMade', { count: stats.totalBookings })}
+                    {stats.totalBookings} bookings made this period
                   </Typography>
                 </Box>
                 <Box display="flex" alignItems="center">

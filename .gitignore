@@ -5,6 +5,10 @@
 
 # Docker volumes
 postgres_data/
+volumes/
+
+# Docker Compose overrides (developer-specific)
+docker-compose.override.yml
 
 # IDE
 .vscode/

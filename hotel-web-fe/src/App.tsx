@@ -1,21 +1,16 @@
-import React, { lazy, Suspense, useMemo, useState, useEffect } from 'react';
+import React, { lazy, Suspense } from 'react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Container, AppBar, Toolbar, Typography, Tabs, Tab, Box, Button } from '@mui/material';
 import HotelIcon from '@mui/icons-material/Hotel';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { AuthProvider, useAuth } from './auth/AuthContext';
-import { languageStorage } from './utils/languageStorage';
-import { getLanguageByCode } from './i18n/config';
 
 // Import only critical components (always needed)
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AnimatedRoute } from './components/AnimatedRoute';
 import HotelSpinner from './components/HotelSpinner';
-// import { LanguageSelectionWelcome } from './components/i18n/LanguageSelectionWelcome'; // DISABLED
-import { LanguageSwitcher } from './components/i18n/LanguageSwitcher';
 
 // Lazy load page components for code splitting
 const Dashboard = lazy(() => import('./components/Dashboard'));
@@ -147,9 +142,8 @@ const theme = createTheme({
 const NavigationTabs = React.memo(function NavigationTabs() {
   const location = useLocation();
   const { hasPermission, hasRole, logout, user } = useAuth();
-  const { t } = useTranslation('common');
 
-  const pathToIndex: Record<string, number> = useMemo(() => ({
+  const pathToIndex: Record<string, number> = {
     '/rooms': 0,
     '/my-bookings': 1,
     '/guests': 2,
@@ -163,7 +157,7 @@ const NavigationTabs = React.memo(function NavigationTabs() {
     '/rbac': 10,
     '/api-test': 11,
     '/settings': 12,
-  }), []);
+  };
 
   const currentTab = pathToIndex[location.pathname] ?? 0;
 
@@ -196,22 +190,21 @@ const NavigationTabs = React.memo(function NavigationTabs() {
           },
         }}
       >
-        {hasPermission('rooms:read') && <Tab label={t('rooms')} component={Link} to="/rooms" />}
-        <Tab label={t('myBookings')} component={Link} to="/my-bookings" />
-        {hasRole('admin') && <Tab label={t('guests')} component={Link} to="/guests" />}
-        {hasRole('admin') && <Tab label={t('bookings')} component={Link} to="/bookings" />}
-        {hasPermission('analytics:read') && <Tab label={t('analytics')} component={Link} to="/analytics" />}
-        {hasPermission('analytics:read') && <Tab label={t('myReports')} component={Link} to="/reports" />}
-        {hasPermission('analytics:read') && <Tab label={t('loyaltyPortal')} component={Link} to="/loyalty" />}
-        <Tab label={t('myRewards')} component={Link} to="/my-rewards" />
+        {hasPermission('rooms:read') && <Tab label="Rooms" component={Link} to="/rooms" />}
+        <Tab label="My Bookings" component={Link} to="/my-bookings" />
+        {hasRole('admin') && <Tab label="Guests" component={Link} to="/guests" />}
+        {hasRole('admin') && <Tab label="Bookings" component={Link} to="/bookings" />}
+        {hasPermission('analytics:read') && <Tab label="Analytics" component={Link} to="/analytics" />}
+        {hasPermission('analytics:read') && <Tab label="My Reports" component={Link} to="/reports" />}
+        {hasPermission('analytics:read') && <Tab label="Loyalty Portal" component={Link} to="/loyalty" />}
+        <Tab label="My Rewards" component={Link} to="/my-rewards" />
         {hasRole('admin') && <Tab label="Rewards Admin" component={Link} to="/rewards-admin" />}
-        <Tab label={t('profile')} component={Link} to="/profile" />
-        {hasRole('admin') && <Tab label={t('roles')} component={Link} to="/rbac" />}
-        {hasRole('admin') && <Tab label={t('apiTest')} component={Link} to="/api-test" />}
-        {hasPermission('settings:read') && <Tab label={t('settings')} component={Link} to="/settings" />}
+        <Tab label="Profile" component={Link} to="/profile" />
+        {hasRole('admin') && <Tab label="Roles" component={Link} to="/rbac" />}
+        {hasRole('admin') && <Tab label="API Test" component={Link} to="/api-test" />}
+        {hasPermission('settings:read') && <Tab label="Settings" component={Link} to="/settings" />}
       </Tabs>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, ml: 2 }}>
-        <LanguageSwitcher variant="icon" />
         <Box sx={{
           display: { xs: 'none', sm: 'flex' },
           alignItems: 'center',
@@ -239,7 +232,7 @@ const NavigationTabs = React.memo(function NavigationTabs() {
             },
           }}
         >
-          <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>{t('logout')}</Box>
+          <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Logout</Box>
         </Button>
       </Box>
     </Box>
@@ -248,19 +241,6 @@ const NavigationTabs = React.memo(function NavigationTabs() {
 
 function AppContent() {
   const { isAuthenticated, shouldPromptPasskey, user, dismissPasskeyPrompt } = useAuth();
-  const { t, i18n } = useTranslation('common');
-
-  // TEMPORARILY DISABLED: Language selection to debug login issue
-  // Just load stored language or use default
-  useEffect(() => {
-    const hasStoredLanguage = languageStorage.getLanguagePreference();
-    if (hasStoredLanguage) {
-      i18n.changeLanguage(hasStoredLanguage.code).catch(() => {
-        // If loading fails, just use English
-        i18n.changeLanguage('en');
-      });
-    }
-  }, []); // Run only once on mount
 
   if (!isAuthenticated) {
     return (
@@ -286,7 +266,7 @@ function AppContent() {
         <Toolbar sx={{ py: 1 }}>
           <HotelIcon sx={{ mr: 2, fontSize: 32, color: 'white' }} />
           <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 700, color: 'white' }}>
-            {t('appName')}
+            Hotel Management System
           </Typography>
           <NavigationTabs />
         </Toolbar>

@@ -16,41 +16,21 @@ import {
   Settings as SettingsIcon,
   Http as HttpIcon,
   HealthAndSafety as HealthIcon,
-  Web as WebIcon,
-  Language as LanguageIcon
+  Web as WebIcon
 } from '@mui/icons-material';
-import { useTranslation } from 'react-i18next';
 import { HotelAPIService } from '../api';
-import { useAuth } from '../auth/AuthContext';
-import { LanguageSwitcher } from './i18n/LanguageSwitcher';
-import { languageStorage } from '../utils/languageStorage';
-import { getLanguageByCode } from '../i18n/config';
 
 const SettingsPage: React.FC = () => {
-  const { hasRole } = useAuth();
-  const { i18n } = useTranslation();
   const [apiUrl, setApiUrl] = useState('http://localhost:3030');
   const [connectionStatus, setConnectionStatus] = useState<'untested' | 'success' | 'error'>('untested');
   const [testing, setTesting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [healthStatus, setHealthStatus] = useState<{ status: string } | null>(null);
   const [wsStatus, setWsStatus] = useState<{ status: string; message: string } | null>(null);
-  const [currentLanguage, setCurrentLanguage] = useState(i18n.language);
 
   useEffect(() => {
     loadStatus();
-
-    // Update current language when it changes
-    const handleLanguageChange = (lng: string) => {
-      setCurrentLanguage(lng);
-    };
-
-    i18n.on('languageChanged', handleLanguageChange);
-
-    return () => {
-      i18n.off('languageChanged', handleLanguageChange);
-    };
-  }, [i18n]);
+  }, []);
 
   const loadStatus = async () => {
     try {
@@ -115,59 +95,11 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const currentLangInfo = getLanguageByCode(currentLanguage);
-
   return (
     <Box>
       <Typography variant="h4" component="h1" gutterBottom>
         System Settings
       </Typography>
-
-      {/* Language Settings */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            <LanguageIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-            Language Preferences
-          </Typography>
-
-          <Grid container spacing={3} alignItems="center">
-            <Grid item xs={12} md={8}>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Current Language
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="h6" sx={{ fontSize: '2rem' }}>
-                    {currentLangInfo?.flag}
-                  </Typography>
-                  <Box>
-                    <Typography variant="body1" fontWeight={600}>
-                      {currentLangInfo?.nativeName}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {currentLangInfo?.name}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                Select your preferred language for the application interface.
-                Your choice will be saved and applied automatically on your next visit.
-              </Typography>
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                <LanguageSwitcher variant="button" showQualityBadge={true} />
-              </Box>
-            </Grid>
-          </Grid>
-
-          <Alert severity="info" sx={{ mt: 2 }}>
-            Language changes are applied immediately and saved to your browser's local storage.
-          </Alert>
-        </CardContent>
-      </Card>
 
       {/* API Configuration */}
       <Card sx={{ mb: 3 }}>
