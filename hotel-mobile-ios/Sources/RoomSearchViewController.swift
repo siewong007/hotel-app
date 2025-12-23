@@ -175,8 +175,8 @@ class RoomSearchViewController: UIViewController {
                 let checkOut = dateFormatter.string(from: Date().addingTimeInterval(86400)) // +1 day
 
                 let booking = try await HotelAPIService.shared.createBooking(
-                    guestId: guest.id,
-                    roomId: selectedRoom.id,
+                    guestId: String(guest.id),
+                    roomId: String(selectedRoom.id),
                     checkIn: checkIn,
                     checkOut: checkOut
                 )
@@ -261,7 +261,7 @@ class RoomCell: UITableViewCell {
     }
 
     func configure(with room: Room) {
-        roomTypeLabel.text = "\(room.room_number) - \(room.room_type)"
+        roomTypeLabel.text = "\(room.roomNumber) - \(room.roomType)"
         roomTypeLabel.font = .systemFont(ofSize: 18, weight: .semibold)
 
         priceLabel.text = room.displayPrice

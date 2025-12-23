@@ -37,9 +37,10 @@ services:
       # Data persistence
       - postgres-data:/var/lib/postgresql/data
       # Database initialization scripts (run on first start only)
-      - ./database/init:/docker-entrypoint-initdb.d/00-init:ro
-      - ./database/schema:/docker-entrypoint-initdb.d/01-schema:ro
-      - ./database/seed-data:/docker-entrypoint-initdb.d/02-seed:ro
+      - ./hotel-app-be/database/00_create_user.sql:/docker-entrypoint-initdb.d/00_create_user.sql:ro
+      - ./hotel-app-be/database/00_init.sql:/docker-entrypoint-initdb.d/00_init.sql:ro
+      - ./hotel-app-be/database/migrations:/docker-entrypoint-initdb.d/migrations:ro
+      - ./hotel-app-be/database/seed-data:/docker-entrypoint-initdb.d/seed-data:ro
       # Custom PostgreSQL configuration (if exists)
       # - ./deployment/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
 

@@ -70,13 +70,13 @@ export const validateBookingRequest = (
 ): BookingValidation => {
   const errors: string[] = [];
 
-  // Validate guest_id
-  if (!request.guest_id || request.guest_id.trim() === '') {
-    errors.push('Guest ID is required');
+  // Validate guest_id (now a number)
+  if (!request.guest_id || typeof request.guest_id !== 'number') {
+    errors.push('Guest ID is required and must be a number');
   }
 
   // Validate room_id
-  if (!request.room_id || request.room_id.trim() === '') {
+  if (!request.room_id || typeof request.room_id !== 'string' || request.room_id.trim() === '') {
     errors.push('Room ID is required');
   }
 
@@ -171,12 +171,16 @@ export const getBookingStatusColor = (
       return 'warning';
     case BookingStatus.CHECKED_IN:
       return 'primary';
+    case BookingStatus.AUTO_CHECKED_IN:
+      return 'primary';
     case BookingStatus.CHECKED_OUT:
       return 'info';
     case BookingStatus.CANCELLED:
       return 'error';
     case BookingStatus.NO_SHOW:
       return 'error';
+    case BookingStatus.LATE_CHECKOUT:
+      return 'warning';
     default:
       return 'default';
   }
@@ -193,12 +197,16 @@ export const getBookingStatusText = (status: BookingStatus | string): string => 
       return 'Pending';
     case BookingStatus.CHECKED_IN:
       return 'Checked In';
+    case BookingStatus.AUTO_CHECKED_IN:
+      return 'Auto Checked In';
     case BookingStatus.CHECKED_OUT:
       return 'Checked Out';
     case BookingStatus.CANCELLED:
       return 'Cancelled';
     case BookingStatus.NO_SHOW:
       return 'No Show';
+    case BookingStatus.LATE_CHECKOUT:
+      return 'Late Checkout';
     default:
       return status;
   }
@@ -249,10 +257,6 @@ export const enhanceBookingDetails = (
 ): BookingWithDetails => {
   const checkInDate = booking.check_in_date;
   const checkOutDate = booking.check_out_date;
-  const pricePerNight =
-    typeof booking.price_per_night === 'string'
-      ? parseFloat(booking.price_per_night)
-      : booking.price_per_night;
 
   const nights = calculateNights(checkInDate, checkOutDate);
   const totalAmount =

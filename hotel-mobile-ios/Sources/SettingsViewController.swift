@@ -158,7 +158,7 @@ class SettingsViewController: UIViewController {
             userInfoLabel.text = """
             Username: \(user.username)
             Email: \(user.email)
-            Full Name: \(user.full_name ?? "N/A")
+            Full Name: \(user.fullName ?? "N/A")
             Roles: \(rolesText)
             """
             logoutButton.isEnabled = true
@@ -213,7 +213,7 @@ class SettingsViewController: UIViewController {
     @objc private func logoutTapped() {
         let alert = UIAlertController(title: "Logout", message: "Are you sure you want to logout?", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Logout", style: .destructive) { [weak self] _ in
+        alert.addAction(UIAlertAction(title: "Logout", style: .destructive) { _ in
             AuthManager.shared.logout()
             NotificationCenter.default.post(name: NSNotification.Name("UserDidLogout"), object: nil)
         })

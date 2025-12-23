@@ -7,23 +7,19 @@ let package = Package(
         .iOS(.v15)
     ],
     products: [
-        .executable(
+        .library(
             name: "HotelMobileIOS",
             targets: ["HotelMobileIOS"]
         )
     ],
     dependencies: [],
     targets: [
-        .executableTarget(
+        .target(
             name: "HotelMobileIOS",
             dependencies: [],
             path: "Sources",
-            resources: [],
-            linkerSettings: [
-                .linkedFramework("UIKit"),
-                .linkedFramework("Foundation"),
-                .linkedFramework("Security"),
-                .linkedFramework("Network")
+            resources: [
+                .process("LaunchScreen.storyboard")
             ]
         )
     ]

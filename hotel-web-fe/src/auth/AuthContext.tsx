@@ -8,6 +8,8 @@ export interface User {
   username: string;
   email: string;
   full_name?: string;
+  user_type: 'admin' | 'guest';
+  guest_id?: number;
   is_active: boolean;
 }
 
@@ -23,7 +25,8 @@ export interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  login: (username: string, password: string) => Promise<boolean>;
+  login: (username: string, password: string, totpCode?: string) => Promise<boolean>;
+  register: (data: { username: string; email: string; password: string; first_name: string; last_name: string; phone?: string }) => Promise<void>;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
@@ -109,6 +112,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
 
+  const register = async (data: { username: string; email: string; password: string; first_name: string; last_name: string; phone?: string }) => {
+    try {
+      await HotelAPIService.register(data);
+    } catch (error: any) {
+      console.error('Registration error:', error);
+
+      // Safely extract error message
+      let errorMessage = 'Registration failed';
+
+      try {
+        if (error.response) {
+          const errorData = await error.response.json().catch(() => ({}));
+          errorMessage = errorData.error || errorData.message || 'Registration failed';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+      } catch (parseError) {
+        console.error('Error parsing error response:', parseError);
+        errorMessage = 'Registration failed - unable to connect to server';
+      }
+
+      throw new Error(errorMessage);
+    }
+  };
+
   const checkPasskeys = async (): Promise<boolean> => {
     try {
       const passkeys = await HotelAPIService.listPasskeys();
@@ -119,10 +147,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (username: string, password: string, totpCode?: string): Promise<boolean> => {
     try {
       const data = await ky.post(`${process.env.REACT_APP_API_URL || 'http://localhost:3030'}/auth/login`, {
-        json: { username, password },
+        json: { username, password, totp_code: totpCode },
       }).json<{ access_token: string; refresh_token: string; user: User; roles: string[]; permissions: string[]; is_first_login: boolean }>();
 
       const { access_token, refresh_token, user, roles, permissions, is_first_login } = data;
@@ -165,8 +193,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       return is_first_login;
     } catch (error: any) {
-      const errorMessage = error.response ? await error.response.json().then((data: any) => data.error) : 'Login failed';
-      throw new Error(errorMessage || 'Login failed');
+      console.error('Login error:', error);
+
+      // Safely extract error message from ky HTTPError
+      let errorMessage = 'Login failed';
+
+      try {
+        if (error.response) {
+          const errorData = await error.response.json().catch(() => ({}));
+          errorMessage = errorData.error || errorData.message || 'Login failed';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+      } catch (parseError) {
+        console.error('Error parsing error response:', parseError);
+        errorMessage = 'Login failed - unable to connect to server';
+      }
+
+      throw new Error(errorMessage);
     }
   };
 
@@ -274,8 +318,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // After successful registration, login the user
       // Note: In a real implementation, you'd need to handle this differently
     } catch (error: any) {
-      const errorMessage = error.response ? await error.response.json().then((data: any) => data.error) : 'Passkey registration failed';
-      throw new Error(errorMessage || 'Passkey registration failed');
+      console.error('Passkey registration error:', error);
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+
+      // Handle different error types
+      if (error.name === 'NotAllowedError') {
+        throw new Error('Passkey registration was cancelled or timed out');
+      } else if (error.name === 'InvalidStateError') {
+        throw new Error('A passkey is already registered for this account on this device');
+      } else if (error.name === 'NotSupportedError') {
+        throw new Error('Passkeys are not supported in this browser');
+      }
+
+      // Safely extract error message
+      let errorMessage = 'Passkey registration failed';
+
+      try {
+        if (error.response) {
+          const errorData = await error.response.json().catch(() => ({}));
+          errorMessage = errorData.error || errorData.message || 'Passkey registration failed';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+      } catch (parseError) {
+        console.error('Error parsing error response:', parseError);
+        errorMessage = 'Passkey registration failed - unable to connect to server';
+      }
+
+      throw new Error(errorMessage);
     }
   };
 
@@ -288,20 +359,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const { challenge, allowCredentials } = startResponse;
 
+      console.log('Passkey start response:', { challenge, allowCredentials });
+
+      // Helper to decode base64url (URL-safe base64)
+      const base64urlDecode = (str: string): ArrayBuffer => {
+        // Convert base64url to base64
+        let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+        // Add padding if needed
+        while (base64.length % 4) {
+          base64 += '=';
+        }
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes.buffer;
+      };
+
+      const challengeBytes = new Uint8Array(atob(challenge).length);
+      for (let i = 0; i < atob(challenge).length; i++) {
+        challengeBytes[i] = atob(challenge).charCodeAt(i);
+      }
+
       const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
-        challenge: Uint8Array.from(atob(challenge), (c: string) => c.charCodeAt(0)),
+        challenge: challengeBytes.buffer,
         allowCredentials: allowCredentials.map((cred: any) => ({
-          id: Uint8Array.from(atob(cred.id), (c: string) => c.charCodeAt(0)),
-          type: 'public-key',
+          id: base64urlDecode(cred.id),
+          type: 'public-key' as const,
         })),
         timeout: 60000,
         // Require user verification (fingerprint, Face ID, PIN, etc.)
         userVerification: 'required',
       };
 
+      console.log('Requesting credentials with options:', publicKeyCredentialRequestOptions);
+
       const assertion = await navigator.credentials.get({
         publicKey: publicKeyCredentialRequestOptions,
       }) as PublicKeyCredential;
+
+      console.log('Got assertion:', assertion);
 
       if (!assertion) {
         throw new Error('Failed to authenticate with passkey');
@@ -361,8 +459,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       return is_first_login;
     } catch (error: any) {
-      const errorMessage = error.response ? await error.response.json().then((data: any) => data.error) : 'Passkey authentication failed';
-      throw new Error(errorMessage || 'Passkey authentication failed');
+      // Handle different error types
+      if (error.name === 'NotAllowedError') {
+        throw new Error('Passkey authentication was cancelled or timed out');
+      } else if (error.name === 'InvalidStateError') {
+        throw new Error('This passkey is not registered on this device');
+      } else if (error.name === 'NotSupportedError') {
+        throw new Error('Passkeys are not supported in this browser');
+      }
+
+      // Safely extract error message from ky HTTPError
+      let errorMessage = 'Passkey authentication failed';
+
+      try {
+        if (error.response) {
+          const errorData = await error.response.json().catch(() => ({}));
+          errorMessage = errorData.error || errorData.message || 'Passkey authentication failed';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+      } catch (parseError) {
+        console.error('Error parsing error response:', parseError);
+        errorMessage = 'Passkey authentication failed - unable to connect to server';
+      }
+
+      // Only log as error if it's not a normal "no passkeys" scenario
+      const isNormalFailure =
+        errorMessage.toLowerCase().includes('no passkeys') ||
+        errorMessage.toLowerCase().includes('not found') ||
+        error.response?.status === 404;
+
+      if (isNormalFailure) {
+        console.log('Passkey not available, falling back to password login');
+      } else {
+        console.error('Passkey login error:', error);
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+      }
+
+      throw new Error(errorMessage);
     }
   };
 
@@ -371,6 +506,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       value={{
         ...authState,
         login,
+        register,
         logout,
         hasPermission,
         hasRole,
@@ -384,4 +520,3 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-

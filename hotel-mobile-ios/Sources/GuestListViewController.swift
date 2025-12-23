@@ -80,7 +80,7 @@ class GuestListViewController: UIViewController {
         
         alert.addTextField { textField in
             textField.placeholder = "Name"
-            textField.text = guest?.name
+            textField.text = guest?.displayName
         }
         alert.addTextField { textField in
             textField.placeholder = "Email"
@@ -94,7 +94,7 @@ class GuestListViewController: UIViewController {
         }
         alert.addTextField { textField in
             textField.placeholder = "Address (optional)"
-            textField.text = guest?.address
+            textField.text = guest?.addressLine1
         }
         
         let saveAction = UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
@@ -108,7 +108,7 @@ class GuestListViewController: UIViewController {
             let address = alert?.textFields?[3].text
             
             if let guest = guest {
-                self?.updateGuest(id: guest.id, name: name, email: email, phone: phone, address: address)
+                self?.updateGuest(id: String(guest.id), name: name, email: email, phone: phone, address: address)
             } else {
                 self?.createGuest(name: name, email: email, phone: phone, address: address)
             }
@@ -191,13 +191,13 @@ extension GuestListViewController: UITableViewDataSource {
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "GuestCell", for: indexPath)
         let guest = guests[indexPath.row]
-        
+
         var content = cell.defaultContentConfiguration()
-        content.text = guest.name
+        content.text = guest.displayName
         content.secondaryText = guest.email
         cell.contentConfiguration = content
         cell.accessoryType = .detailButton
-        
+
         return cell
     }
 }
@@ -215,12 +215,12 @@ extension GuestListViewController: UITableViewDelegate {
         let deleteAction = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, completion in
             let alert = UIAlertController(
                 title: "Delete Guest",
-                message: "Are you sure you want to delete \(guest.name)?",
+                message: "Are you sure you want to delete \(guest.displayName)?",
                 preferredStyle: .alert
             )
-            
+
             alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { _ in
-                self?.deleteGuest(id: guest.id)
+                self?.deleteGuest(id: String(guest.id))
                 completion(true)
             })
             alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
@@ -240,12 +240,12 @@ extension GuestListViewController: UITableViewDelegate {
     
     private func showGuestDetails(_ guest: Guest) {
         let details = """
-        Name: \(guest.name)
+        Name: \(guest.displayName)
         Email: \(guest.email)
         Phone: \(guest.phone ?? "N/A")
-        Address: \(guest.address ?? "N/A")
+        Address: \(guest.addressLine1 ?? "N/A")
         """
-        
+
         let alert = UIAlertController(title: "Guest Details", message: details, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Edit", style: .default) { [weak self] _ in
             self?.showGuestForm(guest: guest)

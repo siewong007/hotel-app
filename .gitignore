@@ -35,3 +35,10 @@ hotel-app-be/Cargo.lock
 # Node modules (already in .dockerignore)
 node_modules/
 
+# Swift/Xcode
+.build/
+*.xcuserstate
+xcuserdata/
+DerivedData/
+.swiftpm/
+
