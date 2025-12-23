@@ -11,30 +11,30 @@ class AuthManager {
     
     private init() {}
     
-    // MARK: - Token Management (Secure Keychain Storage)
+    // MARK: - Token Management
     
     var accessToken: String? {
         get {
-            return try? KeychainHelper.loadString(key: accessTokenKey)
+            return UserDefaults.standard.string(forKey: accessTokenKey)
         }
         set {
             if let token = newValue {
-                try? KeychainHelper.save(key: accessTokenKey, string: token)
+                UserDefaults.standard.set(token, forKey: accessTokenKey)
             } else {
-                try? KeychainHelper.delete(key: accessTokenKey)
+                UserDefaults.standard.removeObject(forKey: accessTokenKey)
             }
         }
     }
     
     var refreshToken: String? {
         get {
-            return try? KeychainHelper.loadString(key: refreshTokenKey)
+            return UserDefaults.standard.string(forKey: refreshTokenKey)
         }
         set {
             if let token = newValue {
-                try? KeychainHelper.save(key: refreshTokenKey, string: token)
+                UserDefaults.standard.set(token, forKey: refreshTokenKey)
             } else {
-                try? KeychainHelper.delete(key: refreshTokenKey)
+                UserDefaults.standard.removeObject(forKey: refreshTokenKey)
             }
         }
     }
@@ -96,8 +96,8 @@ class AuthManager {
     // MARK: - Login/Logout
     
     func saveAuth(_ authResponse: AuthResponse) {
-        accessToken = authResponse.access_token
-        refreshToken = authResponse.refresh_token
+        accessToken = authResponse.accessToken
+        refreshToken = authResponse.refreshToken
         currentUser = authResponse.user
         roles = authResponse.roles
         permissions = authResponse.permissions

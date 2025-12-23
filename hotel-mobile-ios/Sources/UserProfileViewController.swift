@@ -139,7 +139,7 @@ class UserProfileViewController: UIViewController {
 
         let avatarView = createAvatar(profile: profile)
         let nameLabel = UILabel()
-        nameLabel.text = profile.full_name ?? profile.username
+        nameLabel.text = profile.fullName ?? profile.username
         nameLabel.font = .systemFont(ofSize: 24, weight: .bold)
         nameLabel.textAlignment = .center
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -192,7 +192,7 @@ class UserProfileViewController: UIViewController {
         avatarView.layer.cornerRadius = 40
         avatarView.translatesAutoresizingMaskIntoConstraints = false
 
-        let initial = String(profile.full_name?.prefix(1) ?? profile.username.prefix(1)).uppercased()
+        let initial = String(profile.fullName?.prefix(1) ?? profile.username.prefix(1)).uppercased()
         let label = UILabel()
         label.text = initial
         label.font = .systemFont(ofSize: 32, weight: .bold)
@@ -221,14 +221,14 @@ class UserProfileViewController: UIViewController {
         stack.spacing = 16
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        setupTextField(fullNameField, placeholder: "Full Name", value: profile.full_name)
+        setupTextField(fullNameField, placeholder: "Full Name", value: profile.fullName)
         setupTextField(emailField, placeholder: "Email", value: profile.email)
         emailField.keyboardType = .emailAddress
         setupTextField(phoneField, placeholder: "Phone", value: profile.phone)
         phoneField.keyboardType = .phonePad
-        setupTextField(addressField, placeholder: "Address", value: profile.address)
-        setupTextField(cityField, placeholder: "City", value: profile.city)
-        setupTextField(countryField, placeholder: "Country", value: profile.country)
+        setupTextField(addressField, placeholder: "Address", value: nil)
+        setupTextField(cityField, placeholder: "City", value: nil)
+        setupTextField(countryField, placeholder: "Country", value: nil)
 
         stack.addArrangedSubview(fullNameField)
         stack.addArrangedSubview(emailField)
@@ -416,7 +416,7 @@ class UserProfileViewController: UIViewController {
         row.heightAnchor.constraint(greaterThanOrEqualToConstant: 70).isActive = true
 
         let nameLabel = UILabel()
-        nameLabel.text = passkey.device_name ?? "Unnamed Device"
+        nameLabel.text = passkey.deviceName ?? "Unnamed Device"
         nameLabel.font = .systemFont(ofSize: 15, weight: .medium)
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
 
@@ -425,7 +425,7 @@ class UserProfileViewController: UIViewController {
         dateFormatter.timeStyle = .none
 
         let createdLabel = UILabel()
-        createdLabel.text = "Added: \(formatDate(passkey.created_at))"
+        createdLabel.text = "Added: \(dateFormatter.string(from: passkey.createdAt))"
         createdLabel.font = .systemFont(ofSize: 12)
         createdLabel.textColor = .secondaryLabel
         createdLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -434,7 +434,7 @@ class UserProfileViewController: UIViewController {
         deleteButton.setImage(UIImage(systemName: "trash"), for: .normal)
         deleteButton.tintColor = .systemRed
         deleteButton.addTarget(self, action: #selector(deletePasskeyTapped(_:)), for: .touchUpInside)
-        deleteButton.tag = passkey.id
+        deleteButton.accessibilityIdentifier = passkey.id
         deleteButton.translatesAutoresizingMaskIntoConstraints = false
 
         row.addSubview(nameLabel)
@@ -588,7 +588,7 @@ class UserProfileViewController: UIViewController {
     }
 
     @objc private func deletePasskeyTapped(_ sender: UIButton) {
-        let passkeyId = sender.tag
+        guard let passkeyId = sender.accessibilityIdentifier else { return }
 
         let alert = UIAlertController(
             title: "Delete Passkey",
@@ -604,7 +604,7 @@ class UserProfileViewController: UIViewController {
         present(alert, animated: true)
     }
 
-    private func deletePasskey(id: Int) {
+    private func deletePasskey(id: String) {
         Task {
             do {
                 try await apiService.deletePasskey(passkeyId: id)

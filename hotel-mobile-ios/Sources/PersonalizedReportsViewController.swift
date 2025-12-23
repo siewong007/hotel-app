@@ -289,21 +289,21 @@ class PersonalizedReportsViewController: UIViewController {
         stack.translatesAutoresizingMaskIntoConstraints = false
         
         let guestLabel = UILabel()
-        guestLabel.text = booking.guest_name
+        guestLabel.text = booking.guestName
         guestLabel.font = .systemFont(ofSize: 16, weight: .semibold)
         
         let roomLabel = UILabel()
-        roomLabel.text = "Room \(booking.room_number) - \(booking.room_type)"
+        roomLabel.text = "Room \(booking.roomNumber) - \(booking.roomType)"
         roomLabel.font = .systemFont(ofSize: 14)
         roomLabel.textColor = .secondaryLabel
         
         let datesLabel = UILabel()
-        datesLabel.text = "\(formatDate(booking.check_in)) - \(formatDate(booking.check_out))"
+        datesLabel.text = "\(formatDate(booking.checkIn)) - \(formatDate(booking.checkOut))"
         datesLabel.font = .systemFont(ofSize: 12)
         datesLabel.textColor = .secondaryLabel
         
         let priceLabel = UILabel()
-        priceLabel.text = formatCurrency(Double(booking.total_price) ?? 0)
+        priceLabel.text = formatCurrency(booking.totalCost)
         priceLabel.font = .systemFont(ofSize: 14, weight: .semibold)
         priceLabel.textColor = .systemGreen
         

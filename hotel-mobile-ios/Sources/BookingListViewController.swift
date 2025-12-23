@@ -1,4 +1,5 @@
 import UIKit
+import SwiftUI
 
 class BookingListViewController: UIViewController {
 
@@ -136,6 +137,29 @@ class BookingListViewController: UIViewController {
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         present(alert, animated: true)
     }
+
+    private func performEnhancedCheckIn(for booking: BookingWithDetails) {
+        Task {
+            do {
+                // Fetch guest details
+                let guest = try await HotelAPIService.shared.getGuest(id: String(booking.guestId))
+
+                await MainActor.run {
+                    // Create SwiftUI view
+                    let checkInView = EnhancedCheckInView(booking: booking, guest: guest)
+                    let hostingController = UIHostingController(rootView: checkInView)
+                    hostingController.modalPresentationStyle = .fullScreen
+
+                    // Present the check-in view
+                    self.present(hostingController, animated: true)
+                }
+            } catch {
+                await MainActor.run {
+                    showError("Failed to load guest details: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
 }
 
 extension BookingListViewController: UITableViewDataSource {
@@ -160,9 +184,19 @@ extension BookingListViewController: UITableViewDelegate {
     
     func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
         let booking = bookings[indexPath.row]
-        
+
         var actions: [UIContextualAction] = []
-        
+
+        // Check-In action (only for confirmed bookings)
+        if booking.status == "confirmed" {
+            let checkInAction = UIContextualAction(style: .normal, title: "Check In") { [weak self] _, _, completion in
+                self?.performEnhancedCheckIn(for: booking)
+                completion(true)
+            }
+            checkInAction.backgroundColor = UIColor.systemGreen
+            actions.append(checkInAction)
+        }
+
         // Cancel action (only for confirmed bookings)
         if booking.status == "confirmed" {
             let cancelAction = UIContextualAction(style: .normal, title: "Cancel") { [weak self] _, _, completion in
@@ -171,21 +205,21 @@ extension BookingListViewController: UITableViewDelegate {
                     message: "Are you sure you want to cancel this booking?",
                     preferredStyle: .alert
                 )
-                
+
                 alert.addAction(UIAlertAction(title: "Cancel Booking", style: .destructive) { _ in
-                    self?.cancelBooking(id: booking.id)
+                    self?.cancelBooking(id: String(booking.id))
                     completion(true)
                 })
                 alert.addAction(UIAlertAction(title: "Keep", style: .cancel) { _ in
                     completion(false)
                 })
-                
+
                 self?.present(alert, animated: true)
             }
-            cancelAction.backgroundColor = .systemOrange
+            cancelAction.backgroundColor = UIColor.systemOrange
             actions.append(cancelAction)
         }
-        
+
         // Delete action
         let deleteAction = UIContextualAction(style: .destructive, title: "Delete") { [weak self] _, _, completion in
             let alert = UIAlertController(
@@ -193,41 +227,46 @@ extension BookingListViewController: UITableViewDelegate {
                 message: "Are you sure you want to permanently delete this booking?",
                 preferredStyle: .alert
             )
-            
+
             alert.addAction(UIAlertAction(title: "Delete", style: .destructive) { _ in
-                self?.deleteBooking(id: booking.id)
+                self?.deleteBooking(id: String(booking.id))
                 completion(true)
             })
             alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
                 completion(false)
             })
-            
+
             self?.present(alert, animated: true)
         }
         actions.append(deleteAction)
-        
+
         return UISwipeActionsConfiguration(actions: actions)
     }
     
     private func showBookingDetails(_ booking: BookingWithDetails) {
         let details = """
-        Room: \(booking.room_number) (\(booking.room_type))
-        Guest: \(booking.guest_name)
-        Email: \(booking.guest_email)
+        Room: \(booking.roomNumber) (\(booking.roomType))
+        Guest: \(booking.guestName)
+        Email: \(booking.guestEmail)
         Check-in: \(booking.checkInDate)
         Check-out: \(booking.checkOutDate)
-        Total: $\(booking.total_price)
+        Total: \(booking.totalAmountString)
         Status: \(booking.status.capitalized)
         """
-        
+
         let alert = UIAlertController(title: "Booking Details", message: details, preferredStyle: .alert)
-        
+
         if booking.status == "confirmed" {
+            // Enhanced Check-In button
+            alert.addAction(UIAlertAction(title: "Enhanced Check-In", style: .default) { [weak self] _ in
+                self?.performEnhancedCheckIn(for: booking)
+            })
+
             alert.addAction(UIAlertAction(title: "Cancel Booking", style: .destructive) { [weak self] _ in
-                self?.cancelBooking(id: booking.id)
+                self?.cancelBooking(id: String(booking.id))
             })
         }
-        
+
         alert.addAction(UIAlertAction(title: "Close", style: .cancel))
         present(alert, animated: true)
     }
@@ -270,14 +309,14 @@ class BookingCell: UITableViewCell {
     }
 
     func configure(with booking: BookingWithDetails) {
-        roomLabel.text = "Room \(booking.room_number)"
+        roomLabel.text = "Room \(booking.roomNumber)"
         roomLabel.font = .systemFont(ofSize: 18, weight: .semibold)
-        
-        priceLabel.text = "$\(booking.total_price)"
+
+        priceLabel.text = booking.totalAmountString
         priceLabel.font = .systemFont(ofSize: 16, weight: .medium)
         priceLabel.textColor = .systemGreen
 
-        guestLabel.text = "\(booking.guest_name)"
+        guestLabel.text = "\(booking.guestName)"
         guestLabel.font = .systemFont(ofSize: 14)
         guestLabel.textColor = .secondaryLabel
 

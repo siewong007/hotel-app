@@ -126,11 +126,11 @@ class LoyaltyStatisticsViewController: UIViewController {
         row2.spacing = 12
         row2.distribution = .fillEqually
 
-        row1.addArrangedSubview(createStatCard(title: "Total Members", value: "\(stats.total_members)", color: .systemBlue))
-        row1.addArrangedSubview(createStatCard(title: "Active Members", value: "\(stats.active_members)", color: .systemGreen))
+        row1.addArrangedSubview(createStatCard(title: "Total Members", value: "\(stats.totalMembers)", color: .systemBlue))
+        row1.addArrangedSubview(createStatCard(title: "Active Members", value: "\(stats.activeMembers)", color: .systemGreen))
 
-        row2.addArrangedSubview(createStatCard(title: "Points Issued", value: formatNumber(stats.total_points_issued), color: .systemOrange))
-        row2.addArrangedSubview(createStatCard(title: "Points Redeemed", value: formatNumber(stats.total_points_redeemed), color: .systemPurple))
+        row2.addArrangedSubview(createStatCard(title: "Points Issued", value: formatNumber(stats.totalPointsIssued), color: .systemOrange))
+        row2.addArrangedSubview(createStatCard(title: "Points Redeemed", value: formatNumber(stats.totalPointsRedeemed), color: .systemPurple))
 
         containerStack.addArrangedSubview(row1)
         containerStack.addArrangedSubview(row2)
@@ -188,7 +188,7 @@ class LoyaltyStatisticsViewController: UIViewController {
         stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        for tier in stats.members_by_tier {
+        for tier in stats.membersByTier {
             let tierView = createTierRow(tier: tier)
             stack.addArrangedSubview(tierView)
         }
@@ -210,7 +210,7 @@ class LoyaltyStatisticsViewController: UIViewController {
         row.translatesAutoresizingMaskIntoConstraints = false
 
         let nameLabel = UILabel()
-        nameLabel.text = tier.tier_name
+        nameLabel.text = tier.tierName
         nameLabel.font = .systemFont(ofSize: 15, weight: .medium)
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
 
@@ -226,7 +226,7 @@ class LoyaltyStatisticsViewController: UIViewController {
         progressBar.translatesAutoresizingMaskIntoConstraints = false
 
         let progressFill = UIView()
-        progressFill.backgroundColor = colorForTier(tier.tier_level)
+        progressFill.backgroundColor = colorForTier(tier.tierLevel)
         progressFill.layer.cornerRadius = 4
         progressFill.translatesAutoresizingMaskIntoConstraints = false
 
@@ -268,7 +268,7 @@ class LoyaltyStatisticsViewController: UIViewController {
         stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let topMembers = Array(stats.top_members.prefix(5))
+        let topMembers = Array(stats.topMembers.prefix(5))
         for (index, member) in topMembers.enumerated() {
             let memberView = createTopMemberRow(member: member, rank: index + 1)
             stack.addArrangedSubview(memberView)
@@ -305,18 +305,18 @@ class LoyaltyStatisticsViewController: UIViewController {
         rankLabel.translatesAutoresizingMaskIntoConstraints = false
 
         let nameLabel = UILabel()
-        nameLabel.text = member.guest_name
+        nameLabel.text = member.guestName
         nameLabel.font = .systemFont(ofSize: 15, weight: .medium)
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
 
         let emailLabel = UILabel()
-        emailLabel.text = member.guest_email
+        emailLabel.text = member.guestEmail
         emailLabel.font = .systemFont(ofSize: 12)
         emailLabel.textColor = .secondaryLabel
         emailLabel.translatesAutoresizingMaskIntoConstraints = false
 
         let pointsLabel = UILabel()
-        pointsLabel.text = "\(formatNumber(member.lifetime_points)) pts"
+        pointsLabel.text = "\(formatNumber(member.lifetimePoints)) pts"
         pointsLabel.font = .systemFont(ofSize: 14, weight: .semibold)
         pointsLabel.textColor = .systemBlue
         pointsLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -354,7 +354,7 @@ class LoyaltyStatisticsViewController: UIViewController {
         stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let recentTransactions = Array(stats.recent_transactions.prefix(10))
+        let recentTransactions = Array(stats.recentTransactions.prefix(10))
         for (index, transaction) in recentTransactions.enumerated() {
             let transactionView = createTransactionRow(transaction: transaction)
             stack.addArrangedSubview(transactionView)
@@ -385,26 +385,26 @@ class LoyaltyStatisticsViewController: UIViewController {
         row.translatesAutoresizingMaskIntoConstraints = false
 
         let typeIcon = UILabel()
-        typeIcon.text = transaction.transaction_type == "earn" ? "+" : "-"
+        typeIcon.text = transaction.transactionType == "earn" ? "+" : "-"
         typeIcon.font = .systemFont(ofSize: 20, weight: .bold)
-        typeIcon.textColor = transaction.transaction_type == "earn" ? .systemGreen : .systemRed
+        typeIcon.textColor = transaction.transactionType == "earn" ? .systemGreen : .systemRed
         typeIcon.translatesAutoresizingMaskIntoConstraints = false
 
         let nameLabel = UILabel()
-        nameLabel.text = transaction.guest_name
+        nameLabel.text = transaction.guestName
         nameLabel.font = .systemFont(ofSize: 15, weight: .medium)
         nameLabel.translatesAutoresizingMaskIntoConstraints = false
 
         let descLabel = UILabel()
-        descLabel.text = transaction.description ?? transaction.transaction_type.capitalized
+        descLabel.text = transaction.description ?? transaction.transactionType.capitalized
         descLabel.font = .systemFont(ofSize: 12)
         descLabel.textColor = .secondaryLabel
         descLabel.translatesAutoresizingMaskIntoConstraints = false
 
         let pointsLabel = UILabel()
-        pointsLabel.text = "\(transaction.points_amount) pts"
+        pointsLabel.text = "\(transaction.pointsAmount) pts"
         pointsLabel.font = .systemFont(ofSize: 14, weight: .semibold)
-        pointsLabel.textColor = transaction.transaction_type == "earn" ? .systemGreen : .systemRed
+        pointsLabel.textColor = transaction.transactionType == "earn" ? .systemGreen : .systemRed
         pointsLabel.translatesAutoresizingMaskIntoConstraints = false
 
         row.addSubview(typeIcon)

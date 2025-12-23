@@ -1,0 +1,1063 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Box,
+  Typography,
+  Grid,
+  Divider,
+  Paper,
+  Chip,
+  Alert,
+  CircularProgress,
+} from '@mui/material';
+import {
+  Receipt as ReceiptIcon,
+  CheckCircle as CheckIcon,
+  Print as PrintIcon,
+} from '@mui/icons-material';
+import { BookingWithDetails } from '../../../types';
+import { useCurrency } from '../../../hooks/useCurrency';
+import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
+
+interface CheckoutInvoiceModalProps {
+  open: boolean;
+  onClose: () => void;
+  booking: BookingWithDetails | null;
+  onConfirmCheckout: () => Promise<void>;
+}
+
+interface ChargesBreakdown {
+  roomCharges: number;
+  roomCardDeposit: number;
+  serviceTax: number;
+  tourismTax: number;
+  extraBedCharge: number;
+  lateCheckoutPenalty: number;
+  subtotal: number;
+  depositRefund: number;
+  grandTotal: number;
+}
+
+const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
+  open,
+  onClose,
+  booking,
+  onConfirmCheckout,
+}) => {
+  const { format: formatCurrency } = useCurrency();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [checkoutStep, setCheckoutStep] = useState<'preview' | 'confirm'>('preview'); // Two-step process
+  const [hotelSettings, setHotelSettings] = useState<HotelSettings>(getHotelSettings());
+  const [charges, setCharges] = useState<ChargesBreakdown>({
+    roomCharges: 0,
+    roomCardDeposit: 50,
+    serviceTax: 0,
+    tourismTax: 0,
+    extraBedCharge: 0,
+    lateCheckoutPenalty: 0,
+    subtotal: 0,
+    depositRefund: 0,
+    grandTotal: 0,
+  });
+
+  useEffect(() => {
+    if (open && booking) {
+      // Load latest hotel settings
+      setHotelSettings(getHotelSettings());
+      calculateCharges();
+      // Reset to preview step when modal opens
+      setCheckoutStep('preview');
+    }
+  }, [open, booking]);
+
+  // Listen for hotel settings changes
+  useEffect(() => {
+    const handleSettingsChange = (event: CustomEvent) => {
+      setHotelSettings(event.detail);
+    };
+
+    window.addEventListener('hotelSettingsChange', handleSettingsChange as EventListener);
+    return () => {
+      window.removeEventListener('hotelSettingsChange', handleSettingsChange as EventListener);
+    };
+  }, []);
+
+  const calculateCharges = () => {
+    if (!booking) return;
+
+    const roomCharges = typeof booking.total_amount === 'string'
+      ? parseFloat(booking.total_amount)
+      : booking.total_amount || 0;
+
+    // Get deposit from booking, fallback to settings default
+    const roomCardDeposit = booking.room_card_deposit
+      ? (typeof booking.room_card_deposit === 'string' ? parseFloat(booking.room_card_deposit) : booking.room_card_deposit)
+      : hotelSettings.room_card_deposit;
+
+    // Get tourism tax from booking
+    const tourismTax = booking.tourism_tax_amount
+      ? (typeof booking.tourism_tax_amount === 'string' ? parseFloat(booking.tourism_tax_amount) : booking.tourism_tax_amount)
+      : 0;
+
+    // Get extra bed charge from booking
+    const extraBedCharge = booking.extra_bed_charge
+      ? (typeof booking.extra_bed_charge === 'string' ? parseFloat(booking.extra_bed_charge) : booking.extra_bed_charge)
+      : 0;
+
+    // Check if late checkout
+    const checkOutTime = new Date(booking.check_out_date);
+    const defaultCheckOutTime = new Date(booking.check_out_date);
+    const [defaultHours, defaultMinutes] = hotelSettings.check_out_time.split(':').map(Number);
+    defaultCheckOutTime.setHours(defaultHours, defaultMinutes, 0, 0);
+
+    const isLateCheckout = checkOutTime > defaultCheckOutTime;
+    const lateCheckoutPenalty = isLateCheckout ? hotelSettings.late_checkout_penalty : 0;
+
+    // Calculate service tax (apply to room charges only, before other fees)
+    const serviceTax = (roomCharges * hotelSettings.service_tax_rate) / 100;
+
+    const subtotal = roomCharges + serviceTax + tourismTax + extraBedCharge + lateCheckoutPenalty;
+
+    // Deposit refund only if no late checkout
+    const depositRefund = isLateCheckout ? 0 : roomCardDeposit;
+
+    const grandTotal = subtotal - depositRefund;
+
+    setCharges({
+      roomCharges,
+      roomCardDeposit,
+      serviceTax,
+      tourismTax,
+      extraBedCharge,
+      lateCheckoutPenalty,
+      subtotal,
+      depositRefund,
+      grandTotal,
+    });
+  };
+
+  const handleConfirmCheckout = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      await onConfirmCheckout();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Failed to process checkout');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProceedToConfirm = () => {
+    setCheckoutStep('confirm');
+  };
+
+  const handleBackToPreview = () => {
+    setCheckoutStep('preview');
+  };
+
+  const handlePrint = () => {
+    // Get the invoice content
+    const invoiceContent = document.getElementById('printable-invoice');
+    if (!invoiceContent) return;
+
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    // Write the invoice HTML with styles
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Invoice - ${booking?.folio_number || `#${booking?.id}`}</title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: Arial, sans-serif;
+              padding: 20px;
+              color: #333;
+            }
+            .invoice-header {
+              text-align: center;
+              margin-bottom: 30px;
+              border-bottom: 2px solid #1976d2;
+              padding-bottom: 20px;
+            }
+            .invoice-header h1 {
+              color: #1976d2;
+              font-size: 28px;
+              margin-bottom: 5px;
+            }
+            .invoice-header p {
+              color: #666;
+              font-size: 14px;
+            }
+            .invoice-meta {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 30px;
+            }
+            .invoice-meta div {
+              flex: 1;
+            }
+            .invoice-meta h3 {
+              font-size: 14px;
+              color: #1976d2;
+              margin-bottom: 10px;
+              text-transform: uppercase;
+            }
+            .invoice-meta p {
+              font-size: 13px;
+              margin: 5px 0;
+              line-height: 1.6;
+            }
+            .invoice-meta .label {
+              color: #666;
+              display: inline-block;
+              min-width: 120px;
+            }
+            .invoice-meta .value {
+              font-weight: 600;
+              color: #333;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 20px 0;
+            }
+            th {
+              background-color: #1976d2;
+              color: white;
+              padding: 12px;
+              text-align: left;
+              font-size: 13px;
+              text-transform: uppercase;
+            }
+            td {
+              padding: 12px;
+              border-bottom: 1px solid #ddd;
+              font-size: 13px;
+            }
+            .amount {
+              text-align: right;
+              font-weight: 600;
+            }
+            .subtotal-row td {
+              border-top: 2px solid #ddd;
+              font-weight: 600;
+              padding-top: 15px;
+            }
+            .refund-row td {
+              color: #2e7d32;
+            }
+            .penalty-row td {
+              color: #d32f2f;
+            }
+            .total-row {
+              background-color: #f5f5f5;
+            }
+            .total-row td {
+              border-top: 3px double #1976d2;
+              font-size: 16px;
+              font-weight: 700;
+              padding: 15px 12px;
+              color: #1976d2;
+            }
+            .notes {
+              margin-top: 30px;
+              padding: 15px;
+              background-color: #fff3cd;
+              border-left: 4px solid #ffc107;
+              font-size: 12px;
+              line-height: 1.6;
+            }
+            .notes strong {
+              display: block;
+              margin-bottom: 5px;
+              color: #856404;
+            }
+            .success-note {
+              background-color: #d4edda;
+              border-left-color: #28a745;
+            }
+            .success-note strong {
+              color: #155724;
+            }
+            .footer {
+              margin-top: 40px;
+              text-align: center;
+              padding-top: 20px;
+              border-top: 1px solid #ddd;
+              font-size: 12px;
+              color: #666;
+            }
+            .footer strong {
+              display: block;
+              font-size: 14px;
+              color: #1976d2;
+              margin-bottom: 5px;
+            }
+            @media print {
+              body {
+                padding: 0;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          ${invoiceContent.innerHTML}
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.focus();
+
+    // Wait for content to load, then print
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
+  if (!booking) return null;
+
+  const calculateNights = () => {
+    const checkIn = new Date(booking.check_in_date);
+    const checkOut = new Date(booking.check_out_date);
+    return Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box display="flex" alignItems="center">
+            <ReceiptIcon sx={{ mr: 1, color: 'primary.main' }} />
+            <Typography variant="h6">
+              {checkoutStep === 'preview' ? 'Invoice Preview - Review Before Checkout' : 'Confirm Checkout'}
+            </Typography>
+          </Box>
+          <Chip
+            label={booking.folio_number || `#${booking.id}`}
+            color="primary"
+            size="small"
+            variant="outlined"
+          />
+        </Box>
+      </DialogTitle>
+
+      <DialogContent dividers>
+        {checkoutStep === 'preview' ? (
+          // STEP 1: Invoice Preview (Default View)
+          <Box sx={{ fontFamily: 'Arial, sans-serif', color: '#333' }}>
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body2" fontWeight={600}>Please review the invoice carefully before proceeding with checkout.</Typography>
+              <Typography variant="caption">Verify all charges, taxes, and refunds are correct.</Typography>
+            </Alert>
+
+            {/* Invoice Header */}
+            <Box sx={{ textAlign: 'center', mb: 4, borderBottom: '2px solid #1976d2', pb: 2 }}>
+              <Typography variant="h4" sx={{ color: '#1976d2', fontWeight: 700, mb: 0.5 }}>
+                {hotelSettings.hotel_name}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {hotelSettings.hotel_address}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Phone: {hotelSettings.hotel_phone} | Email: {hotelSettings.hotel_email}
+              </Typography>
+            </Box>
+
+            {/* Invoice Meta */}
+            <Grid container spacing={3} sx={{ mb: 3 }}>
+              <Grid item xs={12} md={4}>
+                <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1, textTransform: 'uppercase' }}>
+                  Invoice Details
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 0.5 }}>
+                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '120px' }}>
+                    Invoice Number:
+                  </Box>
+                  <Box component="span" sx={{ fontWeight: 600 }}>
+                    {booking?.folio_number || `#${booking?.id}`}
+                  </Box>
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 0.5 }}>
+                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '120px' }}>
+                    Date:
+                  </Box>
+                  <Box component="span" sx={{ fontWeight: 600 }}>
+                    {new Date().toLocaleDateString()}
+                  </Box>
+                </Typography>
+                <Typography variant="body2">
+                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '120px' }}>
+                    Status:
+                  </Box>
+                  <Box component="span" sx={{ fontWeight: 600 }}>
+                    Pending Checkout
+                  </Box>
+                </Typography>
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1, textTransform: 'uppercase' }}>
+                  Guest Information
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 0.5 }}>
+                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
+                    Name:
+                  </Box>
+                  <Box component="span" sx={{ fontWeight: 600 }}>
+                    {booking?.guest_name}
+                  </Box>
+                </Typography>
+                <Typography variant="body2">
+                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
+                    Room:
+                  </Box>
+                  <Box component="span" sx={{ fontWeight: 600 }}>
+                    {booking?.room_number} - {booking?.room_type}
+                  </Box>
+                </Typography>
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1, textTransform: 'uppercase' }}>
+                  Stay Details
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 0.5 }}>
+                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
+                    Check-in:
+                  </Box>
+                  <Box component="span" sx={{ fontWeight: 600 }}>
+                    {new Date(booking?.check_in_date || '').toLocaleDateString()}
+                  </Box>
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 0.5 }}>
+                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
+                    Check-out:
+                  </Box>
+                  <Box component="span" sx={{ fontWeight: 600 }}>
+                    {new Date(booking?.check_out_date || '').toLocaleDateString()}
+                  </Box>
+                </Typography>
+                <Typography variant="body2">
+                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
+                    Duration:
+                  </Box>
+                  <Box component="span" sx={{ fontWeight: 600 }}>
+                    {calculateNights()} night(s)
+                  </Box>
+                </Typography>
+              </Grid>
+            </Grid>
+
+            {/* Charges Table */}
+            <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
+              <Box sx={{ bgcolor: '#1976d2', color: 'white', p: 1.5 }}>
+                <Grid container>
+                  <Grid item xs={8}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
+                      Description
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
+                      Amount
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+
+              <Box sx={{ p: 0 }}>
+                {/* Room Charges */}
+                <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
+                  <Grid container>
+                    <Grid item xs={8}>
+                      <Typography variant="body2">
+                        Room Charges ({calculateNights()} nights)
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {formatCurrency(charges.roomCharges)}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </Box>
+
+                {/* Service Tax */}
+                {charges.serviceTax > 0 && (
+                  <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
+                    <Grid container>
+                      <Grid item xs={8}>
+                        <Typography variant="body2">
+                          Service Tax ({hotelSettings.service_tax_rate}%)
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {formatCurrency(charges.serviceTax)}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+
+                {/* Tourism Tax */}
+                {charges.tourismTax > 0 && (
+                  <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
+                    <Grid container>
+                      <Grid item xs={8}>
+                        <Typography variant="body2">Tourism Tax</Typography>
+                      </Grid>
+                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {formatCurrency(charges.tourismTax)}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+
+                {/* Extra Bed */}
+                {charges.extraBedCharge > 0 && (
+                  <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
+                    <Grid container>
+                      <Grid item xs={8}>
+                        <Typography variant="body2">Extra Bed Charge</Typography>
+                      </Grid>
+                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {formatCurrency(charges.extraBedCharge)}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+
+                {/* Late Checkout Penalty */}
+                {charges.lateCheckoutPenalty > 0 && (
+                  <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd', bgcolor: '#ffebee' }}>
+                    <Grid container>
+                      <Grid item xs={8}>
+                        <Typography variant="body2" sx={{ color: '#d32f2f' }}>
+                          Late Checkout Penalty
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#d32f2f' }}>
+                          {formatCurrency(charges.lateCheckoutPenalty)}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+
+                {/* Subtotal */}
+                <Box sx={{ p: 1.5, borderBottom: '2px solid #ddd', borderTop: '2px solid #ddd' }}>
+                  <Grid container>
+                    <Grid item xs={8}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        Subtotal
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {formatCurrency(charges.subtotal)}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </Box>
+
+                {/* Deposit Refund */}
+                {charges.depositRefund > 0 && (
+                  <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd', bgcolor: '#e8f5e9' }}>
+                    <Grid container>
+                      <Grid item xs={8}>
+                        <Typography variant="body2" sx={{ color: '#2e7d32' }}>
+                          Room Card Deposit Refund
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+                          -{formatCurrency(charges.depositRefund)}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+
+                {/* Grand Total */}
+                <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderTop: '3px double #1976d2' }}>
+                  <Grid container>
+                    <Grid item xs={8}>
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        {charges.grandTotal >= 0 ? 'Total Amount Due' : 'Total Refund'}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                      <Typography variant="h5" sx={{ fontWeight: 700, color: '#1976d2' }}>
+                        {formatCurrency(Math.abs(charges.grandTotal))}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </Box>
+              </Box>
+            </Box>
+
+            {/* Notes */}
+            {charges.lateCheckoutPenalty > 0 && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Late Checkout Notice
+                </Typography>
+                <Typography variant="caption">
+                  Guest checked out after the standard checkout time. A penalty of {formatCurrency(charges.lateCheckoutPenalty)} has been applied, and the room card deposit has been forfeited.
+                </Typography>
+              </Alert>
+            )}
+
+            {charges.depositRefund > 0 && (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  Room card deposit of {formatCurrency(charges.depositRefund)} will be refunded to the guest.
+                </Typography>
+              </Alert>
+            )}
+          </Box>
+        ) : (
+          // STEP 2: Confirmation Summary (After Review)
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {error && (
+            <Alert severity="error" onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
+
+          {/* Guest Information */}
+          <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+            <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+              Guest Information
+            </Typography>
+            <Grid container spacing={1}>
+              <Grid item xs={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Guest Name:
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {booking.guest_name}
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Room:
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {booking.room_number} - {booking.room_type}
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Check-in:
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {new Date(booking.check_in_date).toLocaleString()}
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Check-out:
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {new Date(booking.check_out_date).toLocaleString()}
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2" color="text.secondary">
+                  Duration:
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {calculateNights()} night(s)
+                </Typography>
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {/* Charges Breakdown */}
+          <Paper elevation={0} sx={{ p: 2, bgcolor: 'primary.50', borderRadius: 2 }}>
+            <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+              Charges Breakdown
+            </Typography>
+            <Grid container spacing={1}>
+              {/* Room Charges */}
+              <Grid item xs={8}>
+                <Typography variant="body2" color="text.secondary">
+                  Room Charges ({calculateNights()} nights)
+                </Typography>
+              </Grid>
+              <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {formatCurrency(charges.roomCharges)}
+                </Typography>
+              </Grid>
+
+              {/* Service Tax */}
+              {charges.serviceTax > 0 && (
+                <>
+                  <Grid item xs={8}>
+                    <Typography variant="body2" color="text.secondary">
+                      Service Tax ({hotelSettings.service_tax_rate}%)
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                    <Typography variant="body2">
+                      {formatCurrency(charges.serviceTax)}
+                    </Typography>
+                  </Grid>
+                </>
+              )}
+
+              {/* Tourism Tax */}
+              {charges.tourismTax > 0 && (
+                <>
+                  <Grid item xs={8}>
+                    <Typography variant="body2" color="text.secondary">
+                      Tourism Tax
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                    <Typography variant="body2">
+                      {formatCurrency(charges.tourismTax)}
+                    </Typography>
+                  </Grid>
+                </>
+              )}
+
+              {/* Extra Bed */}
+              {charges.extraBedCharge > 0 && (
+                <>
+                  <Grid item xs={8}>
+                    <Typography variant="body2" color="text.secondary">
+                      Extra Bed Charge
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                    <Typography variant="body2">
+                      {formatCurrency(charges.extraBedCharge)}
+                    </Typography>
+                  </Grid>
+                </>
+              )}
+
+              {/* Late Checkout Penalty */}
+              {charges.lateCheckoutPenalty > 0 && (
+                <>
+                  <Grid item xs={8}>
+                    <Typography variant="body2" sx={{ color: 'warning.main' }}>
+                      Late Checkout Penalty
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                    <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600 }}>
+                      {formatCurrency(charges.lateCheckoutPenalty)}
+                    </Typography>
+                  </Grid>
+                </>
+              )}
+
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
+              </Grid>
+
+              {/* Subtotal */}
+              <Grid item xs={8}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Subtotal
+                </Typography>
+              </Grid>
+              <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {formatCurrency(charges.subtotal)}
+                </Typography>
+              </Grid>
+
+              {/* Deposit Refund */}
+              {charges.depositRefund > 0 ? (
+                <>
+                  <Grid item xs={8}>
+                    <Typography variant="body2" sx={{ color: 'success.main' }}>
+                      Room Card Deposit Refund
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                    <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 600 }}>
+                      -{formatCurrency(charges.depositRefund)}
+                    </Typography>
+                  </Grid>
+                </>
+              ) : (
+                <>
+                  <Grid item xs={8}>
+                    <Typography variant="body2" sx={{ color: 'error.main' }}>
+                      Room Card Deposit (Forfeited - Late Checkout)
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                    <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 600 }}>
+                      {formatCurrency(0)}
+                    </Typography>
+                  </Grid>
+                </>
+              )}
+
+              <Grid item xs={12}>
+                <Divider sx={{ my: 1 }} />
+              </Grid>
+
+              {/* Grand Total */}
+              <Grid item xs={8}>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                  {charges.grandTotal >= 0 ? 'Total to Collect' : 'Total to Refund'}
+                </Typography>
+              </Grid>
+              <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                <Typography
+                  variant="h5"
+                  color={charges.grandTotal >= 0 ? 'primary' : 'success'}
+                  sx={{ fontWeight: 700 }}
+                >
+                  {formatCurrency(Math.abs(charges.grandTotal))}
+                </Typography>
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {/* Additional Info */}
+          {charges.lateCheckoutPenalty > 0 && (
+            <Alert severity="warning">
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Late Checkout Detected
+              </Typography>
+              <Typography variant="caption">
+                Guest checked out after the standard checkout time. A penalty of {formatCurrency(charges.lateCheckoutPenalty)} has been applied,
+                and the room card deposit will not be refunded.
+              </Typography>
+            </Alert>
+          )}
+
+          {charges.depositRefund > 0 && (
+            <Alert severity="success">
+              <Typography variant="body2">
+                Room card deposit of {formatCurrency(charges.depositRefund)} will be refunded to the guest.
+              </Typography>
+            </Alert>
+          )}
+          </Box>
+        )}
+      </DialogContent>
+
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        {checkoutStep === 'preview' ? (
+          <>
+            <Button onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={handlePrint}
+              startIcon={<PrintIcon />}
+            >
+              Print Preview
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleProceedToConfirm}
+              startIcon={<CheckIcon />}
+            >
+              Proceed to Checkout
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button onClick={handleBackToPreview}>
+              Back to Invoice
+            </Button>
+            <Box sx={{ flex: 1 }} />
+            <Button onClick={onClose} disabled={loading}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleConfirmCheckout}
+              disabled={loading}
+              startIcon={loading ? <CircularProgress size={20} /> : <CheckIcon />}
+            >
+              {loading ? 'Processing...' : 'Confirm Checkout'}
+            </Button>
+          </>
+        )}
+      </DialogActions>
+
+      {/* Hidden printable invoice */}
+      <Box id="printable-invoice" sx={{ display: 'none' }}>
+        <div className="invoice-header">
+          <h1>{hotelSettings.hotel_name}</h1>
+          <p>{hotelSettings.hotel_address}</p>
+          <p>Phone: {hotelSettings.hotel_phone} | Email: {hotelSettings.hotel_email}</p>
+        </div>
+
+        <div className="invoice-meta">
+          <div>
+            <h3>Invoice Details</h3>
+            <p>
+              <span className="label">Invoice Number:</span>
+              <span className="value">{booking?.folio_number || `#${booking?.id}`}</span>
+            </p>
+            <p>
+              <span className="label">Date:</span>
+              <span className="value">{new Date().toLocaleDateString()}</span>
+            </p>
+            <p>
+              <span className="label">Status:</span>
+              <span className="value">Checked Out</span>
+            </p>
+          </div>
+
+          <div>
+            <h3>Guest Information</h3>
+            <p>
+              <span className="label">Name:</span>
+              <span className="value">{booking?.guest_name}</span>
+            </p>
+            <p>
+              <span className="label">Room:</span>
+              <span className="value">{booking?.room_number} - {booking?.room_type}</span>
+            </p>
+          </div>
+
+          <div>
+            <h3>Stay Details</h3>
+            <p>
+              <span className="label">Check-in:</span>
+              <span className="value">{new Date(booking?.check_in_date || '').toLocaleDateString()}</span>
+            </p>
+            <p>
+              <span className="label">Check-out:</span>
+              <span className="value">{new Date(booking?.check_out_date || '').toLocaleDateString()}</span>
+            </p>
+            <p>
+              <span className="label">Duration:</span>
+              <span className="value">{calculateNights()} night(s)</span>
+            </p>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th className="amount">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Room Charges ({calculateNights()} nights)</td>
+              <td className="amount">{formatCurrency(charges.roomCharges)}</td>
+            </tr>
+
+            {charges.serviceTax > 0 && (
+              <tr>
+                <td>Service Tax ({hotelSettings.service_tax_rate}%)</td>
+                <td className="amount">{formatCurrency(charges.serviceTax)}</td>
+              </tr>
+            )}
+
+            {charges.tourismTax > 0 && (
+              <tr>
+                <td>Tourism Tax</td>
+                <td className="amount">{formatCurrency(charges.tourismTax)}</td>
+              </tr>
+            )}
+
+            {charges.extraBedCharge > 0 && (
+              <tr>
+                <td>Extra Bed Charge</td>
+                <td className="amount">{formatCurrency(charges.extraBedCharge)}</td>
+              </tr>
+            )}
+
+            {charges.lateCheckoutPenalty > 0 && (
+              <tr className="penalty-row">
+                <td>Late Checkout Penalty</td>
+                <td className="amount">{formatCurrency(charges.lateCheckoutPenalty)}</td>
+              </tr>
+            )}
+
+            <tr className="subtotal-row">
+              <td>Subtotal</td>
+              <td className="amount">{formatCurrency(charges.subtotal)}</td>
+            </tr>
+
+            {charges.depositRefund > 0 && (
+              <tr className="refund-row">
+                <td>Room Card Deposit Refund</td>
+                <td className="amount">-{formatCurrency(charges.depositRefund)}</td>
+              </tr>
+            )}
+
+            <tr className="total-row">
+              <td>{charges.grandTotal >= 0 ? 'Total Amount Due' : 'Total Refund'}</td>
+              <td className="amount">{formatCurrency(Math.abs(charges.grandTotal))}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        {charges.lateCheckoutPenalty > 0 && (
+          <div className="notes">
+            <strong>Late Checkout Notice</strong>
+            Guest checked out after the standard checkout time. A penalty of {formatCurrency(charges.lateCheckoutPenalty)} has been applied, and the room card deposit has been forfeited.
+          </div>
+        )}
+
+        {charges.depositRefund > 0 && (
+          <div className="notes success-note">
+            <strong>Deposit Refund</strong>
+            Room card deposit of {formatCurrency(charges.depositRefund)} will be refunded to the guest.
+          </div>
+        )}
+
+        <div className="footer">
+          <strong>Thank you for choosing {hotelSettings.hotel_name}!</strong>
+          <p>We hope to see you again soon.</p>
+          <p style={{ marginTop: '10px' }}>This is a computer-generated invoice and does not require a signature.</p>
+        </div>
+      </Box>
+    </Dialog>
+  );
+};
+
+export default CheckoutInvoiceModal;

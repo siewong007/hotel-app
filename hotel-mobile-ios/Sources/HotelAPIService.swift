@@ -30,11 +30,11 @@ class HotelAPIService {
     
     private func performRequest<T: Decodable>(_ request: URLRequest, retryCount: Int = 0) async throws -> T {
         let (data, response) = try await URLSession.shared.data(for: request)
-        
+
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError(error: "Invalid response")
+            throw APIError.invalidResponse
         }
-        
+
         // Handle authentication errors with token refresh
         if httpResponse.statusCode == 401 {
             // Try to refresh token if we haven't retried yet
@@ -50,23 +50,23 @@ class HotelAPIService {
                 } catch {
                     // Refresh failed, logout
                     authManager.logout()
-                    throw APIError(error: "Authentication expired. Please login again.")
+                    throw APIError.unauthorized
                 }
             } else {
                 // Already retried or no refresh token
                 authManager.logout()
-                throw APIError(error: "Authentication required. Please login again.")
+                throw APIError.unauthorized
             }
         }
-        
+
         guard (200...299).contains(httpResponse.statusCode) else {
             // Try to decode error message
-            if let errorResponse = try? JSONDecoder().decode(APIError.self, from: data) {
-                throw errorResponse
+            if let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data) {
+                throw APIError.serverError(errorResponse.error, errorResponse.message)
             }
-            throw APIError(error: "Request failed with status code: \(httpResponse.statusCode)")
+            throw APIError.networkError("Request failed with status code: \(httpResponse.statusCode)")
         }
-        
+
         return try JSONDecoder().decode(T.self, from: data)
     }
     
@@ -74,21 +74,21 @@ class HotelAPIService {
     
     func login(username: String, password: String) async throws -> AuthResponse {
         let url = URL(string: "\(baseURL)/auth/login")!
-        let loginRequest = LoginRequest(username: username, password: password)
+        let loginRequest = LoginRequest(username: username, password: password, totpCode: nil)
         let body = try JSONEncoder().encode(loginRequest)
-        
+
         var request = createRequest(url: url, method: "POST", body: body)
         // Don't include auth token for login
-        request.setValue(nil, forHTTPHeaderField: "Authorization")
-        
+        request.setValue(nil as String?, forHTTPHeaderField: "Authorization")
+
         let authResponse: AuthResponse = try await performRequest(request)
         authManager.saveAuth(authResponse)
         return authResponse
     }
-    
+
     func refreshAccessToken() async throws -> AuthResponse {
         guard let refreshToken = authManager.refreshToken else {
-            throw APIError(error: "No refresh token available")
+            throw APIError.unauthorized
         }
         
         let url = URL(string: "\(baseURL)/auth/refresh")!
@@ -128,7 +128,7 @@ class HotelAPIService {
         
         components.queryItems = queryItems.isEmpty ? nil : queryItems
         guard let url = components.url else {
-            throw APIError(error: "Invalid URL")
+            throw APIError.networkError("Invalid URL")
         }
         
         let request = createRequest(url: url)
@@ -190,10 +190,26 @@ class HotelAPIService {
     
     func createGuest(name: String, email: String, phone: String? = nil, address: String? = nil) async throws -> Guest {
         let url = URL(string: "\(baseURL)/guests")!
-        let guestRequest = GuestRequest(name: name, email: email, phone: phone, address: address)
+
+        // Split name into first and last name
+        let nameParts = name.split(separator: " ", maxSplits: 1).map(String.init)
+        let firstName = nameParts.first ?? name
+        let lastName = nameParts.count > 1 ? nameParts[1] : ""
+
+        let guestRequest = GuestRequest(
+            firstName: firstName,
+            lastName: lastName,
+            email: email,
+            phone: phone,
+            addressLine1: address,
+            city: nil,
+            stateProvince: nil,
+            postalCode: nil,
+            country: nil
+        )
         let body = try JSONEncoder().encode(guestRequest)
         let request = createRequest(url: url, method: "POST", body: body)
-        
+
         return try await performRequest(request)
     }
     
@@ -235,10 +251,17 @@ class HotelAPIService {
     
     func createBooking(guestId: String, roomId: String, checkIn: String, checkOut: String) async throws -> Booking {
         let url = URL(string: "\(baseURL)/bookings")!
-        let bookingRequest = BookingRequest(guest_id: guestId, room_id: roomId, check_in: checkIn, check_out: checkOut)
+        let bookingRequest = BookingRequest(
+            guestId: Int(guestId) ?? 0,
+            roomId: Int(roomId) ?? 0,
+            checkInDate: checkIn,
+            checkOutDate: checkOut,
+            postType: nil,
+            rateCode: nil
+        )
         let body = try JSONEncoder().encode(bookingRequest)
         let request = createRequest(url: url, method: "POST", body: body)
-        
+
         return try await performRequest(request)
     }
     
@@ -266,10 +289,20 @@ class HotelAPIService {
     func deleteBooking(id: String) async throws {
         let url = URL(string: "\(baseURL)/bookings/\(id)")!
         let request = createRequest(url: url, method: "DELETE")
-        
+
         let _: [String: String] = try await performRequest(request)
     }
-    
+
+    // MARK: - Enhanced Check-In
+
+    func performEnhancedCheckIn(bookingId: String, checkInData: EnhancedCheckInRequest) async throws -> BookingWithDetails {
+        let url = URL(string: "\(baseURL)/bookings/\(bookingId)/check-in")!
+        let body = try JSONEncoder().encode(checkInData)
+        let request = createRequest(url: url, method: "PATCH", body: body)
+
+        return try await performRequest(request)
+    }
+
     // MARK: - Personalized Reports
 
     func getPersonalizedReport(period: String = "month") async throws -> PersonalizedReport {
@@ -277,7 +310,7 @@ class HotelAPIService {
         components.queryItems = [URLQueryItem(name: "period", value: period)]
 
         guard let url = components.url else {
-            throw APIError(error: "Invalid URL")
+            throw APIError.networkError("Invalid URL")
         }
 
         let request = createRequest(url: url)
@@ -367,7 +400,7 @@ class HotelAPIService {
 
     func updatePassword(currentPassword: String, newPassword: String) async throws {
         let url = URL(string: "\(baseURL)/profile/password")!
-        let passwordUpdate = PasswordUpdate(current_password: currentPassword, new_password: newPassword)
+        let passwordUpdate = PasswordUpdate(currentPassword: currentPassword, newPassword: newPassword)
         let body = try JSONEncoder().encode(passwordUpdate)
         let request = createRequest(url: url, method: "POST", body: body)
 
@@ -382,7 +415,7 @@ class HotelAPIService {
         return try await performRequest(request)
     }
 
-    func deletePasskey(passkeyId: Int) async throws {
+    func deletePasskey(passkeyId: String) async throws {
         let url = URL(string: "\(baseURL)/profile/passkeys/\(passkeyId)")!
         let request = createRequest(url: url, method: "DELETE")
 

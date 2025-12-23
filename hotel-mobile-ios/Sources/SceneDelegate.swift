@@ -9,25 +9,21 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
         window = UIWindow(windowScene: windowScene)
         
-        // Check authentication status
-        if AuthManager.shared.isAuthenticated {
-            showMainInterface()
-        } else {
-            showLoginInterface()
-        }
+        // Show main interface (existing tab bar controller)
+        showMainInterface()
         
         // Listen for login/logout notifications
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleLogin),
-            name: NSNotification.Name("UserDidLogin"),
+            name: .userDidLogin,
             object: nil
         )
         
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleLogout),
-            name: NSNotification.Name("UserDidLogout"),
+            name: .userDidLogout,
             object: nil
         )
         
@@ -35,13 +31,28 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
     
     private func showMainInterface() {
+        // Use existing HotelTabViewController with all tabs
         let mainViewController = HotelTabViewController()
         window?.rootViewController = mainViewController
     }
     
     private func showLoginInterface() {
-        let loginViewController = LoginViewController()
-        let navController = UINavigationController(rootViewController: loginViewController)
+        // Create a simple login view
+        let loginVC = UIViewController()
+        loginVC.view.backgroundColor = .systemBackground
+        
+        let label = UILabel()
+        label.text = "Login Required"
+        label.textAlignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        loginVC.view.addSubview(label)
+        
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: loginVC.view.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: loginVC.view.centerYAnchor)
+        ])
+        
+        let navController = UINavigationController(rootViewController: loginVC)
         window?.rootViewController = navController
     }
     

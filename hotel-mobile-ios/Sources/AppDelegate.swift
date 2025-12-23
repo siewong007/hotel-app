@@ -6,8 +6,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Start network monitoring
-        NetworkMonitor.shared.startMonitoring()
+        // Initialize app
+        print("Hotel Booking App Initialized")
         
         return true
     }
@@ -20,7 +20,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
     
     func applicationWillTerminate(_ application: UIApplication) {
-        // Stop network monitoring
-        NetworkMonitor.shared.stopMonitoring()
+        // Cleanup if needed
+        print("App terminating")
     }
 }
