@@ -27,6 +27,8 @@ import {
   IconButton,
   Grid,
   FormControl,
+  FormControlLabel,
+  Checkbox,
   InputLabel,
   Select,
   InputAdornment,
@@ -281,6 +283,7 @@ const BookingsPage: React.FC = () => {
       check_out_date: booking.check_out_date.split('T')[0],
       post_type: booking.post_type || 'normal_stay',
       rate_code: booking.rate_code || 'RACK',
+      deposit_paid: booking.deposit_paid || false,
     });
     setEditDialogOpen(true);
   };
@@ -1205,6 +1208,27 @@ const BookingsPage: React.FC = () => {
                 label="Rate Code"
                 value={editFormData.rate_code || 'RACK'}
                 onChange={(e) => setEditFormData({ ...editFormData, rate_code: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={editFormData.deposit_paid || false}
+                    onChange={(e) => setEditFormData({ ...editFormData, deposit_paid: e.target.checked })}
+                    color="success"
+                  />
+                }
+                label={
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: editFormData.deposit_paid ? 'success.main' : 'text.primary' }}>
+                      Deposit Paid
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Mark if guest has paid the deposit
+                    </Typography>
+                  </Box>
+                }
               />
             </Grid>
             <Grid item xs={12}>

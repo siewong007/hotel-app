@@ -58,6 +58,9 @@ export interface Booking {
   complimentary_end_date?: string;
   original_total_amount?: number | string;
   complimentary_nights?: number;
+  deposit_paid?: boolean;
+  deposit_amount?: number | string;
+  deposit_paid_at?: string;
 }
 
 export interface BookingWithDetails extends Booking {
@@ -111,6 +114,8 @@ export interface BookingCreateRequest {
   payment_method?: string;
   source?: 'walk_in' | 'online' | 'phone' | 'agent';
   booking_number?: string; // Optional - auto-generated for walk-in, manual for online
+  deposit_paid?: boolean;
+  deposit_amount?: number;
 }
 
 export interface BookingUpdateRequest {
@@ -132,6 +137,8 @@ export interface BookingUpdateRequest {
   special_requests?: string;
   number_of_guests?: number;
   cancellation_reason?: string;
+  deposit_paid?: boolean;
+  deposit_amount?: number;
 }
 
 export interface BookingCancellationRequest {
