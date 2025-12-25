@@ -1,6 +1,6 @@
 //! Company models for direct billing
 
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -23,8 +23,8 @@ pub struct Company {
     pub payment_terms_days: Option<i32>,
     pub notes: Option<String>,
     pub created_by: Option<i64>,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 /// Input for creating a company

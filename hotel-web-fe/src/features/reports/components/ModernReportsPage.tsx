@@ -29,11 +29,27 @@ import {
   AccountBalance as LedgerIcon,
   Receipt as ReceiptIcon,
   TrendingUp as TrendingIcon,
+  Today as TodayIcon,
+  Hotel as HotelIcon,
+  AttachMoney as MoneyIcon,
+  Payment as PaymentIcon,
+  CardGiftcard as GiftIcon,
+  People as PeopleIcon,
+  MeetingRoom as RoomIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
 
 type ReportType =
+  // New hotel management reports
+  | 'daily_operations'
+  | 'occupancy'
+  | 'revenue'
+  | 'payment_status'
+  | 'complimentary'
+  | 'guest_statistics'
+  | 'room_performance'
+  // Legacy accounting reports
   | 'general_journal'
   | 'company_ledger_statement'
   | 'balance_sheet'
@@ -47,40 +63,103 @@ interface CompanyOption {
 }
 
 const REPORT_CONFIGS = [
+  // New Hotel Management Reports
+  {
+    type: 'daily_operations' as ReportType,
+    label: 'Daily Operations',
+    description: "Today's arrivals, departures & in-house",
+    icon: <TodayIcon />,
+    color: '#2e7d32',
+    category: 'operations',
+  },
+  {
+    type: 'occupancy' as ReportType,
+    label: 'Occupancy Report',
+    description: 'Occupancy rate, ADR & RevPAR metrics',
+    icon: <HotelIcon />,
+    color: '#1565c0',
+    category: 'operations',
+  },
+  {
+    type: 'revenue' as ReportType,
+    label: 'Revenue Report',
+    description: 'Revenue by room type, source & payment',
+    icon: <MoneyIcon />,
+    color: '#00695c',
+    category: 'financial',
+  },
+  {
+    type: 'payment_status' as ReportType,
+    label: 'Payment Status',
+    description: 'Outstanding payments & overdue tracking',
+    icon: <PaymentIcon />,
+    color: '#d84315',
+    category: 'financial',
+  },
+  {
+    type: 'complimentary' as ReportType,
+    label: 'Complimentary Report',
+    description: 'Track complimentary stays & discounts',
+    icon: <GiftIcon />,
+    color: '#6a1b9a',
+    category: 'operations',
+  },
+  {
+    type: 'guest_statistics' as ReportType,
+    label: 'Guest Statistics',
+    description: 'Guest demographics & patterns',
+    icon: <PeopleIcon />,
+    color: '#00838f',
+    category: 'analytics',
+  },
+  {
+    type: 'room_performance' as ReportType,
+    label: 'Room Performance',
+    description: 'Room & room type analysis',
+    icon: <RoomIcon />,
+    color: '#4527a0',
+    category: 'analytics',
+  },
+  // Legacy Accounting Reports
   {
     type: 'general_journal' as ReportType,
     label: 'General Journal',
-    description: 'Daily double-entry accounting journal',
+    description: 'Double-entry accounting journal',
     icon: <LedgerIcon />,
-    color: '#1976d2',
+    color: '#546e7a',
+    category: 'accounting',
   },
   {
     type: 'company_ledger_statement' as ReportType,
-    label: 'Company Ledger Statement',
-    description: 'Account statement for companies',
+    label: 'Company Ledger',
+    description: 'Company account statements',
     icon: <BusinessIcon />,
-    color: '#388e3c',
+    color: '#546e7a',
+    category: 'accounting',
   },
   {
     type: 'balance_sheet' as ReportType,
     label: 'Balance Sheet',
     description: 'Summary of account balances',
     icon: <TrendingIcon />,
-    color: '#f57c00',
+    color: '#546e7a',
+    category: 'accounting',
   },
   {
     type: 'shift_report' as ReportType,
     label: 'Shift Report',
     description: 'Revenue report by shift',
     icon: <ReceiptIcon />,
-    color: '#7b1fa2',
+    color: '#546e7a',
+    category: 'accounting',
   },
   {
     type: 'rooms_sold' as ReportType,
-    label: 'Rooms Sold Report',
+    label: 'Rooms Sold',
     description: 'Room occupancy details',
     icon: <CalendarIcon />,
-    color: '#c62828',
+    color: '#546e7a',
+    category: 'accounting',
   },
 ];
 
@@ -451,6 +530,16 @@ const ModernReportsPage: React.FC = () => {
   const renderRoomsSold = () => {
     if (!reportData?.bookings) return <Typography>No data available</Typography>;
 
+    // Helper to format date or return '-' for null/undefined
+    const formatDate = (date: string | null | undefined) => {
+      if (!date) return '-';
+      try {
+        return new Date(date).toLocaleDateString();
+      } catch {
+        return '-';
+      }
+    };
+
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
@@ -465,23 +554,29 @@ const ModernReportsPage: React.FC = () => {
           <Table size="small">
             <TableHead>
               <TableRow sx={{ bgcolor: 'grey.100' }}>
-                <TableCell>Date</TableCell>
+                <TableCell>Folio</TableCell>
                 <TableCell>Room</TableCell>
+                <TableCell>Room Type</TableCell>
                 <TableCell>Guest</TableCell>
                 <TableCell>Check In</TableCell>
                 <TableCell>Check Out</TableCell>
-                <TableCell align="right">Amount</TableCell>
+                <TableCell>Rate Plan</TableCell>
+                <TableCell align="center">Adults</TableCell>
+                <TableCell align="center">Children</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {reportData.bookings.map((b: any, idx: number) => (
                 <TableRow key={idx}>
-                  <TableCell>{b.date}</TableCell>
-                  <TableCell>{b.room_number}</TableCell>
+                  <TableCell>{b.folio || '-'}</TableCell>
+                  <TableCell>{b.room_number || '-'}</TableCell>
+                  <TableCell>{b.room_type || '-'}</TableCell>
                   <TableCell>{b.guest_name || '-'}</TableCell>
-                  <TableCell>{b.check_in}</TableCell>
-                  <TableCell>{b.check_out}</TableCell>
-                  <TableCell align="right">{currencySymbol}{Number(b.amount || 0).toFixed(2)}</TableCell>
+                  <TableCell>{formatDate(b.check_in_date)}</TableCell>
+                  <TableCell>{formatDate(b.check_out_date)}</TableCell>
+                  <TableCell>{b.rate_plan || '-'}</TableCell>
+                  <TableCell align="center">{b.adult_count ?? '-'}</TableCell>
+                  <TableCell align="center">{b.child_count ?? '-'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -489,14 +584,734 @@ const ModernReportsPage: React.FC = () => {
         </TableContainer>
 
         <Typography variant="h6" sx={{ mt: 2 }} align="right">
-          Total Rooms: {reportData.total_rooms || reportData.bookings.length}
+          Total Rooms Sold: {reportData.total_rooms || reportData.bookings.length}
         </Typography>
+      </Box>
+    );
+  };
+
+  // ============================================================================
+  // NEW HOTEL MANAGEMENT REPORTS
+  // ============================================================================
+
+  // Daily Operations Report
+  const renderDailyOperations = () => {
+    if (!reportData) return <Typography>No data available</Typography>;
+
+    return (
+      <Box>
+        <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
+          <Typography variant="h4" fontWeight="bold">Daily Operations Report</Typography>
+          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="body2" color="text.secondary">Date: {reportData.date}</Typography>
+        </Box>
+
+        {/* Summary Cards */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={6} md={3}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+              <Typography variant="h3" color="success.main">{reportData.arrivals_count || 0}</Typography>
+              <Typography variant="subtitle2">Arrivals Today</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
+              <Typography variant="h3" color="warning.main">{reportData.departures_count || 0}</Typography>
+              <Typography variant="subtitle2">Departures Today</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
+              <Typography variant="h3" color="primary.main">{reportData.in_house_count || 0}</Typography>
+              <Typography variant="subtitle2">In-House Guests</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#f3e5f5' }}>
+              <Typography variant="h3" color="secondary.main">{reportData.occupancy_rate?.toFixed(1) || 0}%</Typography>
+              <Typography variant="subtitle2">Occupancy Rate</Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* Arrivals */}
+        <Typography variant="h6" sx={{ bgcolor: 'success.main', color: 'white', p: 1, mb: 1 }}>
+          Today's Arrivals ({reportData.arrivals?.length || 0})
+        </Typography>
+        <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableCell>Booking #</TableCell>
+                <TableCell>Guest Name</TableCell>
+                <TableCell>Room</TableCell>
+                <TableCell>Payment Status</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {reportData.arrivals?.length > 0 ? reportData.arrivals.map((a: any, idx: number) => (
+                <TableRow key={idx}>
+                  <TableCell>{a.booking_number}</TableCell>
+                  <TableCell>{a.guest_name}</TableCell>
+                  <TableCell>{a.room_number}</TableCell>
+                  <TableCell>
+                    <Chip label={a.payment_status || 'unpaid'} size="small"
+                      color={a.payment_status === 'paid' ? 'success' : 'warning'} />
+                  </TableCell>
+                </TableRow>
+              )) : (
+                <TableRow><TableCell colSpan={4} align="center">No arrivals today</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        {/* Departures */}
+        <Typography variant="h6" sx={{ bgcolor: 'warning.main', color: 'white', p: 1, mb: 1 }}>
+          Today's Departures ({reportData.departures?.length || 0})
+        </Typography>
+        <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableCell>Booking #</TableCell>
+                <TableCell>Guest Name</TableCell>
+                <TableCell>Room</TableCell>
+                <TableCell>Payment Status</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {reportData.departures?.length > 0 ? reportData.departures.map((d: any, idx: number) => (
+                <TableRow key={idx}>
+                  <TableCell>{d.booking_number}</TableCell>
+                  <TableCell>{d.guest_name}</TableCell>
+                  <TableCell>{d.room_number}</TableCell>
+                  <TableCell>
+                    <Chip label={d.payment_status || 'unpaid'} size="small"
+                      color={d.payment_status === 'paid' ? 'success' : 'error'} />
+                  </TableCell>
+                </TableRow>
+              )) : (
+                <TableRow><TableCell colSpan={4} align="center">No departures today</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        {/* In-House */}
+        <Typography variant="h6" sx={{ bgcolor: 'primary.main', color: 'white', p: 1, mb: 1 }}>
+          In-House Guests ({reportData.in_house?.length || 0})
+        </Typography>
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableCell>Booking #</TableCell>
+                <TableCell>Guest Name</TableCell>
+                <TableCell>Room</TableCell>
+                <TableCell>Check-in</TableCell>
+                <TableCell>Check-out</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {reportData.in_house?.length > 0 ? reportData.in_house.map((g: any, idx: number) => (
+                <TableRow key={idx}>
+                  <TableCell>{g.booking_number}</TableCell>
+                  <TableCell>{g.guest_name}</TableCell>
+                  <TableCell>{g.room_number}</TableCell>
+                  <TableCell>{g.check_in_date}</TableCell>
+                  <TableCell>{g.check_out_date}</TableCell>
+                </TableRow>
+              )) : (
+                <TableRow><TableCell colSpan={5} align="center">No in-house guests</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+    );
+  };
+
+  // Occupancy Report
+  const renderOccupancy = () => {
+    if (!reportData?.summary) return <Typography>No data available</Typography>;
+
+    const { summary, by_room_type } = reportData;
+
+    return (
+      <Box>
+        <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
+          <Typography variant="h4" fontWeight="bold">Occupancy Report</Typography>
+          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {reportData.period?.start} to {reportData.period?.end}
+          </Typography>
+        </Box>
+
+        {/* KPI Cards */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4" color="primary">{summary.occupancy_rate?.toFixed(1)}%</Typography>
+              <Typography variant="caption">Occupancy Rate</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4" color="success.main">{summary.rooms_sold}</Typography>
+              <Typography variant="caption">Rooms Sold</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4">{summary.total_rooms}</Typography>
+              <Typography variant="caption">Total Rooms</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4" color="info.main">{currencySymbol}{summary.adr?.toFixed(2)}</Typography>
+              <Typography variant="caption">ADR</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4" color="warning.main">{currencySymbol}{summary.revpar?.toFixed(2)}</Typography>
+              <Typography variant="caption">RevPAR</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4" color="success.main">{currencySymbol}{summary.total_revenue?.toFixed(0)}</Typography>
+              <Typography variant="caption">Total Revenue</Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* By Room Type */}
+        <Typography variant="h6" gutterBottom>Occupancy by Room Type</Typography>
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableCell>Room Type</TableCell>
+                <TableCell align="right">Bookings</TableCell>
+                <TableCell align="right">Revenue</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {by_room_type?.map((rt: any, idx: number) => (
+                <TableRow key={idx}>
+                  <TableCell>{rt.room_type}</TableCell>
+                  <TableCell align="right">{rt.bookings}</TableCell>
+                  <TableCell align="right">{currencySymbol}{rt.revenue?.toFixed(2)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+    );
+  };
+
+  // Revenue Report
+  const renderRevenue = () => {
+    if (!reportData) return <Typography>No data available</Typography>;
+
+    return (
+      <Box>
+        <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
+          <Typography variant="h4" fontWeight="bold">Revenue Report</Typography>
+          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {reportData.period?.start} to {reportData.period?.end}
+          </Typography>
+        </Box>
+
+        <Paper sx={{ p: 3, mb: 3, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+          <Typography variant="h3" color="success.main">
+            {currencySymbol}{reportData.total_revenue?.toFixed(2)}
+          </Typography>
+          <Typography variant="subtitle1">Total Revenue</Typography>
+        </Paper>
+
+        <Grid container spacing={3}>
+          {/* By Room Type */}
+          <Grid item xs={12} md={4}>
+            <Typography variant="h6" gutterBottom>By Room Type</Typography>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                    <TableCell>Type</TableCell>
+                    <TableCell align="right">Revenue</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {reportData.by_room_type?.map((rt: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell>{rt.room_type}</TableCell>
+                      <TableCell align="right">{currencySymbol}{rt.revenue?.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Grid>
+
+          {/* By Source */}
+          <Grid item xs={12} md={4}>
+            <Typography variant="h6" gutterBottom>By Booking Source</Typography>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                    <TableCell>Source</TableCell>
+                    <TableCell align="right">Revenue</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {reportData.by_source?.map((s: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell>{s.source}</TableCell>
+                      <TableCell align="right">{currencySymbol}{s.revenue?.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Grid>
+
+          {/* By Payment Status */}
+          <Grid item xs={12} md={4}>
+            <Typography variant="h6" gutterBottom>By Payment Status</Typography>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                    <TableCell>Status</TableCell>
+                    <TableCell align="right">Revenue</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {reportData.by_payment_status?.map((ps: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell>{ps.payment_status}</TableCell>
+                      <TableCell align="right">{currencySymbol}{ps.revenue?.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Grid>
+        </Grid>
+      </Box>
+    );
+  };
+
+  // Payment Status Report
+  const renderPaymentStatus = () => {
+    if (!reportData) return <Typography>No data available</Typography>;
+
+    return (
+      <Box>
+        <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
+          <Typography variant="h4" fontWeight="bold">Payment Status Report</Typography>
+          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {reportData.period?.start} to {reportData.period?.end}
+          </Typography>
+        </Box>
+
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={6}>
+            <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#ffebee' }}>
+              <Typography variant="h3" color="error.main">
+                {currencySymbol}{reportData.outstanding_balance?.toFixed(2)}
+              </Typography>
+              <Typography variant="subtitle1">Outstanding Balance</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6}>
+            <Paper sx={{ p: 3, textAlign: 'center', bgcolor: '#fff3e0' }}>
+              <Typography variant="h3" color="warning.main">{reportData.overdue_count || 0}</Typography>
+              <Typography variant="subtitle1">Overdue Payments</Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* By Status */}
+        <Typography variant="h6" gutterBottom>Breakdown by Status</Typography>
+        <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableCell>Payment Status</TableCell>
+                <TableCell align="right">Count</TableCell>
+                <TableCell align="right">Total Amount</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {reportData.by_status?.map((s: any, idx: number) => (
+                <TableRow key={idx}>
+                  <TableCell>
+                    <Chip label={s.payment_status} size="small"
+                      color={s.payment_status === 'paid' ? 'success' : s.payment_status === 'unpaid' ? 'error' : 'warning'} />
+                  </TableCell>
+                  <TableCell align="right">{s.count}</TableCell>
+                  <TableCell align="right">{currencySymbol}{s.total_amount?.toFixed(2)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        {/* Overdue */}
+        {reportData.overdue?.length > 0 && (
+          <>
+            <Typography variant="h6" gutterBottom color="error">Overdue Payments</Typography>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: '#ffebee' }}>
+                    <TableCell>Booking #</TableCell>
+                    <TableCell>Guest</TableCell>
+                    <TableCell>Room</TableCell>
+                    <TableCell>Check-out</TableCell>
+                    <TableCell align="right">Amount</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {reportData.overdue.map((o: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell>{o.booking_number}</TableCell>
+                      <TableCell>{o.guest_name}</TableCell>
+                      <TableCell>{o.room_number}</TableCell>
+                      <TableCell>{o.check_out_date}</TableCell>
+                      <TableCell align="right">{currencySymbol}{o.total_amount?.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </>
+        )}
+      </Box>
+    );
+  };
+
+  // Complimentary Report
+  const renderComplimentary = () => {
+    if (!reportData) return <Typography>No data available</Typography>;
+
+    const { summary } = reportData;
+
+    return (
+      <Box>
+        <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
+          <Typography variant="h4" fontWeight="bold">Complimentary Report</Typography>
+          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {reportData.period?.start} to {reportData.period?.end}
+          </Typography>
+        </Box>
+
+        {/* Summary */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4">{summary?.total_bookings || 0}</Typography>
+              <Typography variant="caption">Total Bookings</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4" color="secondary">{summary?.total_complimentary_nights || 0}</Typography>
+              <Typography variant="caption">Comp. Nights</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4" color="info.main">{summary?.partial_complimentary || 0}</Typography>
+              <Typography variant="caption">Partial Comp.</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4" color="success.main">{summary?.fully_complimentary || 0}</Typography>
+              <Typography variant="caption">Fully Comp.</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
+              <Typography variant="h5" color="warning.main">{currencySymbol}{summary?.discount_given?.toFixed(0) || 0}</Typography>
+              <Typography variant="caption">Discount Given</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+              <Typography variant="h5" color="success.main">{currencySymbol}{summary?.actual_revenue?.toFixed(0) || 0}</Typography>
+              <Typography variant="caption">Actual Revenue</Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* Bookings */}
+        <Typography variant="h6" gutterBottom>Complimentary Bookings</Typography>
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableCell>Booking #</TableCell>
+                <TableCell>Guest</TableCell>
+                <TableCell>Room</TableCell>
+                <TableCell>Nights</TableCell>
+                <TableCell>Reason</TableCell>
+                <TableCell align="right">Original</TableCell>
+                <TableCell align="right">Actual</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {reportData.bookings?.length > 0 ? reportData.bookings.map((b: any, idx: number) => (
+                <TableRow key={idx}>
+                  <TableCell>{b.booking_number}</TableCell>
+                  <TableCell>{b.guest_name}</TableCell>
+                  <TableCell>{b.room_number}</TableCell>
+                  <TableCell>{b.complimentary_nights || '-'}</TableCell>
+                  <TableCell>{b.complimentary_reason || '-'}</TableCell>
+                  <TableCell align="right">{currencySymbol}{b.original_amount?.toFixed(2)}</TableCell>
+                  <TableCell align="right">{currencySymbol}{b.actual_amount?.toFixed(2)}</TableCell>
+                </TableRow>
+              )) : (
+                <TableRow><TableCell colSpan={7} align="center">No complimentary bookings</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+    );
+  };
+
+  // Guest Statistics Report
+  const renderGuestStatistics = () => {
+    if (!reportData?.summary) return <Typography>No data available</Typography>;
+
+    const { summary } = reportData;
+
+    return (
+      <Box>
+        <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
+          <Typography variant="h4" fontWeight="bold">Guest Statistics</Typography>
+          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {reportData.period?.start} to {reportData.period?.end}
+          </Typography>
+        </Box>
+
+        {/* Summary */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4" color="primary">{summary.unique_guests}</Typography>
+              <Typography variant="caption">Unique Guests</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+              <Typography variant="h4" color="success.main">{summary.new_guests}</Typography>
+              <Typography variant="caption">New Guests</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
+              <Typography variant="h4" color="info.main">{summary.returning_guests}</Typography>
+              <Typography variant="caption">Returning</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4">{summary.tourists}</Typography>
+              <Typography variant="caption">Tourists</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4">{summary.non_tourists}</Typography>
+              <Typography variant="caption">Non-Tourists</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={2}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h4">{summary.average_stay_nights?.toFixed(1)}</Typography>
+              <Typography variant="caption">Avg Stay (nights)</Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+
+        <Grid container spacing={3}>
+          {/* Top Guests */}
+          <Grid item xs={12} md={6}>
+            <Typography variant="h6" gutterBottom>Top Guests by Bookings</Typography>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                    <TableCell>Guest Name</TableCell>
+                    <TableCell align="right">Bookings</TableCell>
+                    <TableCell align="right">Total Spent</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {reportData.top_guests?.map((g: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell>{g.name}</TableCell>
+                      <TableCell align="right">{g.bookings}</TableCell>
+                      <TableCell align="right">{currencySymbol}{g.total_spent?.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Grid>
+
+          {/* By Nationality */}
+          <Grid item xs={12} md={6}>
+            <Typography variant="h6" gutterBottom>By Nationality</Typography>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                    <TableCell>Nationality</TableCell>
+                    <TableCell align="right">Count</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {reportData.by_nationality?.length > 0 ? reportData.by_nationality.map((n: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell>{n.nationality}</TableCell>
+                      <TableCell align="right">{n.count}</TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow><TableCell colSpan={2} align="center">No nationality data</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Grid>
+        </Grid>
+      </Box>
+    );
+  };
+
+  // Room Performance Report
+  const renderRoomPerformance = () => {
+    if (!reportData) return <Typography>No data available</Typography>;
+
+    return (
+      <Box>
+        <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
+          <Typography variant="h4" fontWeight="bold">Room Performance Report</Typography>
+          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {reportData.period?.start} to {reportData.period?.end}
+          </Typography>
+        </Box>
+
+        <Grid container spacing={3}>
+          {/* By Room Type */}
+          <Grid item xs={12} md={6}>
+            <Typography variant="h6" gutterBottom>Performance by Room Type</Typography>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                    <TableCell>Room Type</TableCell>
+                    <TableCell align="right">Rooms</TableCell>
+                    <TableCell align="right">Bookings</TableCell>
+                    <TableCell align="right">Revenue</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {reportData.by_type?.map((rt: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell>{rt.room_type}</TableCell>
+                      <TableCell align="right">{rt.room_count}</TableCell>
+                      <TableCell align="right">{rt.bookings}</TableCell>
+                      <TableCell align="right">{currencySymbol}{rt.revenue?.toFixed(2)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Grid>
+
+          {/* Underperforming */}
+          <Grid item xs={12} md={6}>
+            <Typography variant="h6" gutterBottom color="warning.main">Underperforming Rooms</Typography>
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: '#fff3e0' }}>
+                    <TableCell>Room #</TableCell>
+                    <TableCell>Type</TableCell>
+                    <TableCell align="right">Bookings</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {reportData.underperforming?.length > 0 ? reportData.underperforming.map((r: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell>{r.room_number}</TableCell>
+                      <TableCell>{r.room_type}</TableCell>
+                      <TableCell align="right">{r.bookings}</TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow><TableCell colSpan={3} align="center">All rooms performing well</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Grid>
+        </Grid>
+
+        {/* By Room */}
+        <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>All Rooms Performance</Typography>
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableCell>Room #</TableCell>
+                <TableCell>Type</TableCell>
+                <TableCell align="right">Bookings</TableCell>
+                <TableCell align="right">Revenue</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {reportData.by_room?.map((r: any, idx: number) => (
+                <TableRow key={idx}>
+                  <TableCell>{r.room_number}</TableCell>
+                  <TableCell>{r.room_type}</TableCell>
+                  <TableCell align="right">{r.bookings}</TableCell>
+                  <TableCell align="right">{currencySymbol}{r.revenue?.toFixed(2)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Box>
     );
   };
 
   const renderReport = () => {
     switch (selectedReport) {
+      // New hotel management reports
+      case 'daily_operations': return renderDailyOperations();
+      case 'occupancy': return renderOccupancy();
+      case 'revenue': return renderRevenue();
+      case 'payment_status': return renderPaymentStatus();
+      case 'complimentary': return renderComplimentary();
+      case 'guest_statistics': return renderGuestStatistics();
+      case 'room_performance': return renderRoomPerformance();
+      // Legacy accounting reports
       case 'general_journal': return renderGeneralJournal();
       case 'company_ledger_statement': return renderCompanyLedgerStatement();
       case 'balance_sheet': return renderBalanceSheet();

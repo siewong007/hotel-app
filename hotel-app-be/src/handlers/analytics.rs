@@ -284,12 +284,21 @@ pub async fn generate_report_handler(
         .map_err(|e| ApiError::BadRequest(format!("Invalid end_date: {}", e)))?;
 
     let report_data = match params.report_type.as_str() {
+        // Legacy accounting reports
         "balance_sheet" => generate_balance_sheet(&pool, start_date, end_date).await?,
         "journal_by_type" => generate_journal_by_type(&pool, start_date, end_date).await?,
         "shift_report" => generate_shift_report(&pool, start_date, end_date, params.shift.as_deref(), params.drawer.as_deref()).await?,
         "rooms_sold" => generate_rooms_sold_report(&pool, start_date, end_date).await?,
         "general_journal" => generate_general_journal(&pool, start_date, end_date).await?,
         "company_ledger_statement" => generate_company_ledger_statement(&pool, start_date, end_date, params.company_name.as_deref()).await?,
+        // New hotel management reports
+        "daily_operations" => generate_daily_operations_report(&pool, start_date).await?,
+        "occupancy" => generate_occupancy_report(&pool, start_date, end_date).await?,
+        "revenue" => generate_revenue_report(&pool, start_date, end_date).await?,
+        "payment_status" => generate_payment_status_report(&pool, start_date, end_date).await?,
+        "complimentary" => generate_complimentary_report(&pool, start_date, end_date).await?,
+        "guest_statistics" => generate_guest_statistics_report(&pool, start_date, end_date).await?,
+        "room_performance" => generate_room_performance_report(&pool, start_date, end_date).await?,
         _ => return Err(ApiError::BadRequest(format!("Unknown report type: {}", params.report_type))),
     };
 
@@ -801,6 +810,892 @@ async fn generate_general_journal(
         "total_debits": total_debits,
         "total_credits": total_credits,
         "balance": balance
+    }))
+}
+
+// ============================================================================
+// NEW HOTEL MANAGEMENT REPORTS
+// ============================================================================
+
+// Daily Operations Report - Today's hotel activity snapshot
+async fn generate_daily_operations_report(
+    pool: &PgPool,
+    date: NaiveDate,
+) -> Result<serde_json::Value, ApiError> {
+    // Today's arrivals (expected check-ins)
+    let arrivals: Vec<(i64, String, String, String, Option<String>)> = sqlx::query_as(
+        r#"
+        SELECT b.id, b.booking_number, g.full_name, r.room_number, b.payment_status
+        FROM bookings b
+        JOIN guests g ON b.guest_id = g.id
+        JOIN rooms r ON b.room_id = r.id
+        WHERE b.check_in_date = $1 AND b.status IN ('confirmed', 'pending')
+        ORDER BY r.room_number
+        "#
+    )
+    .bind(date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Today's departures (expected check-outs)
+    let departures: Vec<(i64, String, String, String, Option<String>)> = sqlx::query_as(
+        r#"
+        SELECT b.id, b.booking_number, g.full_name, r.room_number, b.payment_status
+        FROM bookings b
+        JOIN guests g ON b.guest_id = g.id
+        JOIN rooms r ON b.room_id = r.id
+        WHERE b.check_out_date = $1 AND b.status IN ('checked_in', 'auto_checked_in', 'late_checkout')
+        ORDER BY r.room_number
+        "#
+    )
+    .bind(date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // In-house guests (currently occupied)
+    let in_house: Vec<(i64, String, String, String, NaiveDate, NaiveDate)> = sqlx::query_as(
+        r#"
+        SELECT b.id, b.booking_number, g.full_name, r.room_number, b.check_in_date, b.check_out_date
+        FROM bookings b
+        JOIN guests g ON b.guest_id = g.id
+        JOIN rooms r ON b.room_id = r.id
+        WHERE b.status IN ('checked_in', 'auto_checked_in')
+        ORDER BY r.room_number
+        "#
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Room status breakdown
+    let room_status: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT status, COUNT(*)::bigint FROM rooms WHERE is_active = true GROUP BY status"
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Total rooms
+    let total_rooms: Option<i64> = sqlx::query_scalar("SELECT COUNT(*)::bigint FROM rooms WHERE is_active = true")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    let total_rooms = total_rooms.unwrap_or(0);
+
+    // Tonight's expected occupancy
+    let tonight_occupied: Option<i64> = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(DISTINCT room_id)::bigint FROM bookings
+        WHERE check_in_date <= $1 AND check_out_date > $1
+        AND status NOT IN ('cancelled', 'no_show')
+        "#
+    )
+    .bind(date)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let tonight_occupied = tonight_occupied.unwrap_or(0);
+
+    let occupancy_rate = if total_rooms > 0 {
+        (tonight_occupied as f64 / total_rooms as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    let arrivals_json: Vec<serde_json::Value> = arrivals.into_iter()
+        .map(|(id, booking_number, guest_name, room_number, payment_status)| {
+            serde_json::json!({
+                "id": id,
+                "booking_number": booking_number,
+                "guest_name": guest_name,
+                "room_number": room_number,
+                "payment_status": payment_status
+            })
+        })
+        .collect();
+
+    let departures_json: Vec<serde_json::Value> = departures.into_iter()
+        .map(|(id, booking_number, guest_name, room_number, payment_status)| {
+            serde_json::json!({
+                "id": id,
+                "booking_number": booking_number,
+                "guest_name": guest_name,
+                "room_number": room_number,
+                "payment_status": payment_status
+            })
+        })
+        .collect();
+
+    let in_house_json: Vec<serde_json::Value> = in_house.into_iter()
+        .map(|(id, booking_number, guest_name, room_number, check_in, check_out)| {
+            serde_json::json!({
+                "id": id,
+                "booking_number": booking_number,
+                "guest_name": guest_name,
+                "room_number": room_number,
+                "check_in_date": check_in.to_string(),
+                "check_out_date": check_out.to_string()
+            })
+        })
+        .collect();
+
+    let room_status_map: serde_json::Map<String, serde_json::Value> = room_status.into_iter()
+        .map(|(status, count)| (status, serde_json::Value::Number(count.into())))
+        .collect();
+
+    Ok(serde_json::json!({
+        "date": date.to_string(),
+        "arrivals": arrivals_json,
+        "arrivals_count": arrivals_json.len(),
+        "departures": departures_json,
+        "departures_count": departures_json.len(),
+        "in_house": in_house_json,
+        "in_house_count": in_house_json.len(),
+        "room_status": room_status_map,
+        "total_rooms": total_rooms,
+        "tonight_occupied": tonight_occupied,
+        "occupancy_rate": occupancy_rate
+    }))
+}
+
+// Occupancy Report - Occupancy metrics over a date range
+async fn generate_occupancy_report(
+    pool: &PgPool,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+) -> Result<serde_json::Value, ApiError> {
+    // Total active rooms
+    let total_rooms: Option<i64> = sqlx::query_scalar("SELECT COUNT(*)::bigint FROM rooms WHERE is_active = true")
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    let total_rooms = total_rooms.unwrap_or(0);
+
+    // Rooms sold and revenue
+    let stats: (Option<i64>, Option<Decimal>) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*)::bigint, SUM(total_amount)
+        FROM bookings
+        WHERE check_in_date >= $1 AND check_in_date <= $2
+        AND status NOT IN ('cancelled', 'no_show')
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let rooms_sold = stats.0.unwrap_or(0);
+    let total_revenue = stats.1.unwrap_or(Decimal::ZERO);
+
+    // Calculate days in range
+    let days_in_range = (end_date - start_date).num_days() + 1;
+    let available_room_nights = total_rooms * days_in_range;
+
+    // ADR and RevPAR
+    let adr = if rooms_sold > 0 {
+        total_revenue / Decimal::from(rooms_sold)
+    } else {
+        Decimal::ZERO
+    };
+
+    let revpar = if available_room_nights > 0 {
+        total_revenue / Decimal::from(available_room_nights)
+    } else {
+        Decimal::ZERO
+    };
+
+    let occupancy_rate = if available_room_nights > 0 {
+        (rooms_sold as f64 / available_room_nights as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    // Occupancy by room type
+    let by_room_type: Vec<(String, i64, Option<Decimal>)> = sqlx::query_as(
+        r#"
+        SELECT rt.name, COUNT(*), SUM(b.total_amount)
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.id
+        JOIN room_types rt ON r.room_type_id = rt.id
+        WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
+        AND b.status NOT IN ('cancelled', 'no_show')
+        GROUP BY rt.name
+        ORDER BY COUNT(*) DESC
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let by_room_type_json: Vec<serde_json::Value> = by_room_type.into_iter()
+        .map(|(room_type, count, revenue)| {
+            serde_json::json!({
+                "room_type": room_type,
+                "bookings": count,
+                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+            })
+        })
+        .collect();
+
+    // Daily breakdown
+    let daily_data: Vec<(NaiveDate, i64, Option<Decimal>)> = sqlx::query_as(
+        r#"
+        SELECT check_in_date, COUNT(*), SUM(total_amount)
+        FROM bookings
+        WHERE check_in_date >= $1 AND check_in_date <= $2
+        AND status NOT IN ('cancelled', 'no_show')
+        GROUP BY check_in_date
+        ORDER BY check_in_date
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let daily_json: Vec<serde_json::Value> = daily_data.into_iter()
+        .map(|(date, count, revenue)| {
+            serde_json::json!({
+                "date": date.to_string(),
+                "bookings": count,
+                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0),
+                "occupancy_rate": if total_rooms > 0 { (count as f64 / total_rooms as f64) * 100.0 } else { 0.0 }
+            })
+        })
+        .collect();
+
+    Ok(serde_json::json!({
+        "period": {
+            "start": start_date.to_string(),
+            "end": end_date.to_string(),
+            "days": days_in_range
+        },
+        "summary": {
+            "total_rooms": total_rooms,
+            "rooms_sold": rooms_sold,
+            "available_room_nights": available_room_nights,
+            "occupancy_rate": occupancy_rate,
+            "total_revenue": total_revenue.to_string().parse::<f64>().unwrap_or(0.0),
+            "adr": adr.to_string().parse::<f64>().unwrap_or(0.0),
+            "revpar": revpar.to_string().parse::<f64>().unwrap_or(0.0)
+        },
+        "by_room_type": by_room_type_json,
+        "daily": daily_json
+    }))
+}
+
+// Revenue Report - Revenue breakdown and analysis
+async fn generate_revenue_report(
+    pool: &PgPool,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+) -> Result<serde_json::Value, ApiError> {
+    // Total revenue
+    let total_revenue: Option<Decimal> = sqlx::query_scalar(
+        r#"
+        SELECT SUM(total_amount) FROM bookings
+        WHERE check_in_date >= $1 AND check_in_date <= $2
+        AND status NOT IN ('cancelled', 'no_show')
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let total = total_revenue.unwrap_or(Decimal::ZERO);
+
+    // Revenue by room type
+    let by_room_type: Vec<(String, i64, Option<Decimal>)> = sqlx::query_as(
+        r#"
+        SELECT rt.name, COUNT(*), SUM(b.total_amount)
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.id
+        JOIN room_types rt ON r.room_type_id = rt.id
+        WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
+        AND b.status NOT IN ('cancelled', 'no_show')
+        GROUP BY rt.name
+        ORDER BY SUM(b.total_amount) DESC
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Revenue by source
+    let by_source: Vec<(Option<String>, i64, Option<Decimal>)> = sqlx::query_as(
+        r#"
+        SELECT source, COUNT(*), SUM(total_amount)
+        FROM bookings
+        WHERE check_in_date >= $1 AND check_in_date <= $2
+        AND status NOT IN ('cancelled', 'no_show')
+        GROUP BY source
+        ORDER BY SUM(total_amount) DESC
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Revenue by payment status
+    let by_payment_status: Vec<(Option<String>, i64, Option<Decimal>)> = sqlx::query_as(
+        r#"
+        SELECT payment_status, COUNT(*), SUM(total_amount)
+        FROM bookings
+        WHERE check_in_date >= $1 AND check_in_date <= $2
+        AND status NOT IN ('cancelled', 'no_show')
+        GROUP BY payment_status
+        ORDER BY SUM(total_amount) DESC
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Daily revenue
+    let daily_data: Vec<(NaiveDate, i64, Option<Decimal>)> = sqlx::query_as(
+        r#"
+        SELECT check_in_date, COUNT(*), SUM(total_amount)
+        FROM bookings
+        WHERE check_in_date >= $1 AND check_in_date <= $2
+        AND status NOT IN ('cancelled', 'no_show')
+        GROUP BY check_in_date
+        ORDER BY check_in_date
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let by_room_type_json: Vec<serde_json::Value> = by_room_type.into_iter()
+        .map(|(room_type, count, revenue)| {
+            serde_json::json!({
+                "room_type": room_type,
+                "bookings": count,
+                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+            })
+        })
+        .collect();
+
+    let by_source_json: Vec<serde_json::Value> = by_source.into_iter()
+        .map(|(source, count, revenue)| {
+            serde_json::json!({
+                "source": source.unwrap_or_else(|| "unknown".to_string()),
+                "bookings": count,
+                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+            })
+        })
+        .collect();
+
+    let by_payment_status_json: Vec<serde_json::Value> = by_payment_status.into_iter()
+        .map(|(status, count, revenue)| {
+            serde_json::json!({
+                "payment_status": status.unwrap_or_else(|| "unknown".to_string()),
+                "bookings": count,
+                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+            })
+        })
+        .collect();
+
+    let daily_json: Vec<serde_json::Value> = daily_data.into_iter()
+        .map(|(date, count, revenue)| {
+            serde_json::json!({
+                "date": date.to_string(),
+                "bookings": count,
+                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+            })
+        })
+        .collect();
+
+    Ok(serde_json::json!({
+        "period": {
+            "start": start_date.to_string(),
+            "end": end_date.to_string()
+        },
+        "total_revenue": total.to_string().parse::<f64>().unwrap_or(0.0),
+        "by_room_type": by_room_type_json,
+        "by_source": by_source_json,
+        "by_payment_status": by_payment_status_json,
+        "daily": daily_json
+    }))
+}
+
+// Payment Status Report - Outstanding payments and payment performance
+async fn generate_payment_status_report(
+    pool: &PgPool,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+) -> Result<serde_json::Value, ApiError> {
+    // Bookings by payment status
+    let by_status: Vec<(Option<String>, i64, Option<Decimal>)> = sqlx::query_as(
+        r#"
+        SELECT payment_status, COUNT(*), SUM(total_amount)
+        FROM bookings
+        WHERE check_in_date >= $1 AND check_in_date <= $2
+        AND status NOT IN ('cancelled')
+        GROUP BY payment_status
+        ORDER BY COUNT(*) DESC
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Calculate outstanding balance (unpaid bookings)
+    let outstanding: Option<Decimal> = sqlx::query_scalar(
+        r#"
+        SELECT SUM(total_amount) FROM bookings
+        WHERE check_in_date >= $1 AND check_in_date <= $2
+        AND status NOT IN ('cancelled')
+        AND payment_status IN ('unpaid', 'unpaid_deposit', 'partial')
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Overdue payments (past check-out with unpaid status)
+    let overdue: Vec<(i64, String, String, String, Decimal, NaiveDate, Option<String>)> = sqlx::query_as(
+        r#"
+        SELECT b.id, b.booking_number, g.full_name, r.room_number, b.total_amount, b.check_out_date, b.payment_status
+        FROM bookings b
+        JOIN guests g ON b.guest_id = g.id
+        JOIN rooms r ON b.room_id = r.id
+        WHERE b.check_out_date < CURRENT_DATE
+        AND b.status NOT IN ('cancelled')
+        AND b.payment_status IN ('unpaid', 'unpaid_deposit', 'partial')
+        ORDER BY b.check_out_date DESC
+        LIMIT 50
+        "#
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let by_status_json: Vec<serde_json::Value> = by_status.into_iter()
+        .map(|(status, count, amount)| {
+            serde_json::json!({
+                "payment_status": status.unwrap_or_else(|| "unknown".to_string()),
+                "count": count,
+                "total_amount": amount.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+            })
+        })
+        .collect();
+
+    let overdue_json: Vec<serde_json::Value> = overdue.into_iter()
+        .map(|(id, booking_number, guest_name, room_number, amount, check_out, payment_status)| {
+            serde_json::json!({
+                "id": id,
+                "booking_number": booking_number,
+                "guest_name": guest_name,
+                "room_number": room_number,
+                "total_amount": amount.to_string().parse::<f64>().unwrap_or(0.0),
+                "check_out_date": check_out.to_string(),
+                "payment_status": payment_status
+            })
+        })
+        .collect();
+
+    Ok(serde_json::json!({
+        "period": {
+            "start": start_date.to_string(),
+            "end": end_date.to_string()
+        },
+        "by_status": by_status_json,
+        "outstanding_balance": outstanding.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0),
+        "overdue": overdue_json,
+        "overdue_count": overdue_json.len()
+    }))
+}
+
+// Complimentary Report - Track complimentary stays
+async fn generate_complimentary_report(
+    pool: &PgPool,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+) -> Result<serde_json::Value, ApiError> {
+    // All complimentary bookings
+    let complimentary: Vec<(i64, String, String, String, NaiveDate, NaiveDate,
+                           Option<bool>, Option<String>, Option<NaiveDate>, Option<NaiveDate>,
+                           Option<Decimal>, Decimal, Option<i32>, String)> = sqlx::query_as(
+        r#"
+        SELECT b.id, b.booking_number, g.full_name, r.room_number,
+               b.check_in_date, b.check_out_date,
+               b.is_complimentary, b.complimentary_reason,
+               b.complimentary_start_date, b.complimentary_end_date,
+               b.original_total_amount, b.total_amount, b.complimentary_nights, b.status
+        FROM bookings b
+        JOIN guests g ON b.guest_id = g.id
+        JOIN rooms r ON b.room_id = r.id
+        WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
+        AND b.is_complimentary = true
+        ORDER BY b.check_in_date DESC
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Summary stats
+    let mut total_complimentary_nights = 0i32;
+    let mut total_original_amount = Decimal::ZERO;
+    let mut total_actual_amount = Decimal::ZERO;
+    let mut partial_count = 0i64;
+    let mut full_count = 0i64;
+    let mut reasons_map: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+
+    let bookings_json: Vec<serde_json::Value> = complimentary.into_iter()
+        .map(|(id, booking_number, guest_name, room_number, check_in, check_out,
+               is_complimentary, reason, comp_start, comp_end, original, actual, nights, status)| {
+
+            total_complimentary_nights += nights.unwrap_or(0);
+            total_original_amount += original.unwrap_or(Decimal::ZERO);
+            total_actual_amount += actual;
+
+            if status == "fully_complimentary" {
+                full_count += 1;
+            } else if status == "partial_complimentary" {
+                partial_count += 1;
+            }
+
+            let reason_key = reason.clone().unwrap_or_else(|| "Not specified".to_string());
+            *reasons_map.entry(reason_key).or_insert(0) += 1;
+
+            serde_json::json!({
+                "id": id,
+                "booking_number": booking_number,
+                "guest_name": guest_name,
+                "room_number": room_number,
+                "check_in_date": check_in.to_string(),
+                "check_out_date": check_out.to_string(),
+                "is_complimentary": is_complimentary,
+                "complimentary_reason": reason,
+                "complimentary_start_date": comp_start.map(|d| d.to_string()),
+                "complimentary_end_date": comp_end.map(|d| d.to_string()),
+                "original_amount": original.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0),
+                "actual_amount": actual.to_string().parse::<f64>().unwrap_or(0.0),
+                "complimentary_nights": nights,
+                "status": status
+            })
+        })
+        .collect();
+
+    let discount_given = total_original_amount - total_actual_amount;
+
+    let reasons_json: Vec<serde_json::Value> = reasons_map.into_iter()
+        .map(|(reason, count)| serde_json::json!({ "reason": reason, "count": count }))
+        .collect();
+
+    Ok(serde_json::json!({
+        "period": {
+            "start": start_date.to_string(),
+            "end": end_date.to_string()
+        },
+        "summary": {
+            "total_bookings": bookings_json.len(),
+            "partial_complimentary": partial_count,
+            "fully_complimentary": full_count,
+            "total_complimentary_nights": total_complimentary_nights,
+            "original_revenue": total_original_amount.to_string().parse::<f64>().unwrap_or(0.0),
+            "actual_revenue": total_actual_amount.to_string().parse::<f64>().unwrap_or(0.0),
+            "discount_given": discount_given.to_string().parse::<f64>().unwrap_or(0.0)
+        },
+        "by_reason": reasons_json,
+        "bookings": bookings_json
+    }))
+}
+
+// Guest Statistics Report - Guest demographics and patterns
+async fn generate_guest_statistics_report(
+    pool: &PgPool,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+) -> Result<serde_json::Value, ApiError> {
+    // Total unique guests in period
+    let unique_guests: Option<i64> = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(DISTINCT guest_id)::bigint FROM bookings
+        WHERE check_in_date >= $1 AND check_in_date <= $2
+        AND status NOT IN ('cancelled')
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let unique_guests = unique_guests.unwrap_or(0);
+
+    // New vs returning guests
+    let new_guests: Option<i64> = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(DISTINCT b.guest_id)::bigint
+        FROM bookings b
+        WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
+        AND b.status NOT IN ('cancelled')
+        AND NOT EXISTS (
+            SELECT 1 FROM bookings prev
+            WHERE prev.guest_id = b.guest_id
+            AND prev.check_in_date < $1
+            AND prev.status NOT IN ('cancelled')
+        )
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let new_guests = new_guests.unwrap_or(0);
+
+    let returning_guests = unique_guests - new_guests;
+
+    // Tourist vs non-tourist (is_tourist is in bookings table)
+    let tourist_stats: Vec<(Option<bool>, i64)> = sqlx::query_as(
+        r#"
+        SELECT b.is_tourist, COUNT(DISTINCT b.guest_id)::bigint
+        FROM bookings b
+        WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
+        AND b.status NOT IN ('cancelled')
+        GROUP BY b.is_tourist
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let mut tourists = 0i64;
+    let mut non_tourists = 0i64;
+    for (is_tourist, count) in tourist_stats {
+        if is_tourist.unwrap_or(false) {
+            tourists = count;
+        } else {
+            non_tourists = count;
+        }
+    }
+
+    // Average stay duration
+    let avg_stay: Option<f64> = sqlx::query_scalar(
+        r#"
+        SELECT AVG(check_out_date - check_in_date)::float
+        FROM bookings
+        WHERE check_in_date >= $1 AND check_in_date <= $2
+        AND status NOT IN ('cancelled')
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Nationality breakdown (if available)
+    let by_nationality: Vec<(Option<String>, i64)> = sqlx::query_as(
+        r#"
+        SELECT g.nationality, COUNT(DISTINCT b.guest_id)
+        FROM bookings b
+        JOIN guests g ON b.guest_id = g.id
+        WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
+        AND b.status NOT IN ('cancelled')
+        AND g.nationality IS NOT NULL
+        GROUP BY g.nationality
+        ORDER BY COUNT(*) DESC
+        LIMIT 10
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let by_nationality_json: Vec<serde_json::Value> = by_nationality.into_iter()
+        .map(|(nationality, count)| {
+            serde_json::json!({
+                "nationality": nationality.unwrap_or_else(|| "Unknown".to_string()),
+                "count": count
+            })
+        })
+        .collect();
+
+    // Top guests by bookings
+    let top_guests: Vec<(i64, String, i64, Option<Decimal>)> = sqlx::query_as(
+        r#"
+        SELECT g.id, g.full_name, COUNT(*) as booking_count, SUM(b.total_amount)
+        FROM bookings b
+        JOIN guests g ON b.guest_id = g.id
+        WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
+        AND b.status NOT IN ('cancelled')
+        GROUP BY g.id, g.full_name
+        ORDER BY COUNT(*) DESC
+        LIMIT 10
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let top_guests_json: Vec<serde_json::Value> = top_guests.into_iter()
+        .map(|(id, name, bookings, revenue)| {
+            serde_json::json!({
+                "id": id,
+                "name": name,
+                "bookings": bookings,
+                "total_spent": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+            })
+        })
+        .collect();
+
+    Ok(serde_json::json!({
+        "period": {
+            "start": start_date.to_string(),
+            "end": end_date.to_string()
+        },
+        "summary": {
+            "unique_guests": unique_guests,
+            "new_guests": new_guests,
+            "returning_guests": returning_guests,
+            "tourists": tourists,
+            "non_tourists": non_tourists,
+            "average_stay_nights": avg_stay.unwrap_or(0.0)
+        },
+        "by_nationality": by_nationality_json,
+        "top_guests": top_guests_json
+    }))
+}
+
+// Room Performance Report - Room and room type analysis
+async fn generate_room_performance_report(
+    pool: &PgPool,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+) -> Result<serde_json::Value, ApiError> {
+    // Performance by room number
+    let by_room: Vec<(String, String, i64, Option<Decimal>)> = sqlx::query_as(
+        r#"
+        SELECT r.room_number, rt.name as room_type, COUNT(*), SUM(b.total_amount)
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.id
+        JOIN room_types rt ON r.room_type_id = rt.id
+        WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
+        AND b.status NOT IN ('cancelled', 'no_show')
+        GROUP BY r.room_number, rt.name
+        ORDER BY SUM(b.total_amount) DESC
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Performance by room type
+    let by_type: Vec<(String, i64, i64, Option<Decimal>)> = sqlx::query_as(
+        r#"
+        SELECT rt.name, COUNT(DISTINCT r.id) as room_count, COUNT(b.id), SUM(b.total_amount)
+        FROM rooms r
+        JOIN room_types rt ON r.room_type_id = rt.id
+        LEFT JOIN bookings b ON b.room_id = r.id
+            AND b.check_in_date >= $1 AND b.check_in_date <= $2
+            AND b.status NOT IN ('cancelled', 'no_show')
+        WHERE r.is_active = true
+        GROUP BY rt.name
+        ORDER BY SUM(b.total_amount) DESC NULLS LAST
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Underperforming rooms (rooms with 0 or few bookings)
+    let underperforming: Vec<(String, String, i64)> = sqlx::query_as(
+        r#"
+        SELECT r.room_number, rt.name, COUNT(b.id)
+        FROM rooms r
+        JOIN room_types rt ON r.room_type_id = rt.id
+        LEFT JOIN bookings b ON b.room_id = r.id
+            AND b.check_in_date >= $1 AND b.check_in_date <= $2
+            AND b.status NOT IN ('cancelled', 'no_show')
+        WHERE r.is_active = true
+        GROUP BY r.room_number, rt.name
+        HAVING COUNT(b.id) < 2
+        ORDER BY COUNT(b.id) ASC, r.room_number
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let by_room_json: Vec<serde_json::Value> = by_room.into_iter()
+        .map(|(room_number, room_type, bookings, revenue)| {
+            serde_json::json!({
+                "room_number": room_number,
+                "room_type": room_type,
+                "bookings": bookings,
+                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+            })
+        })
+        .collect();
+
+    let by_type_json: Vec<serde_json::Value> = by_type.into_iter()
+        .map(|(room_type, room_count, bookings, revenue)| {
+            serde_json::json!({
+                "room_type": room_type,
+                "room_count": room_count,
+                "bookings": bookings,
+                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+            })
+        })
+        .collect();
+
+    let underperforming_json: Vec<serde_json::Value> = underperforming.into_iter()
+        .map(|(room_number, room_type, bookings)| {
+            serde_json::json!({
+                "room_number": room_number,
+                "room_type": room_type,
+                "bookings": bookings
+            })
+        })
+        .collect();
+
+    Ok(serde_json::json!({
+        "period": {
+            "start": start_date.to_string(),
+            "end": end_date.to_string()
+        },
+        "by_room": by_room_json,
+        "by_type": by_type_json,
+        "underperforming": underperforming_json
     }))
 }
 
