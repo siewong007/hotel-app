@@ -161,8 +161,8 @@ const RoomReservationTimeline: React.FC = () => {
           const syntheticStart = room.reserved_start_date || startDate.toISOString().split('T')[0];
           const syntheticEnd = room.reserved_end_date || endDate.toISOString().split('T')[0];
 
-          // Create a descriptive name indicating manual occupation
-          let guestName = 'Manual Occupancy';
+          // Create a descriptive name for walk-in/online/complimentary guest
+          let guestName = 'Walk-in Guest';
           if (!hasDefinedDates) {
             guestName += ' (No end date)';
           }
@@ -334,10 +334,10 @@ const RoomReservationTimeline: React.FC = () => {
         </Box>
         <Box sx={{ mb: 1 }}>
           <Typography variant="caption" color="text.secondary" display="block">
-            <strong>Diagonal stripes</strong> indicate manually occupied rooms without a proper booking record.
+            <strong>Diagonal stripes</strong> indicate walk-in, online, or complimentary guest occupancy.
           </Typography>
           <Typography variant="caption" color="text.secondary" display="block">
-            <strong>Reserved rooms</strong> always show guest details from their associated booking.
+            <strong>Reserved rooms</strong> show guest details from their associated booking.
           </Typography>
         </Box>
         <Typography variant="caption" color="text.secondary">
@@ -348,18 +348,6 @@ const RoomReservationTimeline: React.FC = () => {
       {error && (
         <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
           {error}
-        </Alert>
-      )}
-
-      {bookings.some(b => String(b.id).startsWith('synthetic-')) && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-            Manual Occupancy Detected
-          </Typography>
-          <Typography variant="caption">
-            Some rooms (with diagonal stripes) are manually marked as occupied without a proper booking record.
-            For proper guest tracking, please create a booking through "Walk-in Check-in" or "Book Room" options.
-          </Typography>
         </Alert>
       )}
 
@@ -576,7 +564,7 @@ const RoomReservationTimeline: React.FC = () => {
                             </Typography>
                           )}
 
-                          {/* Manual occupancy indicator for synthetic bookings */}
+                          {/* Walk-in/Online/Complimentary guest indicator */}
                           {isSyntheticBooking && (
                             <Typography
                               variant="caption"
@@ -587,7 +575,7 @@ const RoomReservationTimeline: React.FC = () => {
                                 textShadow: '0 1px 2px rgba(0,0,0,0.3)',
                               }}
                             >
-                              No booking record
+                              Direct check-in
                             </Typography>
                           )}
                         </Box>
