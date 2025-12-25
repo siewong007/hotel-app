@@ -162,10 +162,7 @@ const RoomReservationTimeline: React.FC = () => {
           const syntheticEnd = room.reserved_end_date || endDate.toISOString().split('T')[0];
 
           // Create a descriptive name for walk-in/online/complimentary guest
-          let guestName = 'Walk-in Guest';
-          if (!hasDefinedDates) {
-            guestName += ' (No end date)';
-          }
+          const guestName = 'Walk-in Guest';
 
           console.log(`  Creating synthetic booking for room ${room.room_number} (status: ${room.status}, has dates: ${hasDefinedDates})`);
 
