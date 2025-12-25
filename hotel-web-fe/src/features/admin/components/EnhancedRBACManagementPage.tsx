@@ -79,7 +79,7 @@ const NAVIGATION_ITEMS: NavigationItem[] = [
   { id: 'my-bookings', label: 'My Bookings', path: '/my-bookings', icon: 'Book', description: 'View personal bookings (Guest only)', category: 'core' },
   { id: 'guest-config', label: 'Guest', path: '/guest-config', icon: 'People', description: 'Manage guest profiles and information', category: 'management' },
   { id: 'room-config', label: 'Room Configuration', path: '/room-config', icon: 'Hotel', description: 'Manage room types and configurations', category: 'management' },
-  { id: 'bookings', label: 'All Bookings', path: '/bookings', icon: 'CalendarMonth', description: 'View and manage all bookings', category: 'management' },
+  { id: 'bookings', label: 'Bookings', path: '/bookings', icon: 'CalendarMonth', description: 'View and manage all bookings', category: 'management' },
   { id: 'room-management', label: 'Room Management', path: '/room-management', icon: 'HomeWork', description: 'Comprehensive room status and management dashboard', category: 'management' },
   { id: 'loyalty', label: 'Loyalty Portal', path: '/loyalty', icon: 'CardGiftcard', description: 'Manage loyalty program and rewards', category: 'analytics' },
   { id: 'my-rewards', label: 'My Rewards', path: '/my-rewards', icon: 'Star', description: 'View personal rewards (Guest only)', category: 'core' },

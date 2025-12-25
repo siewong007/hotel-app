@@ -15,6 +15,7 @@ export interface Guest {
   title?: string;
   alt_phone?: string;
   is_active: boolean;
+  complimentary_nights_credit: number; // Unused complimentary nights that can be used on future bookings
   created_at: string;
   updated_at: string;
 }

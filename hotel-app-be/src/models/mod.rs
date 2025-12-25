@@ -16,6 +16,7 @@ pub mod rate;
 pub mod ekyc;
 pub mod ledger;
 pub mod settings;
+pub mod company;
 
 // Re-export all models for convenience
 pub use common::*;
@@ -32,3 +33,4 @@ pub use rate::*;
 pub use ekyc::*;
 pub use ledger::*;
 pub use settings::*;
+pub use company::*;

@@ -691,10 +691,10 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   onChange={(e) => {
                     const count = parseInt(e.target.value) || 0;
                     setExtraBedCount(count);
-                    setExtraBedCharge(count * 50); // Default RM 50 per extra bed
+                    setExtraBedCharge(count * 50); // Default 50 per extra bed
                   }}
                   inputProps={{ min: 0, max: 5 }}
-                  helperText="RM 50 per extra bed"
+                  helperText={`${formatCurrency(50)} per extra bed`}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>

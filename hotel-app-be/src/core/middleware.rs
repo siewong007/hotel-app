@@ -28,19 +28,33 @@ pub fn extract_user_id(claims: &Claims) -> Result<i64, ApiError> {
 }
 
 // Check if user has permission
+// Also checks for :manage permission which implies all actions on that resource
 pub async fn check_permission(
     pool: &PgPool,
     user_id: i64,
     permission: &str,
 ) -> Result<(), ApiError> {
+    // First check the exact permission
     let has_permission = AuthService::check_permission(pool, user_id, permission).await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    if !has_permission {
-        return Err(ApiError::Unauthorized(format!("Missing permission: {}", permission)));
+    if has_permission {
+        return Ok(());
     }
 
-    Ok(())
+    // If not, check for :manage permission on the same resource
+    // e.g., guests:update -> also check guests:manage
+    if let Some(resource) = permission.split(':').next() {
+        let manage_permission = format!("{}:manage", resource);
+        let has_manage = AuthService::check_permission(pool, user_id, &manage_permission).await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if has_manage {
+            return Ok(());
+        }
+    }
+
+    Err(ApiError::Forbidden(format!("Missing permission: {}", permission)))
 }
 
 // Check if user has admin role
@@ -52,7 +66,7 @@ pub async fn check_admin_role(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if !is_admin {
-        return Err(ApiError::Unauthorized("Admin role required".to_string()));
+        return Err(ApiError::Forbidden("Admin role required".to_string()));
     }
 
     Ok(())

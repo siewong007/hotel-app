@@ -15,6 +15,7 @@ import { EkycService } from './ekyc.service';
 import { LedgerService } from './ledger.service';
 import { GuestPortalService } from './guestPortal.service';
 import { ReportsService } from './reports.service';
+import { CompaniesService } from './companies.service';
 
 // Core
 export { api, APIError, API_BASE_URL, parseAPIError } from './client';
@@ -33,6 +34,7 @@ export { EkycService } from './ekyc.service';
 export { LedgerService } from './ledger.service';
 export { GuestPortalService } from './guestPortal.service';
 export { ReportsService } from './reports.service';
+export { CompaniesService, type Company, type CompanyCreateRequest, type CompanyUpdateRequest } from './companies.service';
 
 // Backward Compatibility Layer - HotelAPIService
 // This class provides backward compatibility for existing code that imports HotelAPIService
@@ -68,6 +70,9 @@ export class HotelAPIService {
   static updateGuest = GuestsService.updateGuest;
   static deleteGuest = GuestsService.deleteGuest;
   static getGuestBookings = GuestsService.getGuestBookings;
+  static getMyGuests = GuestsService.getMyGuests;
+  static getGuestCredits = GuestsService.getGuestCredits;
+  static getMyGuestsWithCredits = GuestsService.getMyGuestsWithCredits;
 
   // Booking operations
   static getAllBookings = BookingsService.getAllBookings;
@@ -79,6 +84,9 @@ export class HotelAPIService {
   static cancelBooking = BookingsService.cancelBooking;
   static getBookingById = BookingsService.getBookingById;
   static getBookingsWithDetails = BookingsService.getBookingsWithDetails;
+  static markBookingComplimentary = BookingsService.markBookingComplimentary;
+  static convertComplimentaryToCredits = BookingsService.convertComplimentaryToCredits;
+  static bookWithCredits = BookingsService.bookWithCredits;
 
   // Rate operations
   static getRateCodes = RatesService.getRateCodes;
@@ -185,6 +193,13 @@ export class HotelAPIService {
   // Reports operations
   static generateReport = ReportsService.generateReport;
   static downloadReportPDF = ReportsService.downloadReportPDF;
+
+  // Company operations
+  static getCompanies = CompaniesService.getCompanies;
+  static getCompany = CompaniesService.getCompany;
+  static createCompany = CompaniesService.createCompany;
+  static updateCompany = CompaniesService.updateCompany;
+  static deleteCompany = CompaniesService.deleteCompany;
 }
 
 // Default export for backward compatibility

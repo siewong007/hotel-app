@@ -155,13 +155,15 @@ pub async fn get_personalized_report_handler(
     require_permission_helper(&pool, &headers, "analytics:read").await?;
     let user_id = require_auth(&headers).await?;
 
-    // Get user roles and determine report scope
-    let user_roles = AuthService::get_user_roles(&pool, user_id).await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+    // Check if user has full analytics access
+    let has_full_analytics = AuthService::check_permission(&pool, user_id, "analytics:manage")
+        .await
+        .unwrap_or(false)
+        || AuthService::check_permission(&pool, user_id, "reports:execute")
+            .await
+            .unwrap_or(false);
 
-    let is_admin = user_roles.contains(&"admin".to_string());
-    let is_manager = user_roles.contains(&"manager".to_string());
-    let report_scope = if is_admin || is_manager { "all" } else { "personal" };
+    let report_scope = if has_full_analytics { "all" } else { "personal" };
 
     // Get date range from query params
     let period = params.get("period").unwrap_or(&"month".to_string()).clone();
@@ -229,7 +231,7 @@ pub async fn get_personalized_report_handler(
 
     Ok(Json(serde_json::json!({
         "reportScope": report_scope,
-        "userRoles": user_roles,
+        "hasFullAccess": has_full_analytics,
         "period": period,
         "summary": {
             "totalRooms": total_rooms,
@@ -256,6 +258,7 @@ pub struct ReportQuery {
     pub end_date: String,
     pub shift: Option<String>,
     pub drawer: Option<String>,
+    pub company_name: Option<String>,
 }
 
 fn parse_date_flexible(date_str: &str) -> Result<NaiveDate, String> {
@@ -273,6 +276,8 @@ pub async fn generate_report_handler(
     State(pool): State<PgPool>,
     Query(params): Query<ReportQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    // Note: Permission check is done in the route layer (routes/analytics.rs)
+    // This handler is called after permission is verified
     let start_date = parse_date_flexible(&params.start_date)
         .map_err(|e| ApiError::BadRequest(format!("Invalid start_date: {}", e)))?;
     let end_date = parse_date_flexible(&params.end_date)
@@ -283,6 +288,8 @@ pub async fn generate_report_handler(
         "journal_by_type" => generate_journal_by_type(&pool, start_date, end_date).await?,
         "shift_report" => generate_shift_report(&pool, start_date, end_date, params.shift.as_deref(), params.drawer.as_deref()).await?,
         "rooms_sold" => generate_rooms_sold_report(&pool, start_date, end_date).await?,
+        "general_journal" => generate_general_journal(&pool, start_date, end_date).await?,
+        "company_ledger_statement" => generate_company_ledger_statement(&pool, start_date, end_date, params.company_name.as_deref()).await?,
         _ => return Err(ApiError::BadRequest(format!("Unknown report type: {}", params.report_type))),
     };
 
@@ -554,5 +561,446 @@ async fn generate_rooms_sold_report(
     Ok(serde_json::json!({
         "bookings": bookings,
         "total_rooms": rows.len(),
+    }))
+}
+
+// General Journal Report - Double-entry accounting format
+async fn generate_general_journal(
+    pool: &PgPool,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+) -> Result<serde_json::Value, ApiError> {
+    // Get all bookings within the date range with payment details
+    let rows = sqlx::query(
+        r#"
+        SELECT
+            b.id,
+            b.check_in_date as date,
+            b.booking_number as folio,
+            b.total_amount,
+            b.payment_status,
+            b.payment_method,
+            r.room_number,
+            g.full_name as guest_name
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.id
+        LEFT JOIN guests g ON b.guest_id = g.id
+        WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
+          AND b.status IN ('confirmed', 'checked_in', 'checked_out')
+        ORDER BY b.check_in_date, b.id
+        "#
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Initialize section data
+    let mut deposit_ledger_entries: Vec<serde_json::Value> = Vec::new();
+    let mut guest_ledger_entries: Vec<serde_json::Value> = Vec::new();
+    let mut deposits_pending_entries: Vec<serde_json::Value> = Vec::new();
+    let mut room_revenue_entries: Vec<serde_json::Value> = Vec::new();
+    let mut sales_tax_entries: Vec<serde_json::Value> = Vec::new();
+
+    let mut deposit_ledger_debit = Decimal::ZERO;
+    let mut deposit_ledger_credit = Decimal::ZERO;
+    let mut guest_ledger_debit = Decimal::ZERO;
+    let mut guest_ledger_credit = Decimal::ZERO;
+    let mut deposits_pending_debit = Decimal::ZERO;
+    let mut deposits_pending_credit = Decimal::ZERO;
+    let mut room_revenue_debit = Decimal::ZERO;
+    let mut room_revenue_credit = Decimal::ZERO;
+    let mut sales_tax_debit = Decimal::ZERO;
+    let mut sales_tax_credit = Decimal::ZERO;
+
+    let tax_rate = Decimal::new(8, 2); // 8% service tax
+
+    for row in rows {
+        let date: NaiveDate = row.get("date");
+        let total_amount: Decimal = row.get("total_amount");
+        let payment_status: Option<String> = row.get("payment_status");
+        let payment_method: Option<String> = row.get("payment_method");
+        let date_str = date.format("%d/%m/%Y").to_string();
+
+        // Calculate amounts
+        let service_tax = total_amount * tax_rate;
+        let room_charge = total_amount - service_tax;
+
+        // Estimate deposit (20% of total)
+        let deposit_amount = total_amount * Decimal::new(20, 2);
+
+        // Guest Ledger entries (Debits)
+        // Room Charge
+        guest_ledger_entries.push(serde_json::json!({
+            "date": date_str,
+            "account": "Room Charge",
+            "debit": room_charge,
+            "credit": 0,
+            "contra_account": "Room Revenue",
+            "contra_amount": room_charge
+        }));
+        guest_ledger_debit += room_charge;
+
+        // Service Tax
+        guest_ledger_entries.push(serde_json::json!({
+            "date": date_str,
+            "account": "Service Tax",
+            "debit": service_tax,
+            "credit": 0,
+            "contra_account": "Sales Tax Payable",
+            "contra_amount": service_tax
+        }));
+        guest_ledger_debit += service_tax;
+
+        // Payment entries based on payment method
+        if let Some(ref method) = payment_method {
+            let method_upper = method.to_uppercase();
+            let account_name = match method_upper.as_str() {
+                "CASH" => "Cash",
+                "VISA" | "CREDIT_CARD" | "CREDIT" => "Visa",
+                "DEBIT" | "DEBIT_CARD" | "DEBITCARD" => "Debitcard",
+                "AGODA" | "OTA" => "Agoda.Com",
+                _ => method.as_str(),
+            };
+
+            // If paid, add payment entry
+            if payment_status.as_deref() == Some("paid") || payment_status.as_deref() == Some("partial") {
+                guest_ledger_entries.push(serde_json::json!({
+                    "date": date_str,
+                    "account": account_name,
+                    "debit": 0,
+                    "credit": 0,
+                    "contra_account": "Deposits Pending",
+                    "contra_amount": total_amount
+                }));
+            }
+        }
+
+        // Add deposit entry
+        guest_ledger_entries.push(serde_json::json!({
+            "date": date_str,
+            "account": "Deposit",
+            "debit": deposit_amount,
+            "credit": 0,
+            "contra_account": "Deposits Pending",
+            "contra_amount": deposit_amount
+        }));
+        guest_ledger_debit += deposit_amount;
+
+        // Deposits Pending (Credits)
+        if let Some(ref method) = payment_method {
+            let method_upper = method.to_uppercase();
+            let account_name = match method_upper.as_str() {
+                "CASH" => "Cash",
+                "VISA" | "CREDIT_CARD" | "CREDIT" => "Visa",
+                "DEBIT" | "DEBIT_CARD" | "DEBITCARD" => "Debitcard",
+                "AGODA" | "OTA" => "Agoda.Com",
+                _ => method.as_str(),
+            };
+
+            deposits_pending_entries.push(serde_json::json!({
+                "date": date_str,
+                "account": account_name,
+                "debit": deposit_amount,
+                "credit": 0,
+                "contra_account": "Guest Ledger",
+                "contra_amount": 0
+            }));
+            deposits_pending_debit += deposit_amount;
+        }
+
+        // Room Revenue (Credits)
+        room_revenue_entries.push(serde_json::json!({
+            "date": date_str,
+            "account": "Room Charge",
+            "debit": 0,
+            "credit": room_charge,
+            "contra_account": "Guest Ledger",
+            "contra_amount": room_charge
+        }));
+        room_revenue_credit += room_charge;
+
+        // Sales Tax Payable (Credits)
+        sales_tax_entries.push(serde_json::json!({
+            "date": date_str,
+            "account": "Service Tax",
+            "debit": 0,
+            "credit": service_tax,
+            "contra_account": "Guest Ledger",
+            "contra_amount": service_tax
+        }));
+        sales_tax_credit += service_tax;
+    }
+
+    // Build sections array
+    let mut sections = Vec::new();
+
+    // Deposit Ledger section
+    sections.push(serde_json::json!({
+        "name": "Deposit Ledger",
+        "entries": deposit_ledger_entries,
+        "total_debit": deposit_ledger_debit,
+        "total_credit": deposit_ledger_credit,
+        "net_amount": deposit_ledger_debit - deposit_ledger_credit
+    }));
+
+    // Guest Ledger section
+    let guest_net = guest_ledger_debit - guest_ledger_credit;
+    sections.push(serde_json::json!({
+        "name": "Guest Ledger",
+        "entries": guest_ledger_entries,
+        "total_debit": guest_ledger_debit,
+        "total_credit": guest_ledger_credit,
+        "net_amount": guest_net
+    }));
+
+    // City Ledger section (empty for now - would come from customer_ledgers)
+    sections.push(serde_json::json!({
+        "name": "City Ledger",
+        "entries": [],
+        "total_debit": 0,
+        "total_credit": 0,
+        "net_amount": 0
+    }));
+
+    // Deposits Pending section
+    sections.push(serde_json::json!({
+        "name": "Deposits Pending",
+        "entries": deposits_pending_entries,
+        "total_debit": deposits_pending_debit,
+        "total_credit": deposits_pending_credit,
+        "net_amount": deposits_pending_debit - deposits_pending_credit
+    }));
+
+    // Room Revenue section
+    sections.push(serde_json::json!({
+        "name": "Room Revenue",
+        "entries": room_revenue_entries,
+        "total_debit": room_revenue_debit,
+        "total_credit": room_revenue_credit,
+        "net_amount": room_revenue_debit - room_revenue_credit
+    }));
+
+    // Sales Tax Payable section
+    sections.push(serde_json::json!({
+        "name": "Sales Tax Payable",
+        "entries": sales_tax_entries,
+        "total_debit": sales_tax_debit,
+        "total_credit": sales_tax_credit,
+        "net_amount": sales_tax_debit - sales_tax_credit
+    }));
+
+    // Calculate overall balance
+    let total_debits = deposit_ledger_debit + guest_ledger_debit + deposits_pending_debit + room_revenue_debit + sales_tax_debit;
+    let total_credits = deposit_ledger_credit + guest_ledger_credit + deposits_pending_credit + room_revenue_credit + sales_tax_credit;
+    let balance = total_debits - total_credits;
+
+    Ok(serde_json::json!({
+        "sections": sections,
+        "total_debits": total_debits,
+        "total_credits": total_credits,
+        "balance": balance
+    }))
+}
+
+// Company Ledger Statement Report - Per-company account statement
+async fn generate_company_ledger_statement(
+    pool: &PgPool,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+    company_name: Option<&str>,
+) -> Result<serde_json::Value, ApiError> {
+    // If no company specified, return list of companies with ledgers
+    if company_name.is_none() {
+        let companies: Vec<(String, i64, Decimal)> = sqlx::query_as(
+            r#"
+            SELECT company_name, COUNT(*) as entry_count, COALESCE(SUM(balance_due), 0) as total_balance
+            FROM customer_ledgers
+            WHERE status != 'cancelled'
+            GROUP BY company_name
+            ORDER BY company_name
+            "#
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        let company_list: Vec<serde_json::Value> = companies.into_iter()
+            .map(|(name, count, balance)| serde_json::json!({
+                "company_name": name,
+                "entry_count": count,
+                "total_balance": balance
+            }))
+            .collect();
+
+        return Ok(serde_json::json!({
+            "type": "company_list",
+            "companies": company_list
+        }));
+    }
+
+    let company = company_name.unwrap();
+
+    // Get company details from the most recent ledger entry
+    let company_info: Option<(
+        String, Option<String>, Option<String>, Option<String>, Option<String>,
+        Option<String>, Option<String>, Option<String>, Option<String>, Option<String>
+    )> = sqlx::query_as(
+        r#"
+        SELECT
+            company_name, company_registration_number, contact_person, contact_email, contact_phone,
+            billing_address_line1, billing_city, billing_state, billing_postal_code, billing_country
+        FROM customer_ledgers
+        WHERE company_name = $1
+        ORDER BY created_at DESC
+        LIMIT 1
+        "#
+    )
+    .bind(company)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if company_info.is_none() {
+        return Err(ApiError::NotFound(format!("No ledger entries found for company: {}", company)));
+    }
+
+    let (
+        comp_name, reg_number, contact_person, contact_email, contact_phone,
+        address_line1, city, state, postal_code, country
+    ) = company_info.unwrap();
+
+    // Get all ledger entries for this company
+    let ledger_entries: Vec<(
+        i64, String, String, Decimal, Decimal, Decimal, String,
+        Option<String>, Option<NaiveDate>, Option<NaiveDate>, chrono::NaiveDateTime
+    )> = sqlx::query_as(
+        r#"
+        SELECT
+            id, description, expense_type, amount, paid_amount, balance_due, status,
+            invoice_number, invoice_date, due_date, created_at
+        FROM customer_ledgers
+        WHERE company_name = $1 AND status != 'cancelled'
+        ORDER BY created_at DESC
+        "#
+    )
+    .bind(company)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Calculate aging buckets based on invoice_date or created_at
+    let today = chrono::Utc::now().date_naive();
+    let mut open_balance = Decimal::ZERO;
+    let mut days_31_60 = Decimal::ZERO;
+    let mut days_61_90 = Decimal::ZERO;
+    let mut days_91_120 = Decimal::ZERO;
+    let mut over_120_days = Decimal::ZERO;
+
+    let mut transactions: Vec<serde_json::Value> = Vec::new();
+    let mut total_original = Decimal::ZERO;
+    let mut total_payments = Decimal::ZERO;
+    let mut total_open = Decimal::ZERO;
+
+    for entry in &ledger_entries {
+        let (id, description, expense_type, amount, paid_amount, balance_due, status,
+             invoice_number, invoice_date, due_date, created_at) = entry;
+
+        // Calculate days old
+        let entry_date = invoice_date.unwrap_or(created_at.date());
+        let days_old = (today - entry_date).num_days();
+
+        // Categorize into aging buckets
+        if *balance_due > Decimal::ZERO {
+            if days_old <= 30 {
+                open_balance += *balance_due;
+            } else if days_old <= 60 {
+                days_31_60 += *balance_due;
+            } else if days_old <= 90 {
+                days_61_90 += *balance_due;
+            } else if days_old <= 120 {
+                days_91_120 += *balance_due;
+            } else {
+                over_120_days += *balance_due;
+            }
+        }
+
+        total_original += *amount;
+        total_payments += *paid_amount;
+        total_open += *balance_due;
+
+        transactions.push(serde_json::json!({
+            "id": id,
+            "invoice_date": invoice_date.map(|d| d.format("%d/%m/%y").to_string()),
+            "voucher": description,
+            "invoice": invoice_number,
+            "reference": expense_type,
+            "original_amount": amount,
+            "payments_received": paid_amount,
+            "finance_charges": 0,
+            "open_amount": balance_due,
+            "status": status,
+            "due_date": due_date.map(|d| d.format("%d/%m/%y").to_string()),
+            "days_old": days_old
+        }));
+    }
+
+    // Get last payment info
+    let last_payment: Option<(Decimal, chrono::NaiveDateTime)> = sqlx::query_as(
+        r#"
+        SELECT payment_amount, clp.created_at
+        FROM customer_ledger_payments clp
+        INNER JOIN customer_ledgers cl ON clp.ledger_id = cl.id
+        WHERE cl.company_name = $1
+        ORDER BY clp.created_at DESC
+        LIMIT 1
+        "#
+    )
+    .bind(company)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let (last_payment_amount, last_payment_date) = last_payment
+        .map(|(amt, date)| (amt, Some(date.format("%d/%m/%Y").to_string())))
+        .unwrap_or((Decimal::ZERO, None));
+
+    Ok(serde_json::json!({
+        "type": "company_statement",
+        "company": {
+            "name": comp_name,
+            "registration_number": reg_number,
+            "contact_person": contact_person,
+            "contact_email": contact_email,
+            "contact_phone": contact_phone,
+            "address": {
+                "line1": address_line1,
+                "city": city,
+                "state": state,
+                "postal_code": postal_code,
+                "country": country
+            }
+        },
+        "statement_date": end_date.format("%d/%m/%Y").to_string(),
+        "balance_due": total_open,
+        "last_payment": {
+            "amount": last_payment_amount,
+            "date": last_payment_date
+        },
+        "existing_credit": 0,
+        "aging": {
+            "open_balance": open_balance,
+            "days_31_60": days_31_60,
+            "days_61_90": days_61_90,
+            "days_91_120": days_91_120,
+            "over_120_days": over_120_days
+        },
+        "transactions": transactions,
+        "totals": {
+            "original_amount": total_original,
+            "payments_received": total_payments,
+            "open_amount": total_open
+        }
     }))
 }

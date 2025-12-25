@@ -181,4 +181,107 @@ export class BookingsService {
       throw new APIError('Failed to fetch booking details');
     }
   }
+
+  static async markBookingComplimentary(
+    bookingId: string,
+    reason?: string,
+    complimentaryStartDate?: string,
+    complimentaryEndDate?: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    booking_id: number;
+    status: string;
+    total_nights: number;
+    complimentary_nights: number;
+    paid_nights: number;
+    complimentary_start_date: string;
+    complimentary_end_date: string;
+    original_total: string;
+    new_total: string;
+    payment_status: string;
+    nights_credited: number;
+    room_type: string;
+  }> {
+    try {
+      return await api
+        .post(`bookings/${bookingId}/complimentary`, {
+          json: {
+            reason,
+            complimentary_start_date: complimentaryStartDate,
+            complimentary_end_date: complimentaryEndDate
+          }
+        })
+        .json();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to mark booking as complimentary',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to mark booking as complimentary');
+    }
+  }
+
+  static async convertComplimentaryToCredits(
+    bookingId: string
+  ): Promise<{ success: boolean; message: string; nights_credited: number; guest_id: number }> {
+    try {
+      return await api
+        .post(`bookings/${bookingId}/convert-credits`)
+        .json<{ success: boolean; message: string; nights_credited: number; guest_id: number }>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to convert complimentary to credits',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to convert complimentary to credits');
+    }
+  }
+
+  static async bookWithCredits(data: {
+    guest_id: number;
+    room_id: number;
+    check_in_date: string;
+    check_out_date: string;
+    adults?: number;
+    children?: number;
+    special_requests?: string;
+    complimentary_dates: string[];  // Specific dates to mark as complimentary (YYYY-MM-DD format)
+  }): Promise<{
+    success: boolean;
+    message: string;
+    booking_id: number;
+    booking_number: string;
+    total_nights: number;
+    complimentary_nights: number;
+    complimentary_dates: string[];
+    paid_nights: number;
+    total_amount: string;
+    room_type: string;
+    is_free_gift: boolean;
+  }> {
+    try {
+      return await api
+        .post('bookings/book-with-credits', { json: data })
+        .json();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to book with complimentary credits',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to book with complimentary credits');
+    }
+  }
 }

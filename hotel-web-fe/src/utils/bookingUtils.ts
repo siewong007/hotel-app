@@ -181,6 +181,15 @@ export const getBookingStatusColor = (
       return 'error';
     case BookingStatus.LATE_CHECKOUT:
       return 'warning';
+    case BookingStatus.COMPLIMENTARISE:
+    case 'complimentarise':
+      return 'secondary';
+    case BookingStatus.PARTIAL_COMPLIMENTARY:
+    case 'partial_complimentary':
+      return 'secondary';
+    case BookingStatus.FULLY_COMPLIMENTARY:
+    case 'fully_complimentary':
+      return 'secondary';
     default:
       return 'default';
   }
@@ -207,8 +216,67 @@ export const getBookingStatusText = (status: BookingStatus | string): string => 
       return 'No Show';
     case BookingStatus.LATE_CHECKOUT:
       return 'Late Checkout';
+    case BookingStatus.COMPLIMENTARISE:
+    case 'complimentarise':
+      return 'Complimentarise';
+    case BookingStatus.PARTIAL_COMPLIMENTARY:
+    case 'partial_complimentary':
+      return 'Partial Complimentary';
+    case BookingStatus.FULLY_COMPLIMENTARY:
+    case 'fully_complimentary':
+      return 'Fully Complimentary';
     default:
       return status;
+  }
+};
+
+/**
+ * Get payment status color
+ */
+export const getPaymentStatusColor = (
+  status: string | undefined
+): 'default' | 'primary' | 'secondary' | 'success' | 'error' | 'warning' | 'info' => {
+  switch (status) {
+    case 'paid':
+      return 'success';
+    case 'paid_rate':
+      return 'info';
+    case 'partial':
+      return 'warning';
+    case 'unpaid_deposit':
+      return 'warning';
+    case 'unpaid':
+      return 'error';
+    case 'refunded':
+      return 'secondary';
+    case 'cancelled':
+      return 'default';
+    default:
+      return 'default';
+  }
+};
+
+/**
+ * Get payment status display text
+ */
+export const getPaymentStatusText = (status: string | undefined): string => {
+  switch (status) {
+    case 'paid':
+      return 'Paid';
+    case 'paid_rate':
+      return 'Paid Rate';
+    case 'partial':
+      return 'Partial';
+    case 'unpaid_deposit':
+      return 'Unpaid Deposit';
+    case 'unpaid':
+      return 'Unpaid';
+    case 'refunded':
+      return 'Refunded';
+    case 'cancelled':
+      return 'Cancelled';
+    default:
+      return status || 'Unknown';
   }
 };
 

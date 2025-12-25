@@ -344,16 +344,11 @@ pub async fn update_customer_ledger_handler(
         UPDATE customer_ledgers
         SET {}
         WHERE id = ${}
-        RETURNING id, company_name, company_registration_number, contact_person,
-               contact_email, contact_phone, billing_address_line1, billing_city,
-               billing_state, billing_postal_code, billing_country, description,
-               expense_type, amount, currency, status, paid_amount, balance_due,
-               payment_method, payment_reference, payment_date, booking_id, guest_id,
-               invoice_number, invoice_date, due_date, notes, internal_notes,
-               created_by, updated_by, created_at, updated_at
+        RETURNING {}
         "#,
         updates.join(", "),
-        param_index
+        param_index,
+        LEDGER_SELECT_FIELDS
     );
 
     let mut query_builder = sqlx::query_as::<_, CustomerLedger>(&query);

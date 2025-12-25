@@ -1,8 +1,7 @@
 -- ============================================================================
--- MIGRATION 001: CORE SYSTEM SETUP
+-- MIGRATION 001: CORE EXTENSIONS & FUNCTIONS
 -- ============================================================================
--- Description: Extensions, sequences, and core utility functions
--- Created: 2025-01-29
+-- Description: PostgreSQL extensions and core utility functions
 -- ============================================================================
 
 -- Enable required PostgreSQL extensions

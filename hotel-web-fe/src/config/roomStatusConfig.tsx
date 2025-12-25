@@ -25,6 +25,35 @@ export type RoomStatusType =
   | 'out_of_order';
 
 /**
+ * Booking Status Type Definition
+ * All possible booking statuses in the system
+ */
+export type BookingStatusType =
+  | 'pending'
+  | 'confirmed'
+  | 'checked_in'
+  | 'auto_checked_in'
+  | 'checked_out'
+  | 'cancelled'
+  | 'no_show';
+
+/**
+ * Display Status Type - unified type for display purposes
+ * Maps both room and booking statuses to display categories
+ */
+export type DisplayStatusType =
+  | 'available'
+  | 'occupied'
+  | 'reserved'
+  | 'cleaning'
+  | 'dirty'
+  | 'maintenance'
+  | 'out_of_order'
+  | 'pending'
+  | 'checked_out'
+  | 'cancelled';
+
+/**
  * Status Configuration Interface
  * Defines the structure for each status configuration
  */
@@ -64,11 +93,11 @@ export interface StatusConfig {
  */
 export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
   available: {
-    // Visual
+    // Visual - Green (consistent across room management and timeline)
     color: 'success',
-    bgColor: '#4caf50',
+    bgColor: '#66BB6A',
     textColor: '#fff',
-    borderColor: '#388e3c',
+    borderColor: '#43A047',
 
     // Content
     label: 'Available',
@@ -88,11 +117,11 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
   },
 
   occupied: {
-    // Visual
-    color: 'error',
-    bgColor: '#f44336',
+    // Visual - Orange (consistent across room management and timeline)
+    color: 'warning',
+    bgColor: '#FFA726',
     textColor: '#fff',
-    borderColor: '#d32f2f',
+    borderColor: '#FB8C00',
 
     // Content
     label: 'Occupied',
@@ -112,11 +141,11 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
   },
 
   reserved: {
-    // Visual
-    color: 'warning',
-    bgColor: '#ff9800',
+    // Visual - Blue (consistent across room management and timeline)
+    color: 'info',
+    bgColor: '#42A5F5',
     textColor: '#fff',
-    borderColor: '#f57c00',
+    borderColor: '#1E88E5',
 
     // Content
     label: 'Reserved',
@@ -360,3 +389,151 @@ export const sortRoomsByStatusPriority = <T extends { computedStatus: RoomStatus
     return priorityA - priorityB;
   });
 };
+
+/**
+ * Booking Status Configuration
+ * Maps booking statuses to display properties for consistent rendering
+ */
+export interface BookingStatusConfig {
+  color: string;
+  label: string;
+  shortLabel: string;
+  description: string;
+  // Maps to equivalent room status for unified display
+  displayAs: RoomStatusType | 'pending' | 'checked_out' | 'cancelled';
+}
+
+export const BOOKING_STATUS_CONFIG: Record<BookingStatusType, BookingStatusConfig> = {
+  pending: {
+    color: '#FFEB3B', // Yellow
+    label: 'Pending',
+    shortLabel: 'Pend',
+    description: 'Booking awaiting confirmation',
+    displayAs: 'pending',
+  },
+  confirmed: {
+    color: '#42A5F5', // Blue - same as reserved
+    label: 'Reserved',
+    shortLabel: 'Res',
+    description: 'Booking confirmed, awaiting guest arrival',
+    displayAs: 'reserved',
+  },
+  checked_in: {
+    color: '#FFA726', // Orange - same as occupied
+    label: 'Occupied',
+    shortLabel: 'Occ',
+    description: 'Guest has checked in',
+    displayAs: 'occupied',
+  },
+  auto_checked_in: {
+    color: '#FFA726', // Orange - same as occupied
+    label: 'Occupied',
+    shortLabel: 'Occ',
+    description: 'Guest auto checked in',
+    displayAs: 'occupied',
+  },
+  checked_out: {
+    color: '#66BB6A', // Green
+    label: 'Checked Out',
+    shortLabel: 'Out',
+    description: 'Guest has checked out',
+    displayAs: 'checked_out',
+  },
+  cancelled: {
+    color: '#BDBDBD', // Grey
+    label: 'Cancelled',
+    shortLabel: 'Can',
+    description: 'Booking was cancelled',
+    displayAs: 'cancelled',
+  },
+  no_show: {
+    color: '#EF5350', // Red
+    label: 'No Show',
+    shortLabel: 'N/S',
+    description: 'Guest did not arrive',
+    displayAs: 'cancelled',
+  },
+};
+
+/**
+ * Get booking status configuration
+ */
+export const getBookingStatusConfig = (status: BookingStatusType): BookingStatusConfig => {
+  return BOOKING_STATUS_CONFIG[status] || BOOKING_STATUS_CONFIG.pending;
+};
+
+/**
+ * Get booking status color
+ */
+export const getBookingStatusColor = (status: BookingStatusType): string => {
+  return getBookingStatusConfig(status).color;
+};
+
+/**
+ * Get booking status label
+ */
+export const getBookingStatusLabel = (status: BookingStatusType): string => {
+  return getBookingStatusConfig(status).label;
+};
+
+/**
+ * Get booking status short label
+ */
+export const getBookingStatusShortLabel = (status: BookingStatusType): string => {
+  return getBookingStatusConfig(status).shortLabel;
+};
+
+/**
+ * Unified status color getter - works with both room and booking statuses
+ * This is the main function to use for consistent colors across components
+ */
+export function getUnifiedStatusColor(status: string): string {
+  // Check if it's a booking status first
+  const bookingConfig = BOOKING_STATUS_CONFIG[status as BookingStatusType];
+  if (bookingConfig) {
+    return bookingConfig.color;
+  }
+  // Check if it's a room status
+  const roomConfig = ROOM_STATUS_CONFIG[status as RoomStatusType];
+  if (roomConfig) {
+    return roomConfig.bgColor;
+  }
+  // Default grey for unknown statuses
+  return '#BDBDBD';
+}
+
+/**
+ * Unified status label getter - works with both room and booking statuses
+ */
+export function getUnifiedStatusLabel(status: string): string {
+  // Check if it's a booking status first
+  const bookingConfig = BOOKING_STATUS_CONFIG[status as BookingStatusType];
+  if (bookingConfig) {
+    return bookingConfig.label;
+  }
+  // Check if it's a room status
+  const roomConfig = ROOM_STATUS_CONFIG[status as RoomStatusType];
+  if (roomConfig) {
+    return roomConfig.label;
+  }
+  // Return the status as-is for unknown statuses
+  return status;
+}
+
+/**
+ * Unified status short label getter - works with both room and booking statuses
+ */
+export function getUnifiedStatusShortLabel(status: string): string {
+  // Check if it's a booking status first
+  const bookingConfig = BOOKING_STATUS_CONFIG[status as BookingStatusType];
+  if (bookingConfig) {
+    return bookingConfig.shortLabel;
+  }
+  // Check if it's a room status
+  const roomConfig = ROOM_STATUS_CONFIG[status as RoomStatusType];
+  if (roomConfig) {
+    return roomConfig.shortLabel;
+  }
+  // Return the status as-is for unknown statuses
+  return status;
+}

@@ -35,6 +35,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  Autocomplete,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -50,6 +51,8 @@ import {
   AttachMoney as MoneyIcon,
   Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
+  Print as PrintIcon,
+  PersonAdd as PersonAddIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import {
@@ -64,6 +67,18 @@ import { formatCurrency } from '../../../utils/currency';
 
 type SortField = 'company_name' | 'amount' | 'balance_due' | 'status' | 'due_date' | 'created_at';
 type SortOrder = 'asc' | 'desc';
+
+// Company option for autocomplete
+interface CompanyOption {
+  inputValue?: string;
+  company_name: string;
+  company_registration_number?: string;
+  contact_person?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  billing_address_line1?: string;
+  isNew?: boolean;
+}
 
 const EXPENSE_TYPES = [
   { value: 'accommodation', label: 'Accommodation' },
@@ -81,6 +96,35 @@ const PAYMENT_METHODS = [
   { value: 'online_banking', label: 'Online Banking' },
   { value: 'cheque', label: 'Cheque' },
 ];
+
+// Helper function to format date for input[type="date"]
+const formatDateForInput = (dateString: string | null | undefined): string => {
+  if (!dateString) return '';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
+    // Format as YYYY-MM-DD
+    return date.toISOString().split('T')[0];
+  } catch {
+    return '';
+  }
+};
+
+// Helper function to format date for display
+const formatDateForDisplay = (dateString: string | null | undefined): string => {
+  if (!dateString) return '-';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    return '-';
+  }
+};
 
 const getStatusColor = (status: string): 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' => {
   switch (status) {
@@ -161,13 +205,52 @@ const CustomerLedgerPage: React.FC = () => {
   });
   const [processingPayment, setProcessingPayment] = useState(false);
 
+  // Company autocomplete state
+  const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
+
+  // New company registration dialog
+  const [newCompanyDialogOpen, setNewCompanyDialogOpen] = useState(false);
+  const [newCompanyData, setNewCompanyData] = useState<CompanyOption>({
+    company_name: '',
+    company_registration_number: '',
+    contact_person: '',
+    contact_email: '',
+    contact_phone: '',
+    billing_address_line1: '',
+  });
+
+  // Print statement dialog
+  const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [printingCompany, setPrintingCompany] = useState<string | null>(null);
+  const [companyLedgerEntries, setCompanyLedgerEntries] = useState<CustomerLedger[]>([]);
+
   // Notifications
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
   useEffect(() => {
     loadData();
+    loadCompanies();
   }, []);
+
+  // Load companies from database
+  const loadCompanies = async () => {
+    try {
+      const companies = await HotelAPIService.getCompanies({ is_active: true });
+      const options: CompanyOption[] = companies.map((company: any) => ({
+        company_name: company.company_name,
+        company_registration_number: company.registration_number,
+        contact_person: company.contact_person,
+        contact_email: company.contact_email,
+        contact_phone: company.contact_phone,
+        billing_address_line1: company.billing_address,
+      }));
+      setCompanyOptions(options);
+    } catch (err) {
+      console.error('Failed to load companies:', err);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -296,6 +379,7 @@ const CustomerLedgerPage: React.FC = () => {
       expense_type: 'accommodation',
       amount: 0,
     });
+    setSelectedCompany(null);
   };
 
   // Edit ledger handlers
@@ -316,7 +400,7 @@ const CustomerLedgerPage: React.FC = () => {
       expense_type: ledger.expense_type,
       amount: parseFloat(String(ledger.amount)),
       status: ledger.status,
-      due_date: ledger.due_date,
+      due_date: formatDateForInput(ledger.due_date),
       notes: ledger.notes,
       internal_notes: ledger.internal_notes,
     });
@@ -411,6 +495,194 @@ const CustomerLedgerPage: React.FC = () => {
     return ledger.status !== 'paid' && ledger.status !== 'cancelled';
   };
 
+  // Register new company
+  const handleRegisterNewCompany = async () => {
+    try {
+      // Save to database
+      const createdCompany = await HotelAPIService.createCompany({
+        company_name: newCompanyData.company_name,
+        registration_number: newCompanyData.company_registration_number,
+        contact_person: newCompanyData.contact_person,
+        contact_email: newCompanyData.contact_email,
+        contact_phone: newCompanyData.contact_phone,
+        billing_address: newCompanyData.billing_address_line1,
+      });
+
+      const newCompany: CompanyOption = {
+        company_name: createdCompany.company_name,
+        company_registration_number: createdCompany.registration_number,
+        contact_person: createdCompany.contact_person,
+        contact_email: createdCompany.contact_email,
+        contact_phone: createdCompany.contact_phone,
+        billing_address_line1: createdCompany.billing_address,
+      };
+
+      // Add to company options
+      setCompanyOptions([...companyOptions, newCompany]);
+      setSelectedCompany(newCompany);
+
+      // Fill the create form with new company data
+      setCreateFormData({
+        ...createFormData,
+        company_name: newCompany.company_name,
+        company_registration_number: newCompany.company_registration_number,
+        contact_person: newCompany.contact_person,
+        contact_email: newCompany.contact_email,
+        contact_phone: newCompany.contact_phone,
+        billing_address_line1: newCompany.billing_address_line1,
+      });
+
+      setNewCompanyDialogOpen(false);
+      setSnackbarMessage(`Company "${newCompany.company_name}" registered successfully!`);
+      setSnackbarOpen(true);
+
+      // Reset new company form
+      setNewCompanyData({
+        company_name: '',
+        company_registration_number: '',
+        contact_person: '',
+        contact_email: '',
+        contact_phone: '',
+        billing_address_line1: '',
+      });
+    } catch (err: any) {
+      console.error('Failed to register company:', err);
+      setSnackbarMessage(err?.message || 'Failed to register company');
+      setSnackbarOpen(true);
+    }
+  };
+
+  // Print company ledger statement
+  const handlePrintCompanyStatement = (companyName: string) => {
+    setPrintingCompany(companyName);
+    const entries = ledgers.filter(l => l.company_name === companyName);
+    setCompanyLedgerEntries(entries);
+    setPrintDialogOpen(true);
+  };
+
+  const handlePrint = () => {
+    const printContent = document.getElementById('print-statement-content');
+    if (printContent) {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        const totalAmount = companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.amount)), 0);
+        const totalPaid = companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.paid_amount)), 0);
+        const totalBalance = companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.balance_due)), 0);
+
+        printWindow.document.write(`
+          <html>
+            <head>
+              <title>Company Ledger Statement - ${printingCompany}</title>
+              <style>
+                body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+                .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+                .header h1 { margin: 0; color: #333; }
+                .header h2 { margin: 10px 0 0; color: #666; font-weight: normal; }
+                .company-info { margin-bottom: 20px; }
+                .summary { display: flex; justify-content: space-between; margin-bottom: 20px; background: #f5f5f5; padding: 15px; border-radius: 4px; }
+                .summary-item { text-align: center; }
+                .summary-item .label { font-size: 12px; color: #666; }
+                .summary-item .value { font-size: 18px; font-weight: bold; }
+                table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+                th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+                th { background-color: #26a69a; color: white; }
+                tr:nth-child(even) { background-color: #f9f9f9; }
+                .text-right { text-align: right; }
+                .status-paid { color: green; }
+                .status-pending { color: orange; }
+                .status-overdue { color: red; }
+                .footer { margin-top: 30px; text-align: center; color: #666; font-size: 12px; }
+                @media print {
+                  body { padding: 0; }
+                  .no-print { display: none; }
+                }
+              </style>
+            </head>
+            <body>
+              <div class="header">
+                <h1>Salim Inn</h1>
+                <h2>Company Ledger Statement</h2>
+              </div>
+              <div class="company-info">
+                <h3>${printingCompany}</h3>
+                <p>Statement Date: ${new Date().toLocaleDateString()}</p>
+              </div>
+              <div class="summary">
+                <div class="summary-item">
+                  <div class="label">Total Entries</div>
+                  <div class="value">${companyLedgerEntries.length}</div>
+                </div>
+                <div class="summary-item">
+                  <div class="label">Total Amount</div>
+                  <div class="value">${formatCurrency(totalAmount)}</div>
+                </div>
+                <div class="summary-item">
+                  <div class="label">Total Paid</div>
+                  <div class="value" style="color: green;">${formatCurrency(totalPaid)}</div>
+                </div>
+                <div class="summary-item">
+                  <div class="label">Balance Due</div>
+                  <div class="value" style="color: ${totalBalance > 0 ? 'red' : 'green'};">${formatCurrency(totalBalance)}</div>
+                </div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Invoice #</th>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Type</th>
+                    <th class="text-right">Amount</th>
+                    <th class="text-right">Paid</th>
+                    <th class="text-right">Balance</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${companyLedgerEntries.map(entry => `
+                    <tr>
+                      <td>${entry.invoice_number || '-'}</td>
+                      <td>${new Date(entry.created_at).toLocaleDateString()}</td>
+                      <td>${entry.description}</td>
+                      <td>${entry.expense_type}</td>
+                      <td class="text-right">${formatCurrency(parseFloat(String(entry.amount)))}</td>
+                      <td class="text-right">${formatCurrency(parseFloat(String(entry.paid_amount)))}</td>
+                      <td class="text-right">${formatCurrency(parseFloat(String(entry.balance_due)))}</td>
+                      <td class="status-${entry.status}">${entry.status.toUpperCase()}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+              <div class="footer">
+                <p>Generated on ${new Date().toLocaleString()}</p>
+                <p>Salim Inn - Hotel Management System</p>
+              </div>
+            </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+      }
+    }
+  };
+
+  // Get unique companies for print button
+  const uniqueCompanies = useMemo(() => {
+    const companies = new Map<string, { total: number; balance: number; entries: number }>();
+    ledgers.forEach(ledger => {
+      const existing = companies.get(ledger.company_name) || { total: 0, balance: 0, entries: 0 };
+      companies.set(ledger.company_name, {
+        total: existing.total + parseFloat(String(ledger.amount)),
+        balance: existing.balance + parseFloat(String(ledger.balance_due)),
+        entries: existing.entries + 1,
+      });
+    });
+    return Array.from(companies.entries()).map(([name, data]) => ({
+      name,
+      ...data,
+    }));
+  }, [ledgers]);
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -423,7 +695,7 @@ const CustomerLedgerPage: React.FC = () => {
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4" component="h1">
-          Customer Ledger
+          Company Ledger
         </Typography>
         <Box display="flex" gap={2}>
           <Button
@@ -516,6 +788,61 @@ const CustomerLedgerPage: React.FC = () => {
             </Card>
           </Grid>
         </Grid>
+      )}
+
+      {/* Company Summary with Print Buttons */}
+      {uniqueCompanies.length > 0 && (
+        <Card sx={{ mb: 3, p: 2 }}>
+          <Box display="flex" alignItems="center" gap={1} mb={2}>
+            <BusinessIcon color="primary" />
+            <Typography variant="h6">Companies</Typography>
+          </Box>
+          <Grid container spacing={2}>
+            {uniqueCompanies.map((company) => (
+              <Grid item xs={12} sm={6} md={4} lg={3} key={company.name}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    height: '100%',
+                    '&:hover': { boxShadow: 2 },
+                  }}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="flex-start">
+                    <Typography variant="subtitle1" fontWeight="bold" noWrap sx={{ flex: 1 }}>
+                      {company.name}
+                    </Typography>
+                    <IconButton
+                      size="small"
+                      color="primary"
+                      onClick={() => handlePrintCompanyStatement(company.name)}
+                      title="Print Statement"
+                    >
+                      <PrintIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                  <Typography variant="body2" color="text.secondary">
+                    {company.entries} entries
+                  </Typography>
+                  <Box display="flex" justifyContent="space-between" mt={1}>
+                    <Typography variant="body2">
+                      Total: {formatCurrency(company.total)}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      color={company.balance > 0 ? 'error.main' : 'success.main'}
+                      fontWeight="medium"
+                    >
+                      Due: {formatCurrency(company.balance)}
+                    </Typography>
+                  </Box>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
+        </Card>
       )}
 
       {/* Filters and Search */}
@@ -717,7 +1044,7 @@ const CustomerLedgerPage: React.FC = () => {
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  {ledger.due_date ? new Date(ledger.due_date).toLocaleDateString() : '-'}
+                  {formatDateForDisplay(ledger.due_date)}
                 </TableCell>
                 <TableCell>
                   <Chip
@@ -784,12 +1111,90 @@ const CustomerLedgerPage: React.FC = () => {
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                required
-                label="Company Name"
-                value={createFormData.company_name}
-                onChange={(e) => setCreateFormData({ ...createFormData, company_name: e.target.value })}
+              <Autocomplete
+                value={selectedCompany}
+                onChange={(event, newValue) => {
+                  if (newValue) {
+                    if (newValue.isNew) {
+                      // User selected "Add new company" option
+                      setNewCompanyData({ ...newCompanyData, company_name: newValue.inputValue || '' });
+                      setNewCompanyDialogOpen(true);
+                    } else {
+                      // User selected an existing company
+                      setSelectedCompany(newValue);
+                      setCreateFormData({
+                        ...createFormData,
+                        company_name: newValue.company_name,
+                        company_registration_number: newValue.company_registration_number,
+                        contact_person: newValue.contact_person,
+                        contact_email: newValue.contact_email,
+                        contact_phone: newValue.contact_phone,
+                        billing_address_line1: newValue.billing_address_line1,
+                      });
+                    }
+                  } else {
+                    setSelectedCompany(null);
+                    setCreateFormData({
+                      ...createFormData,
+                      company_name: '',
+                    });
+                  }
+                }}
+                filterOptions={(options, state) => {
+                  const inputValue = state.inputValue.toLowerCase();
+                  const filtered = options.filter(option =>
+                    option.company_name.toLowerCase().includes(inputValue)
+                  );
+                  // Suggest creating a new company if no exact match
+                  const isExisting = options.some(option =>
+                    option.company_name.toLowerCase() === inputValue
+                  );
+                  if (inputValue !== '' && !isExisting) {
+                    filtered.push({
+                      inputValue: state.inputValue,
+                      company_name: `Add "${state.inputValue}" as new company`,
+                      isNew: true,
+                    });
+                  }
+                  return filtered;
+                }}
+                selectOnFocus
+                clearOnBlur
+                handleHomeEndKeys
+                options={companyOptions}
+                getOptionLabel={(option) => option.isNew ? option.inputValue || '' : option.company_name}
+                isOptionEqualToValue={(option, value) => option.company_name === value.company_name}
+                renderOption={(props, option) => {
+                  const { key, ...otherProps } = props;
+                  return (
+                    <li key={key} {...otherProps}>
+                      {option.isNew ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <PersonAddIcon color="primary" fontSize="small" />
+                          <Typography color="primary">{option.company_name}</Typography>
+                        </Box>
+                      ) : (
+                        <Box>
+                          <Typography>{option.company_name}</Typography>
+                          {option.contact_person && (
+                            <Typography variant="caption" color="text.secondary">
+                              Contact: {option.contact_person}
+                            </Typography>
+                          )}
+                        </Box>
+                      )}
+                    </li>
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    required
+                    label="Company Name"
+                    placeholder="Type to search or add new company"
+                    helperText="Select existing company or type new name"
+                  />
+                )}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -1198,6 +1603,210 @@ const CustomerLedgerPage: React.FC = () => {
               {processingPayment ? 'Processing...' : 'Record Payment'}
             </Button>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* New Company Registration Dialog */}
+      <Dialog open={newCompanyDialogOpen} onClose={() => setNewCompanyDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <PersonAddIcon color="primary" />
+            Register New Company
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            This company is not in our system. Please provide the company details below.
+          </Alert>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                required
+                label="Company Name"
+                value={newCompanyData.company_name}
+                onChange={(e) => setNewCompanyData({ ...newCompanyData, company_name: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Registration Number"
+                value={newCompanyData.company_registration_number || ''}
+                onChange={(e) => setNewCompanyData({ ...newCompanyData, company_registration_number: e.target.value })}
+                placeholder="e.g., 123456-A"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Contact Person"
+                value={newCompanyData.contact_person || ''}
+                onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_person: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Contact Email"
+                type="email"
+                value={newCompanyData.contact_email || ''}
+                onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_email: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Contact Phone"
+                value={newCompanyData.contact_phone || ''}
+                onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_phone: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Billing Address"
+                value={newCompanyData.billing_address_line1 || ''}
+                onChange={(e) => setNewCompanyData({ ...newCompanyData, billing_address_line1: e.target.value })}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNewCompanyDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleRegisterNewCompany}
+            variant="contained"
+            startIcon={<PersonAddIcon />}
+            disabled={!newCompanyData.company_name}
+          >
+            Register Company
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Print Statement Preview Dialog */}
+      <Dialog open={printDialogOpen} onClose={() => setPrintDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Box display="flex" alignItems="center" gap={1}>
+              <PrintIcon color="primary" />
+              Company Ledger Statement
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<PrintIcon />}
+              onClick={handlePrint}
+            >
+              Print
+            </Button>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box id="print-statement-content">
+            <Box sx={{ textAlign: 'center', mb: 3, borderBottom: '2px solid #333', pb: 2 }}>
+              <Typography variant="h4" fontWeight="bold">Salim Inn</Typography>
+              <Typography variant="h6" color="text.secondary">Company Ledger Statement</Typography>
+            </Box>
+
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h5" fontWeight="bold">{printingCompany}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Statement Date: {new Date().toLocaleDateString()}
+              </Typography>
+            </Box>
+
+            {/* Summary */}
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={3}>
+                <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'grey.100' }}>
+                  <Typography variant="caption" color="text.secondary">Total Entries</Typography>
+                  <Typography variant="h6" fontWeight="bold">{companyLedgerEntries.length}</Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={3}>
+                <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'grey.100' }}>
+                  <Typography variant="caption" color="text.secondary">Total Amount</Typography>
+                  <Typography variant="h6" fontWeight="bold">
+                    {formatCurrency(companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.amount)), 0))}
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={3}>
+                <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'success.50' }}>
+                  <Typography variant="caption" color="text.secondary">Total Paid</Typography>
+                  <Typography variant="h6" fontWeight="bold" color="success.main">
+                    {formatCurrency(companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.paid_amount)), 0))}
+                  </Typography>
+                </Paper>
+              </Grid>
+              <Grid item xs={3}>
+                <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'error.50' }}>
+                  <Typography variant="caption" color="text.secondary">Balance Due</Typography>
+                  <Typography variant="h6" fontWeight="bold" color="error.main">
+                    {formatCurrency(companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.balance_due)), 0))}
+                  </Typography>
+                </Paper>
+              </Grid>
+            </Grid>
+
+            {/* Transactions Table */}
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'primary.main' }}>
+                    <TableCell sx={{ color: 'white' }}>Invoice #</TableCell>
+                    <TableCell sx={{ color: 'white' }}>Date</TableCell>
+                    <TableCell sx={{ color: 'white' }}>Description</TableCell>
+                    <TableCell sx={{ color: 'white' }}>Type</TableCell>
+                    <TableCell sx={{ color: 'white' }} align="right">Amount</TableCell>
+                    <TableCell sx={{ color: 'white' }} align="right">Paid</TableCell>
+                    <TableCell sx={{ color: 'white' }} align="right">Balance</TableCell>
+                    <TableCell sx={{ color: 'white' }}>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {companyLedgerEntries.map((entry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell>{entry.invoice_number || '-'}</TableCell>
+                      <TableCell>{new Date(entry.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>{entry.description}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={EXPENSE_TYPES.find(t => t.value === entry.expense_type)?.label || entry.expense_type}
+                          size="small"
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell align="right">{formatCurrency(parseFloat(String(entry.amount)))}</TableCell>
+                      <TableCell align="right">{formatCurrency(parseFloat(String(entry.paid_amount)))}</TableCell>
+                      <TableCell align="right">
+                        <Typography color={parseFloat(String(entry.balance_due)) > 0 ? 'error.main' : 'success.main'}>
+                          {formatCurrency(parseFloat(String(entry.balance_due)))}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={getStatusText(entry.status)}
+                          color={getStatusColor(entry.status)}
+                          size="small"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            <Box sx={{ mt: 3, textAlign: 'center', color: 'text.secondary' }}>
+              <Typography variant="caption">
+                Generated on {new Date().toLocaleString()} | Salim Inn - Hotel Management System
+              </Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPrintDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 

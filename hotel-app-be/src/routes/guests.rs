@@ -21,12 +21,14 @@ pub fn routes() -> Router<PgPool> {
         .route("/guests", get(get_guests))
         .route("/guests", post(create_guest))
         .route("/guests/my-guests", get(get_my_guests))
+        .route("/guests/my-guests-with-credits", get(get_my_guests_with_credits))
         .route("/guests/link", post(link_guest))
         .route("/guests/unlink/:guest_id", delete(unlink_guest))
         .route("/guests/upgrade", post(upgrade_guest))
         .route("/guests/:id", patch(update_guest))
         .route("/guests/:id", delete(delete_guest))
         .route("/guests/:id/bookings", get(get_guest_bookings))
+        .route("/guests/:id/credits", get(get_guest_credits))
 }
 
 async fn get_guests(
@@ -84,7 +86,7 @@ async fn update_guest(
     path: Path<i64>,
     Json(input): Json<models::GuestUpdateInput>,
 ) -> Result<Json<models::Guest>, ApiError> {
-    require_permission_helper(&pool, &headers, "guests:write").await?;
+    require_permission_helper(&pool, &headers, "guests:update").await?;
     handlers::guests::update_guest_handler(State(pool), path, Json(input)).await
 }
 
@@ -93,7 +95,7 @@ async fn delete_guest(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_permission_helper(&pool, &headers, "guests:write").await?;
+    require_permission_helper(&pool, &headers, "guests:delete").await?;
     handlers::guests::delete_guest_handler(State(pool), path).await
 }
 
@@ -104,4 +106,19 @@ async fn get_guest_bookings(
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     require_permission_helper(&pool, &headers, "guests:read").await?;
     handlers::guests::get_guest_bookings_handler(State(pool), path).await
+}
+
+async fn get_guest_credits(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    handlers::guests::get_guest_credits_handler(State(pool), headers, path).await
+}
+
+async fn get_my_guests_with_credits(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    handlers::guests::get_my_guests_with_credits_handler(State(pool), headers).await
 }

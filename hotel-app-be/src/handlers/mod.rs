@@ -19,6 +19,7 @@ pub mod payments;
 pub mod rates;
 pub mod ledgers;
 pub mod guest_portal;
+pub mod companies;
 
 // Re-export all handlers for convenience
 pub use auth::*;
@@ -32,6 +33,7 @@ pub use loyalty::*;
 pub use profile::*;
 pub use analytics::*;
 pub use settings::*;
+pub use companies::*;
 
 // Also re-export the ApiError for handlers
 pub use crate::core::error::ApiError;

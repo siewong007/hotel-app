@@ -17,13 +17,15 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   IconButton,
   Chip,
   Grid,
   Card,
   CardContent,
   InputAdornment,
+  Switch,
+  FormControlLabel,
+  Tooltip,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -32,13 +34,18 @@ import {
   Save as SaveIcon,
   Cancel as CancelIcon,
   Person as PersonIcon,
+  PersonOff as PersonOffIcon,
   Search as SearchIcon,
   History as HistoryIcon,
+  ToggleOn as ToggleOnIcon,
+  ToggleOff as ToggleOffIcon,
+  CardGiftcard as GiftIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { Guest, GuestCreateRequest } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail } from '../../../utils/validation';
+import { useCurrency } from '../../../hooks/useCurrency';
 
 interface GuestFormData extends GuestCreateRequest {
   id?: number;
@@ -46,7 +53,7 @@ interface GuestFormData extends GuestCreateRequest {
 
 const GuestConfigurationPage: React.FC = () => {
   const { hasRole, hasPermission } = useAuth();
-  const isAdmin = hasRole('admin');
+  const { format: formatCurrency } = useCurrency();
   const hasAccess = hasRole('admin') || hasRole('receptionist') || hasRole('manager') || hasPermission('guests:read') || hasPermission('guests:manage');
 
   const [guests, setGuests] = useState<Guest[]>([]);
@@ -60,6 +67,25 @@ const GuestConfigurationPage: React.FC = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bookingsDialogOpen, setBookingsDialogOpen] = useState(false);
+  const [creditsDialogOpen, setCreditsDialogOpen] = useState(false);
+
+  // Credits state
+  interface GuestCredits {
+    guest_id: number;
+    guest_name: string;
+    total_nights: number;
+    legacy_total_nights: number;
+    credits_by_room_type: {
+      id: number;
+      guest_id: number;
+      room_type_id: number;
+      room_type_name: string;
+      room_type_code: string;
+      nights_available: number;
+    }[];
+  }
+  const [guestCredits, setGuestCredits] = useState<GuestCredits | null>(null);
+  const [creditsLoading, setCreditsLoading] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState<GuestFormData>({
@@ -88,10 +114,10 @@ const GuestConfigurationPage: React.FC = () => {
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
   useEffect(() => {
-    if (isAdmin) {
+    if (hasAccess) {
       loadData();
     }
-  }, [isAdmin]);
+  }, [hasAccess]);
 
   useEffect(() => {
     // Filter guests based on search term
@@ -101,7 +127,16 @@ const GuestConfigurationPage: React.FC = () => {
       (guest.phone && guest.phone.includes(searchTerm)) ||
       (guest.ic_number && guest.ic_number.toLowerCase().includes(searchTerm.toLowerCase()))
     );
-    setFilteredGuests(filtered);
+    // Sort: active guests first, then inactive guests, alphabetically within each group
+    const sorted = [...filtered].sort((a, b) => {
+      // First, sort by active status (active first)
+      if (a.is_active !== b.is_active) {
+        return a.is_active ? -1 : 1;
+      }
+      // Then sort alphabetically by name
+      return a.full_name.localeCompare(b.full_name);
+    });
+    setFilteredGuests(sorted);
   }, [searchTerm, guests]);
 
   const loadData = async () => {
@@ -176,6 +211,20 @@ const GuestConfigurationPage: React.FC = () => {
     }
   };
 
+  const handleViewCredits = async (guest: Guest) => {
+    setViewingGuest(guest);
+    try {
+      setCreditsLoading(true);
+      const credits = await HotelAPIService.getGuestCredits(guest.id);
+      setGuestCredits(credits);
+      setCreditsDialogOpen(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load credits');
+    } finally {
+      setCreditsLoading(false);
+    }
+  };
+
   const handleCreateGuest = async () => {
     if (!formData.first_name || !formData.last_name || !formData.email) {
       setError('Please fill in all required fields');
@@ -238,6 +287,17 @@ const GuestConfigurationPage: React.FC = () => {
       setError(err.message || 'Failed to delete guest');
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  const handleToggleActive = async (guest: Guest) => {
+    try {
+      await HotelAPIService.updateGuest(guest.id, { is_active: !guest.is_active });
+      setSnackbarMessage(`Guest ${guest.is_active ? 'deactivated' : 'activated'} successfully`);
+      setSnackbarOpen(true);
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update guest status');
     }
   };
 
@@ -376,54 +436,92 @@ const GuestConfigurationPage: React.FC = () => {
                 <TableCell>Phone</TableCell>
                 <TableCell>IC Number</TableCell>
                 <TableCell>Nationality</TableCell>
+                <TableCell>Free Gift Credits</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredGuests.map((guest) => (
-                <TableRow key={guest.id}>
+                <TableRow
+                  key={guest.id}
+                  sx={{
+                    opacity: guest.is_active ? 1 : 0.6,
+                    bgcolor: guest.is_active ? 'inherit' : 'action.hover',
+                  }}
+                >
                   <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {guest.full_name}
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {!guest.is_active && (
+                        <PersonOffIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
+                      )}
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {guest.full_name}
+                      </Typography>
+                    </Box>
                   </TableCell>
                   <TableCell>{guest.email}</TableCell>
                   <TableCell>{guest.phone || '-'}</TableCell>
                   <TableCell>{guest.ic_number || '-'}</TableCell>
                   <TableCell>{guest.nationality || '-'}</TableCell>
                   <TableCell>
+                    {guest.complimentary_nights_credit > 0 ? (
+                      <Chip
+                        icon={<GiftIcon sx={{ fontSize: 16 }} />}
+                        label={`${guest.complimentary_nights_credit} night${guest.complimentary_nights_credit !== 1 ? 's' : ''}`}
+                        size="small"
+                        color="secondary"
+                      />
+                    ) : (
+                      <Typography variant="body2" color="text.disabled">-</Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <Chip
                       label={guest.is_active ? 'Active' : 'Inactive'}
                       size="small"
                       color={guest.is_active ? 'success' : 'default'}
+                      onClick={() => handleToggleActive(guest)}
+                      sx={{ cursor: 'pointer' }}
                     />
                   </TableCell>
                   <TableCell align="right">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleViewBookings(guest)}
-                      color="info"
-                      title="View Bookings"
-                    >
-                      <HistoryIcon />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleEditClick(guest)}
-                      color="primary"
-                      title="Edit"
-                    >
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      onClick={() => handleDeleteClick(guest)}
-                      color="error"
-                      title="Delete"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
+                    <Tooltip title={guest.is_active ? 'Mark as Inactive' : 'Mark as Active'}>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleToggleActive(guest)}
+                        color={guest.is_active ? 'warning' : 'success'}
+                      >
+                        {guest.is_active ? <ToggleOffIcon /> : <ToggleOnIcon />}
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="View Bookings">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleViewBookings(guest)}
+                        color="info"
+                      >
+                        <HistoryIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Edit">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleEditClick(guest)}
+                        color="primary"
+                      >
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Delete">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDeleteClick(guest)}
+                        color="error"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))}
@@ -641,6 +739,41 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, country: e.target.value })}
               />
             </Grid>
+            <Grid item xs={12}>
+              <Box
+                sx={{
+                  p: 2,
+                  mt: 1,
+                  bgcolor: formData.is_active ? 'success.light' : 'warning.light',
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: formData.is_active ? 'success.main' : 'warning.main',
+                  opacity: 0.8,
+                }}
+              >
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formData.is_active}
+                      onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                      color={formData.is_active ? 'success' : 'warning'}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                        {formData.is_active ? 'Active Guest' : 'Inactive Guest'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {formData.is_active
+                          ? 'Guest can make bookings and check in'
+                          : 'Guest is inactive and will appear at the bottom of the list'}
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Box>
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
@@ -717,7 +850,7 @@ const GuestConfigurationPage: React.FC = () => {
                       <TableCell>
                         <Chip label={booking.status} size="small" />
                       </TableCell>
-                      <TableCell align="right">RM {parseFloat(booking.total_amount).toFixed(2)}</TableCell>
+                      <TableCell align="right">{formatCurrency(parseFloat(booking.total_amount))}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -727,6 +860,126 @@ const GuestConfigurationPage: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setBookingsDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Credits Dialog */}
+      <Dialog open={creditsDialogOpen} onClose={() => setCreditsDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <GiftIcon color="secondary" />
+          Free Gift Credits: {viewingGuest?.full_name}
+        </DialogTitle>
+        <DialogContent>
+          {creditsLoading ? (
+            <Box display="flex" justifyContent="center" py={3}>
+              <CircularProgress />
+            </Box>
+          ) : guestCredits ? (
+            <Box>
+              {/* Credits by Room Type */}
+              {guestCredits.credits_by_room_type.length > 0 && (
+                <Box mb={3}>
+                  <Typography variant="subtitle2" color="text.secondary" mb={1}>
+                    Credits by Room Type:
+                  </Typography>
+                  {guestCredits.credits_by_room_type.map((credit) => (
+                    <Box
+                      key={credit.id}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        backgroundColor: 'success.light',
+                        borderRadius: 1,
+                        px: 2,
+                        py: 1,
+                        mb: 1,
+                      }}
+                    >
+                      <Box>
+                        <Typography variant="body1" fontWeight={600}>
+                          {credit.room_type_name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Code: {credit.room_type_code}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        icon={<GiftIcon sx={{ fontSize: 16 }} />}
+                        label={`${credit.nights_available} night${credit.nights_available !== 1 ? 's' : ''}`}
+                        color="success"
+                      />
+                    </Box>
+                  ))}
+                </Box>
+              )}
+
+              {/* Legacy Credits */}
+              {guestCredits.legacy_total_nights > 0 && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: 'info.light',
+                    borderRadius: 1,
+                    px: 2,
+                    py: 1,
+                    mb: 2,
+                  }}
+                >
+                  <Box>
+                    <Typography variant="body1" fontWeight={600}>
+                      Any Room Type
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Legacy credits (can be used for any room)
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label={`${guestCredits.legacy_total_nights} night${guestCredits.legacy_total_nights !== 1 ? 's' : ''}`}
+                    color="info"
+                  />
+                </Box>
+              )}
+
+              {/* Total */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderTop: '2px solid',
+                  borderColor: 'divider',
+                  pt: 2,
+                  mt: 2,
+                }}
+              >
+                <Typography variant="h6" fontWeight={600}>
+                  Total Available:
+                </Typography>
+                <Chip
+                  icon={<GiftIcon />}
+                  label={`${guestCredits.total_nights + guestCredits.legacy_total_nights} night${(guestCredits.total_nights + guestCredits.legacy_total_nights) !== 1 ? 's' : ''}`}
+                  color="secondary"
+                  sx={{ fontSize: '1rem', py: 2 }}
+                />
+              </Box>
+
+              {guestCredits.total_nights === 0 && guestCredits.legacy_total_nights === 0 && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  This guest has no complimentary credits available.
+                </Alert>
+              )}
+            </Box>
+          ) : (
+            <Alert severity="info">
+              No credits information available.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreditsDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Box>

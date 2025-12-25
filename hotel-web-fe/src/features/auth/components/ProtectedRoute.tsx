@@ -7,6 +7,7 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredPermission?: string;
   requiredRole?: string;
+  requiredRoles?: string[]; // Array of roles - user needs ANY of these
   excludeRole?: string;
 }
 
@@ -14,6 +15,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requiredPermission,
   requiredRole,
+  requiredRoles,
   excludeRole,
 }) => {
   const { isAuthenticated, isLoading, hasPermission, hasRole } = useAuth();
@@ -34,12 +36,27 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/" replace />;
   }
 
-  if (requiredRole && !hasRole(requiredRole)) {
+  // Helper function for case-insensitive role checking
+  const hasRoleCaseInsensitive = (role: string): boolean => {
+    return hasRole(role) ||
+           hasRole(role.toLowerCase()) ||
+           hasRole(role.charAt(0).toUpperCase() + role.slice(1).toLowerCase());
+  };
+
+  if (requiredRole && !hasRoleCaseInsensitive(requiredRole)) {
     return <Navigate to="/" replace />;
   }
 
-  // Exclude specific roles from accessing this route
-  if (excludeRole && hasRole(excludeRole)) {
+  // Check if user has ANY of the required roles (case-insensitive)
+  if (requiredRoles && requiredRoles.length > 0) {
+    const hasAnyRole = requiredRoles.some(role => hasRoleCaseInsensitive(role));
+    if (!hasAnyRole) {
+      return <Navigate to="/" replace />;
+    }
+  }
+
+  // Exclude specific roles from accessing this route (case-insensitive)
+  if (excludeRole && hasRoleCaseInsensitive(excludeRole)) {
     return <Navigate to="/timeline" replace />;
   }
 

@@ -37,6 +37,12 @@ pub struct Booking {
     pub pre_checkin_token: Option<String>,
     pub pre_checkin_token_expires_at: Option<DateTime<Utc>>,
     pub created_by: Option<i64>,
+    pub is_complimentary: Option<bool>,
+    pub complimentary_reason: Option<String>,
+    pub complimentary_start_date: Option<NaiveDate>,
+    pub complimentary_end_date: Option<NaiveDate>,
+    pub original_total_amount: Option<Decimal>,
+    pub complimentary_nights: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -58,6 +64,15 @@ pub struct BookingInput {
     pub room_card_deposit: Option<f64>,
     pub late_checkout_penalty: Option<f64>,
     pub payment_method: Option<String>,
+    pub source: Option<String>,         // walk_in, online, phone, agent
+    pub booking_number: Option<String>, // Optional - if provided, use this instead of auto-generating
+}
+
+/// Input for cancelling a booking
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BookingCancellationRequest {
+    pub booking_id: i64,
+    pub reason: Option<String>,
 }
 
 /// Input for updating a booking
@@ -68,6 +83,7 @@ pub struct BookingUpdateInput {
     pub check_out_date: Option<String>,
     pub total_amount: Option<f64>,
     pub status: Option<String>,
+    pub payment_status: Option<String>,
     pub post_type: Option<String>,
     pub rate_code: Option<String>,
     pub is_tourist: Option<bool>,
@@ -100,11 +116,20 @@ pub struct PreCheckInUpdateRequest {
     pub special_requests: Option<String>,
 }
 
+/// Request for marking a booking as complimentary (with date range)
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MarkComplimentaryRequest {
+    pub reason: Option<String>,
+    pub complimentary_start_date: String,  // YYYY-MM-DD format
+    pub complimentary_end_date: String,    // YYYY-MM-DD format
+}
+
 /// Booking with related details (guest, room info)
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct BookingWithDetails {
     pub id: i64,
     pub booking_number: String,
+    pub folio_number: Option<String>,
     pub guest_id: i64,
     pub guest_name: String,
     pub guest_email: Option<String>,
@@ -118,5 +143,11 @@ pub struct BookingWithDetails {
     pub status: String,
     pub payment_status: Option<String>,
     pub source: Option<String>,
+    pub is_complimentary: Option<bool>,
+    pub complimentary_reason: Option<String>,
+    pub complimentary_start_date: Option<NaiveDate>,
+    pub complimentary_end_date: Option<NaiveDate>,
+    pub original_total_amount: Option<Decimal>,
+    pub complimentary_nights: Option<i32>,
     pub created_at: DateTime<Utc>,
 }

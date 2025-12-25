@@ -20,6 +20,8 @@ pub enum ApiError {
     BadRequest(String),
     /// Resource not found
     NotFound(String),
+    /// Resource already exists (conflict)
+    Conflict(String),
     /// Internal server error
     Internal(String),
 }
@@ -32,6 +34,7 @@ impl std::fmt::Display for ApiError {
             ApiError::Forbidden(msg) => write!(f, "Forbidden: {}", msg),
             ApiError::BadRequest(msg) => write!(f, "Bad request: {}", msg),
             ApiError::NotFound(msg) => write!(f, "Not found: {}", msg),
+            ApiError::Conflict(msg) => write!(f, "Conflict: {}", msg),
             ApiError::Internal(msg) => write!(f, "Internal error: {}", msg),
         }
     }
@@ -47,6 +50,7 @@ impl IntoResponse for ApiError {
             ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.clone()),
             ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
+            ApiError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
             ApiError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
         };
 

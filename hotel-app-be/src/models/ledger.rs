@@ -1,6 +1,6 @@
 //! Customer ledger models
 
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{NaiveDate, NaiveDateTime};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -28,7 +28,7 @@ pub struct CustomerLedger {
     pub balance_due: Decimal,
     pub payment_method: Option<String>,
     pub payment_reference: Option<String>,
-    pub payment_date: Option<DateTime<Utc>>,
+    pub payment_date: Option<NaiveDateTime>,
     pub booking_id: Option<i64>,
     pub guest_id: Option<i64>,
     pub invoice_number: Option<String>,
@@ -38,8 +38,8 @@ pub struct CustomerLedger {
     pub internal_notes: Option<String>,
     pub created_by: Option<i64>,
     pub updated_by: Option<i64>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
     // PAT-style fields
     pub folio_number: Option<String>,
     pub folio_type: Option<String>,
@@ -59,8 +59,8 @@ pub struct CustomerLedger {
     pub service_charge: Option<Decimal>,
     pub net_amount: Option<Decimal>,
     pub is_posted: Option<bool>,
-    pub posted_at: Option<DateTime<Utc>>,
-    pub void_at: Option<DateTime<Utc>>,
+    pub posted_at: Option<NaiveDateTime>,
+    pub void_at: Option<NaiveDateTime>,
     pub void_by: Option<i64>,
     pub void_reason: Option<String>,
 }
@@ -148,12 +148,12 @@ pub struct CustomerLedgerPayment {
     pub payment_amount: Decimal,
     pub payment_method: String,
     pub payment_reference: Option<String>,
-    pub payment_date: DateTime<Utc>,
+    pub payment_date: NaiveDateTime,
     pub receipt_number: Option<String>,
     pub receipt_file_url: Option<String>,
     pub notes: Option<String>,
     pub processed_by: Option<i64>,
-    pub created_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
 }
 
 /// Input for creating a ledger payment
@@ -188,7 +188,7 @@ pub struct PatTransactionCode {
     pub gl_account_code: Option<String>,
     pub is_active: bool,
     pub sort_order: i32,
-    pub created_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
 }
 
 /// PAT Department Code
@@ -200,7 +200,7 @@ pub struct PatDepartmentCode {
     pub description: Option<String>,
     pub is_active: bool,
     pub sort_order: i32,
-    pub created_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
 }
 
 /// Input for creating a ledger reversal
