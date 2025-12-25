@@ -17,7 +17,7 @@ const DashboardRouter = lazy(() => import('./features/dashboard/components/Dashb
 const RoomsPage = lazy(() => import('./features/rooms/components/RoomsPage'));
 const BookingsPage = lazy(() => import('./features/bookings/components/BookingsPage'));
 const MyBookingsPage = lazy(() => import('./features/bookings/components/MyBookingsPage'));
-const LegacyReportsPage = lazy(() => import('./features/reports/components/LegacyReportsPage'));
+const ModernReportsPage = lazy(() => import('./features/reports/components/ModernReportsPage'));
 const LoyaltyPortal = lazy(() => import('./features/loyalty/components/LoyaltyPortal'));
 const LoyaltyDashboard = lazy(() => import('./features/loyalty/components/LoyaltyDashboard'));
 const UserProfilePage = lazy(() => import('./features/user/components/UserProfilePage'));
@@ -181,15 +181,16 @@ const theme = createTheme({
 const NavigationTabs = React.memo(function NavigationTabs() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { hasPermission, hasRole, logout, user, permissions } = useAuth();
+  const { hasPermission, hasRole, logout, user } = useAuth();
 
-  // Navigation items configuration
+  // Navigation items configuration - permission and role-based architecture
   interface NavItem {
     id: string;
     label: string;
     path: string;
-    permissionResource: string;
-    legacyCheck?: () => boolean;
+    permissions: string[]; // Array of permissions - user needs ANY of these to see the tab
+    roles?: string[]; // Array of roles - user needs ANY of these to see the tab (optional)
+    excludeRoles?: string[]; // Array of roles - user with ANY of these roles will NOT see the tab
   }
 
   const navigationItems: NavItem[] = [
@@ -197,101 +198,100 @@ const NavigationTabs = React.memo(function NavigationTabs() {
       id: 'timeline',
       label: 'Reservation Timeline',
       path: '/timeline',
-      permissionResource: 'navigation:timeline',
-      legacyCheck: () => hasRole('admin') || hasRole('receptionist') || hasRole('manager')
+      permissions: ['navigation_timeline:read', 'bookings:read'],
+      roles: ['admin', 'receptionist', 'manager']
     },
     {
       id: 'my-bookings',
       label: 'My Bookings',
       path: '/my-bookings',
-      permissionResource: 'navigation:my-bookings',
-      legacyCheck: () => !(hasRole('admin') || hasRole('receptionist') || hasRole('manager'))
+      permissions: ['navigation_my_bookings:read'],
+      excludeRoles: ['admin', 'receptionist', 'manager'] // Staff should not see this tab
     },
     {
       id: 'guest-config',
       label: 'Guest',
       path: '/guest-config',
-      permissionResource: 'navigation:guest-config',
-      legacyCheck: () => hasRole('admin') || hasRole('receptionist') || hasRole('manager')
+      permissions: ['navigation_guest_config:read', 'guests:read', 'guests:manage'],
+      roles: ['admin', 'receptionist', 'manager']
     },
     {
       id: 'bookings',
-      label: 'All Bookings',
+      label: 'Bookings',
       path: '/bookings',
-      permissionResource: 'navigation:bookings',
-      legacyCheck: () => hasRole('admin')
+      permissions: ['navigation_bookings:read', 'bookings:manage'],
+      roles: ['admin', 'receptionist', 'manager']
     },
     {
       id: 'room-management',
       label: 'Room Management',
       path: '/room-management',
-      permissionResource: 'navigation:room-management',
-      legacyCheck: () => hasRole('admin') || hasRole('receptionist') || hasRole('manager')
-    },
-    {
-      id: 'loyalty',
-      label: 'Loyalty Portal',
-      path: '/loyalty',
-      permissionResource: 'navigation:loyalty',
-      legacyCheck: () => hasRole('admin')
-    },
-    {
-      id: 'my-rewards',
-      label: 'My Rewards',
-      path: '/my-rewards',
-      permissionResource: 'navigation:my-rewards',
-      legacyCheck: () => !(hasRole('admin') || hasRole('receptionist') || hasRole('manager'))
+      permissions: ['navigation_room_management:read', 'rooms:read', 'rooms:manage'],
+      roles: ['admin', 'receptionist', 'manager']
     },
     {
       id: 'ekyc-admin',
       label: 'eKYC Verification',
       path: '/ekyc-admin',
-      permissionResource: 'navigation:ekyc-admin',
-      legacyCheck: () => hasPermission('ekyc:manage')
+      permissions: ['ekyc:manage']
     },
     {
       id: 'rbac',
       label: 'Roles',
       path: '/rbac',
-      permissionResource: 'navigation:rbac',
-      legacyCheck: () => hasRole('admin')
+      permissions: ['rbac:manage', 'rbac:read'],
+      roles: ['admin']
     },
     {
       id: 'room-config',
       label: 'Room Config',
       path: '/room-config',
-      permissionResource: 'navigation:room-config',
-      legacyCheck: () => (hasRole('receptionist') || hasRole('manager')) && !hasRole('admin')
+      permissions: ['navigation_room_config:read', 'rooms:update', 'rooms:manage'],
+      roles: ['admin', 'receptionist', 'manager']
     },
     {
-      id: 'customer-ledger',
-      label: 'Customer Ledger',
-      path: '/customer-ledger',
-      permissionResource: 'navigation:customer-ledger',
-      legacyCheck: () => hasRole('admin') || hasRole('manager')
+      id: 'company-ledger',
+      label: 'Company Ledger',
+      path: '/company-ledger',
+      permissions: ['ledgers:read', 'ledgers:manage'],
+      roles: ['admin', 'receptionist', 'manager']
+    },
+    {
+      id: 'reports',
+      label: 'Reports',
+      path: '/reports',
+      permissions: [], // No permission required - visible to all authenticated users
     },
     {
       id: 'settings',
       label: 'Settings',
       path: '/settings',
-      permissionResource: 'navigation:settings',
-      legacyCheck: () => hasPermission('settings:read')
+      permissions: ['navigation_settings:read', 'settings:read', 'settings:manage']
     },
   ];
 
-  // Check if any navigation:* permissions exist (dynamic mode)
-  const hasNavigationPermissions = permissions.some(p => p.startsWith('navigation:'));
-
-  // Build visible tabs array
+  // Build visible tabs array - user needs ANY of the listed permissions OR ANY of the listed roles to see the tab
+  // But if user has ANY of the excludeRoles, they will NOT see the tab
+  // If no permissions AND no roles are specified, the tab is visible to all authenticated users
   const visibleTabs: string[] = navigationItems
     .filter(item => {
-      if (hasNavigationPermissions) {
-        // Dynamic mode: use navigation permissions
-        return hasPermission(item.permissionResource);
-      } else {
-        // Legacy mode: use role-based checks
-        return item.legacyCheck ? item.legacyCheck() : false;
-      }
+      // First check if user should be excluded (case-insensitive)
+      const isExcluded = item.excludeRoles?.some(role =>
+        hasRole(role) || hasRole(role.toLowerCase()) || hasRole(role.charAt(0).toUpperCase() + role.slice(1).toLowerCase())
+      ) ?? false;
+      if (isExcluded) return false;
+
+      // If no permissions and no roles specified, show to all authenticated users
+      const noRestrictions = item.permissions.length === 0 && (!item.roles || item.roles.length === 0);
+      if (noRestrictions) return true;
+
+      const hasRequiredPermission = item.permissions.some(perm => hasPermission(perm));
+      // Case-insensitive role matching
+      const hasRequiredRole = item.roles?.some(role =>
+        hasRole(role) || hasRole(role.toLowerCase()) || hasRole(role.charAt(0).toUpperCase() + role.slice(1).toLowerCase())
+      ) ?? false;
+
+      return hasRequiredPermission || hasRequiredRole;
     })
     .map(item => item.path);
 
@@ -304,6 +304,8 @@ const NavigationTabs = React.memo(function NavigationTabs() {
       <Tabs
         value={activeTab}
         textColor="inherit"
+        variant="scrollable"
+        scrollButtons="auto"
         sx={{
           flexGrow: 1,
           '& .MuiTab-root': {
@@ -560,7 +562,7 @@ function AppContent() {
             <Route
               path="/bookings"
               element={
-                <ProtectedRoute requiredRole="admin">
+                <ProtectedRoute requiredRoles={['admin', 'receptionist', 'manager']}>
                   <AnimatedRoute animationType="slide">
                     <ComponentErrorBoundary>
                       <BookingsPage />
@@ -582,7 +584,7 @@ function AppContent() {
             <Route
               path="/room-management"
               element={
-                <ProtectedRoute requiredPermission="rooms:manage">
+                <ProtectedRoute requiredRoles={['admin', 'receptionist', 'manager']}>
                   <AnimatedRoute animationType="slide">
                     <ComponentErrorBoundary>
                       <RoomManagementPage />
@@ -594,10 +596,10 @@ function AppContent() {
             <Route
               path="/reports"
               element={
-                <ProtectedRoute requiredPermission="analytics:read">
+                <ProtectedRoute>
                   <AnimatedRoute animationType="grow">
                     <ComponentErrorBoundary>
-                      <LegacyReportsPage />
+                      <ModernReportsPage />
                     </ComponentErrorBoundary>
                   </AnimatedRoute>
                 </ProtectedRoute>
@@ -678,7 +680,7 @@ function AppContent() {
             <Route
               path="/room-config"
               element={
-                <ProtectedRoute excludeRole="admin">
+                <ProtectedRoute requiredRoles={['admin', 'receptionist', 'manager']}>
                   <AnimatedRoute animationType="fade">
                     <ComponentErrorBoundary>
                       <RoomConfigurationPage />
@@ -700,9 +702,9 @@ function AppContent() {
               }
             />
             <Route
-              path="/customer-ledger"
+              path="/company-ledger"
               element={
-                <ProtectedRoute requiredRole="admin">
+                <ProtectedRoute requiredRoles={['admin', 'receptionist', 'manager']}>
                   <AnimatedRoute animationType="slide">
                     <ComponentErrorBoundary>
                       <CustomerLedgerPage />

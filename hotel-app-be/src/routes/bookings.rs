@@ -21,12 +21,16 @@ pub fn routes() -> Router<PgPool> {
         .route("/bookings", get(get_bookings))
         .route("/bookings", post(create_booking))
         .route("/bookings/my-bookings", get(get_my_bookings))
+        .route("/bookings/cancel", post(cancel_booking))
         .route("/bookings/:id", get(get_booking))
         .route("/bookings/:id", patch(update_booking))
         .route("/bookings/:id", put(update_booking))
         .route("/bookings/:id", delete(delete_booking))
         .route("/bookings/:id/checkin", post(manual_checkin))
         .route("/bookings/:id/pre-checkin", patch(pre_checkin_update))
+        .route("/bookings/:id/complimentary", post(mark_complimentary))
+        .route("/bookings/:id/convert-credits", post(convert_complimentary_to_credits))
+        .route("/bookings/book-with-credits", post(book_with_credits))
         // Code lookup routes
         .route("/rate-codes", get(get_rate_codes))
         .route("/market-codes", get(get_market_codes))
@@ -85,6 +89,15 @@ async fn delete_booking(
     handlers::bookings::delete_booking_handler(State(pool), Extension(user_id), path).await
 }
 
+async fn cancel_booking(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    Json(input): Json<models::BookingCancellationRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
+    handlers::bookings::delete_booking_handler(State(pool), Extension(user_id), Path(input.booking_id)).await
+}
+
 async fn manual_checkin(
     State(pool): State<PgPool>,
     headers: HeaderMap,
@@ -116,4 +129,32 @@ async fn get_market_codes(
 ) -> Result<Json<models::MarketCodesResponse>, ApiError> {
     // Public endpoint - no authentication required
     handlers::settings::get_market_codes_handler(State(pool)).await
+}
+
+async fn mark_complimentary(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    Json(input): Json<models::MarkComplimentaryRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
+    handlers::bookings::mark_complimentary_handler(State(pool), Extension(user_id), path, Json(input)).await
+}
+
+async fn convert_complimentary_to_credits(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
+    handlers::bookings::convert_complimentary_to_credits_handler(State(pool), Extension(user_id), path).await
+}
+
+async fn book_with_credits(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    Json(input): Json<handlers::bookings::BookWithCreditsRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Only requires authentication - user can book for their linked guests
+    handlers::bookings::book_with_credits_handler(State(pool), headers, Json(input)).await
 }

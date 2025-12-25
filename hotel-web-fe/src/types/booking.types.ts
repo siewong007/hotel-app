@@ -9,11 +9,17 @@ export enum BookingStatus {
   CANCELLED = 'cancelled',
   NO_SHOW = 'no_show',
   AUTO_CHECKED_IN = 'auto_checked_in',
-  LATE_CHECKOUT = 'late_checkout'
+  LATE_CHECKOUT = 'late_checkout',
+  COMPLIMENTARISE = 'complimentarise',
+  PARTIAL_COMPLIMENTARY = 'partial_complimentary',
+  FULLY_COMPLIMENTARY = 'fully_complimentary'
 }
+
+export type PaymentStatus = 'unpaid' | 'unpaid_deposit' | 'paid_rate' | 'paid' | 'partial' | 'refunded' | 'cancelled';
 
 export interface Booking {
   id: string;
+  booking_number?: string;
   guest_id: string;
   room_id: string;
   room_type?: string;
@@ -21,6 +27,7 @@ export interface Booking {
   check_out_date: string;
   total_amount: number | string;
   status: BookingStatus | string;
+  payment_status?: PaymentStatus | string;
   folio_number?: string;
   post_type?: 'normal_stay' | 'same_day';
   rate_code?: string;
@@ -45,15 +52,23 @@ export interface Booking {
   cancellation_reason?: string;
   special_requests?: string;
   number_of_guests?: number;
+  is_complimentary?: boolean;
+  complimentary_reason?: string;
+  complimentary_start_date?: string;
+  complimentary_end_date?: string;
+  original_total_amount?: number | string;
+  complimentary_nights?: number;
 }
 
 export interface BookingWithDetails extends Booking {
+  booking_number: string;
   guest_name: string;
   guest_email: string;
   guest_phone?: string;
   room_number: string;
   room_type: string;
   room_type_code?: string;
+  payment_status?: PaymentStatus | string;
   price_per_night: number | string;
   number_of_nights?: number;
   formatted_check_in?: string;
@@ -69,6 +84,12 @@ export interface BookingWithDetails extends Booking {
   room_card_deposit?: number | string;
   late_checkout_penalty?: number | string;
   payment_method?: string;
+  is_complimentary?: boolean;
+  complimentary_reason?: string;
+  complimentary_start_date?: string;
+  complimentary_end_date?: string;
+  original_total_amount?: number | string;
+  complimentary_nights?: number;
 }
 
 export interface BookingCreateRequest {
@@ -88,6 +109,8 @@ export interface BookingCreateRequest {
   room_card_deposit?: number;
   late_checkout_penalty?: number;
   payment_method?: string;
+  source?: 'walk_in' | 'online' | 'phone' | 'agent';
+  booking_number?: string; // Optional - auto-generated for walk-in, manual for online
 }
 
 export interface BookingUpdateRequest {
@@ -95,6 +118,7 @@ export interface BookingUpdateRequest {
   check_in_date?: string;
   check_out_date?: string;
   status?: string;
+  payment_status?: string;
   post_type?: string;
   rate_code?: string;
   booking_remarks?: string;
@@ -111,7 +135,7 @@ export interface BookingUpdateRequest {
 }
 
 export interface BookingCancellationRequest {
-  booking_id: string;
+  booking_id: string | number;
   reason?: string;
 }
 

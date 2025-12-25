@@ -21,11 +21,15 @@ pub async fn get_guests_handler(
 ) -> Result<Json<Vec<Guest>>, ApiError> {
     let user_id = require_auth(&headers).await?;
 
-    let is_admin = AuthService::check_role(&pool, user_id, "admin")
+    // Check if user has guests:read or guests:manage permission
+    let has_guest_access = AuthService::check_permission(&pool, user_id, "guests:read")
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        .unwrap_or(false)
+        || AuthService::check_permission(&pool, user_id, "guests:manage")
+            .await
+            .unwrap_or(false);
 
-    let guests = if is_admin {
+    let guests = if has_guest_access {
         sqlx::query_as::<_, Guest>(
             r#"
             SELECT
@@ -33,16 +37,17 @@ pub async fn get_guests_handler(
                 full_name,
                 email,
                 phone,
-                id_number as ic_number,
+                ic_number,
                 nationality,
-                address_line1,
+                address_line_1 as address_line1,
                 city,
-                state_province,
+                state as state_province,
                 postal_code,
                 country,
                 title,
                 alt_phone,
-                COALESCE(is_active, true) as is_active,
+                true as is_active,
+                COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
                 created_at,
                 updated_at
             FROM guests
@@ -84,11 +89,12 @@ pub async fn create_guest_handler(
 
     let guest = sqlx::query_as::<_, Guest>(
         r#"
-        INSERT INTO guests (first_name, last_name, email, phone, id_number, nationality, address_line1, city, state_province, postal_code, country, created_by)
+        INSERT INTO guests (first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, created_by)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        RETURNING id, full_name, email, phone, id_number as ic_number, nationality, address_line1, city, state_province, postal_code, country,
+        RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country,
                   NULL::TEXT as title, NULL::TEXT as alt_phone,
                   true as is_active,
+                  COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
                   created_at, updated_at
         "#
     )
@@ -116,8 +122,9 @@ pub async fn update_guest_handler(
     Path(guest_id): Path<i64>,
     Json(input): Json<GuestUpdateInput>,
 ) -> Result<Json<Guest>, ApiError> {
-    let existing: Option<Guest> = sqlx::query_as(
-        "SELECT id, full_name, email, phone, ic_number, nationality, address_line1, city, state_province, postal_code, country, title, alt_phone, is_active, created_at, updated_at FROM guests WHERE id = $1"
+    // Get existing guest data including first_name and last_name
+    let existing: Option<(i64, String, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, bool)> = sqlx::query_as(
+        "SELECT id, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, title, alt_phone, true FROM guests WHERE id = $1 AND deleted_at IS NULL"
     )
     .bind(guest_id)
     .fetch_optional(&pool)
@@ -126,53 +133,49 @@ pub async fn update_guest_handler(
 
     let existing = existing.ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
 
-    let full_name = if input.first_name.is_some() || input.last_name.is_some() {
-        let first = input.first_name.as_deref().unwrap_or_else(||
-            existing.full_name.split_whitespace().next().unwrap_or("")
-        );
-        let last = input.last_name.as_deref().unwrap_or_else(||
-            existing.full_name.split_whitespace().last().unwrap_or("")
-        );
-        format!("{} {}", first, last)
-    } else {
-        existing.full_name.clone()
-    };
+    // Extract existing values
+    let (_, existing_first_name, existing_last_name, existing_email, existing_phone, existing_ic_number, existing_nationality, existing_address_line1, existing_city, existing_state_province, existing_postal_code, existing_country, existing_title, existing_alt_phone, existing_is_active) = existing;
 
-    let email = input.email.unwrap_or(existing.email.clone());
-    let phone = input.phone.or(existing.phone.clone());
-    let ic_number = input.ic_number.or(existing.ic_number.clone());
-    let nationality = input.nationality.or(existing.nationality.clone());
-    let address_line1 = input.address_line1.or(existing.address_line1.clone());
-    let city = input.city.or(existing.city.clone());
-    let state_province = input.state_province.or(existing.state_province.clone());
-    let postal_code = input.postal_code.or(existing.postal_code.clone());
-    let country = input.country.or(existing.country.clone());
-    let title = input.title.or(existing.title.clone());
-    let alt_phone = input.alt_phone.or(existing.alt_phone.clone());
-    let is_active = input.is_active.unwrap_or(existing.is_active);
+    // Apply updates, falling back to existing values
+    let first_name = input.first_name.unwrap_or(existing_first_name);
+    let last_name = input.last_name.unwrap_or(existing_last_name);
+    let email = input.email.unwrap_or(existing_email);
+    let phone = input.phone.or(existing_phone);
+    let ic_number = input.ic_number.or(existing_ic_number);
+    let nationality = input.nationality.or(existing_nationality);
+    let address_line1 = input.address_line1.or(existing_address_line1);
+    let city = input.city.or(existing_city);
+    let state_province = input.state_province.or(existing_state_province);
+    let postal_code = input.postal_code.or(existing_postal_code);
+    let country = input.country.or(existing_country);
+    let title = input.title.or(existing_title);
+    let alt_phone = input.alt_phone.or(existing_alt_phone);
+    let _is_active = input.is_active.unwrap_or(existing_is_active);
 
+    // Update first_name and last_name (full_name is auto-generated)
     let updated_guest: Guest = sqlx::query_as(
         r#"
         UPDATE guests
-        SET full_name = $1,
-            email = $2,
-            phone = $3,
-            ic_number = $4,
-            nationality = $5,
-            address_line1 = $6,
-            city = $7,
-            state_province = $8,
-            postal_code = $9,
-            country = $10,
-            title = $11,
-            alt_phone = $12,
-            is_active = $13,
+        SET first_name = $1,
+            last_name = $2,
+            email = $3,
+            phone = $4,
+            ic_number = $5,
+            nationality = $6,
+            address_line_1 = $7,
+            city = $8,
+            state = $9,
+            postal_code = $10,
+            country = $11,
+            title = $12,
+            alt_phone = $13,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $14
-        RETURNING id, full_name, email, phone, ic_number, nationality, address_line1, city, state_province, postal_code, country, title, alt_phone, is_active, created_at, updated_at
+        RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at
         "#
     )
-    .bind(&full_name)
+    .bind(&first_name)
+    .bind(&last_name)
     .bind(&email)
     .bind(&phone)
     .bind(&ic_number)
@@ -184,7 +187,6 @@ pub async fn update_guest_handler(
     .bind(&country)
     .bind(&title)
     .bind(&alt_phone)
-    .bind(is_active)
     .bind(guest_id)
     .fetch_one(&pool)
     .await
@@ -364,7 +366,11 @@ pub async fn get_my_guests_handler(
 
     let guests = sqlx::query_as::<_, Guest>(
         r#"
-        SELECT DISTINCT g.id, g.full_name, g.email, g.phone, g.id_number as ic_number, g.nationality, g.address_line1, g.city, g.state_province, g.postal_code, g.country, g.title, g.alt_phone, COALESCE(g.is_active, true) as is_active, g.created_at, g.updated_at
+        SELECT DISTINCT g.id, g.full_name, g.email, g.phone, g.ic_number, g.nationality,
+               g.address_line_1 as address_line1, g.city, g.state as state_province, g.postal_code, g.country, g.title, g.alt_phone,
+               true as is_active,
+               COALESCE(g.complimentary_nights_credit, 0) as complimentary_nights_credit,
+               g.created_at, g.updated_at
         FROM guests g
         INNER JOIN user_guests ug ON g.id = ug.guest_id
         WHERE ug.user_id = $1 AND g.deleted_at IS NULL
@@ -427,4 +433,180 @@ pub async fn upgrade_guest_to_user_handler(
         "user_id": new_user_id,
         "username": input.username
     })))
+}
+
+/// Get guest complimentary credits by room type
+pub async fn get_guest_credits_handler(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    Path(guest_id): Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_auth(&headers).await?;
+
+    // Verify user has access to this guest
+    let has_access: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM user_guests WHERE user_id = $1 AND guest_id = $2)"
+    )
+    .bind(user_id)
+    .bind(guest_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Also check if user has guests:read permission
+    let has_guest_permission = AuthService::check_permission(&pool, user_id, "guests:read")
+        .await
+        .unwrap_or(false);
+
+    if !has_access && !has_guest_permission {
+        return Err(ApiError::Unauthorized("You don't have access to this guest's credits".to_string()));
+    }
+
+    // Get guest info
+    let guest_info: Option<(i64, String)> = sqlx::query_as(
+        "SELECT id, full_name FROM guests WHERE id = $1 AND deleted_at IS NULL"
+    )
+    .bind(guest_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let (guest_id, guest_name) = guest_info.ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
+
+    // Get credits by room type from the guest_complimentary_credits table
+    // If it doesn't exist, we'll try to create it from the legacy complimentary_nights_credit field
+    // Note: gcc.id is i32 (integer), guest_id and room_type_id are i64 (bigint)
+    let credits: Vec<(i32, i64, i64, String, String, i32, DateTime<Utc>, DateTime<Utc>)> = sqlx::query_as(
+        r#"
+        SELECT
+            gcc.id,
+            gcc.guest_id,
+            gcc.room_type_id,
+            rt.name as room_type_name,
+            rt.code as room_type_code,
+            gcc.nights_available,
+            gcc.created_at,
+            gcc.updated_at
+        FROM guest_complimentary_credits gcc
+        INNER JOIN room_types rt ON gcc.room_type_id = rt.id
+        WHERE gcc.guest_id = $1 AND gcc.nights_available > 0
+        ORDER BY rt.name
+        "#
+    )
+    .bind(guest_id)
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
+
+    let credits_by_room_type: Vec<serde_json::Value> = credits
+        .into_iter()
+        .map(|(id, guest_id, room_type_id, room_type_name, room_type_code, nights_available, created_at, updated_at)| {
+            serde_json::json!({
+                "id": id,
+                "guest_id": guest_id,
+                "room_type_id": room_type_id,
+                "room_type_name": room_type_name,
+                "room_type_code": room_type_code,
+                "nights_available": nights_available,
+                "created_at": created_at,
+                "updated_at": updated_at
+            })
+        })
+        .collect();
+
+    let total_nights: i32 = credits_by_room_type
+        .iter()
+        .map(|c| c["nights_available"].as_i64().unwrap_or(0) as i32)
+        .sum();
+
+    // Also get the legacy total from the guest table
+    let legacy_total: i32 = sqlx::query_scalar(
+        "SELECT COALESCE(complimentary_nights_credit, 0) FROM guests WHERE id = $1"
+    )
+    .bind(guest_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
+
+    Ok(Json(serde_json::json!({
+        "guest_id": guest_id,
+        "guest_name": guest_name,
+        "total_nights": total_nights,
+        "legacy_total_nights": legacy_total,
+        "credits_by_room_type": credits_by_room_type
+    })))
+}
+
+/// Get my linked guests with their complimentary credits by room type
+pub async fn get_my_guests_with_credits_handler(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    let user_id = require_auth(&headers).await?;
+
+    // Get all linked guests
+    let guests: Vec<(i64, String, String, i32)> = sqlx::query_as(
+        r#"
+        SELECT DISTINCT g.id, g.full_name, g.email, COALESCE(g.complimentary_nights_credit, 0) as legacy_credits
+        FROM guests g
+        INNER JOIN user_guests ug ON g.id = ug.guest_id
+        WHERE ug.user_id = $1 AND g.deleted_at IS NULL
+        ORDER BY g.full_name
+        "#
+    )
+    .bind(user_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let mut result = Vec::new();
+
+    for (guest_id, full_name, email, legacy_credits) in guests {
+        // Get credits by room type for each guest
+        let credits: Vec<(i64, String, String, i32)> = sqlx::query_as(
+            r#"
+            SELECT
+                gcc.room_type_id,
+                rt.name as room_type_name,
+                rt.code as room_type_code,
+                gcc.nights_available
+            FROM guest_complimentary_credits gcc
+            INNER JOIN room_types rt ON gcc.room_type_id = rt.id
+            WHERE gcc.guest_id = $1 AND gcc.nights_available > 0
+            ORDER BY rt.name
+            "#
+        )
+        .bind(guest_id)
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+
+        let credits_by_room_type: Vec<serde_json::Value> = credits
+            .into_iter()
+            .map(|(room_type_id, room_type_name, room_type_code, nights_available)| {
+                serde_json::json!({
+                    "room_type_id": room_type_id,
+                    "room_type_name": room_type_name,
+                    "room_type_code": room_type_code,
+                    "nights_available": nights_available
+                })
+            })
+            .collect();
+
+        let total_credits: i32 = credits_by_room_type
+            .iter()
+            .map(|c| c["nights_available"].as_i64().unwrap_or(0) as i32)
+            .sum();
+
+        result.push(serde_json::json!({
+            "id": guest_id,
+            "full_name": full_name,
+            "email": email,
+            "legacy_complimentary_nights_credit": legacy_credits,
+            "total_complimentary_credits": total_credits,
+            "credits_by_room_type": credits_by_room_type
+        }));
+    }
+
+    Ok(Json(result))
 }

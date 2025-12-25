@@ -8,6 +8,7 @@ export class ReportsService {
     endDate: string;
     shift?: string;
     drawer?: string;
+    companyName?: string;
   }): Promise<any> {
     const searchParams = new URLSearchParams({
       report_type: params.reportType,
@@ -17,6 +18,7 @@ export class ReportsService {
 
     if (params.shift) searchParams.append('shift', params.shift);
     if (params.drawer) searchParams.append('drawer', params.drawer);
+    if (params.companyName) searchParams.append('company_name', params.companyName);
 
     return await withRetry(
       () => api.get('reports/generate', { searchParams }).json(),
@@ -30,6 +32,7 @@ export class ReportsService {
     endDate: string;
     shift?: string;
     drawer?: string;
+    companyName?: string;
   }): Promise<Blob> {
     const searchParams = new URLSearchParams({
       report_type: params.reportType,
@@ -39,6 +42,7 @@ export class ReportsService {
 
     if (params.shift) searchParams.append('shift', params.shift);
     if (params.drawer) searchParams.append('drawer', params.drawer);
+    if (params.companyName) searchParams.append('company_name', params.companyName);
 
     return await api.get('reports/pdf', { searchParams }).blob();
   }

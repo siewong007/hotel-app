@@ -24,6 +24,7 @@ import {
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { CircularProgress, Box as MuiBox } from '@mui/material';
+import { useCurrency } from '../../../hooks/useCurrency';
 
 // Memoized StatCard component to prevent unnecessary re-renders
 const StatCard = React.memo(({
@@ -91,6 +92,7 @@ interface UpcomingBooking {
 }
 
 const Dashboard: React.FC = () => {
+  const { format: formatCurrency } = useCurrency();
   const [stats, setStats] = useState({
     totalRooms: 0,
     availableRooms: 0,
@@ -253,7 +255,7 @@ const Dashboard: React.FC = () => {
                 <Box display="flex" alignItems="center">
                   <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main', mr: 2 }} />
                   <Typography variant="body1" color="text.primary">
-                    Estimated revenue: <strong>${stats.totalRevenue.toLocaleString()}</strong>
+                    Estimated revenue: <strong>{formatCurrency(stats.totalRevenue)}</strong>
                   </Typography>
                 </Box>
               </Box>

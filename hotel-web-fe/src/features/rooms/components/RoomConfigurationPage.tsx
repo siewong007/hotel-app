@@ -38,6 +38,7 @@ import {
 import { HotelAPIService } from '../../../api';
 import { Room } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
+import { useCurrency } from '../../../hooks/useCurrency';
 
 interface RoomType {
   id: number;
@@ -57,6 +58,7 @@ interface RoomFormData {
 
 const RoomConfigurationPage: React.FC = () => {
   const { hasRole, hasPermission } = useAuth();
+  const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const isAdmin = hasRole('admin');
   const hasAccess = hasRole('admin') || hasRole('receptionist') || hasRole('manager') || hasPermission('rooms:read') || hasPermission('rooms:manage');
 
@@ -89,10 +91,10 @@ const RoomConfigurationPage: React.FC = () => {
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
   useEffect(() => {
-    if (isAdmin) {
+    if (hasAccess) {
       loadData();
     }
-  }, [isAdmin]);
+  }, [hasAccess]);
 
   const loadData = async () => {
     try {
@@ -348,9 +350,9 @@ const RoomConfigurationPage: React.FC = () => {
                     <Chip label={room.room_type} size="small" color="primary" variant="outlined" />
                   </TableCell>
                   <TableCell>
-                    RM {typeof room.price_per_night === 'string'
-                      ? parseFloat(room.price_per_night).toFixed(2)
-                      : room.price_per_night.toFixed(2)}
+                    {formatCurrency(typeof room.price_per_night === 'string'
+                      ? parseFloat(room.price_per_night)
+                      : room.price_per_night)}
                   </TableCell>
                   <TableCell>{room.max_occupancy} guests</TableCell>
                   <TableCell>
@@ -437,14 +439,14 @@ const RoomConfigurationPage: React.FC = () => {
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Custom Price (RM)"
+                label={`Custom Price (${currencySymbol})`}
                 type="number"
                 value={formData.custom_price}
                 onChange={(e) => setFormData({ ...formData, custom_price: parseFloat(e.target.value) })}
                 inputProps={{ step: '0.01', min: '0' }}
                 helperText={
                   formData.room_type_id && getRoomTypeById(formData.room_type_id as number)
-                    ? `Base price: RM ${getRoomTypeById(formData.room_type_id as number)?.base_price.toFixed(2)}`
+                    ? `Base price: ${formatCurrency(getRoomTypeById(formData.room_type_id as number)?.base_price || 0)}`
                     : 'Leave empty to use room type base price'
                 }
               />

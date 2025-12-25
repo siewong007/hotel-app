@@ -24,11 +24,15 @@ import {
   InputAdornment,
   IconButton,
   FormHelperText,
+  Autocomplete,
+  Snackbar,
 } from '@mui/material';
 import {
   Visibility as VisibilityIcon,
   VisibilityOff as VisibilityOffIcon,
   Search as SearchIcon,
+  PersonAdd as PersonAddIcon,
+  Business as BusinessIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { HotelAPIService } from '../../../api';
@@ -41,6 +45,7 @@ import {
   RateCodesResponse,
   MarketCodesResponse
 } from '../../../types';
+import { useCurrency } from '../../../hooks/useCurrency';
 
 // Validation helper functions
 const validateEmail = (email: string): boolean => {
@@ -106,6 +111,18 @@ interface ValidationErrors {
   cardName?: string;
 }
 
+// Company option for autocomplete
+interface CompanyOption {
+  inputValue?: string;
+  company_name: string;
+  company_registration_number?: string;
+  contact_person?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  billing_address?: string;
+  isNew?: boolean;
+}
+
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -142,6 +159,7 @@ export default function EnhancedCheckInModal({
   guest,
   onCheckInSuccess,
 }: EnhancedCheckInModalProps) {
+  const { format: formatCurrency } = useCurrency();
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -183,6 +201,26 @@ export default function EnhancedCheckInModal({
   const [carPlateNo, setCarPlateNo] = useState('');
   const [eta, setEta] = useState('');
 
+  // Company autocomplete state
+  const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
+
+  // New company registration dialog
+  const [newCompanyDialogOpen, setNewCompanyDialogOpen] = useState(false);
+  const [newCompanyData, setNewCompanyData] = useState<CompanyOption>({
+    company_name: '',
+    company_registration_number: '',
+    contact_person: '',
+    contact_email: '',
+    contact_phone: '',
+    billing_address: '',
+  });
+
+  // Snackbar for notifications
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+
   // Dropdowns data
   const [rateCodes, setRateCodes] = useState<string[]>([]);
   const [marketCodes, setMarketCodes] = useState<string[]>([]);
@@ -210,6 +248,7 @@ export default function EnhancedCheckInModal({
 
       if (needsInit) {
         loadDropdownData();
+        loadCompanies();
         initializeFormData();
         initializedRef.current = { bookingId: booking.id, guestId: guest.id };
       }
@@ -226,6 +265,74 @@ export default function EnhancedCheckInModal({
       setMarketCodes(marketsResp.market_codes);
     } catch (err) {
       console.error('Failed to load dropdown data:', err);
+    }
+  };
+
+  // Load companies from database for autocomplete
+  const loadCompanies = async () => {
+    try {
+      setLoadingCompanies(true);
+      const companies = await HotelAPIService.getCompanies({ is_active: true });
+      const companyOptions: CompanyOption[] = companies.map((company: any) => ({
+        company_name: company.company_name,
+        company_registration_number: company.registration_number,
+        contact_person: company.contact_person,
+        contact_email: company.contact_email,
+        contact_phone: company.contact_phone,
+        billing_address: company.billing_address,
+      }));
+      setCompanyOptions(companyOptions);
+    } catch (err) {
+      console.error('Failed to load companies:', err);
+    } finally {
+      setLoadingCompanies(false);
+    }
+  };
+
+  // Handle registering a new company
+  const handleRegisterNewCompany = async () => {
+    try {
+      // Save to database
+      const createdCompany = await HotelAPIService.createCompany({
+        company_name: newCompanyData.company_name,
+        registration_number: newCompanyData.company_registration_number,
+        contact_person: newCompanyData.contact_person,
+        contact_email: newCompanyData.contact_email,
+        contact_phone: newCompanyData.contact_phone,
+        billing_address: newCompanyData.billing_address,
+      });
+
+      const newCompany: CompanyOption = {
+        company_name: createdCompany.company_name,
+        company_registration_number: createdCompany.registration_number,
+        contact_person: createdCompany.contact_person,
+        contact_email: createdCompany.contact_email,
+        contact_phone: createdCompany.contact_phone,
+        billing_address: createdCompany.billing_address,
+      };
+
+      // Add to company options
+      setCompanyOptions([...companyOptions, newCompany]);
+      setSelectedCompany(newCompany);
+      setDirectBillCompany(newCompany.company_name);
+
+      setNewCompanyDialogOpen(false);
+      setSnackbarMessage(`Company "${newCompany.company_name}" registered successfully!`);
+      setSnackbarOpen(true);
+
+      // Reset new company form
+      setNewCompanyData({
+        company_name: '',
+        company_registration_number: '',
+        contact_person: '',
+        contact_email: '',
+        contact_phone: '',
+        billing_address: '',
+      });
+    } catch (err: any) {
+      console.error('Failed to register company:', err);
+      setSnackbarMessage(err?.message || 'Failed to register company');
+      setSnackbarOpen(true);
     }
   };
 
@@ -419,6 +526,7 @@ export default function EnhancedCheckInModal({
   if (!booking || !guest) return null;
 
   return (
+    <>
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
       <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', pb: 2 }}>
         <Box>
@@ -746,7 +854,7 @@ export default function EnhancedCheckInModal({
                     <Typography variant="body2" color="text.secondary">Total Amount:</Typography>
                   </Grid>
                   <Grid item xs={6}>
-                    <Typography variant="body2" fontWeight="bold">RM {Number(booking.total_amount).toFixed(2)}</Typography>
+                    <Typography variant="body2" fontWeight="bold">{formatCurrency(Number(booking.total_amount))}</Typography>
                   </Grid>
                 </Grid>
               </Paper>
@@ -903,41 +1011,145 @@ export default function EnhancedCheckInModal({
                   </Typography>
                   <Divider sx={{ mb: 2 }} />
                 </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Direct Bill"
-                    type="number"
-                    value={directBillCompany ? '17' : ''}
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton size="small">
-                            <SearchIcon />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
+                <Grid item xs={12}>
+                  <Autocomplete
+                    value={selectedCompany}
+                    onChange={(event, newValue) => {
+                      if (newValue) {
+                        if (newValue.isNew) {
+                          // User selected "Add new company" option
+                          setNewCompanyData({ ...newCompanyData, company_name: newValue.inputValue || '' });
+                          setNewCompanyDialogOpen(true);
+                        } else {
+                          // User selected an existing company
+                          setSelectedCompany(newValue);
+                          setDirectBillCompany(newValue.company_name);
+                        }
+                      } else {
+                        setSelectedCompany(null);
+                        setDirectBillCompany('');
+                      }
                     }}
+                    filterOptions={(options, state) => {
+                      const inputValue = state.inputValue.toLowerCase();
+                      const filtered = options.filter(option =>
+                        option.company_name.toLowerCase().includes(inputValue)
+                      );
+                      // Suggest creating a new company if no exact match
+                      const isExisting = options.some(option =>
+                        option.company_name.toLowerCase() === inputValue
+                      );
+                      if (inputValue !== '' && !isExisting) {
+                        filtered.push({
+                          inputValue: state.inputValue,
+                          company_name: `Add "${state.inputValue}" as new company`,
+                          isNew: true,
+                        });
+                      }
+                      return filtered;
+                    }}
+                    selectOnFocus
+                    clearOnBlur
+                    handleHomeEndKeys
+                    options={companyOptions}
+                    loading={loadingCompanies}
+                    getOptionLabel={(option) => option.isNew ? option.inputValue || '' : option.company_name}
+                    isOptionEqualToValue={(option, value) => option.company_name === value.company_name}
+                    renderOption={(props, option) => {
+                      const { key, ...otherProps } = props;
+                      return (
+                        <li key={key} {...otherProps}>
+                          {option.isNew ? (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <PersonAddIcon color="primary" fontSize="small" />
+                              <Typography color="primary">{option.company_name}</Typography>
+                            </Box>
+                          ) : (
+                            <Box>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <BusinessIcon color="action" fontSize="small" />
+                                <Typography>{option.company_name}</Typography>
+                              </Box>
+                              {option.contact_person && (
+                                <Typography variant="caption" color="text.secondary" sx={{ ml: 3.5 }}>
+                                  Contact: {option.contact_person}
+                                </Typography>
+                              )}
+                            </Box>
+                          )}
+                        </li>
+                      );
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        label="Company"
+                        placeholder="Type to search or add new company"
+                        helperText="Select existing company or type new name to register"
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {loadingCompanies ? <CircularProgress color="inherit" size={20} /> : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    )}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Company"
-                    value={directBillCompany}
-                    onChange={(e) => setDirectBillCompany(e.target.value)}
-                    placeholder="P.I.L Trading Sdn Bhd"
-                    InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton size="small">
-                            <SearchIcon />
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Grid>
+                {selectedCompany && !selectedCompany.isNew && (
+                  <Grid item xs={12}>
+                    <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        Company Details
+                      </Typography>
+                      <Grid container spacing={1}>
+                        {selectedCompany.company_registration_number && (
+                          <>
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary">Reg. No:</Typography>
+                            </Grid>
+                            <Grid item xs={8}>
+                              <Typography variant="body2">{selectedCompany.company_registration_number}</Typography>
+                            </Grid>
+                          </>
+                        )}
+                        {selectedCompany.contact_person && (
+                          <>
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary">Contact:</Typography>
+                            </Grid>
+                            <Grid item xs={8}>
+                              <Typography variant="body2">{selectedCompany.contact_person}</Typography>
+                            </Grid>
+                          </>
+                        )}
+                        {selectedCompany.contact_email && (
+                          <>
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary">Email:</Typography>
+                            </Grid>
+                            <Grid item xs={8}>
+                              <Typography variant="body2">{selectedCompany.contact_email}</Typography>
+                            </Grid>
+                          </>
+                        )}
+                        {selectedCompany.contact_phone && (
+                          <>
+                            <Grid item xs={4}>
+                              <Typography variant="caption" color="text.secondary">Phone:</Typography>
+                            </Grid>
+                            <Grid item xs={8}>
+                              <Typography variant="body2">{selectedCompany.contact_phone}</Typography>
+                            </Grid>
+                          </>
+                        )}
+                      </Grid>
+                    </Paper>
+                  </Grid>
+                )}
               </>
             )}
 
@@ -1193,7 +1405,7 @@ export default function EnhancedCheckInModal({
         </Box>
         <Box>
           <Button variant="outlined" disabled={loading} sx={{ mr: 1 }}>
-            Customer Ledger
+            Company Ledger
           </Button>
           <Button
             variant="contained"
@@ -1208,5 +1420,96 @@ export default function EnhancedCheckInModal({
         </Box>
       </DialogActions>
     </Dialog>
+
+    {/* New Company Registration Dialog */}
+    <Dialog open={newCompanyDialogOpen} onClose={() => setNewCompanyDialogOpen(false)} maxWidth="sm" fullWidth>
+      <DialogTitle>
+        <Box display="flex" alignItems="center" gap={1}>
+          <PersonAddIcon color="primary" />
+          Register New Company
+        </Box>
+      </DialogTitle>
+      <DialogContent>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          This company is not in our system. Please provide the company details below.
+        </Alert>
+        <Grid container spacing={2} sx={{ mt: 1 }}>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              required
+              label="Company Name"
+              value={newCompanyData.company_name}
+              onChange={(e) => setNewCompanyData({ ...newCompanyData, company_name: e.target.value })}
+            />
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Registration Number"
+              value={newCompanyData.company_registration_number || ''}
+              onChange={(e) => setNewCompanyData({ ...newCompanyData, company_registration_number: e.target.value })}
+              placeholder="e.g., 123456-A"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Contact Person"
+              value={newCompanyData.contact_person || ''}
+              onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_person: e.target.value })}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Contact Email"
+              type="email"
+              value={newCompanyData.contact_email || ''}
+              onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_email: e.target.value })}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Contact Phone"
+              value={newCompanyData.contact_phone || ''}
+              onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_phone: e.target.value })}
+            />
+          </Grid>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Billing Address"
+              value={newCompanyData.billing_address || ''}
+              onChange={(e) => setNewCompanyData({ ...newCompanyData, billing_address: e.target.value })}
+            />
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setNewCompanyDialogOpen(false)}>Cancel</Button>
+        <Button
+          onClick={handleRegisterNewCompany}
+          variant="contained"
+          startIcon={<PersonAddIcon />}
+          disabled={!newCompanyData.company_name}
+        >
+          Register Company
+        </Button>
+      </DialogActions>
+    </Dialog>
+
+    {/* Success Snackbar */}
+    <Snackbar
+      open={snackbarOpen}
+      autoHideDuration={4000}
+      onClose={() => setSnackbarOpen(false)}
+    >
+      <Alert onClose={() => setSnackbarOpen(false)} severity="success">
+        {snackbarMessage}
+      </Alert>
+    </Snackbar>
+    </>
   );
 }

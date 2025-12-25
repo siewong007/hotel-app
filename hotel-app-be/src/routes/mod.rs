@@ -6,6 +6,7 @@
 pub mod analytics;
 pub mod auth;
 pub mod bookings;
+pub mod companies;
 pub mod ekyc;
 pub mod guest_portal;
 pub mod guests;
@@ -91,6 +92,7 @@ pub fn create_router(pool: PgPool) -> Router {
         .merge(settings::routes())
         .merge(ekyc::routes())
         .merge(guest_portal::routes())
+        .merge(companies::routes())
         .with_state(pool);
 
     // Add middleware layers

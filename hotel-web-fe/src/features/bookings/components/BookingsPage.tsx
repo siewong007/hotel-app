@@ -43,14 +43,17 @@ import {
   CheckCircle as CheckCircleIcon,
   ExitToApp as CheckOutIcon,
   Delete as DeleteIcon,
+  Cancel as CancelIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
   Today as TodayIcon,
   Clear as ClearIcon,
+  CardGiftcard as ComplimentaryIcon,
 } from '@mui/icons-material';
+import { Tooltip } from '@mui/material';
 import { HotelAPIService } from '../../../api';
 import { BookingWithDetails, Room, Guest } from '../../../types';
-import { getBookingStatusColor, getBookingStatusText } from '../../../utils/bookingUtils';
+import { getBookingStatusColor, getBookingStatusText, getPaymentStatusColor, getPaymentStatusText } from '../../../utils/bookingUtils';
 import { useAuth } from '../../../auth/AuthContext';
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
 import EnhancedCheckInModal from '../../bookings/components/EnhancedCheckInModal';
@@ -61,7 +64,7 @@ type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom';
 
 const BookingsPage: React.FC = () => {
   const { hasRole, hasPermission } = useAuth();
-  const isAdmin = hasRole('admin') || hasPermission('bookings:update');
+  const isAdmin = hasRole('admin') || hasRole('receptionist') || hasRole('manager') || hasPermission('bookings:update');
 
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -91,6 +94,8 @@ const BookingsPage: React.FC = () => {
   const [checkOutDate, setCheckOutDate] = useState('');
   const [postType, setPostType] = useState<'normal_stay' | 'same_day'>('normal_stay');
   const [rateCode, setRateCode] = useState('RACK');
+  const [bookingSource, setBookingSource] = useState<'walk_in' | 'online'>('walk_in');
+  const [folioNumber, setFolioNumber] = useState('');
   const [creating, setCreating] = useState(false);
 
   // Edit booking dialog (admin only)
@@ -104,6 +109,14 @@ const BookingsPage: React.FC = () => {
   const [deletingBooking, setDeletingBooking] = useState<BookingWithDetails | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
   const [deleting, setDeleting] = useState(false);
+
+  // Complimentary dialog
+  const [complimentaryDialogOpen, setComplimentaryDialogOpen] = useState(false);
+  const [complimentaryBooking, setComplimentaryBooking] = useState<BookingWithDetails | null>(null);
+  const [complimentaryReason, setComplimentaryReason] = useState('');
+  const [complimentaryStartDate, setComplimentaryStartDate] = useState('');
+  const [complimentaryEndDate, setComplimentaryEndDate] = useState('');
+  const [markingComplimentary, setMarkingComplimentary] = useState(false);
 
   // Notifications
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -187,8 +200,16 @@ const BookingsPage: React.FC = () => {
       });
     }
 
-    // Sorting
+    // Sorting - cancelled bookings always go to the bottom
     filtered.sort((a, b) => {
+      // First, push cancelled bookings to the bottom
+      const aCancelled = a.status === 'cancelled';
+      const bCancelled = b.status === 'cancelled';
+      if (aCancelled !== bCancelled) {
+        return aCancelled ? 1 : -1;
+      }
+
+      // Then apply normal sorting
       let aValue: any;
       let bValue: any;
 
@@ -255,6 +276,7 @@ const BookingsPage: React.FC = () => {
     setEditingBooking(booking);
     setEditFormData({
       status: booking.status,
+      payment_status: booking.payment_status || 'unpaid',
       check_in_date: booking.check_in_date.split('T')[0],
       check_out_date: booking.check_out_date.split('T')[0],
       post_type: booking.post_type || 'normal_stay',
@@ -308,8 +330,88 @@ const BookingsPage: React.FC = () => {
     }
   };
 
+  // Complimentary handlers
+  const handleMarkComplimentary = (booking: BookingWithDetails) => {
+    setComplimentaryBooking(booking);
+    setComplimentaryReason('');
+    // Initialize dates to the full booking range
+    const checkIn = booking.check_in_date.split('T')[0];
+    const checkOut = booking.check_out_date.split('T')[0];
+    setComplimentaryStartDate(checkIn);
+    setComplimentaryEndDate(checkOut);
+    setComplimentaryDialogOpen(true);
+  };
+
+  // Helper functions for complimentary preview calculations
+  const calculateTotalNights = () => {
+    if (!complimentaryBooking) return 0;
+    const checkIn = new Date(complimentaryBooking.check_in_date);
+    const checkOut = new Date(complimentaryBooking.check_out_date);
+    return Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const calculateComplimentaryNights = () => {
+    if (!complimentaryStartDate || !complimentaryEndDate) return 0;
+    const start = new Date(complimentaryStartDate);
+    const end = new Date(complimentaryEndDate);
+    return Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const calculatePaidNights = () => {
+    return calculateTotalNights() - calculateComplimentaryNights();
+  };
+
+  const calculateNewTotal = () => {
+    if (!complimentaryBooking) return '0.00';
+    const totalNights = calculateTotalNights();
+    if (totalNights === 0) return '0.00';
+    const paidNights = calculatePaidNights();
+    const pricePerNight = Number(complimentaryBooking.total_amount) / totalNights;
+    return (paidNights * pricePerNight).toFixed(2);
+  };
+
+  const handleConfirmComplimentary = async () => {
+    if (!complimentaryBooking || !complimentaryStartDate || !complimentaryEndDate) return;
+
+    try {
+      setMarkingComplimentary(true);
+      const result = await HotelAPIService.markBookingComplimentary(
+        complimentaryBooking.id,
+        complimentaryReason || 'Marked as complimentary',
+        complimentaryStartDate,
+        complimentaryEndDate
+      );
+
+      const statusText = result.status === 'fully_complimentary'
+        ? 'fully complimentary'
+        : 'partially complimentary';
+
+      setSnackbarMessage(
+        `Booking marked as ${statusText}! ${result.complimentary_nights} of ${result.total_nights} nights are complimentary. ` +
+        `New total: $${result.new_total}`
+      );
+      setSnackbarOpen(true);
+      setComplimentaryDialogOpen(false);
+      setComplimentaryBooking(null);
+      setComplimentaryReason('');
+      setComplimentaryStartDate('');
+      setComplimentaryEndDate('');
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to mark booking as complimentary');
+    } finally {
+      setMarkingComplimentary(false);
+    }
+  };
+
   const handleCreateBooking = async () => {
     if (!selectedGuestId || !selectedRoomId || !checkInDate || !checkOutDate) return;
+
+    // For online bookings, folio number is required
+    if (bookingSource === 'online' && !folioNumber.trim()) {
+      setError('Booking/Folio number is required for online bookings');
+      return;
+    }
 
     try {
       setCreating(true);
@@ -319,7 +421,9 @@ const BookingsPage: React.FC = () => {
         check_in_date: new Date(checkInDate).toISOString(),
         check_out_date: new Date(checkOutDate).toISOString(),
         post_type: postType,
-        rate_code: rateCode
+        rate_code: rateCode,
+        source: bookingSource,
+        booking_number: bookingSource === 'online' ? folioNumber.trim() : undefined
       });
 
       setSnackbarMessage('Booking created successfully!');
@@ -346,6 +450,8 @@ const BookingsPage: React.FC = () => {
     setCheckOutDate('');
     setPostType('normal_stay');
     setRateCode('RACK');
+    setBookingSource('walk_in');
+    setFolioNumber('');
   };
 
   const isFormValid = selectedGuestId && selectedRoomId && checkInDate && checkOutDate;
@@ -401,10 +507,13 @@ const BookingsPage: React.FC = () => {
   // Helper function to determine if a booking can be checked in/out
   const canCheckIn = (booking: BookingWithDetails) => {
     const status = booking.status;
-    const today = new Date().toDateString();
-    const checkInDate = new Date(booking.check_in_date).toDateString();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkInDate = new Date(booking.check_in_date);
+    checkInDate.setHours(0, 0, 0, 0);
 
-    return (status === 'confirmed' || status === 'pending') && today === checkInDate;
+    // Allow check-in for confirmed/pending bookings on or after check-in date
+    return (status === 'confirmed' || status === 'pending') && today >= checkInDate;
   };
 
   const canCheckOut = (booking: BookingWithDetails) => {
@@ -412,9 +521,16 @@ const BookingsPage: React.FC = () => {
     return status === 'checked_in';
   };
 
+  // Can delete/cancel booking only if not checked in, checked out, or already cancelled
   const canDelete = (booking: BookingWithDetails) => {
     const status = booking.status;
-    return status !== 'cancelled' && status !== 'checked_out';
+    return status === 'confirmed' || status === 'pending';
+  };
+
+  // Can mark as complimentary only if confirmed/pending (not checked in yet)
+  const canMarkComplimentary = (booking: BookingWithDetails) => {
+    const status = booking.status;
+    return (status === 'confirmed' || status === 'pending') && !booking.is_complimentary;
   };
 
   // Statistics
@@ -585,6 +701,7 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="checked_out">Checked Out</MenuItem>
                 <MenuItem value="cancelled">Cancelled</MenuItem>
                 <MenuItem value="no_show">No Show</MenuItem>
+                <MenuItem value="complimentarise">Complimentarise</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -731,6 +848,7 @@ const BookingsPage: React.FC = () => {
               </TableCell>
               <TableCell><strong>Post Type</strong></TableCell>
               <TableCell><strong>Rate</strong></TableCell>
+              <TableCell><strong>Payment</strong></TableCell>
               <TableCell>
                 <TableSortLabel
                   active={sortField === 'status'}
@@ -745,7 +863,18 @@ const BookingsPage: React.FC = () => {
           </TableHead>
           <TableBody>
             {filteredAndSortedBookings.map((booking) => (
-              <TableRow key={booking.id} hover>
+              <TableRow
+                key={booking.id}
+                hover
+                sx={{
+                  opacity: booking.status === 'cancelled' ? 0.6 : 1,
+                  bgcolor: booking.status === 'cancelled' ? 'action.hover' : 'inherit',
+                  textDecoration: booking.status === 'cancelled' ? 'line-through' : 'none',
+                  '& td': {
+                    textDecoration: booking.status === 'cancelled' ? 'line-through' : 'none',
+                  }
+                }}
+              >
                 <TableCell>{booking.folio_number || '-'}</TableCell>
                 <TableCell>{booking.guest_name}</TableCell>
                 <TableCell>
@@ -768,6 +897,14 @@ const BookingsPage: React.FC = () => {
                 <TableCell>{booking.rate_code || 'RACK'}</TableCell>
                 <TableCell>
                   <Chip
+                    label={getPaymentStatusText(booking.payment_status)}
+                    color={getPaymentStatusColor(booking.payment_status)}
+                    size="small"
+                    variant="outlined"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Chip
                     label={getBookingStatusText(booking.status)}
                     color={getBookingStatusColor(booking.status)}
                     size="small"
@@ -777,42 +914,57 @@ const BookingsPage: React.FC = () => {
                   <TableCell>
                     <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
                       {canCheckIn(booking) && (
-                        <IconButton
-                          size="small"
-                          onClick={() => handleCheckIn(booking.id)}
-                          color="success"
-                          title="Check In"
-                        >
-                          <CheckCircleIcon />
-                        </IconButton>
+                        <Tooltip title="Check In">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleCheckIn(booking.id)}
+                            color="success"
+                          >
+                            <CheckCircleIcon />
+                          </IconButton>
+                        </Tooltip>
                       )}
                       {canCheckOut(booking) && (
-                        <IconButton
-                          size="small"
-                          onClick={() => handleCheckOut(booking)}
-                          color="warning"
-                          title="Check Out"
-                        >
-                          <CheckOutIcon />
-                        </IconButton>
+                        <Tooltip title="Check Out">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleCheckOut(booking)}
+                            color="warning"
+                          >
+                            <CheckOutIcon />
+                          </IconButton>
+                        </Tooltip>
                       )}
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEditBooking(booking)}
-                        color="primary"
-                        title="Edit"
-                      >
-                        <EditIcon />
-                      </IconButton>
-                      {canDelete(booking) && (
+                      <Tooltip title="Edit Booking">
                         <IconButton
                           size="small"
-                          onClick={() => handleDeleteBooking(booking)}
-                          color="error"
-                          title="Cancel Booking"
+                          onClick={() => handleEditBooking(booking)}
+                          color="primary"
                         >
-                          <DeleteIcon />
+                          <EditIcon />
                         </IconButton>
+                      </Tooltip>
+                      {canDelete(booking) && (
+                        <Tooltip title="Cancel Booking">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteBooking(booking)}
+                            color="error"
+                          >
+                            <CancelIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {canMarkComplimentary(booking) && (
+                        <Tooltip title="Mark as Complimentary">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleMarkComplimentary(booking)}
+                            color="secondary"
+                          >
+                            <ComplimentaryIcon />
+                          </IconButton>
+                        </Tooltip>
                       )}
                     </Box>
                   </TableCell>
@@ -842,6 +994,45 @@ const BookingsPage: React.FC = () => {
         <DialogTitle>Create New Booking</DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Booking Source Toggle */}
+            <Box>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>Booking Type</Typography>
+              <ToggleButtonGroup
+                value={bookingSource}
+                exclusive
+                onChange={(e, value) => {
+                  if (value) {
+                    setBookingSource(value);
+                    if (value === 'walk_in') {
+                      setFolioNumber(''); // Clear folio for walk-in
+                    }
+                  }
+                }}
+                fullWidth
+                size="small"
+              >
+                <ToggleButton value="walk_in" sx={{ flex: 1 }}>
+                  Walk-in (Auto Folio)
+                </ToggleButton>
+                <ToggleButton value="online" sx={{ flex: 1 }}>
+                  Online Booking (Manual Folio)
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+
+            {/* Folio/Booking Number - only for online bookings */}
+            {bookingSource === 'online' && (
+              <TextField
+                fullWidth
+                label="Booking/Folio Number"
+                value={folioNumber}
+                onChange={(e) => setFolioNumber(e.target.value)}
+                placeholder="Enter booking reference from OTA..."
+                required
+                helperText="Enter the booking reference number from the online travel agent (e.g., Booking.com, Agoda)"
+              />
+            )}
+
             <Autocomplete
               fullWidth
               options={guests}
@@ -976,6 +1167,7 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="late_checkout">Late Checkout</MenuItem>
                 <MenuItem value="cancelled">Cancelled</MenuItem>
                 <MenuItem value="no_show">No Show</MenuItem>
+                <MenuItem value="complimentarise">Complimentarise</MenuItem>
               </TextField>
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -990,7 +1182,24 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="same_day">Same Day</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                fullWidth
+                label="Payment Status"
+                value={editFormData.payment_status || 'unpaid'}
+                onChange={(e) => setEditFormData({ ...editFormData, payment_status: e.target.value })}
+              >
+                <MenuItem value="unpaid">Unpaid</MenuItem>
+                <MenuItem value="unpaid_deposit">Unpaid Deposit</MenuItem>
+                <MenuItem value="paid_rate">Paid Rate</MenuItem>
+                <MenuItem value="partial">Partial</MenuItem>
+                <MenuItem value="paid">Paid</MenuItem>
+                <MenuItem value="refunded">Refunded</MenuItem>
+                <MenuItem value="cancelled">Cancelled</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Rate Code"
@@ -1041,6 +1250,90 @@ const BookingsPage: React.FC = () => {
           <Button onClick={() => setDeleteDialogOpen(false)}>Keep Booking</Button>
           <Button onClick={handleConfirmDelete} variant="contained" color="error" disabled={deleting}>
             {deleting ? 'Cancelling...' : 'Cancel Booking'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Mark as Complimentary Dialog */}
+      <Dialog open={complimentaryDialogOpen} onClose={() => setComplimentaryDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Mark Booking as Complimentary</DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Specify the date range for complimentary nights. The guest will not be charged for these dates.
+          </Alert>
+
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2"><strong>Guest:</strong> {complimentaryBooking?.guest_name}</Typography>
+            <Typography variant="body2"><strong>Room:</strong> {complimentaryBooking?.room_type} - Room {complimentaryBooking?.room_number}</Typography>
+            <Typography variant="body2"><strong>Booking Period:</strong> {complimentaryBooking?.check_in_date?.split('T')[0]} to {complimentaryBooking?.check_out_date?.split('T')[0]}</Typography>
+            <Typography variant="body2"><strong>Original Total:</strong> ${Number(complimentaryBooking?.total_amount || 0).toLocaleString()}</Typography>
+          </Box>
+
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Complimentary Start Date"
+                type="date"
+                value={complimentaryStartDate}
+                onChange={(e) => setComplimentaryStartDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{
+                  min: complimentaryBooking?.check_in_date?.split('T')[0],
+                  max: complimentaryBooking?.check_out_date?.split('T')[0]
+                }}
+              />
+            </Grid>
+            <Grid item xs={6}>
+              <TextField
+                fullWidth
+                label="Complimentary End Date"
+                type="date"
+                value={complimentaryEndDate}
+                onChange={(e) => setComplimentaryEndDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{
+                  min: complimentaryStartDate || complimentaryBooking?.check_in_date?.split('T')[0],
+                  max: complimentaryBooking?.check_out_date?.split('T')[0]
+                }}
+              />
+            </Grid>
+          </Grid>
+
+          {/* Preview calculation */}
+          {complimentaryStartDate && complimentaryEndDate && complimentaryBooking && calculateComplimentaryNights() > 0 && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                <strong>Preview:</strong> {calculateComplimentaryNights()} of {calculateTotalNights()} nights will be complimentary.
+                {calculatePaidNights() > 0 ? (
+                  <> New total will be approximately ${calculateNewTotal()}.</>
+                ) : (
+                  <> This will be fully complimentary (no charge).</>
+                )}
+              </Typography>
+            </Alert>
+          )}
+
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            label="Reason for Complimentary Stay"
+            value={complimentaryReason}
+            onChange={(e) => setComplimentaryReason(e.target.value)}
+            placeholder="e.g., VIP guest, service recovery, management approval..."
+            required
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setComplimentaryDialogOpen(false)} disabled={markingComplimentary}>Cancel</Button>
+          <Button
+            onClick={handleConfirmComplimentary}
+            variant="contained"
+            color="primary"
+            disabled={!complimentaryReason.trim() || !complimentaryStartDate || !complimentaryEndDate || calculateComplimentaryNights() <= 0 || markingComplimentary}
+          >
+            {markingComplimentary ? 'Processing...' : 'Mark as Complimentary'}
           </Button>
         </DialogActions>
       </Dialog>

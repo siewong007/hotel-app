@@ -27,6 +27,11 @@ import {
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { Room, BookingWithDetails } from '../../../types';
+import {
+  getUnifiedStatusColor,
+  getUnifiedStatusLabel,
+} from '../../../config/roomStatusConfig';
+import { useCurrency } from '../../../hooks/useCurrency';
 
 interface TimelineBooking {
   id: number | string;
@@ -47,6 +52,7 @@ interface TimelineCell {
 }
 
 const RoomReservationTimeline: React.FC = () => {
+  const { format: formatCurrency } = useCurrency();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<TimelineBooking[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,6 +63,11 @@ const RoomReservationTimeline: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    // Auto-refresh every 30 seconds to stay in sync with room management
+    const interval = setInterval(() => {
+      loadData();
+    }, 30000);
+    return () => clearInterval(interval);
   }, [startDate, daysToShow]);
 
   const loadData = async () => {
@@ -238,40 +249,14 @@ const RoomReservationTimeline: React.FC = () => {
     };
   };
 
+  // Use centralized status config for consistent colors
   const getStatusColor = (status: string): string => {
-    switch (status) {
-      case 'confirmed':
-      case 'reserved':
-        return '#42a5f5'; // Blue - Reserved
-      case 'checked_in':
-      case 'auto_checked_in':
-      case 'occupied':
-        return '#ffa726'; // Orange - Occupied
-      case 'checked_out':
-        return '#66bb6a'; // Green
-      case 'pending':
-        return '#ffeb3b'; // Yellow
-      default:
-        return '#bdbdbd'; // Grey
-    }
+    return getUnifiedStatusColor(status);
   };
 
+  // Use centralized status config for consistent labels
   const getStatusLabel = (status: string): string => {
-    switch (status) {
-      case 'confirmed':
-      case 'reserved':
-        return 'Reserved';
-      case 'checked_in':
-      case 'auto_checked_in':
-      case 'occupied':
-        return 'Occupied';
-      case 'checked_out':
-        return 'Checked Out';
-      case 'pending':
-        return 'Pending';
-      default:
-        return status;
-    }
+    return getUnifiedStatusLabel(status);
   };
 
   const goToPreviousWeek = () => {
@@ -455,7 +440,7 @@ const RoomReservationTimeline: React.FC = () => {
                         {room.room_type}
                       </Typography>
                       <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600 }}>
-                        RM {Number(room.price_per_night).toFixed(2)}/night
+                        {formatCurrency(Number(room.price_per_night))}/night
                       </Typography>
                     </Box>
                   </TableCell>

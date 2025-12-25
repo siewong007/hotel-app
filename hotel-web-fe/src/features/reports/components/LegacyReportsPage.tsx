@@ -26,7 +26,7 @@ import {
 import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
 
-type ReportType = 'balance_sheet' | 'journal_by_type' | 'shift_report' | 'rooms_sold';
+type ReportType = 'balance_sheet' | 'journal_by_type' | 'shift_report' | 'rooms_sold' | 'general_journal' | 'company_ledger_statement';
 
 interface ReportParams {
   reportType: ReportType;
@@ -34,6 +34,13 @@ interface ReportParams {
   endDate: string;
   shift?: 'all' | '1' | '2' | '3';
   drawer?: 'all' | string;
+  companyName?: string;
+}
+
+interface CompanyOption {
+  company_name: string;
+  entry_count: number;
+  total_balance: number;
 }
 
 const LegacyReportsPage: React.FC = () => {
@@ -46,13 +53,44 @@ const LegacyReportsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [reportData, setReportData] = useState<any>(null);
+  const [companyList, setCompanyList] = useState<CompanyOption[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<string>('');
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
 
   const reportTypes = [
     { value: 'balance_sheet', label: 'Balance Sheet' },
     { value: 'journal_by_type', label: 'List Journal By Type' },
     { value: 'shift_report', label: 'Shift Report' },
     { value: 'rooms_sold', label: 'Rooms Sold Detail by Date' },
+    { value: 'general_journal', label: 'General Journal' },
+    { value: 'company_ledger_statement', label: 'Company Ledger Statement' },
   ];
+
+  // Load company list when company_ledger_statement is selected
+  const loadCompanyList = async () => {
+    try {
+      setLoadingCompanies(true);
+      const data = await HotelAPIService.generateReport({
+        reportType: 'company_ledger_statement',
+        startDate,
+        endDate,
+      });
+      if (data.type === 'company_list' && data.companies) {
+        setCompanyList(data.companies);
+      }
+    } catch (err: any) {
+      console.error('Failed to load company list:', err);
+    } finally {
+      setLoadingCompanies(false);
+    }
+  };
+
+  // Load companies when report type changes to company_ledger_statement
+  React.useEffect(() => {
+    if (reportType === 'company_ledger_statement') {
+      loadCompanyList();
+    }
+  }, [reportType]);
 
   const handleGenerateReport = async () => {
     setLoading(true);
@@ -67,6 +105,11 @@ const LegacyReportsPage: React.FC = () => {
         shift: shift as any,
         drawer,
       };
+
+      // Add company name for company ledger statement
+      if (reportType === 'company_ledger_statement' && selectedCompany) {
+        params.companyName = selectedCompany;
+      }
 
       const data = await HotelAPIService.generateReport(params);
       setReportData(data);
@@ -445,6 +488,249 @@ const LegacyReportsPage: React.FC = () => {
     );
   };
 
+  const renderGeneralJournal = () => {
+    if (!reportData) return null;
+
+    return (
+      <Paper sx={{ p: 3, mt: 3 }} className="print-content">
+        <Box sx={{ mb: 3, textAlign: 'center' }}>
+          <Typography variant="h6" gutterBottom>
+            General Journal
+          </Typography>
+          <Typography variant="subtitle2" color="text.secondary">
+            Salim Inn
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block">
+            {new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })} to {new Date(endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
+          </Typography>
+        </Box>
+
+        {/* Column Headers */}
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell><strong>Ledger</strong></TableCell>
+                <TableCell><strong>Date</strong></TableCell>
+                <TableCell><strong>Account</strong></TableCell>
+                <TableCell align="right"><strong>Debits</strong></TableCell>
+                <TableCell align="right" colSpan={2}><strong>Credits</strong></TableCell>
+              </TableRow>
+            </TableHead>
+          </Table>
+        </TableContainer>
+
+        {/* Render each section */}
+        {reportData.sections?.map((section: any, sectionIndex: number) => (
+          <Box key={sectionIndex} sx={{ mb: 2 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mt: 2, mb: 1 }}>
+              {section.name}
+            </Typography>
+
+            <TableContainer>
+              <Table size="small">
+                <TableBody>
+                  {section.entries?.length > 0 ? (
+                    section.entries.map((entry: any, entryIndex: number) => (
+                      <TableRow key={entryIndex}>
+                        <TableCell sx={{ width: '15%' }}></TableCell>
+                        <TableCell sx={{ width: '12%' }}>{entry.date}</TableCell>
+                        <TableCell sx={{ width: '18%' }}>{entry.account}</TableCell>
+                        <TableCell align="right" sx={{ width: '15%' }}>
+                          {Number(entry.debit) > 0 ? `${currencySymbol}${Number(entry.debit).toFixed(2)}` : '0.00'}
+                        </TableCell>
+                        <TableCell align="right" sx={{ width: '20%' }}>
+                          {Number(entry.contra_amount) > 0 ? `-${currencySymbol}${Number(entry.contra_amount).toFixed(2)}` : '0.00'} {entry.contra_account}
+                        </TableCell>
+                        <TableCell align="right" sx={{ width: '20%' }}></TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} sx={{ pl: 4 }}>
+                        <Typography variant="body2" color="text.secondary">** Totals:</Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+
+                  {/* Section totals */}
+                  <TableRow sx={{ bgcolor: 'grey.50' }}>
+                    <TableCell colSpan={3}><strong>** Totals:</strong></TableCell>
+                    <TableCell align="right">
+                      <strong>{currencySymbol}{Number(section.total_debit || 0).toFixed(2)}</strong>
+                    </TableCell>
+                    <TableCell align="right">
+                      <strong>{Number(section.net_amount || 0).toFixed(2)} Net amount:</strong>
+                    </TableCell>
+                    <TableCell align="right">
+                      <strong>{currencySymbol}{Math.abs(Number(section.net_amount || 0)).toFixed(2)}</strong>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        ))}
+
+        {/* Overall Balance */}
+        <Box sx={{ mt: 3, pt: 2, borderTop: '2px solid #ccc' }}>
+          <Table size="small">
+            <TableBody>
+              <TableRow>
+                <TableCell colSpan={4}></TableCell>
+                <TableCell align="right"><strong>Balance:</strong></TableCell>
+                <TableCell align="right">
+                  <strong>{currencySymbol}{Number(reportData.balance || 0).toFixed(2)}</strong>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </Box>
+      </Paper>
+    );
+  };
+
+  const renderCompanyLedgerStatement = () => {
+    if (!reportData || reportData.type !== 'company_statement') return null;
+
+    const { company, statement_date, balance_due, last_payment, existing_credit, aging, transactions, totals } = reportData;
+
+    return (
+      <Paper sx={{ p: 3, mt: 3 }} className="print-content">
+        {/* Header */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={6}>
+            <Typography variant="h6" fontWeight="bold">Salim Inn</Typography>
+            <Typography variant="body2">No 21-22 Lorong Salim 17, Jalan Salim</Typography>
+            <Typography variant="body2">Sibu, 96000, Sarawak, East Malaysia</Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>TTx ID: 132-2017-10000017</Typography>
+          </Grid>
+          <Grid item xs={6} textAlign="right">
+            <Typography variant="h5" fontWeight="bold">Account Statement</Typography>
+            <Typography variant="body2">Page 1</Typography>
+          </Grid>
+        </Grid>
+
+        {/* Account Summary Box */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={6}>
+            <Typography variant="body2" sx={{ mt: 2 }}>
+              <strong>Attn: {company.contact_person || 'N/A'}</strong>
+            </Typography>
+            <Typography variant="body1" fontWeight="bold">{company.name}</Typography>
+            {company.address?.line1 && <Typography variant="body2">{company.address.line1}</Typography>}
+            {(company.address?.city || company.address?.state) && (
+              <Typography variant="body2">
+                {[company.address.city, company.address.state, company.address.postal_code].filter(Boolean).join(', ')}
+              </Typography>
+            )}
+            {company.address?.country && <Typography variant="body2">{company.address.country}</Typography>}
+          </Grid>
+          <Grid item xs={6}>
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Table size="small">
+                <TableBody>
+                  <TableRow>
+                    <TableCell sx={{ border: 0, py: 0.5 }}>Account Number</TableCell>
+                    <TableCell sx={{ border: 0, py: 0.5 }} align="right">{company.registration_number || '-'}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ border: 0, py: 0.5 }}>Statement Date</TableCell>
+                    <TableCell sx={{ border: 0, py: 0.5 }} align="right">{statement_date}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ border: 0, py: 0.5 }}>Balance Due</TableCell>
+                    <TableCell sx={{ border: 0, py: 0.5 }} align="right">{currencySymbol}{Number(balance_due).toFixed(2)}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ border: 0, py: 0.5 }}>Last Payment</TableCell>
+                    <TableCell sx={{ border: 0, py: 0.5 }} align="right">{last_payment?.date || '-'}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell sx={{ border: 0, py: 0.5 }}>Existing Credit</TableCell>
+                    <TableCell sx={{ border: 0, py: 0.5 }} align="right">{currencySymbol}{Number(existing_credit || 0).toFixed(2)}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </Paper>
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Please make all cheques payable to 'SALIM INN'
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 1 }}>
+              Net 30 days.
+            </Typography>
+          </Grid>
+        </Grid>
+
+        {/* Aging Summary */}
+        <TableContainer sx={{ mb: 3 }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.300' }}>
+                <TableCell align="center"><strong>Open Balance</strong></TableCell>
+                <TableCell align="center"><strong>31-60 days</strong></TableCell>
+                <TableCell align="center"><strong>61-90 days</strong></TableCell>
+                <TableCell align="center"><strong>91-120 days</strong></TableCell>
+                <TableCell align="center"><strong>Over 120 days</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              <TableRow>
+                <TableCell align="center">{currencySymbol}{Number(aging?.open_balance || 0).toFixed(2)}</TableCell>
+                <TableCell align="center">{currencySymbol}{Number(aging?.days_31_60 || 0).toFixed(2)}</TableCell>
+                <TableCell align="center">{currencySymbol}{Number(aging?.days_61_90 || 0).toFixed(2)}</TableCell>
+                <TableCell align="center">{currencySymbol}{Number(aging?.days_91_120 || 0).toFixed(2)}</TableCell>
+                <TableCell align="center">{currencySymbol}{Number(aging?.over_120_days || 0).toFixed(2)}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        {/* Transaction Details */}
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.200' }}>
+                <TableCell><strong>Invoice Date</strong></TableCell>
+                <TableCell><strong>Voucher</strong></TableCell>
+                <TableCell><strong>Invoice</strong></TableCell>
+                <TableCell><strong>Reference</strong></TableCell>
+                <TableCell align="right"><strong>Original Amount</strong></TableCell>
+                <TableCell align="right"><strong>Payments Received</strong></TableCell>
+                <TableCell align="right"><strong>Finance Charges</strong></TableCell>
+                <TableCell align="right"><strong>Open Amount</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {transactions?.map((txn: any, index: number) => (
+                <TableRow key={index}>
+                  <TableCell>{txn.invoice_date || '-'}</TableCell>
+                  <TableCell sx={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {txn.voucher}
+                  </TableCell>
+                  <TableCell>{txn.invoice || '-'}</TableCell>
+                  <TableCell>{txn.reference}</TableCell>
+                  <TableCell align="right">{currencySymbol}{Number(txn.original_amount).toFixed(2)}</TableCell>
+                  <TableCell align="right">{currencySymbol}{Number(txn.payments_received).toFixed(2)}</TableCell>
+                  <TableCell align="right">{currencySymbol}{Number(txn.finance_charges || 0).toFixed(2)}</TableCell>
+                  <TableCell align="right">{currencySymbol}{Number(txn.open_amount).toFixed(2)}</TableCell>
+                </TableRow>
+              ))}
+              {/* Totals Row */}
+              <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableCell colSpan={4}><strong>Total</strong></TableCell>
+                <TableCell align="right"><strong>{currencySymbol}{Number(totals?.original_amount || 0).toFixed(2)}</strong></TableCell>
+                <TableCell align="right"><strong>{currencySymbol}{Number(totals?.payments_received || 0).toFixed(2)}</strong></TableCell>
+                <TableCell align="right"><strong>{currencySymbol}0.00</strong></TableCell>
+                <TableCell align="right"><strong>{currencySymbol}{Number(totals?.open_amount || 0).toFixed(2)}</strong></TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+    );
+  };
+
   const renderReport = () => {
     switch (reportType) {
       case 'balance_sheet':
@@ -455,6 +741,10 @@ const LegacyReportsPage: React.FC = () => {
         return renderShiftReport();
       case 'rooms_sold':
         return renderRoomsSoldReport();
+      case 'general_journal':
+        return renderGeneralJournal();
+      case 'company_ledger_statement':
+        return renderCompanyLedgerStatement();
       default:
         return null;
     }
@@ -543,6 +833,26 @@ const LegacyReportsPage: React.FC = () => {
                   </TextField>
                 </Grid>
               </>
+            )}
+
+            {reportType === 'company_ledger_statement' && (
+              <Grid item xs={12} md={6}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Select Company"
+                  value={selectedCompany}
+                  onChange={(e) => setSelectedCompany(e.target.value)}
+                  disabled={loadingCompanies}
+                  helperText={loadingCompanies ? 'Loading companies...' : companyList.length === 0 ? 'No companies with ledger entries' : ''}
+                >
+                  {companyList.map((company) => (
+                    <MenuItem key={company.company_name} value={company.company_name}>
+                      {company.company_name} ({company.entry_count} entries - {currencySymbol}{Number(company.total_balance).toFixed(2)} balance)
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
             )}
 
             <Grid item xs={12}>

@@ -1,8 +1,7 @@
 -- ============================================================================
--- MIGRATION 008: RATE & PRICING MANAGEMENT
+-- MIGRATION 007: RATE & PRICING MANAGEMENT
 -- ============================================================================
 -- Description: Rate plans, room rates, and pricing strategies
--- Created: 2025-01-29
 -- ============================================================================
 
 -- Sequences
@@ -19,16 +18,10 @@ CREATE TABLE IF NOT EXISTS rate_plans (
     code VARCHAR(20) UNIQUE NOT NULL,
     description TEXT,
     plan_type VARCHAR(50) DEFAULT 'standard' CHECK (plan_type IN ('standard', 'seasonal', 'promotional', 'corporate', 'group', 'package')),
-
-    -- Pricing adjustments
     adjustment_type VARCHAR(20) DEFAULT 'percentage' CHECK (adjustment_type IN ('percentage', 'fixed', 'override')),
     adjustment_value DECIMAL(10,2),
-
-    -- Date range
     valid_from DATE,
     valid_to DATE,
-
-    -- Day of week applicability
     applies_monday BOOLEAN DEFAULT true,
     applies_tuesday BOOLEAN DEFAULT true,
     applies_wednesday BOOLEAN DEFAULT true,
@@ -36,16 +29,11 @@ CREATE TABLE IF NOT EXISTS rate_plans (
     applies_friday BOOLEAN DEFAULT true,
     applies_saturday BOOLEAN DEFAULT true,
     applies_sunday BOOLEAN DEFAULT true,
-
-    -- Booking constraints
     min_nights INTEGER DEFAULT 1,
     max_nights INTEGER,
     min_advance_booking INTEGER DEFAULT 0,
     max_advance_booking INTEGER,
-
-    -- Restrictions
     blackout_dates JSONB,
-
     is_active BOOLEAN DEFAULT true,
     priority INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

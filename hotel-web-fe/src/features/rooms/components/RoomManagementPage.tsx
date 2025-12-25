@@ -27,6 +27,11 @@ import {
   Paper,
   Stack,
   Autocomplete,
+  Tabs,
+  Tab,
+  FormGroup,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import {
   MoreVert as MoreVertIcon,
@@ -46,12 +51,20 @@ import {
   Block as BlockIcon,
   EventAvailable as BookingIcon,
   AccessTime as TimeIcon,
+  CardGiftcard as GiftIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, Booking } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { isValidEmail } from '../../../utils/validation';
+import {
+  getUnifiedStatusColor,
+  getUnifiedStatusLabel,
+  getUnifiedStatusShortLabel,
+  RoomStatusType
+} from '../../../config/roomStatusConfig';
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
 import EnhancedCheckInModal from '../../bookings/components/EnhancedCheckInModal';
 
@@ -63,6 +76,20 @@ interface RoomAction {
   onClick: (room: Room) => void;
 }
 
+interface GuestWithCredits {
+  id: number;
+  full_name: string;
+  email: string;
+  legacy_complimentary_nights_credit: number;
+  total_complimentary_credits: number;
+  credits_by_room_type: {
+    room_type_id: number;
+    room_type_name: string;
+    room_type_code: string;
+    nights_available: number;
+  }[];
+}
+
 const RoomManagementPage: React.FC = () => {
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -72,6 +99,8 @@ const RoomManagementPage: React.FC = () => {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [roomBookings, setRoomBookings] = useState<Map<string, BookingWithDetails>>(new Map());
+  const [reservedBookings, setReservedBookings] = useState<Map<string, BookingWithDetails>>(new Map());
+  const [complimentariseBookings, setComplimentariseBookings] = useState<Map<string, BookingWithDetails>>(new Map());
   const [selectedBooking, setSelectedBooking] = useState<BookingWithDetails | null>(null);
 
   // Dialogs
@@ -81,6 +110,9 @@ const RoomManagementPage: React.FC = () => {
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [roomDetailsDialogOpen, setRoomDetailsDialogOpen] = useState(false);
   const [changeRoomDialogOpen, setChangeRoomDialogOpen] = useState(false);
+  const [complimentaryDialogOpen, setComplimentaryDialogOpen] = useState(false);
+  const [complimentaryReason, setComplimentaryReason] = useState('');
+  const [markingComplimentary, setMarkingComplimentary] = useState(false);
 
   // Room change state
   const [newSelectedRoom, setNewSelectedRoom] = useState<Room | null>(null);
@@ -121,11 +153,54 @@ const RoomManagementPage: React.FC = () => {
     ic_number: ''
   });
 
+  // Complimentary check-in state
+  const [complimentaryCheckInDialogOpen, setComplimentaryCheckInDialogOpen] = useState(false);
+  const [complimentaryCheckInGuest, setComplimentaryCheckInGuest] = useState<GuestWithCredits | null>(null);
+  const [complimentaryCheckInDate, setComplimentaryCheckInDate] = useState('');
+  const [complimentaryCheckOutDate, setComplimentaryCheckOutDate] = useState('');
+  const [complimentaryNumberOfNights, setComplimentaryNumberOfNights] = useState(1);
+  const [guestsWithCredits, setGuestsWithCredits] = useState<GuestWithCredits[]>([]);
+  const [loadingGuestsWithCredits, setLoadingGuestsWithCredits] = useState(false);
+
   // Room history state
   const [roomHistory, setRoomHistory] = useState<RoomHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedGuestDetails, setSelectedGuestDetails] = useState<Guest | null>(null);
   const [guestDetailsDialogOpen, setGuestDetailsDialogOpen] = useState(false);
+
+  // Guest details tab state
+  const [guestDetailsTab, setGuestDetailsTab] = useState(0);
+  const [guestCredits, setGuestCredits] = useState<{
+    guest_id: number;
+    guest_name: string;
+    total_nights: number;
+    legacy_total_nights: number;
+    credits_by_room_type: {
+      id: number;
+      room_type_id: number;
+      room_type_name: string;
+      room_type_code: string;
+      nights_available: number;
+    }[];
+  } | null>(null);
+  const [loadingCredits, setLoadingCredits] = useState(false);
+  const [availableRoomsForCredits, setAvailableRoomsForCredits] = useState<Room[]>([]);
+  const [creditsBookingForm, setCreditsBookingForm] = useState({
+    room_id: '',
+    check_in_date: new Date().toISOString().split('T')[0],
+    check_out_date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    adults: 1,
+    children: 0,
+    special_requests: '',
+  });
+  const [selectedComplimentaryDates, setSelectedComplimentaryDates] = useState<string[]>([]);
+  const [bookingWithCredits, setBookingWithCredits] = useState(false);
+  const [creditsBookingSuccess, setCreditsBookingSuccess] = useState<{
+    booking_id: number;
+    booking_number: string;
+    complimentary_nights: number;
+  } | null>(null);
+  const [roomBlockedDates, setRoomBlockedDates] = useState<{ start: string; end: string; status: string }[]>([]);
 
   // Enhanced check-in modal state
   const [enhancedCheckInOpen, setEnhancedCheckInOpen] = useState(false);
@@ -143,6 +218,16 @@ const RoomManagementPage: React.FC = () => {
     const interval = setInterval(() => loadRooms(), 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Clear any blocked dates from selection when room blocked dates are loaded
+  useEffect(() => {
+    if (roomBlockedDates.length > 0 && selectedComplimentaryDates.length > 0) {
+      const availableDates = selectedComplimentaryDates.filter(date => !isDateBlocked(date));
+      if (availableDates.length !== selectedComplimentaryDates.length) {
+        setSelectedComplimentaryDates(availableDates);
+      }
+    }
+  }, [roomBlockedDates]);
 
   const loadData = async () => {
     await Promise.all([loadRooms(), loadGuests(), loadBookings()]);
@@ -190,15 +275,27 @@ const RoomManagementPage: React.FC = () => {
       const bookingsData = await HotelAPIService.getAllBookings();
       // Create a map of room_id to current active booking
       const bookingsMap = new Map<string, BookingWithDetails>();
+      const reservedMap = new Map<string, BookingWithDetails>();
+      const complimentariseMap = new Map<string, BookingWithDetails>();
 
       bookingsData.forEach((booking: BookingWithDetails) => {
-        // Only consider checked_in bookings
+        // Track checked_in bookings
         if (booking.status === 'checked_in') {
           bookingsMap.set(booking.room_id, booking);
+        }
+        // Track confirmed/pending bookings (reserved)
+        if (booking.status === 'confirmed' || booking.status === 'pending') {
+          reservedMap.set(booking.room_id, booking);
+        }
+        // Track complimentarise bookings (room released for guest to use credits elsewhere)
+        if (booking.status === 'complimentarise') {
+          complimentariseMap.set(booking.room_id, booking);
         }
       });
 
       setRoomBookings(bookingsMap);
+      setReservedBookings(reservedMap);
+      setComplimentariseBookings(complimentariseMap);
     } catch (error: any) {
       console.error('Failed to load bookings:', error);
     }
@@ -227,53 +324,16 @@ const RoomManagementPage: React.FC = () => {
   };
 
   const getRoomStatusColor = (room: Room): string => {
-    // Occupied (checked-in guest) → Orange (ALWAYS)
-    if (room.status === 'occupied') {
-      return '#FFA726'; // Orange
-    }
-
-    // Cleaning → Orange
-    if (room.status === 'cleaning') {
-      return '#FFA726'; // Orange
-    }
-
-    // Reserved → Blue
-    if (room.status === 'reserved') {
-      return '#42A5F5'; // Blue
-    }
-
-    // Maintenance → Red
-    if (room.status === 'maintenance') {
-      return '#EF5350'; // Red
-    }
-
-    // Out of Order (Unavailable) → Grey
-    if (room.status === 'out_of_order') {
-      return '#BDBDBD'; // Grey
-    }
-
-    // Dirty → Orange
-    if (room.status === 'dirty') {
-      return '#FFA726'; // Orange
-    }
-
-    // Available → Green
-    if (room.status === 'available') {
-      return '#66BB6A'; // Green
-    }
-
-    return '#BDBDBD'; // Default grey
+    // Use centralized status config for consistent colors
+    return getUnifiedStatusColor(room.status || 'available');
   };
 
   const getRoomStatusLabel = (room: Room): string => {
-    if (!room.available) {
-      if (room.status === 'maintenance') return 'MAINT';
-      if (room.status === 'cleaning') return 'CLEAN';
-      if (room.status === 'occupied') return 'OCC';
-      if (room.status === 'reserved') return 'RES';
-      return 'N/A';
+    // Use centralized status config for consistent labels
+    if (!room.available && room.status) {
+      return getUnifiedStatusShortLabel(room.status).toUpperCase();
     }
-    return 'VAC';
+    return room.available ? 'VAC' : 'N/A';
   };
 
   const getRoomTypeCode = (roomType: string): string => {
@@ -353,6 +413,95 @@ const RoomManagementPage: React.FC = () => {
       nationality: '',
       ic_number: ''
     });
+  };
+
+  // Complimentary Check-in handlers
+  const handleComplimentaryCheckIn = async (room: Room) => {
+    setSelectedRoom(room);
+    handleMenuClose();
+
+    // Initialize dates with defaults (today and tomorrow)
+    const today = new Date().toISOString().split('T')[0];
+    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    setComplimentaryCheckInDate(today);
+    setComplimentaryCheckOutDate(tomorrow);
+    setComplimentaryNumberOfNights(1);
+    setComplimentaryCheckInGuest(null);
+
+    // Fetch guests with credits (includes both legacy and room-type-specific credits)
+    setLoadingGuestsWithCredits(true);
+    try {
+      const guestsWithAllCredits = await HotelAPIService.getMyGuestsWithCredits();
+      // Filter to only show guests who have any credits (legacy OR room-type specific)
+      const filteredGuests = guestsWithAllCredits.filter(
+        g => g.legacy_complimentary_nights_credit > 0 || g.total_complimentary_credits > 0
+      );
+      setGuestsWithCredits(filteredGuests);
+    } catch (error) {
+      console.error('Failed to fetch guests with credits:', error);
+      showSnackbar('Failed to load guests with credits', 'error');
+    } finally {
+      setLoadingGuestsWithCredits(false);
+    }
+
+    setComplimentaryCheckInDialogOpen(true);
+  };
+
+  const handleCloseComplimentaryCheckInDialog = () => {
+    if (creatingBooking) return;
+
+    setComplimentaryCheckInDialogOpen(false);
+    setComplimentaryCheckInGuest(null);
+    setComplimentaryCheckInDate('');
+    setComplimentaryCheckOutDate('');
+    setComplimentaryNumberOfNights(1);
+  };
+
+  const handleComplimentaryCheckInSubmit = async () => {
+    if (!selectedRoom || !complimentaryCheckInGuest) {
+      showSnackbar('Please select a guest with free room credits', 'error');
+      return;
+    }
+
+    if (!complimentaryCheckInDate || !complimentaryCheckOutDate) {
+      showSnackbar('Please select check-in and check-out dates', 'error');
+      return;
+    }
+
+    try {
+      setCreatingBooking(true);
+
+      // Generate list of complimentary dates (all dates in the range)
+      const complimentaryDates: string[] = [];
+      const start = new Date(complimentaryCheckInDate);
+      const end = new Date(complimentaryCheckOutDate);
+      for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+        complimentaryDates.push(d.toISOString().split('T')[0]);
+      }
+
+      // Use bookWithCredits API which properly deducts credits
+      const bookingResult = await HotelAPIService.bookWithCredits({
+        guest_id: complimentaryCheckInGuest.id,
+        room_id: typeof selectedRoom.id === 'string' ? parseInt(selectedRoom.id) : selectedRoom.id,
+        check_in_date: complimentaryCheckInDate,
+        check_out_date: complimentaryCheckOutDate,
+        complimentary_dates: complimentaryDates,
+      });
+
+      // Check in the guest
+      await HotelAPIService.checkInGuest(bookingResult.booking_id.toString(), {
+        checkin_notes: 'Complimentary check-in using free room credits',
+      });
+
+      showSnackbar(`${complimentaryCheckInGuest.full_name} checked into room ${selectedRoom.room_number} (Complimentary - ${bookingResult.complimentary_nights} nights used)`, 'success');
+      setComplimentaryCheckInDialogOpen(false);
+      setComplimentaryCheckInGuest(null);
+      await loadData();
+    } catch (error: any) {
+      showSnackbar(error.message || 'Failed to check in guest', 'error');
+    } finally {
+      setCreatingBooking(false);
+    }
   };
 
   const handleWalkInGuestSelected = async () => {
@@ -524,6 +673,39 @@ const RoomManagementPage: React.FC = () => {
   const handleCheckIn = (room: Room) => {
     setSelectedRoom(room);
     handleMenuClose();
+
+    // Check if there's a reserved booking for this room and auto-populate the form
+    const reservedBooking = reservedBookings.get(room.id);
+    if (reservedBooking) {
+      // Auto-populate guest if available
+      if (reservedBooking.guest_id) {
+        const matchingGuest = guests.find(g => String(g.id) === String(reservedBooking.guest_id));
+        if (matchingGuest) {
+          setOnlineCheckInGuest(matchingGuest);
+        }
+      }
+
+      // Auto-populate dates from the reservation
+      if (reservedBooking.check_in_date) {
+        setOnlineCheckInDate(reservedBooking.check_in_date.split('T')[0]);
+      }
+      if (reservedBooking.check_out_date) {
+        setOnlineCheckOutDate(reservedBooking.check_out_date.split('T')[0]);
+      }
+
+      // Calculate number of nights
+      if (reservedBooking.check_in_date && reservedBooking.check_out_date) {
+        const checkIn = new Date(reservedBooking.check_in_date);
+        const checkOut = new Date(reservedBooking.check_out_date);
+        const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+        if (nights > 0) {
+          setOnlineNumberOfNights(nights);
+        }
+      }
+
+      // Set booking channel to 'online' for reserved bookings
+      setOnlineCheckInBookingChannel('online');
+    }
 
     // Show guest selection dialog first
     setOnlineCheckInDialogOpen(true);
@@ -899,14 +1081,216 @@ const RoomManagementPage: React.FC = () => {
 
       if (guest) {
         setSelectedGuestDetails(guest);
+        setGuestDetailsTab(0); // Reset to first tab
+        setGuestCredits(null);
+        setCreditsBookingSuccess(null);
+        setSelectedComplimentaryDates([]);
         setGuestDetailsDialogOpen(true);
         handleMenuClose();
+
+        // Load guest credits in background
+        loadGuestCredits(guest.id);
       } else {
         showSnackbar(`Guest not found (ID: ${guestId})`, 'error');
       }
     } catch (error: any) {
       console.error('Error loading guest details:', error);
       showSnackbar(error.message || 'Failed to load guest details', 'error');
+    }
+  };
+
+  const loadGuestCredits = async (guestId: number) => {
+    try {
+      setLoadingCredits(true);
+      const credits = await HotelAPIService.getGuestCredits(guestId);
+      setGuestCredits(credits);
+    } catch (error: any) {
+      console.error('Error loading guest credits:', error);
+      // Don't show error - credits may not be available for all guests
+    } finally {
+      setLoadingCredits(false);
+    }
+  };
+
+  const loadAvailableRoomsForCredits = async () => {
+    try {
+      const allRooms = await HotelAPIService.getAllRooms();
+      // Show all rooms, not just available ones - we'll show blocked dates for each
+      setAvailableRoomsForCredits(allRooms);
+    } catch (error: any) {
+      console.error('Error loading available rooms:', error);
+    }
+  };
+
+  const loadRoomBlockedDates = async (roomId: string) => {
+    try {
+      // Get all bookings and filter for this room
+      const allBookings = await HotelAPIService.getAllBookings();
+      const roomBookingsFiltered = allBookings.filter(b =>
+        b.room_id?.toString() === roomId &&
+        !['cancelled', 'no_show', 'checked_out'].includes(b.status)
+      );
+
+      const blocked = roomBookingsFiltered.map(b => ({
+        start: b.check_in_date,
+        end: b.check_out_date,
+        status: b.status
+      }));
+
+      setRoomBlockedDates(blocked);
+    } catch (error: any) {
+      console.error('Error loading room blocked dates:', error);
+      setRoomBlockedDates([]);
+    }
+  };
+
+  const isDateBlocked = (dateStr: string): boolean => {
+    const date = new Date(dateStr);
+    date.setHours(0, 0, 0, 0);
+
+    for (const booking of roomBlockedDates) {
+      const start = new Date(booking.start);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(booking.end);
+      end.setHours(0, 0, 0, 0);
+
+      // Date is blocked if it's within the booking range (check-in to check-out - 1)
+      if (date >= start && date < end) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const getMinCheckInDate = (): string => {
+    return new Date().toISOString().split('T')[0];
+  };
+
+  const getNextAvailableDate = (fromDate: string): string => {
+    let date = new Date(fromDate);
+    date.setHours(0, 0, 0, 0);
+
+    // Find the next available date
+    while (isDateBlocked(date.toISOString().split('T')[0])) {
+      date.setDate(date.getDate() + 1);
+    }
+    return date.toISOString().split('T')[0];
+  };
+
+  const validateDateSelection = (): { valid: boolean; message: string } => {
+    if (!creditsBookingForm.check_in_date || !creditsBookingForm.check_out_date) {
+      return { valid: false, message: 'Please select dates' };
+    }
+
+    const checkIn = new Date(creditsBookingForm.check_in_date);
+    const checkOut = new Date(creditsBookingForm.check_out_date);
+
+    if (checkOut <= checkIn) {
+      return { valid: false, message: 'Check-out must be after check-in' };
+    }
+
+    // Check if any date in the range is blocked
+    for (let d = new Date(checkIn); d < checkOut; d.setDate(d.getDate() + 1)) {
+      if (isDateBlocked(d.toISOString().split('T')[0])) {
+        return { valid: false, message: `Date ${d.toLocaleDateString()} is already reserved` };
+      }
+    }
+
+    return { valid: true, message: '' };
+  };
+
+  const getCreditsBookingDates = (): string[] => {
+    const dates: string[] = [];
+    const start = new Date(creditsBookingForm.check_in_date);
+    const end = new Date(creditsBookingForm.check_out_date);
+    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
+      dates.push(d.toISOString().split('T')[0]);
+    }
+    return dates;
+  };
+
+  const getTotalCreditsForRoom = (roomId: string): number => {
+    if (!guestCredits || !roomId) return 0;
+    const room = availableRoomsForCredits.find(r => r.id.toString() === roomId);
+    if (!room) return guestCredits.legacy_total_nights;
+
+    // Find credits for this room type
+    const roomTypeCredits = guestCredits.credits_by_room_type.find(c =>
+      room.room_type?.toLowerCase().includes(c.room_type_name.toLowerCase())
+    );
+
+    return (roomTypeCredits?.nights_available || 0) + guestCredits.legacy_total_nights;
+  };
+
+  const handleCreditsDateToggle = (date: string) => {
+    // Prevent toggling blocked dates
+    if (isDateBlocked(date)) return;
+
+    const maxCredits = getTotalCreditsForRoom(creditsBookingForm.room_id);
+    if (selectedComplimentaryDates.includes(date)) {
+      setSelectedComplimentaryDates(prev => prev.filter(d => d !== date));
+    } else if (selectedComplimentaryDates.length < maxCredits) {
+      setSelectedComplimentaryDates(prev => [...prev, date]);
+    }
+  };
+
+  const selectAllCreditsAvailable = () => {
+    const dates = getCreditsBookingDates();
+    const maxCredits = getTotalCreditsForRoom(creditsBookingForm.room_id);
+    // Filter out blocked dates and only select available ones
+    const availableDates = dates.filter(date => !isDateBlocked(date));
+    setSelectedComplimentaryDates(availableDates.slice(0, maxCredits));
+  };
+
+  const handleBookWithCreditsAndCheckIn = async () => {
+    if (!selectedGuestDetails || !creditsBookingForm.room_id || selectedComplimentaryDates.length === 0) {
+      showSnackbar('Please select a room and at least one complimentary date', 'error');
+      return;
+    }
+
+    try {
+      setBookingWithCredits(true);
+      const result = await HotelAPIService.bookWithCredits({
+        guest_id: selectedGuestDetails.id,
+        room_id: parseInt(creditsBookingForm.room_id, 10),
+        check_in_date: creditsBookingForm.check_in_date,
+        check_out_date: creditsBookingForm.check_out_date,
+        adults: creditsBookingForm.adults,
+        children: creditsBookingForm.children,
+        special_requests: creditsBookingForm.special_requests,
+        complimentary_dates: selectedComplimentaryDates,
+      });
+
+      setCreditsBookingSuccess({
+        booking_id: result.booking_id,
+        booking_number: result.booking_number,
+        complimentary_nights: result.complimentary_nights,
+      });
+
+      showSnackbar(`Booking created successfully! ${result.complimentary_nights} night(s) are complimentary.`, 'success');
+
+      // Reload guest credits
+      loadGuestCredits(selectedGuestDetails.id);
+      // Reload rooms
+      loadRooms();
+    } catch (error: any) {
+      showSnackbar(error.message || 'Failed to book with credits', 'error');
+    } finally {
+      setBookingWithCredits(false);
+    }
+  };
+
+  const handleCheckInFromCreditsBooking = async () => {
+    if (!creditsBookingSuccess) return;
+
+    try {
+      await HotelAPIService.checkInGuest(creditsBookingSuccess.booking_id.toString());
+      showSnackbar('Guest checked in successfully!', 'success');
+      setGuestDetailsDialogOpen(false);
+      loadRooms();
+      loadBookings();
+    } catch (error: any) {
+      showSnackbar(error.message || 'Failed to check in guest', 'error');
     }
   };
 
@@ -975,25 +1359,110 @@ const RoomManagementPage: React.FC = () => {
     }
   };
 
+  const handleMarkComplimentary = (room: Room) => {
+    setSelectedRoom(room);
+    // Get the reserved booking for this room
+    const booking = reservedBookings.get(room.id);
+    if (booking) {
+      setSelectedBooking(booking);
+      setComplimentaryReason('');
+      setComplimentaryDialogOpen(true);
+    } else {
+      showSnackbar('No pending booking found for this room', 'error');
+    }
+    handleMenuClose();
+  };
+
+  const handleConfirmMarkComplimentary = async () => {
+    if (!selectedBooking) {
+      showSnackbar('No booking selected', 'error');
+      return;
+    }
+
+    try {
+      setMarkingComplimentary(true);
+
+      // Call API to mark booking as complimentary
+      const result = await HotelAPIService.markBookingComplimentary(selectedBooking.id, complimentaryReason || undefined);
+
+      showSnackbar(`Booking marked as complimentary! ${result.nights_credited} night(s) of ${result.room_type} credits added to guest.`, 'success');
+      setComplimentaryDialogOpen(false);
+      setComplimentaryReason('');
+      setSelectedBooking(null);
+      await loadData();
+    } catch (error: any) {
+      showSnackbar(error.message || 'Failed to mark booking as complimentary', 'error');
+    } finally {
+      setMarkingComplimentary(false);
+    }
+  };
+
   const getMenuActions = (room: Room | null): RoomAction[] => {
     if (!room) return [];
 
-    const isOccupied = room.status === 'occupied';
-    const isReserved = room.status === 'reserved';
     const booking = roomBookings.get(room.id);
+    const reservedBooking = reservedBookings.get(room.id);
+
+    // Compute dynamic status - same logic as in the render
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const hasCheckedInBooking = booking?.status === 'checked_in';
+    const hasReservationForToday = reservedBooking && (() => {
+      const checkInDate = new Date(reservedBooking.check_in_date);
+      checkInDate.setHours(0, 0, 0, 0);
+      return checkInDate <= today;
+    })();
+
+    const computedStatus = hasCheckedInBooking
+      ? 'occupied'
+      : hasReservationForToday
+        ? 'reserved'
+        : ['maintenance', 'out_of_order', 'dirty', 'cleaning'].includes(room.status || '')
+          ? room.status
+          : 'available';
+
+    const isOccupied = computedStatus === 'occupied';
+    const isReserved = computedStatus === 'reserved';
+    // Only consider complimentary if explicitly true
+    const isComplimentary = (isOccupied && booking?.is_complimentary === true) ||
+                             (isReserved && reservedBooking?.is_complimentary === true);
     const actions: RoomAction[] = [];
+
+    // Show complimentary info at the top if applicable
+    if (isComplimentary) {
+      actions.push(
+        {
+          id: 'complimentary-info',
+          label: '🎁 Free Gift Booking - No Cancellation',
+          icon: <GiftIcon />,
+          color: 'secondary',
+          onClick: () => {
+            showSnackbar('This is a complimentary (Free Gift) booking. Cancellation is not recommended as the guest has used their free credits.', 'success');
+          }
+        }
+      );
+      actions.push({ id: 'divider-comp', label: '-', icon: <></>, onClick: () => {} });
+    }
 
     // Check-in options (only if room is not occupied)
     if (!isOccupied) {
       actions.push(
         { id: 'walkin', label: 'Walk-in Guest Check-in', icon: <PersonAddIcon />, onClick: handleWalkInGuest },
-        { id: 'online-checkin', label: 'Online Guest Check-in', icon: <BookingIcon />, onClick: handleOnlineCheckIn }
+        { id: 'online-checkin', label: 'Online Guest Check-in', icon: <BookingIcon />, onClick: handleOnlineCheckIn },
+        { id: 'complimentary-checkin', label: 'Complimentary Check-in', icon: <GiftIcon />, color: 'secondary', onClick: handleComplimentaryCheckIn }
       );
 
       // Enhanced check-in for reserved rooms with existing booking
       if (isReserved && booking) {
         actions.push(
           { id: 'reserved-checkin', label: 'Check-in Reserved Booking', icon: <LoginIcon />, color: 'primary', onClick: handleCheckIn }
+        );
+      }
+
+      // Mark as Complimentary for reserved rooms with booking (not yet checked in)
+      if (isReserved && reservedBooking && !reservedBooking.is_complimentary) {
+        actions.push(
+          { id: 'complimentary', label: 'Mark as Complimentary', icon: <GiftIcon />, color: 'secondary', onClick: handleMarkComplimentary }
         );
       }
     }
@@ -1123,16 +1592,52 @@ const RoomManagementPage: React.FC = () => {
       <Grid container spacing={2}>
         {rooms.map((room) => {
           const booking = roomBookings.get(room.id);
-          const isOccupied = room.status === 'occupied' || room.status === 'cleaning';
-          const isReservedToday = room.status === 'reserved' && room.reserved_start_date &&
-            new Date(room.reserved_start_date).toDateString() === new Date().toDateString();
+          const reservedBooking = reservedBookings.get(room.id);
+          const complimentariseBooking = complimentariseBookings.get(room.id);
+
+          // Compute dynamic status based on bookings - ensures sync with reservation timeline
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          // Check if there's a checked-in booking (occupied)
+          const hasCheckedInBooking = booking?.status === 'checked_in';
+
+          // Check if there's a reservation for today or before (reserved)
+          const hasReservationForToday = reservedBooking && (() => {
+            const checkInDate = new Date(reservedBooking.check_in_date);
+            checkInDate.setHours(0, 0, 0, 0);
+            return checkInDate <= today;
+          })();
+
+          // Check if there's a future reservation (not today)
+          const hasFutureReservation = reservedBooking && !hasReservationForToday;
+          const futureCheckInDate = hasFutureReservation ? new Date(reservedBooking.check_in_date) : null;
+
+          // Compute the effective status
+          const computedStatus = hasCheckedInBooking
+            ? 'occupied'
+            : hasReservationForToday
+              ? 'reserved'
+              : ['maintenance', 'out_of_order', 'dirty', 'cleaning'].includes(room.status || '')
+                ? room.status
+                : 'available';
+
+          // Create a room object with computed status for display
+          const displayRoom = { ...room, status: computedStatus };
+
+          const isOccupied = computedStatus === 'occupied' || computedStatus === 'cleaning';
+          const isReserved = computedStatus === 'reserved';
+          const isReservedToday = isReserved && hasReservationForToday;
+          // Only show FREE GIFT if is_complimentary is explicitly true (not undefined/null)
+          const isComplimentary = (isOccupied && booking?.is_complimentary === true) ||
+                                   (isReserved && reservedBooking?.is_complimentary === true);
 
           return (
             <Grid item xs={6} sm={4} md={3} lg={2} key={room.id}>
               <Card
                 sx={{
-                  bgcolor: getRoomStatusColor(room),
-                  color: room.status === 'cleaning' ? '#333' : 'white',
+                  bgcolor: getRoomStatusColor(displayRoom),
+                  color: computedStatus === 'cleaning' ? '#333' : 'white',
                   cursor: 'pointer',
                   transition: 'transform 0.2s, box-shadow 0.2s',
                   '&:hover': {
@@ -1164,8 +1669,31 @@ const RoomManagementPage: React.FC = () => {
                     />
                   )}
 
+                  {/* Complimentary Indicator */}
+                  {isComplimentary && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        top: 8,
+                        left: isReservedToday ? 36 : 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.3,
+                        bgcolor: 'rgba(156, 39, 176, 0.9)',
+                        borderRadius: 1,
+                        px: 0.5,
+                        py: 0.2,
+                      }}
+                    >
+                      <GiftIcon sx={{ fontSize: 14 }} />
+                      <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 600 }}>
+                        FREE
+                      </Typography>
+                    </Box>
+                  )}
+
                   {/* Room Number */}
-                  <Typography variant="h5" fontWeight={700} gutterBottom sx={{ mt: isReservedToday ? 3 : 0 }}>
+                  <Typography variant="h5" fontWeight={700} gutterBottom sx={{ mt: isReservedToday || isComplimentary ? 3 : 0 }}>
                     {room.room_number}
                   </Typography>
 
@@ -1184,8 +1712,64 @@ const RoomManagementPage: React.FC = () => {
 
                   {/* Status Label */}
                   <Typography variant="caption" display="block" sx={{ fontWeight: 600, mb: 0.5 }}>
-                    {getRoomStatusLabel(room)}
+                    {getRoomStatusLabel(displayRoom)}
+                    {isComplimentary && ' • 🎁 FREE GIFT'}
+                    {complimentariseBooking && ' • 🔓 RELEASED'}
                   </Typography>
+
+                  {/* Future Reservation Indicator with Guest Info */}
+                  {hasFutureReservation && futureCheckInDate && reservedBooking && (
+                    <Box sx={{ mb: 0.5 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                        <BookingIcon sx={{ fontSize: 12 }} />
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          sx={{
+                            fontSize: '0.6rem',
+                            fontWeight: 500,
+                            bgcolor: 'rgba(0,0,0,0.2)',
+                            px: 0.5,
+                            borderRadius: 0.5,
+                          }}
+                        >
+                          📅 {new Date(reservedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(reservedBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </Typography>
+                      </Box>
+                      <Typography
+                        variant="caption"
+                        display="block"
+                        sx={{
+                          fontSize: '0.6rem',
+                          opacity: 0.9,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        👤 {reservedBooking.guest_name}
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {/* Complimentarise Booking Indicator - Room was released for guest to use credits elsewhere */}
+                  {complimentariseBooking && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                      <Typography
+                        variant="caption"
+                        display="block"
+                        sx={{
+                          fontSize: '0.6rem',
+                          fontWeight: 500,
+                          bgcolor: 'rgba(156, 39, 176, 0.3)',
+                          px: 0.5,
+                          borderRadius: 0.5,
+                        }}
+                      >
+                        Released: {new Date(complimentariseBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(complimentariseBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </Typography>
+                    </Box>
+                  )}
 
                   {/* Staying Time for Occupied/Dirty Rooms */}
                   {isOccupied && booking && (
@@ -1297,19 +1881,46 @@ const RoomManagementPage: React.FC = () => {
                   ) : null}
 
                   {/* Online Check-in Button for Reserved Rooms */}
-                  {isReservedToday && booking && (
+                  {isReservedToday && reservedBooking && (
                     <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.3)' }}>
                       <Typography
                         variant="caption"
                         display="block"
                         sx={{
-                          fontSize: '0.6rem',
-                          mb: 0.5,
-                          opacity: 0.9,
+                          fontSize: '0.65rem',
+                          fontWeight: 600,
+                          mb: 0.25,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
                         }}
                       >
-                        Guest: {booking.guest_name}
+                        {reservedBooking.guest_name}
                       </Typography>
+                      <Typography
+                        variant="caption"
+                        display="block"
+                        sx={{
+                          fontSize: '0.6rem',
+                          opacity: 0.9,
+                          mb: 0.25,
+                        }}
+                      >
+                        📅 {new Date(reservedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(reservedBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </Typography>
+                      {reservedBooking.guest_phone && (
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          sx={{
+                            fontSize: '0.6rem',
+                            opacity: 0.9,
+                            mb: 0.5,
+                          }}
+                        >
+                          📞 {reservedBooking.guest_phone}
+                        </Typography>
+                      )}
                       <Box
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1892,6 +2503,228 @@ const RoomManagementPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
+      {/* Complimentary Check-in Dialog */}
+      <Dialog
+        open={complimentaryCheckInDialogOpen}
+        onClose={handleCloseComplimentaryCheckInDialog}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle sx={{ bgcolor: 'secondary.main', color: 'white', py: 2, px: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <GiftIcon sx={{ fontSize: 28 }} />
+            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+              Complimentary Check-in - Room {selectedRoom?.room_number || 'N/A'}
+            </Typography>
+          </Box>
+        </DialogTitle>
+
+        <DialogContent sx={{ pt: 3 }}>
+          <Grid container spacing={3}>
+            {/* Info Banner */}
+            <Grid item xs={12}>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  This check-in uses the guest's <strong>Free Room Credits</strong>. Only guests with available credits are shown below.
+                </Typography>
+              </Alert>
+            </Grid>
+
+            {/* Guest Selection (Only guests with credits) */}
+            <Grid item xs={12}>
+              {loadingGuestsWithCredits ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                  <CircularProgress size={24} />
+                  <Typography sx={{ ml: 1 }}>Loading guests with credits...</Typography>
+                </Box>
+              ) : (
+                <Autocomplete
+                  value={complimentaryCheckInGuest}
+                  onChange={(_, newValue) => setComplimentaryCheckInGuest(newValue)}
+                  options={guestsWithCredits}
+                  getOptionLabel={(option) => {
+                    const totalCredits = option.legacy_complimentary_nights_credit + option.total_complimentary_credits;
+                    return `${option.full_name} - ${option.email} (${totalCredits} credits)`;
+                  }}
+                  renderOption={(props, option) => {
+                    const totalCredits = option.legacy_complimentary_nights_credit + option.total_complimentary_credits;
+                    return (
+                      <Box component="li" {...props}>
+                        <Box sx={{ width: '100%' }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Box>
+                              <Typography variant="body1">{option.full_name}</Typography>
+                              <Typography variant="caption" color="text.secondary">{option.email}</Typography>
+                            </Box>
+                            <Chip
+                              icon={<GiftIcon sx={{ fontSize: 14 }} />}
+                              label={`${totalCredits} night${totalCredits !== 1 ? 's' : ''}`}
+                              size="small"
+                              color="secondary"
+                            />
+                          </Box>
+                          {/* Show room-type-specific credits breakdown */}
+                          {option.credits_by_room_type.length > 0 && (
+                            <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                              {option.credits_by_room_type.map((credit) => (
+                                <Chip
+                                  key={credit.room_type_id}
+                                  label={`${credit.room_type_name}: ${credit.nights_available}`}
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ fontSize: '0.65rem', height: 20 }}
+                                />
+                              ))}
+                              {option.legacy_complimentary_nights_credit > 0 && (
+                                <Chip
+                                  label={`Any room: ${option.legacy_complimentary_nights_credit}`}
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{ fontSize: '0.65rem', height: 20 }}
+                                />
+                              )}
+                            </Box>
+                          )}
+                        </Box>
+                      </Box>
+                    );
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Select Guest with Free Room Credits *"
+                      placeholder="Search by name or email"
+                    />
+                  )}
+                  noOptionsText="No guests with free room credits found"
+                />
+              )}
+            </Grid>
+
+            {/* Check-in Date */}
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                required
+                type="date"
+                label="Check-in Date"
+                value={complimentaryCheckInDate}
+                onChange={(e) => {
+                  setComplimentaryCheckInDate(e.target.value);
+                  if (complimentaryCheckOutDate) {
+                    const checkIn = new Date(e.target.value);
+                    const checkOut = new Date(complimentaryCheckOutDate);
+                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+                    setComplimentaryNumberOfNights(nights);
+                  }
+                }}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+
+            {/* Check-out Date */}
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                required
+                type="date"
+                label="Check-out Date"
+                value={complimentaryCheckOutDate}
+                onChange={(e) => {
+                  setComplimentaryCheckOutDate(e.target.value);
+                  if (complimentaryCheckInDate) {
+                    const checkIn = new Date(complimentaryCheckInDate);
+                    const checkOut = new Date(e.target.value);
+                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+                    setComplimentaryNumberOfNights(nights);
+                  }
+                }}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+
+            {/* Summary */}
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2, bgcolor: 'secondary.light' }}>
+                <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <GiftIcon /> Booking Summary
+                </Typography>
+                <Grid container spacing={1}>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">Number of Nights:</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2">{complimentaryNumberOfNights}</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">Room Rate:</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" sx={{ textDecoration: 'line-through', color: 'text.disabled' }}>
+                      {currencySymbol}{selectedRoom?.price_per_night || 0} / night
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">Total Amount:</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" fontWeight="bold" color="success.main">
+                      FREE (Complimentary)
+                    </Typography>
+                  </Grid>
+                  {complimentaryCheckInGuest && (
+                    <>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Credits Available:</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {complimentaryCheckInGuest.credits_by_room_type.map((credit) => (
+                            <Chip
+                              key={credit.room_type_id}
+                              size="small"
+                              label={`${credit.room_type_name}: ${credit.nights_available}`}
+                              color="secondary"
+                              variant="outlined"
+                              sx={{ fontSize: '0.7rem' }}
+                            />
+                          ))}
+                          {complimentaryCheckInGuest.legacy_complimentary_nights_credit > 0 && (
+                            <Chip
+                              size="small"
+                              icon={<GiftIcon sx={{ fontSize: 14 }} />}
+                              label={`Any: ${complimentaryCheckInGuest.legacy_complimentary_nights_credit}`}
+                              color="secondary"
+                            />
+                          )}
+                        </Box>
+                      </Grid>
+                    </>
+                  )}
+                </Grid>
+              </Paper>
+            </Grid>
+          </Grid>
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
+          <Button onClick={handleCloseComplimentaryCheckInDialog} disabled={creatingBooking}>
+            Cancel
+          </Button>
+          <Box sx={{ flex: 1 }} />
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={handleComplimentaryCheckInSubmit}
+            disabled={creatingBooking || !complimentaryCheckInGuest}
+            startIcon={creatingBooking ? <CircularProgress size={20} /> : <GiftIcon />}
+            size="large"
+          >
+            {creatingBooking ? 'Processing...' : 'Check In (Complimentary)'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Change Room Dialog */}
       <Dialog
         open={changeRoomDialogOpen}
@@ -2313,27 +3146,55 @@ const RoomManagementPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Guest Details Dialog */}
-      <Dialog open={guestDetailsDialogOpen} onClose={() => setGuestDetailsDialogOpen(false)} maxWidth="sm" fullWidth>
+      {/* Guest Details Dialog with Tabs */}
+      <Dialog
+        open={guestDetailsDialogOpen}
+        onClose={() => setGuestDetailsDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
         <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <PersonIcon sx={{ fontSize: 28 }} />
             <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Guest Details
+              {selectedGuestDetails?.full_name || 'Guest Details'}
             </Typography>
           </Box>
         </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          {selectedGuestDetails && (
+
+        <Tabs
+          value={guestDetailsTab}
+          onChange={(_, v) => {
+            setGuestDetailsTab(v);
+            if (v === 1) {
+              loadAvailableRoomsForCredits();
+            }
+          }}
+          sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
+        >
+          <Tab label="Guest Info" icon={<PersonIcon />} iconPosition="start" />
+          <Tab
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <GiftIcon />
+                <span>Free Gift Credits</span>
+                {guestCredits && (guestCredits.total_nights + guestCredits.legacy_total_nights) > 0 && (
+                  <Chip
+                    label={guestCredits.total_nights + guestCredits.legacy_total_nights}
+                    size="small"
+                    color="secondary"
+                    sx={{ ml: 1 }}
+                  />
+                )}
+              </Box>
+            }
+          />
+        </Tabs>
+
+        <DialogContent sx={{ pt: 3, pb: 3, minHeight: 400 }}>
+          {/* Tab 0: Guest Info */}
+          {guestDetailsTab === 0 && selectedGuestDetails && (
             <Grid container spacing={2}>
-              <Grid item xs={12}>
-                <Typography variant="h6" gutterBottom>
-                  {selectedGuestDetails.full_name}
-                </Typography>
-              </Grid>
-              <Grid item xs={12}>
-                <Divider />
-              </Grid>
               <Grid item xs={6}>
                 <Typography variant="caption" color="text.secondary">Email</Typography>
                 <Typography variant="body2">{selectedGuestDetails.email}</Typography>
@@ -2382,9 +3243,416 @@ const RoomManagementPage: React.FC = () => {
               </Grid>
             </Grid>
           )}
+
+          {/* Tab 1: Free Gift Credits */}
+          {guestDetailsTab === 1 && (
+            <Box>
+              {loadingCredits ? (
+                <Box display="flex" justifyContent="center" py={4}>
+                  <CircularProgress />
+                </Box>
+              ) : creditsBookingSuccess ? (
+                /* Booking Success - Show Check-in Option */
+                <Box>
+                  <Alert severity="success" sx={{ mb: 3 }}>
+                    <Typography variant="subtitle1" fontWeight={600}>
+                      🎉 Booking Created Successfully!
+                    </Typography>
+                    <Typography variant="body2">
+                      Booking #{creditsBookingSuccess.booking_number} - {creditsBookingSuccess.complimentary_nights} night(s) are complimentary
+                    </Typography>
+                  </Alert>
+
+                  <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      size="large"
+                      startIcon={<LoginIcon />}
+                      onClick={handleCheckInFromCreditsBooking}
+                    >
+                      Check In Now
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        setCreditsBookingSuccess(null);
+                        setSelectedComplimentaryDates([]);
+                      }}
+                    >
+                      Book Another Room
+                    </Button>
+                  </Box>
+                </Box>
+              ) : (
+                <Grid container spacing={3}>
+                  {/* Credits Summary */}
+                  <Grid item xs={12}>
+                    <Paper sx={{ p: 2, bgcolor: 'secondary.light' }}>
+                      <Typography variant="subtitle1" fontWeight={600} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <GiftIcon /> Available Free Gift Credits
+                      </Typography>
+                      {guestCredits && (guestCredits.total_nights + guestCredits.legacy_total_nights) > 0 ? (
+                        <Box>
+                          {guestCredits.credits_by_room_type.map((credit) => (
+                            <Chip
+                              key={credit.id}
+                              icon={<GiftIcon />}
+                              label={`${credit.room_type_name}: ${credit.nights_available} night(s)`}
+                              color="success"
+                              sx={{ mr: 1, mb: 1 }}
+                            />
+                          ))}
+                          {guestCredits.legacy_total_nights > 0 && (
+                            <Chip
+                              icon={<GiftIcon />}
+                              label={`Any Room: ${guestCredits.legacy_total_nights} night(s)`}
+                              color="info"
+                              sx={{ mr: 1, mb: 1 }}
+                            />
+                          )}
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          No complimentary credits available
+                        </Typography>
+                      )}
+                    </Paper>
+                  </Grid>
+
+                  {/* Booking Form */}
+                  {guestCredits && (guestCredits.total_nights + guestCredits.legacy_total_nights) > 0 && (
+                    <>
+                      <Grid item xs={12}>
+                        <Typography variant="subtitle1" fontWeight={600}>
+                          Book a Room with Free Gift Credits
+                        </Typography>
+                      </Grid>
+
+                      <Grid item xs={6}>
+                        <TextField
+                          label="Check-in Date"
+                          type="date"
+                          fullWidth
+                          value={creditsBookingForm.check_in_date}
+                          onChange={(e) => {
+                            setCreditsBookingForm({ ...creditsBookingForm, check_in_date: e.target.value });
+                            setSelectedComplimentaryDates([]);
+                          }}
+                          InputLabelProps={{ shrink: true }}
+                        />
+                      </Grid>
+                      <Grid item xs={6}>
+                        <TextField
+                          label="Check-out Date"
+                          type="date"
+                          fullWidth
+                          value={creditsBookingForm.check_out_date}
+                          onChange={(e) => {
+                            setCreditsBookingForm({ ...creditsBookingForm, check_out_date: e.target.value });
+                            setSelectedComplimentaryDates([]);
+                          }}
+                          InputLabelProps={{ shrink: true }}
+                        />
+                      </Grid>
+
+                      <Grid item xs={12}>
+                        <FormControl fullWidth>
+                          <InputLabel>Select Room</InputLabel>
+                          <Select
+                            value={creditsBookingForm.room_id}
+                            onChange={(e) => {
+                              setCreditsBookingForm({ ...creditsBookingForm, room_id: e.target.value });
+                              setSelectedComplimentaryDates([]);
+                              setRoomBlockedDates([]);
+                              if (e.target.value) {
+                                loadRoomBlockedDates(e.target.value);
+                              }
+                            }}
+                            label="Select Room"
+                          >
+                            {availableRoomsForCredits.map((room) => (
+                              <MenuItem key={room.id} value={room.id.toString()}>
+                                Room {room.room_number} - {room.room_type}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+
+                      {/* Date Selection for Complimentary Nights */}
+                      {creditsBookingForm.room_id && getCreditsBookingDates().length > 0 && (
+                        <Grid item xs={12}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="subtitle2">
+                              Select Complimentary Dates (Available: {getTotalCreditsForRoom(creditsBookingForm.room_id)})
+                            </Typography>
+                            <Button size="small" onClick={selectAllCreditsAvailable}>
+                              Select All Available
+                            </Button>
+                          </Box>
+                          <Paper variant="outlined" sx={{ p: 2, maxHeight: 180, overflow: 'auto' }}>
+                            {roomBlockedDates.length > 0 && (
+                              <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Box sx={{ width: 12, height: 12, backgroundColor: 'error.light', borderRadius: 0.5 }} />
+                                <Typography variant="caption" color="text.secondary">
+                                  Reserved (unavailable)
+                                </Typography>
+                              </Box>
+                            )}
+                            <FormGroup row>
+                              {getCreditsBookingDates().map((date) => {
+                                const isSelected = selectedComplimentaryDates.includes(date);
+                                const isBlocked = isDateBlocked(date);
+                                const canSelect = !isBlocked && (isSelected || selectedComplimentaryDates.length < getTotalCreditsForRoom(creditsBookingForm.room_id));
+
+                                // Show blocked dates with a block icon instead of checkbox
+                                if (isBlocked) {
+                                  return (
+                                    <Box
+                                      key={date}
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 0.5,
+                                        backgroundColor: 'rgba(211, 47, 47, 0.12)',
+                                        borderRadius: 1,
+                                        mr: 1,
+                                        mb: 1,
+                                        px: 1,
+                                        py: 0.5,
+                                        border: '1px solid rgba(211, 47, 47, 0.4)',
+                                        cursor: 'not-allowed',
+                                      }}
+                                    >
+                                      <BlockIcon sx={{ fontSize: 18, color: 'error.main' }} />
+                                      <Typography
+                                        variant="body2"
+                                        sx={{
+                                          textDecoration: 'line-through',
+                                          color: 'error.main',
+                                          fontSize: '0.85rem',
+                                        }}
+                                      >
+                                        {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                      </Typography>
+                                    </Box>
+                                  );
+                                }
+
+                                return (
+                                  <FormControlLabel
+                                    key={date}
+                                    control={
+                                      <Checkbox
+                                        checked={isSelected}
+                                        onChange={() => handleCreditsDateToggle(date)}
+                                        disabled={!canSelect && !isSelected}
+                                        color="secondary"
+                                      />
+                                    }
+                                    label={new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                    sx={{
+                                      backgroundColor: isSelected ? 'rgba(156, 39, 176, 0.1)' : 'transparent',
+                                      borderRadius: 1,
+                                      mr: 1,
+                                      mb: 1,
+                                      px: 1,
+                                    }}
+                                  />
+                                );
+                              })}
+                            </FormGroup>
+                          </Paper>
+                          {selectedComplimentaryDates.length > 0 && (
+                            <Alert severity="success" sx={{ mt: 1 }}>
+                              {selectedComplimentaryDates.length} night(s) will be complimentary (Free Gift)
+                            </Alert>
+                          )}
+                        </Grid>
+                      )}
+
+                      <Grid item xs={6}>
+                        <TextField
+                          label="Adults"
+                          type="number"
+                          fullWidth
+                          value={creditsBookingForm.adults}
+                          onChange={(e) => setCreditsBookingForm({ ...creditsBookingForm, adults: parseInt(e.target.value) || 1 })}
+                          inputProps={{ min: 1, max: 10 }}
+                        />
+                      </Grid>
+                      <Grid item xs={6}>
+                        <TextField
+                          label="Children"
+                          type="number"
+                          fullWidth
+                          value={creditsBookingForm.children}
+                          onChange={(e) => setCreditsBookingForm({ ...creditsBookingForm, children: parseInt(e.target.value) || 0 })}
+                          inputProps={{ min: 0, max: 10 }}
+                        />
+                      </Grid>
+
+                      <Grid item xs={12}>
+                        <Button
+                          variant="contained"
+                          color="secondary"
+                          fullWidth
+                          size="large"
+                          startIcon={bookingWithCredits ? <CircularProgress size={20} color="inherit" /> : <GiftIcon />}
+                          onClick={handleBookWithCreditsAndCheckIn}
+                          disabled={
+                            bookingWithCredits ||
+                            !creditsBookingForm.room_id ||
+                            selectedComplimentaryDates.length === 0 ||
+                            getCreditsBookingDates().length === 0
+                          }
+                        >
+                          {bookingWithCredits ? 'Creating Booking...' : 'Book with Free Gift Credits'}
+                        </Button>
+                      </Grid>
+                    </>
+                  )}
+                </Grid>
+              )}
+            </Box>
+          )}
         </DialogContent>
+
         <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
           <Button onClick={() => setGuestDetailsDialogOpen(false)} variant="outlined">Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Mark as Complimentary Dialog */}
+      <Dialog
+        open={complimentaryDialogOpen}
+        onClose={() => !markingComplimentary && setComplimentaryDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ bgcolor: 'secondary.main', color: 'white', py: 2, px: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <GiftIcon sx={{ fontSize: 28 }} />
+            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+              Mark Booking as Complimentary
+            </Typography>
+          </Box>
+        </DialogTitle>
+
+        <DialogContent sx={{ pt: 3 }}>
+          {selectedBooking && (
+            <Grid container spacing={3}>
+              {/* Booking Info */}
+              <Grid item xs={12}>
+                <Paper sx={{ p: 2, bgcolor: 'grey.100' }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Booking Details
+                  </Typography>
+                  <Grid container spacing={1}>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Room:
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" fontWeight="bold">
+                        {selectedRoom?.room_number} - {selectedRoom?.room_type}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Guest:
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" fontWeight="bold">
+                        {selectedBooking.guest_name}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Check-in Date:
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2">
+                        {new Date(selectedBooking.check_in_date).toLocaleDateString()}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Check-out Date:
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2">
+                        {new Date(selectedBooking.check_out_date).toLocaleDateString()}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Original Amount:
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" sx={{ textDecoration: 'line-through', color: 'error.main' }}>
+                        {currencySymbol}{Number(selectedBooking.total_amount).toFixed(2)}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        New Amount:
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <Typography variant="body2" fontWeight="bold" color="success.main">
+                        {currencySymbol}0.00 (Complimentary)
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              </Grid>
+
+              {/* Reason Input */}
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Reason for Complimentary Stay"
+                  placeholder="e.g., VIP guest, compensation, promotional offer"
+                  value={complimentaryReason}
+                  onChange={(e) => setComplimentaryReason(e.target.value)}
+                  multiline
+                  rows={2}
+                />
+              </Grid>
+
+              {/* Info Alert */}
+              <Grid item xs={12}>
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  Marking this booking as complimentary will set the total amount to {currencySymbol}0.00.
+                  If the guest cancels or doesn't show up, the complimentary nights will be converted to credits for future use.
+                </Alert>
+              </Grid>
+            </Grid>
+          )}
+        </DialogContent>
+
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
+          <Button onClick={() => setComplimentaryDialogOpen(false)} disabled={markingComplimentary}>
+            Cancel
+          </Button>
+          <Box sx={{ flex: 1 }} />
+          <Button
+            variant="contained"
+            color="secondary"
+            onClick={handleConfirmMarkComplimentary}
+            disabled={markingComplimentary}
+            startIcon={markingComplimentary ? <CircularProgress size={20} /> : <GiftIcon />}
+            size="large"
+          >
+            {markingComplimentary ? 'Processing...' : 'Confirm Complimentary'}
+          </Button>
         </DialogActions>
       </Dialog>
 

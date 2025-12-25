@@ -59,6 +59,13 @@ async fn generate_report(
     headers: HeaderMap,
     query: Query<handlers::analytics::ReportQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_permission_helper(&pool, &headers, "analytics:read").await?;
+    // Allow users with either analytics:read OR reports:execute permission
+    let has_analytics = require_permission_helper(&pool, &headers, "analytics:read").await.is_ok();
+    let has_reports = require_permission_helper(&pool, &headers, "reports:execute").await.is_ok();
+
+    if !has_analytics && !has_reports {
+        return Err(ApiError::Forbidden("reports:execute or analytics:read permission required".to_string()));
+    }
+
     handlers::analytics::generate_report_handler(State(pool), query).await
 }

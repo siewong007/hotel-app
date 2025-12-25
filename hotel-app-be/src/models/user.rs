@@ -4,6 +4,14 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+/// User type enum matching PostgreSQL UserType
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
+#[sqlx(type_name = "usertype", rename_all = "lowercase")]
+pub enum UserType {
+    Staff,
+    Guest,
+}
+
 /// Core user entity
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct User {
@@ -14,7 +22,7 @@ pub struct User {
     pub phone: Option<String>,
     pub is_active: bool,
     pub is_verified: bool,
-    pub user_type: Option<String>,
+    pub user_type: Option<UserType>,
     pub two_factor_enabled: Option<bool>,
     pub two_factor_secret: Option<String>,
     pub two_factor_recovery_codes: Option<String>,
