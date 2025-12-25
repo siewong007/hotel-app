@@ -43,6 +43,9 @@ pub struct Booking {
     pub complimentary_end_date: Option<NaiveDate>,
     pub original_total_amount: Option<Decimal>,
     pub complimentary_nights: Option<i32>,
+    pub deposit_paid: Option<bool>,
+    pub deposit_amount: Option<Decimal>,
+    pub deposit_paid_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -66,6 +69,8 @@ pub struct BookingInput {
     pub payment_method: Option<String>,
     pub source: Option<String>,         // walk_in, online, phone, agent
     pub booking_number: Option<String>, // Optional - if provided, use this instead of auto-generating
+    pub deposit_paid: Option<bool>,
+    pub deposit_amount: Option<f64>,
 }
 
 /// Input for cancelling a booking
@@ -99,6 +104,8 @@ pub struct BookingUpdateInput {
     pub rate_override_weekend: Option<f64>,
     pub check_in_time: Option<String>,
     pub check_out_time: Option<String>,
+    pub deposit_paid: Option<bool>,
+    pub deposit_amount: Option<f64>,
 }
 
 /// Request for checking in a guest
@@ -149,5 +156,7 @@ pub struct BookingWithDetails {
     pub complimentary_end_date: Option<NaiveDate>,
     pub original_total_amount: Option<Decimal>,
     pub complimentary_nights: Option<i32>,
+    pub deposit_paid: Option<bool>,
+    pub deposit_amount: Option<Decimal>,
     pub created_at: DateTime<Utc>,
 }

@@ -178,14 +178,18 @@ pub async fn create_booking_handler(
 
     let source = input.source.clone().unwrap_or_else(|| "walk_in".to_string());
 
+    let deposit_paid = input.deposit_paid.unwrap_or(false);
+    let deposit_amount = input.deposit_amount.map(|d| Decimal::from_f64_retain(d).unwrap_or(Decimal::ZERO));
+
     let booking: Booking = sqlx::query_as(
         r#"
         INSERT INTO bookings (
             booking_number, guest_id, room_id, check_in_date, check_out_date,
-            room_rate, subtotal, tax_amount, total_amount, status, remarks, created_by, adults, source
+            room_rate, subtotal, tax_amount, total_amount, status, remarks, created_by, adults, source,
+            deposit_paid, deposit_amount, deposit_paid_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, 1, $12)
-        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, created_at, updated_at
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, 1, $12, $13, $14, CASE WHEN $13 THEN CURRENT_TIMESTAMP ELSE NULL END)
+        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, created_at, updated_at
         "#
     )
     .bind(&booking_number)
@@ -200,6 +204,8 @@ pub async fn create_booking_handler(
     .bind(input.booking_remarks.as_deref())
     .bind(user_id)
     .bind(&source)
+    .bind(deposit_paid)
+    .bind(deposit_amount)
     .fetch_one(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -226,7 +232,7 @@ pub async fn get_booking_handler(
             b.check_in_date, b.check_out_date, b.total_amount, b.status,
             b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
-            b.created_at
+            b.deposit_paid, b.deposit_amount, b.created_at
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id
         INNER JOIN rooms r ON b.room_id = r.id
@@ -334,8 +340,20 @@ pub async fn update_booking_handler(
 
     let new_payment_status = input.payment_status.as_ref().unwrap_or(&existing_booking.payment_status.clone().unwrap_or_else(|| "unpaid".to_string())).clone();
 
+    // Handle deposit fields
+    let deposit_paid = input.deposit_paid;
+    let deposit_amount = input.deposit_amount.map(|d| Decimal::from_f64_retain(d).unwrap_or(Decimal::ZERO));
+
     let booking: Booking = sqlx::query_as(
-        "UPDATE bookings SET room_id = $1, status = $2, check_in_date = $3, check_out_date = $4, post_type = $5, payment_status = $6, updated_at = CURRENT_TIMESTAMP WHERE id = $7 RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, created_at, updated_at"
+        r#"UPDATE bookings SET
+            room_id = $1, status = $2, check_in_date = $3, check_out_date = $4,
+            post_type = $5, payment_status = $6,
+            deposit_paid = COALESCE($8, deposit_paid),
+            deposit_amount = COALESCE($9, deposit_amount),
+            deposit_paid_at = CASE WHEN $8 = true AND deposit_paid_at IS NULL THEN CURRENT_TIMESTAMP ELSE deposit_paid_at END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $7
+        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, created_at, updated_at"#
     )
     .bind(&new_room_id)
     .bind(&new_status)
@@ -344,6 +362,8 @@ pub async fn update_booking_handler(
     .bind(&post_type)
     .bind(&new_payment_status)
     .bind(booking_id)
+    .bind(deposit_paid)
+    .bind(deposit_amount)
     .fetch_one(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;

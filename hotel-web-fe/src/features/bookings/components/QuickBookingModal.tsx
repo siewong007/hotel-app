@@ -83,6 +83,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   const [extraBedCount, setExtraBedCount] = useState(0);
   const [extraBedCharge, setExtraBedCharge] = useState(0);
   const [lateCheckoutPenalty, setLateCheckoutPenalty] = useState(0);
+  const [depositPaid, setDepositPaid] = useState(false);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -304,6 +305,8 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
         room_card_deposit: roomCardDeposit,
         late_checkout_penalty: lateCheckoutPenalty,
         payment_method: paymentMethod,
+        deposit_paid: depositPaid,
+        deposit_amount: depositPaid ? roomCardDeposit : 0,
       });
 
       // Note: Booking is created with status 'confirmed' which shows room as 'reserved'
@@ -644,6 +647,28 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   onChange={(e) => setRoomCardDeposit(parseFloat(e.target.value) || 0)}
                   InputProps={{ startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography> }}
                   helperText="Refundable deposit for room card"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={depositPaid}
+                      onChange={(e) => setDepositPaid(e.target.checked)}
+                      color="success"
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: depositPaid ? 'success.main' : 'text.primary' }}>
+                        Deposit Paid
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Check if guest has paid the deposit
+                      </Typography>
+                    </Box>
+                  }
+                  sx={{ mt: 1 }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
