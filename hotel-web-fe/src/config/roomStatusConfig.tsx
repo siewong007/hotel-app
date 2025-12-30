@@ -6,7 +6,6 @@ import {
   CleaningServices as CleaningIcon,
   Report as DirtyIcon,
   Build as MaintenanceIcon,
-  Cancel as OutOfOrderIcon,
 } from '@mui/icons-material';
 import { ChipPropsColorOverrides } from '@mui/material/Chip';
 import { OverridableStringUnion } from '@mui/types';
@@ -14,6 +13,14 @@ import { OverridableStringUnion } from '@mui/types';
 /**
  * Room Status Type Definition
  * All possible room statuses in the system
+ *
+ * Status Overview:
+ * - available (Vacant/Clean): Room ready for booking, can check-in with booking details
+ * - occupied: Guest checked in, shows guest details on room card
+ * - reserved: Has upcoming booking, can check-in directly (details already entered)
+ * - dirty: Needs cleaning, can still check-in with booking details
+ * - cleaning: Being cleaned, can still check-in with booking details
+ * - maintenance: Under repair, NO check-in, NO upcoming bookings
  */
 export type RoomStatusType =
   | 'available'
@@ -21,8 +28,7 @@ export type RoomStatusType =
   | 'reserved'
   | 'cleaning'
   | 'dirty'
-  | 'maintenance'
-  | 'out_of_order';
+  | 'maintenance';
 
 /**
  * Booking Status Type Definition
@@ -48,7 +54,6 @@ export type DisplayStatusType =
   | 'cleaning'
   | 'dirty'
   | 'maintenance'
-  | 'out_of_order'
   | 'pending'
   | 'checked_out'
   | 'cancelled';
@@ -100,8 +105,8 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     borderColor: '#43A047',
 
     // Content
-    label: 'Available',
-    shortLabel: 'Avail',
+    label: 'Vacant/Clean',
+    shortLabel: 'Vacant',
     description: 'Room is clean and ready for booking',
     detailMessage: 'Ready to book',
     icon: AvailableIcon,
@@ -113,7 +118,7 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
 
     // Classification
     category: 'operational',
-    allowedTransitions: ['reserved', 'occupied', 'cleaning', 'dirty', 'maintenance', 'out_of_order'],
+    allowedTransitions: ['reserved', 'occupied', 'cleaning', 'dirty', 'maintenance'],
   },
 
   occupied: {
@@ -198,7 +203,7 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
 
     // Content
     label: 'Cleaning',
-    shortLabel: 'Clean',
+    shortLabel: 'Clng',
     description: 'Housekeeping is actively cleaning',
     detailMessage: 'Being cleaned',
     icon: CleaningIcon,
@@ -236,32 +241,7 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
 
     // Classification
     category: 'maintenance',
-    allowedTransitions: ['available', 'cleaning', 'dirty', 'out_of_order'],
-  },
-
-  out_of_order: {
-    // Visual
-    color: 'default',
-    bgColor: '#424242',
-    textColor: '#fff',
-    borderColor: '#212121',
-
-    // Content
-    label: 'Out of Order',
-    shortLabel: 'OOO',
-    description: 'Room is completely out of service',
-    detailMessage: 'Out of service',
-    icon: OutOfOrderIcon,
-
-    // Behavior
-    isAvailableForBooking: false,
-    requiresAction: true,
-    actionLabel: 'Restore to Service',
-    priority: 7,
-
-    // Classification
-    category: 'maintenance',
-    allowedTransitions: ['maintenance', 'available'],
+    allowedTransitions: ['available', 'cleaning', 'dirty'],
   },
 };
 
@@ -322,7 +302,6 @@ export interface StatusStatistics {
   dirty: number;
   cleaning: number;
   maintenance: number;
-  out_of_order: number;
   availablePercentage: number;
   occupancyRate: number;
 }
@@ -338,7 +317,6 @@ export const calculateStatusStatistics = (
     dirty: 0,
     cleaning: 0,
     maintenance: 0,
-    out_of_order: 0,
     availablePercentage: 0,
     occupancyRate: 0,
   };

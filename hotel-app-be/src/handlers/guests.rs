@@ -87,10 +87,13 @@ pub async fn create_guest_handler(
         return Err(ApiError::BadRequest("Invalid email format".to_string()));
     }
 
+    // Compute full_name from first_name and last_name
+    let full_name = format!("{} {}", input.first_name.trim(), input.last_name.trim()).trim().to_string();
+
     let guest = sqlx::query_as::<_, Guest>(
         r#"
-        INSERT INTO guests (first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        INSERT INTO guests (full_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country,
                   NULL::TEXT as title, NULL::TEXT as alt_phone,
                   true as is_active,
@@ -98,6 +101,7 @@ pub async fn create_guest_handler(
                   created_at, updated_at
         "#
     )
+    .bind(&full_name)
     .bind(&input.first_name)
     .bind(&input.last_name)
     .bind(&input.email)
@@ -152,28 +156,32 @@ pub async fn update_guest_handler(
     let alt_phone = input.alt_phone.or(existing_alt_phone);
     let _is_active = input.is_active.unwrap_or(existing_is_active);
 
-    // Update first_name and last_name (full_name is auto-generated)
+    // Compute full_name from first_name and last_name
+    let full_name = format!("{} {}", first_name.trim(), last_name.trim()).trim().to_string();
+
     let updated_guest: Guest = sqlx::query_as(
         r#"
         UPDATE guests
-        SET first_name = $1,
-            last_name = $2,
-            email = $3,
-            phone = $4,
-            ic_number = $5,
-            nationality = $6,
-            address_line_1 = $7,
-            city = $8,
-            state = $9,
-            postal_code = $10,
-            country = $11,
-            title = $12,
-            alt_phone = $13,
+        SET full_name = $1,
+            first_name = $2,
+            last_name = $3,
+            email = $4,
+            phone = $5,
+            ic_number = $6,
+            nationality = $7,
+            address_line_1 = $8,
+            city = $9,
+            state = $10,
+            postal_code = $11,
+            country = $12,
+            title = $13,
+            alt_phone = $14,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $14
+        WHERE id = $15
         RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at
         "#
     )
+    .bind(&full_name)
     .bind(&first_name)
     .bind(&last_name)
     .bind(&email)

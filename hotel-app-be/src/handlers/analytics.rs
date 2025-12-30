@@ -1374,7 +1374,7 @@ async fn generate_complimentary_report(
             total_original_amount += original.unwrap_or(Decimal::ZERO);
             total_actual_amount += actual;
 
-            if status == "fully_complimentary" {
+            if status == "complimentary" {
                 full_count += 1;
             } else if status == "partial_complimentary" {
                 partial_count += 1;

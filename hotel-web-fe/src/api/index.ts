@@ -44,6 +44,7 @@ export class HotelAPIService {
   // Room operations
   static getAllRooms = RoomsService.getAllRooms;
   static searchRooms = RoomsService.searchRooms;
+  static getAvailableRoomsForDates = RoomsService.getAvailableRoomsForDates;
   static updateRoom = RoomsService.updateRoom;
   static updateRoomStatus = RoomsService.updateRoomStatus;
   static endMaintenance = RoomsService.endMaintenance;
@@ -87,6 +88,11 @@ export class HotelAPIService {
   static markBookingComplimentary = BookingsService.markBookingComplimentary;
   static convertComplimentaryToCredits = BookingsService.convertComplimentaryToCredits;
   static bookWithCredits = BookingsService.bookWithCredits;
+  static getComplimentaryBookings = BookingsService.getComplimentaryBookings;
+  static getComplimentarySummary = BookingsService.getComplimentarySummary;
+  static updateComplimentary = BookingsService.updateComplimentary;
+  static removeComplimentary = BookingsService.removeComplimentary;
+  static getGuestsWithCredits = BookingsService.getGuestsWithCredits;
 
   // Rate operations
   static getRateCodes = RatesService.getRateCodes;

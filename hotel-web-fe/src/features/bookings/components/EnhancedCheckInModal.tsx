@@ -35,7 +35,7 @@ import {
   Business as BusinessIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import { HotelAPIService } from '../../../api';
+import { HotelAPIService, LedgerService } from '../../../api';
 import {
   Booking,
   Guest,
@@ -43,7 +43,8 @@ import {
   GuestUpdateRequest,
   BookingUpdateRequest,
   RateCodesResponse,
-  MarketCodesResponse
+  MarketCodesResponse,
+  CustomerLedgerCreateRequest
 } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 
@@ -113,13 +114,20 @@ interface ValidationErrors {
 
 // Company option for autocomplete
 interface CompanyOption {
+  id?: number;
   inputValue?: string;
   company_name: string;
-  company_registration_number?: string;
+  registration_number?: string;
+  company_registration_number?: string; // Alias for backwards compatibility
   contact_person?: string;
   contact_email?: string;
   contact_phone?: string;
   billing_address?: string;
+  billing_city?: string;
+  billing_state?: string;
+  billing_postal_code?: string;
+  billing_country?: string;
+  payment_terms_days?: number;
   isNew?: boolean;
 }
 
@@ -159,7 +167,7 @@ export default function EnhancedCheckInModal({
   guest,
   onCheckInSuccess,
 }: EnhancedCheckInModalProps) {
-  const { format: formatCurrency } = useCurrency();
+  const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -220,6 +228,9 @@ export default function EnhancedCheckInModal({
   // Snackbar for notifications
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+
+  // Company Ledger state
+  const [creatingLedger, setCreatingLedger] = useState(false);
 
   // Dropdowns data
   const [rateCodes, setRateCodes] = useState<string[]>([]);
@@ -492,9 +503,18 @@ export default function EnhancedCheckInModal({
     setError(null);
 
     try {
+      // Include company info if Direct Billing is selected
+      const bookingUpdateWithCompany = {
+        ...bookingData,
+        ...(paymentType === 'Direct Billing' && selectedCompany ? {
+          company_id: selectedCompany.id,
+          company_name: selectedCompany.company_name,
+        } : {}),
+      };
+
       const checkinRequest: CheckInRequest = {
         guest_update: guestData,
-        booking_update: bookingData,
+        booking_update: bookingUpdateWithCompany,
       };
 
       await HotelAPIService.checkInGuest(booking.id, checkinRequest);
@@ -504,6 +524,53 @@ export default function EnhancedCheckInModal({
       setError(err.message || 'Failed to check in guest');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateCompanyLedger = async () => {
+    if (!booking || !selectedCompany) {
+      setError('Please select a company for Direct Billing first');
+      return;
+    }
+
+    setCreatingLedger(true);
+    setError(null);
+
+    try {
+      const totalAmount = typeof booking.total_amount === 'string'
+        ? parseFloat(booking.total_amount)
+        : booking.total_amount;
+
+      const ledgerData: CustomerLedgerCreateRequest = {
+        company_name: selectedCompany.company_name,
+        company_registration_number: selectedCompany.registration_number,
+        contact_person: selectedCompany.contact_person,
+        contact_email: selectedCompany.contact_email,
+        contact_phone: selectedCompany.contact_phone,
+        billing_address_line1: selectedCompany.billing_address,
+        billing_city: selectedCompany.billing_city,
+        billing_state: selectedCompany.billing_state,
+        billing_postal_code: selectedCompany.billing_postal_code,
+        billing_country: selectedCompany.billing_country,
+        description: `Room charge for booking ${booking.booking_number || booking.id} - ${guest?.full_name || 'Guest'}`,
+        expense_type: 'accommodation',
+        amount: totalAmount || 0,
+        booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
+        guest_id: typeof booking.guest_id === 'string' ? parseInt(booking.guest_id) : booking.guest_id,
+        due_date: format(new Date(new Date().getTime() + (selectedCompany.payment_terms_days || 30) * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+        folio_type: 'city_ledger',
+        transaction_type: 'debit',
+        post_type: 'room_charge',
+        room_number: (booking as any).room_number || String(booking.room_id),
+      };
+
+      await LedgerService.createCustomerLedger(ledgerData);
+      setSnackbarMessage(`Company ledger created for ${selectedCompany.company_name}`);
+      setSnackbarOpen(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create company ledger');
+    } finally {
+      setCreatingLedger(false);
     }
   };
 
@@ -815,7 +882,7 @@ export default function EnhancedCheckInModal({
                 onChange={(e) => setWeekdayRate(e.target.value)}
                 disabled={!overrideRate}
                 InputProps={{
-                  startAdornment: <InputAdornment position="start">RM</InputAdornment>,
+                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                 }}
               />
             </Grid>
@@ -828,7 +895,7 @@ export default function EnhancedCheckInModal({
                 onChange={(e) => setWeekendRate(e.target.value)}
                 disabled={!overrideRate}
                 InputProps={{
-                  startAdornment: <InputAdornment position="start">RM</InputAdornment>,
+                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                 }}
               />
             </Grid>
@@ -1314,7 +1381,7 @@ export default function EnhancedCheckInModal({
                 value={booking.tourism_tax_amount || 0}
                 disabled
                 InputProps={{
-                  startAdornment: <InputAdornment position="start">RM</InputAdornment>,
+                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                 }}
               />
             </Grid>
@@ -1325,7 +1392,7 @@ export default function EnhancedCheckInModal({
                 value={booking.room_card_deposit || 0}
                 disabled
                 InputProps={{
-                  startAdornment: <InputAdornment position="start">RM</InputAdornment>,
+                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                 }}
               />
             </Grid>
@@ -1345,7 +1412,7 @@ export default function EnhancedCheckInModal({
                 value={booking.extra_bed_charge || 0}
                 disabled
                 InputProps={{
-                  startAdornment: <InputAdornment position="start">RM</InputAdornment>,
+                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                 }}
               />
             </Grid>
@@ -1404,8 +1471,14 @@ export default function EnhancedCheckInModal({
           </Button>
         </Box>
         <Box>
-          <Button variant="outlined" disabled={loading} sx={{ mr: 1 }}>
-            Company Ledger
+          <Button
+            variant="outlined"
+            disabled={loading || creatingLedger || paymentType !== 'Direct Billing' || !selectedCompany}
+            onClick={handleCreateCompanyLedger}
+            sx={{ mr: 1 }}
+            startIcon={creatingLedger ? <CircularProgress size={16} /> : <BusinessIcon />}
+          >
+            {creatingLedger ? 'Creating...' : 'Company Ledger'}
           </Button>
           <Button
             variant="contained"

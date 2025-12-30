@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     id BIGINT PRIMARY KEY DEFAULT nextval('bookings_id_seq'),
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     booking_number VARCHAR(50) UNIQUE NOT NULL,
+    folio_number VARCHAR(50),
 
     -- Guest information
     guest_id BIGINT NOT NULL REFERENCES guests(id),
@@ -59,14 +60,23 @@ CREATE TABLE IF NOT EXISTS bookings (
     late_checkout_penalty DECIMAL(10,2) DEFAULT 0,
     is_complimentary BOOLEAN DEFAULT false,
     complimentary_reason TEXT,
+    complimentary_start_date DATE,
+    complimentary_end_date DATE,
+    original_total_amount DECIMAL(12,2),
+    complimentary_nights INTEGER DEFAULT 0,
+
+    -- Deposit tracking
+    deposit_paid BOOLEAN DEFAULT false,
+    deposit_amount DECIMAL(10,2) DEFAULT 0,
+    deposit_paid_at TIMESTAMP WITH TIME ZONE,
 
     -- Status
-    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN (
+    status VARCHAR(30) DEFAULT 'pending' CHECK (status IN (
         'pending', 'confirmed', 'checked_in', 'checked_out',
-        'cancelled', 'no_show', 'completed', 'complimentarise'
+        'cancelled', 'no_show', 'completed', 'complimentary', 'partial_complimentary'
     )),
-    payment_status VARCHAR(20) DEFAULT 'unpaid' CHECK (payment_status IN (
-        'unpaid', 'partial', 'paid', 'refunded', 'cancelled'
+    payment_status VARCHAR(30) DEFAULT 'unpaid' CHECK (payment_status IN (
+        'unpaid', 'unpaid_deposit', 'paid'
     )),
     payment_method VARCHAR(100),
     market_code VARCHAR(50),
@@ -90,8 +100,9 @@ CREATE TABLE IF NOT EXISTS bookings (
     internal_notes TEXT,
     remarks TEXT,
 
-    -- Booking source
+    -- Booking source and type
     source VARCHAR(50) DEFAULT 'direct',
+    post_type VARCHAR(50) DEFAULT 'normal_stay',
     channel VARCHAR(50),
     commission_rate DECIMAL(5,2),
 
@@ -108,8 +119,19 @@ CREATE TABLE IF NOT EXISTS bookings (
     updated_by BIGINT REFERENCES users(id),
 
     CONSTRAINT valid_dates CHECK (check_out_date > check_in_date),
-    CONSTRAINT valid_occupancy CHECK (adults + children + infants > 0)
+    CONSTRAINT valid_occupancy CHECK (adults + children + infants > 0),
+    CONSTRAINT valid_complimentary_dates CHECK (
+        (complimentary_start_date IS NULL AND complimentary_end_date IS NULL) OR
+        (complimentary_start_date IS NOT NULL AND complimentary_end_date IS NOT NULL AND
+         complimentary_start_date >= check_in_date AND
+         complimentary_end_date <= check_out_date AND
+         complimentary_start_date < complimentary_end_date)
+    )
 );
+
+-- Indexes for bookings
+CREATE INDEX IF NOT EXISTS idx_bookings_complimentary_status
+    ON bookings(status) WHERE status IN ('partial_complimentary', 'fully_complimentary');
 
 -- Add foreign key for guest_complimentary_credits
 ALTER TABLE guest_complimentary_credits ADD CONSTRAINT fk_guest_credits_room_type

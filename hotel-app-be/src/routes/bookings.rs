@@ -18,10 +18,20 @@ use crate::core::error::ApiError;
 /// Create booking routes
 pub fn routes() -> Router<PgPool> {
     Router::new()
+        // Static routes MUST come before parameterized routes
         .route("/bookings", get(get_bookings))
         .route("/bookings", post(create_booking))
         .route("/bookings/my-bookings", get(get_my_bookings))
+        .route("/bookings/complimentary", get(get_complimentary_bookings))
+        .route("/bookings/book-with-credits", post(book_with_credits))
         .route("/bookings/cancel", post(cancel_booking))
+        // Complimentary management routes (static paths)
+        .route("/complimentary/summary", get(get_complimentary_summary))
+        .route("/guests/credits", get(get_guests_with_credits))
+        // Code lookup routes
+        .route("/rate-codes", get(get_rate_codes))
+        .route("/market-codes", get(get_market_codes))
+        // Parameterized routes come AFTER static routes
         .route("/bookings/:id", get(get_booking))
         .route("/bookings/:id", patch(update_booking))
         .route("/bookings/:id", put(update_booking))
@@ -29,11 +39,9 @@ pub fn routes() -> Router<PgPool> {
         .route("/bookings/:id/checkin", post(manual_checkin))
         .route("/bookings/:id/pre-checkin", patch(pre_checkin_update))
         .route("/bookings/:id/complimentary", post(mark_complimentary))
+        .route("/bookings/:id/complimentary", patch(update_complimentary))
+        .route("/bookings/:id/complimentary", delete(remove_complimentary))
         .route("/bookings/:id/convert-credits", post(convert_complimentary_to_credits))
-        .route("/bookings/book-with-credits", post(book_with_credits))
-        // Code lookup routes
-        .route("/rate-codes", get(get_rate_codes))
-        .route("/market-codes", get(get_market_codes))
 }
 
 async fn get_bookings(
@@ -157,4 +165,47 @@ async fn book_with_credits(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Only requires authentication - user can book for their linked guests
     handlers::bookings::book_with_credits_handler(State(pool), headers, Json(input)).await
+}
+
+async fn get_complimentary_bookings(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<models::BookingWithDetails>>, ApiError> {
+    require_permission_helper(&pool, &headers, "bookings:read").await?;
+    handlers::bookings::get_complimentary_bookings_handler(State(pool)).await
+}
+
+async fn get_complimentary_summary(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_permission_helper(&pool, &headers, "bookings:read").await?;
+    handlers::bookings::get_complimentary_summary_handler(State(pool)).await
+}
+
+async fn update_complimentary(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    Json(input): Json<handlers::bookings::UpdateComplimentaryRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
+    handlers::bookings::update_complimentary_handler(State(pool), Extension(user_id), path, Json(input)).await
+}
+
+async fn remove_complimentary(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
+    handlers::bookings::remove_complimentary_handler(State(pool), Extension(user_id), path).await
+}
+
+async fn get_guests_with_credits(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_permission_helper(&pool, &headers, "guests:read").await?;
+    handlers::bookings::get_guests_with_credits_handler(State(pool)).await
 }

@@ -77,13 +77,14 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
 
   // Payment and charges state
   const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [paymentStatus, setPaymentStatus] = useState<'unpaid' | 'unpaid_deposit' | 'paid'>('unpaid');
+  const [amountPaid, setAmountPaid] = useState(0);
   const [roomCardDeposit, setRoomCardDeposit] = useState(50);
   const [isTourist, setIsTourist] = useState(false);
   const [tourismTax, setTourismTax] = useState(0);
   const [extraBedCount, setExtraBedCount] = useState(0);
   const [extraBedCharge, setExtraBedCharge] = useState(0);
   const [lateCheckoutPenalty, setLateCheckoutPenalty] = useState(0);
-  const [depositPaid, setDepositPaid] = useState(false);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -176,6 +177,8 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     setPostType('normal_stay');
     setRateCode('RACK');
     setPaymentMethod('Cash');
+    setPaymentStatus('unpaid');
+    setAmountPaid(0);
     setIsTourist(false);
     setTourismTax(0);
     setExtraBedCount(0);
@@ -275,8 +278,10 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     // Validate dates
     const checkIn = new Date(checkInDate);
     const checkOut = new Date(checkOutDate);
+    checkIn.setHours(0, 0, 0, 0);
+    checkOut.setHours(0, 0, 0, 0);
     if (checkOut <= checkIn) {
-      setError('Check-out date must be after check-in date');
+      setError('Check-out date must be after check-in date. Please select a check-out date that is at least 1 day after check-in.');
       return;
     }
 
@@ -305,8 +310,10 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
         room_card_deposit: roomCardDeposit,
         late_checkout_penalty: lateCheckoutPenalty,
         payment_method: paymentMethod,
-        deposit_paid: depositPaid,
-        deposit_amount: depositPaid ? roomCardDeposit : 0,
+        payment_status: paymentStatus,
+        amount_paid: amountPaid,
+        deposit_paid: paymentStatus !== 'unpaid',
+        deposit_amount: paymentStatus === 'unpaid' ? 0 : amountPaid,
       });
 
       // Note: Booking is created with status 'confirmed' which shows room as 'reserved'
@@ -650,25 +657,30 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={depositPaid}
-                      onChange={(e) => setDepositPaid(e.target.checked)}
-                      color="success"
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: depositPaid ? 'success.main' : 'text.primary' }}>
-                        Deposit Paid
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        Check if guest has paid the deposit
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ mt: 1 }}
+                <TextField
+                  select
+                  fullWidth
+                  label="Payment Status"
+                  value={paymentStatus}
+                  onChange={(e) => setPaymentStatus(e.target.value as 'unpaid' | 'unpaid_deposit' | 'paid')}
+                  SelectProps={{ native: true }}
+                  required
+                >
+                  <option value="unpaid">Unpaid</option>
+                  <option value="unpaid_deposit">Deposit Paid</option>
+                  <option value="paid">Fully Paid</option>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Amount Paid"
+                  type="number"
+                  value={amountPaid}
+                  onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
+                  InputProps={{ startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography> }}
+                  disabled={paymentStatus === 'unpaid'}
+                  helperText={paymentStatus === 'unpaid' ? 'Set payment status to enter amount' : 'Enter amount received from guest'}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>

@@ -125,8 +125,54 @@ pub async fn search_rooms_handler(
     State(pool): State<PgPool>,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<Vec<RoomWithRating>>, ApiError> {
-    // Search for available rooms using dynamic status based on current bookings
-    let mut sql = r#"
+    // Parse date range if provided for availability check
+    let check_in: Option<NaiveDate> = query.check_in_date.as_ref()
+        .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
+    let check_out: Option<NaiveDate> = query.check_out_date.as_ref()
+        .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
+
+    // Build query based on whether date range is provided
+    let sql = if check_in.is_some() && check_out.is_some() {
+        // Query with date range - check for conflicts in the specified period
+        r#"
+        WITH conflicting_bookings AS (
+            SELECT DISTINCT room_id
+            FROM bookings
+            WHERE status NOT IN ('cancelled', 'no_show', 'checked_out')
+              AND (
+                  (check_in_date < $2 AND check_out_date > $1) -- Booking overlaps with requested dates
+              )
+        )
+        SELECT
+            r.id,
+            r.room_number,
+            rt.name as room_type,
+            COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
+            true as available,
+            rt.description,
+            rt.max_occupancy,
+            r.created_at,
+            r.updated_at,
+            NULL::DECIMAL as average_rating,
+            NULL::BIGINT as review_count,
+            'available' as status,
+            r.maintenance_start_date,
+            r.maintenance_end_date,
+            r.cleaning_start_date,
+            r.cleaning_end_date,
+            r.reserved_start_date,
+            r.reserved_end_date
+        FROM rooms r
+        INNER JOIN room_types rt ON r.room_type_id = rt.id
+        LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
+        WHERE r.is_active = true
+          AND r.status NOT IN ('maintenance', 'out_of_order')
+          AND cb.room_id IS NULL
+        ORDER BY COALESCE(r.custom_price, rt.base_price)
+        "#
+    } else {
+        // Query without date range - show rooms available today
+        r#"
         WITH current_bookings AS (
             SELECT DISTINCT ON (room_id)
                 room_id,
@@ -171,35 +217,18 @@ pub async fn search_rooms_handler(
               cb.booking_status = 'checked_in' OR
               (cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= CURRENT_DATE)
           ))
-    "#.to_string();
+        ORDER BY COALESCE(r.custom_price, rt.base_price)
+        "#
+    };
 
-    let mut params: Vec<String> = vec![];
-
-    if let Some(room_type) = &query.room_type {
-        sql.push_str(" AND rt.name ILIKE $1");
-        params.push(format!("%{}%", room_type));
-    }
-
-    if let Some(max_price) = query.max_price {
-        sql.push_str(" AND COALESCE(r.custom_price, rt.base_price) <= $2");
-        params.push(max_price.to_string());
-    }
-
-    sql.push_str(" ORDER BY COALESCE(r.custom_price, rt.base_price)");
-
-    let rows = if params.is_empty() {
-        sqlx::query(&sql)
-            .fetch_all(&pool)
-            .await
-    } else if params.len() == 1 {
-        sqlx::query(&sql)
-            .bind(&params[0])
+    let rows = if let (Some(ci), Some(co)) = (check_in, check_out) {
+        sqlx::query(sql)
+            .bind(ci)
+            .bind(co)
             .fetch_all(&pool)
             .await
     } else {
-        sqlx::query(&sql)
-            .bind(&params[0])
-            .bind(&params[1])
+        sqlx::query(sql)
             .fetch_all(&pool)
             .await
     }
@@ -658,7 +687,7 @@ pub async fn update_room_status_handler(
         r#"
         UPDATE rooms
         SET status = $1,
-            maintenance_notes = COALESCE($2, maintenance_notes),
+            notes = COALESCE($2, notes),
             status_notes = $3,
             reserved_start_date = $4,
             reserved_end_date = $5,
@@ -666,9 +695,8 @@ pub async fn update_room_status_handler(
             maintenance_end_date = $7,
             cleaning_start_date = $8,
             cleaning_end_date = $9,
-            target_room_id = $10,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $11
+        WHERE id = $10
         "#
     )
     .bind(&target_status)
@@ -680,7 +708,6 @@ pub async fn update_room_status_handler(
     .bind(&maintenance_end)
     .bind(&cleaning_start)
     .bind(&cleaning_end)
-    .bind(&input.target_room_id)
     .bind(room_id)
     .execute(&pool)
     .await
@@ -780,7 +807,6 @@ pub async fn end_maintenance_handler(
                 cleaning_end_date = NULL,
                 reserved_start_date = NULL,
                 reserved_end_date = NULL,
-                target_room_id = NULL,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $1
             "#
@@ -836,7 +862,6 @@ pub async fn end_maintenance_handler(
             cleaning_end_date = NULL,
             reserved_start_date = NULL,
             reserved_end_date = NULL,
-            target_room_id = NULL,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $1
         "#
@@ -1231,11 +1256,11 @@ pub async fn get_room_detailed_status_handler(
         r#"
         SELECT r.id, r.room_number, rt.name as room_type, r.status,
                CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
-               r.maintenance_notes, r.last_maintenance_date, r.next_maintenance_date,
+               r.notes, r.last_cleaned_at, r.last_inspected_at,
                r.reserved_start_date, r.reserved_end_date,
                r.maintenance_start_date, r.maintenance_end_date,
                r.cleaning_start_date, r.cleaning_end_date,
-               r.target_room_id, r.status_notes
+               r.connecting_room_id, r.status_notes
         FROM rooms r
         INNER JOIN room_types rt ON r.room_type_id = rt.id
         WHERE r.id = $1
@@ -1249,9 +1274,9 @@ pub async fn get_room_detailed_status_handler(
 
     let status: Option<String> = room_row.try_get(3).ok();
     let available: bool = room_row.try_get(4).unwrap_or(false);
-    let maintenance_notes: Option<String> = room_row.try_get(5).ok();
-    let last_maintenance_date: Option<NaiveDate> = room_row.try_get(6).ok();
-    let next_maintenance_date: Option<NaiveDate> = room_row.try_get(7).ok();
+    let maintenance_notes: Option<String> = room_row.try_get(5).ok(); // now 'notes' column
+    let last_maintenance_date: Option<DateTime<Utc>> = room_row.try_get(6).ok(); // now 'last_cleaned_at'
+    let next_maintenance_date: Option<DateTime<Utc>> = room_row.try_get(7).ok(); // now 'last_inspected_at'
     let reserved_start_date: Option<DateTime<Utc>> = room_row.try_get(8).ok();
     let reserved_end_date: Option<DateTime<Utc>> = room_row.try_get(9).ok();
     let maintenance_start_date: Option<DateTime<Utc>> = room_row.try_get(10).ok();

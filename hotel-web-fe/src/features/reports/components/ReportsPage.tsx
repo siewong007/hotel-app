@@ -17,17 +17,21 @@ import {
   Chip,
   Alert,
   CircularProgress,
-  MenuItem
+  MenuItem,
+  Tooltip
 } from '@mui/material';
 import {
   Download as DownloadIcon,
   Refresh as RefreshIcon,
-  Assessment as ReportIcon
+  Assessment as ReportIcon,
+  WarningAmber as LateIcon
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { BookingWithDetails } from '../../../types';
+import { useCurrency } from '../../../hooks/useCurrency';
 
 const ReportsPage: React.FC = () => {
+  const { format: formatCurrency } = useCurrency();
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,23 +99,45 @@ const ReportsPage: React.FC = () => {
       'Post Type',
       'Check-In Date',
       'Check-Out Date',
-      'Amount',
+      'Status',
+      'Payment Status',
+      'Room Amount',
+      'Deposit Amount',
+      'Late Checkout Penalty',
+      'Late Checkout Notes',
       'Rate'
     ];
 
     // CSV rows
-    const rows = bookings.map(booking => [
-      booking.created_at ? new Date(booking.created_at).toLocaleDateString() : '',
-      booking.room_number,
-      booking.room_type,
-      booking.folio_number || '-',
-      booking.guest_name,
-      booking.post_type === 'same_day' ? 'Same Day' : 'Normal Stay',
-      booking.check_in_date,
-      booking.check_out_date,
-      `$${typeof booking.total_amount === 'string' ? parseFloat(booking.total_amount).toFixed(2) : booking.total_amount.toFixed(2)}`,
-      booking.rate_code || 'RACK'
-    ]);
+    const rows = bookings.map(booking => {
+      const totalAmount = typeof booking.total_amount === 'string'
+        ? parseFloat(booking.total_amount)
+        : (booking.total_amount || 0);
+      const depositAmount = typeof booking.deposit_amount === 'string'
+        ? parseFloat(booking.deposit_amount)
+        : (booking.deposit_amount || 0);
+      const lateCheckoutPenalty = typeof booking.late_checkout_penalty === 'string'
+        ? parseFloat(booking.late_checkout_penalty)
+        : (booking.late_checkout_penalty || 0);
+
+      return [
+        booking.created_at ? new Date(booking.created_at).toLocaleDateString() : '',
+        booking.room_number,
+        booking.room_type,
+        booking.folio_number || '-',
+        booking.guest_name,
+        booking.post_type === 'same_day' ? 'Same Day' : 'Normal Stay',
+        booking.check_in_date,
+        booking.check_out_date,
+        booking.status || '-',
+        booking.payment_status || 'unpaid',
+        totalAmount.toFixed(2),
+        depositAmount.toFixed(2),
+        lateCheckoutPenalty.toFixed(2),
+        booking.late_checkout_notes || '',
+        booking.rate_code || 'RACK'
+      ];
+    });
 
     // Combine headers and rows
     const csv = [
@@ -308,47 +334,100 @@ const ReportsPage: React.FC = () => {
           </CardContent>
         </Card>
       ) : (
-        <TableContainer component={Paper}>
-          <Table>
+        <TableContainer component={Paper} sx={{ maxHeight: 600 }}>
+          <Table stickyHeader size="small">
             <TableHead>
-              <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-                <TableCell><strong>Date</strong></TableCell>
-                <TableCell><strong>Room</strong></TableCell>
-                <TableCell><strong>Type</strong></TableCell>
-                <TableCell><strong>Folio Number</strong></TableCell>
-                <TableCell><strong>Guest Name</strong></TableCell>
-                <TableCell><strong>Post Type</strong></TableCell>
-                <TableCell><strong>Check-In</strong></TableCell>
-                <TableCell><strong>Check-Out</strong></TableCell>
-                <TableCell><strong>Amount</strong></TableCell>
-                <TableCell><strong>Rate</strong></TableCell>
+              <TableRow>
+                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Date</TableCell>
+                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Room</TableCell>
+                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Folio</TableCell>
+                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Guest Name</TableCell>
+                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Status</TableCell>
+                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Payment</TableCell>
+                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Check-In</TableCell>
+                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Check-Out</TableCell>
+                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }} align="right">Amount</TableCell>
+                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }} align="right">Deposit</TableCell>
+                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }} align="right">Late Penalty</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {bookings.map((booking) => (
-                <TableRow key={booking.id} hover>
-                  <TableCell>{booking.created_at ? formatDate(booking.created_at) : '-'}</TableCell>
-                  <TableCell>{booking.room_number}</TableCell>
-                  <TableCell>{booking.room_type}</TableCell>
-                  <TableCell>{booking.folio_number || '-'}</TableCell>
-                  <TableCell sx={{ fontWeight: 500 }}>{booking.guest_name}</TableCell>
-                  <TableCell>
-                    {booking.post_type === 'same_day' ? (
-                      <Chip label="Same Day" size="small" color="warning" />
-                    ) : (
-                      <Chip label="Normal Stay" size="small" color="default" />
-                    )}
-                  </TableCell>
-                  <TableCell>{formatDate(booking.check_in_date)}</TableCell>
-                  <TableCell>{formatDate(booking.check_out_date)}</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: 'primary.main' }}>
-                    ${typeof booking.total_amount === 'string'
-                      ? parseFloat(booking.total_amount).toFixed(2)
-                      : booking.total_amount.toFixed(2)}
-                  </TableCell>
-                  <TableCell>{booking.rate_code || 'RACK'}</TableCell>
-                </TableRow>
-              ))}
+              {bookings.map((booking) => {
+                const totalAmount = typeof booking.total_amount === 'string'
+                  ? parseFloat(booking.total_amount)
+                  : (booking.total_amount || 0);
+                const depositAmount = typeof booking.deposit_amount === 'string'
+                  ? parseFloat(booking.deposit_amount)
+                  : (booking.deposit_amount || 0);
+                const lateCheckoutPenalty = typeof booking.late_checkout_penalty === 'string'
+                  ? parseFloat(booking.late_checkout_penalty)
+                  : (booking.late_checkout_penalty || 0);
+                const hasLateCheckout = lateCheckoutPenalty > 0;
+
+                return (
+                  <TableRow key={booking.id} hover sx={hasLateCheckout ? { bgcolor: 'warning.50' } : {}}>
+                    <TableCell>{booking.created_at ? formatDate(booking.created_at) : '-'}</TableCell>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={500}>
+                        {booking.room_number}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {booking.room_type}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{booking.folio_number || '-'}</TableCell>
+                    <TableCell sx={{ fontWeight: 500 }}>{booking.guest_name}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={booking.status || 'pending'}
+                        size="small"
+                        color={
+                          booking.status === 'checked_out' ? 'success' :
+                          booking.status === 'checked_in' ? 'warning' :
+                          booking.status === 'confirmed' ? 'info' :
+                          'default'
+                        }
+                        variant="outlined"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={booking.payment_status || 'unpaid'}
+                        size="small"
+                        color={
+                          booking.payment_status === 'paid' ? 'success' :
+                          booking.payment_status === 'partial' ? 'warning' :
+                          'error'
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>{formatDate(booking.check_in_date)}</TableCell>
+                    <TableCell>{formatDate(booking.check_out_date)}</TableCell>
+                    <TableCell align="right" sx={{ fontWeight: 600, color: 'primary.main' }}>
+                      {formatCurrency(totalAmount)}
+                    </TableCell>
+                    <TableCell align="right">
+                      {depositAmount > 0 ? (
+                        <Typography variant="body2" color="success.main">
+                          {formatCurrency(depositAmount)}
+                        </Typography>
+                      ) : '-'}
+                    </TableCell>
+                    <TableCell align="right">
+                      {hasLateCheckout ? (
+                        <Tooltip title={booking.late_checkout_notes || 'No notes'} arrow>
+                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
+                            <LateIcon sx={{ fontSize: 16, color: 'warning.main' }} />
+                            <Typography variant="body2" color="warning.main" fontWeight={600}>
+                              {formatCurrency(lateCheckoutPenalty)}
+                            </Typography>
+                          </Box>
+                        </Tooltip>
+                      ) : '-'}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>

@@ -51,14 +51,17 @@ import {
   Today as TodayIcon,
   Clear as ClearIcon,
   CardGiftcard as ComplimentaryIcon,
+  Payment as PaymentIcon,
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
 import { HotelAPIService } from '../../../api';
 import { BookingWithDetails, Room, Guest } from '../../../types';
 import { getBookingStatusColor, getBookingStatusText, getPaymentStatusColor, getPaymentStatusText } from '../../../utils/bookingUtils';
 import { useAuth } from '../../../auth/AuthContext';
+import { useCurrency } from '../../../hooks/useCurrency';
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
 import EnhancedCheckInModal from '../../bookings/components/EnhancedCheckInModal';
+import { getHotelSettings } from '../../../utils/hotelSettings';
 
 type SortField = 'check_in_date' | 'check_out_date' | 'guest_name' | 'room_number' | 'status' | 'folio_number';
 type SortOrder = 'asc' | 'desc';
@@ -66,6 +69,7 @@ type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom';
 
 const BookingsPage: React.FC = () => {
   const { hasRole, hasPermission } = useAuth();
+  const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
   const isAdmin = hasRole('admin') || hasRole('receptionist') || hasRole('manager') || hasPermission('bookings:update');
 
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
@@ -119,6 +123,13 @@ const BookingsPage: React.FC = () => {
   const [complimentaryStartDate, setComplimentaryStartDate] = useState('');
   const [complimentaryEndDate, setComplimentaryEndDate] = useState('');
   const [markingComplimentary, setMarkingComplimentary] = useState(false);
+
+  // Payment status update dialog
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentBooking, setPaymentBooking] = useState<BookingWithDetails | null>(null);
+  const [newPaymentStatus, setNewPaymentStatus] = useState<string>('');
+  const [paymentNote, setPaymentNote] = useState<string>('');
+  const [updatingPayment, setUpdatingPayment] = useState(false);
 
   // Notifications
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -272,7 +283,40 @@ const BookingsPage: React.FC = () => {
     setSortOrder('desc');
   };
 
-  const availableRooms = rooms.filter(room => room.available);
+  // State for rooms available for selected dates
+  const [availableRoomsForDates, setAvailableRoomsForDates] = useState<Room[]>([]);
+  const [loadingAvailableRooms, setLoadingAvailableRooms] = useState(false);
+
+  // Fetch available rooms when dates change
+  useEffect(() => {
+    const fetchAvailableRooms = async () => {
+      if (checkInDate && checkOutDate && createDialogOpen) {
+        try {
+          setLoadingAvailableRooms(true);
+          const availableRooms = await HotelAPIService.getAvailableRoomsForDates(checkInDate, checkOutDate);
+          setAvailableRoomsForDates(availableRooms);
+          // Clear selected room if it's no longer available
+          if (selectedRoomId && !availableRooms.find(r => String(r.id) === selectedRoomId)) {
+            setSelectedRoomId('');
+          }
+        } catch (err) {
+          console.error('Failed to fetch available rooms:', err);
+          // Fall back to showing all available rooms
+          setAvailableRoomsForDates(rooms.filter(room => room.available));
+        } finally {
+          setLoadingAvailableRooms(false);
+        }
+      } else if (!checkInDate || !checkOutDate) {
+        // Reset to all available rooms when dates are cleared
+        setAvailableRoomsForDates(rooms.filter(room => room.available));
+      }
+    };
+
+    fetchAvailableRooms();
+  }, [checkInDate, checkOutDate, createDialogOpen, rooms]);
+
+  // Use date-filtered rooms if dates are set, otherwise use all available rooms
+  const availableRooms = (checkInDate && checkOutDate) ? availableRoomsForDates : rooms.filter(room => room.available);
 
   const handleEditBooking = (booking: BookingWithDetails) => {
     setEditingBooking(booking);
@@ -391,7 +435,7 @@ const BookingsPage: React.FC = () => {
 
       setSnackbarMessage(
         `Booking marked as ${statusText}! ${result.complimentary_nights} of ${result.total_nights} nights are complimentary. ` +
-        `New total: $${result.new_total}`
+        `New total: ${formatCurrency(Number(result.new_total))}`
       );
       setSnackbarOpen(true);
       setComplimentaryDialogOpen(false);
@@ -407,8 +451,54 @@ const BookingsPage: React.FC = () => {
     }
   };
 
+  // Payment status handlers
+  const handleUpdatePaymentStatus = (booking: BookingWithDetails) => {
+    setPaymentBooking(booking);
+    setNewPaymentStatus(booking.payment_status || 'unpaid');
+    setPaymentNote('');
+    setPaymentDialogOpen(true);
+  };
+
+  const handleConfirmPaymentUpdate = async () => {
+    if (!paymentBooking || !newPaymentStatus) return;
+
+    try {
+      setUpdatingPayment(true);
+      const roomCardDeposit = getHotelSettings().room_card_deposit;
+      await HotelAPIService.updateBooking(paymentBooking.id, {
+        payment_status: newPaymentStatus,
+        payment_note: paymentNote.trim() || undefined,
+        deposit_paid: newPaymentStatus === 'paid',
+        deposit_amount: newPaymentStatus === 'paid' ? roomCardDeposit : undefined,
+      });
+
+      setSnackbarMessage(`Deposit collected. Status updated to "${getPaymentStatusText(newPaymentStatus)}"`);
+      setSnackbarOpen(true);
+      setPaymentDialogOpen(false);
+      setPaymentBooking(null);
+      setNewPaymentStatus('');
+      setPaymentNote('');
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to collect deposit');
+    } finally {
+      setUpdatingPayment(false);
+    }
+  };
+
   const handleCreateBooking = async () => {
     if (!selectedGuestId || !selectedRoomId || !checkInDate || !checkOutDate) return;
+
+    // Validate dates
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkOutDate);
+    checkIn.setHours(0, 0, 0, 0);
+    checkOut.setHours(0, 0, 0, 0);
+
+    if (checkOut <= checkIn) {
+      setError('Check-out date must be after check-in date. Please select a check-out date that is at least 1 day after check-in.');
+      return;
+    }
 
     // For online bookings, folio number is required
     if (bookingSource === 'online' && !folioNumber.trim()) {
@@ -439,8 +529,10 @@ const BookingsPage: React.FC = () => {
       // Reload data
       await loadData();
 
-    } catch (err) {
-      setError('Failed to create booking');
+    } catch (err: any) {
+      // Show the actual API error message if available
+      const errorMessage = err?.message || err?.error || 'Failed to create booking';
+      setError(errorMessage);
     } finally {
       setCreating(false);
     }
@@ -704,7 +796,7 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="checked_out">Checked Out</MenuItem>
                 <MenuItem value="cancelled">Cancelled</MenuItem>
                 <MenuItem value="no_show">No Show</MenuItem>
-                <MenuItem value="complimentarise">Complimentarise</MenuItem>
+                <MenuItem value="released">Released</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -851,6 +943,7 @@ const BookingsPage: React.FC = () => {
               </TableCell>
               <TableCell><strong>Post Type</strong></TableCell>
               <TableCell><strong>Rate</strong></TableCell>
+              <TableCell><strong>Complimentary</strong></TableCell>
               <TableCell><strong>Payment</strong></TableCell>
               <TableCell>
                 <TableSortLabel
@@ -899,6 +992,38 @@ const BookingsPage: React.FC = () => {
                 </TableCell>
                 <TableCell>{booking.rate_code || 'RACK'}</TableCell>
                 <TableCell>
+                  {booking.is_complimentary ? (
+                    <Tooltip
+                      title={
+                        <Box>
+                          <Typography variant="caption" display="block">
+                            <strong>Reason:</strong> {booking.complimentary_reason || 'N/A'}
+                          </Typography>
+                          {booking.complimentary_start_date && booking.complimentary_end_date && (
+                            <Typography variant="caption" display="block">
+                              <strong>Dates:</strong> {booking.complimentary_start_date.split('T')[0]} to {booking.complimentary_end_date.split('T')[0]}
+                            </Typography>
+                          )}
+                          {booking.original_total_amount && (
+                            <Typography variant="caption" display="block">
+                              <strong>Original:</strong> {formatCurrency(Number(booking.original_total_amount))}
+                            </Typography>
+                          )}
+                        </Box>
+                      }
+                    >
+                      <Chip
+                        icon={<ComplimentaryIcon />}
+                        label={`${booking.complimentary_nights || 0} nights`}
+                        color="secondary"
+                        size="small"
+                      />
+                    </Tooltip>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">-</Typography>
+                  )}
+                </TableCell>
+                <TableCell>
                   <Chip
                     label={getPaymentStatusText(booking.payment_status)}
                     color={getPaymentStatusColor(booking.payment_status)}
@@ -945,6 +1070,15 @@ const BookingsPage: React.FC = () => {
                           color="primary"
                         >
                           <EditIcon />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Collect Room Payment">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleUpdatePaymentStatus(booking)}
+                          color="info"
+                        >
+                          <PaymentIcon />
                         </IconButton>
                       </Tooltip>
                       {canDelete(booking) && (
@@ -1054,24 +1188,6 @@ const BookingsPage: React.FC = () => {
               isOptionEqualToValue={(option, value) => option.id === value.id}
             />
 
-            <Autocomplete
-              fullWidth
-              options={availableRooms}
-              getOptionLabel={(option) => `Room ${option.room_number} - ${option.room_type} ($${option.price_per_night}/night)`}
-              value={availableRooms.find(r => r.id === selectedRoomId) || null}
-              onChange={(event, newValue) => {
-                setSelectedRoomId(newValue?.id || '');
-              }}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Select Room"
-                  placeholder="Search available rooms..."
-                />
-              )}
-              isOptionEqualToValue={(option, value) => option.id === value.id}
-            />
-
             <Box display="flex" gap={2}>
               <TextField
                 fullWidth
@@ -1080,6 +1196,7 @@ const BookingsPage: React.FC = () => {
                 value={checkInDate}
                 onChange={(e) => setCheckInDate(e.target.value)}
                 InputLabelProps={{ shrink: true }}
+                required
               />
               <TextField
                 fullWidth
@@ -1088,8 +1205,45 @@ const BookingsPage: React.FC = () => {
                 value={checkOutDate}
                 onChange={(e) => setCheckOutDate(e.target.value)}
                 InputLabelProps={{ shrink: true }}
+                inputProps={{ min: checkInDate }}
+                required
               />
             </Box>
+
+            <Autocomplete
+              fullWidth
+              options={availableRooms}
+              loading={loadingAvailableRooms}
+              getOptionLabel={(option) => `Room ${option.room_number} - ${option.room_type} (${formatCurrency(Number(option.price_per_night))}/night)`}
+              value={availableRooms.find(r => String(r.id) === selectedRoomId) || null}
+              onChange={(event, newValue) => {
+                setSelectedRoomId(newValue ? String(newValue.id) : '');
+              }}
+              noOptionsText={
+                !checkInDate || !checkOutDate
+                  ? "Select dates first to see available rooms"
+                  : "No rooms available for selected dates"
+              }
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Select Room"
+                  placeholder={checkInDate && checkOutDate ? "Search available rooms..." : "Select dates first..."}
+                  helperText={checkInDate && checkOutDate ? `${availableRooms.length} room(s) available for selected dates` : ""}
+                  InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {loadingAvailableRooms ? <CircularProgress color="inherit" size={20} /> : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                />
+              )}
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              disabled={!checkInDate || !checkOutDate}
+            />
 
             <Box display="flex" gap={2}>
               <TextField
@@ -1170,7 +1324,7 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="late_checkout">Late Checkout</MenuItem>
                 <MenuItem value="cancelled">Cancelled</MenuItem>
                 <MenuItem value="no_show">No Show</MenuItem>
-                <MenuItem value="complimentarise">Complimentarise</MenuItem>
+                <MenuItem value="released">Released</MenuItem>
               </TextField>
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -1208,27 +1362,6 @@ const BookingsPage: React.FC = () => {
                 label="Rate Code"
                 value={editFormData.rate_code || 'RACK'}
                 onChange={(e) => setEditFormData({ ...editFormData, rate_code: e.target.value })}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={editFormData.deposit_paid || false}
-                    onChange={(e) => setEditFormData({ ...editFormData, deposit_paid: e.target.checked })}
-                    color="success"
-                  />
-                }
-                label={
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: editFormData.deposit_paid ? 'success.main' : 'text.primary' }}>
-                      Deposit Paid
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Mark if guest has paid the deposit
-                    </Typography>
-                  </Box>
-                }
               />
             </Grid>
             <Grid item xs={12}>
@@ -1290,7 +1423,7 @@ const BookingsPage: React.FC = () => {
             <Typography variant="body2"><strong>Guest:</strong> {complimentaryBooking?.guest_name}</Typography>
             <Typography variant="body2"><strong>Room:</strong> {complimentaryBooking?.room_type} - Room {complimentaryBooking?.room_number}</Typography>
             <Typography variant="body2"><strong>Booking Period:</strong> {complimentaryBooking?.check_in_date?.split('T')[0]} to {complimentaryBooking?.check_out_date?.split('T')[0]}</Typography>
-            <Typography variant="body2"><strong>Original Total:</strong> ${Number(complimentaryBooking?.total_amount || 0).toLocaleString()}</Typography>
+            <Typography variant="body2"><strong>Original Total:</strong> {formatCurrency(Number(complimentaryBooking?.total_amount || 0))}</Typography>
           </Box>
 
           <Grid container spacing={2} sx={{ mb: 2 }}>
@@ -1330,7 +1463,7 @@ const BookingsPage: React.FC = () => {
               <Typography variant="body2">
                 <strong>Preview:</strong> {calculateComplimentaryNights()} of {calculateTotalNights()} nights will be complimentary.
                 {calculatePaidNights() > 0 ? (
-                  <> New total will be approximately ${calculateNewTotal()}.</>
+                  <> New total will be approximately {formatCurrency(Number(calculateNewTotal()))}.</>
                 ) : (
                   <> This will be fully complimentary (no charge).</>
                 )}
@@ -1358,6 +1491,97 @@ const BookingsPage: React.FC = () => {
             disabled={!complimentaryReason.trim() || !complimentaryStartDate || !complimentaryEndDate || calculateComplimentaryNights() <= 0 || markingComplimentary}
           >
             {markingComplimentary ? 'Processing...' : 'Mark as Complimentary'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Collect Deposit Dialog */}
+      <Dialog
+        open={paymentDialogOpen}
+        onClose={() => {
+          setPaymentDialogOpen(false);
+          setPaymentBooking(null);
+          setNewPaymentStatus('');
+          setPaymentNote('');
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Collect Deposit</DialogTitle>
+        <DialogContent>
+          {paymentBooking && (
+            <Box sx={{ mt: 1 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Booking: {paymentBooking.booking_number || paymentBooking.folio_number || `#${paymentBooking.id}`}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Guest: {paymentBooking.guest_name}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Room: {paymentBooking.room_number}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 'bold' }} gutterBottom>
+                Room Card Deposit: {formatCurrency(getHotelSettings().room_card_deposit)}
+              </Typography>
+              {paymentBooking.deposit_amount && Number(paymentBooking.deposit_amount) > 0 && (
+                <Typography variant="body2" color="success.main" gutterBottom>
+                  Deposit Already Paid: {formatCurrency(Number(paymentBooking.deposit_amount))}
+                </Typography>
+              )}
+              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Current Status:
+                </Typography>
+                <Chip
+                  label={getPaymentStatusText(paymentBooking.payment_status)}
+                  color={getPaymentStatusColor(paymentBooking.payment_status)}
+                  size="small"
+                />
+              </Box>
+
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Payment Status</InputLabel>
+                <Select
+                  value={newPaymentStatus}
+                  label="Payment Status"
+                  onChange={(e) => setNewPaymentStatus(e.target.value)}
+                >
+                  <MenuItem value="unpaid">Unpaid</MenuItem>
+                  <MenuItem value="partial">Partial Payment</MenuItem>
+                  <MenuItem value="paid">Fully Paid</MenuItem>
+                  <MenuItem value="refunded">Refunded</MenuItem>
+                </Select>
+              </FormControl>
+
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                label="Payment Note (Optional)"
+                value={paymentNote}
+                onChange={(e) => setPaymentNote(e.target.value)}
+                placeholder="e.g., Paid via cash/card, Receipt #12345, Remaining balance RM100..."
+                helperText="Add a note about this payment"
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setPaymentDialogOpen(false);
+            setPaymentBooking(null);
+            setNewPaymentStatus('');
+            setPaymentNote('');
+          }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmPaymentUpdate}
+            variant="contained"
+            color="primary"
+            disabled={!newPaymentStatus || updatingPayment}
+          >
+            {updatingPayment ? 'Processing...' : 'Collect Deposit'}
           </Button>
         </DialogActions>
       </Dialog>
