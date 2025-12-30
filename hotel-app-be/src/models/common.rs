@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 pub struct SearchQuery {
     pub room_type: Option<String>,
     pub max_price: Option<f64>,
+    pub check_in_date: Option<String>,
+    pub check_out_date: Option<String>,
 }
 
 /// Pagination parameters

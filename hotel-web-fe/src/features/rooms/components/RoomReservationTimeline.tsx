@@ -42,6 +42,11 @@ interface TimelineBooking {
   check_in_date: string;
   check_out_date: string;
   status: string;
+  is_complimentary?: boolean;
+  complimentary_nights?: number;
+  complimentary_start_date?: string;
+  complimentary_end_date?: string;
+  complimentary_reason?: string;
 }
 
 interface TimelineCell {
@@ -113,9 +118,16 @@ const RoomReservationTimeline: React.FC = () => {
       const relevantBookings: TimelineBooking[] = bookingsData
         .filter((b: BookingWithDetails) => {
           // Don't filter out any bookings - show all active ones
-          if (['cancelled', 'no_show'].includes(b.status as string)) {
+          if (['cancelled', 'no_show', 'checked_out'].includes(b.status as string)) {
             console.log(`  Filtering out ${b.guest_name} in room ${b.room_number}: ${b.status}`);
             return false;
+          }
+
+          // Always include checked-in bookings - guest is still in the room
+          const isCheckedIn = b.status === 'checked_in' || b.status === 'auto_checked_in';
+          if (isCheckedIn) {
+            console.log(`  Including checked-in ${b.guest_name} in room ${b.room_number}: ${b.check_in_date} to ${b.check_out_date}, status: ${b.status}`);
+            return true;
           }
 
           const bookingEnd = new Date(b.check_out_date);
@@ -141,6 +153,11 @@ const RoomReservationTimeline: React.FC = () => {
           check_in_date: b.check_in_date,
           check_out_date: b.check_out_date,
           status: b.status as string,
+          is_complimentary: b.is_complimentary,
+          complimentary_nights: b.complimentary_nights,
+          complimentary_start_date: b.complimentary_start_date,
+          complimentary_end_date: b.complimentary_end_date,
+          complimentary_reason: b.complimentary_reason,
         }));
 
       console.log('Timeline - Filtered bookings from API:', relevantBookings.length);
@@ -212,6 +229,7 @@ const RoomReservationTimeline: React.FC = () => {
   const getTimelineCell = (room: Room, date: Date): TimelineCell => {
     const dateStr = date.toISOString().split('T')[0];
     const nextDateStr = new Date(date.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
 
     const booking = bookings.find((b) => {
       const roomIdMatch = Number(b.room_id) === Number(room.id);
@@ -223,11 +241,16 @@ const RoomReservationTimeline: React.FC = () => {
       // Include checkout day in display when booking is still checked_in
       // This ensures guests who haven't checked out yet still show on the timeline
       const isCheckedIn = b.status === 'checked_in' || b.status === 'auto_checked_in';
-      const dateMatch = isCheckedIn
-        ? (dateStr >= checkIn && dateStr <= checkOut)  // Include checkout day for active stays
-        : (dateStr >= checkIn && dateStr < checkOut);  // Standard: exclude checkout day for completed/upcoming
 
-      return dateMatch;
+      if (isCheckedIn) {
+        // For checked-in guests: show from check-in date up to today (even if past checkout date)
+        // This handles late checkouts where guest is still in the room
+        const effectiveCheckOut = checkOut >= todayStr ? checkOut : todayStr;
+        return dateStr >= checkIn && dateStr <= effectiveCheckOut;
+      }
+
+      // Standard: exclude checkout day for completed/upcoming bookings
+      return dateStr >= checkIn && dateStr < checkOut;
     });
 
     if (!booking) {
@@ -328,6 +351,7 @@ const RoomReservationTimeline: React.FC = () => {
           <Chip label="Occupied" sx={{ bgcolor: '#ffa726', color: 'white' }} size="small" />
           <Chip label="Available" sx={{ bgcolor: '#66bb6a', color: 'white' }} size="small" />
           <Chip label="Pending" sx={{ bgcolor: '#ffeb3b', color: 'black' }} size="small" />
+          <Chip label="Complimentary" sx={{ bgcolor: '#9c27b0', color: 'white' }} size="small" />
         </Box>
         <Box sx={{ mb: 1 }}>
           <Typography variant="caption" color="text.secondary" display="block">
@@ -448,8 +472,12 @@ const RoomReservationTimeline: React.FC = () => {
                       );
                     }
 
-                    const statusColor = getStatusColor(cell.booking.status);
-                    const statusLabel = getStatusLabel(cell.booking.status);
+                    const isComplimentary = cell.booking.is_complimentary;
+                    // Use purple for complimentary bookings, otherwise use status color
+                    const statusColor = isComplimentary ? '#9c27b0' : getStatusColor(cell.booking.status);
+                    const statusLabel = isComplimentary
+                      ? `COMP (${cell.booking.complimentary_nights || 0} nights)`
+                      : getStatusLabel(cell.booking.status);
 
                     const isSyntheticBooking = String(cell.booking.id).startsWith('synthetic-');
 
@@ -470,14 +498,14 @@ const RoomReservationTimeline: React.FC = () => {
                           '&:hover': {
                             opacity: 0.8,
                           },
-                          // Add diagonal stripes for synthetic bookings
-                          ...(isSyntheticBooking && {
+                          // Add diagonal stripes for synthetic bookings or complimentary
+                          ...((isSyntheticBooking || isComplimentary) && {
                             backgroundImage: `repeating-linear-gradient(
                               45deg,
                               ${statusColor},
                               ${statusColor} 10px,
-                              rgba(0,0,0,0.1) 10px,
-                              rgba(0,0,0,0.1) 20px
+                              rgba(255,255,255,0.2) 10px,
+                              rgba(255,255,255,0.2) 20px
                             )`,
                           }),
                         }}
@@ -544,6 +572,21 @@ const RoomReservationTimeline: React.FC = () => {
                               }}
                             >
                               In: {new Date(cell.booking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </Typography>
+                          )}
+
+                          {/* Complimentary date range - shown on start cell for complimentary bookings */}
+                          {cell.isStart && isComplimentary && cell.booking.complimentary_start_date && cell.booking.complimentary_end_date && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: 'rgba(255,255,255,0.95)',
+                                fontSize: '0.55rem',
+                                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                                fontWeight: 600,
+                              }}
+                            >
+                              Free: {new Date(cell.booking.complimentary_start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(cell.booking.complimentary_end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                             </Typography>
                           )}
 

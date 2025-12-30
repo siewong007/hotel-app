@@ -46,6 +46,9 @@ pub struct Booking {
     pub deposit_paid: Option<bool>,
     pub deposit_amount: Option<Decimal>,
     pub deposit_paid_at: Option<DateTime<Utc>>,
+    pub company_id: Option<i64>,
+    pub company_name: Option<String>,
+    pub payment_note: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -67,6 +70,8 @@ pub struct BookingInput {
     pub room_card_deposit: Option<f64>,
     pub late_checkout_penalty: Option<f64>,
     pub payment_method: Option<String>,
+    pub payment_status: Option<String>,  // unpaid, unpaid_deposit, paid
+    pub amount_paid: Option<f64>,
     pub source: Option<String>,         // walk_in, online, phone, agent
     pub booking_number: Option<String>, // Optional - if provided, use this instead of auto-generating
     pub deposit_paid: Option<bool>,
@@ -106,6 +111,9 @@ pub struct BookingUpdateInput {
     pub check_out_time: Option<String>,
     pub deposit_paid: Option<bool>,
     pub deposit_amount: Option<f64>,
+    pub company_id: Option<i64>,
+    pub company_name: Option<String>,
+    pub payment_note: Option<String>,
 }
 
 /// Request for checking in a guest
@@ -158,5 +166,8 @@ pub struct BookingWithDetails {
     pub complimentary_nights: Option<i32>,
     pub deposit_paid: Option<bool>,
     pub deposit_amount: Option<Decimal>,
+    pub company_id: Option<i64>,
+    pub company_name: Option<String>,
+    pub payment_note: Option<String>,
     pub created_at: DateTime<Utc>,
 }

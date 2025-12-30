@@ -284,4 +284,132 @@ export class BookingsService {
       throw new APIError('Failed to book with complimentary credits');
     }
   }
+
+  // New complimentary management methods
+
+  static async getComplimentaryBookings(): Promise<BookingWithDetails[]> {
+    try {
+      return await withRetry(
+        () => api.get('bookings/complimentary').json<BookingWithDetails[]>(),
+        { maxAttempts: 3, initialDelay: 1000 }
+      );
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to fetch complimentary bookings',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to fetch complimentary bookings');
+    }
+  }
+
+  static async getComplimentarySummary(): Promise<{
+    total_complimentary_bookings: number;
+    total_complimentary_nights: number;
+    total_credits_available: number;
+    room_type_credits: number;
+    legacy_credits: number;
+    value_of_complimentary_nights: string;
+  }> {
+    try {
+      return await api.get('complimentary/summary').json();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to fetch complimentary summary',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to fetch complimentary summary');
+    }
+  }
+
+  static async updateComplimentary(
+    bookingId: string,
+    data: {
+      complimentary_start_date?: string;
+      complimentary_end_date?: string;
+      complimentary_reason?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    message: string;
+    booking_id: number;
+    complimentary_nights?: number;
+    new_total?: string;
+  }> {
+    try {
+      return await api
+        .patch(`bookings/${bookingId}/complimentary`, { json: data })
+        .json();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to update complimentary booking',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to update complimentary booking');
+    }
+  }
+
+  static async removeComplimentary(bookingId: string): Promise<{
+    success: boolean;
+    message: string;
+    booking_id: number;
+    restored_total?: string;
+  }> {
+    try {
+      return await api.delete(`bookings/${bookingId}/complimentary`).json();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to remove complimentary status',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to remove complimentary status');
+    }
+  }
+
+  static async getGuestsWithCredits(): Promise<{
+    legacy_credits: Array<{
+      guest_id: number;
+      guest_name: string;
+      email: string | null;
+      legacy_credits: number;
+    }>;
+    room_type_credits: Array<{
+      guest_id: number;
+      guest_name: string;
+      email: string | null;
+      room_type_id: number;
+      room_type_name: string;
+      room_type_code: string | null;
+      nights_available: number;
+    }>;
+  }> {
+    try {
+      return await api.get('guests/credits').json();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to fetch guests with credits',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to fetch guests with credits');
+    }
+  }
 }

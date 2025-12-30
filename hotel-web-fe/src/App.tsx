@@ -38,6 +38,7 @@ const GuestCheckInVerify = lazy(() => import('./features/bookings/components/Gue
 const GuestCheckInForm = lazy(() => import('./features/bookings/components/GuestCheckInForm'));
 const GuestCheckInConfirmation = lazy(() => import('./features/bookings/components/GuestCheckInConfirmation'));
 const CustomerLedgerPage = lazy(() => import('./features/admin/components/CustomerLedgerPage'));
+const ComplimentaryManagementPage = lazy(() => import('./features/admin/components/ComplimentaryManagementPage'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -255,6 +256,13 @@ const NavigationTabs = React.memo(function NavigationTabs() {
       path: '/company-ledger',
       permissions: ['ledgers:read', 'ledgers:manage'],
       roles: ['admin', 'receptionist', 'manager']
+    },
+    {
+      id: 'complimentary',
+      label: 'Complimentary',
+      path: '/complimentary',
+      permissions: ['bookings:read', 'bookings:update'],
+      roles: ['admin', 'manager']
     },
     {
       id: 'reports',
@@ -708,6 +716,18 @@ function AppContent() {
                   <AnimatedRoute animationType="slide">
                     <ComponentErrorBoundary>
                       <CustomerLedgerPage />
+                    </ComponentErrorBoundary>
+                  </AnimatedRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/complimentary"
+              element={
+                <ProtectedRoute requiredRoles={['admin', 'manager']}>
+                  <AnimatedRoute animationType="slide">
+                    <ComponentErrorBoundary>
+                      <ComplimentaryManagementPage />
                     </ComponentErrorBoundary>
                   </AnimatedRoute>
                 </ProtectedRoute>

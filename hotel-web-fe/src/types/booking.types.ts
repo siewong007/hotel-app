@@ -10,7 +10,7 @@ export enum BookingStatus {
   NO_SHOW = 'no_show',
   AUTO_CHECKED_IN = 'auto_checked_in',
   LATE_CHECKOUT = 'late_checkout',
-  COMPLIMENTARISE = 'complimentarise',
+  RELEASED = 'released',
   PARTIAL_COMPLIMENTARY = 'partial_complimentary',
   FULLY_COMPLIMENTARY = 'fully_complimentary'
 }
@@ -37,6 +37,7 @@ export interface Booking {
   extra_bed_charge?: number | string;
   room_card_deposit?: number | string;
   late_checkout_penalty?: number | string;
+  late_checkout_notes?: string;
   payment_method?: string;
   market_code?: string;
   discount_percentage?: number;
@@ -61,6 +62,9 @@ export interface Booking {
   deposit_paid?: boolean;
   deposit_amount?: number | string;
   deposit_paid_at?: string;
+  company_id?: number;
+  company_name?: string;
+  payment_note?: string;
 }
 
 export interface BookingWithDetails extends Booking {
@@ -86,6 +90,7 @@ export interface BookingWithDetails extends Booking {
   extra_bed_charge?: number | string;
   room_card_deposit?: number | string;
   late_checkout_penalty?: number | string;
+  late_checkout_notes?: string;
   payment_method?: string;
   is_complimentary?: boolean;
   complimentary_reason?: string;
@@ -93,6 +98,11 @@ export interface BookingWithDetails extends Booking {
   complimentary_end_date?: string;
   original_total_amount?: number | string;
   complimentary_nights?: number;
+  company_id?: number;
+  company_name?: string;
+  payment_note?: string;
+  deposit_amount?: number | string;
+  deposit_paid?: boolean;
 }
 
 export interface BookingCreateRequest {
@@ -112,6 +122,8 @@ export interface BookingCreateRequest {
   room_card_deposit?: number;
   late_checkout_penalty?: number;
   payment_method?: string;
+  payment_status?: 'unpaid' | 'unpaid_deposit' | 'paid';
+  amount_paid?: number;
   source?: 'walk_in' | 'online' | 'phone' | 'agent';
   booking_number?: string; // Optional - auto-generated for walk-in, manual for online
   deposit_paid?: boolean;
@@ -124,6 +136,7 @@ export interface BookingUpdateRequest {
   check_out_date?: string;
   status?: string;
   payment_status?: string;
+  amount_paid?: number;
   post_type?: string;
   rate_code?: string;
   booking_remarks?: string;
@@ -139,6 +152,11 @@ export interface BookingUpdateRequest {
   cancellation_reason?: string;
   deposit_paid?: boolean;
   deposit_amount?: number;
+  company_id?: number;
+  company_name?: string;
+  payment_note?: string;
+  late_checkout_penalty?: number;
+  late_checkout_notes?: string;
 }
 
 export interface BookingCancellationRequest {

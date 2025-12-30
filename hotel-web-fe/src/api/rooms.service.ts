@@ -35,6 +35,18 @@ export class RoomsService {
     );
   }
 
+  static async getAvailableRoomsForDates(checkInDate: string, checkOutDate: string): Promise<Room[]> {
+    const params: SearchQuery = {
+      check_in_date: checkInDate,
+      check_out_date: checkOutDate,
+    };
+
+    return await withRetry(
+      () => api.get('rooms/available', { searchParams: params }).json<Room[]>(),
+      { maxAttempts: 3, initialDelay: 1000 }
+    );
+  }
+
   static async updateRoom(id: string | number, data: Partial<Room>): Promise<Room> {
     try {
       return await api.patch(`rooms/${id}`, { json: data }).json<Room>();

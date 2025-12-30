@@ -86,6 +86,34 @@ ALTER TABLE users ADD CONSTRAINT fk_users_guest
     FOREIGN KEY (guest_id) REFERENCES guests(id) ON DELETE SET NULL;
 
 -- ============================================================================
+-- USER-GUEST LINKING (for booking on behalf of others)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS user_guests (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    guest_id BIGINT NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+    relationship_type VARCHAR(50) DEFAULT 'family',
+    can_book_for BOOLEAN DEFAULT true,
+    can_view_bookings BOOLEAN DEFAULT true,
+    can_modify BOOLEAN DEFAULT false,
+    notes TEXT,
+    linked_by BIGINT REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, guest_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_guests_user_id ON user_guests(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_guests_guest_id ON user_guests(guest_id);
+
+CREATE TRIGGER update_user_guests_updated_at
+    BEFORE UPDATE ON user_guests
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+COMMENT ON TABLE user_guests IS 'Links users to guests they can book/manage on behalf of';
+
+-- ============================================================================
 -- GUEST DOCUMENTS
 -- ============================================================================
 

@@ -13,21 +13,30 @@ import {
   Chip,
   Alert,
   CircularProgress,
+  TextField,
+  InputAdornment,
 } from '@mui/material';
 import {
   Receipt as ReceiptIcon,
   CheckCircle as CheckIcon,
   Print as PrintIcon,
+  WarningAmber as WarningIcon,
+  Business as BusinessIcon,
 } from '@mui/icons-material';
 import { BookingWithDetails } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
 
+interface LateCheckoutData {
+  penalty: number;
+  notes: string;
+}
+
 interface CheckoutInvoiceModalProps {
   open: boolean;
   onClose: () => void;
   booking: BookingWithDetails | null;
-  onConfirmCheckout: () => Promise<void>;
+  onConfirmCheckout: (lateCheckoutData?: LateCheckoutData) => Promise<void>;
 }
 
 interface ChargesBreakdown {
@@ -48,11 +57,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   booking,
   onConfirmCheckout,
 }) => {
-  const { format: formatCurrency } = useCurrency();
+  const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [checkoutStep, setCheckoutStep] = useState<'preview' | 'confirm'>('preview'); // Two-step process
+  const [checkoutStep, setCheckoutStep] = useState<'preview' | 'lateCheckout' | 'confirm'>('preview');
   const [hotelSettings, setHotelSettings] = useState<HotelSettings>(getHotelSettings());
+  const [isLateCheckout, setIsLateCheckout] = useState(false);
+  const [lateCheckoutPenalty, setLateCheckoutPenalty] = useState(0);
+  const [lateCheckoutNotes, setLateCheckoutNotes] = useState('');
   const [charges, setCharges] = useState<ChargesBreakdown>({
     roomCharges: 0,
     roomCardDeposit: 50,
@@ -65,11 +77,33 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     grandTotal: 0,
   });
 
+  // Check if current time is past the configured checkout time
+  const checkIfLateCheckout = (): boolean => {
+    const now = new Date();
+    const [checkoutHours, checkoutMinutes] = hotelSettings.check_out_time.split(':').map(Number);
+
+    // Create today's checkout time
+    const todayCheckoutTime = new Date();
+    todayCheckoutTime.setHours(checkoutHours, checkoutMinutes, 0, 0);
+
+    return now > todayCheckoutTime;
+  };
+
   useEffect(() => {
     if (open && booking) {
       // Load latest hotel settings
-      setHotelSettings(getHotelSettings());
-      calculateCharges();
+      const settings = getHotelSettings();
+      setHotelSettings(settings);
+
+      // Check if it's a late checkout
+      const lateCheckout = checkIfLateCheckout();
+      setIsLateCheckout(lateCheckout);
+
+      // Default late checkout penalty to 0 - user will enter manually
+      setLateCheckoutPenalty(0);
+      setLateCheckoutNotes('');
+
+      calculateCharges(0);
       // Reset to preview step when modal opens
       setCheckoutStep('preview');
     }
@@ -87,7 +121,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     };
   }, []);
 
-  const calculateCharges = () => {
+  const calculateCharges = (penalty: number = lateCheckoutPenalty) => {
     if (!booking) return;
 
     const roomCharges = typeof booking.total_amount === 'string'
@@ -109,22 +143,16 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       ? (typeof booking.extra_bed_charge === 'string' ? parseFloat(booking.extra_bed_charge) : booking.extra_bed_charge)
       : 0;
 
-    // Check if late checkout
-    const checkOutTime = new Date(booking.check_out_date);
-    const defaultCheckOutTime = new Date(booking.check_out_date);
-    const [defaultHours, defaultMinutes] = hotelSettings.check_out_time.split(':').map(Number);
-    defaultCheckOutTime.setHours(defaultHours, defaultMinutes, 0, 0);
-
-    const isLateCheckout = checkOutTime > defaultCheckOutTime;
-    const lateCheckoutPenalty = isLateCheckout ? hotelSettings.late_checkout_penalty : 0;
+    // Use the passed penalty (from late checkout form or default)
+    const lateCheckoutPenaltyAmount = penalty;
 
     // Calculate service tax (apply to room charges only, before other fees)
     const serviceTax = (roomCharges * hotelSettings.service_tax_rate) / 100;
 
-    const subtotal = roomCharges + serviceTax + tourismTax + extraBedCharge + lateCheckoutPenalty;
+    const subtotal = roomCharges + serviceTax + tourismTax + extraBedCharge + lateCheckoutPenaltyAmount;
 
-    // Deposit refund only if no late checkout
-    const depositRefund = isLateCheckout ? 0 : roomCardDeposit;
+    // Deposit is always refunded - late checkout penalty is separate
+    const depositRefund = roomCardDeposit;
 
     const grandTotal = subtotal - depositRefund;
 
@@ -134,18 +162,30 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       serviceTax,
       tourismTax,
       extraBedCharge,
-      lateCheckoutPenalty,
+      lateCheckoutPenalty: lateCheckoutPenaltyAmount,
       subtotal,
       depositRefund,
       grandTotal,
     });
   };
 
+  // Update charges when penalty changes
+  const handlePenaltyChange = (value: number) => {
+    setLateCheckoutPenalty(value);
+    calculateCharges(value);
+  };
+
   const handleConfirmCheckout = async () => {
     try {
       setLoading(true);
       setError(null);
-      await onConfirmCheckout();
+
+      // Pass late checkout data if applicable
+      const lateCheckoutData = isLateCheckout && lateCheckoutPenalty > 0
+        ? { penalty: lateCheckoutPenalty, notes: lateCheckoutNotes }
+        : undefined;
+
+      await onConfirmCheckout(lateCheckoutData);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to process checkout');
@@ -155,11 +195,24 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   };
 
   const handleProceedToConfirm = () => {
+    // If late checkout, show the late checkout form first
+    if (isLateCheckout) {
+      setCheckoutStep('lateCheckout');
+    } else {
+      setCheckoutStep('confirm');
+    }
+  };
+
+  const handleProceedFromLateCheckout = () => {
     setCheckoutStep('confirm');
   };
 
   const handleBackToPreview = () => {
     setCheckoutStep('preview');
+  };
+
+  const handleBackToLateCheckout = () => {
+    setCheckoutStep('lateCheckout');
   };
 
   const handlePrint = () => {
@@ -344,14 +397,22 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       <DialogTitle>
         <Box display="flex" alignItems="center" justifyContent="space-between">
           <Box display="flex" alignItems="center">
-            <ReceiptIcon sx={{ mr: 1, color: 'primary.main' }} />
+            {checkoutStep === 'lateCheckout' ? (
+              <WarningIcon sx={{ mr: 1, color: 'warning.main' }} />
+            ) : (
+              <ReceiptIcon sx={{ mr: 1, color: 'primary.main' }} />
+            )}
             <Typography variant="h6">
-              {checkoutStep === 'preview' ? 'Invoice Preview - Review Before Checkout' : 'Confirm Checkout'}
+              {checkoutStep === 'preview'
+                ? 'Invoice Preview - Review Before Checkout'
+                : checkoutStep === 'lateCheckout'
+                  ? 'Late Checkout - Enter Penalty Details'
+                  : 'Confirm Checkout'}
             </Typography>
           </Box>
           <Chip
             label={booking.folio_number || `#${booking.id}`}
-            color="primary"
+            color={checkoutStep === 'lateCheckout' ? 'warning' : 'primary'}
             size="small"
             variant="outlined"
           />
@@ -366,6 +427,22 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <Typography variant="body2" fontWeight={600}>Please review the invoice carefully before proceeding with checkout.</Typography>
               <Typography variant="caption">Verify all charges, taxes, and refunds are correct.</Typography>
             </Alert>
+
+            {/* Company Billing Indicator */}
+            {booking.company_id && booking.company_name && (
+              <Alert
+                severity="warning"
+                icon={<BusinessIcon />}
+                sx={{ mb: 3 }}
+              >
+                <Typography variant="body2" fontWeight={600}>
+                  Company Billing: {booking.company_name}
+                </Typography>
+                <Typography variant="caption">
+                  Room charges will be automatically posted to the company ledger upon checkout.
+                </Typography>
+              </Alert>
+            )}
 
             {/* Invoice Header */}
             <Box sx={{ textAlign: 'center', mb: 4, borderBottom: '2px solid #1976d2', pb: 2 }}>
@@ -639,12 +716,174 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Alert>
             )}
           </Box>
+        ) : checkoutStep === 'lateCheckout' ? (
+          // STEP 2: Late Checkout Penalty Form
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Alert severity="warning" icon={<WarningIcon />}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                Late Checkout Detected
+              </Typography>
+              <Typography variant="body2">
+                Current time is past the configured checkout time ({hotelSettings.check_out_time}).
+                Please enter the late checkout penalty and any additional notes.
+              </Typography>
+            </Alert>
+
+            {/* Company Billing Indicator */}
+            {booking.company_id && booking.company_name && (
+              <Alert severity="info" icon={<BusinessIcon />}>
+                <Typography variant="body2" fontWeight={600}>
+                  Company Billing: {booking.company_name}
+                </Typography>
+                <Typography variant="caption">
+                  Late checkout penalty will be included in the company ledger posting.
+                </Typography>
+              </Alert>
+            )}
+
+            {/* Guest & Room Info Summary */}
+            <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Guest</Typography>
+                  <Typography variant="body1" fontWeight={600}>{booking.guest_name}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Room</Typography>
+                  <Typography variant="body1" fontWeight={600}>{booking.room_number} - {booking.room_type}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Check-out Date</Typography>
+                  <Typography variant="body1" fontWeight={600}>{new Date(booking.check_out_date).toLocaleDateString()}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Current Time</Typography>
+                  <Typography variant="body1" fontWeight={600} color="warning.main">
+                    {new Date().toLocaleTimeString()} (Late)
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Paper>
+
+            {/* Late Checkout Penalty Input */}
+            <Paper elevation={0} sx={{ p: 3, bgcolor: 'warning.50', borderRadius: 2, border: '1px solid', borderColor: 'warning.main' }}>
+              <Typography variant="subtitle1" fontWeight={600} gutterBottom sx={{ color: 'warning.dark' }}>
+                Late Checkout Penalty
+              </Typography>
+
+              <TextField
+                fullWidth
+                label="Penalty Amount"
+                type="number"
+                value={lateCheckoutPenalty}
+                onChange={(e) => handlePenaltyChange(parseFloat(e.target.value) || 0)}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                }}
+                helperText="Enter the late checkout penalty amount (set to 0 if no penalty)"
+                sx={{ mb: 2 }}
+              />
+
+              <TextField
+                fullWidth
+                label="Additional Notes (Optional)"
+                multiline
+                rows={3}
+                value={lateCheckoutNotes}
+                onChange={(e) => setLateCheckoutNotes(e.target.value)}
+                placeholder="Enter any additional notes about the late checkout (e.g., reason for delay, special circumstances, etc.)"
+                helperText="These notes will be saved with the booking record"
+              />
+            </Paper>
+
+            {/* Updated Charges Preview */}
+            <Paper elevation={0} sx={{ p: 2, bgcolor: 'primary.50', borderRadius: 2 }}>
+              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
+                Updated Charges Summary
+              </Typography>
+              <Grid container spacing={1}>
+                <Grid item xs={8}>
+                  <Typography variant="body2" color="text.secondary">Room Charges</Typography>
+                </Grid>
+                <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                  <Typography variant="body2">{formatCurrency(charges.roomCharges)}</Typography>
+                </Grid>
+
+                {charges.serviceTax > 0 && (
+                  <>
+                    <Grid item xs={8}>
+                      <Typography variant="body2" color="text.secondary">Service Tax</Typography>
+                    </Grid>
+                    <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                      <Typography variant="body2">{formatCurrency(charges.serviceTax)}</Typography>
+                    </Grid>
+                  </>
+                )}
+
+                <Grid item xs={8}>
+                  <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600 }}>
+                    Late Checkout Penalty
+                  </Typography>
+                </Grid>
+                <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                  <Typography variant="body2" sx={{ color: 'warning.main', fontWeight: 600 }}>
+                    {formatCurrency(lateCheckoutPenalty)}
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={12}><Divider sx={{ my: 1 }} /></Grid>
+
+                <Grid item xs={8}>
+                  <Typography variant="body2" sx={{ color: 'success.main' }}>
+                    Room Card Deposit Refund
+                  </Typography>
+                </Grid>
+                <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                  <Typography variant="body2" sx={{ color: 'success.main' }}>
+                    -{formatCurrency(charges.roomCardDeposit)}
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={12}><Divider sx={{ my: 1 }} /></Grid>
+
+                <Grid item xs={8}>
+                  <Typography variant="h6" fontWeight={700}>Total Amount Due</Typography>
+                </Grid>
+                <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                  <Typography variant="h6" fontWeight={700} color="primary">
+                    {formatCurrency(charges.grandTotal)}
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Paper>
+
+            <Alert severity="info">
+              <Typography variant="body2">
+                The late checkout penalty will be added to the final bill. Room card deposit will still be refunded.
+              </Typography>
+            </Alert>
+          </Box>
         ) : (
-          // STEP 2: Confirmation Summary (After Review)
+          // STEP 3: Confirmation Summary (After Review)
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {error && (
             <Alert severity="error" onClose={() => setError(null)}>
               {error}
+            </Alert>
+          )}
+
+          {/* Company Billing Indicator */}
+          {booking.company_id && booking.company_name && (
+            <Alert
+              severity="warning"
+              icon={<BusinessIcon />}
+            >
+              <Typography variant="body2" fontWeight={600}>
+                Company Billing: {booking.company_name}
+              </Typography>
+              <Typography variant="caption">
+                Room charges will be automatically posted to the company ledger.
+              </Typography>
             </Alert>
           )}
 
@@ -806,7 +1045,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Grid>
 
               {/* Deposit Refund */}
-              {charges.depositRefund > 0 ? (
+              {charges.depositRefund > 0 && (
                 <>
                   <Grid item xs={8}>
                     <Typography variant="body2" sx={{ color: 'success.main' }}>
@@ -816,19 +1055,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <Grid item xs={4} sx={{ textAlign: 'right' }}>
                     <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 600 }}>
                       -{formatCurrency(charges.depositRefund)}
-                    </Typography>
-                  </Grid>
-                </>
-              ) : (
-                <>
-                  <Grid item xs={8}>
-                    <Typography variant="body2" sx={{ color: 'error.main' }}>
-                      Room Card Deposit (Forfeited - Late Checkout)
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                    <Typography variant="body2" sx={{ color: 'error.main', fontWeight: 600 }}>
-                      {formatCurrency(0)}
                     </Typography>
                   </Grid>
                 </>
@@ -896,15 +1122,34 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             <Button
               variant="contained"
               onClick={handleProceedToConfirm}
+              startIcon={isLateCheckout ? <WarningIcon /> : <CheckIcon />}
+              color={isLateCheckout ? 'warning' : 'primary'}
+            >
+              {isLateCheckout ? 'Proceed (Late Checkout)' : 'Proceed to Checkout'}
+            </Button>
+          </>
+        ) : checkoutStep === 'lateCheckout' ? (
+          <>
+            <Button onClick={handleBackToPreview}>
+              Back to Invoice
+            </Button>
+            <Box sx={{ flex: 1 }} />
+            <Button onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              color="warning"
+              onClick={handleProceedFromLateCheckout}
               startIcon={<CheckIcon />}
             >
-              Proceed to Checkout
+              Continue to Confirmation
             </Button>
           </>
         ) : (
           <>
-            <Button onClick={handleBackToPreview}>
-              Back to Invoice
+            <Button onClick={isLateCheckout ? handleBackToLateCheckout : handleBackToPreview}>
+              {isLateCheckout ? 'Back to Penalty' : 'Back to Invoice'}
             </Button>
             <Box sx={{ flex: 1 }} />
             <Button onClick={onClose} disabled={loading}>

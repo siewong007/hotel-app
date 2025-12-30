@@ -38,7 +38,7 @@ pub async fn get_bookings_handler(
             b.check_in_date, b.check_out_date, b.total_amount, b.status,
             b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
-            b.deposit_paid, b.deposit_amount,
+            b.deposit_paid, b.deposit_amount, b.company_id, b.company_name, b.payment_note,
             b.created_at
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id
@@ -74,7 +74,7 @@ pub async fn get_my_bookings_handler(
             b.check_in_date, b.check_out_date, b.total_amount, b.status,
             b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
-            b.deposit_paid, b.deposit_amount,
+            b.deposit_paid, b.deposit_amount, b.company_id, b.company_name, b.payment_note,
             b.created_at
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id
@@ -182,16 +182,17 @@ pub async fn create_booking_handler(
 
     let deposit_paid = input.deposit_paid.unwrap_or(false);
     let deposit_amount = input.deposit_amount.map(|d| Decimal::from_f64_retain(d).unwrap_or(Decimal::ZERO));
+    let payment_status = input.payment_status.clone().unwrap_or_else(|| "unpaid".to_string());
 
     let booking: Booking = sqlx::query_as(
         r#"
         INSERT INTO bookings (
             booking_number, guest_id, room_id, check_in_date, check_out_date,
-            room_rate, subtotal, tax_amount, total_amount, status, remarks, created_by, adults, source,
+            room_rate, subtotal, tax_amount, total_amount, status, payment_status, remarks, created_by, adults, source,
             deposit_paid, deposit_amount, deposit_paid_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, 1, $12, $13, $14, CASE WHEN $13 THEN CURRENT_TIMESTAMP ELSE NULL END)
-        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, created_at, updated_at
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, $12, 1, $13, $14, $15, CASE WHEN $14 THEN CURRENT_TIMESTAMP ELSE NULL END)
+        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at
         "#
     )
     .bind(&booking_number)
@@ -203,6 +204,7 @@ pub async fn create_booking_handler(
     .bind(subtotal)
     .bind(tax_amount)
     .bind(total_amount)
+    .bind(&payment_status)
     .bind(input.booking_remarks.as_deref())
     .bind(user_id)
     .bind(&source)
@@ -234,7 +236,7 @@ pub async fn get_booking_handler(
             b.check_in_date, b.check_out_date, b.total_amount, b.status,
             b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
-            b.deposit_paid, b.deposit_amount, b.created_at
+            b.deposit_paid, b.deposit_amount, b.company_id, b.company_name, b.payment_note, b.created_at
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id
         INNER JOIN rooms r ON b.room_id = r.id
@@ -278,7 +280,7 @@ pub async fn update_booking_handler(
     Json(input): Json<BookingUpdateInput>,
 ) -> Result<Json<Booking>, ApiError> {
     let existing_booking: Booking = sqlx::query_as(
-        "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, created_at, updated_at FROM bookings WHERE id = $1"
+        "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at FROM bookings WHERE id = $1"
     )
     .bind(booking_id)
     .fetch_optional(&pool)
@@ -353,9 +355,12 @@ pub async fn update_booking_handler(
             deposit_paid = COALESCE($8, deposit_paid),
             deposit_amount = COALESCE($9, deposit_amount),
             deposit_paid_at = CASE WHEN $8 = true AND deposit_paid_at IS NULL THEN CURRENT_TIMESTAMP ELSE deposit_paid_at END,
+            company_id = COALESCE($10, company_id),
+            company_name = COALESCE($11, company_name),
+            payment_note = COALESCE($12, payment_note),
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $7
-        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, created_at, updated_at"#
+        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at"#
     )
     .bind(&new_room_id)
     .bind(&new_status)
@@ -366,6 +371,9 @@ pub async fn update_booking_handler(
     .bind(booking_id)
     .bind(deposit_paid)
     .bind(deposit_amount)
+    .bind(input.company_id)
+    .bind(&input.company_name)
+    .bind(&input.payment_note)
     .fetch_one(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -522,7 +530,7 @@ pub async fn manual_checkin_handler(
     Json(checkin_data): Json<Option<CheckInRequest>>,
 ) -> Result<Json<Booking>, ApiError> {
     let booking: Booking = sqlx::query_as(
-        "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, created_at, updated_at FROM bookings WHERE id = $1"
+        "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at FROM bookings WHERE id = $1"
     )
     .bind(booking_id)
     .fetch_optional(&pool)
@@ -577,7 +585,7 @@ pub async fn manual_checkin_handler(
     let updated_booking: Booking = sqlx::query_as(
         r#"
         UPDATE bookings SET status = 'checked_in', actual_check_in = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1
-        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, created_at, updated_at
+        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at
         "#
     )
     .bind(booking_id)
@@ -1143,5 +1151,348 @@ pub async fn book_with_credits_handler(
         "total_amount": total_amount.to_string(),
         "room_type": room_type_name,
         "is_free_gift": is_fully_complimentary
+    })))
+}
+
+/// Get all complimentary bookings
+pub async fn get_complimentary_bookings_handler(
+    State(pool): State<PgPool>,
+) -> Result<Json<Vec<BookingWithDetails>>, ApiError> {
+    let bookings: Vec<BookingWithDetails> = sqlx::query_as(
+        r#"
+        SELECT
+            b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
+            b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
+            b.check_in_date, b.check_out_date, b.total_amount, b.status,
+            b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
+            b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
+            b.deposit_paid, b.deposit_amount, b.company_id, b.company_name, b.payment_note,
+            b.created_at
+        FROM bookings b
+        INNER JOIN guests g ON b.guest_id = g.id
+        INNER JOIN rooms r ON b.room_id = r.id
+        INNER JOIN room_types rt ON r.room_type_id = rt.id
+        WHERE b.is_complimentary = true
+           OR b.status IN ('partial_complimentary', 'fully_complimentary', 'released')
+        ORDER BY b.created_at DESC
+        "#
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(Json(bookings))
+}
+
+/// Get complimentary statistics summary
+pub async fn get_complimentary_summary_handler(
+    State(pool): State<PgPool>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Total complimentary bookings
+    let total_bookings: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bookings WHERE is_complimentary = true OR status IN ('partial_complimentary', 'fully_complimentary', 'released')"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
+
+    // Total complimentary nights
+    let total_nights: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(complimentary_nights), 0) FROM bookings WHERE is_complimentary = true OR status IN ('partial_complimentary', 'fully_complimentary')"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
+
+    // Total credits issued (sum of all guest credits)
+    let total_credits_issued: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(nights_available), 0) FROM guest_complimentary_credits"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
+
+    // Legacy credits
+    let legacy_credits: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(complimentary_nights_credit), 0) FROM guests WHERE complimentary_nights_credit > 0"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
+
+    // Value of complimentary nights (sum of original amounts - adjusted amounts)
+    let value_given: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(original_total_amount - total_amount), 0) FROM bookings WHERE is_complimentary = true AND original_total_amount IS NOT NULL"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(Decimal::ZERO);
+
+    Ok(Json(serde_json::json!({
+        "total_complimentary_bookings": total_bookings,
+        "total_complimentary_nights": total_nights,
+        "total_credits_available": total_credits_issued + legacy_credits,
+        "room_type_credits": total_credits_issued,
+        "legacy_credits": legacy_credits,
+        "value_of_complimentary_nights": value_given.to_string()
+    })))
+}
+
+/// Request for updating complimentary dates
+#[derive(Debug, Deserialize)]
+pub struct UpdateComplimentaryRequest {
+    pub complimentary_start_date: Option<String>,
+    pub complimentary_end_date: Option<String>,
+    pub complimentary_reason: Option<String>,
+}
+
+/// Update complimentary dates for a booking
+pub async fn update_complimentary_handler(
+    State(pool): State<PgPool>,
+    Extension(_user_id): Extension<i64>,
+    Path(booking_id): Path<i64>,
+    Json(input): Json<UpdateComplimentaryRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Get current booking
+    let booking_row = sqlx::query(
+        "SELECT id, is_complimentary, check_in_date, check_out_date, room_rate, total_amount FROM bookings WHERE id = $1"
+    )
+    .bind(booking_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+
+    let is_complimentary: Option<bool> = booking_row.get(1);
+    if is_complimentary != Some(true) {
+        return Err(ApiError::BadRequest("Booking is not marked as complimentary".to_string()));
+    }
+
+    let check_in: NaiveDate = booking_row.get(2);
+    let check_out: NaiveDate = booking_row.get(3);
+    let room_rate: Decimal = booking_row.get(4);
+    let original_total: Decimal = booking_row.get(5);
+
+    // Parse new dates if provided
+    let comp_start = if let Some(ref date_str) = input.complimentary_start_date {
+        Some(NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+            .map_err(|_| ApiError::BadRequest("Invalid complimentary_start_date format".to_string()))?)
+    } else {
+        None
+    };
+
+    let comp_end = if let Some(ref date_str) = input.complimentary_end_date {
+        Some(NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
+            .map_err(|_| ApiError::BadRequest("Invalid complimentary_end_date format".to_string()))?)
+    } else {
+        None
+    };
+
+    // Validate dates if both provided
+    if let (Some(start), Some(end)) = (comp_start, comp_end) {
+        if start < check_in || end > check_out {
+            return Err(ApiError::BadRequest(
+                format!("Complimentary dates must be within booking period ({} to {})", check_in, check_out)
+            ));
+        }
+        if start >= end {
+            return Err(ApiError::BadRequest("Complimentary end date must be after start date".to_string()));
+        }
+
+        // Recalculate amounts
+        let total_nights = (check_out - check_in).num_days() as i32;
+        let complimentary_nights = (end - start).num_days() as i32;
+        let paid_nights = total_nights - complimentary_nights;
+
+        let new_status = if complimentary_nights == total_nights {
+            "fully_complimentary"
+        } else {
+            "partial_complimentary"
+        };
+
+        let new_subtotal = room_rate * Decimal::from(paid_nights);
+        let tax_rate = Decimal::from_str_exact("0.10").unwrap_or_default();
+        let new_tax = new_subtotal * tax_rate;
+        let new_total = new_subtotal + new_tax;
+
+        sqlx::query(
+            r#"
+            UPDATE bookings
+            SET complimentary_start_date = $1,
+                complimentary_end_date = $2,
+                complimentary_reason = COALESCE($3, complimentary_reason),
+                complimentary_nights = $4,
+                subtotal = $5,
+                tax_amount = $6,
+                total_amount = $7,
+                status = $8,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $9
+            "#
+        )
+        .bind(start)
+        .bind(end)
+        .bind(&input.complimentary_reason)
+        .bind(complimentary_nights)
+        .bind(new_subtotal)
+        .bind(new_tax)
+        .bind(new_total)
+        .bind(new_status)
+        .bind(booking_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        return Ok(Json(serde_json::json!({
+            "success": true,
+            "message": "Complimentary dates updated",
+            "booking_id": booking_id,
+            "complimentary_nights": complimentary_nights,
+            "new_total": new_total.to_string()
+        })));
+    }
+
+    // Just update reason if no dates provided
+    if let Some(ref reason) = input.complimentary_reason {
+        sqlx::query("UPDATE bookings SET complimentary_reason = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
+            .bind(reason)
+            .bind(booking_id)
+            .execute(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+    }
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Complimentary booking updated",
+        "booking_id": booking_id
+    })))
+}
+
+/// Remove complimentary status from a booking
+pub async fn remove_complimentary_handler(
+    State(pool): State<PgPool>,
+    Extension(_user_id): Extension<i64>,
+    Path(booking_id): Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Get current booking
+    let booking_row = sqlx::query(
+        "SELECT id, guest_id, is_complimentary, original_total_amount, complimentary_nights, status FROM bookings WHERE id = $1"
+    )
+    .bind(booking_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+
+    let guest_id: i64 = booking_row.get(1);
+    let is_complimentary: Option<bool> = booking_row.get(2);
+    let original_total: Option<Decimal> = booking_row.get(3);
+    let complimentary_nights: Option<i32> = booking_row.get(4);
+    let status: String = booking_row.get(5);
+
+    if is_complimentary != Some(true) {
+        return Err(ApiError::BadRequest("Booking is not marked as complimentary".to_string()));
+    }
+
+    // Only allow removal for non-checked-in bookings
+    if status == "checked_in" || status == "checked_out" {
+        return Err(ApiError::BadRequest(
+            format!("Cannot remove complimentary status from booking with status: {}", status)
+        ));
+    }
+
+    // Restore original amount and clear complimentary fields
+    sqlx::query(
+        r#"
+        UPDATE bookings
+        SET is_complimentary = false,
+            complimentary_reason = NULL,
+            complimentary_start_date = NULL,
+            complimentary_end_date = NULL,
+            complimentary_nights = NULL,
+            total_amount = COALESCE(original_total_amount, total_amount),
+            original_total_amount = NULL,
+            status = 'confirmed',
+            payment_status = 'unpaid',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        "#
+    )
+    .bind(booking_id)
+    .execute(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Remove any credits that were added (if applicable)
+    // Note: This is a simplification - in production you might want more sophisticated tracking
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Complimentary status removed",
+        "booking_id": booking_id,
+        "restored_total": original_total.map(|d| d.to_string())
+    })))
+}
+
+/// Guest credit information
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct GuestCredit {
+    pub guest_id: i64,
+    pub guest_name: String,
+    pub email: Option<String>,
+    pub legacy_credits: i32,
+}
+
+/// Get all guests with complimentary credits
+pub async fn get_guests_with_credits_handler(
+    State(pool): State<PgPool>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Get guests with legacy credits
+    let legacy_guests: Vec<GuestCredit> = sqlx::query_as(
+        r#"
+        SELECT id as guest_id, full_name as guest_name, email, COALESCE(complimentary_nights_credit, 0) as legacy_credits
+        FROM guests
+        WHERE complimentary_nights_credit > 0
+        ORDER BY complimentary_nights_credit DESC
+        "#
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Get room type specific credits
+    let room_type_credits: Vec<serde_json::Value> = sqlx::query(
+        r#"
+        SELECT gc.guest_id, g.full_name as guest_name, g.email,
+               gc.room_type_id, rt.name as room_type_name, rt.code as room_type_code,
+               gc.nights_available
+        FROM guest_complimentary_credits gc
+        INNER JOIN guests g ON gc.guest_id = g.id
+        INNER JOIN room_types rt ON gc.room_type_id = rt.id
+        WHERE gc.nights_available > 0
+        ORDER BY gc.nights_available DESC
+        "#
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .iter()
+    .map(|row| {
+        serde_json::json!({
+            "guest_id": row.get::<i64, _>("guest_id"),
+            "guest_name": row.get::<String, _>("guest_name"),
+            "email": row.get::<Option<String>, _>("email"),
+            "room_type_id": row.get::<i64, _>("room_type_id"),
+            "room_type_name": row.get::<String, _>("room_type_name"),
+            "room_type_code": row.get::<Option<String>, _>("room_type_code"),
+            "nights_available": row.get::<i32, _>("nights_available")
+        })
+    })
+    .collect();
+
+    Ok(Json(serde_json::json!({
+        "legacy_credits": legacy_guests,
+        "room_type_credits": room_type_credits
     })))
 }

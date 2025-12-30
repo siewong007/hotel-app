@@ -36,6 +36,8 @@ import {
   ListItem,
   ListItemText,
   Autocomplete,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -53,6 +55,12 @@ import {
   CheckCircle as CheckCircleIcon,
   Print as PrintIcon,
   PersonAdd as PersonAddIcon,
+  Login as CheckInIcon,
+  Logout as CheckOutIcon,
+  Hotel as HotelIcon,
+  Person as PersonIcon,
+  Download as DownloadIcon,
+  Description as InvoiceIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import {
@@ -62,8 +70,13 @@ import {
   CustomerLedgerPayment,
   CustomerLedgerPaymentRequest,
   CustomerLedgerSummary,
+  Room,
+  Guest,
+  BookingWithDetails,
 } from '../../../types';
-import { formatCurrency } from '../../../utils/currency';
+import { Company } from '../../../api/companies.service';
+import { useCurrency } from '../../../hooks/useCurrency';
+import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
 
 type SortField = 'company_name' | 'amount' | 'balance_due' | 'status' | 'due_date' | 'created_at';
 type SortOrder = 'asc' | 'desc';
@@ -161,6 +174,7 @@ const getStatusText = (status: string): string => {
 };
 
 const CustomerLedgerPage: React.FC = () => {
+  const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
   const [ledgers, setLedgers] = useState<CustomerLedger[]>([]);
   const [summary, setSummary] = useState<CustomerLedgerSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -229,10 +243,126 @@ const CustomerLedgerPage: React.FC = () => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
+  // Company Check-In state
+  const [checkInDialogOpen, setCheckInDialogOpen] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
+  const [guests, setGuests] = useState<Guest[]>([]);
+  const [companyBookings, setCompanyBookings] = useState<BookingWithDetails[]>([]);
+  const [allCompanyBookings, setAllCompanyBookings] = useState<BookingWithDetails[]>([]);
+  const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false);
+  const [checkoutBooking, setCheckoutBooking] = useState<BookingWithDetails | null>(null);
+  const [checkInCompany, setCheckInCompany] = useState<Company | null>(null);
+  const [checkInGuest, setCheckInGuest] = useState<Guest | null>(null);
+  const [checkInRoom, setCheckInRoom] = useState<Room | null>(null);
+  const [checkInDate, setCheckInDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [checkOutDate, setCheckOutDate] = useState<string>(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  });
+  const [processingCheckIn, setProcessingCheckIn] = useState(false);
+  const [isCreatingNewCheckInGuest, setIsCreatingNewCheckInGuest] = useState(false);
+  const [newCheckInGuestForm, setNewCheckInGuestForm] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    ic_number: '',
+  });
+
+  // Company Registration state
+  const [companyRegDialogOpen, setCompanyRegDialogOpen] = useState(false);
+  const [creatingCompany, setCreatingCompany] = useState(false);
+  const [companyRegForm, setCompanyRegForm] = useState({
+    company_name: '',
+    registration_number: '',
+    contact_person: '',
+    contact_email: '',
+    contact_phone: '',
+    billing_address: '',
+    billing_city: '',
+    billing_state: '',
+    billing_postal_code: '',
+    credit_limit: '',
+    payment_terms_days: '30',
+    notes: '',
+  });
+
+  // Company Edit state
+  const [companyEditDialogOpen, setCompanyEditDialogOpen] = useState(false);
+  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
+  const [updatingCompany, setUpdatingCompany] = useState(false);
+  const [companyEditForm, setCompanyEditForm] = useState({
+    company_name: '',
+    registration_number: '',
+    contact_person: '',
+    contact_email: '',
+    contact_phone: '',
+    billing_address: '',
+    billing_city: '',
+    billing_state: '',
+    billing_postal_code: '',
+    credit_limit: '',
+    payment_terms_days: '30',
+    notes: '',
+  });
+
+  // Company Delete state
+  const [companyDeleteDialogOpen, setCompanyDeleteDialogOpen] = useState(false);
+  const [deletingCompanyData, setDeletingCompanyData] = useState<Company | null>(null);
+  const [deletingCompany, setDeletingCompany] = useState(false);
+
+  // Company Payment state
+  const [companyPaymentDialogOpen, setCompanyPaymentDialogOpen] = useState(false);
+  const [paymentCompany, setPaymentCompany] = useState<Company | null>(null);
+  const [paymentCompanyLedgers, setPaymentCompanyLedgers] = useState<CustomerLedger[]>([]);
+  const [selectedLedgerForPayment, setSelectedLedgerForPayment] = useState<CustomerLedger | null>(null);
+  const [processingCompanyPayment, setProcessingCompanyPayment] = useState(false);
+  const [companyPaymentForm, setCompanyPaymentForm] = useState({
+    payment_amount: '',
+    payment_method: 'bank_transfer',
+    payment_reference: '',
+    receipt_number: '',
+    notes: '',
+  });
+
+  // Company Invoice state
+  const [companyInvoiceDialogOpen, setCompanyInvoiceDialogOpen] = useState(false);
+  const [invoiceCompany, setInvoiceCompany] = useState<Company | null>(null);
+  const [invoiceLedgerEntries, setInvoiceLedgerEntries] = useState<CustomerLedger[]>([]);
+  const [selectedInvoiceLedgers, setSelectedInvoiceLedgers] = useState<number[]>([]);
+  const [invoiceNumber, setInvoiceNumber] = useState<string>('');
+  const [invoiceDate, setInvoiceDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [invoiceDueDate, setInvoiceDueDate] = useState<string>(() => {
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30);
+    return dueDate.toISOString().split('T')[0];
+  });
+  const [invoiceNotes, setInvoiceNotes] = useState<string>('');
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false);
+
   useEffect(() => {
     loadData();
     loadCompanies();
+    loadCompaniesForCheckIn();
+    loadGuests();
+    loadAllCompanyBookings();
   }, []);
+
+  // Load all bookings that have company billing
+  const loadAllCompanyBookings = async () => {
+    try {
+      const allBookings = await HotelAPIService.getBookingsWithDetails();
+      // Filter bookings with company_id that are active (checked_in or auto_checked_in)
+      const companyActiveBookings = allBookings.filter(
+        b => b.company_id && (b.status === 'checked_in' || b.status === 'auto_checked_in')
+      );
+      setAllCompanyBookings(companyActiveBookings);
+    } catch (err) {
+      console.error('Failed to load company bookings:', err);
+    }
+  };
 
   // Load companies from database
   const loadCompanies = async () => {
@@ -250,6 +380,618 @@ const CustomerLedgerPage: React.FC = () => {
     } catch (err) {
       console.error('Failed to load companies:', err);
     }
+  };
+
+  // Load full company data for check-in
+  const loadCompaniesForCheckIn = async () => {
+    try {
+      const companiesData = await HotelAPIService.getCompanies({ is_active: true });
+      setCompanies(companiesData);
+    } catch (err) {
+      console.error('Failed to load companies for check-in:', err);
+    }
+  };
+
+  // Load guests for check-in
+  const loadGuests = async () => {
+    try {
+      const guestsData = await HotelAPIService.getAllGuests();
+      setGuests(guestsData);
+    } catch (err) {
+      console.error('Failed to load guests:', err);
+    }
+  };
+
+  // Load available rooms for given dates
+  const loadAvailableRooms = async (checkIn: string, checkOut: string) => {
+    try {
+      const rooms = await HotelAPIService.getAvailableRoomsForDates(checkIn, checkOut);
+      setAvailableRooms(rooms);
+    } catch (err) {
+      console.error('Failed to load available rooms:', err);
+      setAvailableRooms([]);
+    }
+  };
+
+  // Load bookings for a specific company
+  const loadCompanyBookings = async (companyId: number) => {
+    try {
+      const allBookings = await HotelAPIService.getBookingsWithDetails();
+      const filtered = allBookings.filter(b => b.company_id === companyId);
+      setCompanyBookings(filtered);
+    } catch (err) {
+      console.error('Failed to load company bookings:', err);
+      setCompanyBookings([]);
+    }
+  };
+
+  // Handle opening company check-in dialog
+  const handleOpenCheckInDialog = async (company?: Company) => {
+    setCheckInDialogOpen(true);
+    if (company) {
+      setCheckInCompany(company);
+      await loadCompanyBookings(company.id);
+    }
+    await loadAvailableRooms(checkInDate, checkOutDate);
+  };
+
+  // Handle company check-in
+  const handleCompanyCheckIn = async () => {
+    if (!checkInCompany || !checkInRoom) {
+      setSnackbarMessage('Please select a company and room');
+      setSnackbarOpen(true);
+      return;
+    }
+
+    try {
+      setProcessingCheckIn(true);
+
+      let guestToUse = checkInGuest;
+
+      // Create new guest if needed
+      if (isCreatingNewCheckInGuest) {
+        if (!newCheckInGuestForm.first_name || !newCheckInGuestForm.last_name) {
+          setSnackbarMessage('Please enter guest first and last name');
+          setSnackbarOpen(true);
+          setProcessingCheckIn(false);
+          return;
+        }
+
+        const newGuest = await HotelAPIService.createGuest({
+          first_name: newCheckInGuestForm.first_name,
+          last_name: newCheckInGuestForm.last_name,
+          email: newCheckInGuestForm.email || `${newCheckInGuestForm.first_name.toLowerCase()}.${newCheckInGuestForm.last_name.toLowerCase()}@company.temp`,
+          phone: newCheckInGuestForm.phone,
+          ic_number: newCheckInGuestForm.ic_number,
+        });
+        guestToUse = newGuest;
+      }
+
+      if (!guestToUse) {
+        setSnackbarMessage('Please select or create a guest');
+        setSnackbarOpen(true);
+        setProcessingCheckIn(false);
+        return;
+      }
+
+      // Get room_id - handle both 'id' and potential 'room_id' field names
+      const roomId = checkInRoom.id || (checkInRoom as any).room_id;
+      if (!roomId) {
+        setSnackbarMessage('Room ID not found. Please select a different room.');
+        setSnackbarOpen(true);
+        setProcessingCheckIn(false);
+        return;
+      }
+
+      // Create booking with company billing
+      const booking = await HotelAPIService.createBooking({
+        guest_id: typeof guestToUse.id === 'string' ? parseInt(guestToUse.id, 10) : guestToUse.id,
+        room_id: String(roomId),
+        check_in_date: checkInDate,
+        check_out_date: checkOutDate,
+        post_type: 'normal_stay',
+        payment_status: 'unpaid',
+        booking_remarks: `Company Billing: ${checkInCompany.company_name}`,
+      });
+
+      // Update booking with company info
+      await HotelAPIService.updateBooking(booking.id, {
+        company_id: checkInCompany.id,
+        company_name: checkInCompany.company_name,
+      });
+
+      // Check in the guest
+      await HotelAPIService.checkInGuest(booking.id, {});
+
+      setSnackbarMessage(`Guest ${guestToUse.full_name} checked in to Room ${checkInRoom.room_number} (Company: ${checkInCompany.company_name})`);
+      setSnackbarOpen(true);
+
+      // Reset and close dialog
+      setCheckInDialogOpen(false);
+      resetCheckInForm();
+      await loadData();
+      await loadCompaniesForCheckIn();
+    } catch (err: any) {
+      console.error('Failed to perform company check-in:', err);
+      setSnackbarMessage(err.message || 'Failed to perform company check-in');
+      setSnackbarOpen(true);
+    } finally {
+      setProcessingCheckIn(false);
+    }
+  };
+
+  // Reset check-in form
+  const resetCheckInForm = () => {
+    setCheckInCompany(null);
+    setCheckInGuest(null);
+    setCheckInRoom(null);
+    setCheckInDate(new Date().toISOString().split('T')[0]);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setCheckOutDate(tomorrow.toISOString().split('T')[0]);
+    setIsCreatingNewCheckInGuest(false);
+    setNewCheckInGuestForm({
+      first_name: '',
+      last_name: '',
+      email: '',
+      phone: '',
+      ic_number: '',
+    });
+    setCompanyBookings([]);
+  };
+
+  // Handle opening checkout dialog for a company booking
+  const handleOpenCheckoutDialog = (booking: BookingWithDetails) => {
+    setCheckoutBooking(booking);
+    setCheckoutDialogOpen(true);
+  };
+
+  // Handle confirming checkout
+  const handleConfirmCompanyCheckout = async (lateCheckoutData?: { penalty: number; notes: string }) => {
+    if (!checkoutBooking) return;
+
+    try {
+      // Build update payload
+      const updatePayload: any = { status: 'checked_out' };
+
+      // Add late checkout data if provided
+      if (lateCheckoutData) {
+        updatePayload.late_checkout_penalty = lateCheckoutData.penalty;
+        updatePayload.late_checkout_notes = lateCheckoutData.notes;
+      }
+
+      // Update booking status to checked_out
+      await HotelAPIService.updateBooking(checkoutBooking.id, updatePayload);
+
+      // Mark room as dirty
+      const dirtyNotes = lateCheckoutData
+        ? `Room requires cleaning after late checkout. Late checkout penalty: ${lateCheckoutData.penalty}. Notes: ${lateCheckoutData.notes || 'None'}`
+        : 'Room requires cleaning after checkout';
+
+      await HotelAPIService.updateRoomStatus(checkoutBooking.room_id, {
+        status: 'dirty',
+        notes: dirtyNotes,
+      });
+
+      // Auto-post room charges to company ledger
+      if (checkoutBooking.company_id && checkoutBooking.company_name) {
+        try {
+          const roomAmount = typeof checkoutBooking.total_amount === 'string'
+            ? parseFloat(checkoutBooking.total_amount)
+            : (checkoutBooking.total_amount || 0);
+          const lateCheckoutPenalty = lateCheckoutData?.penalty || 0;
+          const totalAmount = roomAmount + lateCheckoutPenalty;
+
+          const checkIn = new Date(checkoutBooking.check_in_date);
+          const checkOut = new Date(checkoutBooking.check_out_date);
+          const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+
+          let description = `Room ${checkoutBooking.room_number} - ${checkoutBooking.guest_name}`;
+          description += ` (${nights} night${nights > 1 ? 's' : ''}: ${checkoutBooking.check_in_date} to ${checkoutBooking.check_out_date})`;
+          if (lateCheckoutPenalty > 0) {
+            description += ` + Late checkout penalty`;
+          }
+
+          await HotelAPIService.createCustomerLedger({
+            company_name: checkoutBooking.company_name,
+            description: description,
+            expense_type: 'accommodation',
+            amount: totalAmount,
+            booking_id: parseInt(checkoutBooking.id),
+            room_number: checkoutBooking.room_number,
+            posting_date: new Date().toISOString().split('T')[0],
+            transaction_date: new Date().toISOString().split('T')[0],
+            post_type: 'room_charge',
+            notes: lateCheckoutData?.notes ? `Late checkout: ${lateCheckoutData.notes}` : undefined,
+          });
+        } catch (ledgerError) {
+          console.error('Failed to post room charges to company ledger:', ledgerError);
+        }
+      }
+
+      setSnackbarMessage(`${checkoutBooking.guest_name} checked out from Room ${checkoutBooking.room_number}`);
+      setSnackbarOpen(true);
+      setCheckoutDialogOpen(false);
+      setCheckoutBooking(null);
+
+      // Reload data
+      await loadData();
+      await loadAllCompanyBookings();
+    } catch (error: any) {
+      throw new Error(error.message || 'Failed to process checkout');
+    }
+  };
+
+  // Handle date change and reload rooms
+  const handleCheckInDateChange = async (newDate: string) => {
+    setCheckInDate(newDate);
+    await loadAvailableRooms(newDate, checkOutDate);
+  };
+
+  const handleCheckOutDateChange = async (newDate: string) => {
+    setCheckOutDate(newDate);
+    await loadAvailableRooms(checkInDate, newDate);
+  };
+
+  // Reset company registration form
+  const resetCompanyRegForm = () => {
+    setCompanyRegForm({
+      company_name: '',
+      registration_number: '',
+      contact_person: '',
+      contact_email: '',
+      contact_phone: '',
+      billing_address: '',
+      billing_city: '',
+      billing_state: '',
+      billing_postal_code: '',
+      credit_limit: '',
+      payment_terms_days: '30',
+      notes: '',
+    });
+  };
+
+  // Handle company registration
+  const handleRegisterCompany = async () => {
+    if (!companyRegForm.company_name.trim()) {
+      setSnackbarMessage('Company name is required');
+      setSnackbarOpen(true);
+      return;
+    }
+
+    try {
+      setCreatingCompany(true);
+
+      await HotelAPIService.createCompany({
+        company_name: companyRegForm.company_name.trim(),
+        registration_number: companyRegForm.registration_number.trim() || undefined,
+        contact_person: companyRegForm.contact_person.trim() || undefined,
+        contact_email: companyRegForm.contact_email.trim() || undefined,
+        contact_phone: companyRegForm.contact_phone.trim() || undefined,
+        billing_address: companyRegForm.billing_address.trim() || undefined,
+        billing_city: companyRegForm.billing_city.trim() || undefined,
+        billing_state: companyRegForm.billing_state.trim() || undefined,
+        billing_postal_code: companyRegForm.billing_postal_code.trim() || undefined,
+        credit_limit: companyRegForm.credit_limit ? parseFloat(companyRegForm.credit_limit) : undefined,
+        payment_terms_days: companyRegForm.payment_terms_days ? parseInt(companyRegForm.payment_terms_days) : 30,
+        notes: companyRegForm.notes.trim() || undefined,
+      });
+
+      setSnackbarMessage(`Company "${companyRegForm.company_name}" registered successfully`);
+      setSnackbarOpen(true);
+      setCompanyRegDialogOpen(false);
+      resetCompanyRegForm();
+
+      // Reload companies
+      await loadCompanies();
+      await loadCompaniesForCheckIn();
+    } catch (error: any) {
+      console.error('Failed to register company:', error);
+      setSnackbarMessage(error.message || 'Failed to register company');
+      setSnackbarOpen(true);
+    } finally {
+      setCreatingCompany(false);
+    }
+  };
+
+  // Open edit company dialog
+  const handleOpenEditCompany = (company: Company) => {
+    setEditingCompany(company);
+    setCompanyEditForm({
+      company_name: company.company_name || '',
+      registration_number: company.registration_number || '',
+      contact_person: company.contact_person || '',
+      contact_email: company.contact_email || '',
+      contact_phone: company.contact_phone || '',
+      billing_address: company.billing_address || '',
+      billing_city: company.billing_city || '',
+      billing_state: company.billing_state || '',
+      billing_postal_code: company.billing_postal_code || '',
+      credit_limit: company.credit_limit?.toString() || '',
+      payment_terms_days: company.payment_terms_days?.toString() || '30',
+      notes: company.notes || '',
+    });
+    setCompanyEditDialogOpen(true);
+  };
+
+  // Reset edit form
+  const resetCompanyEditForm = () => {
+    setCompanyEditForm({
+      company_name: '',
+      registration_number: '',
+      contact_person: '',
+      contact_email: '',
+      contact_phone: '',
+      billing_address: '',
+      billing_city: '',
+      billing_state: '',
+      billing_postal_code: '',
+      credit_limit: '',
+      payment_terms_days: '30',
+      notes: '',
+    });
+    setEditingCompany(null);
+  };
+
+  // Handle update company
+  const handleUpdateCompany = async () => {
+    if (!editingCompany || !companyEditForm.company_name.trim()) {
+      setSnackbarMessage('Company name is required');
+      setSnackbarOpen(true);
+      return;
+    }
+
+    try {
+      setUpdatingCompany(true);
+
+      await HotelAPIService.updateCompany(editingCompany.id, {
+        company_name: companyEditForm.company_name.trim(),
+        registration_number: companyEditForm.registration_number.trim() || undefined,
+        contact_person: companyEditForm.contact_person.trim() || undefined,
+        contact_email: companyEditForm.contact_email.trim() || undefined,
+        contact_phone: companyEditForm.contact_phone.trim() || undefined,
+        billing_address: companyEditForm.billing_address.trim() || undefined,
+        billing_city: companyEditForm.billing_city.trim() || undefined,
+        billing_state: companyEditForm.billing_state.trim() || undefined,
+        billing_postal_code: companyEditForm.billing_postal_code.trim() || undefined,
+        credit_limit: companyEditForm.credit_limit ? parseFloat(companyEditForm.credit_limit) : undefined,
+        payment_terms_days: companyEditForm.payment_terms_days ? parseInt(companyEditForm.payment_terms_days) : 30,
+        notes: companyEditForm.notes.trim() || undefined,
+      });
+
+      setSnackbarMessage(`Company "${companyEditForm.company_name}" updated successfully`);
+      setSnackbarOpen(true);
+      setCompanyEditDialogOpen(false);
+      resetCompanyEditForm();
+
+      // Reload companies
+      await loadCompanies();
+      await loadCompaniesForCheckIn();
+    } catch (error: any) {
+      console.error('Failed to update company:', error);
+      setSnackbarMessage(error.message || 'Failed to update company');
+      setSnackbarOpen(true);
+    } finally {
+      setUpdatingCompany(false);
+    }
+  };
+
+  // Open delete company confirmation
+  const handleOpenDeleteCompany = (company: Company) => {
+    setDeletingCompanyData(company);
+    setCompanyDeleteDialogOpen(true);
+  };
+
+  // Handle delete company
+  const handleDeleteCompany = async () => {
+    if (!deletingCompanyData) return;
+
+    try {
+      setDeletingCompany(true);
+
+      await HotelAPIService.deleteCompany(deletingCompanyData.id);
+
+      setSnackbarMessage(`Company "${deletingCompanyData.company_name}" deleted successfully`);
+      setSnackbarOpen(true);
+      setCompanyDeleteDialogOpen(false);
+      setDeletingCompanyData(null);
+
+      // Reload companies
+      await loadCompanies();
+      await loadCompaniesForCheckIn();
+    } catch (error: any) {
+      console.error('Failed to delete company:', error);
+      setSnackbarMessage(error.message || 'Failed to delete company');
+      setSnackbarOpen(true);
+    } finally {
+      setDeletingCompany(false);
+    }
+  };
+
+  // Open payment dialog for a company
+  const handleOpenCompanyPaymentDialog = async (company: Company) => {
+    setPaymentCompany(company);
+    // Load unpaid/partial ledger entries for this company
+    const companyLedgersFiltered = ledgers.filter(
+      l => l.company_name === company.company_name &&
+           (l.status === 'pending' || l.status === 'partial')
+    );
+    setPaymentCompanyLedgers(companyLedgersFiltered);
+    setSelectedLedgerForPayment(companyLedgersFiltered.length > 0 ? companyLedgersFiltered[0] : null);
+    setCompanyPaymentDialogOpen(true);
+  };
+
+  // Reset company payment form
+  const resetCompanyPaymentForm = () => {
+    setCompanyPaymentForm({
+      payment_amount: '',
+      payment_method: 'bank_transfer',
+      payment_reference: '',
+      receipt_number: '',
+      notes: '',
+    });
+    setPaymentCompany(null);
+    setPaymentCompanyLedgers([]);
+    setSelectedLedgerForPayment(null);
+  };
+
+  // Handle recording company payment
+  const handleRecordCompanyPayment = async () => {
+    if (!selectedLedgerForPayment || !companyPaymentForm.payment_amount) {
+      setSnackbarMessage('Please select a ledger entry and enter payment amount');
+      setSnackbarOpen(true);
+      return;
+    }
+
+    const paymentAmount = parseFloat(companyPaymentForm.payment_amount);
+    if (isNaN(paymentAmount) || paymentAmount <= 0) {
+      setSnackbarMessage('Please enter a valid payment amount');
+      setSnackbarOpen(true);
+      return;
+    }
+
+    try {
+      setProcessingCompanyPayment(true);
+
+      await HotelAPIService.createLedgerPayment(selectedLedgerForPayment.id, {
+        payment_amount: paymentAmount,
+        payment_method: companyPaymentForm.payment_method,
+        payment_reference: companyPaymentForm.payment_reference || undefined,
+        receipt_number: companyPaymentForm.receipt_number || undefined,
+        notes: companyPaymentForm.notes || undefined,
+      });
+
+      setSnackbarMessage(`Payment of ${formatCurrency(paymentAmount)} recorded successfully`);
+      setSnackbarOpen(true);
+      setCompanyPaymentDialogOpen(false);
+      resetCompanyPaymentForm();
+
+      // Reload data
+      await loadData();
+    } catch (error: any) {
+      console.error('Failed to record payment:', error);
+      setSnackbarMessage(error.message || 'Failed to record payment');
+      setSnackbarOpen(true);
+    } finally {
+      setProcessingCompanyPayment(false);
+    }
+  };
+
+  // Company Invoice handlers
+  const handleOpenCompanyInvoiceDialog = (company: Company) => {
+    setInvoiceCompany(company);
+    // Get all ledger entries for this company
+    const companyLedgersFiltered = ledgers.filter(
+      l => l.company_name === company.company_name
+    );
+    setInvoiceLedgerEntries(companyLedgersFiltered);
+    // Pre-select entries that don't have invoice numbers yet
+    const uninvoicedIds = companyLedgersFiltered
+      .filter(l => !l.invoice_number && (l.status === 'pending' || l.status === 'partial'))
+      .map(l => l.id);
+    setSelectedInvoiceLedgers(uninvoicedIds);
+    // Generate invoice number
+    const timestamp = Date.now();
+    setInvoiceNumber(`INV-${company.company_name.substring(0, 3).toUpperCase()}-${timestamp.toString().slice(-6)}`);
+    // Set due date based on company payment terms
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + (company.payment_terms_days || 30));
+    setInvoiceDueDate(dueDate.toISOString().split('T')[0]);
+    setInvoiceDate(new Date().toISOString().split('T')[0]);
+    setInvoiceNotes('');
+    setShowInvoicePreview(false);
+    setCompanyInvoiceDialogOpen(true);
+  };
+
+  const resetCompanyInvoiceForm = () => {
+    setInvoiceCompany(null);
+    setInvoiceLedgerEntries([]);
+    setSelectedInvoiceLedgers([]);
+    setInvoiceNumber('');
+    setInvoiceDate(new Date().toISOString().split('T')[0]);
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30);
+    setInvoiceDueDate(dueDate.toISOString().split('T')[0]);
+    setInvoiceNotes('');
+    setShowInvoicePreview(false);
+  };
+
+  const handleToggleLedgerSelection = (ledgerId: number) => {
+    setSelectedInvoiceLedgers(prev =>
+      prev.includes(ledgerId)
+        ? prev.filter(id => id !== ledgerId)
+        : [...prev, ledgerId]
+    );
+  };
+
+  const handleSelectAllLedgers = () => {
+    if (selectedInvoiceLedgers.length === invoiceLedgerEntries.length) {
+      setSelectedInvoiceLedgers([]);
+    } else {
+      setSelectedInvoiceLedgers(invoiceLedgerEntries.map(l => l.id));
+    }
+  };
+
+  const getSelectedLedgerTotal = () => {
+    return invoiceLedgerEntries
+      .filter(l => selectedInvoiceLedgers.includes(l.id))
+      .reduce((sum, l) => {
+        const amount = typeof l.amount === 'string' ? parseFloat(l.amount) : l.amount;
+        return sum + amount;
+      }, 0);
+  };
+
+  const getSelectedLedgerBalanceDue = () => {
+    return invoiceLedgerEntries
+      .filter(l => selectedInvoiceLedgers.includes(l.id))
+      .reduce((sum, l) => {
+        const balanceDue = typeof l.balance_due === 'string' ? parseFloat(l.balance_due) : (l.balance_due || 0);
+        return sum + balanceDue;
+      }, 0);
+  };
+
+  const handlePrintCompanyInvoice = () => {
+    const printContent = document.getElementById('company-invoice-content');
+    if (!printContent) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Invoice ${invoiceNumber}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+            .header h1 { margin: 0; font-size: 28px; }
+            .header p { margin: 5px 0; color: #666; }
+            .invoice-info { display: flex; justify-content: space-between; margin: 20px 0; }
+            .info-section { flex: 1; }
+            .info-section h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; text-transform: uppercase; }
+            .info-section p { margin: 3px 0; }
+            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+            th { background-color: #f5f5f5; font-weight: bold; }
+            .text-right { text-align: right; }
+            .total-row { font-weight: bold; font-size: 1.1em; background-color: #f9f9f9; }
+            .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; }
+            .footer p { margin: 5px 0; color: #666; font-size: 12px; }
+            .amount { font-family: monospace; }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          ${printContent.innerHTML}
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    printWindow.print();
   };
 
   const loadData = async () => {
@@ -707,6 +1449,14 @@ const CustomerLedgerPage: React.FC = () => {
           </Button>
           <Button
             variant="contained"
+            color="success"
+            startIcon={<CheckInIcon />}
+            onClick={() => handleOpenCheckInDialog()}
+          >
+            Company Check-In
+          </Button>
+          <Button
+            variant="contained"
             startIcon={<AddIcon />}
             onClick={() => setCreateDialogOpen(true)}
           >
@@ -790,60 +1540,209 @@ const CustomerLedgerPage: React.FC = () => {
         </Grid>
       )}
 
-      {/* Company Summary with Print Buttons */}
-      {uniqueCompanies.length > 0 && (
-        <Card sx={{ mb: 3, p: 2 }}>
-          <Box display="flex" alignItems="center" gap={1} mb={2}>
+      {/* Registered Companies with Check-In */}
+      <Card sx={{ mb: 3, p: 2 }}>
+        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+          <Box display="flex" alignItems="center" gap={1}>
             <BusinessIcon color="primary" />
-            <Typography variant="h6">Companies</Typography>
+            <Typography variant="h6">Registered Companies</Typography>
+            <Chip label={companies.length} size="small" color="primary" />
           </Box>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={() => setCompanyRegDialogOpen(true)}
+          >
+            Register Company
+          </Button>
+        </Box>
+        {companies.length === 0 ? (
+          <Alert
+            severity="info"
+            action={
+              <Button color="inherit" size="small" onClick={() => setCompanyRegDialogOpen(true)}>
+                Register Now
+              </Button>
+            }
+          >
+            No companies registered yet. Click "Register Company" to add your first company.
+          </Alert>
+        ) : (
           <Grid container spacing={2}>
-            {uniqueCompanies.map((company) => (
-              <Grid item xs={12} sm={6} md={4} lg={3} key={company.name}>
-                <Paper
-                  variant="outlined"
-                  sx={{
-                    p: 2,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: '100%',
-                    '&:hover': { boxShadow: 2 },
-                  }}
-                >
-                  <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                    <Typography variant="subtitle1" fontWeight="bold" noWrap sx={{ flex: 1 }}>
-                      {company.name}
-                    </Typography>
-                    <IconButton
-                      size="small"
-                      color="primary"
-                      onClick={() => handlePrintCompanyStatement(company.name)}
-                      title="Print Statement"
-                    >
-                      <PrintIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                  <Typography variant="body2" color="text.secondary">
-                    {company.entries} entries
-                  </Typography>
-                  <Box display="flex" justifyContent="space-between" mt={1}>
-                    <Typography variant="body2">
-                      Total: {formatCurrency(company.total)}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      color={company.balance > 0 ? 'error.main' : 'success.main'}
-                      fontWeight="medium"
-                    >
-                      Due: {formatCurrency(company.balance)}
-                    </Typography>
-                  </Box>
-                </Paper>
-              </Grid>
-            ))}
+            {companies.map((company) => {
+              const ledgerData = uniqueCompanies.find(u => u.name === company.company_name);
+              const activeBookings = allCompanyBookings.filter(b => b.company_id === company.id);
+              return (
+                <Grid item xs={12} sm={6} md={4} key={company.id}>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 2,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      height: '100%',
+                      '&:hover': { boxShadow: 3 },
+                      transition: 'box-shadow 0.2s',
+                    }}
+                  >
+                    <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle1" fontWeight="bold" noWrap>
+                          {company.company_name}
+                        </Typography>
+                        {company.contact_person && (
+                          <Typography variant="caption" color="text.secondary" noWrap display="block">
+                            {company.contact_person}
+                          </Typography>
+                        )}
+                      </Box>
+                      {activeBookings.length > 0 && (
+                        <Chip
+                          label={`${activeBookings.length} Active`}
+                          size="small"
+                          color="success"
+                          variant="filled"
+                        />
+                      )}
+                    </Box>
+
+                    {/* Active Bookings */}
+                    {activeBookings.length > 0 && (
+                      <Box sx={{ mb: 1.5, p: 1, bgcolor: 'success.50', borderRadius: 1 }}>
+                        <Typography variant="caption" color="success.dark" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
+                          Active Guests:
+                        </Typography>
+                        {activeBookings.slice(0, 3).map((booking) => (
+                          <Box key={booking.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.5, gap: 1 }}>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="caption" noWrap display="block">
+                                {booking.guest_name}
+                              </Typography>
+                              <Chip
+                                label={`Room ${booking.room_number}`}
+                                size="small"
+                                variant="outlined"
+                                sx={{ height: 18, fontSize: '0.65rem' }}
+                              />
+                            </Box>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="error"
+                              onClick={() => handleOpenCheckoutDialog(booking)}
+                              sx={{
+                                minWidth: 'auto',
+                                px: 1,
+                                py: 0.25,
+                                fontSize: '0.7rem',
+                              }}
+                            >
+                              <CheckOutIcon sx={{ fontSize: 14, mr: 0.5 }} />
+                              Out
+                            </Button>
+                          </Box>
+                        ))}
+                        {activeBookings.length > 3 && (
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                            +{activeBookings.length - 3} more guest(s)
+                          </Typography>
+                        )}
+                      </Box>
+                    )}
+
+                    {ledgerData && (
+                      <Box sx={{ mb: 1 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          {ledgerData.entries} ledger entries
+                        </Typography>
+                        <Box display="flex" justifyContent="space-between">
+                          <Typography variant="body2">
+                            Total: {formatCurrency(ledgerData.total)}
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            color={ledgerData.balance > 0 ? 'error.main' : 'success.main'}
+                            fontWeight="medium"
+                          >
+                            Due: {formatCurrency(ledgerData.balance)}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
+
+                    {/* Action Buttons Row 1: Check-In and Payment */}
+                    <Box display="flex" gap={1} mt="auto" pt={1}>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="success"
+                        startIcon={<CheckInIcon />}
+                        onClick={() => handleOpenCheckInDialog(company)}
+                        sx={{ flex: 1 }}
+                      >
+                        Check-In
+                      </Button>
+                      {ledgerData && ledgerData.balance > 0 && (
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="primary"
+                          startIcon={<PaymentIcon />}
+                          onClick={() => handleOpenCompanyPaymentDialog(company)}
+                          sx={{ flex: 1 }}
+                        >
+                          Payment
+                        </Button>
+                      )}
+                    </Box>
+                    {/* Action Buttons Row 2: Edit, Invoice, Print, Delete */}
+                    <Box display="flex" gap={1} pt={0.5}>
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => handleOpenEditCompany(company)}
+                        title="Edit Company"
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      {ledgerData && (
+                        <>
+                          <IconButton
+                            size="small"
+                            color="secondary"
+                            onClick={() => handleOpenCompanyInvoiceDialog(company)}
+                            title="Generate Invoice"
+                          >
+                            <InvoiceIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => handlePrintCompanyStatement(company.company_name)}
+                            title="Print Statement"
+                          >
+                            <PrintIcon fontSize="small" />
+                          </IconButton>
+                        </>
+                      )}
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleOpenDeleteCompany(company)}
+                        title="Delete Company"
+                        disabled={activeBookings.length > 0}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  </Paper>
+                </Grid>
+              );
+            })}
           </Grid>
-        </Card>
-      )}
+        )}
+      </Card>
 
       {/* Filters and Search */}
       <Card sx={{ mb: 3, p: 2 }}>
@@ -1274,7 +2173,7 @@ const CustomerLedgerPage: React.FC = () => {
                 value={createFormData.amount}
                 onChange={(e) => setCreateFormData({ ...createFormData, amount: parseFloat(e.target.value) || 0 })}
                 InputProps={{
-                  startAdornment: <InputAdornment position="start">RM</InputAdornment>,
+                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                 }}
               />
             </Grid>
@@ -1494,7 +2393,7 @@ const CustomerLedgerPage: React.FC = () => {
                     value={paymentFormData.payment_amount}
                     onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_amount: parseFloat(e.target.value) || 0 })}
                     InputProps={{
-                      startAdornment: <InputAdornment position="start">RM</InputAdornment>,
+                      startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                     }}
                   />
                 </Grid>
@@ -1807,6 +2706,1258 @@ const CustomerLedgerPage: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPrintDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Company Check-In Dialog */}
+      <Dialog
+        open={checkInDialogOpen}
+        onClose={() => { setCheckInDialogOpen(false); resetCheckInForm(); }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <CheckInIcon color="success" />
+            Company Check-In
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={3} sx={{ mt: 0.5 }}>
+            {/* Company Selection */}
+            <Grid item xs={12}>
+              <Autocomplete
+                value={checkInCompany}
+                onChange={(event, newValue) => {
+                  setCheckInCompany(newValue);
+                  if (newValue) {
+                    loadCompanyBookings(newValue.id);
+                  } else {
+                    setCompanyBookings([]);
+                  }
+                }}
+                options={companies}
+                getOptionLabel={(option) => option.company_name}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                renderOption={(props, option) => {
+                  const { key, ...otherProps } = props;
+                  return (
+                    <li key={key} {...otherProps}>
+                      <Box>
+                        <Typography fontWeight="medium">{option.company_name}</Typography>
+                        {option.contact_person && (
+                          <Typography variant="caption" color="text.secondary">
+                            Contact: {option.contact_person}
+                          </Typography>
+                        )}
+                      </Box>
+                    </li>
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    required
+                    label="Select Company"
+                    placeholder="Search for a company"
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <>
+                          <BusinessIcon color="action" sx={{ ml: 1, mr: 0.5 }} />
+                          {params.InputProps.startAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Company Info */}
+            {checkInCompany && (
+              <Grid item xs={12}>
+                <Alert severity="info" icon={<BusinessIcon />}>
+                  <Typography variant="subtitle2">{checkInCompany.company_name}</Typography>
+                  {checkInCompany.contact_person && (
+                    <Typography variant="body2">Contact: {checkInCompany.contact_person}</Typography>
+                  )}
+                  {checkInCompany.contact_email && (
+                    <Typography variant="body2">Email: {checkInCompany.contact_email}</Typography>
+                  )}
+                  {companyBookings.length > 0 && (
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      Active Bookings: {companyBookings.filter(b => b.status === 'checked_in').length}
+                    </Typography>
+                  )}
+                </Alert>
+              </Grid>
+            )}
+
+            <Grid item xs={12}>
+              <Divider>
+                <Chip label="Guest Details" size="small" />
+              </Divider>
+            </Grid>
+
+            {/* Guest Selection */}
+            <Grid item xs={12}>
+              <Box display="flex" alignItems="center" gap={2} mb={2}>
+                <Button
+                  variant={!isCreatingNewCheckInGuest ? 'contained' : 'outlined'}
+                  size="small"
+                  onClick={() => setIsCreatingNewCheckInGuest(false)}
+                >
+                  Select Existing Guest
+                </Button>
+                <Button
+                  variant={isCreatingNewCheckInGuest ? 'contained' : 'outlined'}
+                  size="small"
+                  startIcon={<PersonAddIcon />}
+                  onClick={() => setIsCreatingNewCheckInGuest(true)}
+                >
+                  New Guest
+                </Button>
+              </Box>
+
+              {!isCreatingNewCheckInGuest ? (
+                <Autocomplete
+                  value={checkInGuest}
+                  onChange={(event, newValue) => setCheckInGuest(newValue)}
+                  options={guests}
+                  getOptionLabel={(option) => option.full_name}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  renderOption={(props, option) => {
+                    const { key, ...otherProps } = props;
+                    return (
+                      <li key={key} {...otherProps}>
+                        <Box>
+                          <Typography>{option.full_name}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {option.email} {option.phone && `| ${option.phone}`}
+                          </Typography>
+                        </Box>
+                      </li>
+                    );
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Select Guest"
+                      placeholder="Search for a guest"
+                      InputProps={{
+                        ...params.InputProps,
+                        startAdornment: (
+                          <>
+                            <PersonIcon color="action" sx={{ ml: 1, mr: 0.5 }} />
+                            {params.InputProps.startAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                />
+              ) : (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      required
+                      label="First Name"
+                      value={newCheckInGuestForm.first_name}
+                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, first_name: e.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      required
+                      label="Last Name"
+                      value={newCheckInGuestForm.last_name}
+                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, last_name: e.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Email"
+                      type="email"
+                      value={newCheckInGuestForm.email}
+                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, email: e.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Phone"
+                      value={newCheckInGuestForm.phone}
+                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, phone: e.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="IC/Passport Number"
+                      value={newCheckInGuestForm.ic_number}
+                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, ic_number: e.target.value })}
+                    />
+                  </Grid>
+                </Grid>
+              )}
+            </Grid>
+
+            <Grid item xs={12}>
+              <Divider>
+                <Chip label="Room & Dates" size="small" />
+              </Divider>
+            </Grid>
+
+            {/* Dates */}
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                required
+                label="Check-In Date"
+                type="date"
+                value={checkInDate}
+                onChange={(e) => handleCheckInDateChange(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                required
+                label="Check-Out Date"
+                type="date"
+                value={checkOutDate}
+                onChange={(e) => handleCheckOutDateChange(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{ min: checkInDate }}
+              />
+            </Grid>
+
+            {/* Room Selection */}
+            <Grid item xs={12}>
+              <Autocomplete
+                value={checkInRoom}
+                onChange={(event, newValue) => setCheckInRoom(newValue)}
+                options={availableRooms}
+                getOptionLabel={(option) => `Room ${option.room_number} - ${option.room_type}`}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                renderOption={(props, option) => {
+                  const { key, ...otherProps } = props;
+                  const price = typeof option.price_per_night === 'string'
+                    ? parseFloat(option.price_per_night)
+                    : option.price_per_night;
+                  return (
+                    <li key={key} {...otherProps}>
+                      <Box display="flex" justifyContent="space-between" width="100%">
+                        <Box>
+                          <Typography fontWeight="medium">Room {option.room_number}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {option.room_type} | Max: {option.max_occupancy} guests
+                          </Typography>
+                        </Box>
+                        <Typography color="primary.main" fontWeight="medium">
+                          {formatCurrency(price)}/night
+                        </Typography>
+                      </Box>
+                    </li>
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    required
+                    label="Select Room"
+                    placeholder="Choose an available room"
+                    helperText={availableRooms.length === 0 ? 'No rooms available for selected dates' : `${availableRooms.length} room(s) available`}
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <>
+                          <HotelIcon color="action" sx={{ ml: 1, mr: 0.5 }} />
+                          {params.InputProps.startAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
+
+            {/* Summary */}
+            {checkInCompany && checkInRoom && (checkInGuest || (isCreatingNewCheckInGuest && newCheckInGuestForm.first_name)) && (
+              <Grid item xs={12}>
+                <Alert severity="success">
+                  <Typography variant="subtitle2">Ready to Check-In</Typography>
+                  <Typography variant="body2">
+                    Guest: {isCreatingNewCheckInGuest ? `${newCheckInGuestForm.first_name} ${newCheckInGuestForm.last_name}` : checkInGuest?.full_name}
+                  </Typography>
+                  <Typography variant="body2">
+                    Room: {checkInRoom.room_number} ({checkInRoom.room_type})
+                  </Typography>
+                  <Typography variant="body2">
+                    Company: {checkInCompany.company_name}
+                  </Typography>
+                  <Typography variant="body2">
+                    Dates: {formatDateForDisplay(checkInDate)} to {formatDateForDisplay(checkOutDate)}
+                  </Typography>
+                </Alert>
+              </Grid>
+            )}
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setCheckInDialogOpen(false); resetCheckInForm(); }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCompanyCheckIn}
+            variant="contained"
+            color="success"
+            disabled={
+              processingCheckIn ||
+              !checkInCompany ||
+              !checkInRoom ||
+              (!checkInGuest && !isCreatingNewCheckInGuest) ||
+              (isCreatingNewCheckInGuest && (!newCheckInGuestForm.first_name || !newCheckInGuestForm.last_name))
+            }
+            startIcon={processingCheckIn ? <CircularProgress size={20} /> : <CheckInIcon />}
+          >
+            {processingCheckIn ? 'Processing...' : 'Check-In Guest'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Checkout Invoice Modal */}
+      <CheckoutInvoiceModal
+        open={checkoutDialogOpen}
+        onClose={() => {
+          setCheckoutDialogOpen(false);
+          setCheckoutBooking(null);
+        }}
+        booking={checkoutBooking}
+        onConfirmCheckout={handleConfirmCompanyCheckout}
+      />
+
+      {/* Company Registration Dialog */}
+      <Dialog
+        open={companyRegDialogOpen}
+        onClose={() => { setCompanyRegDialogOpen(false); resetCompanyRegForm(); }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <BusinessIcon color="primary" />
+            Register New Company
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            {/* Company Basic Info */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" color="primary" gutterBottom>
+                Company Information
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                required
+                label="Company Name"
+                value={companyRegForm.company_name}
+                onChange={(e) => setCompanyRegForm({ ...companyRegForm, company_name: e.target.value })}
+                placeholder="Enter company name"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Registration Number"
+                value={companyRegForm.registration_number}
+                onChange={(e) => setCompanyRegForm({ ...companyRegForm, registration_number: e.target.value })}
+                placeholder="Business registration number"
+              />
+            </Grid>
+
+            {/* Contact Information */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="subtitle2" color="primary" gutterBottom>
+                Contact Information
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Contact Person"
+                value={companyRegForm.contact_person}
+                onChange={(e) => setCompanyRegForm({ ...companyRegForm, contact_person: e.target.value })}
+                placeholder="Primary contact name"
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Contact Email"
+                type="email"
+                value={companyRegForm.contact_email}
+                onChange={(e) => setCompanyRegForm({ ...companyRegForm, contact_email: e.target.value })}
+                placeholder="email@company.com"
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Contact Phone"
+                value={companyRegForm.contact_phone}
+                onChange={(e) => setCompanyRegForm({ ...companyRegForm, contact_phone: e.target.value })}
+                placeholder="+60 12-345 6789"
+              />
+            </Grid>
+
+            {/* Billing Address */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="subtitle2" color="primary" gutterBottom>
+                Billing Address
+              </Typography>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Street Address"
+                value={companyRegForm.billing_address}
+                onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_address: e.target.value })}
+                placeholder="Street address, building, floor"
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="City"
+                value={companyRegForm.billing_city}
+                onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_city: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="State"
+                value={companyRegForm.billing_state}
+                onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_state: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Postal Code"
+                value={companyRegForm.billing_postal_code}
+                onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_postal_code: e.target.value })}
+              />
+            </Grid>
+
+            {/* Billing Terms */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="subtitle2" color="primary" gutterBottom>
+                Billing Terms
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Credit Limit"
+                type="number"
+                value={companyRegForm.credit_limit}
+                onChange={(e) => setCompanyRegForm({ ...companyRegForm, credit_limit: e.target.value })}
+                placeholder="0.00"
+                InputProps={{
+                  startAdornment: <Typography sx={{ mr: 1 }}>{currencySymbol}</Typography>,
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Payment Terms (Days)"
+                type="number"
+                value={companyRegForm.payment_terms_days}
+                onChange={(e) => setCompanyRegForm({ ...companyRegForm, payment_terms_days: e.target.value })}
+                helperText="Number of days for payment after invoice"
+              />
+            </Grid>
+
+            {/* Notes */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                label="Notes"
+                value={companyRegForm.notes}
+                onChange={(e) => setCompanyRegForm({ ...companyRegForm, notes: e.target.value })}
+                placeholder="Additional notes about this company..."
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setCompanyRegDialogOpen(false); resetCompanyRegForm(); }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleRegisterCompany}
+            variant="contained"
+            disabled={creatingCompany || !companyRegForm.company_name.trim()}
+            startIcon={creatingCompany ? <CircularProgress size={20} /> : <AddIcon />}
+          >
+            {creatingCompany ? 'Registering...' : 'Register Company'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Company Dialog */}
+      <Dialog
+        open={companyEditDialogOpen}
+        onClose={() => { setCompanyEditDialogOpen(false); resetCompanyEditForm(); }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <EditIcon color="primary" />
+            Edit Company
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 0.5 }}>
+            {/* Company Basic Info */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle2" color="primary" gutterBottom>
+                Company Information
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                required
+                label="Company Name"
+                value={companyEditForm.company_name}
+                onChange={(e) => setCompanyEditForm({ ...companyEditForm, company_name: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Registration Number"
+                value={companyEditForm.registration_number}
+                onChange={(e) => setCompanyEditForm({ ...companyEditForm, registration_number: e.target.value })}
+              />
+            </Grid>
+
+            {/* Contact Information */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="subtitle2" color="primary" gutterBottom>
+                Contact Information
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Contact Person"
+                value={companyEditForm.contact_person}
+                onChange={(e) => setCompanyEditForm({ ...companyEditForm, contact_person: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Contact Email"
+                type="email"
+                value={companyEditForm.contact_email}
+                onChange={(e) => setCompanyEditForm({ ...companyEditForm, contact_email: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Contact Phone"
+                value={companyEditForm.contact_phone}
+                onChange={(e) => setCompanyEditForm({ ...companyEditForm, contact_phone: e.target.value })}
+              />
+            </Grid>
+
+            {/* Billing Address */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="subtitle2" color="primary" gutterBottom>
+                Billing Address
+              </Typography>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Street Address"
+                value={companyEditForm.billing_address}
+                onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_address: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="City"
+                value={companyEditForm.billing_city}
+                onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_city: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="State"
+                value={companyEditForm.billing_state}
+                onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_state: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Postal Code"
+                value={companyEditForm.billing_postal_code}
+                onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_postal_code: e.target.value })}
+              />
+            </Grid>
+
+            {/* Billing Terms */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="subtitle2" color="primary" gutterBottom>
+                Billing Terms
+              </Typography>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Credit Limit"
+                type="number"
+                value={companyEditForm.credit_limit}
+                onChange={(e) => setCompanyEditForm({ ...companyEditForm, credit_limit: e.target.value })}
+                InputProps={{
+                  startAdornment: <Typography sx={{ mr: 1 }}>{currencySymbol}</Typography>,
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Payment Terms (Days)"
+                type="number"
+                value={companyEditForm.payment_terms_days}
+                onChange={(e) => setCompanyEditForm({ ...companyEditForm, payment_terms_days: e.target.value })}
+              />
+            </Grid>
+
+            {/* Notes */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                label="Notes"
+                value={companyEditForm.notes}
+                onChange={(e) => setCompanyEditForm({ ...companyEditForm, notes: e.target.value })}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setCompanyEditDialogOpen(false); resetCompanyEditForm(); }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleUpdateCompany}
+            variant="contained"
+            disabled={updatingCompany || !companyEditForm.company_name.trim()}
+            startIcon={updatingCompany ? <CircularProgress size={20} /> : <EditIcon />}
+          >
+            {updatingCompany ? 'Updating...' : 'Update Company'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Company Confirmation Dialog */}
+      <Dialog
+        open={companyDeleteDialogOpen}
+        onClose={() => { setCompanyDeleteDialogOpen(false); setDeletingCompanyData(null); }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <DeleteIcon color="error" />
+            Delete Company
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This action cannot be undone.
+          </Alert>
+          <Typography>
+            Are you sure you want to delete the company <strong>"{deletingCompanyData?.company_name}"</strong>?
+          </Typography>
+          {deletingCompanyData && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                <strong>Contact:</strong> {deletingCompanyData.contact_person || 'N/A'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                <strong>Email:</strong> {deletingCompanyData.contact_email || 'N/A'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                <strong>Phone:</strong> {deletingCompanyData.contact_phone || 'N/A'}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setCompanyDeleteDialogOpen(false); setDeletingCompanyData(null); }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDeleteCompany}
+            variant="contained"
+            color="error"
+            disabled={deletingCompany}
+            startIcon={deletingCompany ? <CircularProgress size={20} /> : <DeleteIcon />}
+          >
+            {deletingCompany ? 'Deleting...' : 'Delete Company'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Record Payment Dialog */}
+      <Dialog
+        open={companyPaymentDialogOpen}
+        onClose={() => { setCompanyPaymentDialogOpen(false); resetCompanyPaymentForm(); }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <PaymentIcon color="primary" />
+            Record Payment
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {paymentCompany && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="body2" fontWeight={600}>
+                {paymentCompany.company_name}
+              </Typography>
+              {paymentCompany.contact_person && (
+                <Typography variant="caption">Contact: {paymentCompany.contact_person}</Typography>
+              )}
+            </Alert>
+          )}
+
+          {paymentCompanyLedgers.length === 0 ? (
+            <Alert severity="warning">
+              No outstanding ledger entries found for this company.
+            </Alert>
+          ) : (
+            <Grid container spacing={2} sx={{ mt: 0.5 }}>
+              {/* Select Ledger Entry */}
+              <Grid item xs={12}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Select Ledger Entry"
+                  value={selectedLedgerForPayment?.id || ''}
+                  onChange={(e) => {
+                    const ledger = paymentCompanyLedgers.find(l => l.id === parseInt(e.target.value));
+                    setSelectedLedgerForPayment(ledger || null);
+                  }}
+                >
+                  {paymentCompanyLedgers.map((ledger) => {
+                    const amount = typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount;
+                    const balanceDue = typeof ledger.balance_due === 'string' ? parseFloat(ledger.balance_due) : (ledger.balance_due || amount);
+                    return (
+                      <MenuItem key={ledger.id} value={ledger.id}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                          <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                            {ledger.description}
+                          </Typography>
+                          <Typography variant="body2" color="error.main" fontWeight={600} sx={{ ml: 2 }}>
+                            Due: {formatCurrency(balanceDue)}
+                          </Typography>
+                        </Box>
+                      </MenuItem>
+                    );
+                  })}
+                </TextField>
+              </Grid>
+
+              {/* Selected Entry Details */}
+              {selectedLedgerForPayment && (
+                <Grid item xs={12}>
+                  <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                    <Grid container spacing={1}>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="text.secondary">Description</Typography>
+                        <Typography variant="body2">{selectedLedgerForPayment.description}</Typography>
+                      </Grid>
+                      <Grid item xs={3}>
+                        <Typography variant="caption" color="text.secondary">Total Amount</Typography>
+                        <Typography variant="body2">
+                          {formatCurrency(typeof selectedLedgerForPayment.amount === 'string' ? parseFloat(selectedLedgerForPayment.amount) : selectedLedgerForPayment.amount)}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={3}>
+                        <Typography variant="caption" color="text.secondary">Balance Due</Typography>
+                        <Typography variant="body2" color="error.main" fontWeight={600}>
+                          {formatCurrency(typeof selectedLedgerForPayment.balance_due === 'string' ? parseFloat(selectedLedgerForPayment.balance_due) : (selectedLedgerForPayment.balance_due || (typeof selectedLedgerForPayment.amount === 'string' ? parseFloat(selectedLedgerForPayment.amount) : selectedLedgerForPayment.amount)))}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Paper>
+                </Grid>
+              )}
+
+              {/* Payment Amount */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Payment Amount"
+                  type="number"
+                  value={companyPaymentForm.payment_amount}
+                  onChange={(e) => setCompanyPaymentForm({ ...companyPaymentForm, payment_amount: e.target.value })}
+                  InputProps={{
+                    startAdornment: <Typography sx={{ mr: 1 }}>{currencySymbol}</Typography>,
+                  }}
+                />
+              </Grid>
+
+              {/* Payment Method */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Payment Method"
+                  value={companyPaymentForm.payment_method}
+                  onChange={(e) => setCompanyPaymentForm({ ...companyPaymentForm, payment_method: e.target.value })}
+                >
+                  <MenuItem value="cash">Cash</MenuItem>
+                  <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
+                  <MenuItem value="credit_card">Credit Card</MenuItem>
+                  <MenuItem value="cheque">Cheque</MenuItem>
+                  <MenuItem value="online">Online Payment</MenuItem>
+                </TextField>
+              </Grid>
+
+              {/* Payment Reference */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Payment Reference"
+                  value={companyPaymentForm.payment_reference}
+                  onChange={(e) => setCompanyPaymentForm({ ...companyPaymentForm, payment_reference: e.target.value })}
+                  placeholder="Transaction ID, cheque number, etc."
+                />
+              </Grid>
+
+              {/* Receipt Number */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Receipt Number"
+                  value={companyPaymentForm.receipt_number}
+                  onChange={(e) => setCompanyPaymentForm({ ...companyPaymentForm, receipt_number: e.target.value })}
+                />
+              </Grid>
+
+              {/* Notes */}
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={2}
+                  label="Notes"
+                  value={companyPaymentForm.notes}
+                  onChange={(e) => setCompanyPaymentForm({ ...companyPaymentForm, notes: e.target.value })}
+                  placeholder="Additional notes about this payment..."
+                />
+              </Grid>
+            </Grid>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setCompanyPaymentDialogOpen(false); resetCompanyPaymentForm(); }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleRecordCompanyPayment}
+            variant="contained"
+            disabled={processingCompanyPayment || !selectedLedgerForPayment || !companyPaymentForm.payment_amount}
+            startIcon={processingCompanyPayment ? <CircularProgress size={20} /> : <PaymentIcon />}
+          >
+            {processingCompanyPayment ? 'Processing...' : 'Record Payment'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Company Invoice Dialog */}
+      <Dialog
+        open={companyInvoiceDialogOpen}
+        onClose={() => { setCompanyInvoiceDialogOpen(false); resetCompanyInvoiceForm(); }}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <InvoiceIcon color="secondary" />
+            {showInvoicePreview ? 'Invoice Preview' : 'Generate Company Invoice'}
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {invoiceCompany && !showInvoicePreview && (
+            <>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2" fontWeight={600}>
+                  {invoiceCompany.company_name}
+                </Typography>
+                {invoiceCompany.contact_person && (
+                  <Typography variant="caption">Contact: {invoiceCompany.contact_person}</Typography>
+                )}
+              </Alert>
+
+              {/* Invoice Details */}
+              <Grid container spacing={2} sx={{ mt: 0.5 }}>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    fullWidth
+                    required
+                    label="Invoice Number"
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    fullWidth
+                    required
+                    label="Invoice Date"
+                    type="date"
+                    value={invoiceDate}
+                    onChange={(e) => setInvoiceDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    fullWidth
+                    required
+                    label="Due Date"
+                    type="date"
+                    value={invoiceDueDate}
+                    onChange={(e) => setInvoiceDueDate(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+
+                {/* Select Ledger Entries */}
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }} />
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                    <Typography variant="subtitle1" fontWeight={600}>
+                      Select Ledger Entries to Include
+                    </Typography>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={selectedInvoiceLedgers.length === invoiceLedgerEntries.length && invoiceLedgerEntries.length > 0}
+                          indeterminate={selectedInvoiceLedgers.length > 0 && selectedInvoiceLedgers.length < invoiceLedgerEntries.length}
+                          onChange={handleSelectAllLedgers}
+                        />
+                      }
+                      label="Select All"
+                    />
+                  </Box>
+                </Grid>
+
+                {invoiceLedgerEntries.length === 0 ? (
+                  <Grid item xs={12}>
+                    <Alert severity="warning">
+                      No ledger entries found for this company.
+                    </Alert>
+                  </Grid>
+                ) : (
+                  <Grid item xs={12}>
+                    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300 }}>
+                      <Table size="small" stickyHeader>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell padding="checkbox">Select</TableCell>
+                            <TableCell>Description</TableCell>
+                            <TableCell>Date</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell align="right">Amount</TableCell>
+                            <TableCell align="right">Balance</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {invoiceLedgerEntries.map((ledger) => {
+                            const amount = typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount;
+                            const balanceDue = typeof ledger.balance_due === 'string' ? parseFloat(ledger.balance_due) : (ledger.balance_due || 0);
+                            return (
+                              <TableRow
+                                key={ledger.id}
+                                hover
+                                selected={selectedInvoiceLedgers.includes(ledger.id)}
+                                onClick={() => handleToggleLedgerSelection(ledger.id)}
+                                sx={{ cursor: 'pointer' }}
+                              >
+                                <TableCell padding="checkbox">
+                                  <Checkbox
+                                    checked={selectedInvoiceLedgers.includes(ledger.id)}
+                                    onChange={() => handleToggleLedgerSelection(ledger.id)}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2" noWrap sx={{ maxWidth: 200 }}>
+                                    {ledger.description}
+                                  </Typography>
+                                  {ledger.invoice_number && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      Inv: {ledger.invoice_number}
+                                    </Typography>
+                                  )}
+                                </TableCell>
+                                <TableCell>{formatDateForDisplay(ledger.created_at)}</TableCell>
+                                <TableCell>
+                                  <Chip label={getStatusText(ledger.status)} color={getStatusColor(ledger.status)} size="small" />
+                                </TableCell>
+                                <TableCell align="right">{formatCurrency(amount)}</TableCell>
+                                <TableCell align="right">
+                                  <Typography color={balanceDue > 0 ? 'error.main' : 'success.main'} fontWeight={500}>
+                                    {formatCurrency(balanceDue)}
+                                  </Typography>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+
+                    {/* Summary */}
+                    <Paper variant="outlined" sx={{ p: 2, mt: 2, bgcolor: 'grey.50' }}>
+                      <Grid container spacing={2}>
+                        <Grid item xs={4}>
+                          <Typography variant="caption" color="text.secondary">Selected Items</Typography>
+                          <Typography variant="h6">{selectedInvoiceLedgers.length}</Typography>
+                        </Grid>
+                        <Grid item xs={4}>
+                          <Typography variant="caption" color="text.secondary">Total Amount</Typography>
+                          <Typography variant="h6" color="primary.main">
+                            {formatCurrency(getSelectedLedgerTotal())}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={4}>
+                          <Typography variant="caption" color="text.secondary">Balance Due</Typography>
+                          <Typography variant="h6" color="error.main">
+                            {formatCurrency(getSelectedLedgerBalanceDue())}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </Paper>
+                  </Grid>
+                )}
+
+                {/* Notes */}
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={2}
+                    label="Invoice Notes"
+                    value={invoiceNotes}
+                    onChange={(e) => setInvoiceNotes(e.target.value)}
+                    placeholder="Additional notes to include on the invoice..."
+                  />
+                </Grid>
+              </Grid>
+            </>
+          )}
+
+          {/* Invoice Preview */}
+          {invoiceCompany && showInvoicePreview && (
+            <Box id="company-invoice-content">
+              {/* Invoice Header */}
+              <Box className="header" textAlign="center" mb={3} pb={2} borderBottom="2px solid #333">
+                <Typography variant="h4" fontWeight={700}>INVOICE</Typography>
+                <Typography variant="body2" color="text.secondary" mt={1}>
+                  Invoice #{invoiceNumber}
+                </Typography>
+              </Box>
+
+              {/* Company & Invoice Info */}
+              <Grid container spacing={3} mb={3}>
+                <Grid item xs={6}>
+                  <Typography variant="overline" color="text.secondary">Bill To</Typography>
+                  <Typography variant="h6" fontWeight={600}>{invoiceCompany.company_name}</Typography>
+                  {invoiceCompany.registration_number && (
+                    <Typography variant="body2">Reg No: {invoiceCompany.registration_number}</Typography>
+                  )}
+                  {invoiceCompany.billing_address && (
+                    <Typography variant="body2">{invoiceCompany.billing_address}</Typography>
+                  )}
+                  {(invoiceCompany.billing_city || invoiceCompany.billing_state || invoiceCompany.billing_postal_code) && (
+                    <Typography variant="body2">
+                      {[invoiceCompany.billing_city, invoiceCompany.billing_state, invoiceCompany.billing_postal_code].filter(Boolean).join(', ')}
+                    </Typography>
+                  )}
+                  {invoiceCompany.contact_person && (
+                    <Typography variant="body2" mt={1}>Attn: {invoiceCompany.contact_person}</Typography>
+                  )}
+                  {invoiceCompany.contact_email && (
+                    <Typography variant="body2">{invoiceCompany.contact_email}</Typography>
+                  )}
+                </Grid>
+                <Grid item xs={6} textAlign="right">
+                  <Typography variant="overline" color="text.secondary">Invoice Details</Typography>
+                  <Typography variant="body2"><strong>Invoice Date:</strong> {formatDateForDisplay(invoiceDate)}</Typography>
+                  <Typography variant="body2"><strong>Due Date:</strong> {formatDateForDisplay(invoiceDueDate)}</Typography>
+                  <Typography variant="body2"><strong>Payment Terms:</strong> {invoiceCompany.payment_terms_days || 30} days</Typography>
+                </Grid>
+              </Grid>
+
+              <Divider sx={{ my: 2 }} />
+
+              {/* Line Items */}
+              <TableContainer component={Paper} elevation={0} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                      <TableCell><strong>Description</strong></TableCell>
+                      <TableCell><strong>Date</strong></TableCell>
+                      <TableCell><strong>Room</strong></TableCell>
+                      <TableCell align="right"><strong>Amount</strong></TableCell>
+                      <TableCell align="right"><strong>Paid</strong></TableCell>
+                      <TableCell align="right"><strong>Balance</strong></TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {invoiceLedgerEntries
+                      .filter(l => selectedInvoiceLedgers.includes(l.id))
+                      .map((ledger) => {
+                        const amount = typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount;
+                        const paidAmount = typeof ledger.paid_amount === 'string' ? parseFloat(ledger.paid_amount) : (ledger.paid_amount || 0);
+                        const balanceDue = typeof ledger.balance_due === 'string' ? parseFloat(ledger.balance_due) : (ledger.balance_due || 0);
+                        return (
+                          <TableRow key={ledger.id}>
+                            <TableCell>{ledger.description}</TableCell>
+                            <TableCell>{formatDateForDisplay(ledger.created_at)}</TableCell>
+                            <TableCell>{ledger.room_number || '-'}</TableCell>
+                            <TableCell align="right" className="amount">{formatCurrency(amount)}</TableCell>
+                            <TableCell align="right" className="amount" sx={{ color: 'success.main' }}>
+                              {paidAmount > 0 ? formatCurrency(paidAmount) : '-'}
+                            </TableCell>
+                            <TableCell align="right" className="amount" sx={{ color: 'error.main', fontWeight: 600 }}>
+                              {formatCurrency(balanceDue)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+
+                    {/* Totals */}
+                    <TableRow sx={{ bgcolor: '#f9f9f9' }}>
+                      <TableCell colSpan={3} align="right"><strong>Subtotal:</strong></TableCell>
+                      <TableCell align="right" className="amount"><strong>{formatCurrency(getSelectedLedgerTotal())}</strong></TableCell>
+                      <TableCell colSpan={2}></TableCell>
+                    </TableRow>
+                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                      <TableCell colSpan={5} align="right">
+                        <Typography variant="h6"><strong>Total Amount Due:</strong></Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="h6" color="error.main" fontWeight={700}>
+                          {formatCurrency(getSelectedLedgerBalanceDue())}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+
+              {/* Notes */}
+              {invoiceNotes && (
+                <Box mt={3}>
+                  <Typography variant="subtitle2" gutterBottom>Notes:</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                    {invoiceNotes}
+                  </Typography>
+                </Box>
+              )}
+
+              {/* Footer */}
+              <Box className="footer" mt={4} pt={2} borderTop="1px solid #ddd">
+                <Typography variant="body2" color="text.secondary">
+                  Please make payment within {invoiceCompany.payment_terms_days || 30} days of invoice date.
+                </Typography>
+                <Typography variant="body2" color="text.secondary" mt={1}>
+                  Thank you for your business!
+                </Typography>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          {!showInvoicePreview ? (
+            <>
+              <Button onClick={() => { setCompanyInvoiceDialogOpen(false); resetCompanyInvoiceForm(); }}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => setShowInvoicePreview(true)}
+                variant="contained"
+                disabled={selectedInvoiceLedgers.length === 0 || !invoiceNumber}
+                startIcon={<InvoiceIcon />}
+              >
+                Preview Invoice
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={() => setShowInvoicePreview(false)}>
+                Back to Edit
+              </Button>
+              <Button
+                onClick={handlePrintCompanyInvoice}
+                variant="outlined"
+                startIcon={<PrintIcon />}
+              >
+                Print
+              </Button>
+              <Button
+                onClick={handlePrintCompanyInvoice}
+                variant="contained"
+                startIcon={<DownloadIcon />}
+              >
+                Download
+              </Button>
+            </>
+          )}
         </DialogActions>
       </Dialog>
 

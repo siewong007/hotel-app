@@ -1,4 +1,5 @@
 // Currency utility functions
+import { getHotelSettings } from './hotelSettings';
 
 export interface CurrencyInfo {
   code: string;
@@ -73,10 +74,17 @@ export const SUPPORTED_CURRENCIES: Record<string, CurrencyInfo> = {
 // Default currency
 const DEFAULT_CURRENCY = 'USD';
 
-// Get currency from localStorage or default
+// Get currency from localStorage or hotel settings or default
 export const getCurrentCurrency = (): string => {
   try {
-    return localStorage.getItem('hotelCurrency') || DEFAULT_CURRENCY;
+    // First check specific currency setting
+    const currencyOverride = localStorage.getItem('hotelCurrency');
+    if (currencyOverride) {
+      return currencyOverride;
+    }
+    // Fall back to hotel settings
+    const settings = getHotelSettings();
+    return settings.currency || DEFAULT_CURRENCY;
   } catch {
     return DEFAULT_CURRENCY;
   }

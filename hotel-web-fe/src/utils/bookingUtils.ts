@@ -181,8 +181,8 @@ export const getBookingStatusColor = (
       return 'error';
     case BookingStatus.LATE_CHECKOUT:
       return 'warning';
-    case BookingStatus.COMPLIMENTARISE:
-    case 'complimentarise':
+    case BookingStatus.RELEASED:
+    case 'released':
       return 'secondary';
     case BookingStatus.PARTIAL_COMPLIMENTARY:
     case 'partial_complimentary':
@@ -216,9 +216,9 @@ export const getBookingStatusText = (status: BookingStatus | string): string => 
       return 'No Show';
     case BookingStatus.LATE_CHECKOUT:
       return 'Late Checkout';
-    case BookingStatus.COMPLIMENTARISE:
-    case 'complimentarise':
-      return 'Complimentarise';
+    case BookingStatus.RELEASED:
+    case 'released':
+      return 'Released';
     case BookingStatus.PARTIAL_COMPLIMENTARY:
     case 'partial_complimentary':
       return 'Partial Complimentary';
@@ -264,7 +264,7 @@ export const getPaymentStatusText = (status: string | undefined): string => {
     case 'paid':
       return 'Paid';
     case 'paid_rate':
-      return 'Paid Rate';
+      return 'Rate Paid';
     case 'partial':
       return 'Partial';
     case 'unpaid_deposit':

@@ -51,7 +51,7 @@ export interface RoomEventInput {
 }
 
 export interface RoomStatusUpdateInput {
-  status: 'available' | 'occupied' | 'cleaning' | 'maintenance' | 'reserved';
+  status: 'available' | 'occupied' | 'cleaning' | 'maintenance' | 'reserved' | 'dirty';
   notes?: string;
   reserved_start_date?: string;
   reserved_end_date?: string;

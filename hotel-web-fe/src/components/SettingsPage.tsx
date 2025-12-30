@@ -9,7 +9,8 @@ import {
   Alert,
   Grid,
   Divider,
-  CircularProgress
+  CircularProgress,
+  MenuItem,
 } from '@mui/material';
 import {
   Business as BusinessIcon,
@@ -18,6 +19,8 @@ import {
   Save as SaveIcon
 } from '@mui/icons-material';
 import { useAuth } from '../auth/AuthContext';
+import { getHotelSettings, saveHotelSettings } from '../utils/hotelSettings';
+import { SUPPORTED_CURRENCIES } from '../utils/currency';
 
 const SettingsPage: React.FC = () => {
   const { hasRole } = useAuth();
@@ -49,18 +52,8 @@ const SettingsPage: React.FC = () => {
       setLoading(true);
       setError('');
 
-      // TODO: Add API endpoint to fetch system settings
-      // For now, using placeholder values
-      const settings = {
-        hotel_name: 'Grand Hotel',
-        hotel_address: '123 Main Street, City',
-        hotel_phone: '+1-555-0123',
-        hotel_email: 'info@grandhotel.com',
-        check_in_time: '15:00',
-        check_out_time: '11:00',
-        currency: 'USD',
-        timezone: 'America/New_York'
-      };
+      // Load settings from localStorage (hotel settings utility)
+      const settings = getHotelSettings();
 
       setHotelName(settings.hotel_name);
       setHotelAddress(settings.hotel_address);
@@ -84,8 +77,12 @@ const SettingsPage: React.FC = () => {
     setSuccess('');
 
     try {
-      // TODO: Add API call to save settings
-      console.log('Saving settings:', {
+      // Get current settings to preserve fields we're not editing
+      const currentSettings = getHotelSettings();
+
+      // Save settings to localStorage
+      saveHotelSettings({
+        ...currentSettings,
         hotel_name: hotelName,
         hotel_address: hotelAddress,
         hotel_phone: hotelPhone,
@@ -96,8 +93,9 @@ const SettingsPage: React.FC = () => {
         timezone
       });
 
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Dispatch currency change event to notify other components
+      window.dispatchEvent(new CustomEvent('currencyChange', { detail: currency }));
+
       setSuccess('Settings saved successfully');
 
       // Clear success message after 3 seconds
@@ -251,13 +249,20 @@ const SettingsPage: React.FC = () => {
           <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
               <TextField
+                select
                 fullWidth
                 label="Currency"
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                helperText="Default currency code (e.g., USD, EUR, GBP)"
+                helperText="Select the default currency for the hotel"
                 disabled={!isAdmin}
-              />
+              >
+                {Object.entries(SUPPORTED_CURRENCIES).map(([code, info]) => (
+                  <MenuItem key={code} value={code}>
+                    {info.symbol} - {info.name} ({code})
+                  </MenuItem>
+                ))}
+              </TextField>
             </Grid>
             <Grid item xs={12} md={6}>
               <TextField

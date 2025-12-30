@@ -71,7 +71,6 @@ const SettingsPage: React.FC = () => {
 
   // Charges Settings
   const [roomCardDeposit, setRoomCardDeposit] = useState(50);
-  const [lateCheckoutPenalty, setLateCheckoutPenalty] = useState(50);
   const [serviceTaxRate, setServiceTaxRate] = useState(8);
   const [tourismTaxRate, setTourismTaxRate] = useState(10);
 
@@ -102,7 +101,6 @@ const SettingsPage: React.FC = () => {
       setCurrency(settings.currency);
       setTimezone(settings.timezone);
       setRoomCardDeposit(settings.room_card_deposit);
-      setLateCheckoutPenalty(settings.late_checkout_penalty);
       setServiceTaxRate(settings.service_tax_rate);
       setTourismTaxRate(settings.tourism_tax_rate);
       setBookingChannels(settings.booking_channels);
@@ -132,7 +130,7 @@ const SettingsPage: React.FC = () => {
         currency,
         timezone,
         room_card_deposit: roomCardDeposit,
-        late_checkout_penalty: lateCheckoutPenalty,
+        late_checkout_penalty: 0, // Deprecated - penalty is now entered manually at checkout
         service_tax_rate: serviceTaxRate,
         tourism_tax_rate: tourismTaxRate,
         booking_channels: bookingChannels,
@@ -401,19 +399,6 @@ const SettingsPage: React.FC = () => {
                 value={roomCardDeposit}
                 onChange={(e) => setRoomCardDeposit(parseFloat(e.target.value) || 0)}
                 helperText="Default refundable deposit for room card"
-                InputProps={{
-                  startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
-                label="Late Checkout Penalty"
-                type="number"
-                value={lateCheckoutPenalty}
-                onChange={(e) => setLateCheckoutPenalty(parseFloat(e.target.value) || 0)}
-                helperText="Penalty charged for late checkout"
                 InputProps={{
                   startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>
                 }}
