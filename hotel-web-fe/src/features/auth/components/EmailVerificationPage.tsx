@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
@@ -18,10 +18,14 @@ const EmailVerificationPage: React.FC = () => {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
   const [countdown, setCountdown] = useState(5);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
 
   const token = searchParams.get('token');
 
   useEffect(() => {
+    isMountedRef.current = true;
+
     if (!token) {
       setStatus('error');
       setMessage('Invalid verification link. No token provided.');
@@ -31,29 +35,38 @@ const EmailVerificationPage: React.FC = () => {
     const verifyEmail = async () => {
       try {
         await HotelAPIService.verifyEmail(token);
+        if (!isMountedRef.current) return;
+
         setStatus('success');
         setMessage('Email verified successfully!');
 
         // Auto redirect after 5 seconds
-        const timer = setInterval(() => {
+        timerRef.current = setInterval(() => {
+          if (!isMountedRef.current) return;
           setCountdown((prev) => {
             if (prev <= 1) {
-              clearInterval(timer);
+              if (timerRef.current) clearInterval(timerRef.current);
               navigate('/login');
               return 0;
             }
             return prev - 1;
           });
         }, 1000);
-
-        return () => clearInterval(timer);
       } catch (error: any) {
+        if (!isMountedRef.current) return;
         setStatus('error');
         setMessage(error.message || 'Email verification failed. The link may be expired or invalid.');
       }
     };
 
     verifyEmail();
+
+    return () => {
+      isMountedRef.current = false;
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
   }, [token, navigate]);
 
   const handleLoginRedirect = () => {

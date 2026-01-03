@@ -47,86 +47,142 @@ html {
   background: #26a69a;
 }
 
-/* Animations */
-@keyframes fadeIn {
+/* ===================================
+   GPU-Accelerated Smooth Animations
+   =================================== */
+
+/* Smooth fade animation - GPU accelerated */
+@keyframes smoothFadeIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translate3d(0, 0, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Smooth slide animation - GPU accelerated */
+@keyframes smoothSlideIn {
+  from {
+    opacity: 0;
+    transform: translate3d(20px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Smooth grow animation - GPU accelerated */
+@keyframes smoothGrowIn {
+  from {
+    opacity: 0;
+    transform: scale3d(0.97, 0.97, 1);
+  }
+  to {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+}
+
+/* Legacy animations (kept for backward compatibility) */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes slideIn {
   from {
     opacity: 0;
-    transform: translateX(-20px);
+    transform: translate3d(-20px, 0, 0);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes slideInRight {
   from {
     opacity: 0;
-    transform: translateX(30px);
+    transform: translate3d(30px, 0, 0);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes growIn {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale3d(0.95, 0.95, 1);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: scale3d(1, 1, 1);
   }
 }
 
+/* Animation utility classes - simplified for stability */
 .fade-in {
-  animation: fadeIn 0.3s ease-out;
+  animation: fadeIn 0.2s ease-out forwards;
+  backface-visibility: hidden;
 }
 
 .slide-in {
-  animation: slideIn 0.3s ease-out;
+  animation: slideIn 0.2s ease-out forwards;
+  backface-visibility: hidden;
 }
 
 .slide-in-right {
-  animation: slideInRight 0.3s ease-out;
+  animation: slideInRight 0.2s ease-out forwards;
+  backface-visibility: hidden;
 }
 
 .grow-in {
-  animation: growIn 0.3s ease-out;
+  animation: growIn 0.2s ease-out forwards;
+  backface-visibility: hidden;
 }
 
-/* Page transition styles */
+/* Page transition styles - consistent timing */
 .page-transition-enter {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translate3d(0, 8px, 0);
 }
 
 .page-transition-enter-active {
   opacity: 1;
-  transform: translateY(0);
-  transition: opacity 300ms ease-in-out, transform 300ms ease-in-out;
+  transform: translate3d(0, 0, 0);
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
 }
 
 .page-transition-exit {
   opacity: 1;
-  transform: translateY(0);
+  transform: translate3d(0, 0, 0);
 }
 
 .page-transition-exit-active {
   opacity: 0;
-  transform: translateY(-10px);
-  transition: opacity 200ms ease-in-out, transform 200ms ease-in-out;
+  transform: translate3d(0, -8px, 0);
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
