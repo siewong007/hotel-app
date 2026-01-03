@@ -6,6 +6,7 @@ use crate::core::auth::AuthService;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::*;
+use crate::services::audit::AuditLog;
 use axum::{
     extract::{Extension, Path, State},
     http::HeaderMap,
@@ -34,11 +35,12 @@ pub async fn get_bookings_handler(
         r#"
         SELECT
             b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
+            g.guest_type::text as guest_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
             b.check_in_date, b.check_out_date, b.total_amount, b.status,
             b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
-            b.deposit_paid, b.deposit_amount, b.company_id, b.company_name, b.payment_note,
+            b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
             b.created_at
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id
@@ -70,11 +72,12 @@ pub async fn get_my_bookings_handler(
         r#"
         SELECT
             b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
+            g.guest_type::text as guest_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
             b.check_in_date, b.check_out_date, b.total_amount, b.status,
             b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
-            b.deposit_paid, b.deposit_amount, b.company_id, b.company_name, b.payment_note,
+            b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
             b.created_at
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id
@@ -173,7 +176,7 @@ pub async fn create_booking_handler(
     let booking_number = match &input.booking_number {
         Some(bn) if !bn.trim().is_empty() => bn.trim().to_string(),
         _ => format!("BK-{}-{:04}", chrono::Utc::now().format("%Y%m%d"),
-            sqlx::query_scalar::<_, i64>("SELECT COALESCE(MAX(id), 0) + 1 FROM bookings")
+            sqlx::query_scalar::<_, i64>("SELECT nextval('bookings_id_seq')")
                 .fetch_one(&pool).await.unwrap_or(1)
         )
     };
@@ -220,6 +223,9 @@ pub async fn create_booking_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    // Log booking creation
+    let _ = AuditLog::log_booking_created(&pool, user_id, booking.id, input.guest_id, input.room_id).await;
+
     Ok(Json(booking))
 }
 
@@ -232,11 +238,12 @@ pub async fn get_booking_handler(
         r#"
         SELECT
             b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
+            g.guest_type::text as guest_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
             b.check_in_date, b.check_out_date, b.total_amount, b.status,
             b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
-            b.deposit_paid, b.deposit_amount, b.company_id, b.company_name, b.payment_note, b.created_at
+            b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note, b.created_at
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id
         INNER JOIN rooms r ON b.room_id = r.id
@@ -431,6 +438,16 @@ pub async fn update_booking_handler(
         }
     }
 
+    // Log booking update
+    let changes = serde_json::json!({
+        "room_id": if new_room_id != existing_booking.room_id { Some(new_room_id) } else { None },
+        "status": if old_status != updated_status { Some(&new_status) } else { None },
+        "check_in_date": &input.check_in_date,
+        "check_out_date": &input.check_out_date,
+        "payment_status": &input.payment_status,
+    });
+    let _ = AuditLog::log_booking_updated(&pool, user_id, booking.id, changes).await;
+
     Ok(Json(booking))
 }
 
@@ -516,6 +533,9 @@ pub async fn delete_booking_handler(
         nights_credited = nights;
     }
 
+    // Log booking cancellation
+    let _ = AuditLog::log_booking_cancelled(&pool, user_id, booking_id).await;
+
     Ok(Json(serde_json::json!({
         "message": "Booking cancelled successfully",
         "booking_id": booking_id,
@@ -598,6 +618,18 @@ pub async fn manual_checkin_handler(
         .execute(&pool)
         .await
         .ok();
+
+    // Log check-in
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "booking_checkin",
+        "booking",
+        Some(booking_id),
+        Some(serde_json::json!({"guest_id": booking.guest_id, "room_id": booking.room_id})),
+        None,
+        None,
+    ).await;
 
     Ok(Json(updated_booking))
 }
@@ -1162,11 +1194,12 @@ pub async fn get_complimentary_bookings_handler(
         r#"
         SELECT
             b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
+            g.guest_type::text as guest_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
             b.check_in_date, b.check_out_date, b.total_amount, b.status,
             b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
-            b.deposit_paid, b.deposit_amount, b.company_id, b.company_name, b.payment_note,
+            b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
             b.created_at
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id

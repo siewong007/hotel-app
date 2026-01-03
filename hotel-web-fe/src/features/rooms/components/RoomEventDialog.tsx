@@ -108,13 +108,11 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       // Filter out the current room
       const otherRooms = rooms.filter((r: any) => r.id !== roomId);
 
-      // Filter by AVAILABLE boolean field (not status string)
-      // A room is available for change if: available=true AND status is not occupied
+      // Filter rooms that are truly available for room change
+      // Backend requires status === 'available', so we must match that
       const filtered = otherRooms.filter((r: any) => {
-        const isAvailable = r.available === true;
         const currentStatus = r.status || 'available';
-        const notOccupied = currentStatus !== 'occupied';
-        return isAvailable && notOccupied;
+        return currentStatus === 'available';
       });
 
       setAvailableRooms(filtered);
@@ -302,7 +300,10 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
   };
 
   const handleRoomChange = async () => {
+    console.log('handleRoomChange called', { roomId, targetRoomId });
+
     if (!roomId || !targetRoomId) {
+      console.log('Validation failed - missing roomId or targetRoomId');
       setError('Please select a target room.');
       return;
     }
@@ -311,12 +312,15 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       setLoading(true);
       setError(null);
 
-      await HotelAPIService.executeRoomChange(roomId, targetRoomId);
+      console.log('Calling executeRoomChange API', { roomId, targetRoomId });
+      const result = await HotelAPIService.executeRoomChange(roomId, targetRoomId);
+      console.log('Room change result:', result);
 
       setRoomChangeMode(false);
       onSuccess();
       onClose();
     } catch (err: any) {
+      console.error('Room change error:', err);
       setError(err.message || 'Failed to execute room change');
     } finally {
       setLoading(false);
@@ -446,11 +450,11 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                 <InputLabel>Target Room</InputLabel>
                 <Select
                   value={targetRoomId}
-                  onChange={(e) => setTargetRoomId(e.target.value)}
+                  onChange={(e) => setTargetRoomId(String(e.target.value))}
                   label="Target Room"
                 >
                   {availableRooms.map((room) => (
-                    <MenuItem key={room.id} value={room.id}>
+                    <MenuItem key={room.id} value={String(room.id)}>
                       Room {room.room_number} - {room.room_type}
                     </MenuItem>
                   ))}
@@ -481,13 +485,20 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                 <Button
                   variant="contained"
                   color="primary"
-                  onClick={handleRoomChange}
+                  onClick={() => {
+                    console.log('Execute Room Change button clicked!', { roomId, targetRoomId, loading });
+                    handleRoomChange();
+                  }}
                   disabled={loading || !targetRoomId}
                   startIcon={loading ? <CircularProgress size={20} /> : null}
                 >
                   {loading ? 'Changing...' : 'Execute Room Change'}
                 </Button>
               </Box>
+              {/* Debug info */}
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                Debug: roomId={roomId}, targetRoomId={targetRoomId}, loading={String(loading)}, availableRooms={availableRooms.length}
+              </Typography>
             </Box>
           )}
 
