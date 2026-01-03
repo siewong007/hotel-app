@@ -5,6 +5,7 @@
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_auth, require_permission_helper};
 use crate::models::*;
+use crate::services::audit::AuditLog;
 use axum::{
     extract::{Path, Query, State},
     http::HeaderMap,
@@ -607,7 +608,7 @@ pub async fn create_room_type_handler(
     headers: HeaderMap,
     Json(input): Json<RoomTypeCreateInput>,
 ) -> Result<Json<RoomType>, ApiError> {
-    require_permission_helper(&pool, &headers, "rooms:write").await?;
+    let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
 
     let room_type: RoomType = sqlx::query_as(
         r#"
@@ -639,6 +640,22 @@ pub async fn create_room_type_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    // Audit log: room type created
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "room_type_created",
+        "room_type",
+        Some(room_type.id),
+        Some(serde_json::json!({
+            "name": room_type.name,
+            "code": room_type.code,
+            "base_price": input.base_price
+        })),
+        None,
+        None,
+    ).await;
+
     Ok(Json(room_type))
 }
 
@@ -648,7 +665,7 @@ pub async fn update_room_type_handler(
     headers: HeaderMap,
     Json(input): Json<RoomTypeUpdateInput>,
 ) -> Result<Json<RoomType>, ApiError> {
-    require_permission_helper(&pool, &headers, "rooms:update").await?;
+    let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
 
     let room_type: RoomType = sqlx::query_as(
         r#"
@@ -693,6 +710,23 @@ pub async fn update_room_type_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    // Audit log: room type updated
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "room_type_updated",
+        "room_type",
+        Some(id),
+        Some(serde_json::json!({
+            "name": room_type.name,
+            "code": room_type.code,
+            "is_active": room_type.is_active,
+            "changes": input
+        })),
+        None,
+        None,
+    ).await;
+
     Ok(Json(room_type))
 }
 
@@ -701,7 +735,16 @@ pub async fn delete_room_type_handler(
     Path(id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_permission_helper(&pool, &headers, "rooms:write").await?;
+    let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
+
+    // Get room type info before deletion for audit log
+    let room_type_info: Option<(String, String)> = sqlx::query_as(
+        "SELECT name, code FROM room_types WHERE id = $1"
+    )
+    .bind(id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Check if any rooms use this room type
     let room_count: i64 = sqlx::query_scalar(
@@ -724,6 +767,23 @@ pub async fn delete_room_type_handler(
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Audit log: room type deleted
+    if let Some((name, code)) = room_type_info {
+        let _ = AuditLog::log_event(
+            &pool,
+            Some(user_id),
+            "room_type_deleted",
+            "room_type",
+            Some(id),
+            Some(serde_json::json!({
+                "name": name,
+                "code": code
+            })),
+            None,
+            None,
+        ).await;
+    }
 
     Ok(Json(serde_json::json!({
         "success": true,
@@ -930,9 +990,28 @@ pub async fn update_room_status_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    let room_number: String = row.get(1);
+
+    // Audit log: room status change
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "room_status_changed",
+        "room",
+        Some(room_id),
+        Some(serde_json::json!({
+            "room_number": room_number,
+            "from_status": current_status,
+            "to_status": target_status,
+            "notes": input.notes
+        })),
+        None,
+        None,
+    ).await;
+
     Ok(Json(Room {
         id: row.get(0),
-        room_number: row.get(1),
+        room_number,
         room_type: row.get(2),
         price_per_night: row.get::<String, _>(3).parse().unwrap_or_default(),
         available: row.get(4),
@@ -1080,9 +1159,27 @@ pub async fn end_maintenance_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    let room_number: String = row.get(1);
+
+    // Audit log: maintenance ended
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "maintenance_ended",
+        "room",
+        Some(room_id),
+        Some(serde_json::json!({
+            "room_number": room_number,
+            "from_status": status_label,
+            "to_status": "available"
+        })),
+        None,
+        None,
+    ).await;
+
     Ok(Json(Room {
         id: row.get(0),
-        room_number: row.get(1),
+        room_number,
         room_type: row.get(2),
         price_per_night: row.get::<String, _>(3).parse().unwrap_or_default(),
         available: row.get(4),
@@ -1164,6 +1261,29 @@ pub async fn end_cleaning_handler(
     .bind(user_id)
     .execute(&pool)
     .await;
+
+    // Get room number for audit log
+    let room_number: String = sqlx::query_scalar("SELECT room_number FROM rooms WHERE id = $1")
+        .bind(room_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap_or_else(|_| format!("{}", room_id));
+
+    // Audit log: cleaning completed
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "cleaning_completed",
+        "room",
+        Some(room_id),
+        Some(serde_json::json!({
+            "room_number": room_number,
+            "from_status": "cleaning",
+            "to_status": next_status
+        })),
+        None,
+        None,
+    ).await;
 
     Ok(Json(serde_json::json!({
         "success": true,
@@ -1415,6 +1535,26 @@ pub async fn execute_room_change_handler(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     tx.commit().await.map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Audit log: room change
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "room_changed",
+        "room",
+        Some(room_id),
+        Some(serde_json::json!({
+            "from_room_id": room_id,
+            "from_room_number": from_room_number,
+            "to_room_id": target_id,
+            "to_room_number": to_room_number,
+            "booking_id": booking_id,
+            "guest_id": guest_id,
+            "reason": reason
+        })),
+        None,
+        None,
+    ).await;
 
     Ok(Json(serde_json::json!({
         "success": true,
