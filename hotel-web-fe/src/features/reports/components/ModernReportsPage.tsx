@@ -147,8 +147,8 @@ const REPORT_CONFIGS = [
   },
   {
     type: 'shift_report' as ReportType,
-    label: 'Shift Report',
-    description: 'Revenue report by shift',
+    label: 'Payment Records',
+    description: 'Daily payment details by booking',
     icon: <ReceiptIcon />,
     color: '#546e7a',
     category: 'accounting',
@@ -170,8 +170,6 @@ const ModernReportsPage: React.FC = () => {
   const [selectedReport, setSelectedReport] = useState<ReportType | ''>('');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [shift, setShift] = useState<string>('all');
-  const [drawer, setDrawer] = useState<string>('all');
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [companyList, setCompanyList] = useState<CompanyOption[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
@@ -254,11 +252,6 @@ const ModernReportsPage: React.FC = () => {
         startDate,
         endDate,
       };
-
-      if (selectedReport === 'shift_report') {
-        params.shift = shift;
-        params.drawer = drawer;
-      }
 
       if (selectedReport === 'company_ledger_statement' && selectedCompany) {
         params.companyName = selectedCompany;
@@ -476,27 +469,99 @@ const ModernReportsPage: React.FC = () => {
   const renderShiftReport = () => {
     if (!reportData) return <Typography>No data available</Typography>;
 
+    const { period, payments, summary, by_payment_method } = reportData;
+
+    // Format payment method for display
+    const formatPaymentMethod = (method: string) => {
+      const methods: Record<string, string> = {
+        'cash': 'Cash',
+        'card': 'Card',
+        'bank_transfer': 'Bank Transfer',
+        'e_wallet': 'E-Wallet',
+        'company_bill': 'Company Bill',
+      };
+      return methods[method] || method.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    };
+
+    // Format source for display
+    const formatSource = (source: string) => {
+      const sources: Record<string, string> = {
+        'walk_in': 'Walk-in',
+        'booking_com': 'Booking.com',
+        'agoda': 'Agoda',
+        'expedia': 'Expedia',
+        'direct': 'Direct',
+        'phone': 'Phone',
+        'online': 'Online',
+      };
+      return sources[source] || source.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    };
+
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">Shift Report</Typography>
+          <Typography variant="h4" fontWeight="bold">Payment Records Report</Typography>
           <Typography variant="h6">Salim Inn</Typography>
-          <Typography variant="body2">
-            {new Date(startDate).toLocaleDateString()} - {new Date(endDate).toLocaleDateString()}
-            {shift !== 'all' && ` | Shift ${shift}`}
+          <Typography variant="body2" color="text.secondary">
+            {period?.start} to {period?.end}
           </Typography>
         </Box>
 
-        {reportData.revenue && (
+        {/* Summary Cards */}
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={6} md={3}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
+              <Typography variant="h3" color="primary.main">{summary?.total_bookings || 0}</Typography>
+              <Typography variant="subtitle2">Total Bookings</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+              <Typography variant="h4" color="success.main">
+                {currencySymbol}{Number(summary?.total_revenue || 0).toFixed(2)}
+              </Typography>
+              <Typography variant="subtitle2">Total Revenue</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
+              <Typography variant="h4" color="warning.main">
+                {currencySymbol}{Number(summary?.total_deposits || 0).toFixed(2)}
+              </Typography>
+              <Typography variant="subtitle2">Deposits Collected</Typography>
+            </Paper>
+          </Grid>
+          <Grid item xs={6} md={3}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#f3e5f5' }}>
+              <Typography variant="h4" color="secondary.main">
+                {by_payment_method?.length || 0}
+              </Typography>
+              <Typography variant="subtitle2">Payment Methods</Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+
+        {/* Payment Method Summary */}
+        {by_payment_method && by_payment_method.length > 0 && (
           <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" sx={{ bgcolor: 'primary.main', color: 'white', p: 1 }}>Revenue</Typography>
-            <TableContainer>
+            <Typography variant="h6" sx={{ bgcolor: 'info.main', color: 'white', p: 1, mb: 1 }}>
+              Summary by Payment Method
+            </Typography>
+            <TableContainer component={Paper} variant="outlined">
               <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                    <TableCell><strong>Payment Method</strong></TableCell>
+                    <TableCell align="center"><strong>Count</strong></TableCell>
+                    <TableCell align="right"><strong>Amount</strong></TableCell>
+                  </TableRow>
+                </TableHead>
                 <TableBody>
-                  {Object.entries(reportData.revenue).map(([key, value]: [string, any]) => (
-                    <TableRow key={key}>
-                      <TableCell>{key.replace(/_/g, ' ')}</TableCell>
-                      <TableCell align="right">{currencySymbol}{Number(value || 0).toFixed(2)}</TableCell>
+                  {by_payment_method.map((pm: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell>{formatPaymentMethod(pm.method)}</TableCell>
+                      <TableCell align="center">{pm.count}</TableCell>
+                      <TableCell align="right">{currencySymbol}{Number(pm.amount || 0).toFixed(2)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -505,23 +570,73 @@ const ModernReportsPage: React.FC = () => {
           </Box>
         )}
 
-        {reportData.settlement && (
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" sx={{ bgcolor: 'success.main', color: 'white', p: 1 }}>Settlement</Typography>
-            <TableContainer>
-              <Table size="small">
-                <TableBody>
-                  {Object.entries(reportData.settlement).map(([key, value]: [string, any]) => (
-                    <TableRow key={key}>
-                      <TableCell>{key.replace(/_/g, ' ')}</TableCell>
-                      <TableCell align="right">{currencySymbol}{Number(value || 0).toFixed(2)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Box>
-        )}
+        {/* Detailed Payment Records */}
+        <Typography variant="h6" sx={{ bgcolor: 'primary.main', color: 'white', p: 1, mb: 1 }}>
+          Payment Records ({payments?.length || 0})
+        </Typography>
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableCell><strong>Date</strong></TableCell>
+                <TableCell><strong>Booking #</strong></TableCell>
+                <TableCell><strong>Guest</strong></TableCell>
+                <TableCell><strong>Room</strong></TableCell>
+                <TableCell><strong>Source</strong></TableCell>
+                <TableCell><strong>Payment</strong></TableCell>
+                <TableCell><strong>Status</strong></TableCell>
+                <TableCell align="right"><strong>Amount</strong></TableCell>
+                <TableCell align="right"><strong>Deposit</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {payments && payments.length > 0 ? payments.map((p: any, idx: number) => (
+                <TableRow key={idx} sx={{ '&:nth-of-type(odd)': { bgcolor: 'grey.50' } }}>
+                  <TableCell>{p.date}</TableCell>
+                  <TableCell>{p.booking_number}</TableCell>
+                  <TableCell>{p.guest_name}</TableCell>
+                  <TableCell>
+                    {p.room_number}
+                    {p.room_type && <Typography variant="caption" display="block" color="text.secondary">{p.room_type}</Typography>}
+                  </TableCell>
+                  <TableCell>{formatSource(p.source)}</TableCell>
+                  <TableCell>{formatPaymentMethod(p.payment_method)}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={p.payment_status}
+                      size="small"
+                      color={p.payment_status === 'paid' ? 'success' : p.payment_status === 'partial' ? 'warning' : 'error'}
+                    />
+                  </TableCell>
+                  <TableCell align="right">{currencySymbol}{Number(p.amount || 0).toFixed(2)}</TableCell>
+                  <TableCell align="right">
+                    {p.deposit_paid ? (
+                      <Typography color="success.main">{currencySymbol}{Number(p.deposit_amount || 0).toFixed(2)}</Typography>
+                    ) : (
+                      <Typography color="text.secondary">-</Typography>
+                    )}
+                  </TableCell>
+                </TableRow>
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={9} align="center">No payment records found for this period</TableCell>
+                </TableRow>
+              )}
+              {/* Totals Row */}
+              {payments && payments.length > 0 && (
+                <TableRow sx={{ bgcolor: 'grey.200' }}>
+                  <TableCell colSpan={7}><strong>TOTAL</strong></TableCell>
+                  <TableCell align="right">
+                    <strong>{currencySymbol}{Number(summary?.total_revenue || 0).toFixed(2)}</strong>
+                  </TableCell>
+                  <TableCell align="right">
+                    <strong>{currencySymbol}{Number(summary?.total_deposits || 0).toFixed(2)}</strong>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Box>
     );
   };
@@ -1383,25 +1498,6 @@ const ModernReportsPage: React.FC = () => {
                 />
               </Grid>
 
-              {selectedReport === 'shift_report' && (
-                <>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <TextField select fullWidth label="Shift" value={shift} onChange={(e) => setShift(e.target.value)}>
-                      <MenuItem value="all">All Shifts</MenuItem>
-                      <MenuItem value="1">Shift 1 (Morning)</MenuItem>
-                      <MenuItem value="2">Shift 2 (Evening)</MenuItem>
-                      <MenuItem value="3">Shift 3 (Night)</MenuItem>
-                    </TextField>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <TextField select fullWidth label="Drawer" value={drawer} onChange={(e) => setDrawer(e.target.value)}>
-                      <MenuItem value="all">All Drawers</MenuItem>
-                      <MenuItem value="1">Drawer 1</MenuItem>
-                      <MenuItem value="2">Drawer 2</MenuItem>
-                    </TextField>
-                  </Grid>
-                </>
-              )}
 
               {selectedReport === 'company_ledger_statement' && (
                 <Grid item xs={12} sm={6} md={6}>

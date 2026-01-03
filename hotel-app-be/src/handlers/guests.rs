@@ -6,6 +6,7 @@ use crate::core::auth::AuthService;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::*;
+use crate::services::audit::AuditLog;
 use axum::{
     extract::{Extension, Path, State},
     http::HeaderMap,
@@ -47,6 +48,8 @@ pub async fn get_guests_handler(
                 title,
                 alt_phone,
                 true as is_active,
+                guest_type,
+                COALESCE(discount_percentage, 0) as discount_percentage,
                 COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
                 created_at,
                 updated_at
@@ -78,25 +81,33 @@ pub async fn create_guest_handler(
     if input.last_name.trim().is_empty() {
         return Err(ApiError::BadRequest("Last name cannot be empty".to_string()));
     }
-    if input.email.trim().is_empty() {
-        return Err(ApiError::BadRequest("Email cannot be empty".to_string()));
-    }
 
-    let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
-    if !email_regex.is_match(&input.email) {
-        return Err(ApiError::BadRequest("Invalid email format".to_string()));
+    // Validate email format only if provided
+    if let Some(ref email) = input.email {
+        if !email.trim().is_empty() {
+            let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+            if !email_regex.is_match(email) {
+                return Err(ApiError::BadRequest("Invalid email format".to_string()));
+            }
+        }
     }
 
     // Compute full_name from first_name and last_name
     let full_name = format!("{} {}", input.first_name.trim(), input.last_name.trim()).trim().to_string();
 
+    // Default to NonMember if not specified
+    let guest_type = input.guest_type.unwrap_or(GuestType::NonMember);
+    let discount_percentage = input.discount_percentage.unwrap_or(0);
+
     let guest = sqlx::query_as::<_, Guest>(
         r#"
-        INSERT INTO guests (full_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        INSERT INTO guests (full_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, guest_type, discount_percentage, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country,
                   NULL::TEXT as title, NULL::TEXT as alt_phone,
                   true as is_active,
+                  guest_type,
+                  COALESCE(discount_percentage, 0) as discount_percentage,
                   COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
                   created_at, updated_at
         "#
@@ -113,10 +124,24 @@ pub async fn create_guest_handler(
     .bind(&input.state_province)
     .bind(&input.postal_code)
     .bind(&input.country)
+    .bind(&guest_type)
+    .bind(discount_percentage)
     .bind(user_id)
     .fetch_one(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Log guest creation
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "guest_created",
+        "guest",
+        Some(guest.id),
+        Some(serde_json::json!({"name": &guest.full_name, "email": &guest.email})),
+        None,
+        None,
+    ).await;
 
     Ok(Json(guest))
 }
@@ -126,19 +151,28 @@ pub async fn update_guest_handler(
     Path(guest_id): Path<i64>,
     Json(input): Json<GuestUpdateInput>,
 ) -> Result<Json<Guest>, ApiError> {
-    // Get existing guest data including first_name and last_name
-    let existing: Option<(i64, String, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, bool)> = sqlx::query_as(
-        "SELECT id, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, title, alt_phone, true FROM guests WHERE id = $1 AND deleted_at IS NULL"
+    // Get basic existing guest data (limited tuple to avoid FromRow size limit)
+    let existing_basic: Option<(i64, String, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT id, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, title, alt_phone FROM guests WHERE id = $1 AND deleted_at IS NULL"
     )
     .bind(guest_id)
     .fetch_optional(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let existing = existing.ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
+    let existing_basic = existing_basic.ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
+
+    // Get guest_type and discount_percentage separately
+    let (existing_guest_type, existing_discount_percentage): (GuestType, i32) = sqlx::query_as(
+        "SELECT guest_type, COALESCE(discount_percentage, 0) FROM guests WHERE id = $1"
+    )
+    .bind(guest_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Extract existing values
-    let (_, existing_first_name, existing_last_name, existing_email, existing_phone, existing_ic_number, existing_nationality, existing_address_line1, existing_city, existing_state_province, existing_postal_code, existing_country, existing_title, existing_alt_phone, existing_is_active) = existing;
+    let (_, existing_first_name, existing_last_name, existing_email, existing_phone, existing_ic_number, existing_nationality, existing_address_line1, existing_city, existing_state_province, existing_postal_code, existing_country, existing_title, existing_alt_phone) = existing_basic;
 
     // Apply updates, falling back to existing values
     let first_name = input.first_name.unwrap_or(existing_first_name);
@@ -154,7 +188,9 @@ pub async fn update_guest_handler(
     let country = input.country.or(existing_country);
     let title = input.title.or(existing_title);
     let alt_phone = input.alt_phone.or(existing_alt_phone);
-    let _is_active = input.is_active.unwrap_or(existing_is_active);
+    let _is_active = input.is_active.unwrap_or(true);
+    let guest_type = input.guest_type.unwrap_or(existing_guest_type);
+    let discount_percentage = input.discount_percentage.unwrap_or(existing_discount_percentage);
 
     // Compute full_name from first_name and last_name
     let full_name = format!("{} {}", first_name.trim(), last_name.trim()).trim().to_string();
@@ -176,9 +212,11 @@ pub async fn update_guest_handler(
             country = $12,
             title = $13,
             alt_phone = $14,
+            guest_type = $15,
+            discount_percentage = $16,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $15
-        RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at
+        WHERE id = $17
+        RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, guest_type, COALESCE(discount_percentage, 0) as discount_percentage, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at
         "#
     )
     .bind(&full_name)
@@ -195,10 +233,24 @@ pub async fn update_guest_handler(
     .bind(&country)
     .bind(&title)
     .bind(&alt_phone)
+    .bind(&guest_type)
+    .bind(discount_percentage)
     .bind(guest_id)
     .fetch_one(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Log guest update
+    let _ = AuditLog::log_event(
+        &pool,
+        None,  // No user_id available in this handler
+        "guest_updated",
+        "guest",
+        Some(guest_id),
+        Some(serde_json::json!({"name": &updated_guest.full_name})),
+        None,
+        None,
+    ).await;
 
     Ok(Json(updated_guest))
 }
@@ -231,11 +283,24 @@ pub async fn delete_guest_handler(
         ));
     }
 
-    sqlx::query("DELETE FROM guests WHERE id = $1")
+    // Soft delete: set deleted_at timestamp instead of actually deleting
+    sqlx::query("UPDATE guests SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1")
         .bind(guest_id)
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Log guest deletion
+    let _ = AuditLog::log_event(
+        &pool,
+        None,  // No user_id available in this handler
+        "guest_deleted",
+        "guest",
+        Some(guest_id),
+        None,
+        None,
+        None,
+    ).await;
 
     Ok(Json(serde_json::json!({
         "success": true,
@@ -377,6 +442,8 @@ pub async fn get_my_guests_handler(
         SELECT DISTINCT g.id, g.full_name, g.email, g.phone, g.ic_number, g.nationality,
                g.address_line_1 as address_line1, g.city, g.state as state_province, g.postal_code, g.country, g.title, g.alt_phone,
                true as is_active,
+               g.guest_type,
+               COALESCE(g.discount_percentage, 0) as discount_percentage,
                COALESCE(g.complimentary_nights_credit, 0) as complimentary_nights_credit,
                g.created_at, g.updated_at
         FROM guests g

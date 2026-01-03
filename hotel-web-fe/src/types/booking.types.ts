@@ -72,9 +72,11 @@ export interface BookingWithDetails extends Booking {
   guest_name: string;
   guest_email: string;
   guest_phone?: string;
+  guest_type?: 'member' | 'non_member';
   room_number: string;
   room_type: string;
   room_type_code?: string;
+  booking_remarks?: string;
   payment_status?: PaymentStatus | string;
   price_per_night: number | string;
   number_of_nights?: number;

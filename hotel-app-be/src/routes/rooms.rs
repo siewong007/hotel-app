@@ -24,7 +24,13 @@ pub fn routes() -> Router<PgPool> {
         .route("/rooms/available", get(search_rooms))
         .route("/rooms/:id", patch(update_room))
         .route("/rooms/:id", delete(delete_room_handler))
+        // Room types CRUD
         .route("/room-types", get(get_room_types))
+        .route("/room-types/all", get(get_all_room_types))
+        .route("/room-types", post(create_room_type))
+        .route("/room-types/:id", get(get_room_type))
+        .route("/room-types/:id", patch(update_room_type))
+        .route("/room-types/:id", delete(delete_room_type))
         .route("/rooms/:room_type/reviews", get(get_room_reviews))
         // Status and events
         .route("/rooms/:id/status", put(update_room_status))
@@ -35,6 +41,7 @@ pub fn routes() -> Router<PgPool> {
         .route("/rooms/:id/end-cleaning", post(end_cleaning))
         .route("/rooms/sync-statuses", post(sync_room_statuses))
         .route("/rooms/:id/execute-change", post(execute_room_change))
+        .route("/rooms/change-history", get(get_room_change_history))
         // Occupancy endpoints (automatic - derived from bookings)
         .route("/rooms/occupancy", get(get_all_room_occupancy))
         .route("/rooms/occupancy/summary", get(get_hotel_occupancy_summary))
@@ -91,9 +98,49 @@ async fn delete_room_handler(
 async fn get_room_types(
     State(pool): State<PgPool>,
     headers: HeaderMap,
-) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+) -> Result<Json<Vec<models::RoomType>>, ApiError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
     handlers::rooms::get_room_types_handler(State(pool)).await
+}
+
+async fn get_all_room_types(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<models::RoomType>>, ApiError> {
+    handlers::rooms::get_all_room_types_handler(State(pool), headers).await
+}
+
+async fn get_room_type(
+    State(pool): State<PgPool>,
+    path: Path<i64>,
+    headers: HeaderMap,
+) -> Result<Json<models::RoomType>, ApiError> {
+    handlers::rooms::get_room_type_handler(State(pool), path, headers).await
+}
+
+async fn create_room_type(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    Json(input): Json<models::RoomTypeCreateInput>,
+) -> Result<Json<models::RoomType>, ApiError> {
+    handlers::rooms::create_room_type_handler(State(pool), headers, Json(input)).await
+}
+
+async fn update_room_type(
+    State(pool): State<PgPool>,
+    path: Path<i64>,
+    headers: HeaderMap,
+    Json(input): Json<models::RoomTypeUpdateInput>,
+) -> Result<Json<models::RoomType>, ApiError> {
+    handlers::rooms::update_room_type_handler(State(pool), path, headers, Json(input)).await
+}
+
+async fn delete_room_type(
+    State(pool): State<PgPool>,
+    path: Path<i64>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    handlers::rooms::delete_room_type_handler(State(pool), path, headers).await
 }
 
 async fn get_room_reviews(
@@ -169,6 +216,14 @@ async fn execute_room_change(
     Json(input): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     handlers::rooms::execute_room_change_handler(State(pool), path, headers, Json(input)).await
+}
+
+async fn get_room_change_history(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    query: Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    handlers::rooms::get_room_change_history_handler(State(pool), headers, query).await
 }
 
 // ==================== OCCUPANCY ROUTES ====================

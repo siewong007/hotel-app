@@ -269,6 +269,12 @@ const CustomerLedgerPage: React.FC = () => {
     email: '',
     phone: '',
     ic_number: '',
+    nationality: '',
+    address_line1: '',
+    city: '',
+    state_province: '',
+    postal_code: '',
+    country: '',
   });
 
   // Company Registration state
@@ -457,12 +463,27 @@ const CustomerLedgerPage: React.FC = () => {
           return;
         }
 
+        // Validate email is provided and valid
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!newCheckInGuestForm.email || !emailRegex.test(newCheckInGuestForm.email)) {
+          setSnackbarMessage('Please enter a valid email address for the guest');
+          setSnackbarOpen(true);
+          setProcessingCheckIn(false);
+          return;
+        }
+
         const newGuest = await HotelAPIService.createGuest({
           first_name: newCheckInGuestForm.first_name,
           last_name: newCheckInGuestForm.last_name,
-          email: newCheckInGuestForm.email || `${newCheckInGuestForm.first_name.toLowerCase()}.${newCheckInGuestForm.last_name.toLowerCase()}@company.temp`,
+          email: newCheckInGuestForm.email,
           phone: newCheckInGuestForm.phone,
           ic_number: newCheckInGuestForm.ic_number,
+          nationality: newCheckInGuestForm.nationality || undefined,
+          address_line1: newCheckInGuestForm.address_line1 || undefined,
+          city: newCheckInGuestForm.city || undefined,
+          state_province: newCheckInGuestForm.state_province || undefined,
+          postal_code: newCheckInGuestForm.postal_code || undefined,
+          country: newCheckInGuestForm.country || undefined,
         });
         guestToUse = newGuest;
       }
@@ -536,6 +557,12 @@ const CustomerLedgerPage: React.FC = () => {
       email: '',
       phone: '',
       ic_number: '',
+      nationality: '',
+      address_line1: '',
+      city: '',
+      state_province: '',
+      postal_code: '',
+      country: '',
     });
     setCompanyBookings([]);
   };
@@ -2880,10 +2907,13 @@ const CustomerLedgerPage: React.FC = () => {
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
+                      required
                       label="Email"
                       type="email"
                       value={newCheckInGuestForm.email}
                       onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, email: e.target.value })}
+                      helperText="Required for sending booking confirmations and invoices"
+                      error={newCheckInGuestForm.email !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email)}
                     />
                   </Grid>
                   <Grid item xs={12} sm={6}>
@@ -2894,12 +2924,62 @@ const CustomerLedgerPage: React.FC = () => {
                       onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, phone: e.target.value })}
                     />
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
                       label="IC/Passport Number"
                       value={newCheckInGuestForm.ic_number}
                       onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, ic_number: e.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Nationality"
+                      value={newCheckInGuestForm.nationality}
+                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, nationality: e.target.value })}
+                      placeholder="e.g. Malaysian"
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Address"
+                      value={newCheckInGuestForm.address_line1}
+                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, address_line1: e.target.value })}
+                      placeholder="Street address"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="City"
+                      value={newCheckInGuestForm.city}
+                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, city: e.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="State/Province"
+                      value={newCheckInGuestForm.state_province}
+                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, state_province: e.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Postal Code"
+                      value={newCheckInGuestForm.postal_code}
+                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, postal_code: e.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Country"
+                      value={newCheckInGuestForm.country}
+                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, country: e.target.value })}
                     />
                   </Grid>
                 </Grid>
@@ -2996,6 +3076,9 @@ const CustomerLedgerPage: React.FC = () => {
                     Guest: {isCreatingNewCheckInGuest ? `${newCheckInGuestForm.first_name} ${newCheckInGuestForm.last_name}` : checkInGuest?.full_name}
                   </Typography>
                   <Typography variant="body2">
+                    Email: {isCreatingNewCheckInGuest ? newCheckInGuestForm.email : checkInGuest?.email}
+                  </Typography>
+                  <Typography variant="body2">
                     Room: {checkInRoom.room_number} ({checkInRoom.room_type})
                   </Typography>
                   <Typography variant="body2">
@@ -3022,7 +3105,12 @@ const CustomerLedgerPage: React.FC = () => {
               !checkInCompany ||
               !checkInRoom ||
               (!checkInGuest && !isCreatingNewCheckInGuest) ||
-              (isCreatingNewCheckInGuest && (!newCheckInGuestForm.first_name || !newCheckInGuestForm.last_name))
+              (isCreatingNewCheckInGuest && (
+                !newCheckInGuestForm.first_name ||
+                !newCheckInGuestForm.last_name ||
+                !newCheckInGuestForm.email ||
+                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email)
+              ))
             }
             startIcon={processingCheckIn ? <CircularProgress size={20} /> : <CheckInIcon />}
           >

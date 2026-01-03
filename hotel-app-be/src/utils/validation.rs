@@ -30,7 +30,7 @@ pub struct ValidatedGuestInput {
     pub last_name: String,
 
     #[validate(email)]
-    pub email: String,
+    pub email: Option<String>,
 
     #[validate(custom = "validate_phone")]
     pub phone: Option<String>,

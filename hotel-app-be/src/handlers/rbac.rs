@@ -5,6 +5,7 @@
 use crate::core::auth::AuthService;
 use crate::core::error::ApiError;
 use crate::models::*;
+use crate::services::audit::AuditLog;
 use axum::{
     extract::{Extension, Path, State},
     response::Json,
@@ -130,6 +131,9 @@ pub async fn assign_role_to_user_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    // Log role assignment (no admin_id available in this handler)
+    let _ = AuditLog::log_role_assignment(&pool, 0, input.user_id, input.role_id).await;
+
     Ok(Json(serde_json::json!({"message": "Role assigned successfully"})))
 }
 
@@ -143,6 +147,9 @@ pub async fn remove_role_from_user_handler(
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Log role removal (no admin_id available in this handler)
+    let _ = AuditLog::log_role_removal(&pool, 0, user_id, role_id).await;
 
     Ok(Json(serde_json::json!({"message": "Role removed successfully"})))
 }
@@ -329,6 +336,18 @@ pub async fn create_user_handler(
     }
 
     tx.commit().await.map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Log user creation
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(admin_user_id),
+        "user_created",
+        "user",
+        Some(user.id),
+        Some(serde_json::json!({"username": &input.username, "email": &input.email})),
+        None,
+        None,
+    ).await;
 
     Ok(Json(user.into()))
 }

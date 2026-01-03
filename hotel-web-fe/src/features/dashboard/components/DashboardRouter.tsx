@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../auth/AuthContext';
-import AdminOverviewDashboard from './AdminOverviewDashboard';
+import AnalyticsDashboard from './AnalyticsDashboard';
 
 const DashboardRouter: React.FC = () => {
   const { hasRole } = useAuth();
@@ -16,19 +16,14 @@ const DashboardRouter: React.FC = () => {
     if (!isAdmin && !isReceptionist) {
       navigate('/my-bookings', { replace: true });
     }
-
-    // Redirect admin to room management tab
-    if (isAdmin) {
-      navigate('/room-config', { replace: true });
-    }
   }, [isAdmin, isReceptionist, navigate]);
 
-  // Receptionist sees admin overview dashboard
-  if (isReceptionist) {
-    return <AdminOverviewDashboard />;
+  // Admin and receptionist see the analytics dashboard
+  if (isAdmin || isReceptionist) {
+    return <AnalyticsDashboard />;
   }
 
-  // Admin will be redirected to room-config by useEffect, but return null as fallback
+  // Guests will be redirected, return null as fallback
   return null;
 };
 

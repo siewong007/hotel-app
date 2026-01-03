@@ -36,16 +36,10 @@ import {
   Hotel as HotelIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
-import { Room } from '../../../types';
+import { Room, RoomType } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
-
-interface RoomType {
-  id: number;
-  name: string;
-  code: string;
-  base_price: number;
-}
+import { toNumber } from '../../../utils/currency';
 
 interface RoomFormData {
   room_number: string;
@@ -154,11 +148,21 @@ const RoomConfigurationPage: React.FC = () => {
       return;
     }
 
+    // Get room type details
+    const selectedRoomType = getRoomTypeById(formData.room_type_id as number);
+    if (!selectedRoomType) {
+      setError('Invalid room type selected');
+      return;
+    }
+
     try {
       setFormLoading(true);
       await HotelAPIService.createRoom({
         room_number: formData.room_number,
+        room_type: selectedRoomType.name,
         room_type_id: formData.room_type_id as number,
+        price_per_night: formData.custom_price ? (formData.custom_price as number) : Number(selectedRoomType.base_price),
+        max_occupancy: selectedRoomType.max_occupancy,
         floor: formData.floor as number,
         building: formData.building || undefined,
         custom_price: formData.custom_price ? (formData.custom_price as number) : undefined,
@@ -446,7 +450,7 @@ const RoomConfigurationPage: React.FC = () => {
                 inputProps={{ step: '0.01', min: '0' }}
                 helperText={
                   formData.room_type_id && getRoomTypeById(formData.room_type_id as number)
-                    ? `Base price: ${formatCurrency(getRoomTypeById(formData.room_type_id as number)?.base_price || 0)}`
+                    ? `Base price: ${formatCurrency(toNumber(getRoomTypeById(formData.room_type_id as number)?.base_price))}`
                     : 'Leave empty to use room type base price'
                 }
               />

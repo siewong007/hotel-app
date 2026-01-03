@@ -4,12 +4,27 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+/// Guest membership type for pricing differentiation
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
+#[sqlx(type_name = "guest_type", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum GuestType {
+    Member,
+    NonMember,
+}
+
+impl Default for GuestType {
+    fn default() -> Self {
+        GuestType::NonMember
+    }
+}
+
 /// Core guest entity
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Guest {
     pub id: i64,
     pub full_name: String,
-    pub email: String,
+    pub email: Option<String>,
     pub phone: Option<String>,
     pub ic_number: Option<String>,
     pub nationality: Option<String>,
@@ -21,6 +36,8 @@ pub struct Guest {
     pub title: Option<String>,
     pub alt_phone: Option<String>,
     pub is_active: bool,
+    pub guest_type: GuestType,
+    pub discount_percentage: i32,
     pub complimentary_nights_credit: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -31,7 +48,7 @@ pub struct Guest {
 pub struct GuestInput {
     pub first_name: String,
     pub last_name: String,
-    pub email: String,
+    pub email: Option<String>,
     pub phone: Option<String>,
     pub ic_number: Option<String>,
     pub nationality: Option<String>,
@@ -40,6 +57,8 @@ pub struct GuestInput {
     pub state_province: Option<String>,
     pub postal_code: Option<String>,
     pub country: Option<String>,
+    pub guest_type: Option<GuestType>,
+    pub discount_percentage: Option<i32>,
 }
 
 /// Input for updating a guest
@@ -59,6 +78,8 @@ pub struct GuestUpdateInput {
     pub postal_code: Option<String>,
     pub country: Option<String>,
     pub is_active: Option<bool>,
+    pub guest_type: Option<GuestType>,
+    pub discount_percentage: Option<i32>,
 }
 
 /// Input for linking a guest to a user

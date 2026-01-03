@@ -23,9 +23,11 @@ import {
   Card,
   CardContent,
   InputAdornment,
-  Switch,
-  FormControlLabel,
   Tooltip,
+  MenuItem,
+  ToggleButton,
+  ToggleButtonGroup,
+  alpha,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -34,18 +36,19 @@ import {
   Save as SaveIcon,
   Cancel as CancelIcon,
   Person as PersonIcon,
-  PersonOff as PersonOffIcon,
   Search as SearchIcon,
   History as HistoryIcon,
-  ToggleOn as ToggleOnIcon,
-  ToggleOff as ToggleOffIcon,
   CardGiftcard as GiftIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
-import { Guest, GuestCreateRequest } from '../../../types';
+import { Guest, GuestCreateRequest, GuestType, GUEST_TYPE_CONFIG } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail } from '../../../utils/validation';
 import { useCurrency } from '../../../hooks/useCurrency';
+import {
+  Star as MemberIcon,
+  PersonOutline as NonMemberIcon,
+} from '@mui/icons-material';
 
 interface GuestFormData extends GuestCreateRequest {
   id?: number;
@@ -61,6 +64,7 @@ const GuestConfigurationPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<'all' | GuestType>('all');
 
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -100,7 +104,8 @@ const GuestConfigurationPage: React.FC = () => {
     state_province: '',
     postal_code: '',
     country: '',
-    is_active: true,
+    guest_type: 'non_member',
+    discount_percentage: 0,
   });
 
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
@@ -120,24 +125,23 @@ const GuestConfigurationPage: React.FC = () => {
   }, [hasAccess]);
 
   useEffect(() => {
-    // Filter guests based on search term
-    const filtered = guests.filter(guest =>
+    // Filter guests based on search term and guest type
+    let filtered = guests.filter(guest =>
       guest.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      guest.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (guest.email && guest.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (guest.phone && guest.phone.includes(searchTerm)) ||
       (guest.ic_number && guest.ic_number.toLowerCase().includes(searchTerm.toLowerCase()))
     );
-    // Sort: active guests first, then inactive guests, alphabetically within each group
-    const sorted = [...filtered].sort((a, b) => {
-      // First, sort by active status (active first)
-      if (a.is_active !== b.is_active) {
-        return a.is_active ? -1 : 1;
-      }
-      // Then sort alphabetically by name
-      return a.full_name.localeCompare(b.full_name);
-    });
+
+    // Apply guest type filter
+    if (filterType !== 'all') {
+      filtered = filtered.filter(guest => guest.guest_type === filterType);
+    }
+
+    // Sort alphabetically by name
+    const sorted = [...filtered].sort((a, b) => a.full_name.localeCompare(b.full_name));
     setFilteredGuests(sorted);
-  }, [searchTerm, guests]);
+  }, [searchTerm, guests, filterType]);
 
   const loadData = async () => {
     try {
@@ -166,7 +170,8 @@ const GuestConfigurationPage: React.FC = () => {
       state_province: '',
       postal_code: '',
       country: '',
-      is_active: true,
+      guest_type: 'non_member',
+      discount_percentage: 0,
     });
   };
 
@@ -190,7 +195,8 @@ const GuestConfigurationPage: React.FC = () => {
       state_province: guest.state_province || '',
       postal_code: guest.postal_code || '',
       country: guest.country || '',
-      is_active: guest.is_active,
+      guest_type: guest.guest_type || 'non_member',
+      discount_percentage: guest.discount_percentage || 0,
     });
     setEditDialogOpen(true);
   };
@@ -226,16 +232,18 @@ const GuestConfigurationPage: React.FC = () => {
   };
 
   const handleCreateGuest = async () => {
-    if (!formData.first_name || !formData.last_name || !formData.email) {
-      setError('Please fill in all required fields');
+    if (!formData.first_name || !formData.last_name) {
+      setError('Please fill in all required fields (First Name and Last Name)');
       return;
     }
 
-    // Validate email format
-    const emailError = validateEmail(formData.email);
-    if (emailError) {
-      setError(emailError);
-      return;
+    // Validate email format only if provided
+    if (formData.email && formData.email.trim()) {
+      const emailError = validateEmail(formData.email);
+      if (emailError) {
+        setError(emailError);
+        return;
+      }
     }
 
     try {
@@ -290,17 +298,6 @@ const GuestConfigurationPage: React.FC = () => {
     }
   };
 
-  const handleToggleActive = async (guest: Guest) => {
-    try {
-      await HotelAPIService.updateGuest(guest.id, { is_active: !guest.is_active });
-      setSnackbarMessage(`Guest ${guest.is_active ? 'deactivated' : 'activated'} successfully`);
-      setSnackbarOpen(true);
-      await loadData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update guest status');
-    }
-  };
-
   if (!hasAccess) {
     return (
       <Alert severity="warning">
@@ -317,7 +314,8 @@ const GuestConfigurationPage: React.FC = () => {
     );
   }
 
-  const activeGuests = guests.filter(g => g.is_active).length;
+  const memberGuests = guests.filter(g => g.guest_type === 'member').length;
+  const nonMemberGuests = guests.filter(g => g.guest_type === 'non_member' || !g.guest_type).length;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -356,9 +354,9 @@ const GuestConfigurationPage: React.FC = () => {
 
       {/* Statistics Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={6} sm={4} md={3}>
           <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
               <Typography variant="h4" sx={{ fontWeight: 600, color: 'primary.main' }}>
                 {guests.length}
               </Typography>
@@ -368,60 +366,102 @@ const GuestConfigurationPage: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={6} sm={4} md={3}>
           <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ fontWeight: 600, color: 'success.main' }}>
-                {activeGuests}
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <Typography variant="h4" sx={{ fontWeight: 600, color: GUEST_TYPE_CONFIG.member.color }}>
+                {memberGuests}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Active
+                Members
               </Typography>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={6} sm={4} md={3}>
           <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" sx={{ fontWeight: 600, color: 'warning.main' }}>
-                {guests.length - activeGuests}
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
+              <Typography variant="h4" sx={{ fontWeight: 600, color: GUEST_TYPE_CONFIG.non_member.color }}>
+                {nonMemberGuests}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Inactive
+                Non-Members
               </Typography>
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid item xs={6} sm={4} md={3}>
           <Card>
-            <CardContent sx={{ textAlign: 'center' }}>
+            <CardContent sx={{ textAlign: 'center', py: 2 }}>
               <Typography variant="h4" sx={{ fontWeight: 600, color: 'info.main' }}>
                 {guests.filter(g => g.ic_number).length}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                With IC Number
+                With IC
               </Typography>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
 
-      {/* Search Bar */}
+      {/* Search Bar and Filter */}
       <Card sx={{ mb: 2 }}>
         <CardContent>
-          <TextField
-            fullWidth
-            placeholder="Search by name, email, phone, or IC number..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-          />
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <TextField
+              placeholder="Search by name, email, phone, or IC number..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ flex: 1, minWidth: 250 }}
+            />
+            <ToggleButtonGroup
+              value={filterType}
+              exclusive
+              onChange={(_, value) => value && setFilterType(value)}
+              size="small"
+            >
+              <ToggleButton value="all">
+                All
+              </ToggleButton>
+              <ToggleButton
+                value="member"
+                sx={{
+                  '&.Mui-selected': {
+                    backgroundColor: alpha(GUEST_TYPE_CONFIG.member.color, 0.15),
+                    color: GUEST_TYPE_CONFIG.member.color,
+                    '&:hover': {
+                      backgroundColor: alpha(GUEST_TYPE_CONFIG.member.color, 0.25),
+                    },
+                  },
+                }}
+              >
+                <MemberIcon sx={{ mr: 0.5, fontSize: 18 }} />
+                Members
+              </ToggleButton>
+              <ToggleButton
+                value="non_member"
+                sx={{
+                  '&.Mui-selected': {
+                    backgroundColor: alpha(GUEST_TYPE_CONFIG.non_member.color, 0.15),
+                    color: GUEST_TYPE_CONFIG.non_member.color,
+                    '&:hover': {
+                      backgroundColor: alpha(GUEST_TYPE_CONFIG.non_member.color, 0.25),
+                    },
+                  },
+                }}
+              >
+                <NonMemberIcon sx={{ mr: 0.5, fontSize: 18 }} />
+                Non-Members
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
         </CardContent>
       </Card>
 
@@ -432,38 +472,57 @@ const GuestConfigurationPage: React.FC = () => {
             <TableHead>
               <TableRow>
                 <TableCell>Name</TableCell>
+                <TableCell>Type</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Phone</TableCell>
                 <TableCell>IC Number</TableCell>
-                <TableCell>Nationality</TableCell>
+                <TableCell>Discount</TableCell>
                 <TableCell>Free Gift Credits</TableCell>
-                <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredGuests.map((guest) => (
-                <TableRow
-                  key={guest.id}
-                  sx={{
-                    opacity: guest.is_active ? 1 : 0.6,
-                    bgcolor: guest.is_active ? 'inherit' : 'action.hover',
-                  }}
-                >
+                <TableRow key={guest.id}>
                   <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {!guest.is_active && (
-                        <PersonOffIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
-                      )}
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {guest.full_name}
-                      </Typography>
-                    </Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {guest.full_name}
+                    </Typography>
                   </TableCell>
-                  <TableCell>{guest.email}</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const guestType = guest.guest_type || 'non_member';
+                      const config = GUEST_TYPE_CONFIG[guestType];
+                      return (
+                        <Chip
+                          icon={guestType === 'member' ? <MemberIcon sx={{ fontSize: 16 }} /> : <NonMemberIcon sx={{ fontSize: 16 }} />}
+                          label={config.label}
+                          size="small"
+                          sx={{
+                            backgroundColor: alpha(config.color, 0.1),
+                            color: config.color,
+                            fontWeight: 500,
+                            '& .MuiChip-icon': { color: 'inherit' },
+                          }}
+                        />
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell>{guest.email || '-'}</TableCell>
                   <TableCell>{guest.phone || '-'}</TableCell>
                   <TableCell>{guest.ic_number || '-'}</TableCell>
-                  <TableCell>{guest.nationality || '-'}</TableCell>
+                  <TableCell>
+                    {guest.discount_percentage && guest.discount_percentage > 0 ? (
+                      <Chip
+                        label={`${guest.discount_percentage}% off`}
+                        size="small"
+                        color="success"
+                        variant="outlined"
+                      />
+                    ) : (
+                      <Typography variant="body2" color="text.disabled">-</Typography>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {guest.complimentary_nights_credit > 0 ? (
                       <Chip
@@ -476,25 +535,7 @@ const GuestConfigurationPage: React.FC = () => {
                       <Typography variant="body2" color="text.disabled">-</Typography>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={guest.is_active ? 'Active' : 'Inactive'}
-                      size="small"
-                      color={guest.is_active ? 'success' : 'default'}
-                      onClick={() => handleToggleActive(guest)}
-                      sx={{ cursor: 'pointer' }}
-                    />
-                  </TableCell>
                   <TableCell align="right">
-                    <Tooltip title={guest.is_active ? 'Mark as Inactive' : 'Mark as Active'}>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleToggleActive(guest)}
-                        color={guest.is_active ? 'warning' : 'success'}
-                      >
-                        {guest.is_active ? <ToggleOffIcon /> : <ToggleOnIcon />}
-                      </IconButton>
-                    </Tooltip>
                     <Tooltip title="View Bookings">
                       <IconButton
                         size="small"
@@ -560,7 +601,6 @@ const GuestConfigurationPage: React.FC = () => {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                required
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -627,6 +667,67 @@ const GuestConfigurationPage: React.FC = () => {
                 value={formData.country}
                 onChange={(e) => setFormData({ ...formData, country: e.target.value })}
               />
+            </Grid>
+
+            {/* Membership Section */}
+            <Grid item xs={12}>
+              <Box
+                sx={{
+                  p: 2,
+                  mt: 1,
+                  bgcolor: formData.guest_type === 'member' ? alpha(GUEST_TYPE_CONFIG.member.color, 0.1) : 'grey.100',
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: formData.guest_type === 'member' ? GUEST_TYPE_CONFIG.member.color : 'divider',
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                  Membership & Pricing
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Guest Type"
+                      value={formData.guest_type || 'non_member'}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        guest_type: e.target.value as GuestType,
+                        discount_percentage: e.target.value === 'member' ? (formData.discount_percentage || 10) : 0,
+                      })}
+                    >
+                      <MenuItem value="non_member">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <NonMemberIcon sx={{ fontSize: 18, color: GUEST_TYPE_CONFIG.non_member.color }} />
+                          Non-Member (Standard Rate)
+                        </Box>
+                      </MenuItem>
+                      <MenuItem value="member">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <MemberIcon sx={{ fontSize: 18, color: GUEST_TYPE_CONFIG.member.color }} />
+                          Member (Discounted Rate)
+                        </Box>
+                      </MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Discount Percentage"
+                      type="number"
+                      value={formData.discount_percentage || 0}
+                      onChange={(e) => setFormData({ ...formData, discount_percentage: parseInt(e.target.value) || 0 })}
+                      disabled={formData.guest_type !== 'member'}
+                      InputProps={{
+                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                      }}
+                      inputProps={{ min: 0, max: 100 }}
+                      helperText={formData.guest_type === 'member' ? 'Discount applied to room rates' : 'Only available for members'}
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
             </Grid>
           </Grid>
         </DialogContent>
@@ -739,39 +840,65 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, country: e.target.value })}
               />
             </Grid>
+
+            {/* Membership Section */}
             <Grid item xs={12}>
               <Box
                 sx={{
                   p: 2,
                   mt: 1,
-                  bgcolor: formData.is_active ? 'success.light' : 'warning.light',
+                  bgcolor: formData.guest_type === 'member' ? alpha(GUEST_TYPE_CONFIG.member.color, 0.1) : 'grey.100',
                   borderRadius: 1,
                   border: 1,
-                  borderColor: formData.is_active ? 'success.main' : 'warning.main',
-                  opacity: 0.8,
+                  borderColor: formData.guest_type === 'member' ? GUEST_TYPE_CONFIG.member.color : 'divider',
                 }}
               >
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={formData.is_active}
-                      onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                      color={formData.is_active ? 'success' : 'warning'}
+                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                  Membership & Pricing
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Guest Type"
+                      value={formData.guest_type || 'non_member'}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        guest_type: e.target.value as GuestType,
+                        discount_percentage: e.target.value === 'member' ? (formData.discount_percentage || 10) : 0,
+                      })}
+                    >
+                      <MenuItem value="non_member">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <NonMemberIcon sx={{ fontSize: 18, color: GUEST_TYPE_CONFIG.non_member.color }} />
+                          Non-Member (Standard Rate)
+                        </Box>
+                      </MenuItem>
+                      <MenuItem value="member">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <MemberIcon sx={{ fontSize: 18, color: GUEST_TYPE_CONFIG.member.color }} />
+                          Member (Discounted Rate)
+                        </Box>
+                      </MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Discount Percentage"
+                      type="number"
+                      value={formData.discount_percentage || 0}
+                      onChange={(e) => setFormData({ ...formData, discount_percentage: parseInt(e.target.value) || 0 })}
+                      disabled={formData.guest_type !== 'member'}
+                      InputProps={{
+                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                      }}
+                      inputProps={{ min: 0, max: 100 }}
+                      helperText={formData.guest_type === 'member' ? 'Discount applied to room rates' : 'Only available for members'}
                     />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                        {formData.is_active ? 'Active Guest' : 'Inactive Guest'}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {formData.is_active
-                          ? 'Guest can make bookings and check in'
-                          : 'Guest is inactive and will appear at the bottom of the list'}
-                      </Typography>
-                    </Box>
-                  }
-                />
+                  </Grid>
+                </Grid>
               </Box>
             </Grid>
           </Grid>

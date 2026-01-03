@@ -128,8 +128,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       ? parseFloat(booking.total_amount)
       : booking.total_amount || 0;
 
-    // Get deposit from booking, fallback to settings default
-    const roomCardDeposit = booking.room_card_deposit
+    // Get deposit from booking - use 0 if explicitly set (member waiver), otherwise fallback to settings
+    const roomCardDeposit = booking.room_card_deposit !== undefined && booking.room_card_deposit !== null
       ? (typeof booking.room_card_deposit === 'string' ? parseFloat(booking.room_card_deposit) : booking.room_card_deposit)
       : hotelSettings.room_card_deposit;
 
@@ -660,8 +660,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   </Grid>
                 </Box>
 
-                {/* Deposit Refund */}
-                {charges.depositRefund > 0 && (
+                {/* Deposit Refund or Waived */}
+                {charges.depositRefund > 0 ? (
                   <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd', bgcolor: '#e8f5e9' }}>
                     <Grid container>
                       <Grid item xs={8}>
@@ -672,6 +672,21 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       <Grid item xs={4} sx={{ textAlign: 'right' }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
                           -{formatCurrency(charges.depositRefund)}
+                        </Typography>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                ) : (
+                  <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd', bgcolor: '#e3f2fd' }}>
+                    <Grid container>
+                      <Grid item xs={8}>
+                        <Typography variant="body2" sx={{ color: '#1565c0' }}>
+                          Room Card Deposit
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#1565c0' }}>
+                          Waived
                         </Typography>
                       </Grid>
                     </Grid>
@@ -833,16 +848,33 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
                 <Grid item xs={12}><Divider sx={{ my: 1 }} /></Grid>
 
-                <Grid item xs={8}>
-                  <Typography variant="body2" sx={{ color: 'success.main' }}>
-                    Room Card Deposit Refund
-                  </Typography>
-                </Grid>
-                <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                  <Typography variant="body2" sx={{ color: 'success.main' }}>
-                    -{formatCurrency(charges.roomCardDeposit)}
-                  </Typography>
-                </Grid>
+                {charges.roomCardDeposit > 0 ? (
+                  <>
+                    <Grid item xs={8}>
+                      <Typography variant="body2" sx={{ color: 'success.main' }}>
+                        Room Card Deposit Refund
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                      <Typography variant="body2" sx={{ color: 'success.main' }}>
+                        -{formatCurrency(charges.roomCardDeposit)}
+                      </Typography>
+                    </Grid>
+                  </>
+                ) : (
+                  <>
+                    <Grid item xs={8}>
+                      <Typography variant="body2" sx={{ color: 'info.main' }}>
+                        Room Card Deposit
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                      <Typography variant="body2" sx={{ color: 'info.main' }}>
+                        Waived
+                      </Typography>
+                    </Grid>
+                  </>
+                )}
 
                 <Grid item xs={12}><Divider sx={{ my: 1 }} /></Grid>
 
@@ -1267,10 +1299,15 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <td className="amount">{formatCurrency(charges.subtotal)}</td>
             </tr>
 
-            {charges.depositRefund > 0 && (
+            {charges.depositRefund > 0 ? (
               <tr className="refund-row">
                 <td>Room Card Deposit Refund</td>
                 <td className="amount">-{formatCurrency(charges.depositRefund)}</td>
+              </tr>
+            ) : (
+              <tr style={{ color: '#1565c0' }}>
+                <td>Room Card Deposit</td>
+                <td className="amount">Waived</td>
               </tr>
             )}
 
@@ -1288,10 +1325,15 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
           </div>
         )}
 
-        {charges.depositRefund > 0 && (
+        {charges.depositRefund > 0 ? (
           <div className="notes success-note">
             <strong>Deposit Refund</strong>
             Room card deposit of {formatCurrency(charges.depositRefund)} will be refunded to the guest.
+          </div>
+        ) : (
+          <div className="notes" style={{ backgroundColor: '#e3f2fd', borderLeftColor: '#1565c0' }}>
+            <strong style={{ color: '#1565c0' }}>Room Card Deposit</strong>
+            Waived (Member benefit)
           </div>
         )}
 
