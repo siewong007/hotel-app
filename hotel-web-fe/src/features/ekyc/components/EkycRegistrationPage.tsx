@@ -157,13 +157,6 @@ const EkycRegistrationPage: React.FC = () => {
         return;
       }
 
-      // Validate phone
-      const phoneValidation = validatePhone(personalInfo.phone);
-      if (phoneValidation) {
-        setPhoneError(phoneValidation);
-        setError(phoneValidation);
-        return;
-      }
     } else if (activeStep === 1) {
       if (!documentInfo.idType || !documentInfo.idNumber || !documentInfo.idIssuingCountry ||
           !documentInfo.idExpiryDate) {
@@ -350,7 +343,7 @@ const EkycRegistrationPage: React.FC = () => {
                   setPersonalInfo({ ...personalInfo, phone: e.target.value });
                   setPhoneError('');
                 }}
-                onBlur={() => setPhoneError(validatePhone(personalInfo.phone))}
+                onBlur={() => setPhoneError('')}
                 error={!!phoneError}
                 helperText={phoneError}
                 placeholder="+1-234-567-8900"

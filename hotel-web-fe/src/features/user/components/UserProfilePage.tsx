@@ -307,16 +307,6 @@ const UserProfilePage: React.FC = () => {
       return;
     }
 
-    // Validate phone if provided
-    if (formData.phone) {
-      const phoneValidation = validatePhone(formData.phone);
-      if (phoneValidation) {
-        setPhoneError(phoneValidation);
-        showSnackbar(phoneValidation, 'error');
-        return;
-      }
-    }
-
     try {
       await HotelAPIService.updateUserProfile(formData);
       setEditing(false);
@@ -585,11 +575,7 @@ const UserProfilePage: React.FC = () => {
                     setFormData({ ...formData, phone: e.target.value });
                     setPhoneError('');
                   }}
-                  onBlur={() => {
-                    if (editing && formData.phone) {
-                      setPhoneError(validatePhone(formData.phone));
-                    }
-                  }}
+                  onBlur={() => setPhoneError('')}
                   error={!!phoneError}
                   helperText={phoneError}
                   disabled={!editing}
