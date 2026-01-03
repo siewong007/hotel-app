@@ -213,16 +213,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
       return null;
     }
 
-    // Validate phone if provided
-    if (newGuestPhone) {
-      const phoneValidation = validatePhone(newGuestPhone);
-      if (phoneValidation) {
-        setPhoneError(phoneValidation);
-        setError(phoneValidation);
-        return null;
-      }
-    }
-
     try {
       const newGuest = await HotelAPIService.createGuest({
         first_name: newGuestFirstName,
@@ -507,11 +497,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                       setNewGuestPhone(e.target.value);
                       setPhoneError('');
                     }}
-                    onBlur={() => {
-                      if (newGuestPhone) {
-                        setPhoneError(validatePhone(newGuestPhone));
-                      }
-                    }}
+                    onBlur={() => setPhoneError('')}
                     error={!!phoneError}
                     helperText={phoneError}
                     size="small"

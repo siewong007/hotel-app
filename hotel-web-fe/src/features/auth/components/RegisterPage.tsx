@@ -53,8 +53,6 @@ const RegisterPage: React.FC = () => {
   const handleBlur = (field: string) => {
     if (field === 'email') {
       setEmailError(validateEmail(formData.email));
-    } else if (field === 'phone' && formData.phone) {
-      setPhoneError(validatePhone(formData.phone));
     }
   };
 
@@ -68,15 +66,6 @@ const RegisterPage: React.FC = () => {
     if (emailValidation) {
       setEmailError(emailValidation);
       return emailValidation;
-    }
-
-    // Validate phone if provided
-    if (formData.phone) {
-      const phoneValidation = validatePhone(formData.phone);
-      if (phoneValidation) {
-        setPhoneError(phoneValidation);
-        return phoneValidation;
-      }
     }
 
     if (formData.password !== formData.confirmPassword) {

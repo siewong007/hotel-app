@@ -391,10 +391,8 @@ export default function EnhancedCheckInModal({
         if (value && !validateEmail(value)) return 'Please enter a valid email address';
         return undefined;
       case 'phone':
-        if (value && !validatePhone(value)) return 'Please enter a valid phone number';
         return undefined;
       case 'alt_phone':
-        if (value && !validatePhone(value)) return 'Please enter a valid phone number';
         return undefined;
       case 'ic_number':
         if (value && !validateICNumber(value)) return 'Please enter a valid IC/Passport number';

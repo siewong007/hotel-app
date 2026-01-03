@@ -320,16 +320,6 @@ const RBACManagementPage: React.FC = () => {
       return;
     }
 
-    // Validate phone if provided
-    if (createUserForm.phone) {
-      const phoneValidation = validatePhone(createUserForm.phone);
-      if (phoneValidation) {
-        setPhoneError(phoneValidation);
-        showSnackbar(phoneValidation, 'error');
-        return;
-      }
-    }
-
     try {
       const userData = {
         username: createUserForm.username,
@@ -866,11 +856,7 @@ const RBACManagementPage: React.FC = () => {
               setCreateUserForm({ ...createUserForm, phone: e.target.value });
               setPhoneError('');
             }}
-            onBlur={() => {
-              if (createUserForm.phone) {
-                setPhoneError(validatePhone(createUserForm.phone));
-              }
-            }}
+            onBlur={() => setPhoneError('')}
             error={!!phoneError}
             helperText={phoneError}
             margin="normal"
