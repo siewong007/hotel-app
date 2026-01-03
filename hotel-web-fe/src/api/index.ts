@@ -16,6 +16,7 @@ import { LedgerService } from './ledger.service';
 import { GuestPortalService } from './guestPortal.service';
 import { ReportsService } from './reports.service';
 import { CompaniesService } from './companies.service';
+import { AuditService } from './audit.service';
 
 // Core
 export { api, APIError, API_BASE_URL, parseAPIError } from './client';
@@ -35,6 +36,7 @@ export { LedgerService } from './ledger.service';
 export { GuestPortalService } from './guestPortal.service';
 export { ReportsService } from './reports.service';
 export { CompaniesService, type Company, type CompanyCreateRequest, type CompanyUpdateRequest } from './companies.service';
+export { AuditService } from './audit.service';
 
 // Backward Compatibility Layer - HotelAPIService
 // This class provides backward compatibility for existing code that imports HotelAPIService
@@ -55,6 +57,11 @@ export class HotelAPIService {
   static createRoom = RoomsService.createRoom;
   static deleteRoom = RoomsService.deleteRoom;
   static getRoomTypes = RoomsService.getRoomTypes;
+  static getAllRoomTypes = RoomsService.getAllRoomTypes;
+  static getRoomType = RoomsService.getRoomType;
+  static createRoomType = RoomsService.createRoomType;
+  static updateRoomType = RoomsService.updateRoomType;
+  static deleteRoomType = RoomsService.deleteRoomType;
   static getRoomReviews = RoomsService.getRoomReviews;
   static formatRoomForDisplay = RoomsService.formatRoomForDisplay;
   // Occupancy operations (automatic - derived from bookings)
@@ -120,6 +127,8 @@ export class HotelAPIService {
   static getAllUsers = AdminService.getAllUsers;
   static createUser = AdminService.createUser;
   static getUserRolesAndPermissions = AdminService.getUserRolesAndPermissions;
+  static updateUser = AdminService.updateUser;
+  static deleteUser = AdminService.deleteUser;
 
   // System settings
   static getSystemSettings = AdminService.getSystemSettings;
