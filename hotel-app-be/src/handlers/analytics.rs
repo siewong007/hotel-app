@@ -453,62 +453,109 @@ async fn generate_shift_report(
     _shift: Option<&str>,
     _drawer: Option<&str>,
 ) -> Result<serde_json::Value, ApiError> {
-    // Get room revenue
-    let room_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM bookings
-         WHERE check_in_date >= $1 AND check_in_date <= $2 AND status IN ('confirmed', 'checked_in', 'checked_out')"
+    // Get detailed payment records from bookings
+    let rows = sqlx::query(
+        r#"SELECT
+            b.booking_number,
+            b.check_in_date,
+            b.check_out_date,
+            g.full_name as guest_name,
+            r.room_number,
+            rt.name as room_type,
+            b.total_amount,
+            b.payment_method,
+            b.payment_status,
+            b.deposit_amount,
+            b.deposit_paid,
+            b.room_card_deposit,
+            b.status as booking_status,
+            b.source,
+            b.created_at
+        FROM bookings b
+        JOIN guests g ON b.guest_id = g.id
+        JOIN rooms r ON b.room_id = r.id
+        LEFT JOIN room_types rt ON r.room_type_id = rt.id
+        WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
+        AND b.status IN ('confirmed', 'checked_in', 'checked_out')
+        ORDER BY b.check_in_date ASC, b.created_at ASC"#
     )
     .bind(start_date)
     .bind(end_date)
-    .fetch_one(pool)
+    .fetch_all(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let room_total: Decimal = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(total_amount), 0) FROM bookings
-         WHERE check_in_date >= $1 AND check_in_date <= $2 AND status IN ('confirmed', 'checked_in', 'checked_out')"
-    )
-    .bind(start_date)
-    .bind(end_date)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let mut payments: Vec<serde_json::Value> = Vec::new();
+    let mut total_revenue = Decimal::ZERO;
+    let mut total_deposits = Decimal::ZERO;
+    let mut payment_by_method: std::collections::HashMap<String, Decimal> = std::collections::HashMap::new();
 
-    // Simulate payment methods (in production, you'd have a payments table)
-    let cash_total = room_total * Decimal::new(60, 2); // 60% cash
-    let cc_total = room_total * Decimal::new(30, 2);   // 30% credit card
-    let dc_total = room_total * Decimal::new(10, 2);   // 10% debit card
+    for row in &rows {
+        let booking_number: String = row.get("booking_number");
+        let check_in_date: NaiveDate = row.get("check_in_date");
+        let guest_name: String = row.get("guest_name");
+        let room_number: String = row.get("room_number");
+        let room_type: Option<String> = row.get("room_type");
+        let total_amount: Decimal = row.get("total_amount");
+        let payment_method: Option<String> = row.get("payment_method");
+        let payment_status: Option<String> = row.get("payment_status");
+        let deposit_amount: Option<Decimal> = row.get("deposit_amount");
+        let deposit_paid: Option<bool> = row.get("deposit_paid");
+        let room_card_deposit: Option<Decimal> = row.get("room_card_deposit");
+        let booking_status: String = row.get("booking_status");
+        let source: Option<String> = row.get("source");
 
-    let service_tax = room_total * Decimal::new(8, 2);
+        total_revenue += total_amount;
+        if let Some(dep) = deposit_amount {
+            if deposit_paid.unwrap_or(false) {
+                total_deposits += dep;
+            }
+        }
+
+        let method = payment_method.clone().unwrap_or_else(|| "cash".to_string());
+        *payment_by_method.entry(method.clone()).or_insert(Decimal::ZERO) += total_amount;
+
+        payments.push(serde_json::json!({
+            "booking_number": booking_number,
+            "date": check_in_date.format("%Y-%m-%d").to_string(),
+            "guest_name": guest_name,
+            "room_number": room_number,
+            "room_type": room_type.unwrap_or_default(),
+            "amount": total_amount,
+            "payment_method": payment_method.unwrap_or_else(|| "cash".to_string()),
+            "payment_status": payment_status.unwrap_or_else(|| "unpaid".to_string()),
+            "deposit_amount": deposit_amount.unwrap_or(Decimal::ZERO),
+            "deposit_paid": deposit_paid.unwrap_or(false),
+            "room_card_deposit": room_card_deposit.unwrap_or(Decimal::ZERO),
+            "booking_status": booking_status,
+            "source": source.unwrap_or_else(|| "walk_in".to_string()),
+        }));
+    }
+
+    // Build payment method summary
+    let payment_summary: Vec<serde_json::Value> = payment_by_method
+        .iter()
+        .map(|(method, amount)| {
+            serde_json::json!({
+                "method": method,
+                "amount": amount,
+                "count": payments.iter().filter(|p| p["payment_method"] == *method).count()
+            })
+        })
+        .collect();
 
     Ok(serde_json::json!({
-        "revenue": {
-            "room_count": room_count,
-            "room_total": room_total,
+        "period": {
+            "start": start_date.format("%Y-%m-%d").to_string(),
+            "end": end_date.format("%Y-%m-%d").to_string(),
         },
-        "settlement": {
-            "cash": [
-                { "code": "200", "description": "Cash", "count": (room_count as f64 * 0.6) as i64, "amount": cash_total }
-            ],
-            "cash_count": (room_count as f64 * 0.6) as i64,
-            "cash_total": cash_total,
-            "credit_card": [
-                { "code": "201", "description": "Visa", "count": (room_count as f64 * 0.3) as i64, "amount": cc_total }
-            ],
-            "cc_count": (room_count as f64 * 0.3) as i64,
-            "cc_total": cc_total,
-            "debit_card": [
-                { "code": "208", "description": "Debitcard", "count": (room_count as f64 * 0.1) as i64, "amount": dc_total }
-            ],
-            "dc_count": (room_count as f64 * 0.1) as i64,
-            "dc_total": dc_total,
-            "total_count": room_count,
-            "total_amount": cash_total + cc_total + dc_total,
+        "payments": payments,
+        "summary": {
+            "total_bookings": payments.len(),
+            "total_revenue": total_revenue,
+            "total_deposits": total_deposits,
         },
-        "taxes": {
-            "count": room_count,
-            "total": service_tax,
-        },
+        "by_payment_method": payment_summary,
     }))
 }
 

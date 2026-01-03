@@ -49,6 +49,8 @@ pub struct UserResponse {
     pub is_active: bool,
     pub roles: Vec<String>,
     pub permissions: Vec<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl From<User> for UserResponse {
@@ -62,6 +64,8 @@ impl From<User> for UserResponse {
             is_active: user.is_active,
             roles: vec![],
             permissions: vec![],
+            created_at: user.created_at,
+            updated_at: user.updated_at,
         }
     }
 }

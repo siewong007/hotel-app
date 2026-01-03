@@ -69,7 +69,7 @@ pub async fn verify_guest_booking(
         .await
         .map_err(|e| ApiError::Database(format!("Failed to fetch guest: {}", e)))?;
 
-    if guest.email != request.email {
+    if guest.email.as_deref() != Some(request.email.as_str()) {
         return Err(ApiError::Unauthorized(
             "Email does not match booking".to_string(),
         ));

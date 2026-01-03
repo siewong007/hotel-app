@@ -18,6 +18,7 @@ CREATE SEQUENCE IF NOT EXISTS corporate_account_contacts_id_seq START WITH 1;
 -- ============================================================================
 
 DO $$ BEGIN CREATE TYPE IdentificationType AS ENUM ('passport', 'drivers_license', 'national_id', 'other'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE TYPE guest_type AS ENUM ('member', 'non_member'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 
 -- ============================================================================
 -- GUESTS
@@ -61,6 +62,8 @@ CREATE TABLE IF NOT EXISTS guests (
     complimentary_nights_credit INTEGER DEFAULT 0,
     is_blacklisted BOOLEAN DEFAULT false,
     blacklist_reason TEXT,
+    guest_type guest_type NOT NULL DEFAULT 'non_member',
+    discount_percentage INTEGER NOT NULL DEFAULT 0 CHECK (discount_percentage >= 0 AND discount_percentage <= 100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by BIGINT REFERENCES users(id),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -237,6 +240,8 @@ CREATE INDEX IF NOT EXISTS idx_guests_company ON guests(company_name) WHERE comp
 CREATE INDEX IF NOT EXISTS idx_guests_blacklist ON guests(is_blacklisted) WHERE is_blacklisted = true;
 CREATE INDEX IF NOT EXISTS idx_guests_ic_number ON guests(ic_number);
 CREATE INDEX IF NOT EXISTS idx_guests_created_at ON guests(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_guests_guest_type ON guests(guest_type);
+CREATE INDEX IF NOT EXISTS idx_guests_member_discount ON guests(guest_type, discount_percentage) WHERE guest_type = 'member';
 CREATE INDEX IF NOT EXISTS idx_guest_credits_guest_id ON guest_complimentary_credits(guest_id);
 CREATE INDEX IF NOT EXISTS idx_guest_credits_room_type ON guest_complimentary_credits(room_type_id);
 CREATE INDEX IF NOT EXISTS idx_guest_documents_guest_id ON guest_documents(guest_id);
@@ -287,3 +292,5 @@ COMMENT ON TABLE guest_reviews IS 'Guest reviews and feedback';
 COMMENT ON TABLE corporate_accounts IS 'Corporate accounts for business clients';
 COMMENT ON COLUMN guests.ic_number IS 'Identity card or passport number';
 COMMENT ON COLUMN guests.nationality IS 'Guest nationality/citizenship';
+COMMENT ON COLUMN guests.guest_type IS 'Guest membership type: member (discounted rates) or non_member (standard rates)';
+COMMENT ON COLUMN guests.discount_percentage IS 'Discount percentage for members (0-100). Only applicable when guest_type is member.';

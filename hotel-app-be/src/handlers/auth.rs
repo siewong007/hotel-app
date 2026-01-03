@@ -5,6 +5,7 @@
 use crate::core::auth::AuthService;
 use crate::core::error::ApiError;
 use crate::models::*;
+use crate::services::audit::AuditLog;
 use sqlx::PgPool;
 use axum::{
     extract::State,
@@ -25,8 +26,14 @@ pub async fn login_handler(
 
     let user = match user {
         Some(u) if u.is_active => u,
-        Some(_) => return Err(ApiError::Unauthorized("Account is inactive".to_string())),
-        None => return Err(ApiError::Unauthorized("Invalid credentials".to_string())),
+        Some(_) => {
+            let _ = AuditLog::log_login_failure(&pool, &req.username, "Account is inactive", None, None).await;
+            return Err(ApiError::Unauthorized("Account is inactive".to_string()));
+        }
+        None => {
+            let _ = AuditLog::log_login_failure(&pool, &req.username, "User not found", None, None).await;
+            return Err(ApiError::Unauthorized("Invalid credentials".to_string()));
+        }
     };
 
     // Check email verification (can be disabled in development with SKIP_EMAIL_VERIFICATION env var)
@@ -54,6 +61,7 @@ pub async fn login_handler(
         .map_err(|_| ApiError::Internal("Password verification failed".to_string()))?;
 
     if !valid {
+        let _ = AuditLog::log_login_failure(&pool, &req.username, "Invalid password", None, None).await;
         return Err(ApiError::Unauthorized("Invalid credentials".to_string()));
     }
 
@@ -75,9 +83,11 @@ pub async fn login_handler(
             ).map_err(|_| ApiError::Unauthorized("Invalid 2FA code".to_string()))?;
 
             if !valid_totp {
+                let _ = AuditLog::log_login_failure(&pool, &req.username, "Invalid 2FA code", None, None).await;
                 return Err(ApiError::Unauthorized("Invalid 2FA code".to_string()));
             }
         } else {
+            let _ = AuditLog::log_login_failure(&pool, &req.username, "2FA code not provided", None, None).await;
             return Err(ApiError::Unauthorized("2FA required. Please provide a TOTP code.".to_string()));
         }
     }
@@ -115,6 +125,10 @@ pub async fn login_handler(
         .execute(&pool)
         .await
         .ok();
+
+    // Log successful login
+    let login_method = if two_factor_enabled.unwrap_or(false) { "password+2fa" } else { "password" };
+    let _ = AuditLog::log_login_success(&pool, user.id, login_method, None, None).await;
 
     let response = AuthResponse {
         access_token,

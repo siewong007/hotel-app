@@ -113,6 +113,24 @@ export class AdminService {
     );
   }
 
+  static async updateUser(userId: string, userData: {
+    username?: string;
+    email?: string;
+    full_name?: string;
+    phone?: string;
+    is_active?: boolean;
+    password?: string;
+  }): Promise<User> {
+    return await withRetry(
+      () => api.patch(`rbac/users/${userId}`, { json: userData }).json<User>(),
+      { maxAttempts: 2, initialDelay: 1000 }
+    );
+  }
+
+  static async deleteUser(userId: string): Promise<void> {
+    await api.delete(`rbac/users/${userId}`);
+  }
+
   // System Settings
   static async getSystemSettings(): Promise<any[]> {
     return await api.get('settings').json();

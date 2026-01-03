@@ -1,6 +1,63 @@
 // Room-related type definitions
 import type { BookingWithDetails } from './booking.types';
 
+// ==================== ROOM TYPE ====================
+
+export interface RoomType {
+  id: number;
+  name: string;
+  code: string;
+  description?: string;
+  base_price: number | string;
+  weekday_rate?: number | string;
+  weekend_rate?: number | string;
+  max_occupancy: number;
+  bed_type?: string;
+  bed_count?: number;
+  allows_extra_bed: boolean;
+  max_extra_beds: number;
+  extra_bed_charge: number | string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RoomTypeCreateInput {
+  name: string;
+  code: string;
+  description?: string;
+  base_price: number;
+  weekday_rate?: number;
+  weekend_rate?: number;
+  max_occupancy?: number;
+  bed_type?: string;
+  bed_count?: number;
+  allows_extra_bed?: boolean;
+  max_extra_beds?: number;
+  extra_bed_charge?: number;
+  sort_order?: number;
+}
+
+export interface RoomTypeUpdateInput {
+  name?: string;
+  code?: string;
+  description?: string;
+  base_price?: number;
+  weekday_rate?: number;
+  weekend_rate?: number;
+  max_occupancy?: number;
+  bed_type?: string;
+  bed_count?: number;
+  allows_extra_bed?: boolean;
+  max_extra_beds?: number;
+  extra_bed_charge?: number;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+// ==================== ROOM ====================
+
 export interface Room {
   id: string; // UUID
   room_number: string;

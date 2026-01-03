@@ -11,6 +11,7 @@ CREATE SEQUENCE IF NOT EXISTS rooms_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS room_history_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS housekeeping_tasks_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS maintenance_tickets_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS room_changes_id_seq START WITH 1;
 
 -- ============================================================================
 -- ROOM TYPES
@@ -27,6 +28,9 @@ CREATE TABLE IF NOT EXISTS room_types (
     max_occupancy INTEGER DEFAULT 2,
     bed_type VARCHAR(50),
     bed_count INTEGER DEFAULT 1,
+    allows_extra_bed BOOLEAN DEFAULT false,
+    max_extra_beds INTEGER DEFAULT 0 CHECK (max_extra_beds >= 0),
+    extra_bed_charge DECIMAL(10,2) DEFAULT 0 CHECK (extra_bed_charge >= 0),
     size_sqm DECIMAL(6,2),
     size_sqft DECIMAL(6,2),
     floor_range VARCHAR(20),
@@ -207,6 +211,23 @@ CREATE TABLE IF NOT EXISTS maintenance_tickets (
 );
 
 -- ============================================================================
+-- ROOM CHANGES (revisit flow - track room changes during guest stays)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS room_changes (
+    id BIGINT PRIMARY KEY DEFAULT nextval('room_changes_id_seq'),
+    booking_id BIGINT NOT NULL,
+    from_room_id BIGINT NOT NULL REFERENCES rooms(id),
+    to_room_id BIGINT NOT NULL REFERENCES rooms(id),
+    guest_id BIGINT NOT NULL,
+    reason TEXT,
+    changed_by BIGINT,
+    changed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+-- Note: Foreign keys to bookings, guests, and users are added in 008_bookings.sql after those tables exist
+
+-- ============================================================================
 -- ROOM STATUS CHANGE LOG
 -- ============================================================================
 
@@ -312,6 +333,11 @@ CREATE INDEX IF NOT EXISTS idx_maintenance_status ON maintenance_tickets(status)
 CREATE INDEX IF NOT EXISTS idx_maintenance_priority ON maintenance_tickets(priority);
 CREATE INDEX IF NOT EXISTS idx_maintenance_assigned ON maintenance_tickets(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_room_type_amenities_type ON room_type_amenities(room_type_id);
+CREATE INDEX IF NOT EXISTS idx_room_changes_booking ON room_changes(booking_id);
+CREATE INDEX IF NOT EXISTS idx_room_changes_from_room ON room_changes(from_room_id);
+CREATE INDEX IF NOT EXISTS idx_room_changes_to_room ON room_changes(to_room_id);
+CREATE INDEX IF NOT EXISTS idx_room_changes_guest ON room_changes(guest_id);
+CREATE INDEX IF NOT EXISTS idx_room_changes_changed_at ON room_changes(changed_at DESC);
 
 -- ============================================================================
 -- TRIGGERS
@@ -333,3 +359,12 @@ COMMENT ON TABLE room_history IS 'History of room status changes';
 COMMENT ON TABLE room_status_transitions IS 'Defines valid room status transitions';
 COMMENT ON TABLE housekeeping_tasks IS 'Housekeeping task assignments';
 COMMENT ON TABLE maintenance_tickets IS 'Maintenance work orders';
+COMMENT ON TABLE room_changes IS 'Tracks room changes during guest stays';
+COMMENT ON COLUMN room_changes.booking_id IS 'The booking that had the room change';
+COMMENT ON COLUMN room_changes.from_room_id IS 'Original room the guest was in';
+COMMENT ON COLUMN room_changes.to_room_id IS 'New room the guest moved to';
+COMMENT ON COLUMN room_changes.reason IS 'Reason for the room change';
+COMMENT ON COLUMN room_changes.changed_by IS 'Staff member who processed the change';
+COMMENT ON COLUMN room_types.allows_extra_bed IS 'Whether this room type allows extra beds';
+COMMENT ON COLUMN room_types.max_extra_beds IS 'Maximum number of extra beds allowed';
+COMMENT ON COLUMN room_types.extra_bed_charge IS 'Charge per extra bed per night';

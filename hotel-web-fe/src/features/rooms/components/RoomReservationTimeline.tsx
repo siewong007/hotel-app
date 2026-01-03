@@ -18,12 +18,24 @@ import {
   MenuItem,
   Button,
   IconButton,
+  Popover,
+  Divider,
+  alpha,
 } from '@mui/material';
 import {
   ChevronLeft,
   ChevronRight,
   CalendarMonth,
   Refresh,
+  Person,
+  Phone,
+  Email,
+  CalendarToday,
+  Payment,
+  Hotel,
+  CardGiftcard,
+  Notes,
+  AttachMoney,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { Room, BookingWithDetails } from '../../../types';
@@ -35,18 +47,33 @@ import { useCurrency } from '../../../hooks/useCurrency';
 
 interface TimelineBooking {
   id: number | string;
+  booking_number?: string;
   room_id: number | string;
+  room_number?: string;
+  room_type?: string;
   guest_name: string;
   guest_email?: string;
   guest_phone?: string;
   check_in_date: string;
   check_out_date: string;
   status: string;
+  payment_status?: string;
+  payment_method?: string;
+  total_amount?: number | string;
+  price_per_night?: number | string;
+  number_of_nights?: number;
+  deposit_amount?: number | string;
+  deposit_paid?: boolean;
+  special_requests?: string;
   is_complimentary?: boolean;
   complimentary_nights?: number;
   complimentary_start_date?: string;
   complimentary_end_date?: string;
   complimentary_reason?: string;
+  number_of_guests?: number;
+  extra_bed_count?: number;
+  extra_bed_charge?: number | string;
+  company_name?: string;
 }
 
 interface TimelineCell {
@@ -65,6 +92,11 @@ const RoomReservationTimeline: React.FC = () => {
   const [daysToShow, setDaysToShow] = useState(14);
   const [startDate, setStartDate] = useState(new Date());
   const loadingRef = useRef(false);
+
+  // Popover state for booking details
+  const [popoverAnchor, setPopoverAnchor] = useState<HTMLElement | null>(null);
+  const [hoveredBooking, setHoveredBooking] = useState<TimelineBooking | null>(null);
+  const popoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadData();
@@ -146,18 +178,33 @@ const RoomReservationTimeline: React.FC = () => {
         })
         .map((b: BookingWithDetails) => ({
           id: b.id,
+          booking_number: b.booking_number,
           room_id: b.room_id,
+          room_number: b.room_number,
+          room_type: b.room_type,
           guest_name: b.guest_name || 'Unknown Guest',
           guest_email: b.guest_email,
           guest_phone: b.guest_phone,
           check_in_date: b.check_in_date,
           check_out_date: b.check_out_date,
           status: b.status as string,
+          payment_status: b.payment_status as string,
+          payment_method: b.payment_method,
+          total_amount: b.total_amount,
+          price_per_night: b.price_per_night,
+          number_of_nights: b.number_of_nights,
+          deposit_amount: b.deposit_amount,
+          deposit_paid: b.deposit_paid,
+          special_requests: b.special_requests,
           is_complimentary: b.is_complimentary,
           complimentary_nights: b.complimentary_nights,
           complimentary_start_date: b.complimentary_start_date,
           complimentary_end_date: b.complimentary_end_date,
           complimentary_reason: b.complimentary_reason,
+          number_of_guests: b.number_of_guests,
+          extra_bed_count: b.extra_bed_count,
+          extra_bed_charge: b.extra_bed_charge,
+          company_name: b.company_name,
         }));
 
       console.log('Timeline - Filtered bookings from API:', relevantBookings.length);
@@ -297,73 +344,174 @@ const RoomReservationTimeline: React.FC = () => {
 
   const dates = getDates();
 
+  // Popover handlers
+  const handleCellMouseEnter = (event: React.MouseEvent<HTMLElement>, booking: TimelineBooking) => {
+    // Clear any existing timeout
+    if (popoverTimeoutRef.current) {
+      clearTimeout(popoverTimeoutRef.current);
+    }
+    // Delay showing the popover to avoid flickering
+    popoverTimeoutRef.current = setTimeout(() => {
+      setPopoverAnchor(event.currentTarget);
+      setHoveredBooking(booking);
+    }, 300);
+  };
+
+  const handleCellMouseLeave = () => {
+    if (popoverTimeoutRef.current) {
+      clearTimeout(popoverTimeoutRef.current);
+    }
+    // Delay hiding to allow mouse to move to popover
+    popoverTimeoutRef.current = setTimeout(() => {
+      setPopoverAnchor(null);
+      setHoveredBooking(null);
+    }, 150);
+  };
+
+  const handlePopoverMouseEnter = () => {
+    if (popoverTimeoutRef.current) {
+      clearTimeout(popoverTimeoutRef.current);
+    }
+  };
+
+  const handlePopoverMouseLeave = () => {
+    setPopoverAnchor(null);
+    setHoveredBooking(null);
+  };
+
+  const getPaymentStatusColor = (status?: string): string => {
+    switch (status) {
+      case 'paid': return '#4caf50';
+      case 'partial': return '#ff9800';
+      case 'unpaid': return '#f44336';
+      case 'unpaid_deposit': return '#f44336';
+      case 'paid_rate': return '#2196f3';
+      case 'refunded': return '#9c27b0';
+      default: return '#9e9e9e';
+    }
+  };
+
+  const getPaymentStatusLabel = (status?: string): string => {
+    switch (status) {
+      case 'paid': return 'Paid';
+      case 'partial': return 'Partial';
+      case 'unpaid': return 'Unpaid';
+      case 'unpaid_deposit': return 'Deposit Pending';
+      case 'paid_rate': return 'Rate Paid';
+      case 'refunded': return 'Refunded';
+      default: return 'Unknown';
+    }
+  };
+
   return (
     <Box sx={{ p: 3 }}>
       {/* Header */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h4" sx={{ fontWeight: 600, color: 'primary.main' }}>
-          Room Reservation Timeline
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>Days to Show</InputLabel>
-            <Select
-              value={daysToShow}
-              label="Days to Show"
-              onChange={(e) => setDaysToShow(Number(e.target.value))}
-            >
-              <MenuItem value={7}>7 Days</MenuItem>
-              <MenuItem value={14}>14 Days</MenuItem>
-              <MenuItem value={30}>30 Days</MenuItem>
-              <MenuItem value={60}>60 Days</MenuItem>
-            </Select>
-          </FormControl>
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<CalendarMonth />}
-            onClick={goToToday}
-          >
-            Today
-          </Button>
-          <IconButton onClick={goToPreviousWeek} size="small">
-            <ChevronLeft />
-          </IconButton>
-          <Typography variant="body2" sx={{ minWidth: 150, textAlign: 'center' }}>
-            {startDate.toLocaleDateString()} - {dates[dates.length - 1]?.toLocaleDateString()}
-          </Typography>
-          <IconButton onClick={goToNextWeek} size="small">
-            <ChevronRight />
-          </IconButton>
-          <IconButton onClick={loadData} size="small">
-            <Refresh />
-          </IconButton>
-        </Box>
-      </Box>
+      <Paper
+        elevation={0}
+        sx={{
+          p: 2.5,
+          mb: 3,
+          bgcolor: 'white',
+          border: '1px solid',
+          borderColor: 'divider',
+          borderRadius: 2,
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+          {/* Title Section */}
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
+              <CalendarMonth sx={{ fontSize: 28, color: 'primary.main' }} />
+              <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                Reservation Timeline
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              {rooms.length} rooms • {bookings.length} active bookings • Hover for details
+            </Typography>
+          </Box>
 
-      {/* Debug Info & Legend */}
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-          Status Legend:
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
-          <Chip label="Reserved" sx={{ bgcolor: '#42a5f5', color: 'white' }} size="small" />
-          <Chip label="Occupied" sx={{ bgcolor: '#ffa726', color: 'white' }} size="small" />
-          <Chip label="Available" sx={{ bgcolor: '#66bb6a', color: 'white' }} size="small" />
-          <Chip label="Pending" sx={{ bgcolor: '#ffeb3b', color: 'black' }} size="small" />
-          <Chip label="Complimentary" sx={{ bgcolor: '#9c27b0', color: 'white' }} size="small" />
+          {/* Controls Section */}
+          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Date Navigation */}
+            <Paper
+              elevation={0}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                bgcolor: 'grey.100',
+                borderRadius: 1,
+                p: 0.5,
+              }}
+            >
+              <IconButton onClick={goToPreviousWeek} size="small">
+                <ChevronLeft />
+              </IconButton>
+              <Box sx={{ px: 1.5, minWidth: 180, textAlign: 'center' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {dates[dates.length - 1]?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </Typography>
+              </Box>
+              <IconButton onClick={goToNextWeek} size="small">
+                <ChevronRight />
+              </IconButton>
+            </Paper>
+
+            {/* Days Selector */}
+            <FormControl size="small" sx={{ minWidth: 100 }}>
+              <Select
+                value={daysToShow}
+                onChange={(e) => setDaysToShow(Number(e.target.value))}
+                sx={{ bgcolor: 'grey.100' }}
+              >
+                <MenuItem value={7}>7 Days</MenuItem>
+                <MenuItem value={14}>14 Days</MenuItem>
+                <MenuItem value={30}>30 Days</MenuItem>
+                <MenuItem value={60}>60 Days</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* Action Buttons */}
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={goToToday}
+              sx={{ minWidth: 'auto', px: 2 }}
+            >
+              Today
+            </Button>
+            <IconButton onClick={loadData} size="small" sx={{ bgcolor: 'grey.100' }}>
+              <Refresh />
+            </IconButton>
+          </Box>
         </Box>
-        <Box sx={{ mb: 1 }}>
-          <Typography variant="caption" color="text.secondary" display="block">
-            <strong>Diagonal stripes</strong> indicate walk-in, online, or complimentary guest occupancy.
+
+        {/* Status Legend */}
+        <Divider sx={{ my: 2 }} />
+        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+            Status:
           </Typography>
-          <Typography variant="caption" color="text.secondary" display="block">
-            <strong>Reserved rooms</strong> show guest details from their associated booking.
-          </Typography>
+          {[
+            { label: 'Reserved', color: '#42a5f5' },
+            { label: 'Checked In', color: '#ffa726' },
+            { label: 'Pending', color: '#ffeb3b', textColor: '#000' },
+            { label: 'Complimentary', color: '#9c27b0' },
+          ].map((item) => (
+            <Chip
+              key={item.label}
+              label={item.label}
+              size="small"
+              sx={{
+                bgcolor: item.color,
+                color: item.textColor || 'white',
+                fontWeight: 500,
+                fontSize: '0.7rem',
+                height: 22,
+              }}
+            />
+          ))}
         </Box>
-        <Typography variant="caption" color="text.secondary">
-          Loaded: {rooms.length} rooms, {bookings.length} bookings in date range
-        </Typography>
       </Paper>
 
       {error && (
@@ -377,17 +525,27 @@ const RoomReservationTimeline: React.FC = () => {
           <CircularProgress />
         </Box>
       ) : (
-        <TableContainer component={Paper} sx={{ maxHeight: 'calc(100vh - 300px)', overflow: 'auto' }}>
+        <TableContainer
+          component={Paper}
+          elevation={0}
+          sx={{
+            maxHeight: 'calc(100vh - 300px)',
+            overflow: 'auto',
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 2,
+          }}
+        >
           <Table stickyHeader size="small">
             <TableHead>
               <TableRow>
                 <TableCell
                   sx={{
                     fontWeight: 700,
-                    minWidth: 100,
+                    minWidth: 120,
                     position: 'sticky',
                     left: 0,
-                    bgcolor: 'background.paper',
+                    bgcolor: '#fafafa',
                     zIndex: 3,
                     borderRight: '2px solid',
                     borderColor: 'divider',
@@ -398,27 +556,50 @@ const RoomReservationTimeline: React.FC = () => {
                 {dates.map((date) => {
                   const isToday =
                     date.toDateString() === new Date().toDateString();
+                  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                   return (
                     <TableCell
                       key={date.toISOString()}
                       align="center"
                       sx={{
-                        minWidth: 80,
+                        minWidth: 85,
                         fontWeight: 600,
-                        bgcolor: isToday ? 'primary.50' : 'background.paper',
+                        bgcolor: isToday ? alpha('#1976d2', 0.08) : isWeekend ? alpha('#f5f5f5', 0.5) : '#fafafa',
                         borderLeft: isToday ? '2px solid' : undefined,
                         borderRight: isToday ? '2px solid' : undefined,
                         borderColor: 'primary.main',
+                        py: 1,
                       }}
                     >
                       <Box>
-                        <Typography variant="caption" display="block">
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          sx={{
+                            fontWeight: isWeekend ? 600 : 500,
+                            color: isWeekend ? 'error.main' : 'text.secondary',
+                            fontSize: '0.65rem',
+                          }}
+                        >
                           {date.toLocaleDateString('en-US', { weekday: 'short' })}
                         </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontWeight: 700,
+                            fontSize: '1rem',
+                            color: isToday ? 'primary.main' : 'text.primary',
+                          }}
+                        >
                           {date.getDate()}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: 'text.secondary',
+                            fontSize: '0.6rem',
+                          }}
+                        >
                           {date.toLocaleDateString('en-US', { month: 'short' })}
                         </Typography>
                       </Box>
@@ -439,16 +620,32 @@ const RoomReservationTimeline: React.FC = () => {
                       zIndex: 2,
                       borderRight: '2px solid',
                       borderColor: 'divider',
+                      py: 1.5,
                     }}
                   >
-                    <Box>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                        {room.room_number}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" display="block">
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Hotel sx={{ fontSize: 16, color: 'primary.main' }} />
+                        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                          {room.room_number}
+                        </Typography>
+                      </Box>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: 'text.secondary',
+                          fontSize: '0.7rem',
+                          bgcolor: alpha('#1976d2', 0.08),
+                          px: 0.75,
+                          py: 0.25,
+                          borderRadius: 0.5,
+                          display: 'inline-block',
+                          width: 'fit-content',
+                        }}
+                      >
                         {room.room_type}
                       </Typography>
-                      <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600 }}>
+                      <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600, fontSize: '0.75rem' }}>
                         {formatCurrency(Number(room.price_per_night))}/night
                       </Typography>
                     </Box>
@@ -457,16 +654,21 @@ const RoomReservationTimeline: React.FC = () => {
                     const cell = getTimelineCell(room, date);
                     const isToday =
                       date.toDateString() === new Date().toDateString();
+                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
 
                     if (!cell.booking) {
                       return (
                         <TableCell
                           key={date.toISOString()}
                           sx={{
-                            bgcolor: isToday ? 'primary.50' : 'background.paper',
+                            bgcolor: isToday ? alpha('#1976d2', 0.05) : isWeekend ? alpha('#f5f5f5', 0.3) : 'background.paper',
                             borderLeft: isToday ? '2px solid' : undefined,
                             borderRight: isToday ? '2px solid' : undefined,
                             borderColor: 'primary.main',
+                            transition: 'background-color 0.2s',
+                            '&:hover': {
+                              bgcolor: alpha('#66bb6a', 0.1),
+                            },
                           }}
                         />
                       );
@@ -476,38 +678,41 @@ const RoomReservationTimeline: React.FC = () => {
                     // Use purple for complimentary bookings, otherwise use status color
                     const statusColor = isComplimentary ? '#9c27b0' : getStatusColor(cell.booking.status);
                     const statusLabel = isComplimentary
-                      ? `COMP (${cell.booking.complimentary_nights || 0} nights)`
+                      ? `Comp (${cell.booking.complimentary_nights || 0}N)`
                       : getStatusLabel(cell.booking.status);
 
                     const isSyntheticBooking = String(cell.booking.id).startsWith('synthetic-');
 
+                    // Create gradient background for more visual appeal
+                    const gradientBg = `linear-gradient(135deg, ${statusColor} 0%, ${alpha(statusColor, 0.85)} 100%)`;
+
                     return (
                       <TableCell
                         key={date.toISOString()}
+                        onMouseEnter={(e) => handleCellMouseEnter(e, cell.booking!)}
+                        onMouseLeave={handleCellMouseLeave}
                         sx={{
-                          bgcolor: statusColor,
-                          borderLeft: cell.isStart ? '3px solid #000' : '1px solid rgba(255,255,255,0.3)',
-                          borderRight: cell.isEnd ? '3px solid #000' : '1px solid rgba(255,255,255,0.3)',
-                          borderTop: isSyntheticBooking ? '2px dashed #000' : '1px solid rgba(255,255,255,0.3)',
-                          borderBottom: isSyntheticBooking ? '2px dashed #000' : '1px solid rgba(255,255,255,0.3)',
+                          background: isSyntheticBooking || isComplimentary
+                            ? `repeating-linear-gradient(
+                                45deg,
+                                ${statusColor},
+                                ${statusColor} 8px,
+                                ${alpha(statusColor, 0.7)} 8px,
+                                ${alpha(statusColor, 0.7)} 16px
+                              )`
+                            : statusColor,
+                          borderLeft: cell.isStart ? '3px solid rgba(0,0,0,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                          borderRight: cell.isEnd ? '3px solid rgba(0,0,0,0.3)' : '1px solid rgba(255,255,255,0.2)',
+                          borderTop: '1px solid rgba(255,255,255,0.15)',
+                          borderBottom: '1px solid rgba(255,255,255,0.15)',
                           cursor: 'pointer',
                           position: 'relative',
                           padding: '6px 8px',
                           minHeight: '60px',
                           verticalAlign: 'top',
                           '&:hover': {
-                            opacity: 0.8,
+                            filter: 'brightness(1.08)',
                           },
-                          // Add diagonal stripes for synthetic bookings or complimentary
-                          ...((isSyntheticBooking || isComplimentary) && {
-                            backgroundImage: `repeating-linear-gradient(
-                              45deg,
-                              ${statusColor},
-                              ${statusColor} 10px,
-                              rgba(255,255,255,0.2) 10px,
-                              rgba(255,255,255,0.2) 20px
-                            )`,
-                          }),
                         }}
                       >
                         <Box
@@ -636,6 +841,242 @@ const RoomReservationTimeline: React.FC = () => {
           </Typography>
         </Box>
       )}
+
+      {/* Booking Details Popover */}
+      <Popover
+        open={Boolean(popoverAnchor) && Boolean(hoveredBooking)}
+        anchorEl={popoverAnchor}
+        onClose={handlePopoverMouseLeave}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'center',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'center',
+        }}
+        disableRestoreFocus
+        sx={{
+          pointerEvents: 'none',
+          '& .MuiPopover-paper': {
+            pointerEvents: 'auto',
+            borderRadius: 2,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+            border: '1px solid',
+            borderColor: 'divider',
+            maxWidth: 340,
+          },
+        }}
+        slotProps={{
+          paper: {
+            onMouseEnter: handlePopoverMouseEnter,
+            onMouseLeave: handlePopoverMouseLeave,
+          },
+        }}
+      >
+        {hoveredBooking && (
+          <Box sx={{ p: 2 }}>
+            {/* Header */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Person sx={{ fontSize: 20, color: 'primary.main' }} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                  {hoveredBooking.guest_name}
+                </Typography>
+              </Box>
+              {hoveredBooking.booking_number && (
+                <Chip
+                  label={hoveredBooking.booking_number}
+                  size="small"
+                  sx={{
+                    fontSize: '0.65rem',
+                    height: 20,
+                    bgcolor: alpha('#1976d2', 0.1),
+                    color: 'primary.main',
+                    fontWeight: 600,
+                  }}
+                />
+              )}
+            </Box>
+
+            <Divider sx={{ my: 1.5 }} />
+
+            {/* Contact Info */}
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 1.5 }}>
+              {hoveredBooking.guest_email && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Email sx={{ fontSize: 16, color: 'text.secondary' }} />
+                  <Typography variant="body2" color="text.secondary">
+                    {hoveredBooking.guest_email}
+                  </Typography>
+                </Box>
+              )}
+              {hoveredBooking.guest_phone && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Phone sx={{ fontSize: 16, color: 'text.secondary' }} />
+                  <Typography variant="body2" color="text.secondary">
+                    {hoveredBooking.guest_phone}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+
+            {/* Booking Details */}
+            <Paper
+              elevation={0}
+              sx={{
+                p: 1.5,
+                bgcolor: alpha('#f5f5f5', 0.5),
+                borderRadius: 1.5,
+                mb: 1.5,
+              }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <CalendarToday sx={{ fontSize: 16, color: 'primary.main' }} />
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {new Date(hoveredBooking.check_in_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {' → '}
+                  {new Date(hoveredBooking.check_out_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <Box>
+                  <Typography variant="caption" color="text.secondary">Nights</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {hoveredBooking.number_of_nights || Math.ceil((new Date(hoveredBooking.check_out_date).getTime() - new Date(hoveredBooking.check_in_date).getTime()) / (1000 * 60 * 60 * 24))}
+                  </Typography>
+                </Box>
+                {hoveredBooking.number_of_guests && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">Guests</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {hoveredBooking.number_of_guests}
+                    </Typography>
+                  </Box>
+                )}
+                {hoveredBooking.extra_bed_count && hoveredBooking.extra_bed_count > 0 && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">Extra Beds</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {hoveredBooking.extra_bed_count}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            </Paper>
+
+            {/* Payment Info */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <AttachMoney sx={{ fontSize: 18, color: 'success.main' }} />
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>
+                    {formatCurrency(Number(hoveredBooking.total_amount || 0))}
+                  </Typography>
+                  {hoveredBooking.price_per_night && (
+                    <Typography variant="caption" color="text.secondary">
+                      {formatCurrency(Number(hoveredBooking.price_per_night))}/night
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 0.5 }}>
+                <Chip
+                  label={getStatusLabel(hoveredBooking.status)}
+                  size="small"
+                  sx={{
+                    bgcolor: getStatusColor(hoveredBooking.status),
+                    color: 'white',
+                    fontWeight: 600,
+                    fontSize: '0.65rem',
+                    height: 22,
+                  }}
+                />
+                {hoveredBooking.payment_status && (
+                  <Chip
+                    icon={<Payment sx={{ fontSize: 14, color: 'inherit !important' }} />}
+                    label={getPaymentStatusLabel(hoveredBooking.payment_status)}
+                    size="small"
+                    sx={{
+                      bgcolor: alpha(getPaymentStatusColor(hoveredBooking.payment_status), 0.15),
+                      color: getPaymentStatusColor(hoveredBooking.payment_status),
+                      fontWeight: 600,
+                      fontSize: '0.65rem',
+                      height: 22,
+                      '& .MuiChip-icon': {
+                        color: 'inherit',
+                      },
+                    }}
+                  />
+                )}
+              </Box>
+            </Box>
+
+            {/* Deposit Info */}
+            {(hoveredBooking.deposit_amount || hoveredBooking.deposit_paid) && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Typography variant="caption" color="text.secondary">Deposit:</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {formatCurrency(Number(hoveredBooking.deposit_amount || 0))}
+                </Typography>
+                {hoveredBooking.deposit_paid && (
+                  <Chip label="Collected" size="small" color="success" sx={{ height: 18, fontSize: '0.6rem' }} />
+                )}
+              </Box>
+            )}
+
+            {/* Company */}
+            {hoveredBooking.company_name && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Typography variant="caption" color="text.secondary">Company:</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                  {hoveredBooking.company_name}
+                </Typography>
+              </Box>
+            )}
+
+            {/* Complimentary Info */}
+            {hoveredBooking.is_complimentary && (
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 1,
+                  bgcolor: alpha('#9c27b0', 0.1),
+                  borderRadius: 1,
+                  mb: 1,
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CardGiftcard sx={{ fontSize: 16, color: '#9c27b0' }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#9c27b0' }}>
+                    Complimentary: {hoveredBooking.complimentary_nights} nights
+                  </Typography>
+                </Box>
+                {hoveredBooking.complimentary_reason && (
+                  <Typography variant="caption" color="text.secondary" sx={{ ml: 3 }}>
+                    {hoveredBooking.complimentary_reason}
+                  </Typography>
+                )}
+              </Paper>
+            )}
+
+            {/* Special Requests */}
+            {hoveredBooking.special_requests && (
+              <Box sx={{ mt: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                  <Notes sx={{ fontSize: 16, color: 'warning.main', mt: 0.25 }} />
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">Special Requests</Typography>
+                    <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
+                      {hoveredBooking.special_requests}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            )}
+          </Box>
+        )}
+      </Popover>
     </Box>
   );
 };

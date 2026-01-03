@@ -182,10 +182,55 @@ pub struct RoomType {
     pub code: String,
     pub description: Option<String>,
     pub base_price: Decimal,
+    pub weekday_rate: Option<Decimal>,
+    pub weekend_rate: Option<Decimal>,
     pub max_occupancy: i32,
+    pub bed_type: Option<String>,
+    pub bed_count: Option<i32>,
+    pub allows_extra_bed: bool,
+    pub max_extra_beds: i32,
+    pub extra_bed_charge: Decimal,
     pub is_active: bool,
+    pub sort_order: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// Input for creating a room type
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RoomTypeCreateInput {
+    pub name: String,
+    pub code: String,
+    pub description: Option<String>,
+    pub base_price: f64,
+    pub weekday_rate: Option<f64>,
+    pub weekend_rate: Option<f64>,
+    pub max_occupancy: Option<i32>,
+    pub bed_type: Option<String>,
+    pub bed_count: Option<i32>,
+    pub allows_extra_bed: Option<bool>,
+    pub max_extra_beds: Option<i32>,
+    pub extra_bed_charge: Option<f64>,
+    pub sort_order: Option<i32>,
+}
+
+/// Input for updating a room type
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RoomTypeUpdateInput {
+    pub name: Option<String>,
+    pub code: Option<String>,
+    pub description: Option<String>,
+    pub base_price: Option<f64>,
+    pub weekday_rate: Option<f64>,
+    pub weekend_rate: Option<f64>,
+    pub max_occupancy: Option<i32>,
+    pub bed_type: Option<String>,
+    pub bed_count: Option<i32>,
+    pub allows_extra_bed: Option<bool>,
+    pub max_extra_beds: Option<i32>,
+    pub extra_bed_charge: Option<f64>,
+    pub is_active: Option<bool>,
+    pub sort_order: Option<i32>,
 }
 
 /// Room current occupancy (derived from active bookings - no manual input)

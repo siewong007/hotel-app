@@ -2,6 +2,9 @@ import { HTTPError } from 'ky';
 import { api, APIError, API_BASE_URL } from './client';
 import {
   Room,
+  RoomType,
+  RoomTypeCreateInput,
+  RoomTypeUpdateInput,
   SearchQuery,
   RoomWithDisplay,
   RoomEvent,
@@ -183,7 +186,10 @@ export class RoomsService {
 
   static async createRoom(roomData: {
     room_number: string;
+    room_type: string;
     room_type_id: number;
+    price_per_night: number;
+    max_occupancy: number;
     floor: number;
     building?: string;
     custom_price?: number;
@@ -220,9 +226,9 @@ export class RoomsService {
     }
   }
 
-  static async getRoomTypes(): Promise<Array<{ id: number; name: string; code: string; base_price: number }>> {
+  static async getRoomTypes(): Promise<RoomType[]> {
     try {
-      return await api.get('room-types').json<Array<{ id: number; name: string; code: string; base_price: number }>>();
+      return await api.get('room-types').json<RoomType[]>();
     } catch (error) {
       if (error instanceof HTTPError) {
         const errorData = await error.response.json().catch(() => ({}));
@@ -233,6 +239,86 @@ export class RoomsService {
         );
       }
       throw new APIError('Failed to fetch room types');
+    }
+  }
+
+  static async getAllRoomTypes(): Promise<RoomType[]> {
+    try {
+      return await api.get('room-types/all').json<RoomType[]>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to fetch all room types',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to fetch all room types');
+    }
+  }
+
+  static async getRoomType(id: number): Promise<RoomType> {
+    try {
+      return await api.get(`room-types/${id}`).json<RoomType>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to fetch room type',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to fetch room type');
+    }
+  }
+
+  static async createRoomType(data: RoomTypeCreateInput): Promise<RoomType> {
+    try {
+      return await api.post('room-types', { json: data }).json<RoomType>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to create room type',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to create room type');
+    }
+  }
+
+  static async updateRoomType(id: number, data: RoomTypeUpdateInput): Promise<RoomType> {
+    try {
+      return await api.patch(`room-types/${id}`, { json: data }).json<RoomType>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to update room type',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to update room type');
+    }
+  }
+
+  static async deleteRoomType(id: number): Promise<{ success: boolean; message: string }> {
+    try {
+      return await api.delete(`room-types/${id}`).json<{ success: boolean; message: string }>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to delete room type',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to delete room type');
     }
   }
 

@@ -170,6 +170,7 @@ const BookingsPage: React.FC = () => {
       filtered = filtered.filter(booking =>
         booking.guest_name.toLowerCase().includes(query) ||
         booking.room_number.toLowerCase().includes(query) ||
+        booking.booking_number?.toLowerCase().includes(query) ||
         booking.folio_number?.toLowerCase().includes(query) ||
         booking.id.toLowerCase().includes(query)
       );
@@ -248,8 +249,8 @@ const BookingsPage: React.FC = () => {
           bValue = b.status.toLowerCase();
           break;
         case 'folio_number':
-          aValue = a.folio_number?.toLowerCase() || '';
-          bValue = b.folio_number?.toLowerCase() || '';
+          aValue = (a.booking_number || a.folio_number || '').toLowerCase();
+          bValue = (b.booking_number || b.folio_number || '').toLowerCase();
           break;
         default:
           aValue = a.check_in_date;
@@ -902,7 +903,7 @@ const BookingsPage: React.FC = () => {
                   direction={sortField === 'folio_number' ? sortOrder : 'asc'}
                   onClick={() => handleSort('folio_number')}
                 >
-                  <strong>Folio #</strong>
+                  <strong>Booking #</strong>
                 </TableSortLabel>
               </TableCell>
               <TableCell>
@@ -971,7 +972,7 @@ const BookingsPage: React.FC = () => {
                   }
                 }}
               >
-                <TableCell>{booking.folio_number || '-'}</TableCell>
+                <TableCell>{booking.booking_number || booking.folio_number || '-'}</TableCell>
                 <TableCell>{booking.guest_name}</TableCell>
                 <TableCell>
                   <Box>

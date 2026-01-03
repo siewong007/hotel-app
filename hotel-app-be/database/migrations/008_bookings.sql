@@ -9,6 +9,34 @@ CREATE SEQUENCE IF NOT EXISTS bookings_id_seq START WITH 1000;
 CREATE SEQUENCE IF NOT EXISTS booking_guests_id_seq START WITH 1;
 
 -- ============================================================================
+-- COMPANIES (for direct billing)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS companies (
+    id BIGSERIAL PRIMARY KEY,
+    company_name VARCHAR(255) NOT NULL,
+    registration_number VARCHAR(100),
+    contact_person VARCHAR(255),
+    contact_email VARCHAR(255),
+    contact_phone VARCHAR(50),
+    billing_address TEXT,
+    billing_city VARCHAR(100),
+    billing_state VARCHAR(100),
+    billing_postal_code VARCHAR(20),
+    billing_country VARCHAR(100),
+    is_active BOOLEAN DEFAULT true,
+    credit_limit DECIMAL(12,2),
+    payment_terms_days INTEGER DEFAULT 30,
+    notes TEXT,
+    created_by BIGINT REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_companies_name_unique ON companies(LOWER(company_name));
+CREATE INDEX IF NOT EXISTS idx_companies_active ON companies(is_active) WHERE is_active = true;
+
+-- ============================================================================
 -- BOOKINGS
 -- ============================================================================
 
@@ -73,13 +101,17 @@ CREATE TABLE IF NOT EXISTS bookings (
     -- Status
     status VARCHAR(30) DEFAULT 'pending' CHECK (status IN (
         'pending', 'confirmed', 'checked_in', 'checked_out',
-        'cancelled', 'no_show', 'completed', 'complimentary', 'partial_complimentary'
+        'cancelled', 'no_show', 'completed', 'released',
+        'partial_complimentary', 'fully_complimentary'
     )),
     payment_status VARCHAR(30) DEFAULT 'unpaid' CHECK (payment_status IN (
-        'unpaid', 'unpaid_deposit', 'paid'
+        'unpaid', 'unpaid_deposit', 'paid_rate', 'partial', 'paid', 'refunded', 'cancelled'
     )),
     payment_method VARCHAR(100),
+    payment_note TEXT,
     market_code VARCHAR(50),
+    company_id BIGINT REFERENCES companies(id),
+    company_name VARCHAR(255),
 
     -- Check-in/out times and tracking
     check_in_time TIME DEFAULT '15:00:00',
@@ -144,6 +176,14 @@ ALTER TABLE reward_redemptions ADD CONSTRAINT fk_reward_redemptions_booking
 -- Add foreign key reference from guest_reviews
 ALTER TABLE guest_reviews ADD CONSTRAINT fk_guest_reviews_booking
     FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE SET NULL;
+
+-- Add foreign key references for room_changes table (created in 006_room_management.sql)
+ALTER TABLE room_changes ADD CONSTRAINT fk_room_changes_booking
+    FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE;
+ALTER TABLE room_changes ADD CONSTRAINT fk_room_changes_guest
+    FOREIGN KEY (guest_id) REFERENCES guests(id);
+ALTER TABLE room_changes ADD CONSTRAINT fk_room_changes_user
+    FOREIGN KEY (changed_by) REFERENCES users(id);
 
 -- ============================================================================
 -- BOOKING GUESTS
@@ -347,6 +387,7 @@ CREATE INDEX IF NOT EXISTS idx_booking_mods_booking ON booking_modifications(boo
 CREATE INDEX IF NOT EXISTS idx_booking_mods_date ON booking_modifications(modified_at DESC);
 CREATE INDEX IF NOT EXISTS idx_booking_history_booking ON booking_history(booking_id);
 CREATE INDEX IF NOT EXISTS idx_booking_history_created_at ON booking_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bookings_company_id ON bookings(company_id) WHERE company_id IS NOT NULL;
 
 -- ============================================================================
 -- TRIGGERS
@@ -362,10 +403,14 @@ COMMENT ON TABLE bookings IS 'Guest reservations and bookings';
 COMMENT ON TABLE booking_guests IS 'Additional guests in a booking';
 COMMENT ON TABLE booking_modifications IS 'History of booking changes';
 COMMENT ON TABLE booking_history IS 'Audit trail of booking status changes';
-COMMENT ON COLUMN bookings.status IS 'Booking status: pending, confirmed, checked_in, checked_out, cancelled, no_show, completed, complimentarise';
+COMMENT ON COLUMN bookings.status IS 'Booking status: pending, confirmed, checked_in, checked_out, cancelled, no_show, completed, released, partial_complimentary, fully_complimentary';
 COMMENT ON COLUMN bookings.is_tourist IS 'Whether the guest is a tourist (affects tourism tax calculation)';
 COMMENT ON COLUMN bookings.tourism_tax_amount IS 'Tourism tax charged (per night for tourists)';
 COMMENT ON COLUMN bookings.pre_checkin_completed IS 'Guest completed pre-check-in via portal';
+COMMENT ON COLUMN bookings.payment_note IS 'Note or remarks about payment status changes';
+COMMENT ON COLUMN bookings.company_id IS 'Reference to company for direct billing';
+COMMENT ON COLUMN bookings.company_name IS 'Denormalized company name for display';
+COMMENT ON TABLE companies IS 'Companies for direct billing and corporate accounts';
 
 -- ============================================================================
 -- ROOM OCCUPANCY VIEWS (requires bookings table to exist)

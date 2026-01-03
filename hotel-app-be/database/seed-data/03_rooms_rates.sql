@@ -8,13 +8,23 @@
 -- ROOM TYPES
 -- ============================================================================
 
-INSERT INTO room_types (name, code, description, max_occupancy, base_price, size_sqm, bed_type)
+INSERT INTO room_types (name, code, description, max_occupancy, base_price, size_sqm, bed_type, bed_count, allows_extra_bed, max_extra_beds, extra_bed_charge, sort_order)
 VALUES
-    ('Standard Room', 'STD', 'Comfortable room with essential amenities', 2, 150.00, 25.0, 'Queen'),
-    ('Deluxe Room', 'DLX', 'Spacious room with premium amenities', 3, 250.00, 35.0, 'King'),
-    ('Suite', 'STE', 'Luxury suite with living area', 4, 450.00, 55.0, 'King'),
-    ('Family Room', 'FAM', 'Large room perfect for families', 6, 350.00, 45.0, '2 Queens')
-ON CONFLICT (code) DO NOTHING;
+    ('Standard Room', 'STD', 'Comfortable room with essential amenities', 2, 150.00, 25.0, 'Queen', 1, false, 0, 0.00, 1),
+    ('Deluxe Room', 'DLX', 'Spacious room with premium amenities', 3, 250.00, 35.0, 'King', 1, true, 1, 50.00, 2),
+    ('Suite', 'STE', 'Luxury suite with separate living area', 4, 450.00, 55.0, 'King', 1, true, 2, 75.00, 3),
+    ('Family Room', 'FAM', 'Large room perfect for families with children', 6, 350.00, 45.0, 'Queen', 2, true, 2, 40.00, 4)
+ON CONFLICT (code) DO UPDATE SET
+    description = EXCLUDED.description,
+    max_occupancy = EXCLUDED.max_occupancy,
+    base_price = EXCLUDED.base_price,
+    size_sqm = EXCLUDED.size_sqm,
+    bed_type = EXCLUDED.bed_type,
+    bed_count = EXCLUDED.bed_count,
+    allows_extra_bed = EXCLUDED.allows_extra_bed,
+    max_extra_beds = EXCLUDED.max_extra_beds,
+    extra_bed_charge = EXCLUDED.extra_bed_charge,
+    sort_order = EXCLUDED.sort_order;
 
 -- ============================================================================
 -- ROOMS - 16 rooms across 4 floors
