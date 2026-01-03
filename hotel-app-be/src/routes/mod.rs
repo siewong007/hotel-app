@@ -4,6 +4,7 @@
 //! Each submodule defines routes for a specific domain.
 
 pub mod analytics;
+pub mod audit;
 pub mod auth;
 pub mod bookings;
 pub mod companies;
@@ -93,6 +94,7 @@ pub fn create_router(pool: PgPool) -> Router {
         .merge(ekyc::routes())
         .merge(guest_portal::routes())
         .merge(companies::routes())
+        .merge(audit::routes())
         .with_state(pool);
 
     // Add middleware layers

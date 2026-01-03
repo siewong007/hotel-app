@@ -34,7 +34,7 @@ impl AuditLog {
             r#"
             INSERT INTO audit_logs
             (user_id, action, resource_type, resource_id, details, ip_address, user_agent, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            VALUES ($1, $2, $3, $4, $5, $6::inet, $7, $8)
             "#
         )
         .bind(user_id)
