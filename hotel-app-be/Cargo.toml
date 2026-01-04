@@ -3,6 +3,14 @@ name = "hotel-app-be"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "hotel_app_be"
+path = "src/lib.rs"
+
+[[bin]]
+name = "hotel-app-be"
+path = "src/main.rs"
+
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.7", features = ["macros", "multipart"] }

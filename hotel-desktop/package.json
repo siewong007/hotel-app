@@ -1,0 +1,14 @@
+{
+  "name": "hotel-desktop",
+  "version": "0.1.0",
+  "description": "Hotel Management Desktop Application",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "build:frontend": "cd ../hotel-web-fe && npm run build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}
