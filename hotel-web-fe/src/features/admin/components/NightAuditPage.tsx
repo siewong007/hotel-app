@@ -48,7 +48,9 @@ import {
   TableChart as CsvIcon,
   Download as DownloadIcon,
 } from '@mui/icons-material';
-import { NightAuditService, NightAuditPreview, NightAuditRun, UnpostedBooking, PostedBookingDetail } from '../../../api';
+import { NightAuditService, NightAuditPreview, NightAuditRun, UnpostedBooking, PostedBookingDetail, RevenueBreakdownItem } from '../../../api';
+import PaymentIcon from '@mui/icons-material/Payment';
+import SourceIcon from '@mui/icons-material/Campaign';
 import { formatCurrency } from '../../../utils/currency';
 
 interface TabPanelProps {
@@ -132,7 +134,7 @@ const NightAuditPage: React.FC = () => {
 
       // Booking details
       lines.push('POSTED BOOKINGS');
-      lines.push('Booking #,Guest Name,Room,Room Type,Check-in,Check-out,Nights,Status,Amount,Payment Status,Source');
+      lines.push('Booking #,Guest Name,Room,Room Type,Check-in,Check-out,Nights,Status,Amount,Payment Method,Payment Status,Source');
 
       bookings.forEach(booking => {
         lines.push([
@@ -145,6 +147,7 @@ const NightAuditPage: React.FC = () => {
           booking.nights,
           booking.status,
           formatCurrency(booking.total_amount),
+          booking.payment_method || 'N/A',
           booking.payment_status || 'N/A',
           booking.source || 'N/A'
         ].join(','));
@@ -188,6 +191,7 @@ const NightAuditPage: React.FC = () => {
           <td style="text-align: center;">${booking.nights}</td>
           <td><span class="status-badge status-${booking.status}">${booking.status.replace('_', ' ')}</span></td>
           <td style="text-align: right;">${formatCurrency(booking.total_amount)}</td>
+          <td style="text-transform: capitalize;">${booking.payment_method?.replace('_', ' ') || '-'}</td>
           <td>${booking.payment_status || '-'}</td>
           <td>${booking.source || '-'}</td>
         </tr>
@@ -273,7 +277,8 @@ const NightAuditPage: React.FC = () => {
                 <th>Nights</th>
                 <th>Status</th>
                 <th style="text-align: right;">Amount</th>
-                <th>Payment</th>
+                <th>Payment Method</th>
+                <th>Payment Status</th>
                 <th>Source</th>
               </tr>
             </thead>
@@ -282,7 +287,7 @@ const NightAuditPage: React.FC = () => {
               <tr class="summary-row">
                 <td colspan="8" style="text-align: right;"><strong>Total:</strong></td>
                 <td style="text-align: right;"><strong>${formatCurrency(bookings.reduce((sum, b) => sum + Number(b.total_amount), 0))}</strong></td>
-                <td colspan="2"></td>
+                <td colspan="3"></td>
               </tr>
             </tbody>
           </table>
@@ -587,6 +592,83 @@ const NightAuditPage: React.FC = () => {
               </Grid>
             </Grid>
 
+            {/* Revenue Breakdowns */}
+            {!preview.already_run && (preview.payment_method_breakdown?.length > 0 || preview.booking_channel_breakdown?.length > 0) && (
+              <Grid container spacing={3} sx={{ mb: 3 }}>
+                {/* Payment Method Breakdown */}
+                {preview.payment_method_breakdown?.length > 0 && (
+                  <Grid item xs={12} md={6}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="subtitle1" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <PaymentIcon color="primary" />
+                          Revenue by Payment Method
+                        </Typography>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Payment Method</TableCell>
+                                <TableCell align="center">Bookings</TableCell>
+                                <TableCell align="right">Amount</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {preview.payment_method_breakdown.map((item: RevenueBreakdownItem) => (
+                                <TableRow key={item.category}>
+                                  <TableCell sx={{ textTransform: 'capitalize' }}>
+                                    {item.category.replace(/_/g, ' ')}
+                                  </TableCell>
+                                  <TableCell align="center">{item.count}</TableCell>
+                                  <TableCell align="right">{formatCurrency(item.amount)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                )}
+
+                {/* Booking Channel Breakdown */}
+                {preview.booking_channel_breakdown?.length > 0 && (
+                  <Grid item xs={12} md={6}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Typography variant="subtitle1" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <SourceIcon color="secondary" />
+                          Revenue by Booking Channel
+                        </Typography>
+                        <TableContainer>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Channel</TableCell>
+                                <TableCell align="center">Bookings</TableCell>
+                                <TableCell align="right">Amount</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {preview.booking_channel_breakdown.map((item: RevenueBreakdownItem) => (
+                                <TableRow key={item.category}>
+                                  <TableCell sx={{ textTransform: 'capitalize' }}>
+                                    {item.category.replace(/_/g, ' ')}
+                                  </TableCell>
+                                  <TableCell align="center">{item.count}</TableCell>
+                                  <TableCell align="right">{formatCurrency(item.amount)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                )}
+              </Grid>
+            )}
+
             {/* Unposted Bookings Table or Completed Audit Summary */}
             {preview.already_run ? (
               <>
@@ -605,33 +687,110 @@ const NightAuditPage: React.FC = () => {
                   const completedAudit = auditHistory.find(a => normalizeDate(a.audit_date) === normalizeDate(auditDate));
                   if (completedAudit) {
                     return (
-                      <Card sx={{ bgcolor: 'success.light', mb: 2 }}>
-                        <CardContent>
-                          <Grid container spacing={3}>
-                            <Grid item xs={6} sm={3}>
-                              <Typography variant="body2" color="text.secondary">Bookings Posted</Typography>
-                              <Typography variant="h5">{completedAudit.total_bookings_posted}</Typography>
+                      <>
+                        <Card sx={{ bgcolor: 'success.light', mb: 2 }}>
+                          <CardContent>
+                            <Grid container spacing={3}>
+                              <Grid item xs={6} sm={3}>
+                                <Typography variant="body2" color="text.secondary">Bookings Posted</Typography>
+                                <Typography variant="h5">{completedAudit.total_bookings_posted}</Typography>
+                              </Grid>
+                              <Grid item xs={6} sm={3}>
+                                <Typography variant="body2" color="text.secondary">Total Revenue</Typography>
+                                <Typography variant="h5">{formatCurrency(completedAudit.total_revenue)}</Typography>
+                              </Grid>
+                              <Grid item xs={6} sm={3}>
+                                <Typography variant="body2" color="text.secondary">Check-ins</Typography>
+                                <Typography variant="h5">{completedAudit.total_checkins}</Typography>
+                              </Grid>
+                              <Grid item xs={6} sm={3}>
+                                <Typography variant="body2" color="text.secondary">Check-outs</Typography>
+                                <Typography variant="h5">{completedAudit.total_checkouts}</Typography>
+                              </Grid>
+                              <Grid item xs={12}>
+                                <Typography variant="body2" color="text.secondary">
+                                  Run at {new Date(completedAudit.run_at).toLocaleString()} by {completedAudit.run_by_username || 'System'}
+                                </Typography>
+                              </Grid>
                             </Grid>
-                            <Grid item xs={6} sm={3}>
-                              <Typography variant="body2" color="text.secondary">Total Revenue</Typography>
-                              <Typography variant="h5">{formatCurrency(completedAudit.total_revenue)}</Typography>
-                            </Grid>
-                            <Grid item xs={6} sm={3}>
-                              <Typography variant="body2" color="text.secondary">Check-ins</Typography>
-                              <Typography variant="h5">{completedAudit.total_checkins}</Typography>
-                            </Grid>
-                            <Grid item xs={6} sm={3}>
-                              <Typography variant="body2" color="text.secondary">Check-outs</Typography>
-                              <Typography variant="h5">{completedAudit.total_checkouts}</Typography>
-                            </Grid>
-                            <Grid item xs={12}>
-                              <Typography variant="body2" color="text.secondary">
-                                Run at {new Date(completedAudit.run_at).toLocaleString()} by {completedAudit.run_by_username || 'System'}
-                              </Typography>
-                            </Grid>
+                          </CardContent>
+                        </Card>
+
+                        {/* Revenue Breakdowns for Completed Audit */}
+                        {(completedAudit.payment_method_breakdown?.length > 0 || completedAudit.booking_channel_breakdown?.length > 0) && (
+                          <Grid container spacing={3} sx={{ mb: 2 }}>
+                            {completedAudit.payment_method_breakdown?.length > 0 && (
+                              <Grid item xs={12} md={6}>
+                                <Card variant="outlined">
+                                  <CardContent>
+                                    <Typography variant="subtitle1" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <PaymentIcon color="primary" />
+                                      Revenue by Payment Method
+                                    </Typography>
+                                    <TableContainer>
+                                      <Table size="small">
+                                        <TableHead>
+                                          <TableRow>
+                                            <TableCell>Payment Method</TableCell>
+                                            <TableCell align="center">Bookings</TableCell>
+                                            <TableCell align="right">Amount</TableCell>
+                                          </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                          {completedAudit.payment_method_breakdown.map((item: RevenueBreakdownItem) => (
+                                            <TableRow key={item.category}>
+                                              <TableCell sx={{ textTransform: 'capitalize' }}>
+                                                {item.category.replace(/_/g, ' ')}
+                                              </TableCell>
+                                              <TableCell align="center">{item.count}</TableCell>
+                                              <TableCell align="right">{formatCurrency(item.amount)}</TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </TableContainer>
+                                  </CardContent>
+                                </Card>
+                              </Grid>
+                            )}
+
+                            {completedAudit.booking_channel_breakdown?.length > 0 && (
+                              <Grid item xs={12} md={6}>
+                                <Card variant="outlined">
+                                  <CardContent>
+                                    <Typography variant="subtitle1" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      <SourceIcon color="secondary" />
+                                      Revenue by Booking Channel
+                                    </Typography>
+                                    <TableContainer>
+                                      <Table size="small">
+                                        <TableHead>
+                                          <TableRow>
+                                            <TableCell>Channel</TableCell>
+                                            <TableCell align="center">Bookings</TableCell>
+                                            <TableCell align="right">Amount</TableCell>
+                                          </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                          {completedAudit.booking_channel_breakdown.map((item: RevenueBreakdownItem) => (
+                                            <TableRow key={item.category}>
+                                              <TableCell sx={{ textTransform: 'capitalize' }}>
+                                                {item.category.replace(/_/g, ' ')}
+                                              </TableCell>
+                                              <TableCell align="center">{item.count}</TableCell>
+                                              <TableCell align="right">{formatCurrency(item.amount)}</TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </TableContainer>
+                                  </CardContent>
+                                </Card>
+                              </Grid>
+                            )}
                           </Grid>
-                        </CardContent>
-                      </Card>
+                        )}
+                      </>
                     );
                   }
                   return <Alert severity="success">Night audit has been completed for this date. Check the History tab for details.</Alert>;
@@ -658,6 +817,8 @@ const NightAuditPage: React.FC = () => {
                           <TableCell>Check-in</TableCell>
                           <TableCell>Check-out</TableCell>
                           <TableCell>Status</TableCell>
+                          <TableCell>Payment</TableCell>
+                          <TableCell>Channel</TableCell>
                           <TableCell align="right">Amount</TableCell>
                         </TableRow>
                       </TableHead>
@@ -667,15 +828,21 @@ const NightAuditPage: React.FC = () => {
                             <TableCell>{booking.booking_number}</TableCell>
                             <TableCell>{booking.guest_name}</TableCell>
                             <TableCell>{booking.room_number}</TableCell>
-                        <TableCell>{new Date(booking.check_in_date).toLocaleDateString()}</TableCell>
-                        <TableCell>{new Date(booking.check_out_date).toLocaleDateString()}</TableCell>
-                        <TableCell>{getBookingStatusChip(booking.status)}</TableCell>
-                        <TableCell align="right">{formatCurrency(booking.total_amount)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                            <TableCell>{new Date(booking.check_in_date).toLocaleDateString()}</TableCell>
+                            <TableCell>{new Date(booking.check_out_date).toLocaleDateString()}</TableCell>
+                            <TableCell>{getBookingStatusChip(booking.status)}</TableCell>
+                            <TableCell sx={{ textTransform: 'capitalize' }}>
+                              {booking.payment_method?.replace(/_/g, ' ') || '-'}
+                            </TableCell>
+                            <TableCell sx={{ textTransform: 'capitalize' }}>
+                              {booking.source?.replace(/_/g, ' ') || '-'}
+                            </TableCell>
+                            <TableCell align="right">{formatCurrency(booking.total_amount)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
             ) : (
               <Alert severity="info">No bookings to post for this date.</Alert>
             )}
@@ -850,6 +1017,75 @@ const NightAuditPage: React.FC = () => {
                         </Card>
                       </Grid>
                     </Grid>
+
+                    {/* Revenue Breakdowns */}
+                    {(audit.payment_method_breakdown?.length > 0 || audit.booking_channel_breakdown?.length > 0) && (
+                      <>
+                        <Typography variant="subtitle2" sx={{ mb: 1, color: 'text.secondary' }}>
+                          Revenue Breakdown
+                        </Typography>
+                        <Grid container spacing={2} sx={{ mb: 3 }}>
+                          {audit.payment_method_breakdown?.length > 0 && (
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent sx={{ py: 1.5 }}>
+                                  <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 'bold' }}>
+                                    <PaymentIcon fontSize="small" color="primary" />
+                                    By Payment Method
+                                  </Typography>
+                                  <Table size="small">
+                                    <TableBody>
+                                      {audit.payment_method_breakdown.map((item: RevenueBreakdownItem) => (
+                                        <TableRow key={item.category}>
+                                          <TableCell sx={{ py: 0.5, textTransform: 'capitalize', border: 'none' }}>
+                                            {item.category.replace(/_/g, ' ')}
+                                          </TableCell>
+                                          <TableCell sx={{ py: 0.5, border: 'none' }} align="center">
+                                            {item.count} booking{item.count !== 1 ? 's' : ''}
+                                          </TableCell>
+                                          <TableCell sx={{ py: 0.5, border: 'none' }} align="right">
+                                            {formatCurrency(item.amount)}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          )}
+                          {audit.booking_channel_breakdown?.length > 0 && (
+                            <Grid item xs={12} md={6}>
+                              <Card variant="outlined">
+                                <CardContent sx={{ py: 1.5 }}>
+                                  <Typography variant="body2" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 0.5, fontWeight: 'bold' }}>
+                                    <SourceIcon fontSize="small" color="secondary" />
+                                    By Booking Channel
+                                  </Typography>
+                                  <Table size="small">
+                                    <TableBody>
+                                      {audit.booking_channel_breakdown.map((item: RevenueBreakdownItem) => (
+                                        <TableRow key={item.category}>
+                                          <TableCell sx={{ py: 0.5, textTransform: 'capitalize', border: 'none' }}>
+                                            {item.category.replace(/_/g, ' ')}
+                                          </TableCell>
+                                          <TableCell sx={{ py: 0.5, border: 'none' }} align="center">
+                                            {item.count} booking{item.count !== 1 ? 's' : ''}
+                                          </TableCell>
+                                          <TableCell sx={{ py: 0.5, border: 'none' }} align="right">
+                                            {formatCurrency(item.amount)}
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </CardContent>
+                              </Card>
+                            </Grid>
+                          )}
+                        </Grid>
+                      </>
+                    )}
 
                     {/* Notes */}
                     {audit.notes && (

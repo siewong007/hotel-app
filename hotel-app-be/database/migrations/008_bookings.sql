@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     -- Status
     status VARCHAR(30) DEFAULT 'pending' CHECK (status IN (
         'pending', 'confirmed', 'checked_in', 'checked_out',
-        'cancelled', 'no_show', 'completed', 'released',
+        'cancelled', 'no_show', 'completed', 'comp_cancelled',
         'partial_complimentary', 'fully_complimentary'
     )),
     payment_status VARCHAR(30) DEFAULT 'unpaid' CHECK (payment_status IN (
@@ -403,7 +403,7 @@ COMMENT ON TABLE bookings IS 'Guest reservations and bookings';
 COMMENT ON TABLE booking_guests IS 'Additional guests in a booking';
 COMMENT ON TABLE booking_modifications IS 'History of booking changes';
 COMMENT ON TABLE booking_history IS 'Audit trail of booking status changes';
-COMMENT ON COLUMN bookings.status IS 'Booking status: pending, confirmed, checked_in, checked_out, cancelled, no_show, completed, released, partial_complimentary, fully_complimentary';
+COMMENT ON COLUMN bookings.status IS 'Booking status: pending, confirmed, checked_in, checked_out, cancelled, no_show, completed, comp_cancelled, partial_complimentary, fully_complimentary';
 COMMENT ON COLUMN bookings.is_tourist IS 'Whether the guest is a tourist (affects tourism tax calculation)';
 COMMENT ON COLUMN bookings.tourism_tax_amount IS 'Tourism tax charged (per night for tourists)';
 COMMENT ON COLUMN bookings.pre_checkin_completed IS 'Guest completed pre-check-in via portal';

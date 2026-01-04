@@ -113,7 +113,7 @@ pub async fn create_booking_handler(
         r#"
         SELECT r.id, r.room_number, rt.name as room_type,
                COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-               CASE WHEN r.status IN ('available', 'reserved', 'cleaning') THEN true ELSE false END as available,
+               CASE WHEN r.status IN ('available', 'reserved', 'cleaning', 'dirty') THEN true ELSE false END as available,
                rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at
         FROM rooms r
         INNER JOIN room_types rt ON r.room_type_id = rt.id
@@ -579,6 +579,28 @@ pub async fn manual_checkin_handler(
 
     if booking.status != "confirmed" && booking.status != "pending" {
         return Err(ApiError::BadRequest(format!("Cannot check in booking with status: {}", booking.status)));
+    }
+
+    // Check if room is ready for check-in (not dirty or cleaning)
+    let room_status: Option<String> = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
+        .bind(booking.room_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if let Some(status) = room_status {
+        if status == "dirty" || status == "cleaning" {
+            return Err(ApiError::BadRequest(format!(
+                "Cannot check in - room is currently {}. Please clean the room first.",
+                status
+            )));
+        }
+        if status == "maintenance" || status == "out_of_order" {
+            return Err(ApiError::BadRequest(format!(
+                "Cannot check in - room is currently under {}.",
+                status.replace("_", " ")
+            )));
+        }
     }
 
     if let Some(ref checkin) = checkin_data {
@@ -1212,7 +1234,7 @@ pub async fn get_complimentary_bookings_handler(
         INNER JOIN rooms r ON b.room_id = r.id
         INNER JOIN room_types rt ON r.room_type_id = rt.id
         WHERE b.is_complimentary = true
-           OR b.status IN ('partial_complimentary', 'fully_complimentary', 'released')
+           OR b.status IN ('partial_complimentary', 'fully_complimentary', 'comp_cancelled')
         ORDER BY b.created_at DESC
         "#
     )
@@ -1229,7 +1251,7 @@ pub async fn get_complimentary_summary_handler(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Total complimentary bookings
     let total_bookings: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM bookings WHERE is_complimentary = true OR status IN ('partial_complimentary', 'fully_complimentary', 'released')"
+        "SELECT COUNT(*) FROM bookings WHERE is_complimentary = true OR status IN ('partial_complimentary', 'fully_complimentary', 'comp_cancelled')"
     )
     .fetch_one(&pool)
     .await

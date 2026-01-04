@@ -13,6 +13,15 @@ use sqlx::{PgPool, Row};
 use crate::core::middleware::require_permission_helper;
 use crate::core::error::ApiError;
 use crate::services::audit::AuditLog;
+use std::collections::HashMap;
+
+/// Revenue breakdown by category
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RevenueBreakdownItem {
+    pub category: String,
+    pub count: i32,
+    pub amount: Decimal,
+}
 
 /// Night audit run with username
 #[derive(Debug, Serialize, Deserialize)]
@@ -34,6 +43,10 @@ pub struct NightAuditRunWithUser {
     pub rooms_dirty: i32,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
+    #[serde(default)]
+    pub payment_method_breakdown: Vec<RevenueBreakdownItem>,
+    #[serde(default)]
+    pub booking_channel_breakdown: Vec<RevenueBreakdownItem>,
 }
 
 /// Unposted booking for preview
@@ -47,6 +60,8 @@ pub struct UnpostedBooking {
     pub check_out_date: NaiveDate,
     pub status: String,
     pub total_amount: Decimal,
+    pub payment_method: Option<String>,
+    pub source: Option<String>,
 }
 
 /// Request to run night audit
@@ -81,6 +96,8 @@ pub struct NightAuditPreview {
     pub total_unposted: i32,
     pub estimated_revenue: Decimal,
     pub room_snapshot: RoomSnapshot,
+    pub payment_method_breakdown: Vec<RevenueBreakdownItem>,
+    pub booking_channel_breakdown: Vec<RevenueBreakdownItem>,
 }
 
 #[derive(Debug, Serialize)]
@@ -146,7 +163,9 @@ pub async fn get_night_audit_preview(
             b.check_in_date::text as check_in_date,
             b.check_out_date::text as check_out_date,
             COALESCE(b.status, 'unknown') as status,
-            b.total_amount
+            b.total_amount,
+            b.payment_method,
+            b.source
         FROM bookings b
         JOIN guests g ON b.guest_id = g.id
         JOIN rooms r ON b.room_id = r.id
@@ -171,6 +190,9 @@ pub async fn get_night_audit_preview(
     log::info!("Fetched {} booking rows", rows.len());
 
     let mut unposted_bookings: Vec<UnpostedBooking> = Vec::new();
+    let mut payment_method_map: HashMap<String, (i32, Decimal)> = HashMap::new();
+    let mut booking_channel_map: HashMap<String, (i32, Decimal)> = HashMap::new();
+
     for row in rows.iter() {
         let check_in_str: String = row.get("check_in_date");
         let check_out_str: String = row.get("check_out_date");
@@ -180,6 +202,26 @@ pub async fn get_night_audit_preview(
         let check_out = NaiveDate::parse_from_str(&check_out_str, "%Y-%m-%d")
             .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap());
 
+        let payment_method: Option<String> = row.get("payment_method");
+        let source: Option<String> = row.get("source");
+        let total_amount: Decimal = row.get("total_amount");
+        let status: String = row.get("status");
+
+        // Only count revenue for checked_in or checked_out bookings
+        if status == "checked_in" || status == "checked_out" {
+            // Aggregate by payment method
+            let pm_key = payment_method.clone().unwrap_or_else(|| "Unknown".to_string());
+            let pm_entry = payment_method_map.entry(pm_key).or_insert((0, Decimal::ZERO));
+            pm_entry.0 += 1;
+            pm_entry.1 += total_amount;
+
+            // Aggregate by booking channel
+            let bc_key = source.clone().unwrap_or_else(|| "Unknown".to_string());
+            let bc_entry = booking_channel_map.entry(bc_key).or_insert((0, Decimal::ZERO));
+            bc_entry.0 += 1;
+            bc_entry.1 += total_amount;
+        }
+
         unposted_bookings.push(UnpostedBooking {
             booking_id: row.get("booking_id"),
             booking_number: row.get("booking_number"),
@@ -187,12 +229,25 @@ pub async fn get_night_audit_preview(
             room_number: row.get("room_number"),
             check_in_date: check_in,
             check_out_date: check_out,
-            status: row.get("status"),
-            total_amount: row.get("total_amount"),
+            status,
+            total_amount,
+            payment_method,
+            source,
         });
     }
 
     log::info!("Parsed {} unposted bookings", unposted_bookings.len());
+
+    // Convert maps to breakdown vectors
+    let payment_method_breakdown: Vec<RevenueBreakdownItem> = payment_method_map
+        .into_iter()
+        .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+        .collect();
+
+    let booking_channel_breakdown: Vec<RevenueBreakdownItem> = booking_channel_map
+        .into_iter()
+        .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+        .collect();
 
     let total_unposted = unposted_bookings.len() as i32;
     let estimated_revenue: Decimal = unposted_bookings.iter()
@@ -267,6 +322,8 @@ pub async fn get_night_audit_preview(
             maintenance: maintenance as i32,
             dirty: dirty as i32,
         },
+        payment_method_breakdown,
+        booking_channel_breakdown,
     }))
 }
 
@@ -277,7 +334,7 @@ pub async fn run_night_audit(
     Json(input): Json<RunNightAuditRequest>,
 ) -> Result<Json<NightAuditResponse>, ApiError> {
     log::info!("Run night audit called for date: {}", input.audit_date);
-    let user_id = require_permission_helper(&pool, &headers, "night_audit:run").await?;
+    let user_id = require_permission_helper(&pool, &headers, "night_audit:execute").await?;
     log::info!("User {} authorized for night audit", user_id);
 
     let audit_date = NaiveDate::parse_from_str(&input.audit_date, "%Y-%m-%d")
@@ -371,6 +428,49 @@ pub async fn run_night_audit(
         None,
     ).await;
 
+    // Compute breakdown from posted bookings for this audit date
+    let breakdown_rows = sqlx::query(
+        r#"
+        SELECT
+            COALESCE(b.payment_method, 'Unknown') as payment_method,
+            COALESCE(b.source, 'Unknown') as source,
+            b.total_amount
+        FROM bookings b
+        WHERE b.posted_date = $1
+        "#
+    )
+    .bind(audit_date)
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
+
+    let mut payment_method_map: HashMap<String, (i32, Decimal)> = HashMap::new();
+    let mut booking_channel_map: HashMap<String, (i32, Decimal)> = HashMap::new();
+
+    for br in breakdown_rows.iter() {
+        let pm: String = br.get("payment_method");
+        let src: String = br.get("source");
+        let amt: Decimal = br.get("total_amount");
+
+        let pm_entry = payment_method_map.entry(pm).or_insert((0, Decimal::ZERO));
+        pm_entry.0 += 1;
+        pm_entry.1 += amt;
+
+        let bc_entry = booking_channel_map.entry(src).or_insert((0, Decimal::ZERO));
+        bc_entry.0 += 1;
+        bc_entry.1 += amt;
+    }
+
+    let payment_method_breakdown: Vec<RevenueBreakdownItem> = payment_method_map
+        .into_iter()
+        .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+        .collect();
+
+    let booking_channel_breakdown: Vec<RevenueBreakdownItem> = booking_channel_map
+        .into_iter()
+        .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+        .collect();
+
     Ok(Json(NightAuditResponse {
         success: true,
         audit_run: NightAuditRunWithUser {
@@ -391,6 +491,8 @@ pub async fn run_night_audit(
             rooms_dirty: row.get("rooms_dirty"),
             notes: row.get("notes"),
             created_at: row.get("created_at"),
+            payment_method_breakdown,
+            booking_channel_breakdown,
         },
         message: format!("Night audit completed successfully for {}", audit_date),
     }))
@@ -429,7 +531,9 @@ pub async fn list_night_audits(
             COALESCE(nar.rooms_maintenance, 0) as rooms_maintenance,
             COALESCE(nar.rooms_dirty, 0) as rooms_dirty,
             nar.notes,
-            nar.created_at
+            nar.created_at,
+            COALESCE(nar.payment_method_breakdown, '{}') as payment_method_breakdown,
+            COALESCE(nar.booking_channel_breakdown, '{}') as booking_channel_breakdown
         FROM night_audit_runs nar
         LEFT JOIN users u ON nar.run_by = u.id
         ORDER BY nar.audit_date DESC
@@ -447,10 +551,56 @@ pub async fn list_night_audits(
 
     log::info!("Fetched {} night audit rows", rows.len());
 
-    let result: Vec<NightAuditRunWithUser> = rows.iter().map(|row| {
-        NightAuditRunWithUser {
+    let mut result: Vec<NightAuditRunWithUser> = Vec::new();
+    for row in rows.iter() {
+        let audit_date: NaiveDate = row.get("audit_date");
+
+        // Compute breakdown from posted bookings for this audit date
+        let breakdown_rows = sqlx::query(
+            r#"
+            SELECT
+                COALESCE(b.payment_method, 'Unknown') as payment_method,
+                COALESCE(b.source, 'Unknown') as source,
+                b.total_amount
+            FROM bookings b
+            WHERE b.posted_date = $1
+            "#
+        )
+        .bind(audit_date)
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+
+        let mut payment_method_map: HashMap<String, (i32, Decimal)> = HashMap::new();
+        let mut booking_channel_map: HashMap<String, (i32, Decimal)> = HashMap::new();
+
+        for br in breakdown_rows.iter() {
+            let pm: String = br.get("payment_method");
+            let src: String = br.get("source");
+            let amt: Decimal = br.get("total_amount");
+
+            let pm_entry = payment_method_map.entry(pm).or_insert((0, Decimal::ZERO));
+            pm_entry.0 += 1;
+            pm_entry.1 += amt;
+
+            let bc_entry = booking_channel_map.entry(src).or_insert((0, Decimal::ZERO));
+            bc_entry.0 += 1;
+            bc_entry.1 += amt;
+        }
+
+        let payment_method_breakdown: Vec<RevenueBreakdownItem> = payment_method_map
+            .into_iter()
+            .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+            .collect();
+
+        let booking_channel_breakdown: Vec<RevenueBreakdownItem> = booking_channel_map
+            .into_iter()
+            .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+            .collect();
+
+        result.push(NightAuditRunWithUser {
             id: row.get("id"),
-            audit_date: row.get("audit_date"),
+            audit_date,
             run_at: row.get("run_at"),
             run_by_username: row.get("username"),
             status: row.get("status"),
@@ -466,8 +616,10 @@ pub async fn list_night_audits(
             rooms_dirty: row.get("rooms_dirty"),
             notes: row.get("notes"),
             created_at: row.get("created_at"),
-        }
-    }).collect();
+            payment_method_breakdown,
+            booking_channel_breakdown,
+        });
+    }
 
     log::info!("List night audits returning {} results", result.len());
     Ok(Json(result))
@@ -512,9 +664,54 @@ pub async fn get_night_audit(
     .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or_else(|| ApiError::NotFound("Night audit run not found".to_string()))?;
 
+    let audit_date: NaiveDate = row.get("audit_date");
+
+    // Compute breakdown from posted bookings for this audit date
+    let breakdown_rows = sqlx::query(
+        r#"
+        SELECT
+            COALESCE(b.payment_method, 'Unknown') as payment_method,
+            COALESCE(b.source, 'Unknown') as source,
+            b.total_amount
+        FROM bookings b
+        WHERE b.posted_date = $1
+        "#
+    )
+    .bind(audit_date)
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default();
+
+    let mut payment_method_map: HashMap<String, (i32, Decimal)> = HashMap::new();
+    let mut booking_channel_map: HashMap<String, (i32, Decimal)> = HashMap::new();
+
+    for br in breakdown_rows.iter() {
+        let pm: String = br.get("payment_method");
+        let src: String = br.get("source");
+        let amt: Decimal = br.get("total_amount");
+
+        let pm_entry = payment_method_map.entry(pm).or_insert((0, Decimal::ZERO));
+        pm_entry.0 += 1;
+        pm_entry.1 += amt;
+
+        let bc_entry = booking_channel_map.entry(src).or_insert((0, Decimal::ZERO));
+        bc_entry.0 += 1;
+        bc_entry.1 += amt;
+    }
+
+    let payment_method_breakdown: Vec<RevenueBreakdownItem> = payment_method_map
+        .into_iter()
+        .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+        .collect();
+
+    let booking_channel_breakdown: Vec<RevenueBreakdownItem> = booking_channel_map
+        .into_iter()
+        .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+        .collect();
+
     Ok(Json(NightAuditRunWithUser {
         id: row.get("id"),
-        audit_date: row.get("audit_date"),
+        audit_date,
         run_at: row.get("run_at"),
         run_by_username: row.get("username"),
         status: row.get("status"),
@@ -530,6 +727,8 @@ pub async fn get_night_audit(
         rooms_dirty: row.get("rooms_dirty"),
         notes: row.get("notes"),
         created_at: row.get("created_at"),
+        payment_method_breakdown,
+        booking_channel_breakdown,
     }))
 }
 
@@ -547,6 +746,7 @@ pub struct PostedBookingDetail {
     pub status: String,
     pub total_amount: Decimal,
     pub payment_status: Option<String>,
+    pub payment_method: Option<String>,
     pub source: Option<String>,
 }
 
@@ -614,7 +814,8 @@ pub async fn get_night_audit_details(
             COALESCE(b.status, 'unknown') as status,
             b.total_amount,
             b.payment_status,
-            b.source
+            b.source,
+            COALESCE(b.payment_method, 'Unknown') as payment_method
         FROM bookings b
         JOIN guests g ON b.guest_id = g.id
         JOIN rooms r ON b.room_id = r.id
@@ -628,7 +829,29 @@ pub async fn get_night_audit_details(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    // Compute breakdowns from posted bookings
+    let mut payment_method_map: HashMap<String, (i32, Decimal)> = HashMap::new();
+    let mut booking_channel_map: HashMap<String, (i32, Decimal)> = HashMap::new();
+
     let posted_bookings: Vec<PostedBookingDetail> = booking_rows.iter().map(|row| {
+        let source: Option<String> = row.get("source");
+        let total_amount: Decimal = row.get("total_amount");
+        let pm: String = row.get("payment_method");
+        let src = source.clone().unwrap_or_else(|| "Unknown".to_string());
+
+        let pm_entry = payment_method_map.entry(pm).or_insert((0, Decimal::ZERO));
+        pm_entry.0 += 1;
+        pm_entry.1 += total_amount;
+
+        let bc_entry = booking_channel_map.entry(src).or_insert((0, Decimal::ZERO));
+        bc_entry.0 += 1;
+        bc_entry.1 += total_amount;
+
+        let payment_method: Option<String> = {
+            let pm: String = row.get("payment_method");
+            if pm == "Unknown" { None } else { Some(pm) }
+        };
+
         PostedBookingDetail {
             booking_id: row.get("booking_id"),
             booking_number: row.get("booking_number"),
@@ -639,16 +862,27 @@ pub async fn get_night_audit_details(
             check_out_date: row.get("check_out_date"),
             nights: row.get("nights"),
             status: row.get("status"),
-            total_amount: row.get("total_amount"),
+            total_amount,
             payment_status: row.get("payment_status"),
-            source: row.get("source"),
+            payment_method,
+            source,
         }
     }).collect();
+
+    let payment_method_breakdown: Vec<RevenueBreakdownItem> = payment_method_map
+        .into_iter()
+        .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+        .collect();
+
+    let booking_channel_breakdown: Vec<RevenueBreakdownItem> = booking_channel_map
+        .into_iter()
+        .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+        .collect();
 
     Ok(Json(AuditDetailsResponse {
         audit_run: NightAuditRunWithUser {
             id: audit_row.get("id"),
-            audit_date: audit_row.get("audit_date"),
+            audit_date,
             run_at: audit_row.get("run_at"),
             run_by_username: audit_row.get("username"),
             status: audit_row.get("status"),
@@ -664,6 +898,8 @@ pub async fn get_night_audit_details(
             rooms_dirty: audit_row.get("rooms_dirty"),
             notes: audit_row.get("notes"),
             created_at: audit_row.get("created_at"),
+            payment_method_breakdown,
+            booking_channel_breakdown,
         },
         posted_bookings,
     }))

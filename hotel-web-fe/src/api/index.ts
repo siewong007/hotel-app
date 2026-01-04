@@ -47,7 +47,8 @@ export type {
   RoomSnapshot,
   BookingPostedStatus,
   PostedBookingDetail,
-  AuditDetailsResponse
+  AuditDetailsResponse,
+  RevenueBreakdownItem
 } from './nightAudit.service';
 
 // Backward Compatibility Layer - HotelAPIService
