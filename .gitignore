@@ -32,6 +32,16 @@ hotel-web-fe/build/
 hotel-app-be/target/
 hotel-app-be/Cargo.lock
 
+# Tauri Desktop App
+hotel-desktop/src-tauri/target/
+hotel-desktop/src-tauri/Cargo.lock
+hotel-desktop/src-tauri/gen/
+hotel-desktop/src-tauri/WixTools/
+hotel-desktop/src-tauri/*.AppImage
+hotel-desktop/src-tauri/*.deb
+hotel-desktop/src-tauri/*.dmg
+hotel-desktop/src-tauri/*.msi
+
 # Node modules (already in .dockerignore)
 node_modules/
 

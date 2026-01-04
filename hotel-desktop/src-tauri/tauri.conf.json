@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Hotel Management",
+  "version": "0.1.0",
+  "identifier": "com.hotelmanagement.app",
+  "build": {
+    "beforeBuildCommand": "cd ../hotel-web-fe && npm run build",
+    "beforeDevCommand": "cd ../hotel-web-fe && npm start",
+    "devUrl": "http://localhost:3000",
+    "frontendDist": "../../hotel-web-fe/build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Hotel Management System",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 768,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:3030 http://localhost:3030 ws://127.0.0.1:3030 ws://localhost:3030; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "../../hotel-app-be/database/migrations/*": "migrations/"
+    },
+    "category": "Business",
+    "shortDescription": "Hotel Management System",
+    "longDescription": "A comprehensive hotel management system for reservations, guests, rooms, and billing.",
+    "copyright": "Copyright 2024",
+    "macOS": {
+      "minimumSystemVersion": "10.13",
+      "entitlements": null
+    },
+    "windows": {
+      "wix": {
+        "language": "en-US"
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": ["libssl-dev"]
+      }
+    }
+  }
+}
