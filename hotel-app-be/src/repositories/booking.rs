@@ -15,7 +15,7 @@ impl BookingRepository {
             r#"
             SELECT b.id, b.booking_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
                    b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
-                   b.check_in_date, b.check_out_date, b.total_amount, b.status,
+                   b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
                    b.payment_status, b.source, b.created_at
             FROM bookings b
             JOIN guests g ON b.guest_id = g.id
@@ -55,7 +55,7 @@ impl BookingRepository {
             r#"
             SELECT b.id, b.booking_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
                    b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
-                   b.check_in_date, b.check_out_date, b.total_amount, b.status,
+                   b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
                    b.payment_status, b.source, b.created_at
             FROM bookings b
             JOIN guests g ON b.guest_id = g.id
@@ -76,7 +76,7 @@ impl BookingRepository {
             r#"
             SELECT b.id, b.booking_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
                    b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
-                   b.check_in_date, b.check_out_date, b.total_amount, b.status,
+                   b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
                    b.payment_status, b.source, b.created_at
             FROM bookings b
             JOIN guests g ON b.guest_id = g.id

@@ -17,6 +17,7 @@ import { GuestPortalService } from './guestPortal.service';
 import { ReportsService } from './reports.service';
 import { CompaniesService } from './companies.service';
 import { AuditService } from './audit.service';
+import { NightAuditService } from './nightAudit.service';
 
 // Core
 export { api, APIError, API_BASE_URL, parseAPIError } from './client';
@@ -37,6 +38,17 @@ export { GuestPortalService } from './guestPortal.service';
 export { ReportsService } from './reports.service';
 export { CompaniesService, type Company, type CompanyCreateRequest, type CompanyUpdateRequest } from './companies.service';
 export { AuditService } from './audit.service';
+export { NightAuditService } from './nightAudit.service';
+export type {
+  NightAuditPreview,
+  NightAuditRun,
+  NightAuditResponse,
+  UnpostedBooking,
+  RoomSnapshot,
+  BookingPostedStatus,
+  PostedBookingDetail,
+  AuditDetailsResponse
+} from './nightAudit.service';
 
 // Backward Compatibility Layer - HotelAPIService
 // This class provides backward compatibility for existing code that imports HotelAPIService

@@ -24,6 +24,7 @@ import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import CategoryIcon from '@mui/icons-material/Category';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
 import HistoryIcon from '@mui/icons-material/History';
+import NightsStayIcon from '@mui/icons-material/NightsStay';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 
@@ -61,6 +62,7 @@ const GuestCheckInConfirmation = lazy(() => import('./features/bookings/componen
 const CustomerLedgerPage = lazy(() => import('./features/admin/components/CustomerLedgerPage'));
 const ComplimentaryManagementPage = lazy(() => import('./features/admin/components/ComplimentaryManagementPage'));
 const AuditLogPage = lazy(() => import('./features/admin/components/AuditLogPage'));
+const NightAuditPage = lazy(() => import('./features/admin/components/NightAuditPage'));
 
 // Loading fallback component with stable layout to prevent shifts
 const LoadingFallback = () => (
@@ -271,6 +273,7 @@ const navIcons: Record<string, React.ReactElement> = {
   'company-ledger': <AccountBalanceIcon sx={{ fontSize: 18 }} />,
   'complimentary': <CardGiftcardIcon sx={{ fontSize: 18 }} />,
   'audit-log': <HistoryIcon sx={{ fontSize: 18 }} />,
+  'night-audit': <NightsStayIcon sx={{ fontSize: 18 }} />,
   'reports': <AssessmentIcon sx={{ fontSize: 18 }} />,
   'settings': <SettingsIcon sx={{ fontSize: 18 }} />,
 };
@@ -381,6 +384,14 @@ const NavigationTabs = React.memo(function NavigationTabs() {
       path: '/audit-log',
       permissions: ['audit:read'],
       roles: ['admin', 'superadmin'],
+      group: 'admin',
+    },
+    {
+      id: 'night-audit',
+      label: 'Night Audit',
+      path: '/night-audit',
+      permissions: ['night_audit:read', 'night_audit:run'],
+      roles: ['admin', 'manager'],
       group: 'admin',
     },
     // === CONFIG (In "More" dropdown) ===
@@ -859,6 +870,7 @@ const breadcrumbConfig: Record<string, { label: string; icon?: React.ReactElemen
   '/company-ledger': { label: 'Company Ledger', icon: <AccountBalanceIcon sx={{ fontSize: 16 }} /> },
   '/complimentary': { label: 'Complimentary Nights', icon: <CardGiftcardIcon sx={{ fontSize: 16 }} /> },
   '/audit-log': { label: 'Audit Log', icon: <HistoryIcon sx={{ fontSize: 16 }} /> },
+  '/night-audit': { label: 'Night Audit', icon: <NightsStayIcon sx={{ fontSize: 16 }} /> },
   '/reports': { label: 'Reports', icon: <AssessmentIcon sx={{ fontSize: 16 }} /> },
   '/settings': { label: 'Settings', icon: <SettingsIcon sx={{ fontSize: 16 }} /> },
   '/profile': { label: 'My Profile', icon: <PersonIcon sx={{ fontSize: 16 }} /> },
@@ -1403,6 +1415,18 @@ function AppContent() {
                   <AnimatedRoute animationType="fade">
                     <ComponentErrorBoundary>
                       <AuditLogPage />
+                    </ComponentErrorBoundary>
+                  </AnimatedRoute>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/night-audit"
+              element={
+                <ProtectedRoute requiredRoles={['admin', 'manager']}>
+                  <AnimatedRoute animationType="fade">
+                    <ComponentErrorBoundary>
+                      <NightAuditPage />
                     </ComponentErrorBoundary>
                   </AnimatedRoute>
                 </ProtectedRoute>

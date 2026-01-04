@@ -66,6 +66,7 @@ const SettingsPage: React.FC = () => {
   // Operational Settings
   const [checkInTime, setCheckInTime] = useState('15:00');
   const [checkOutTime, setCheckOutTime] = useState('11:00');
+  const [nightShiftTime, setNightShiftTime] = useState('23:00');
   const [currency, setCurrency] = useState('MYR');
   const [timezone, setTimezone] = useState('Asia/Kuala_Lumpur');
 
@@ -98,6 +99,7 @@ const SettingsPage: React.FC = () => {
       setHotelEmail(settings.hotel_email);
       setCheckInTime(settings.check_in_time);
       setCheckOutTime(settings.check_out_time);
+      setNightShiftTime(settings.night_shift_time || '23:00');
       setCurrency(settings.currency);
       setTimezone(settings.timezone);
       setRoomCardDeposit(settings.room_card_deposit);
@@ -127,6 +129,7 @@ const SettingsPage: React.FC = () => {
         hotel_email: hotelEmail,
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
+        night_shift_time: nightShiftTime,
         currency,
         timezone,
         room_card_deposit: roomCardDeposit,
@@ -280,10 +283,21 @@ const SettingsPage: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
+            <Grid item xs={12} md={6}>
+              <TextField
+                fullWidth
+                label="Night Shift / Night Audit Time"
+                type="time"
+                value={nightShiftTime}
+                onChange={(e) => setNightShiftTime(e.target.value)}
+                helperText="Time when daily data is posted for reporting (e.g., 11:00 PM)"
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
           </Grid>
 
           <Alert severity="info" sx={{ mt: 2 }}>
-            These times are used to automatically detect late checkouts and manage room availability
+            Check-in/out times detect late checkouts. Night shift time determines when daily booking and room data is finalized for reports.
           </Alert>
         </CardContent>
       </Card>
