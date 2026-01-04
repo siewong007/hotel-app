@@ -10,7 +10,7 @@ export enum BookingStatus {
   NO_SHOW = 'no_show',
   AUTO_CHECKED_IN = 'auto_checked_in',
   LATE_CHECKOUT = 'late_checkout',
-  RELEASED = 'released',
+  COMP_CANCELLED = 'comp_cancelled',
   PARTIAL_COMPLIMENTARY = 'partial_complimentary',
   FULLY_COMPLIMENTARY = 'fully_complimentary'
 }

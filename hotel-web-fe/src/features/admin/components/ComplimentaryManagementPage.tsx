@@ -245,7 +245,7 @@ export default function ComplimentaryManagementPage() {
         return 'success';
       case 'partial_complimentary':
         return 'warning';
-      case 'released':
+      case 'comp_cancelled':
         return 'info';
       default:
         return 'default';
@@ -258,8 +258,8 @@ export default function ComplimentaryManagementPage() {
         return 'Fully Complimentary';
       case 'partial_complimentary':
         return 'Partial';
-      case 'released':
-        return 'Released';
+      case 'comp_cancelled':
+        return 'Comp Cancelled';
       default:
         return status;
     }

@@ -803,7 +803,7 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="checked_out">Checked Out</MenuItem>
                 <MenuItem value="cancelled">Cancelled</MenuItem>
                 <MenuItem value="no_show">No Show</MenuItem>
-                <MenuItem value="released">Released</MenuItem>
+                <MenuItem value="comp_cancelled">Comp Cancelled</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -1347,7 +1347,7 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="late_checkout">Late Checkout</MenuItem>
                 <MenuItem value="cancelled">Cancelled</MenuItem>
                 <MenuItem value="no_show">No Show</MenuItem>
-                <MenuItem value="released">Released</MenuItem>
+                <MenuItem value="comp_cancelled">Comp Cancelled</MenuItem>
               </TextField>
             </Grid>
             <Grid item xs={12} sm={6}>

@@ -76,7 +76,7 @@ INSERT INTO guests (full_name, first_name, last_name, email, phone, address_line
 
 -- ============================================================================
 -- BOOKINGS - ALL STATUS & PAYMENT STATUS COMBINATIONS
--- Statuses: pending, confirmed, checked_in, checked_out, cancelled, no_show, completed, released, partial_complimentary, fully_complimentary
+-- Statuses: pending, confirmed, checked_in, checked_out, cancelled, no_show, completed, comp_cancelled, partial_complimentary, fully_complimentary
 -- Payment Statuses: unpaid, unpaid_deposit, paid_rate, partial, paid, refunded, cancelled
 -- ============================================================================
 
@@ -320,18 +320,18 @@ FROM guests g WHERE g.email = 'james.anderson@techcorp.com'
 ON CONFLICT (booking_number) DO NOTHING;
 
 -- ============================================================================
--- RELEASED bookings (Room released for guest credit use elsewhere)
+-- COMP_CANCELLED bookings (Complimentary booking cancelled, credits preserved)
 -- ============================================================================
 
--- Booking 16: RELEASED + PAID (Silver Member)
+-- Booking 16: COMP_CANCELLED + PAID (Silver Member)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
     room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
     source, is_complimentary, complimentary_reason, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE - INTERVAL '7 days', 'YYYYMMDD') || '-1016',
     g.id, (SELECT id FROM rooms WHERE room_number = '301' LIMIT 1),
     CURRENT_DATE - INTERVAL '7 days', CURRENT_DATE - INTERVAL '5 days', 1, 0,
-    250.00, 0.00, 0.00, 0.00, 'released', 'paid', 'normal_stay', 'direct',
-    true, 'Complimentary night credit used - room released to inventory',
+    250.00, 0.00, 0.00, 0.00, 'comp_cancelled', 'paid', 'normal_stay', 'direct',
+    true, 'Complimentary booking cancelled - credits preserved for future use',
     (SELECT id FROM users WHERE username = 'manager1' LIMIT 1), CURRENT_DATE - INTERVAL '14 days'
 FROM guests g WHERE g.email = 'member.silver@email.com'
 ON CONFLICT (booking_number) DO NOTHING;
@@ -483,7 +483,7 @@ UPDATE rooms SET status = 'out_of_order', status_notes = 'Water damage - under r
 --     - completed: 1
 --     - cancelled: 2
 --     - no_show: 1
---     - released: 1
+--     - comp_cancelled: 1
 --     - partial_complimentary: 1
 --     - fully_complimentary: 1
 --

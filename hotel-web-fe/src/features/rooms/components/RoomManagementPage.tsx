@@ -59,7 +59,6 @@ import {
   Update as ExtendIcon,
   SwapHoriz as SwapIcon,
   Phone as PhoneIcon,
-  Email as EmailIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, Booking } from '../../../types';
@@ -109,7 +108,8 @@ const RoomManagementPage: React.FC = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [roomBookings, setRoomBookings] = useState<Map<string, BookingWithDetails>>(new Map());
   const [reservedBookings, setReservedBookings] = useState<Map<string, BookingWithDetails>>(new Map());
-  const [releasedBookings, setReleasedBookings] = useState<Map<string, BookingWithDetails>>(new Map());
+  const [compCancelledBookings, setCompCancelledBookings] = useState<Map<string, BookingWithDetails>>(new Map());
+  const [allBookingsData, setAllBookingsData] = useState<BookingWithDetails[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<BookingWithDetails | null>(null);
 
   // Dialogs
@@ -273,38 +273,34 @@ const RoomManagementPage: React.FC = () => {
   }, [roomBlockedDates]);
 
   const loadData = async () => {
-    await Promise.all([loadRooms(), loadGuests(), loadBookings()]);
-    await fixHiddenCleaningRooms(); // Fix any previously hidden dirty rooms
+    await Promise.all([loadRooms(true), loadGuests(), loadBookings()]);
   };
 
-  // Fix rooms that are marked as 'cleaning' but have available=false
-  const fixHiddenCleaningRooms = async () => {
-    try {
-      const allRooms = await HotelAPIService.getAllRooms();
-      const hiddenCleaningRooms = allRooms.filter(
-        (room) => room.status === 'cleaning' && !room.available
-      );
-
-      // Fix each hidden cleaning room
-      for (const room of hiddenCleaningRooms) {
-        await HotelAPIService.updateRoom(room.id, { available: true });
-      }
-
-      // Reload rooms if we fixed any
-      if (hiddenCleaningRooms.length > 0) {
-        console.log(`Fixed ${hiddenCleaningRooms.length} hidden cleaning rooms`);
-        await loadRooms();
-      }
-    } catch (error) {
-      console.error('Failed to fix hidden cleaning rooms:', error);
-    }
-  };
-
-  const loadRooms = async () => {
+  const loadRooms = async (fixHiddenOnLoad = false) => {
     try {
       setLoading(true);
       // Use getAllRooms() instead of searchRooms() to get ALL rooms including dirty ones
       const roomsData = await HotelAPIService.getAllRooms();
+
+      // Fix rooms that are marked as 'cleaning' but have available=false (only on initial load)
+      if (fixHiddenOnLoad) {
+        const hiddenCleaningRooms = roomsData.filter(
+          (room) => room.status === 'cleaning' && !room.available
+        );
+
+        if (hiddenCleaningRooms.length > 0) {
+          // Fix each hidden cleaning room
+          for (const room of hiddenCleaningRooms) {
+            await HotelAPIService.updateRoom(room.id, { available: true });
+          }
+          console.log(`Fixed ${hiddenCleaningRooms.length} hidden cleaning rooms`);
+          // Reload rooms after fixing
+          const updatedRooms = await HotelAPIService.getAllRooms();
+          setRooms(updatedRooms);
+          return;
+        }
+      }
+
       setRooms(roomsData);
     } catch (error: any) {
       showSnackbar(error.message || 'Failed to load rooms', 'error');
@@ -316,10 +312,13 @@ const RoomManagementPage: React.FC = () => {
   const loadBookings = async () => {
     try {
       const bookingsData = await HotelAPIService.getAllBookings();
+      // Store all bookings for filtering (cast to BookingWithDetails as API returns full details)
+      setAllBookingsData(bookingsData as BookingWithDetails[]);
+
       // Create a map of room_id to current active booking
       const bookingsMap = new Map<string, BookingWithDetails>();
       const reservedMap = new Map<string, BookingWithDetails>();
-      const releasedMap = new Map<string, BookingWithDetails>();
+      const compCancelledMap = new Map<string, BookingWithDetails>();
 
       bookingsData.forEach((booking: BookingWithDetails) => {
         // Track checked_in and auto_checked_in bookings (occupied rooms)
@@ -330,15 +329,15 @@ const RoomManagementPage: React.FC = () => {
         if (booking.status === 'confirmed' || booking.status === 'pending') {
           reservedMap.set(booking.room_id, booking);
         }
-        // Track released bookings (room released for guest to use credits elsewhere)
-        if (booking.status === 'released') {
-          releasedMap.set(booking.room_id, booking);
+        // Track comp_cancelled bookings (complimentary booking cancelled, credits preserved)
+        if (booking.status === 'comp_cancelled') {
+          compCancelledMap.set(booking.room_id, booking);
         }
       });
 
       setRoomBookings(bookingsMap);
       setReservedBookings(reservedMap);
-      setReleasedBookings(releasedMap);
+      setCompCancelledBookings(compCancelledMap);
     } catch (error: any) {
       console.error('Failed to load bookings:', error);
     }
@@ -1144,41 +1143,31 @@ const RoomManagementPage: React.FC = () => {
     handleMenuClose();
   };
 
-  // Show upcoming bookings dialog for a room
-  const handleViewUpcomingBookings = async (room: Room) => {
+  // Show upcoming bookings dialog for a room - uses existing bookings state
+  const handleViewUpcomingBookings = (room: Room) => {
     handleMenuClose();
     setSelectedRoom(room);
     setUpcomingBookingsDialogOpen(true);
 
-    try {
-      setLoadingUpcomingBookings(true);
-      const allBookings = await HotelAPIService.getAllBookings();
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-      // Filter bookings for this room that are upcoming or current
-      const roomUpcomingBookings = allBookings.filter(booking => {
-        const isThisRoom = booking.room_id?.toString() === room.id.toString();
-        const checkInDate = new Date(booking.check_in_date);
-        checkInDate.setHours(0, 0, 0, 0);
-        const isUpcoming = checkInDate >= today;
-        const isActive = ['pending', 'confirmed', 'checked_in', 'auto_checked_in'].includes(booking.status);
-        return isThisRoom && (isUpcoming || booking.status === 'checked_in') && isActive;
-      });
+    // Filter bookings for this room from allBookingsData
+    const roomUpcomingBookings = allBookingsData.filter(booking => {
+      const isThisRoom = booking.room_id?.toString() === room.id.toString();
+      const checkInDate = new Date(booking.check_in_date);
+      checkInDate.setHours(0, 0, 0, 0);
+      const isUpcoming = checkInDate >= today;
+      const isActive = ['pending', 'confirmed', 'checked_in', 'auto_checked_in'].includes(booking.status);
+      return isThisRoom && (isUpcoming || booking.status === 'checked_in') && isActive;
+    });
 
-      // Sort by check-in date
-      roomUpcomingBookings.sort((a, b) =>
-        new Date(a.check_in_date).getTime() - new Date(b.check_in_date).getTime()
-      );
+    // Sort by check-in date
+    roomUpcomingBookings.sort((a, b) =>
+      new Date(a.check_in_date).getTime() - new Date(b.check_in_date).getTime()
+    );
 
-      // Cast to BookingWithDetails (these fields are included in the response)
-      setUpcomingBookingsForRoom(roomUpcomingBookings as BookingWithDetails[]);
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to load upcoming bookings', 'error');
-      setUpcomingBookingsForRoom([]);
-    } finally {
-      setLoadingUpcomingBookings(false);
-    }
+    setUpcomingBookingsForRoom(roomUpcomingBookings);
   };
 
   const handleShowHistory = async (room: Room) => {
@@ -1199,38 +1188,23 @@ const RoomManagementPage: React.FC = () => {
     }
   };
 
-  const handleViewGuestDetails = async (guestId: string | number) => {
-    try {
-      const allGuests = await HotelAPIService.getAllGuests();
-      console.log('All guests:', allGuests);
-      console.log('Looking for guest ID:', guestId, 'Type:', typeof guestId);
+  const handleViewGuestDetails = (guestId: string | number) => {
+    // Use guests from state instead of fetching again
+    const guest = guests.find(g => g.id.toString() === guestId.toString());
 
-      // Handle both string and number guest IDs
-      const guest = allGuests.find(g => {
-        const match = g.id.toString() === guestId.toString();
-        console.log(`Comparing ${g.id} (${typeof g.id}) with ${guestId} (${typeof guestId}): ${match}`);
-        return match;
-      });
+    if (guest) {
+      setSelectedGuestDetails(guest);
+      setGuestDetailsTab(0); // Reset to first tab
+      setGuestCredits(null);
+      setCreditsBookingSuccess(null);
+      setSelectedComplimentaryDates([]);
+      setGuestDetailsDialogOpen(true);
+      handleMenuClose();
 
-      console.log('Found guest:', guest);
-
-      if (guest) {
-        setSelectedGuestDetails(guest);
-        setGuestDetailsTab(0); // Reset to first tab
-        setGuestCredits(null);
-        setCreditsBookingSuccess(null);
-        setSelectedComplimentaryDates([]);
-        setGuestDetailsDialogOpen(true);
-        handleMenuClose();
-
-        // Load guest credits in background
-        loadGuestCredits(guest.id);
-      } else {
-        showSnackbar(`Guest not found (ID: ${guestId})`, 'error');
-      }
-    } catch (error: any) {
-      console.error('Error loading guest details:', error);
-      showSnackbar(error.message || 'Failed to load guest details', 'error');
+      // Load guest credits in background
+      loadGuestCredits(guest.id);
+    } else {
+      showSnackbar(`Guest not found (ID: ${guestId})`, 'error');
     }
   };
 
@@ -1247,36 +1221,25 @@ const RoomManagementPage: React.FC = () => {
     }
   };
 
-  const loadAvailableRoomsForCredits = async () => {
-    try {
-      const allRooms = await HotelAPIService.getAllRooms();
-      // Show all rooms, not just available ones - we'll show blocked dates for each
-      setAvailableRoomsForCredits(allRooms);
-    } catch (error: any) {
-      console.error('Error loading available rooms:', error);
-    }
+  const loadAvailableRoomsForCredits = () => {
+    // Use rooms from state instead of fetching again
+    setAvailableRoomsForCredits(rooms);
   };
 
-  const loadRoomBlockedDates = async (roomId: string) => {
-    try {
-      // Get all bookings and filter for this room
-      const allBookings = await HotelAPIService.getAllBookings();
-      const roomBookingsFiltered = allBookings.filter(b =>
-        b.room_id?.toString() === roomId &&
-        !['cancelled', 'no_show', 'checked_out'].includes(b.status)
-      );
+  const loadRoomBlockedDates = (roomId: string) => {
+    // Use allBookingsData from state instead of fetching again
+    const roomBookingsFiltered = allBookingsData.filter(b =>
+      b.room_id?.toString() === roomId &&
+      !['cancelled', 'no_show', 'checked_out'].includes(b.status)
+    );
 
-      const blocked = roomBookingsFiltered.map(b => ({
-        start: b.check_in_date,
-        end: b.check_out_date,
-        status: b.status
-      }));
+    const blocked = roomBookingsFiltered.map(b => ({
+      start: b.check_in_date,
+      end: b.check_out_date,
+      status: b.status
+    }));
 
-      setRoomBlockedDates(blocked);
-    } catch (error: any) {
-      console.error('Error loading room blocked dates:', error);
-      setRoomBlockedDates([]);
-    }
+    setRoomBlockedDates(blocked);
   };
 
   const isDateBlocked = (dateStr: string): boolean => {
@@ -1871,7 +1834,7 @@ const RoomManagementPage: React.FC = () => {
         {rooms.map((room) => {
           const booking = roomBookings.get(room.id);
           const reservedBooking = reservedBookings.get(room.id);
-          const releasedBooking = releasedBookings.get(room.id);
+          const compCancelledBooking = compCancelledBookings.get(room.id);
 
           // Compute dynamic status based on bookings - ensures sync with reservation timeline
           const today = new Date();
@@ -1930,7 +1893,7 @@ const RoomManagementPage: React.FC = () => {
                     boxShadow: 4,
                   },
                   position: 'relative',
-                  height: isOccupied ? 240 : 200,
+                  height: 240,
                   display: 'flex',
                   flexDirection: 'column',
                   borderRadius: 2,
@@ -2005,7 +1968,7 @@ const RoomManagementPage: React.FC = () => {
                   <Typography variant="caption" display="block" sx={{ fontWeight: 600, mb: 0.5 }}>
                     {getRoomStatusLabel(displayRoom)}
                     {isComplimentary && ' • 🎁 FREE GIFT'}
-                    {releasedBooking && ' • 🔓 RELEASED'}
+                    {compCancelledBooking && ' • 🔓 COMP CANCELLED'}
                   </Typography>
 
                   {/* Future Reservation Indicator - NO guest details per requirements */}
@@ -2028,8 +1991,8 @@ const RoomManagementPage: React.FC = () => {
                     </Box>
                   )}
 
-                  {/* Complimentarise Booking Indicator - Room was released for guest to use credits elsewhere */}
-                  {releasedBooking && (
+                  {/* Comp Cancelled Booking Indicator - Complimentary booking cancelled, credits preserved */}
+                  {compCancelledBooking && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                       <Typography
                         variant="caption"
@@ -2042,7 +2005,7 @@ const RoomManagementPage: React.FC = () => {
                           borderRadius: 0.5,
                         }}
                       >
-                        Released: {new Date(releasedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(releasedBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        Comp Cancelled: {new Date(compCancelledBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(compCancelledBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </Typography>
                     </Box>
                   )}
@@ -2095,23 +2058,6 @@ const RoomManagementPage: React.FC = () => {
                               }}
                             >
                               {booking.guest_phone}
-                            </Typography>
-                          </Box>
-                        )}
-                        {booking.guest_email && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <EmailIcon sx={{ fontSize: 12, opacity: 0.8 }} />
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                fontSize: '0.6rem',
-                                opacity: 0.9,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {booking.guest_email}
                             </Typography>
                           </Box>
                         )}
@@ -2223,81 +2169,104 @@ const RoomManagementPage: React.FC = () => {
                     </Typography>
                   ) : null}
 
-                  {/* Quick Check-in Button for Reserved Rooms - Only show when date reached */}
+                  {/* Reserved Room Guest Details - styled like Occupied room */}
                   {isReservedToday && reservedBooking && (
-                    <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.75 }}>
-                        <CalendarIcon sx={{ fontSize: 14, opacity: 0.9 }} />
+                    <>
+                      {/* Date Range */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                        <CalendarIcon sx={{ fontSize: 14 }} />
                         <Typography
                           variant="caption"
+                          display="block"
                           sx={{
                             fontSize: '0.65rem',
-                            opacity: 0.9,
+                            fontWeight: 500,
                           }}
                         >
-                          {new Date(reservedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → {new Date(reservedBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          {new Date(reservedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(reservedBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </Typography>
                       </Box>
-                      {/* Check-in button - only if fully paid OR if guest is a member (no deposit required) */}
-                      {reservedBooking.payment_status === 'paid' || reservedBooking.guest_type === 'member' ? (
-                        <Box
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCheckIn(room);
-                          }}
-                          sx={{
-                            bgcolor: '#4caf50',
-                            borderRadius: 1,
-                            p: 0.75,
-                            cursor: 'pointer',
-                            '&:hover': {
-                              bgcolor: '#43a047',
-                            },
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 0.5,
-                          }}
-                        >
-                          <LoginIcon sx={{ fontSize: 18 }} />
-                          <Typography variant="caption" sx={{ fontSize: '0.75rem', fontWeight: 700 }}>
-                            Check-in Now
-                          </Typography>
-                        </Box>
-                      ) : (
-                        /* Payment Required - show collect payment button (non-members only) */
-                        <Box
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedRoom(room);
-                            setPaymentBooking(reservedBooking);
-                            setPaymentDialogOpen(true);
-                          }}
-                          sx={{
-                            bgcolor: '#ff9800',
-                            borderRadius: 1,
-                            p: 0.75,
-                            cursor: 'pointer',
-                            '&:hover': {
-                              bgcolor: '#f57c00',
-                            },
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 0.5,
-                          }}
-                        >
-                          <ReceiptIcon sx={{ fontSize: 18 }} />
-                          <Typography variant="caption" sx={{ fontSize: '0.75rem', fontWeight: 700 }}>
-                            Collect Payment
+
+                      {/* Guest Name */}
+                      {reservedBooking.guest_name && (
+                        <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 700,
+                              mb: 0.25,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              fontSize: '0.85rem',
+                            }}
+                          >
+                            {reservedBooking.guest_name}
                           </Typography>
                         </Box>
                       )}
-                    </Box>
+
+                      {/* Check-in / Payment Button */}
+                      <Box sx={{ mt: 1 }}>
+                        {reservedBooking.payment_status === 'paid' || reservedBooking.guest_type === 'member' ? (
+                          <Box
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCheckIn(room);
+                            }}
+                            sx={{
+                              bgcolor: 'rgba(255,255,255,0.2)',
+                              borderRadius: 1,
+                              p: 0.5,
+                              cursor: 'pointer',
+                              '&:hover': {
+                                bgcolor: 'rgba(255,255,255,0.35)',
+                              },
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 0.5,
+                            }}
+                          >
+                            <LoginIcon sx={{ fontSize: 16 }} />
+                            <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
+                              Check-in
+                            </Typography>
+                          </Box>
+                        ) : (
+                          <Box
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedRoom(room);
+                              setPaymentBooking(reservedBooking);
+                              setPaymentDialogOpen(true);
+                            }}
+                            sx={{
+                              bgcolor: 'rgba(255,255,255,0.2)',
+                              borderRadius: 1,
+                              p: 0.5,
+                              cursor: 'pointer',
+                              '&:hover': {
+                                bgcolor: 'rgba(255,255,255,0.35)',
+                              },
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: 0.5,
+                            }}
+                          >
+                            <ReceiptIcon sx={{ fontSize: 16 }} />
+                            <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
+                              Collect Payment
+                            </Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    </>
                   )}
 
-                  {/* Upcoming Bookings Button - only show if room has a future reservation */}
-                  {hasFutureReservation && reservedBooking && (
+                  {/* Upcoming Bookings Button - only show for non-occupied rooms with future reservation */}
+                  {hasFutureReservation && reservedBooking && !isOccupied && (
                     <Box
                       onClick={(e) => {
                         e.stopPropagation();

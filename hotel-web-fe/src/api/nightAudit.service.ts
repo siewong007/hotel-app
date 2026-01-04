@@ -11,6 +11,12 @@ export interface RoomSnapshot {
   dirty: number;
 }
 
+export interface RevenueBreakdownItem {
+  category: string;
+  count: number;
+  amount: number;
+}
+
 export interface UnpostedBooking {
   booking_id: number;
   booking_number: string;
@@ -20,6 +26,8 @@ export interface UnpostedBooking {
   check_out_date: string;
   status: string;
   total_amount: number;
+  payment_method: string | null;
+  source: string | null;
 }
 
 export interface NightAuditPreview {
@@ -30,6 +38,8 @@ export interface NightAuditPreview {
   total_unposted: number;
   estimated_revenue: number;
   room_snapshot: RoomSnapshot;
+  payment_method_breakdown: RevenueBreakdownItem[];
+  booking_channel_breakdown: RevenueBreakdownItem[];
 }
 
 export interface NightAuditRun {
@@ -50,6 +60,8 @@ export interface NightAuditRun {
   rooms_dirty: number;
   notes: string | null;
   created_at: string;
+  payment_method_breakdown: RevenueBreakdownItem[];
+  booking_channel_breakdown: RevenueBreakdownItem[];
 }
 
 export interface NightAuditResponse {
@@ -81,6 +93,7 @@ export interface PostedBookingDetail {
   status: string;
   total_amount: number;
   payment_status: string | null;
+  payment_method: string | null;
   source: string | null;
 }
 

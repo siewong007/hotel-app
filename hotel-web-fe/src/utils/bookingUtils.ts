@@ -181,8 +181,8 @@ export const getBookingStatusColor = (
       return 'error';
     case BookingStatus.LATE_CHECKOUT:
       return 'warning';
-    case BookingStatus.RELEASED:
-    case 'released':
+    case BookingStatus.COMP_CANCELLED:
+    case 'comp_cancelled':
       return 'secondary';
     case BookingStatus.PARTIAL_COMPLIMENTARY:
     case 'partial_complimentary':
@@ -216,9 +216,9 @@ export const getBookingStatusText = (status: BookingStatus | string): string => 
       return 'No Show';
     case BookingStatus.LATE_CHECKOUT:
       return 'Late Checkout';
-    case BookingStatus.RELEASED:
-    case 'released':
-      return 'Released';
+    case BookingStatus.COMP_CANCELLED:
+    case 'comp_cancelled':
+      return 'Comp Cancelled';
     case BookingStatus.PARTIAL_COMPLIMENTARY:
     case 'partial_complimentary':
       return 'Partial Complimentary';
