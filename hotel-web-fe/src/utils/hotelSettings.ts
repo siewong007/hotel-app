@@ -7,6 +7,7 @@ export interface HotelSettings {
   hotel_email: string;
   check_in_time: string;
   check_out_time: string;
+  night_shift_time: string; // Time when night audit runs and data gets posted for reporting
   currency: string;
   timezone: string;
   room_card_deposit: number;
@@ -24,6 +25,7 @@ const DEFAULT_SETTINGS: HotelSettings = {
   hotel_email: 'info@grandhotel.com',
   check_in_time: '15:00',
   check_out_time: '11:00',
+  night_shift_time: '23:00', // Default night audit time at 11 PM
   currency: 'MYR',
   timezone: 'Asia/Kuala_Lumpur',
   room_card_deposit: 50,

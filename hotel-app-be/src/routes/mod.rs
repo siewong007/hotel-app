@@ -13,6 +13,7 @@ pub mod guest_portal;
 pub mod guests;
 pub mod ledgers;
 pub mod loyalty;
+pub mod night_audit;
 pub mod payments;
 pub mod profile;
 pub mod rates;
@@ -95,6 +96,7 @@ pub fn create_router(pool: PgPool) -> Router {
         .merge(guest_portal::routes())
         .merge(companies::routes())
         .merge(audit::routes())
+        .merge(night_audit::routes())
         .with_state(pool);
 
     // Add middleware layers

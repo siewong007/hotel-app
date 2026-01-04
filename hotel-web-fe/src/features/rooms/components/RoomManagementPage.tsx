@@ -74,6 +74,7 @@ import {
 } from '../../../config/roomStatusConfig';
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
 import EnhancedCheckInModal from '../../bookings/components/EnhancedCheckInModal';
+import UnifiedBookingModal, { BookingType } from './UnifiedBookingModal';
 
 interface RoomAction {
   id: string;
@@ -226,6 +227,10 @@ const RoomManagementPage: React.FC = () => {
   const [enhancedCheckInOpen, setEnhancedCheckInOpen] = useState(false);
   const [checkInBooking, setCheckInBooking] = useState<Booking | null>(null);
   const [checkInGuest, setCheckInGuest] = useState<Guest | null>(null);
+
+  // Unified booking modal state
+  const [unifiedBookingOpen, setUnifiedBookingOpen] = useState(false);
+  const [unifiedBookingType, setUnifiedBookingType] = useState<BookingType | undefined>(undefined);
 
   // Upcoming bookings dialog state
   const [upcomingBookingsDialogOpen, setUpcomingBookingsDialogOpen] = useState(false);
@@ -385,35 +390,20 @@ const RoomManagementPage: React.FC = () => {
     return codes[roomType.toLowerCase()] || roomType.substring(0, 4).toUpperCase();
   };
 
-  // Room Actions
-  const handleWalkInGuest = async (room: Room) => {
+  // Room Actions - Unified Booking Modal
+  const openUnifiedBooking = (room: Room, bookingType?: BookingType) => {
     setSelectedRoom(room);
+    setUnifiedBookingType(bookingType);
+    setUnifiedBookingOpen(true);
     handleMenuClose();
+  };
 
-    // Initialize dates with defaults (today and tomorrow)
-    const today = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    setWalkInCheckInDate(today);
-    setWalkInCheckOutDate(tomorrow);
-    setWalkInNumberOfNights(1);
-
-    // Show guest selection dialog first
-    setWalkInDialogOpen(true);
+  const handleWalkInGuest = (room: Room) => {
+    openUnifiedBooking(room, 'walk_in');
   };
 
   const handleOnlineCheckIn = (room: Room) => {
-    setSelectedRoom(room);
-    handleMenuClose();
-
-    // Initialize dates with defaults (today and tomorrow)
-    const today = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    setOnlineCheckInDate(today);
-    setOnlineCheckOutDate(tomorrow);
-    setOnlineNumberOfNights(1);
-
-    // Show guest selection dialog first
-    setOnlineCheckInDialogOpen(true);
+    openUnifiedBooking(room, 'online');
   };
 
   const handleCloseWalkInDialog = () => {
@@ -457,35 +447,8 @@ const RoomManagementPage: React.FC = () => {
   };
 
   // Complimentary Check-in handlers
-  const handleComplimentaryCheckIn = async (room: Room) => {
-    setSelectedRoom(room);
-    handleMenuClose();
-
-    // Initialize dates with defaults (today and tomorrow)
-    const today = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-    setComplimentaryCheckInDate(today);
-    setComplimentaryCheckOutDate(tomorrow);
-    setComplimentaryNumberOfNights(1);
-    setComplimentaryCheckInGuest(null);
-
-    // Fetch guests with credits (includes both legacy and room-type-specific credits)
-    setLoadingGuestsWithCredits(true);
-    try {
-      const guestsWithAllCredits = await HotelAPIService.getMyGuestsWithCredits();
-      // Filter to only show guests who have any credits (legacy OR room-type specific)
-      const filteredGuests = guestsWithAllCredits.filter(
-        g => g.legacy_complimentary_nights_credit > 0 || g.total_complimentary_credits > 0
-      );
-      setGuestsWithCredits(filteredGuests);
-    } catch (error) {
-      console.error('Failed to fetch guests with credits:', error);
-      showSnackbar('Failed to load guests with credits', 'error');
-    } finally {
-      setLoadingGuestsWithCredits(false);
-    }
-
-    setComplimentaryCheckInDialogOpen(true);
+  const handleComplimentaryCheckIn = (room: Room) => {
+    openUnifiedBooking(room, 'complimentary');
   };
 
   const handleCloseComplimentaryCheckInDialog = () => {
@@ -1665,11 +1628,9 @@ const RoomManagementPage: React.FC = () => {
           );
         }
       } else {
-        // For available/dirty rooms - show full check-in options (need booking details)
+        // For available/dirty rooms - show unified booking option
         actions.push(
-          { id: 'walkin', label: 'Walk-in Check-in', icon: <PersonAddIcon />, onClick: handleWalkInGuest },
-          { id: 'online-booking', label: 'Online Booking', icon: <BookingIcon />, onClick: handleOnlineCheckIn },
-          { id: 'complimentary-booking', label: 'Complimentary Booking', icon: <GiftIcon />, color: 'secondary', onClick: handleComplimentaryCheckIn }
+          { id: 'new-booking', label: 'New Booking', icon: <PersonAddIcon />, onClick: openUnifiedBooking }
         );
       }
     }
@@ -2364,6 +2325,45 @@ const RoomManagementPage: React.FC = () => {
                       <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
                         View Upcoming Booking
                       </Typography>
+                    </Box>
+                  )}
+
+                  {/* Quick Action Button for Available Rooms */}
+                  {computedStatus === 'available' && !hasFutureReservation && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        bottom: 12,
+                        left: 12,
+                        right: 12,
+                      }}
+                    >
+                      <Tooltip title="Create new booking" arrow>
+                        <Box
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openUnifiedBooking(room); // No type pre-selected - user chooses
+                          }}
+                          sx={{
+                            bgcolor: 'rgba(255,255,255,0.3)',
+                            borderRadius: 1,
+                            py: 0.75,
+                            cursor: 'pointer',
+                            '&:hover': {
+                              bgcolor: 'rgba(255,255,255,0.45)',
+                            },
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 0.5,
+                          }}
+                        >
+                          <BookingIcon sx={{ fontSize: 16 }} />
+                          <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
+                            New Booking
+                          </Typography>
+                        </Box>
+                      </Tooltip>
                     </Box>
                   )}
 
@@ -3531,6 +3531,27 @@ const RoomManagementPage: React.FC = () => {
         booking={checkInBooking}
         guest={checkInGuest}
         onCheckInSuccess={handleEnhancedCheckInSuccess}
+      />
+
+      {/* Unified Booking Modal */}
+      <UnifiedBookingModal
+        open={unifiedBookingOpen}
+        onClose={() => {
+          setUnifiedBookingOpen(false);
+          setUnifiedBookingType(undefined);
+        }}
+        room={selectedRoom}
+        guests={guests}
+        initialBookingType={unifiedBookingType}
+        onSuccess={(message) => showSnackbar(message, 'success')}
+        onError={(message) => showSnackbar(message, 'error')}
+        onBookingCreated={(booking, guest) => {
+          // For walk-in bookings, open the enhanced check-in modal
+          setCheckInBooking(booking);
+          setCheckInGuest(guest);
+          setEnhancedCheckInOpen(true);
+        }}
+        onRefreshData={loadData}
       />
 
       {/* Check Out Dialog with Invoice */}

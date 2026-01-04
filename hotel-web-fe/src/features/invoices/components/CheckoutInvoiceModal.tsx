@@ -77,12 +77,27 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     grandTotal: 0,
   });
 
-  // Check if current time is past the configured checkout time
+  // Check if late checkout applies:
+  // 1. Booking checkout date must be TODAY
+  // 2. Current time must be past the configured checkout time
   const checkIfLateCheckout = (): boolean => {
-    const now = new Date();
-    const [checkoutHours, checkoutMinutes] = hotelSettings.check_out_time.split(':').map(Number);
+    if (!booking) return false;
 
-    // Create today's checkout time
+    const now = new Date();
+    const today = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+
+    // Get booking's check_out_date in YYYY-MM-DD format
+    const bookingCheckoutDate = typeof booking.check_out_date === 'string'
+      ? booking.check_out_date.split('T')[0]
+      : new Date(booking.check_out_date).toISOString().split('T')[0];
+
+    // Late checkout only applies if checkout date is TODAY
+    if (bookingCheckoutDate !== today) {
+      return false;
+    }
+
+    // Check if current time is past the configured checkout time
+    const [checkoutHours, checkoutMinutes] = hotelSettings.check_out_time.split(':').map(Number);
     const todayCheckoutTime = new Date();
     todayCheckoutTime.setHours(checkoutHours, checkoutMinutes, 0, 0);
 
@@ -124,9 +139,43 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const calculateCharges = (penalty: number = lateCheckoutPenalty) => {
     if (!booking) return;
 
-    const roomCharges = typeof booking.total_amount === 'string'
-      ? parseFloat(booking.total_amount)
-      : booking.total_amount || 0;
+    // Calculate nights first
+    const checkIn = new Date(booking.check_in_date);
+    const checkOut = new Date(booking.check_out_date);
+    const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Get the configured price per night (custom_price or base_price)
+    // This is the TAX-INCLUSIVE price - what the hotel configured as the room rate
+    let configuredPricePerNight = typeof booking.price_per_night === 'string'
+      ? parseFloat(booking.price_per_night)
+      : booking.price_per_night || 0;
+
+    // Tax multiplier for display calculations (using hotel settings rate)
+    const taxMultiplier = 1 + (hotelSettings.service_tax_rate / 100);
+
+    // Fallback: if price_per_night is not available, derive from total_amount
+    // Old bookings have total_amount = room_rate × nights × 1.10 (with 10% tax)
+    // New bookings have total_amount = room_rate × nights (no tax)
+    if (!configuredPricePerNight || configuredPricePerNight === 0) {
+      const totalAmount = typeof booking.total_amount === 'string'
+        ? parseFloat(booking.total_amount)
+        : booking.total_amount || 0;
+      // Divide by 1.10 to remove old backend tax, then divide by nights
+      // This ensures old bookings show the correct configured price
+      configuredPricePerNight = nights > 0 ? (totalAmount / 1.10) / nights : 0;
+    }
+
+    // The configured price IS the final price (subtotal = configured price × nights)
+    const roomSubtotal = configuredPricePerNight * nights;
+
+    // Room Charges (before tax) = Subtotal / (1 + tax_rate)
+    const roomChargesBeforeTax = roomSubtotal / taxMultiplier;
+
+    // Service Tax is the difference
+    const serviceTax = roomSubtotal - roomChargesBeforeTax;
+
+    // Room charges shown = base amount before tax
+    const roomCharges = roomChargesBeforeTax;
 
     // Get deposit from booking - use 0 if explicitly set (member waiver), otherwise fallback to settings
     const roomCardDeposit = booking.room_card_deposit !== undefined && booking.room_card_deposit !== null
@@ -146,9 +195,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     // Use the passed penalty (from late checkout form or default)
     const lateCheckoutPenaltyAmount = penalty;
 
-    // Calculate service tax (apply to room charges only, before other fees)
-    const serviceTax = (roomCharges * hotelSettings.service_tax_rate) / 100;
-
+    // Subtotal = Room Charges + Service Tax + other charges
+    // This equals configured_price × nights + other charges
     const subtotal = roomCharges + serviceTax + tourismTax + extraBedCharge + lateCheckoutPenaltyAmount;
 
     // Deposit is always refunded - late checkout penalty is separate

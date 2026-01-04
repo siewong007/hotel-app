@@ -65,6 +65,10 @@ export interface Booking {
   company_id?: number;
   company_name?: string;
   payment_note?: string;
+  // Night audit posting fields
+  is_posted?: boolean;
+  posted_date?: string;
+  posted_at?: string;
 }
 
 export interface BookingWithDetails extends Booking {

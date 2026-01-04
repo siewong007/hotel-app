@@ -52,6 +52,7 @@ import {
   Clear as ClearIcon,
   CardGiftcard as ComplimentaryIcon,
   Payment as PaymentIcon,
+  Lock as LockIcon,
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
 import { HotelAPIService } from '../../../api';
@@ -176,9 +177,14 @@ const BookingsPage: React.FC = () => {
       );
     }
 
-    // Status filter
-    if (statusFilter !== 'all') {
+    // Status filter - hide cancelled by default unless explicitly selected
+    if (statusFilter === 'cancelled') {
+      filtered = filtered.filter(booking => booking.status === 'cancelled');
+    } else if (statusFilter !== 'all') {
       filtered = filtered.filter(booking => booking.status === statusFilter);
+    } else {
+      // 'all' filter still excludes cancelled bookings
+      filtered = filtered.filter(booking => booking.status !== 'cancelled');
     }
 
     // Date filter
@@ -1033,11 +1039,24 @@ const BookingsPage: React.FC = () => {
                   />
                 </TableCell>
                 <TableCell>
-                  <Chip
-                    label={getBookingStatusText(booking.status)}
-                    color={getBookingStatusColor(booking.status)}
-                    size="small"
-                  />
+                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                    <Chip
+                      label={getBookingStatusText(booking.status)}
+                      color={getBookingStatusColor(booking.status)}
+                      size="small"
+                    />
+                    {booking.is_posted && (
+                      <Tooltip title="Booking is locked - included in night audit">
+                        <Chip
+                          icon={<LockIcon sx={{ fontSize: 14 }} />}
+                          label={booking.posted_date ? new Date(booking.posted_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Posted'}
+                          size="small"
+                          color="default"
+                          sx={{ bgcolor: 'grey.200', fontWeight: 500 }}
+                        />
+                      </Tooltip>
+                    )}
+                  </Box>
                 </TableCell>
                 {isAdmin && (
                   <TableCell>
@@ -1064,14 +1083,17 @@ const BookingsPage: React.FC = () => {
                           </IconButton>
                         </Tooltip>
                       )}
-                      <Tooltip title="Edit Booking">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleEditBooking(booking)}
-                          color="primary"
-                        >
-                          <EditIcon />
-                        </IconButton>
+                      <Tooltip title={booking.is_posted ? "Cannot edit - Booking is posted" : "Edit Booking"}>
+                        <span>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditBooking(booking)}
+                            color="primary"
+                            disabled={booking.is_posted}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                       <Tooltip title="Collect Room Payment">
                         <IconButton
@@ -1082,7 +1104,7 @@ const BookingsPage: React.FC = () => {
                           <PaymentIcon />
                         </IconButton>
                       </Tooltip>
-                      {canDelete(booking) && (
+                      {canDelete(booking) && !booking.is_posted && (
                         <Tooltip title="Cancel Booking">
                           <IconButton
                             size="small"
@@ -1093,7 +1115,7 @@ const BookingsPage: React.FC = () => {
                           </IconButton>
                         </Tooltip>
                       )}
-                      {canMarkComplimentary(booking) && (
+                      {canMarkComplimentary(booking) && !booking.is_posted && (
                         <Tooltip title="Mark as Complimentary">
                           <IconButton
                             size="small"

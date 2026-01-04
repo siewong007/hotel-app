@@ -49,6 +49,7 @@ export const AUDIT_ACTION_LABELS: Record<string, { label: string; color: string 
   booking_cancelled: { label: 'Booking Cancelled', color: '#f44336' },
   booking_checkin: { label: 'Guest Checked In', color: '#4caf50' },
   booking_checkout: { label: 'Guest Checked Out', color: '#9c27b0' },
+  room_status_changed: { label: 'Room Status Changed', color: '#795548' },
   guest_created: { label: 'Guest Created', color: '#2196f3' },
   guest_updated: { label: 'Guest Updated', color: '#ff9800' },
   guest_deleted: { label: 'Guest Deleted', color: '#f44336' },

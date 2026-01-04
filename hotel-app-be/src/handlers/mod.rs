@@ -21,6 +21,7 @@ pub mod ledgers;
 pub mod guest_portal;
 pub mod companies;
 pub mod audit;
+pub mod night_audit;
 
 // Re-export all handlers for convenience
 pub use auth::*;

@@ -37,11 +37,11 @@ pub async fn get_bookings_handler(
             b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
             g.guest_type::text as guest_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
-            b.check_in_date, b.check_out_date, b.total_amount, b.status,
+            b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
             b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
             b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
-            b.created_at
+            b.created_at, b.is_posted, b.posted_date
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id
         INNER JOIN rooms r ON b.room_id = r.id
@@ -74,11 +74,11 @@ pub async fn get_my_bookings_handler(
             b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
             g.guest_type::text as guest_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
-            b.check_in_date, b.check_out_date, b.total_amount, b.status,
+            b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
             b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
             b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
-            b.created_at
+            b.created_at, b.is_posted, b.posted_date
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id
         INNER JOIN rooms r ON b.room_id = r.id
@@ -144,11 +144,14 @@ pub async fn create_booking_handler(
         return Err(ApiError::BadRequest("Room is not available".to_string()));
     }
 
+    // Only check for ACTIVE bookings that would conflict
+    // Active statuses: reserved, confirmed, checked_in, pending
+    // Inactive statuses (don't block): cancelled, no_show, checked_out, completed
     let conflict = sqlx::query_scalar::<_, bool>(
         r#"
         SELECT EXISTS(
             SELECT 1 FROM bookings
-            WHERE room_id = $1 AND status NOT IN ('cancelled', 'no_show')
+            WHERE room_id = $1 AND status IN ('reserved', 'confirmed', 'checked_in', 'pending')
             AND ((check_in_date <= $2 AND check_out_date > $2)
                 OR (check_in_date < $3 AND check_out_date >= $3)
                 OR (check_in_date >= $2 AND check_out_date <= $3))
@@ -168,9 +171,11 @@ pub async fn create_booking_handler(
 
     let nights = (check_out - check_in).num_days() as i32;
     let room_rate = room.price_per_night;
+    // The configured room price is tax-inclusive (final price)
+    // Store total_amount as the configured price × nights without adding additional tax
     let subtotal = room_rate * Decimal::from(nights);
-    let tax_amount = subtotal * Decimal::from_str_exact("0.10").unwrap_or_default();
-    let total_amount = subtotal + tax_amount;
+    let tax_amount = Decimal::ZERO; // Tax is calculated on frontend using hotel settings rate
+    let total_amount = subtotal; // Configured price is the final price
 
     // Use provided booking_number for online bookings, or auto-generate for walk-ins
     let booking_number = match &input.booking_number {
@@ -240,10 +245,11 @@ pub async fn get_booking_handler(
             b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
             g.guest_type::text as guest_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
-            b.check_in_date, b.check_out_date, b.total_amount, b.status,
+            b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
             b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
-            b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note, b.created_at
+            b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note, b.created_at,
+            b.is_posted, b.posted_date
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id
         INNER JOIN rooms r ON b.room_id = r.id
@@ -1196,11 +1202,11 @@ pub async fn get_complimentary_bookings_handler(
             b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
             g.guest_type::text as guest_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
-            b.check_in_date, b.check_out_date, b.total_amount, b.status,
+            b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
             b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
             b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
-            b.created_at
+            b.created_at, b.is_posted, b.posted_date
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id
         INNER JOIN rooms r ON b.room_id = r.id

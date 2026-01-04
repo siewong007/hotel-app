@@ -155,6 +155,8 @@ pub struct BookingWithDetails {
     pub room_type_code: Option<String>,
     pub check_in_date: NaiveDate,
     pub check_out_date: NaiveDate,
+    #[serde(rename = "price_per_night")]
+    pub room_rate: Decimal,
     pub total_amount: Decimal,
     pub status: String,
     pub payment_status: Option<String>,
@@ -172,4 +174,7 @@ pub struct BookingWithDetails {
     pub company_name: Option<String>,
     pub payment_note: Option<String>,
     pub created_at: DateTime<Utc>,
+    // Night audit posting fields
+    pub is_posted: Option<bool>,
+    pub posted_date: Option<NaiveDate>,
 }
