@@ -1694,8 +1694,8 @@ const RoomManagementPage: React.FC = () => {
 
   // Calculate stats using the same computedStatus logic as the room cards
   const getComputedStatus = (room: Room): string => {
-    const booking = roomBookings.get(room.room_number || '');
-    const reservedBooking = reservedBookings.get(room.room_number || '');
+    const booking = roomBookings.get(room.id);
+    const reservedBooking = reservedBookings.get(room.id);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
