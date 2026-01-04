@@ -390,8 +390,8 @@ const NavigationTabs = React.memo(function NavigationTabs() {
       id: 'night-audit',
       label: 'Night Audit',
       path: '/night-audit',
-      permissions: ['night_audit:read', 'night_audit:run'],
-      roles: ['admin', 'manager'],
+      permissions: ['night_audit:read', 'night_audit:execute'],
+      roles: ['admin', 'manager', 'receptionist'],
       group: 'admin',
     },
     // === CONFIG (In "More" dropdown) ===
@@ -1423,7 +1423,7 @@ function AppContent() {
             <Route
               path="/night-audit"
               element={
-                <ProtectedRoute requiredRoles={['admin', 'manager']}>
+                <ProtectedRoute requiredRoles={['admin', 'manager', 'receptionist']}>
                   <AnimatedRoute animationType="fade">
                     <ComponentErrorBoundary>
                       <NightAuditPage />
