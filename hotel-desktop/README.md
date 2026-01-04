@@ -161,6 +161,19 @@ sudo apt install build-essential libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev
 sudo dnf install gtk3-devel webkit2gtk4.1-devel openssl-devel
 ```
 
+## Scripts
+
+### Run Production Build
+
+```bash
+./scripts/run-production.sh
+```
+
+This script:
+- Detects your platform (macOS, Windows, Linux)
+- Builds the app if not already built
+- Launches the production application
+
 ## License
 
 Copyright 2024
