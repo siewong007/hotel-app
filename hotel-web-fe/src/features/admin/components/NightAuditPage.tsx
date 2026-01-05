@@ -169,146 +169,237 @@ const NightAuditPage: React.FC = () => {
     }
   };
 
-  // Export single audit to PDF with booking details
+  // Export single audit to PDF with booking details using jsPDF
   const exportAuditToPDF = async (audit: NightAuditRun) => {
     try {
       // Fetch full audit details including bookings
       const details = await NightAuditService.getAuditDetails(audit.id);
       const bookings = details.posted_bookings;
 
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) return;
+      // Dynamic import of jspdf and jspdf-autotable
+      const { jsPDF } = await import('jspdf');
+      await import('jspdf-autotable');
 
-      // Generate booking rows HTML
-      const bookingRows = bookings.map(booking => `
-        <tr>
-          <td>${booking.booking_number}</td>
-          <td>${booking.guest_name}</td>
-          <td>${booking.room_number}</td>
-          <td>${booking.room_type}</td>
-          <td>${new Date(booking.check_in_date + 'T00:00:00').toLocaleDateString()}</td>
-          <td>${new Date(booking.check_out_date + 'T00:00:00').toLocaleDateString()}</td>
-          <td style="text-align: center;">${booking.nights}</td>
-          <td><span class="status-badge status-${booking.status}">${booking.status.replace('_', ' ')}</span></td>
-          <td style="text-align: right;">${formatCurrency(booking.total_amount)}</td>
-          <td style="text-transform: capitalize;">${booking.payment_method?.replace('_', ' ') || '-'}</td>
-          <td>${booking.payment_status || '-'}</td>
-          <td>${booking.source || '-'}</td>
-        </tr>
-      `).join('');
+      // Create PDF in landscape for better table fit
+      const doc = new jsPDF({ orientation: 'landscape' });
+      const pageWidth = doc.internal.pageSize.getWidth();
 
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Night Audit Report - ${audit.audit_date}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; font-size: 12px; }
-            h1 { color: #1976d2; border-bottom: 2px solid #1976d2; padding-bottom: 10px; margin-bottom: 20px; }
-            h2 { color: #333; margin-top: 25px; border-bottom: 1px solid #ddd; padding-bottom: 5px; font-size: 16px; }
-            .header-info { display: flex; justify-content: space-between; margin-bottom: 15px; color: #666; }
-            .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 15px 0; }
-            .stat-card { border: 1px solid #ddd; border-radius: 6px; padding: 12px; text-align: center; }
-            .stat-value { font-size: 22px; font-weight: bold; color: #1976d2; }
-            .stat-label { font-size: 11px; color: #666; margin-top: 4px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
-            th { background: #f5f5f5; padding: 8px 6px; text-align: left; border-bottom: 2px solid #ddd; font-weight: 600; }
-            td { padding: 6px; border-bottom: 1px solid #eee; }
-            tr:hover { background: #fafafa; }
-            .status-badge { padding: 2px 6px; border-radius: 3px; font-size: 10px; text-transform: uppercase; }
-            .status-checked_in { background: #c8e6c9; color: #2e7d32; }
-            .status-checked_out { background: #ffecb3; color: #f57c00; }
-            .status-reserved { background: #b3e5fc; color: #0277bd; }
-            .status-confirmed { background: #e1bee7; color: #7b1fa2; }
-            .summary-row { font-weight: bold; background: #f5f5f5; }
-            .notes { background: #f5f5f5; padding: 12px; border-radius: 4px; margin-top: 15px; }
-            .footer { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ddd; font-size: 11px; color: #999; }
-            @media print {
-              body { padding: 10px; }
-              .page-break { page-break-before: always; }
-            }
-          </style>
-        </head>
-        <body>
-          <h1>Night Audit Report</h1>
-          <div class="header-info">
-            <div>
-              <strong>Audit Date:</strong> ${new Date(audit.audit_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-            </div>
-            <div>
-              <strong>Status:</strong> ${audit.status.toUpperCase()}
-            </div>
-          </div>
-          <div class="header-info">
-            <div><strong>Run At:</strong> ${new Date(audit.run_at).toLocaleString()}</div>
-            <div><strong>Run By:</strong> ${audit.run_by_username || 'System'}</div>
-          </div>
+      // Header
+      doc.setFontSize(20);
+      doc.setTextColor(25, 118, 210); // Primary blue
+      doc.text('Night Audit Report', 14, 18);
 
-          <h2>Summary Statistics</h2>
-          <div class="stats-grid">
-            <div class="stat-card">
-              <div class="stat-value">${audit.total_bookings_posted}</div>
-              <div class="stat-label">Bookings Posted</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value" style="color: #4caf50;">${audit.total_checkins}</div>
-              <div class="stat-label">Check-ins</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value" style="color: #ff9800;">${audit.total_checkouts}</div>
-              <div class="stat-label">Check-outs</div>
-            </div>
-            <div class="stat-card">
-              <div class="stat-value" style="color: #2196f3;">${formatCurrency(audit.total_revenue)}</div>
-              <div class="stat-label">Total Revenue</div>
-            </div>
-          </div>
+      // Audit info
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      const auditDateFormatted = new Date(audit.audit_date + 'T00:00:00').toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+      });
+      doc.text(`Audit Date: ${auditDateFormatted}`, 14, 26);
+      doc.text(`Status: ${audit.status.toUpperCase()}`, 14, 32);
+      doc.text(`Run At: ${new Date(audit.run_at).toLocaleString()}`, pageWidth / 2, 26);
+      doc.text(`Run By: ${audit.run_by_username || 'System'}`, pageWidth / 2, 32);
 
-          <h2>Posted Bookings (${bookings.length})</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Booking #</th>
-                <th>Guest Name</th>
-                <th>Room</th>
-                <th>Room Type</th>
-                <th>Check-in</th>
-                <th>Check-out</th>
-                <th>Nights</th>
-                <th>Status</th>
-                <th style="text-align: right;">Amount</th>
-                <th>Payment Method</th>
-                <th>Payment Status</th>
-                <th>Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${bookingRows}
-              <tr class="summary-row">
-                <td colspan="8" style="text-align: right;"><strong>Total:</strong></td>
-                <td style="text-align: right;"><strong>${formatCurrency(bookings.reduce((sum, b) => sum + Number(b.total_amount), 0))}</strong></td>
-                <td colspan="3"></td>
-              </tr>
-            </tbody>
-          </table>
+      // Summary Statistics Section
+      doc.setFontSize(12);
+      doc.setTextColor(0);
+      doc.text('Summary Statistics', 14, 44);
 
-          ${audit.notes ? `
-          <h2>Notes</h2>
-          <div class="notes">${audit.notes}</div>
-          ` : ''}
+      // Stats boxes
+      const statsY = 48;
+      const boxWidth = 50;
+      const boxHeight = 20;
+      const statsData = [
+        { label: 'Bookings Posted', value: audit.total_bookings_posted.toString(), color: [25, 118, 210] },
+        { label: 'Check-ins', value: audit.total_checkins.toString(), color: [76, 175, 80] },
+        { label: 'Check-outs', value: audit.total_checkouts.toString(), color: [255, 152, 0] },
+        { label: 'Total Revenue', value: formatCurrency(audit.total_revenue), color: [33, 150, 243] },
+        { label: 'Occupancy Rate', value: `${Number(audit.occupancy_rate).toFixed(1)}%`, color: [156, 39, 176] },
+      ];
 
-          <div class="footer">
-            <div>Audit ID: #${audit.id} | Generated: ${new Date().toLocaleString()}</div>
-          </div>
-        </body>
-        </html>
-      `;
+      statsData.forEach((stat, index) => {
+        const x = 14 + (index * (boxWidth + 8));
+        doc.setDrawColor(200);
+        doc.setFillColor(250, 250, 250);
+        doc.roundedRect(x, statsY, boxWidth, boxHeight, 2, 2, 'FD');
+        doc.setFontSize(14);
+        doc.setTextColor(stat.color[0], stat.color[1], stat.color[2]);
+        doc.text(stat.value, x + boxWidth / 2, statsY + 10, { align: 'center' });
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text(stat.label, x + boxWidth / 2, statsY + 16, { align: 'center' });
+      });
 
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.onload = () => {
-        printWindow.print();
-      };
+      // Room Snapshot
+      const roomY = statsY + boxHeight + 10;
+      doc.setFontSize(12);
+      doc.setTextColor(0);
+      doc.text('Room Status Snapshot', 14, roomY);
+
+      const roomStats = [
+        `Available: ${audit.rooms_available}`,
+        `Occupied: ${audit.rooms_occupied}`,
+        `Reserved: ${audit.rooms_reserved}`,
+        `Maintenance: ${audit.rooms_maintenance}`,
+        `Dirty: ${audit.rooms_dirty}`,
+      ];
+      doc.setFontSize(9);
+      doc.setTextColor(80);
+      doc.text(roomStats.join('  |  '), 14, roomY + 6);
+
+      // Posted Bookings Table
+      const tableStartY = roomY + 14;
+      doc.setFontSize(12);
+      doc.setTextColor(0);
+      doc.text(`Posted Bookings (${bookings.length})`, 14, tableStartY);
+
+      const tableData = bookings.map(booking => [
+        booking.booking_number,
+        booking.guest_name,
+        booking.room_number,
+        booking.room_type,
+        new Date(booking.check_in_date + 'T00:00:00').toLocaleDateString(),
+        new Date(booking.check_out_date + 'T00:00:00').toLocaleDateString(),
+        booking.nights.toString(),
+        booking.status.replace('_', ' '),
+        formatCurrency(booking.total_amount),
+        booking.payment_method?.replace('_', ' ') || '-',
+        booking.payment_status || '-',
+        booking.source || '-',
+      ]);
+
+      // Add total row
+      const totalAmount = bookings.reduce((sum, b) => sum + Number(b.total_amount), 0);
+      tableData.push([
+        '', '', '', '', '', '', '',
+        'TOTAL:',
+        formatCurrency(totalAmount),
+        '', '', ''
+      ]);
+
+      (doc as any).autoTable({
+        startY: tableStartY + 4,
+        head: [['Booking #', 'Guest Name', 'Room', 'Type', 'Check-in', 'Check-out', 'Nights', 'Status', 'Amount', 'Payment', 'Pay Status', 'Source']],
+        body: tableData,
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [66, 66, 66], textColor: 255, fontStyle: 'bold' },
+        columnStyles: {
+          0: { cellWidth: 22 },
+          1: { cellWidth: 35 },
+          2: { cellWidth: 15 },
+          3: { cellWidth: 25 },
+          4: { cellWidth: 22 },
+          5: { cellWidth: 22 },
+          6: { cellWidth: 14, halign: 'center' },
+          7: { cellWidth: 22 },
+          8: { cellWidth: 22, halign: 'right' },
+          9: { cellWidth: 22 },
+          10: { cellWidth: 20 },
+          11: { cellWidth: 20 },
+        },
+        didParseCell: (data: any) => {
+          // Style the total row
+          if (data.row.index === tableData.length - 1) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [240, 240, 240];
+          }
+        },
+      });
+
+      // Revenue Breakdowns (on new page if needed)
+      let currentY = (doc as any).lastAutoTable.finalY + 10;
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      if (currentY > pageHeight - 60) {
+        doc.addPage();
+        currentY = 20;
+      }
+
+      // Payment Method Breakdown
+      if (audit.payment_method_breakdown && audit.payment_method_breakdown.length > 0) {
+        doc.setFontSize(12);
+        doc.setTextColor(0);
+        doc.text('Revenue by Payment Method', 14, currentY);
+
+        const pmData = audit.payment_method_breakdown.map(item => [
+          item.category.replace('_', ' '),
+          item.count.toString(),
+          formatCurrency(item.amount)
+        ]);
+
+        (doc as any).autoTable({
+          startY: currentY + 4,
+          head: [['Payment Method', 'Count', 'Amount']],
+          body: pmData,
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [76, 175, 80] },
+          tableWidth: 100,
+          margin: { left: 14 },
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 10;
+      }
+
+      // Booking Channel Breakdown
+      if (audit.booking_channel_breakdown && audit.booking_channel_breakdown.length > 0) {
+        if (currentY > pageHeight - 50) {
+          doc.addPage();
+          currentY = 20;
+        }
+
+        doc.setFontSize(12);
+        doc.setTextColor(0);
+        doc.text('Revenue by Booking Channel', 14, currentY);
+
+        const bcData = audit.booking_channel_breakdown.map(item => [
+          item.category,
+          item.count.toString(),
+          formatCurrency(item.amount)
+        ]);
+
+        (doc as any).autoTable({
+          startY: currentY + 4,
+          head: [['Booking Channel', 'Count', 'Amount']],
+          body: bcData,
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [33, 150, 243] },
+          tableWidth: 100,
+          margin: { left: 14 },
+        });
+
+        currentY = (doc as any).lastAutoTable.finalY + 10;
+      }
+
+      // Notes
+      if (audit.notes) {
+        if (currentY > pageHeight - 40) {
+          doc.addPage();
+          currentY = 20;
+        }
+        doc.setFontSize(12);
+        doc.setTextColor(0);
+        doc.text('Notes', 14, currentY);
+        doc.setFontSize(9);
+        doc.setTextColor(80);
+        const splitNotes = doc.splitTextToSize(audit.notes, pageWidth - 28);
+        doc.text(splitNotes, 14, currentY + 6);
+      }
+
+      // Footer on all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(
+          `Audit ID: #${audit.id} | Generated: ${new Date().toLocaleString()} | Page ${i} of ${totalPages}`,
+          14,
+          pageHeight - 10
+        );
+      }
+
+      // Save the PDF
+      doc.save(`night_audit_${audit.audit_date}.pdf`);
     } catch (err) {
       console.error('Failed to export audit to PDF:', err);
       setError('Failed to export audit. Please try again.');
