@@ -477,212 +477,188 @@ const NightAuditPage: React.FC = () => {
           </Box>
         ) : preview ? (
           <>
-            {/* Room Snapshot */}
-            <Typography variant="h6" sx={{ mb: 2 }}>Room Snapshot</Typography>
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid item xs={6} sm={4} md={2}>
-                <Card>
-                  <CardContent sx={{ textAlign: 'center' }}>
-                    <RoomIcon color="primary" />
-                    <Typography variant="h5">{preview.room_snapshot.total}</Typography>
-                    <Typography variant="body2" color="text.secondary">Total Rooms</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={6} sm={4} md={2}>
-                <Card sx={{ bgcolor: 'success.light' }}>
-                  <CardContent sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5">{preview.room_snapshot.available}</Typography>
-                    <Typography variant="body2">Available</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={6} sm={4} md={2}>
-                <Card sx={{ bgcolor: 'error.light' }}>
-                  <CardContent sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5">{preview.room_snapshot.occupied}</Typography>
-                    <Typography variant="body2">Occupied</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={6} sm={4} md={2}>
-                <Card sx={{ bgcolor: 'info.light' }}>
-                  <CardContent sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5">{preview.room_snapshot.reserved}</Typography>
-                    <Typography variant="body2">Reserved</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={6} sm={4} md={2}>
-                <Card sx={{ bgcolor: 'warning.light' }}>
-                  <CardContent sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5">{preview.room_snapshot.maintenance}</Typography>
-                    <Typography variant="body2">Maintenance</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={6} sm={4} md={2}>
-                <Card sx={{ bgcolor: 'grey.300' }}>
-                  <CardContent sx={{ textAlign: 'center' }}>
-                    <Typography variant="h5">{preview.room_snapshot.dirty}</Typography>
-                    <Typography variant="body2">Dirty</Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
+            {/* Report Preview */}
+            <Paper sx={{ p: 3, mb: 3 }}>
+              <Typography variant="h5" sx={{ mb: 1, fontWeight: 'bold' }}>
+                Night Audit Report Preview
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                {new Date(auditDate + 'T00:00:00').toLocaleDateString('en-US', {
+                  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+                })}
+              </Typography>
 
-            {/* Summary Stats */}
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <EventIcon color="primary" fontSize="large" />
-                      <Box>
-                        <Typography variant="h4">{preview.total_unposted}</Typography>
-                        <Typography color="text.secondary">Bookings to Post</Typography>
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <MoneyIcon color="success" fontSize="large" />
-                      <Box>
-                        <Typography variant="h4">{formatCurrency(preview.estimated_revenue)}</Typography>
-                        <Typography color="text.secondary">Estimated Revenue</Typography>
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-              <Grid item xs={12} md={4}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <HotelIcon color="info" fontSize="large" />
-                      <Box>
-                        <Typography variant="h4">
-                          {preview.room_snapshot.total > 0
-                            ? Math.round((preview.room_snapshot.occupied / preview.room_snapshot.total) * 100)
-                            : 0}%
-                        </Typography>
-                        <Typography color="text.secondary">Occupancy Rate</Typography>
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-
-            {/* Unposted Bookings Table or Completed Audit Summary */}
-            {preview.already_run ? (
-              <>
-                <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CheckIcon color="success" />
-                  Audit Completed for {new Date(auditDate + 'T00:00:00').toLocaleDateString()}
-                </Typography>
-                {historyLoading ? (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                    <CircularProgress size={24} />
-                    <Typography sx={{ ml: 2 }}>Loading audit results...</Typography>
-                  </Box>
-                ) : (() => {
-                  // Normalize date format for comparison (handle both "2026-01-03" and "2026-01-03T00:00:00Z")
+              {preview.already_run ? (
+                // Completed Audit Report
+                (() => {
                   const normalizeDate = (d: string) => d.split('T')[0];
                   const completedAudit = auditHistory.find(a => normalizeDate(a.audit_date) === normalizeDate(auditDate));
                   if (completedAudit) {
                     return (
                       <>
-                        <Card sx={{ bgcolor: 'success.light', mb: 2 }}>
-                          <CardContent>
-                            <Grid container spacing={3}>
-                              <Grid item xs={6} sm={3}>
-                                <Typography variant="body2" color="text.secondary">Bookings Posted</Typography>
-                                <Typography variant="h5">{completedAudit.total_bookings_posted}</Typography>
-                              </Grid>
-                              <Grid item xs={6} sm={3}>
-                                <Typography variant="body2" color="text.secondary">Total Revenue</Typography>
-                                <Typography variant="h5">{formatCurrency(completedAudit.total_revenue)}</Typography>
-                              </Grid>
-                              <Grid item xs={6} sm={3}>
-                                <Typography variant="body2" color="text.secondary">Check-ins</Typography>
-                                <Typography variant="h5">{completedAudit.total_checkins}</Typography>
-                              </Grid>
-                              <Grid item xs={6} sm={3}>
-                                <Typography variant="body2" color="text.secondary">Check-outs</Typography>
-                                <Typography variant="h5">{completedAudit.total_checkouts}</Typography>
-                              </Grid>
-                              <Grid item xs={12}>
-                                <Typography variant="body2" color="text.secondary">
-                                  Run at {new Date(completedAudit.run_at).toLocaleString()} by {completedAudit.run_by_username || 'System'}
-                                </Typography>
-                              </Grid>
-                            </Grid>
-                          </CardContent>
-                        </Card>
+                        <Alert severity="success" sx={{ mb: 3 }} icon={<CheckIcon />}>
+                          Audit completed at {new Date(completedAudit.run_at).toLocaleString()} by {completedAudit.run_by_username || 'System'}
+                        </Alert>
 
+                        {/* Summary Row */}
+                        <Grid container spacing={2} sx={{ mb: 3 }}>
+                          <Grid item xs={6} sm={2.4}>
+                            <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
+                              <Typography variant="h4" fontWeight="bold">{completedAudit.total_bookings_posted}</Typography>
+                              <Typography variant="body2">Bookings Posted</Typography>
+                            </Box>
+                          </Grid>
+                          <Grid item xs={6} sm={2.4}>
+                            <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'success.light', borderRadius: 1 }}>
+                              <Typography variant="h4" fontWeight="bold">{formatCurrency(completedAudit.total_revenue)}</Typography>
+                              <Typography variant="body2">Total Revenue</Typography>
+                            </Box>
+                          </Grid>
+                          <Grid item xs={6} sm={2.4}>
+                            <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+                              <Typography variant="h4" fontWeight="bold">{completedAudit.total_checkins}</Typography>
+                              <Typography variant="body2">Check-ins</Typography>
+                            </Box>
+                          </Grid>
+                          <Grid item xs={6} sm={2.4}>
+                            <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
+                              <Typography variant="h4" fontWeight="bold">{completedAudit.total_checkouts}</Typography>
+                              <Typography variant="body2">Check-outs</Typography>
+                            </Box>
+                          </Grid>
+                          <Grid item xs={6} sm={2.4}>
+                            <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.200', borderRadius: 1 }}>
+                              <Typography variant="h4" fontWeight="bold">{Number(completedAudit.occupancy_rate).toFixed(0)}%</Typography>
+                              <Typography variant="body2">Occupancy</Typography>
+                            </Box>
+                          </Grid>
+                        </Grid>
+
+                        {/* Room Status */}
+                        <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>Room Status at Audit Time</Typography>
+                        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
+                          <Chip label={`${completedAudit.rooms_available} Available`} color="success" variant="outlined" />
+                          <Chip label={`${completedAudit.rooms_occupied} Occupied`} color="error" variant="outlined" />
+                          <Chip label={`${completedAudit.rooms_reserved} Reserved`} color="info" variant="outlined" />
+                          <Chip label={`${completedAudit.rooms_maintenance} Maintenance`} color="warning" variant="outlined" />
+                          <Chip label={`${completedAudit.rooms_dirty} Dirty`} variant="outlined" />
+                        </Box>
+
+                        {/* Export Buttons */}
+                        <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<PdfIcon />}
+                            onClick={() => exportAuditToPDF(completedAudit)}
+                          >
+                            Export PDF
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<CsvIcon />}
+                            onClick={() => exportAuditToCSV(completedAudit)}
+                          >
+                            Export CSV
+                          </Button>
+                        </Box>
                       </>
                     );
                   }
-                  return <Alert severity="success">Night audit has been completed for this date. Check the History tab for details.</Alert>;
-                })()}
-              </>
-            ) : (
-              <>
-                <Typography variant="h6" sx={{ mb: 2 }}>
-                  Bookings to be Posted
-                  <Tooltip title="These bookings will be marked as posted and locked from further editing">
-                    <IconButton size="small">
-                      <InfoIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Typography>
-                {preview.unposted_bookings.length > 0 ? (
-                  <TableContainer component={Paper}>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Booking #</TableCell>
-                          <TableCell>Guest</TableCell>
-                          <TableCell>Room</TableCell>
-                          <TableCell>Check-in</TableCell>
-                          <TableCell>Check-out</TableCell>
-                          <TableCell>Status</TableCell>
-                          <TableCell>Payment</TableCell>
-                          <TableCell>Channel</TableCell>
-                          <TableCell align="right">Amount</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {preview.unposted_bookings.map((booking: UnpostedBooking) => (
-                          <TableRow key={booking.booking_id}>
-                            <TableCell>{booking.booking_number}</TableCell>
-                            <TableCell>{booking.guest_name}</TableCell>
-                            <TableCell>{booking.room_number}</TableCell>
-                            <TableCell>{new Date(booking.check_in_date).toLocaleDateString()}</TableCell>
-                            <TableCell>{new Date(booking.check_out_date).toLocaleDateString()}</TableCell>
-                            <TableCell>{getBookingStatusChip(booking.status)}</TableCell>
-                            <TableCell sx={{ textTransform: 'capitalize' }}>
-                              {booking.payment_method?.replace(/_/g, ' ') || '-'}
-                            </TableCell>
-                            <TableCell sx={{ textTransform: 'capitalize' }}>
-                              {booking.source?.replace(/_/g, ' ') || '-'}
-                            </TableCell>
-                            <TableCell align="right">{formatCurrency(booking.total_amount)}</TableCell>
+                  return <Alert severity="success">Night audit completed. Check History tab for details.</Alert>;
+                })()
+              ) : (
+                // Pending Audit Preview
+                <>
+                  {/* Summary Row */}
+                  <Grid container spacing={2} sx={{ mb: 3 }}>
+                    <Grid item xs={6} sm={2.4}>
+                      <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
+                        <Typography variant="h4" fontWeight="bold">{preview.total_unposted}</Typography>
+                        <Typography variant="body2">Bookings to Post</Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6} sm={2.4}>
+                      <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'success.light', borderRadius: 1 }}>
+                        <Typography variant="h4" fontWeight="bold">{formatCurrency(preview.estimated_revenue)}</Typography>
+                        <Typography variant="body2">Estimated Revenue</Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6} sm={2.4}>
+                      <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+                        <Typography variant="h4" fontWeight="bold">{preview.room_snapshot.occupied}</Typography>
+                        <Typography variant="body2">Occupied Rooms</Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6} sm={2.4}>
+                      <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
+                        <Typography variant="h4" fontWeight="bold">{preview.room_snapshot.available}</Typography>
+                        <Typography variant="body2">Available Rooms</Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6} sm={2.4}>
+                      <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.200', borderRadius: 1 }}>
+                        <Typography variant="h4" fontWeight="bold">
+                          {preview.room_snapshot.total > 0
+                            ? Math.round((preview.room_snapshot.occupied / preview.room_snapshot.total) * 100)
+                            : 0}%
+                        </Typography>
+                        <Typography variant="body2">Occupancy</Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+
+                  {/* Bookings Table */}
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                    Bookings to be Posted ({preview.unposted_bookings.length})
+                  </Typography>
+                  {preview.unposted_bookings.length > 0 ? (
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: 'grey.100' }}>
+                            <TableCell><strong>Booking #</strong></TableCell>
+                            <TableCell><strong>Guest</strong></TableCell>
+                            <TableCell><strong>Room</strong></TableCell>
+                            <TableCell><strong>Check-in</strong></TableCell>
+                            <TableCell><strong>Check-out</strong></TableCell>
+                            <TableCell><strong>Status</strong></TableCell>
+                            <TableCell><strong>Channel</strong></TableCell>
+                            <TableCell align="right"><strong>Amount</strong></TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-            ) : (
-              <Alert severity="info">No bookings to post for this date.</Alert>
-            )}
-              </>
-            )}
+                        </TableHead>
+                        <TableBody>
+                          {preview.unposted_bookings.map((booking: UnpostedBooking) => (
+                            <TableRow key={booking.booking_id} hover>
+                              <TableCell>{booking.booking_number}</TableCell>
+                              <TableCell>{booking.guest_name}</TableCell>
+                              <TableCell>{booking.room_number}</TableCell>
+                              <TableCell>{new Date(booking.check_in_date).toLocaleDateString()}</TableCell>
+                              <TableCell>{new Date(booking.check_out_date).toLocaleDateString()}</TableCell>
+                              <TableCell>{getBookingStatusChip(booking.status)}</TableCell>
+                              <TableCell sx={{ textTransform: 'capitalize' }}>
+                                {booking.source?.replace(/_/g, ' ') || '-'}
+                              </TableCell>
+                              <TableCell align="right">{formatCurrency(booking.total_amount)}</TableCell>
+                            </TableRow>
+                          ))}
+                          {/* Total Row */}
+                          <TableRow sx={{ bgcolor: 'grey.50' }}>
+                            <TableCell colSpan={7} align="right"><strong>Total Revenue:</strong></TableCell>
+                            <TableCell align="right">
+                              <strong>{formatCurrency(preview.estimated_revenue)}</strong>
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
+                    <Alert severity="info">No bookings to post for this date.</Alert>
+                  )}
+                </>
+              )}
+            </Paper>
           </>
         ) : null}
       </TabPanel>
