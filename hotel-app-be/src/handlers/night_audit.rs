@@ -839,18 +839,13 @@ pub async fn get_night_audit_details(
         let pm: String = row.get("payment_method");
         let src = source.clone().unwrap_or_else(|| "Unknown".to_string());
 
-        let pm_entry = payment_method_map.entry(pm).or_insert((0, Decimal::ZERO));
+        let pm_entry = payment_method_map.entry(pm.clone()).or_insert((0, Decimal::ZERO));
         pm_entry.0 += 1;
         pm_entry.1 += total_amount;
 
         let bc_entry = booking_channel_map.entry(src).or_insert((0, Decimal::ZERO));
         bc_entry.0 += 1;
         bc_entry.1 += total_amount;
-
-        let payment_method: Option<String> = {
-            let pm: String = row.get("payment_method");
-            if pm == "Unknown" { None } else { Some(pm) }
-        };
 
         PostedBookingDetail {
             booking_id: row.get("booking_id"),
@@ -864,7 +859,7 @@ pub async fn get_night_audit_details(
             status: row.get("status"),
             total_amount,
             payment_status: row.get("payment_status"),
-            payment_method,
+            payment_method: Some(pm),
             source,
         }
     }).collect();

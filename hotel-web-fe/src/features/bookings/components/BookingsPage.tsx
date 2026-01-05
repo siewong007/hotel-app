@@ -101,8 +101,10 @@ const BookingsPage: React.FC = () => {
   const [checkOutDate, setCheckOutDate] = useState('');
   const [postType, setPostType] = useState<'normal_stay' | 'same_day'>('normal_stay');
   const [rateCode, setRateCode] = useState('RACK');
-  const [bookingSource, setBookingSource] = useState<'walk_in' | 'online'>('walk_in');
+  const [bookingSource, setBookingSource] = useState<string>('walk_in');
   const [folioNumber, setFolioNumber] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [bookingRemarks, setBookingRemarks] = useState('');
   const [creating, setCreating] = useState(false);
 
   // Edit booking dialog (admin only)
@@ -330,11 +332,14 @@ const BookingsPage: React.FC = () => {
     setEditFormData({
       status: booking.status,
       payment_status: booking.payment_status || 'unpaid',
+      payment_method: booking.payment_method || '',
+      source: booking.source || 'walk_in',
       check_in_date: booking.check_in_date.split('T')[0],
       check_out_date: booking.check_out_date.split('T')[0],
       post_type: booking.post_type || 'normal_stay',
       rate_code: booking.rate_code || 'RACK',
       deposit_paid: booking.deposit_paid || false,
+      remarks: booking.remarks || '',
     });
     setEditDialogOpen(true);
   };
@@ -507,9 +512,9 @@ const BookingsPage: React.FC = () => {
       return;
     }
 
-    // For online bookings, folio number is required
-    if (bookingSource === 'online' && !folioNumber.trim()) {
-      setError('Booking/Folio number is required for online bookings');
+    // For online/agent bookings, folio number is required
+    if ((bookingSource === 'online' || bookingSource === 'agent') && !folioNumber.trim()) {
+      setError('Booking/Folio number is required for online and agent bookings');
       return;
     }
 
@@ -523,7 +528,9 @@ const BookingsPage: React.FC = () => {
         post_type: postType,
         rate_code: rateCode,
         source: bookingSource,
-        booking_number: bookingSource === 'online' ? folioNumber.trim() : undefined
+        booking_number: (bookingSource === 'online' || bookingSource === 'agent') ? folioNumber.trim() : undefined,
+        payment_method: paymentMethod || undefined,
+        booking_remarks: bookingRemarks || undefined
       });
 
       setSnackbarMessage('Booking created successfully!');
@@ -554,6 +561,8 @@ const BookingsPage: React.FC = () => {
     setRateCode('RACK');
     setBookingSource('walk_in');
     setFolioNumber('');
+    setPaymentMethod('');
+    setBookingRemarks('');
   };
 
   const isFormValid = selectedGuestId && selectedRoomId && checkInDate && checkOutDate;
@@ -951,7 +960,10 @@ const BookingsPage: React.FC = () => {
               <TableCell><strong>Post Type</strong></TableCell>
               <TableCell><strong>Rate</strong></TableCell>
               <TableCell><strong>Complimentary</strong></TableCell>
-              <TableCell><strong>Payment</strong></TableCell>
+              <TableCell><strong>Channel</strong></TableCell>
+              <TableCell><strong>Payment Method</strong></TableCell>
+              <TableCell><strong>Payment Status</strong></TableCell>
+              <TableCell><strong>Notes</strong></TableCell>
               <TableCell>
                 <TableSortLabel
                   active={sortField === 'status'}
@@ -1031,12 +1043,32 @@ const BookingsPage: React.FC = () => {
                   )}
                 </TableCell>
                 <TableCell>
+                  <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
+                    {booking.source?.replace(/_/g, ' ') || '-'}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
+                    {booking.payment_method?.replace(/_/g, ' ') || '-'}
+                  </Typography>
+                </TableCell>
+                <TableCell>
                   <Chip
                     label={getPaymentStatusText(booking.payment_status)}
                     color={getPaymentStatusColor(booking.payment_status)}
                     size="small"
                     variant="outlined"
                   />
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" sx={{
+                    maxWidth: 150,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {booking.remarks || '-'}
+                  </Typography>
                 </TableCell>
                 <TableCell>
                   <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
@@ -1157,41 +1189,41 @@ const BookingsPage: React.FC = () => {
         <DialogContent>
           <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
             {/* Booking Source Toggle */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>Booking Type</Typography>
-              <ToggleButtonGroup
-                value={bookingSource}
-                exclusive
-                onChange={(e, value) => {
-                  if (value) {
-                    setBookingSource(value);
-                    if (value === 'walk_in') {
-                      setFolioNumber(''); // Clear folio for walk-in
-                    }
-                  }
-                }}
-                fullWidth
-                size="small"
-              >
-                <ToggleButton value="walk_in" sx={{ flex: 1 }}>
-                  Walk-in (Auto Folio)
-                </ToggleButton>
-                <ToggleButton value="online" sx={{ flex: 1 }}>
-                  Online Booking (Manual Folio)
-                </ToggleButton>
-              </ToggleButtonGroup>
-            </Box>
+            <TextField
+              select
+              fullWidth
+              label="Channel"
+              value={bookingSource}
+              onChange={(e) => {
+                setBookingSource(e.target.value);
+                if (e.target.value === 'walk_in') {
+                  setFolioNumber(''); // Clear folio for walk-in
+                }
+              }}
+            >
+              <MenuItem value="walk_in">Walk-in</MenuItem>
+              <MenuItem value="phone">Phone Reservation</MenuItem>
+              <MenuItem value="direct">Direct Booking</MenuItem>
+              <MenuItem value="online">Online (OTA)</MenuItem>
+              <MenuItem value="website">Website</MenuItem>
+              <MenuItem value="mobile">Mobile App</MenuItem>
+              <MenuItem value="agent">Travel Agent</MenuItem>
+              <MenuItem value="corporate">Corporate</MenuItem>
+            </TextField>
 
-            {/* Folio/Booking Number - only for online bookings */}
-            {bookingSource === 'online' && (
+            {/* Folio/Booking Number - for online/OTA bookings */}
+            {(bookingSource === 'online' || bookingSource === 'agent') && (
               <TextField
                 fullWidth
                 label="Booking/Folio Number"
                 value={folioNumber}
                 onChange={(e) => setFolioNumber(e.target.value)}
-                placeholder="Enter booking reference from OTA..."
+                placeholder="Enter booking reference..."
                 required
-                helperText="Enter the booking reference number from the online travel agent (e.g., Booking.com, Agoda)"
+                helperText={bookingSource === 'online'
+                  ? "Enter the booking reference number from the online travel agent (e.g., Booking.com, Agoda)"
+                  : "Enter the travel agent booking reference"
+                }
               />
             )}
 
@@ -1293,6 +1325,33 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="OVR">OVR (Override Rate)</MenuItem>
               </TextField>
             </Box>
+
+            <TextField
+              select
+              fullWidth
+              label="Payment Method"
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+            >
+              <MenuItem value="">Not Specified</MenuItem>
+              <MenuItem value="cash">Cash</MenuItem>
+              <MenuItem value="credit_card">Credit Card</MenuItem>
+              <MenuItem value="debit_card">Debit Card</MenuItem>
+              <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
+              <MenuItem value="company_billing">Company Billing</MenuItem>
+              <MenuItem value="online_payment">Online Payment</MenuItem>
+              <MenuItem value="ewallet">E-Wallet</MenuItem>
+            </TextField>
+
+            <TextField
+              fullWidth
+              label="Notes / Remarks"
+              multiline
+              rows={2}
+              value={bookingRemarks}
+              onChange={(e) => setBookingRemarks(e.target.value)}
+              placeholder="Enter any notes or remarks for this booking..."
+            />
           </Box>
         </DialogContent>
         <DialogActions>
@@ -1368,6 +1427,42 @@ const BookingsPage: React.FC = () => {
               <TextField
                 select
                 fullWidth
+                label="Channel"
+                value={editFormData.source || 'walk_in'}
+                onChange={(e) => setEditFormData({ ...editFormData, source: e.target.value })}
+              >
+                <MenuItem value="walk_in">Walk-in</MenuItem>
+                <MenuItem value="phone">Phone Reservation</MenuItem>
+                <MenuItem value="direct">Direct Booking</MenuItem>
+                <MenuItem value="online">Online (OTA)</MenuItem>
+                <MenuItem value="website">Website</MenuItem>
+                <MenuItem value="mobile">Mobile App</MenuItem>
+                <MenuItem value="agent">Travel Agent</MenuItem>
+                <MenuItem value="corporate">Corporate</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                fullWidth
+                label="Payment Method"
+                value={editFormData.payment_method || ''}
+                onChange={(e) => setEditFormData({ ...editFormData, payment_method: e.target.value })}
+              >
+                <MenuItem value="">Not Specified</MenuItem>
+                <MenuItem value="cash">Cash</MenuItem>
+                <MenuItem value="credit_card">Credit Card</MenuItem>
+                <MenuItem value="debit_card">Debit Card</MenuItem>
+                <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
+                <MenuItem value="company_billing">Company Billing</MenuItem>
+                <MenuItem value="online_payment">Online Payment</MenuItem>
+                <MenuItem value="ewallet">E-Wallet</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                fullWidth
                 label="Payment Status"
                 value={editFormData.payment_status || 'unpaid'}
                 onChange={(e) => setEditFormData({ ...editFormData, payment_status: e.target.value })}
@@ -1387,6 +1482,17 @@ const BookingsPage: React.FC = () => {
                 label="Rate Code"
                 value={editFormData.rate_code || 'RACK'}
                 onChange={(e) => setEditFormData({ ...editFormData, rate_code: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Notes / Remarks"
+                multiline
+                rows={3}
+                value={editFormData.remarks || ''}
+                onChange={(e) => setEditFormData({ ...editFormData, remarks: e.target.value })}
+                placeholder="Enter any notes or remarks for this booking..."
               />
             </Grid>
             <Grid item xs={12}>

@@ -65,6 +65,8 @@ export interface Booking {
   company_id?: number;
   company_name?: string;
   payment_note?: string;
+  remarks?: string;
+  source?: string;
   // Night audit posting fields
   is_posted?: boolean;
   posted_date?: string;
@@ -109,6 +111,7 @@ export interface BookingWithDetails extends Booking {
   payment_note?: string;
   deposit_amount?: number | string;
   deposit_paid?: boolean;
+  remarks?: string;
 }
 
 export interface BookingCreateRequest {
@@ -130,7 +133,7 @@ export interface BookingCreateRequest {
   payment_method?: string;
   payment_status?: 'unpaid' | 'unpaid_deposit' | 'paid';
   amount_paid?: number;
-  source?: 'walk_in' | 'online' | 'phone' | 'agent';
+  source?: string;
   booking_number?: string; // Optional - auto-generated for walk-in, manual for online
   deposit_paid?: boolean;
   deposit_amount?: number;
@@ -163,6 +166,8 @@ export interface BookingUpdateRequest {
   payment_note?: string;
   late_checkout_penalty?: number;
   late_checkout_notes?: string;
+  remarks?: string;
+  source?: string;
 }
 
 export interface BookingCancellationRequest {
