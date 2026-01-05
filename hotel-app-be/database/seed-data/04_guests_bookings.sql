@@ -86,12 +86,12 @@ INSERT INTO guests (full_name, first_name, last_name, email, phone, address_line
 
 -- Booking 1: CHECKED_IN + UNPAID (Sarah Johnson - Room 201)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     actual_check_in, source, deposit_paid, deposit_amount, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-1001',
     g.id, (SELECT id FROM rooms WHERE room_number = '201' LIMIT 1),
     CURRENT_DATE - INTERVAL '1 day', CURRENT_DATE + INTERVAL '3 days', 2, 0,
-    200.00, 800.00, 80.00, 880.00, 'checked_in', 'unpaid', 'normal_stay',
+    200.00, 800.00, 80.00, 880.00, 'checked_in', 'unpaid', 'credit_card', 'normal_stay',
     CURRENT_DATE - INTERVAL '1 day' + TIME '14:00:00', 'online', false, 0,
     (SELECT id FROM users WHERE username = 'admin' LIMIT 1), CURRENT_DATE - INTERVAL '5 days'
 FROM guests g WHERE g.email = 'sarah.johnson@email.com'
@@ -99,12 +99,12 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 2: CHECKED_IN + UNPAID_DEPOSIT (David Lee - Room 203)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     actual_check_in, source, deposit_paid, deposit_amount, deposit_paid_at, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-1002',
     g.id, (SELECT id FROM rooms WHERE room_number = '203' LIMIT 1),
     CURRENT_DATE, CURRENT_DATE + INTERVAL '2 days', 1, 0,
-    180.00, 360.00, 36.00, 396.00, 'checked_in', 'unpaid_deposit', 'same_day',
+    180.00, 360.00, 36.00, 396.00, 'checked_in', 'unpaid_deposit', 'cash', 'same_day',
     CURRENT_DATE + TIME '15:30:00', 'walk_in', true, 100.00, CURRENT_TIMESTAMP - INTERVAL '1 day',
     (SELECT id FROM users WHERE username = 'receptionist1' LIMIT 1), CURRENT_DATE - INTERVAL '1 hour'
 FROM guests g WHERE g.email = 'david.lee@email.com'
@@ -112,12 +112,12 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 3: CHECKED_IN + PAID_RATE (Michael Brown - Room 204) - Corporate billing
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     actual_check_in, source, deposit_paid, company_id, company_name, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-1003',
     g.id, (SELECT id FROM rooms WHERE room_number = '204' LIMIT 1),
     CURRENT_DATE - INTERVAL '2 days', CURRENT_DATE + INTERVAL '1 day', 1, 0,
-    180.00, 540.00, 54.00, 594.00, 'checked_in', 'paid_rate', 'normal_stay',
+    180.00, 540.00, 54.00, 594.00, 'checked_in', 'paid_rate', 'company_billing', 'normal_stay',
     CURRENT_DATE - INTERVAL '2 days' + TIME '16:00:00', 'corporate', false,
     (SELECT id FROM companies WHERE company_name = 'Tech Corp International' LIMIT 1), 'Tech Corp International',
     (SELECT id FROM users WHERE username = 'manager1' LIMIT 1), CURRENT_DATE - INTERVAL '7 days'
@@ -126,13 +126,13 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 4: CHECKED_IN + PARTIAL (Lisa Davis - Room 205)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     actual_check_in, source, deposit_paid, deposit_amount, deposit_paid_at, is_tourist, tourism_tax_amount,
     payment_note, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-1004',
     g.id, (SELECT id FROM rooms WHERE room_number = '205' LIMIT 1),
     CURRENT_DATE, CURRENT_DATE + INTERVAL '5 days', 2, 1,
-    200.00, 1000.00, 100.00, 1150.00, 'checked_in', 'partial', 'normal_stay',
+    200.00, 1000.00, 100.00, 1150.00, 'checked_in', 'partial', 'bank_transfer', 'normal_stay',
     CURRENT_DATE + TIME '11:00:00', 'agent', true, 300.00, CURRENT_TIMESTAMP - INTERVAL '10 days',
     true, 50.00, 'Paid 50% upfront, balance due at checkout',
     (SELECT id FROM users WHERE username = 'admin' LIMIT 1), CURRENT_DATE - INTERVAL '14 days'
@@ -141,14 +141,14 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 5: CHECKED_IN + PAID (VIP Guest - Room 302) - Fully complimentary
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     actual_check_in, source, is_complimentary, complimentary_reason,
     complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights,
     created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-1005',
     g.id, (SELECT id FROM rooms WHERE room_number = '302' LIMIT 1),
     CURRENT_DATE - INTERVAL '1 day', CURRENT_DATE + INTERVAL '2 days', 2, 0,
-    250.00, 0.00, 0.00, 0.00, 'checked_in', 'paid', 'normal_stay',
+    250.00, 0.00, 0.00, 0.00, 'checked_in', 'paid', 'credit_card', 'normal_stay',
     CURRENT_DATE - INTERVAL '1 day' + TIME '14:00:00', 'direct',
     true, 'VIP Guest - Management approved complimentary stay',
     CURRENT_DATE - INTERVAL '1 day', CURRENT_DATE + INTERVAL '2 days', 750.00, 3,
@@ -162,12 +162,12 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 6: CONFIRMED + UNPAID (Robert Wilson - Room 101)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     source, special_requests, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE + INTERVAL '3 days', 'YYYYMMDD') || '-1006',
     g.id, (SELECT id FROM rooms WHERE room_number = '101' LIMIT 1),
     CURRENT_DATE + INTERVAL '3 days', CURRENT_DATE + INTERVAL '6 days', 2, 0,
-    150.00, 450.00, 45.00, 495.00, 'confirmed', 'unpaid', 'normal_stay', 'online',
+    150.00, 450.00, 45.00, 495.00, 'confirmed', 'unpaid', 'credit_card', 'normal_stay', 'online',
     'Late check-in expected around 10pm',
     (SELECT id FROM users WHERE username = 'admin' LIMIT 1), CURRENT_DATE - INTERVAL '5 days'
 FROM guests g WHERE g.email = 'robert.wilson@email.com'
@@ -175,12 +175,12 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 7: CONFIRMED + UNPAID_DEPOSIT (Maria Gonzalez - Room 102)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     source, deposit_paid, deposit_amount, deposit_paid_at, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE + INTERVAL '7 days', 'YYYYMMDD') || '-1007',
     g.id, (SELECT id FROM rooms WHERE room_number = '102' LIMIT 1),
     CURRENT_DATE + INTERVAL '7 days', CURRENT_DATE + INTERVAL '9 days', 1, 0,
-    150.00, 300.00, 30.00, 330.00, 'confirmed', 'unpaid_deposit', 'normal_stay', 'website',
+    150.00, 300.00, 30.00, 330.00, 'confirmed', 'unpaid_deposit', 'credit_card', 'normal_stay', 'website',
     true, 100.00, CURRENT_TIMESTAMP - INTERVAL '2 days',
     (SELECT id FROM users WHERE username = 'receptionist1' LIMIT 1), CURRENT_DATE - INTERVAL '3 days'
 FROM guests g WHERE g.email = 'maria.gonzalez@email.com'
@@ -188,12 +188,12 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 8: CONFIRMED + PAID (Yuki Tanaka - Room 103)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     source, deposit_paid, deposit_amount, deposit_paid_at, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-1008',
     g.id, (SELECT id FROM rooms WHERE room_number = '103' LIMIT 1),
     CURRENT_DATE, CURRENT_DATE + INTERVAL '2 days', 1, 0,
-    150.00, 300.00, 30.00, 330.00, 'confirmed', 'paid', 'normal_stay', 'mobile',
+    150.00, 300.00, 30.00, 330.00, 'confirmed', 'paid', 'online_payment', 'normal_stay', 'mobile',
     true, 330.00, CURRENT_TIMESTAMP - INTERVAL '1 day',
     (SELECT id FROM users WHERE username = 'admin' LIMIT 1), CURRENT_DATE - INTERVAL '1 day'
 FROM guests g WHERE g.email = 'yuki.tanaka@email.jp'
@@ -205,12 +205,12 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 9: PENDING + UNPAID (Online Booker - Room 104)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     source, special_requests, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE + INTERVAL '14 days', 'YYYYMMDD') || '-1009',
     g.id, (SELECT id FROM rooms WHERE room_number = '104' LIMIT 1),
     CURRENT_DATE + INTERVAL '14 days', CURRENT_DATE + INTERVAL '17 days', 2, 0,
-    150.00, 450.00, 45.00, 495.00, 'pending', 'unpaid', 'normal_stay', 'website',
+    150.00, 450.00, 45.00, 495.00, 'pending', 'unpaid', 'credit_card', 'normal_stay', 'website',
     'Honeymoon trip - special decoration requested',
     (SELECT id FROM users WHERE username = 'admin' LIMIT 1), CURRENT_DATE - INTERVAL '1 hour'
 FROM guests g WHERE g.email = 'online.booker@email.com'
@@ -222,13 +222,13 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 10: CHECKED_OUT + PAID (Emily Williams - Room 301)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     actual_check_in, actual_check_out, source, deposit_paid, deposit_amount, deposit_paid_at,
     created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE - INTERVAL '5 days', 'YYYYMMDD') || '-1010',
     g.id, (SELECT id FROM rooms WHERE room_number = '301' LIMIT 1),
     CURRENT_DATE - INTERVAL '5 days', CURRENT_DATE - INTERVAL '2 days', 2, 0,
-    250.00, 750.00, 75.00, 825.00, 'checked_out', 'paid', 'normal_stay',
+    250.00, 750.00, 75.00, 825.00, 'checked_out', 'paid', 'credit_card', 'normal_stay',
     CURRENT_DATE - INTERVAL '5 days' + TIME '14:00:00', CURRENT_DATE - INTERVAL '2 days' + TIME '11:00:00',
     'direct', true, 250.00, CURRENT_TIMESTAMP - INTERVAL '7 days',
     (SELECT id FROM users WHERE username = 'receptionist2' LIMIT 1), CURRENT_DATE - INTERVAL '10 days'
@@ -237,12 +237,12 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 11: CHECKED_OUT + UNPAID (Walk-in) - Balance pending collection
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     actual_check_in, actual_check_out, source, payment_note, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE - INTERVAL '3 days', 'YYYYMMDD') || '-1011',
     g.id, (SELECT id FROM rooms WHERE room_number = '401' LIMIT 1),
     CURRENT_DATE - INTERVAL '3 days', CURRENT_DATE - INTERVAL '2 days', 1, 0,
-    350.00, 350.00, 35.00, 385.00, 'checked_out', 'unpaid', 'same_day',
+    350.00, 350.00, 35.00, 385.00, 'checked_out', 'unpaid', 'cash', 'same_day',
     CURRENT_DATE - INTERVAL '3 days' + TIME '18:00:00', CURRENT_DATE - INTERVAL '2 days' + TIME '10:30:00',
     'walk_in', 'Guest left without paying - follow up required',
     (SELECT id FROM users WHERE username = 'receptionist1' LIMIT 1), CURRENT_DATE - INTERVAL '3 days'
@@ -255,12 +255,12 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 12: COMPLETED + PAID (Gold Member - Room 301)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, discount_percentage, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, discount_percentage, status, payment_status, payment_method, post_type,
     actual_check_in, actual_check_out, source, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE - INTERVAL '30 days', 'YYYYMMDD') || '-1012',
     g.id, (SELECT id FROM rooms WHERE room_number = '301' LIMIT 1),
     CURRENT_DATE - INTERVAL '30 days', CURRENT_DATE - INTERVAL '27 days', 2, 0,
-    250.00, 637.50, 63.75, 701.25, 15.00, 'completed', 'paid', 'normal_stay',
+    250.00, 637.50, 63.75, 701.25, 15.00, 'completed', 'paid', 'credit_card', 'normal_stay',
     CURRENT_DATE - INTERVAL '30 days' + TIME '15:00:00', CURRENT_DATE - INTERVAL '27 days' + TIME '10:00:00',
     'online',
     (SELECT id FROM users WHERE username = 'admin' LIMIT 1), CURRENT_DATE - INTERVAL '45 days'
@@ -273,12 +273,12 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 13: CANCELLED + UNPAID (Thomas White)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     source, cancellation_reason, cancelled_at, cancelled_by, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE + INTERVAL '10 days', 'YYYYMMDD') || '-1013',
     g.id, (SELECT id FROM rooms WHERE room_number = '402' LIMIT 1),
     CURRENT_DATE + INTERVAL '10 days', CURRENT_DATE + INTERVAL '12 days', 2, 0,
-    350.00, 700.00, 70.00, 770.00, 'cancelled', 'unpaid', 'normal_stay', 'phone',
+    350.00, 700.00, 70.00, 770.00, 'cancelled', 'unpaid', 'credit_card', 'normal_stay', 'phone',
     'Guest requested cancellation due to travel plans change',
     CURRENT_TIMESTAMP - INTERVAL '1 day', (SELECT id FROM users WHERE username = 'receptionist1' LIMIT 1),
     (SELECT id FROM users WHERE username = 'admin' LIMIT 1), CURRENT_DATE - INTERVAL '7 days'
@@ -287,13 +287,13 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 14: CANCELLED + CANCELLED payment status (Corporate VIP - deposit refunded)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     source, deposit_paid, deposit_amount, cancellation_reason, cancelled_at, cancelled_by,
     payment_note, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE + INTERVAL '20 days', 'YYYYMMDD') || '-1014',
     g.id, (SELECT id FROM rooms WHERE room_number = '303' LIMIT 1),
     CURRENT_DATE + INTERVAL '20 days', CURRENT_DATE + INTERVAL '25 days', 1, 0,
-    200.00, 1000.00, 100.00, 1100.00, 'cancelled', 'cancelled', 'normal_stay', 'corporate',
+    200.00, 1000.00, 100.00, 1100.00, 'cancelled', 'cancelled', 'company_billing', 'normal_stay', 'corporate',
     true, 300.00, 'Corporate event cancelled', CURRENT_TIMESTAMP - INTERVAL '2 days',
     (SELECT id FROM users WHERE username = 'manager1' LIMIT 1),
     'Deposit refunded to corporate account',
@@ -307,12 +307,12 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 15: NO_SHOW + UNPAID_DEPOSIT (James Anderson)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     source, deposit_paid, deposit_amount, deposit_paid_at, payment_note, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE - INTERVAL '1 day', 'YYYYMMDD') || '-1015',
     g.id, (SELECT id FROM rooms WHERE room_number = '403' LIMIT 1),
     CURRENT_DATE - INTERVAL '1 day', CURRENT_DATE + INTERVAL '1 day', 1, 0,
-    350.00, 700.00, 70.00, 770.00, 'no_show', 'unpaid_deposit', 'normal_stay', 'online',
+    350.00, 700.00, 70.00, 770.00, 'no_show', 'unpaid_deposit', 'credit_card', 'normal_stay', 'online',
     true, 200.00, CURRENT_TIMESTAMP - INTERVAL '5 days',
     'Deposit forfeited due to no-show',
     (SELECT id FROM users WHERE username = 'admin' LIMIT 1), CURRENT_DATE - INTERVAL '7 days'
@@ -325,12 +325,12 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 16: COMP_CANCELLED + PAID (Silver Member)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     source, is_complimentary, complimentary_reason, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE - INTERVAL '7 days', 'YYYYMMDD') || '-1016',
     g.id, (SELECT id FROM rooms WHERE room_number = '301' LIMIT 1),
     CURRENT_DATE - INTERVAL '7 days', CURRENT_DATE - INTERVAL '5 days', 1, 0,
-    250.00, 0.00, 0.00, 0.00, 'comp_cancelled', 'paid', 'normal_stay', 'direct',
+    250.00, 0.00, 0.00, 0.00, 'comp_cancelled', 'paid', 'credit_card', 'normal_stay', 'direct',
     true, 'Complimentary booking cancelled - credits preserved for future use',
     (SELECT id FROM users WHERE username = 'manager1' LIMIT 1), CURRENT_DATE - INTERVAL '14 days'
 FROM guests g WHERE g.email = 'member.silver@email.com'
@@ -342,14 +342,14 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 17: PARTIAL_COMPLIMENTARY + PARTIAL payment (Jennifer Martinez - Room 303)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     actual_check_in, source, is_complimentary, complimentary_reason,
     complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights,
     deposit_paid, deposit_amount, deposit_paid_at, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-1017',
     g.id, (SELECT id FROM rooms WHERE room_number = '303' LIMIT 1),
     CURRENT_DATE - INTERVAL '2 days', CURRENT_DATE + INTERVAL '3 days', 2, 1,
-    200.00, 600.00, 60.00, 660.00, 'partial_complimentary', 'partial', 'normal_stay',
+    200.00, 600.00, 60.00, 660.00, 'partial_complimentary', 'partial', 'debit_card', 'normal_stay',
     CURRENT_DATE - INTERVAL '2 days' + TIME '15:00:00', 'phone',
     true, 'Loyalty reward - 2 nights complimentary out of 5',
     CURRENT_DATE - INTERVAL '2 days', CURRENT_DATE,
@@ -364,14 +364,14 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 18: FULLY_COMPLIMENTARY + PAID (Bronze Member)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     actual_check_in, actual_check_out, source, is_complimentary, complimentary_reason,
     complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights,
     created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE - INTERVAL '10 days', 'YYYYMMDD') || '-1018',
     g.id, (SELECT id FROM rooms WHERE room_number = '101' LIMIT 1),
     CURRENT_DATE - INTERVAL '10 days', CURRENT_DATE - INTERVAL '8 days', 1, 0,
-    150.00, 0.00, 0.00, 0.00, 'fully_complimentary', 'paid', 'normal_stay',
+    150.00, 0.00, 0.00, 0.00, 'fully_complimentary', 'paid', 'credit_card', 'normal_stay',
     CURRENT_DATE - INTERVAL '10 days' + TIME '14:00:00', CURRENT_DATE - INTERVAL '8 days' + TIME '11:00:00',
     'direct', true, 'Welcome gift - new member first night free',
     CURRENT_DATE - INTERVAL '10 days', CURRENT_DATE - INTERVAL '8 days', 300.00, 2,
@@ -385,13 +385,13 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 19: CHECKED_OUT + REFUNDED (Refund Customer)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     actual_check_in, actual_check_out, source, deposit_paid, deposit_amount,
     payment_note, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE - INTERVAL '7 days', 'YYYYMMDD') || '-1019',
     g.id, (SELECT id FROM rooms WHERE room_number = '402' LIMIT 1),
     CURRENT_DATE - INTERVAL '7 days', CURRENT_DATE - INTERVAL '5 days', 2, 0,
-    350.00, 700.00, 70.00, 770.00, 'checked_out', 'refunded', 'normal_stay',
+    350.00, 700.00, 70.00, 770.00, 'checked_out', 'refunded', 'credit_card', 'normal_stay',
     CURRENT_DATE - INTERVAL '7 days' + TIME '15:00:00', CURRENT_DATE - INTERVAL '5 days' + TIME '09:00:00',
     'online', true, 770.00,
     'Full refund issued due to AC malfunction - guest complaint resolved',
@@ -401,12 +401,12 @@ ON CONFLICT (booking_number) DO NOTHING;
 
 -- Booking 20: Extra bed booking (John Smith - Room 401)
 INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, adults, children,
-    room_rate, subtotal, tax_amount, total_amount, status, payment_status, post_type,
+    room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, post_type,
     actual_check_in, source, extra_bed_count, extra_bed_charge, created_by, created_at)
 SELECT 'BK-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-1020',
     g.id, (SELECT id FROM rooms WHERE room_number = '401' LIMIT 1),
     CURRENT_DATE, CURRENT_DATE + INTERVAL '3 days', 4, 2,
-    350.00, 1170.00, 117.00, 1287.00, 'checked_in', 'unpaid_deposit', 'normal_stay',
+    350.00, 1170.00, 117.00, 1287.00, 'checked_in', 'unpaid_deposit', 'bank_transfer', 'normal_stay',
     CURRENT_DATE + TIME '13:00:00', 'phone', 2, 80.00,
     (SELECT id FROM users WHERE username = 'receptionist1' LIMIT 1), CURRENT_DATE - INTERVAL '3 days'
 FROM guests g WHERE g.email = 'john.smith@email.com'

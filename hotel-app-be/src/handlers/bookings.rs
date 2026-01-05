@@ -38,7 +38,7 @@ pub async fn get_bookings_handler(
             g.guest_type::text as guest_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
             b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
-            b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
+            b.payment_status, b.payment_method, b.source, b.remarks, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
             b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
             b.created_at, b.is_posted, b.posted_date
@@ -75,7 +75,7 @@ pub async fn get_my_bookings_handler(
             g.guest_type::text as guest_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
             b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
-            b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
+            b.payment_status, b.payment_method, b.source, b.remarks, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
             b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
             b.created_at, b.is_posted, b.posted_date
@@ -196,10 +196,10 @@ pub async fn create_booking_handler(
         r#"
         INSERT INTO bookings (
             booking_number, guest_id, room_id, check_in_date, check_out_date,
-            room_rate, subtotal, tax_amount, total_amount, status, payment_status, remarks, created_by, adults, source,
+            room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
             deposit_paid, deposit_amount, deposit_paid_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, $12, 1, $13, $14, $15, CASE WHEN $14 THEN CURRENT_TIMESTAMP ELSE NULL END)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, $12, $13, 1, $14, $15, $16, CASE WHEN $15 THEN CURRENT_TIMESTAMP ELSE NULL END)
         RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at
         "#
     )
@@ -213,6 +213,7 @@ pub async fn create_booking_handler(
     .bind(tax_amount)
     .bind(total_amount)
     .bind(&payment_status)
+    .bind(input.payment_method.as_deref())
     .bind(input.booking_remarks.as_deref())
     .bind(user_id)
     .bind(&source)
@@ -246,7 +247,7 @@ pub async fn get_booking_handler(
             g.guest_type::text as guest_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
             b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
-            b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
+            b.payment_status, b.payment_method, b.source, b.remarks, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
             b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note, b.created_at,
             b.is_posted, b.posted_date
@@ -371,6 +372,8 @@ pub async fn update_booking_handler(
             company_id = COALESCE($10, company_id),
             company_name = COALESCE($11, company_name),
             payment_note = COALESCE($12, payment_note),
+            remarks = COALESCE($13, remarks),
+            source = COALESCE($14, source),
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $7
         RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at"#
@@ -387,6 +390,8 @@ pub async fn update_booking_handler(
     .bind(input.company_id)
     .bind(&input.company_name)
     .bind(&input.payment_note)
+    .bind(&input.remarks)
+    .bind(&input.source)
     .fetch_one(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -1228,7 +1233,7 @@ pub async fn get_complimentary_bookings_handler(
             g.guest_type::text as guest_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
             b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
-            b.payment_status, b.source, b.is_complimentary, b.complimentary_reason,
+            b.payment_status, b.payment_method, b.source, b.remarks, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
             b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
             b.created_at, b.is_posted, b.posted_date

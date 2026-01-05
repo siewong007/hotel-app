@@ -114,6 +114,8 @@ pub struct BookingUpdateInput {
     pub company_id: Option<i64>,
     pub company_name: Option<String>,
     pub payment_note: Option<String>,
+    pub remarks: Option<String>,
+    pub source: Option<String>,
 }
 
 /// Request for checking in a guest
@@ -160,7 +162,9 @@ pub struct BookingWithDetails {
     pub total_amount: Decimal,
     pub status: String,
     pub payment_status: Option<String>,
+    pub payment_method: Option<String>,
     pub source: Option<String>,
+    pub remarks: Option<String>,
     pub is_complimentary: Option<bool>,
     pub complimentary_reason: Option<String>,
     pub complimentary_start_date: Option<NaiveDate>,
