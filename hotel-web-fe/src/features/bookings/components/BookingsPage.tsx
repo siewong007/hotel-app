@@ -1095,15 +1095,17 @@ const BookingsPage: React.FC = () => {
                           </IconButton>
                         </span>
                       </Tooltip>
-                      <Tooltip title="Collect Room Payment">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleUpdatePaymentStatus(booking)}
-                          color="info"
-                        >
-                          <PaymentIcon />
-                        </IconButton>
-                      </Tooltip>
+                      {!booking.is_complimentary && (
+                        <Tooltip title="Collect Room Payment">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleUpdatePaymentStatus(booking)}
+                            color="info"
+                          >
+                            <PaymentIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       {canDelete(booking) && !booking.is_posted && (
                         <Tooltip title="Cancel Booking">
                           <IconButton

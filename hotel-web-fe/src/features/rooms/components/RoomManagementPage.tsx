@@ -2196,7 +2196,7 @@ const RoomManagementPage: React.FC = () => {
 
                       {/* Check-in / Payment Button */}
                       <Box sx={{ mt: 1 }}>
-                        {reservedBooking.payment_status === 'paid' || reservedBooking.guest_type === 'member' ? (
+                        {reservedBooking.payment_status === 'paid' || reservedBooking.guest_type === 'member' || reservedBooking.is_complimentary ? (
                           <Box
                             onClick={(e) => {
                               e.stopPropagation();
