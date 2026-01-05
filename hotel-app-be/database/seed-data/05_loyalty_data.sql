@@ -135,4 +135,53 @@ INSERT INTO points_transactions (membership_id, transaction_type, points, balanc
 SELECT lm.id, 'redeem', -1575, 7200, 'Redeemed: Full Day Spa Package', CURRENT_TIMESTAMP - INTERVAL '90 days'
 FROM loyalty_memberships lm JOIN guests g ON g.id = lm.guest_id WHERE g.email = 'michael.brown@corporate.com';
 
-DO $$ BEGIN RAISE NOTICE 'Loyalty data loaded: 1 program, 4 tiers, 6 memberships, points transactions'; END $$;
+-- ============================================================================
+-- COMPLIMENTARY NIGHT CREDITS
+-- ============================================================================
+
+-- Update legacy complimentary_nights_credit on guests table
+-- Emily Williams (VIP Platinum) - 5 legacy credits
+UPDATE guests SET complimentary_nights_credit = 5 WHERE email = 'emily.williams@email.com';
+
+-- Sarah Johnson (Silver) - 2 legacy credits
+UPDATE guests SET complimentary_nights_credit = 2 WHERE email = 'sarah.johnson@email.com';
+
+-- Michael Brown (Gold, Corporate) - 3 legacy credits
+UPDATE guests SET complimentary_nights_credit = 3 WHERE email = 'michael.brown@corporate.com';
+
+-- Room-type specific complimentary credits
+-- Emily Williams - 3 nights for Deluxe, 2 nights for Suite
+INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at)
+SELECT g.id, rt.id, 3, 'VIP anniversary reward - Deluxe room credits', CURRENT_TIMESTAMP - INTERVAL '30 days'
+FROM guests g, room_types rt
+WHERE g.email = 'emily.williams@email.com' AND rt.code = 'DLX'
+ON CONFLICT (guest_id, room_type_id) DO UPDATE SET nights_available = EXCLUDED.nights_available;
+
+INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at)
+SELECT g.id, rt.id, 2, 'Platinum tier suite upgrade credits', CURRENT_TIMESTAMP - INTERVAL '15 days'
+FROM guests g, room_types rt
+WHERE g.email = 'emily.williams@email.com' AND rt.code = 'STE'
+ON CONFLICT (guest_id, room_type_id) DO UPDATE SET nights_available = EXCLUDED.nights_available;
+
+-- Sarah Johnson - 2 nights for Standard
+INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at)
+SELECT g.id, rt.id, 2, 'Service recovery credit', CURRENT_TIMESTAMP - INTERVAL '45 days'
+FROM guests g, room_types rt
+WHERE g.email = 'sarah.johnson@email.com' AND rt.code = 'STD'
+ON CONFLICT (guest_id, room_type_id) DO UPDATE SET nights_available = EXCLUDED.nights_available;
+
+-- Michael Brown - 2 nights for Deluxe (corporate benefit)
+INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at)
+SELECT g.id, rt.id, 2, 'Corporate account loyalty bonus', CURRENT_TIMESTAMP - INTERVAL '60 days'
+FROM guests g, room_types rt
+WHERE g.email = 'michael.brown@corporate.com' AND rt.code = 'DLX'
+ON CONFLICT (guest_id, room_type_id) DO UPDATE SET nights_available = EXCLUDED.nights_available;
+
+-- John Smith - 1 night for Standard (new member bonus)
+INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at)
+SELECT g.id, rt.id, 1, 'New member welcome gift', CURRENT_TIMESTAMP - INTERVAL '180 days'
+FROM guests g, room_types rt
+WHERE g.email = 'john.smith@email.com' AND rt.code = 'STD'
+ON CONFLICT (guest_id, room_type_id) DO UPDATE SET nights_available = EXCLUDED.nights_available;
+
+DO $$ BEGIN RAISE NOTICE 'Loyalty data loaded: 1 program, 4 tiers, 6 memberships, points transactions, complimentary credits'; END $$;
