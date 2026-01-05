@@ -30,8 +30,8 @@ impl EmbeddedDatabase {
             installation_dir: data_dir.join("postgresql"),
             data_dir: data_dir.join("data"),
             port: 5433, // Use different port to avoid conflicts
-            username: "hotel_admin".to_string(),
-            password: "hotel_secure_password".to_string(),
+            username: "postgres".to_string(),
+            password: "postgres".to_string(),
             ..Default::default()
         };
 
@@ -68,10 +68,11 @@ impl EmbeddedDatabase {
 
     /// Get the database connection URL
     pub fn connection_url(&self) -> String {
+        let settings = self.postgresql.settings();
         format!(
             "postgres://{}:{}@127.0.0.1:{}/{}",
-            self.postgresql.settings().username,
-            self.postgresql.settings().password,
+            settings.username,
+            settings.password,
             self.port,
             self.database_name
         )
@@ -81,9 +82,26 @@ impl EmbeddedDatabase {
     pub async fn run_migrations(&self) -> Result<()> {
         info!("Running database migrations...");
 
-        let pool = sqlx::PgPool::connect(&self.connection_url())
-            .await
-            .context("Failed to connect to database for migrations")?;
+        // Retry connection with delay (PostgreSQL may need time to fully start)
+        let mut pool = None;
+        for attempt in 1..=5 {
+            info!("Attempting database connection (attempt {}/5)...", attempt);
+            match sqlx::PgPool::connect(&self.connection_url()).await {
+                Ok(p) => {
+                    pool = Some(p);
+                    break;
+                }
+                Err(e) => {
+                    if attempt < 5 {
+                        info!("Connection attempt {} failed: {}, retrying in 2 seconds...", attempt, e);
+                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+                    } else {
+                        return Err(e).context("Failed to connect to database for migrations after 5 attempts");
+                    }
+                }
+            }
+        }
+        let pool = pool.expect("Pool should be set after successful connection");
 
         // Get migrations directory path
         let migrations_path = get_migrations_path()?;
@@ -91,15 +109,22 @@ impl EmbeddedDatabase {
         info!("Migrations path: {:?}", migrations_path);
 
         // Run migrations using sqlx
-        sqlx::migrate::Migrator::new(migrations_path)
+        let migrator = sqlx::migrate::Migrator::new(migrations_path)
             .await
-            .context("Failed to load migrations")?
-            .run(&pool)
-            .await
-            .context("Failed to run migrations")?;
+            .context("Failed to load migrations")?;
 
-        info!("Migrations completed successfully");
-        Ok(())
+        info!("Found {} migrations to run", migrator.iter().count());
+
+        match migrator.run(&pool).await {
+            Ok(_) => {
+                info!("Migrations completed successfully");
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!("Migration error details: {:?}", e);
+                Err(anyhow::anyhow!("Failed to run migrations: {}", e))
+            }
+        }
     }
 
     /// Check if this is a fresh database (no tables exist)
@@ -118,6 +143,23 @@ impl EmbeddedDatabase {
         Ok(!exists)
     }
 
+    /// Check if seed data needs to be run (no admin user exists)
+    pub async fn needs_seed_data(&self) -> Result<bool> {
+        let pool = sqlx::PgPool::connect(&self.connection_url())
+            .await
+            .context("Failed to connect to database")?;
+
+        // Check if admin user exists
+        let admin_exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE username = 'admin')"
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(false);
+
+        Ok(!admin_exists)
+    }
+
     /// Run seed data for initial setup
     pub async fn run_seed_data(&self) -> Result<()> {
         info!("Running seed data...");
@@ -131,6 +173,8 @@ impl EmbeddedDatabase {
             ("01_system_roles_admin.sql", include_str!("../../../hotel-app-be/database/seed-data/01_system_roles_admin.sql")),
             ("02_users_staff.sql", include_str!("../../../hotel-app-be/database/seed-data/02_users_staff.sql")),
             ("03_rooms_rates.sql", include_str!("../../../hotel-app-be/database/seed-data/03_rooms_rates.sql")),
+            ("04_guests_bookings.sql", include_str!("../../../hotel-app-be/database/seed-data/04_guests_bookings.sql")),
+            ("05_loyalty_data.sql", include_str!("../../../hotel-app-be/database/seed-data/05_loyalty_data.sql")),
         ];
 
         for (name, sql) in seed_files {

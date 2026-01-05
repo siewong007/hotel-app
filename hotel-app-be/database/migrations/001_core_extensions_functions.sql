@@ -4,9 +4,24 @@
 -- Description: PostgreSQL extensions and core utility functions
 -- ============================================================================
 
--- Enable required PostgreSQL extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+-- Enable PostgreSQL extensions (some may not be available in embedded PostgreSQL)
+DO $$
+BEGIN
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'uuid-ossp extension not available, UUIDs will use gen_random_uuid() instead';
+END
+$$;
+
+DO $$
+BEGIN
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'pgcrypto extension not available, skipping';
+END
+$$;
 
 -- ============================================================================
 -- CORE UTILITY FUNCTIONS

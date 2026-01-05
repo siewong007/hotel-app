@@ -71,7 +71,9 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('reports:read', 'reports', 'read', 'View reports', true),
 ('reports:execute', 'reports', 'execute', 'Generate reports', true),
 ('analytics:read', 'analytics', 'read', 'Access to analytics and reports', true),
-('audit:read', 'audit', 'read', 'View audit logs', true)
+('audit:read', 'audit', 'read', 'View audit logs', true),
+('night_audit:read', 'night_audit', 'read', 'View night audit data', true),
+('night_audit:execute', 'night_audit', 'execute', 'Execute night audit', true)
 ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description, resource = EXCLUDED.resource, action = EXCLUDED.action;
 
 -- ============================================================================

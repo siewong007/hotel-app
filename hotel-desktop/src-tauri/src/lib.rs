@@ -44,19 +44,19 @@ pub async fn start_backend_services(state: &AppState) -> Result<(), String> {
 
     let connection_url = database.connection_url();
 
-    // Check if fresh install and run migrations/seeds
-    let is_fresh = database.is_fresh_install()
-        .await
-        .map_err(|e| format!("Failed to check database state: {}", e))?;
-
-    // Run migrations
+    // Run migrations first
     database.run_migrations()
         .await
         .map_err(|e| format!("Failed to run migrations: {}", e))?;
 
-    // Run seed data on fresh install
-    if is_fresh {
-        info!("Fresh install detected, running seed data...");
+    // Check if seed data is needed (admin user doesn't exist)
+    let needs_seed = database.needs_seed_data()
+        .await
+        .map_err(|e| format!("Failed to check if seed data needed: {}", e))?;
+
+    // Run seed data if no admin user exists
+    if needs_seed {
+        info!("No admin user found, running seed data...");
         database.run_seed_data()
             .await
             .map_err(|e| format!("Failed to run seed data: {}", e))?;
