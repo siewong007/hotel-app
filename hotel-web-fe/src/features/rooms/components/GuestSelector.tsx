@@ -29,7 +29,6 @@ export interface GuestWithCredits {
   id: number;
   full_name: string;
   email: string;
-  legacy_complimentary_nights_credit: number;
   total_complimentary_credits: number;
   credits_by_room_type: {
     room_type_id: number;
@@ -115,14 +114,12 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               onChange={(_, newValue) => onGuestWithCreditsSelect?.(newValue)}
               options={guestsWithCredits}
               getOptionLabel={(option) => {
-                const totalCredits = option.legacy_complimentary_nights_credit + option.total_complimentary_credits;
                 return option.email
-                  ? `${option.full_name} - ${option.email} (${totalCredits} credits)`
-                  : `${option.full_name} (${totalCredits} credits)`;
+                  ? `${option.full_name} - ${option.email} (${option.total_complimentary_credits} credits)`
+                  : `${option.full_name} (${option.total_complimentary_credits} credits)`;
               }}
               renderOption={(props, option) => {
                 const { key, ...otherProps } = props;
-                const totalCredits = option.legacy_complimentary_nights_credit + option.total_complimentary_credits;
                 return (
                   <Box component="li" key={key} {...otherProps}>
                     <Box sx={{ width: '100%' }}>
@@ -133,7 +130,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                         </Box>
                         <Chip
                           icon={<GiftIcon sx={{ fontSize: 14 }} />}
-                          label={`${totalCredits} night${totalCredits !== 1 ? 's' : ''}`}
+                          label={`${option.total_complimentary_credits} night${option.total_complimentary_credits !== 1 ? 's' : ''}`}
                           size="small"
                           color="secondary"
                         />
@@ -149,14 +146,6 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                               sx={{ fontSize: '0.65rem', height: 20 }}
                             />
                           ))}
-                          {option.legacy_complimentary_nights_credit > 0 && (
-                            <Chip
-                              label={`Any room: ${option.legacy_complimentary_nights_credit}`}
-                              size="small"
-                              variant="outlined"
-                              sx={{ fontSize: '0.65rem', height: 20 }}
-                            />
-                          )}
                         </Box>
                       )}
                     </Box>

@@ -63,19 +63,17 @@ interface GuestCredit {
   guest_id: number;
   guest_name: string;
   email: string | null;
-  legacy_credits?: number;
-  room_type_id?: number;
-  room_type_name?: string;
-  room_type_code?: string | null;
-  nights_available?: number;
+  room_type_id: number;
+  room_type_name: string;
+  room_type_code: string | null;
+  nights_available: number;
+  notes: string | null;
 }
 
 interface ComplimentarySummary {
   total_complimentary_bookings: number;
   total_complimentary_nights: number;
   total_credits_available: number;
-  room_type_credits: number;
-  legacy_credits: number;
   value_of_complimentary_nights: string;
 }
 
@@ -87,10 +85,7 @@ export default function ComplimentaryManagementPage() {
 
   // Data state
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
-  const [guestCredits, setGuestCredits] = useState<{
-    legacy_credits: GuestCredit[];
-    room_type_credits: GuestCredit[];
-  }>({ legacy_credits: [], room_type_credits: [] });
+  const [guestCredits, setGuestCredits] = useState<GuestCredit[]>([]);
   const [summary, setSummary] = useState<ComplimentarySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +121,7 @@ export default function ComplimentaryManagementPage() {
         HotelAPIService.getComplimentarySummary(),
       ]);
       setBookings(bookingsData);
-      setGuestCredits(creditsData);
+      setGuestCredits(creditsData.credits);
       setSummary(summaryData);
     } catch (err: any) {
       setError(err.message || 'Failed to load data');
@@ -339,7 +334,7 @@ export default function ComplimentaryManagementPage() {
                   {summary.total_credits_available}
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
-                  ({summary.room_type_credits} room-type + {summary.legacy_credits} legacy)
+                  (room-type specific credits)
                 </Typography>
               </CardContent>
             </Card>
@@ -367,7 +362,7 @@ export default function ComplimentaryManagementPage() {
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
           <Tab label={`Complimentary Bookings (${bookings.length})`} />
           <Tab
-            label={`Guest Credits (${guestCredits.legacy_credits.length + guestCredits.room_type_credits.length})`}
+            label={`Guest Credits (${guestCredits.length})`}
           />
         </Tabs>
       </Paper>
@@ -544,95 +539,56 @@ export default function ComplimentaryManagementPage() {
 
       <TabPanel value={tabValue} index={1}>
         {/* Guest Credits */}
-        <Grid container spacing={2}>
-          {/* Legacy Credits */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Legacy Credits
-              </Typography>
-              {guestCredits.legacy_credits.length === 0 ? (
-                <Typography color="text.secondary">No guests with legacy credits</Typography>
-              ) : (
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell><strong>Guest</strong></TableCell>
-                      <TableCell align="right"><strong>Credits</strong></TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {guestCredits.legacy_credits.map((guest) => (
-                      <TableRow key={guest.guest_id}>
-                        <TableCell>
-                          <Typography variant="body2">{guest.guest_name}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {guest.email}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={`${guest.legacy_credits} nights`}
-                            size="small"
-                            color="primary"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </Paper>
-          </Grid>
-
-          {/* Room Type Specific Credits */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Room Type Credits
-              </Typography>
-              {guestCredits.room_type_credits.length === 0 ? (
-                <Typography color="text.secondary">No guests with room type credits</Typography>
-              ) : (
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell><strong>Guest</strong></TableCell>
-                      <TableCell><strong>Room Type</strong></TableCell>
-                      <TableCell align="right"><strong>Credits</strong></TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {guestCredits.room_type_credits.map((credit, idx) => (
-                      <TableRow key={`${credit.guest_id}-${credit.room_type_id}-${idx}`}>
-                        <TableCell>
-                          <Typography variant="body2">{credit.guest_name}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {credit.email}
-                          </Typography>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={credit.room_type_code || credit.room_type_name}
-                            size="small"
-                            variant="outlined"
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={`${credit.nights_available} nights`}
-                            size="small"
-                            color="success"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </Paper>
-          </Grid>
-        </Grid>
+        <Paper sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Guest Complimentary Credits by Room Type
+          </Typography>
+          {guestCredits.length === 0 ? (
+            <Typography color="text.secondary">No guests with complimentary credits</Typography>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell><strong>Guest</strong></TableCell>
+                  <TableCell><strong>Room Type</strong></TableCell>
+                  <TableCell><strong>Notes</strong></TableCell>
+                  <TableCell align="right"><strong>Credits</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {guestCredits.map((credit, idx) => (
+                  <TableRow key={`${credit.guest_id}-${credit.room_type_id}-${idx}`}>
+                    <TableCell>
+                      <Typography variant="body2">{credit.guest_name}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {credit.email}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={credit.room_type_code || credit.room_type_name}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption" color="text.secondary">
+                        {credit.notes || '-'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Chip
+                        label={`${credit.nights_available} nights`}
+                        size="small"
+                        color="success"
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Paper>
       </TabPanel>
 
       {/* Edit Dialog */}

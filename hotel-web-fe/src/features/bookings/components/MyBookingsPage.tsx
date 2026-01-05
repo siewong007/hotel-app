@@ -46,7 +46,6 @@ interface GuestWithCredits {
   id: number;
   full_name: string;
   email: string;
-  legacy_complimentary_nights_credit: number;
   total_complimentary_credits: number;
   credits_by_room_type: {
     room_type_id: number;
@@ -184,14 +183,14 @@ const MyBookingsPage: React.FC = () => {
   const getAvailableCreditsForRoom = () => {
     if (!selectedGuest || !bookingForm.room_id) return 0;
     const room = rooms.find(r => r.id.toString() === bookingForm.room_id);
-    if (!room) return selectedGuest.legacy_complimentary_nights_credit;
+    if (!room) return 0;
 
     // Find credits for this room type
     const roomTypeCredit = selectedGuest.credits_by_room_type.find(
       c => c.room_type_name === room.room_type
     );
     const roomTypeCredits = roomTypeCredit?.nights_available || 0;
-    return roomTypeCredits + selectedGuest.legacy_complimentary_nights_credit;
+    return roomTypeCredits;
   };
 
   const handleDateToggle = (date: string) => {
@@ -466,7 +465,7 @@ const MyBookingsPage: React.FC = () => {
           ) : (
             <Grid container spacing={2}>
               {guestsWithCredits.map((guest) => {
-                const totalCredits = guest.total_complimentary_credits + guest.legacy_complimentary_nights_credit;
+                const totalCredits = guest.total_complimentary_credits;
                 return (
                   <Grid item xs={12} sm={6} md={4} key={guest.id}>
                     <Paper
@@ -519,31 +518,6 @@ const MyBookingsPage: React.FC = () => {
                               />
                             </Box>
                           ))}
-                        </Box>
-                      )}
-
-                      {/* Legacy Credits */}
-                      {guest.legacy_complimentary_nights_credit > 0 && (
-                        <Box
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            backgroundColor: 'info.light',
-                            borderRadius: 1,
-                            px: 1.5,
-                            py: 0.5,
-                            mb: 2,
-                          }}
-                        >
-                          <Typography variant="body2">
-                            Any Room Type
-                          </Typography>
-                          <Chip
-                            label={`${guest.legacy_complimentary_nights_credit} night${guest.legacy_complimentary_nights_credit !== 1 ? 's' : ''}`}
-                            color="info"
-                            size="small"
-                          />
                         </Box>
                       )}
 
@@ -624,11 +598,6 @@ const MyBookingsPage: React.FC = () => {
                       </Typography>
                     ))}
                   </Box>
-                )}
-                {selectedGuest.legacy_complimentary_nights_credit > 0 && (
-                  <Typography variant="body2">
-                    Any room type: <strong>{selectedGuest.legacy_complimentary_nights_credit} night(s)</strong>
-                  </Typography>
                 )}
               </Alert>
 
