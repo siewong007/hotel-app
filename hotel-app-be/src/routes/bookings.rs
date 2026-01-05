@@ -28,6 +28,9 @@ pub fn routes() -> Router<PgPool> {
         // Complimentary management routes (static paths)
         .route("/complimentary/summary", get(get_complimentary_summary))
         .route("/guests/credits", get(get_guests_with_credits))
+        .route("/guests/credits", post(add_guest_credits))
+        .route("/guests/:guest_id/credits/:room_type_id", patch(update_guest_credits))
+        .route("/guests/:guest_id/credits/:room_type_id", delete(delete_guest_credits))
         // Code lookup routes
         .route("/rate-codes", get(get_rate_codes))
         .route("/market-codes", get(get_market_codes))
@@ -208,4 +211,32 @@ async fn get_guests_with_credits(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "guests:read").await?;
     handlers::bookings::get_guests_with_credits_handler(State(pool)).await
+}
+
+async fn add_guest_credits(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    Json(input): Json<handlers::bookings::AddGuestCreditsRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_permission_helper(&pool, &headers, "guests:manage").await?;
+    handlers::bookings::add_guest_credits_handler(State(pool), Json(input)).await
+}
+
+async fn update_guest_credits(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    path: Path<(i64, i64)>,
+    Json(input): Json<handlers::bookings::UpdateGuestCreditsRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_permission_helper(&pool, &headers, "guests:manage").await?;
+    handlers::bookings::update_guest_credits_handler(State(pool), path, Json(input)).await
+}
+
+async fn delete_guest_credits(
+    State(pool): State<PgPool>,
+    headers: HeaderMap,
+    path: Path<(i64, i64)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_permission_helper(&pool, &headers, "guests:manage").await?;
+    handlers::bookings::delete_guest_credits_handler(State(pool), path).await
 }

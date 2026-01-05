@@ -39,7 +39,9 @@ import {
   Hotel as HotelIcon,
   AttachMoney as MoneyIcon,
   NightsStay as NightsIcon,
+  Add as AddIcon,
 } from '@mui/icons-material';
+import { Autocomplete, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 import { HotelAPIService } from '../../../api';
 import { BookingWithDetails } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
@@ -110,19 +112,41 @@ export default function ComplimentaryManagementPage() {
   // Snackbar state
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
+  // Credit CRUD dialog state
+  const [addCreditDialogOpen, setAddCreditDialogOpen] = useState(false);
+  const [editCreditDialogOpen, setEditCreditDialogOpen] = useState(false);
+  const [deleteCreditDialogOpen, setDeleteCreditDialogOpen] = useState(false);
+  const [selectedCredit, setSelectedCredit] = useState<GuestCredit | null>(null);
+  const [guests, setGuests] = useState<Array<{ id: number; full_name: string; email?: string }>>([]);
+  const [roomTypes, setRoomTypes] = useState<Array<{ id: number; name: string; code?: string }>>([]);
+  const [creditFormData, setCreditFormData] = useState({
+    guest_id: 0,
+    room_type_id: 0,
+    nights: 1,
+    notes: '',
+  });
+  const [editCreditFormData, setEditCreditFormData] = useState({
+    nights_available: 0,
+    notes: '',
+  });
+
   // Load data
   const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const [bookingsData, creditsData, summaryData] = await Promise.all([
+      const [bookingsData, creditsData, summaryData, guestsData, roomTypesData] = await Promise.all([
         HotelAPIService.getComplimentaryBookings(),
         HotelAPIService.getGuestsWithCredits(),
         HotelAPIService.getComplimentarySummary(),
+        HotelAPIService.getAllGuests(),
+        HotelAPIService.getRoomTypes(),
       ]);
       setBookings(bookingsData || []);
       setGuestCredits(creditsData?.credits || []);
       setSummary(summaryData);
+      setGuests(guestsData || []);
+      setRoomTypes(roomTypesData || []);
     } catch (err: any) {
       setError(err.message || 'Failed to load data');
     } finally {
@@ -133,6 +157,86 @@ export default function ComplimentaryManagementPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Credit CRUD handlers
+  const handleAddCreditClick = () => {
+    setCreditFormData({ guest_id: 0, room_type_id: 0, nights: 1, notes: '' });
+    setAddCreditDialogOpen(true);
+  };
+
+  const handleEditCreditClick = (credit: GuestCredit) => {
+    setSelectedCredit(credit);
+    setEditCreditFormData({
+      nights_available: credit.nights_available,
+      notes: credit.notes || '',
+    });
+    setEditCreditDialogOpen(true);
+  };
+
+  const handleDeleteCreditClick = (credit: GuestCredit) => {
+    setSelectedCredit(credit);
+    setDeleteCreditDialogOpen(true);
+  };
+
+  const handleAddCredit = async () => {
+    if (!creditFormData.guest_id || !creditFormData.room_type_id || creditFormData.nights <= 0) {
+      setSnackbar({ open: true, message: 'Please fill in all required fields', severity: 'error' });
+      return;
+    }
+    try {
+      setProcessing(true);
+      await HotelAPIService.addGuestCredits({
+        guest_id: creditFormData.guest_id,
+        room_type_id: creditFormData.room_type_id,
+        nights: creditFormData.nights,
+        notes: creditFormData.notes || undefined,
+      });
+      setSnackbar({ open: true, message: 'Credits added successfully', severity: 'success' });
+      setAddCreditDialogOpen(false);
+      await loadData();
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err.message || 'Failed to add credits', severity: 'error' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleUpdateCredit = async () => {
+    if (!selectedCredit) return;
+    try {
+      setProcessing(true);
+      await HotelAPIService.updateGuestCredits(
+        selectedCredit.guest_id,
+        selectedCredit.room_type_id,
+        {
+          nights_available: editCreditFormData.nights_available,
+          notes: editCreditFormData.notes || undefined,
+        }
+      );
+      setSnackbar({ open: true, message: 'Credits updated successfully', severity: 'success' });
+      setEditCreditDialogOpen(false);
+      await loadData();
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err.message || 'Failed to update credits', severity: 'error' });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleDeleteCredit = async () => {
+    if (!selectedCredit) return;
+    try {
+      setProcessing(true);
+      await HotelAPIService.deleteGuestCredits(selectedCredit.guest_id, selectedCredit.room_type_id);
+      setSnackbar({ open: true, message: 'Credits deleted successfully', severity: 'success' });
+      setDeleteCreditDialogOpen(false);
+      await loadData();
+    } catch (err: any) {
+      setSnackbar({ open: true, message: err.message || 'Failed to delete credits', severity: 'error' });
+    } finally {
+      setProcessing(false);
+    }
+  };
 
   // Filtered and sorted bookings
   const filteredBookings = useMemo(() => {
@@ -540,9 +644,19 @@ export default function ComplimentaryManagementPage() {
       <TabPanel value={tabValue} index={1}>
         {/* Guest Credits */}
         <Paper sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Guest Complimentary Credits by Room Type
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              Guest Complimentary Credits by Room Type
+            </Typography>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAddCreditClick}
+              color="secondary"
+            >
+              Add Credits
+            </Button>
+          </Box>
           {(!guestCredits || guestCredits.length === 0) ? (
             <Typography color="text.secondary">No guests with complimentary credits</Typography>
           ) : (
@@ -552,7 +666,8 @@ export default function ComplimentaryManagementPage() {
                   <TableCell><strong>Guest</strong></TableCell>
                   <TableCell><strong>Room Type</strong></TableCell>
                   <TableCell><strong>Notes</strong></TableCell>
-                  <TableCell align="right"><strong>Credits</strong></TableCell>
+                  <TableCell align="center"><strong>Credits</strong></TableCell>
+                  <TableCell align="right"><strong>Actions</strong></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -576,12 +691,34 @@ export default function ComplimentaryManagementPage() {
                         {credit.notes || '-'}
                       </Typography>
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell align="center">
                       <Chip
                         label={`${credit.nights_available} nights`}
                         size="small"
                         color="success"
                       />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+                        <Tooltip title="Edit credits">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => handleEditCreditClick(credit)}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete credits">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDeleteCreditClick(credit)}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -689,6 +826,145 @@ export default function ComplimentaryManagementPage() {
           <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleRemoveComplimentary} variant="contained" color="error" disabled={processing}>
             {processing ? 'Removing...' : 'Remove Complimentary'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add Credit Dialog */}
+      <Dialog open={addCreditDialogOpen} onClose={() => setAddCreditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add Complimentary Credits</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <Autocomplete
+                  options={guests}
+                  getOptionLabel={(option) => `${option.full_name}${option.email ? ` (${option.email})` : ''}`}
+                  value={guests.find(g => g.id === creditFormData.guest_id) || null}
+                  onChange={(_, newValue) => setCreditFormData({ ...creditFormData, guest_id: newValue?.id || 0 })}
+                  renderInput={(params) => <TextField {...params} label="Select Guest *" />}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <FormControl fullWidth>
+                  <InputLabel>Room Type *</InputLabel>
+                  <Select
+                    value={creditFormData.room_type_id || ''}
+                    label="Room Type *"
+                    onChange={(e) => setCreditFormData({ ...creditFormData, room_type_id: Number(e.target.value) })}
+                  >
+                    {roomTypes.map((rt) => (
+                      <MenuItem key={rt.id} value={rt.id}>
+                        {rt.name} {rt.code ? `(${rt.code})` : ''}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Number of Nights *"
+                  type="number"
+                  value={creditFormData.nights}
+                  onChange={(e) => setCreditFormData({ ...creditFormData, nights: parseInt(e.target.value) || 0 })}
+                  inputProps={{ min: 1 }}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Notes"
+                  multiline
+                  rows={2}
+                  value={creditFormData.notes}
+                  onChange={(e) => setCreditFormData({ ...creditFormData, notes: e.target.value })}
+                  placeholder="e.g., Loyalty reward, Compensation, etc."
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddCreditDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleAddCredit} variant="contained" color="secondary" disabled={processing}>
+            {processing ? 'Adding...' : 'Add Credits'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Credit Dialog */}
+      <Dialog open={editCreditDialogOpen} onClose={() => setEditCreditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit Complimentary Credits</DialogTitle>
+        <DialogContent>
+          {selectedCredit && (
+            <Box sx={{ pt: 1 }}>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  <strong>Guest:</strong> {selectedCredit.guest_name}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Room Type:</strong> {selectedCredit.room_type_name}
+                </Typography>
+              </Alert>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Nights Available *"
+                    type="number"
+                    value={editCreditFormData.nights_available}
+                    onChange={(e) => setEditCreditFormData({ ...editCreditFormData, nights_available: parseInt(e.target.value) || 0 })}
+                    inputProps={{ min: 0 }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Notes"
+                    multiline
+                    rows={2}
+                    value={editCreditFormData.notes}
+                    onChange={(e) => setEditCreditFormData({ ...editCreditFormData, notes: e.target.value })}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditCreditDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleUpdateCredit} variant="contained" disabled={processing}>
+            {processing ? 'Updating...' : 'Update Credits'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Credit Confirmation Dialog */}
+      <Dialog open={deleteCreditDialogOpen} onClose={() => setDeleteCreditDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Delete Complimentary Credits</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Are you sure you want to delete these complimentary credits? This action cannot be undone.
+          </Alert>
+          {selectedCredit && (
+            <Box>
+              <Typography variant="body2">
+                <strong>Guest:</strong> {selectedCredit.guest_name}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Room Type:</strong> {selectedCredit.room_type_name}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Nights to Delete:</strong> {selectedCredit.nights_available}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteCreditDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleDeleteCredit} variant="contained" color="error" disabled={processing}>
+            {processing ? 'Deleting...' : 'Delete Credits'}
           </Button>
         </DialogActions>
       </Dialog>

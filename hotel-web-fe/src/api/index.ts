@@ -113,6 +113,9 @@ export class HotelAPIService {
   static updateComplimentary = BookingsService.updateComplimentary;
   static removeComplimentary = BookingsService.removeComplimentary;
   static getGuestsWithCredits = BookingsService.getGuestsWithCredits;
+  static addGuestCredits = BookingsService.addGuestCredits;
+  static updateGuestCredits = BookingsService.updateGuestCredits;
+  static deleteGuestCredits = BookingsService.deleteGuestCredits;
 
   // Rate operations
   static getRateCodes = RatesService.getRateCodes;
