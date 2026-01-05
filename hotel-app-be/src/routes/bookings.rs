@@ -27,10 +27,8 @@ pub fn routes() -> Router<PgPool> {
         .route("/bookings/cancel", post(cancel_booking))
         // Complimentary management routes (static paths)
         .route("/complimentary/summary", get(get_complimentary_summary))
-        .route("/guests/credits", get(get_guests_with_credits))
-        .route("/guests/credits", post(add_guest_credits))
-        .route("/guests/:guest_id/credits/:room_type_id", patch(update_guest_credits))
-        .route("/guests/:guest_id/credits/:room_type_id", delete(delete_guest_credits))
+        .route("/guests/credits", get(get_guests_with_credits).post(add_guest_credits))
+        .route("/guests/:guest_id/credits/:room_type_id", patch(update_guest_credits).delete(delete_guest_credits))
         // Code lookup routes
         .route("/rate-codes", get(get_rate_codes))
         .route("/market-codes", get(get_market_codes))
