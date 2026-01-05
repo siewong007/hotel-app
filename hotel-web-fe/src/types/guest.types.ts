@@ -20,7 +20,6 @@ export interface Guest {
   is_active: boolean;
   guest_type: GuestType; // Member or non-member for pricing differentiation
   discount_percentage?: number; // Member discount percentage (e.g., 10 for 10% off)
-  complimentary_nights_credit: number; // Unused complimentary nights that can be used on future bookings
   created_at: string;
   updated_at: string;
 }

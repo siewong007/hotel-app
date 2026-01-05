@@ -78,7 +78,6 @@ const GuestConfigurationPage: React.FC = () => {
     guest_id: number;
     guest_name: string;
     total_nights: number;
-    legacy_total_nights: number;
     credits_by_room_type: {
       id: number;
       guest_id: number;
@@ -524,16 +523,15 @@ const GuestConfigurationPage: React.FC = () => {
                     )}
                   </TableCell>
                   <TableCell>
-                    {guest.complimentary_nights_credit > 0 ? (
-                      <Chip
-                        icon={<GiftIcon sx={{ fontSize: 16 }} />}
-                        label={`${guest.complimentary_nights_credit} night${guest.complimentary_nights_credit !== 1 ? 's' : ''}`}
+                    <Tooltip title="View credits">
+                      <IconButton
                         size="small"
+                        onClick={() => handleViewCredits(guest)}
                         color="secondary"
-                      />
-                    ) : (
-                      <Typography variant="body2" color="text.disabled">-</Typography>
-                    )}
+                      >
+                        <GiftIcon />
+                      </IconButton>
+                    </Tooltip>
                   </TableCell>
                   <TableCell align="right">
                     <Tooltip title="View Bookings">
@@ -1041,35 +1039,6 @@ const GuestConfigurationPage: React.FC = () => {
                 </Box>
               )}
 
-              {/* Legacy Credits */}
-              {guestCredits.legacy_total_nights > 0 && (
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    backgroundColor: 'info.light',
-                    borderRadius: 1,
-                    px: 2,
-                    py: 1,
-                    mb: 2,
-                  }}
-                >
-                  <Box>
-                    <Typography variant="body1" fontWeight={600}>
-                      Any Room Type
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Legacy credits (can be used for any room)
-                    </Typography>
-                  </Box>
-                  <Chip
-                    label={`${guestCredits.legacy_total_nights} night${guestCredits.legacy_total_nights !== 1 ? 's' : ''}`}
-                    color="info"
-                  />
-                </Box>
-              )}
-
               {/* Total */}
               <Box
                 sx={{
@@ -1087,13 +1056,13 @@ const GuestConfigurationPage: React.FC = () => {
                 </Typography>
                 <Chip
                   icon={<GiftIcon />}
-                  label={`${guestCredits.total_nights + guestCredits.legacy_total_nights} night${(guestCredits.total_nights + guestCredits.legacy_total_nights) !== 1 ? 's' : ''}`}
+                  label={`${guestCredits.total_nights} night${guestCredits.total_nights !== 1 ? 's' : ''}`}
                   color="secondary"
                   sx={{ fontSize: '1rem', py: 2 }}
                 />
               </Box>
 
-              {guestCredits.total_nights === 0 && guestCredits.legacy_total_nights === 0 && (
+              {guestCredits.total_nights === 0 && (
                 <Alert severity="info" sx={{ mt: 2 }}>
                   This guest has no complimentary credits available.
                 </Alert>

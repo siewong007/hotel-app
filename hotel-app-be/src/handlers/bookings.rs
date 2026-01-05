@@ -524,19 +524,39 @@ pub async fn delete_booking_handler(
         .await
         .ok();
 
-    // If the booking was complimentary, convert the nights to guest credits
+    // If the booking was complimentary, convert the nights to room-type specific credits
     let mut nights_credited = 0;
     if is_complimentary == Some(true) {
         let nights = (check_out_date - check_in_date).num_days() as i32;
-        sqlx::query(
-            "UPDATE guests SET complimentary_nights_credit = COALESCE(complimentary_nights_credit, 0) + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2"
+
+        // Get room_type_id from the room
+        let room_type_id: Option<i64> = sqlx::query_scalar(
+            "SELECT room_type_id FROM rooms WHERE id = $1"
         )
-        .bind(nights)
-        .bind(guest_id)
-        .execute(&pool)
+        .bind(room_id)
+        .fetch_optional(&pool)
         .await
-        .ok();
-        nights_credited = nights;
+        .ok()
+        .flatten();
+
+        if let Some(rt_id) = room_type_id {
+            // Add to room-type specific credits
+            sqlx::query(
+                r#"
+                INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
+                VALUES ($1, $2, $3, 'Refunded from cancelled complimentary booking', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT (guest_id, room_type_id)
+                DO UPDATE SET nights_available = guest_complimentary_credits.nights_available + $3, updated_at = CURRENT_TIMESTAMP
+                "#
+            )
+            .bind(guest_id)
+            .bind(rt_id)
+            .bind(nights)
+            .execute(&pool)
+            .await
+            .ok();
+            nights_credited = nights;
+        }
     }
 
     // Log booking cancellation
@@ -909,9 +929,16 @@ pub async fn convert_complimentary_to_credits_handler(
     Extension(user_id): Extension<i64>,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Get booking details
+    // Get booking details with room info
     let booking_row = sqlx::query(
-        "SELECT id, guest_id, status, is_complimentary, check_in_date, check_out_date FROM bookings WHERE id = $1"
+        r#"
+        SELECT b.id, b.guest_id, b.room_id, b.status, b.is_complimentary, b.check_in_date, b.check_out_date,
+               r.room_type_id, rt.name as room_type_name
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.id
+        JOIN room_types rt ON r.room_type_id = rt.id
+        WHERE b.id = $1
+        "#
     )
     .bind(booking_id)
     .fetch_optional(&pool)
@@ -919,11 +946,13 @@ pub async fn convert_complimentary_to_credits_handler(
     .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
 
-    let guest_id: i64 = booking_row.get(1);
-    let status: String = booking_row.get(2);
-    let is_complimentary: Option<bool> = booking_row.get(3);
-    let check_in: NaiveDate = booking_row.get(4);
-    let check_out: NaiveDate = booking_row.get(5);
+    let guest_id: i64 = booking_row.get("guest_id");
+    let status: String = booking_row.get("status");
+    let is_complimentary: Option<bool> = booking_row.get("is_complimentary");
+    let check_in: NaiveDate = booking_row.get("check_in_date");
+    let check_out: NaiveDate = booking_row.get("check_out_date");
+    let room_type_id: i64 = booking_row.get("room_type_id");
+    let room_type_name: String = booking_row.get("room_type_name");
 
     if is_complimentary != Some(true) {
         return Err(ApiError::BadRequest("Only complimentary bookings can be converted to credits".to_string()));
@@ -940,21 +969,28 @@ pub async fn convert_complimentary_to_credits_handler(
     // Calculate number of nights
     let nights = (check_out - check_in).num_days() as i32;
 
-    // Add credits to guest
+    // Add to room-type specific credits
     sqlx::query(
-        "UPDATE guests SET complimentary_nights_credit = COALESCE(complimentary_nights_credit, 0) + $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2"
+        r#"
+        INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
+        VALUES ($1, $2, $3, 'Converted from cancelled complimentary booking', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (guest_id, room_type_id)
+        DO UPDATE SET nights_available = guest_complimentary_credits.nights_available + $3, updated_at = CURRENT_TIMESTAMP
+        "#
     )
-    .bind(nights)
     .bind(guest_id)
+    .bind(room_type_id)
+    .bind(nights)
     .execute(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(Json(serde_json::json!({
         "success": true,
-        "message": format!("{} complimentary night(s) converted to credits for guest", nights),
+        "message": format!("{} complimentary night(s) converted to {} credits for guest", nights, room_type_name),
         "nights_credited": nights,
-        "guest_id": guest_id
+        "guest_id": guest_id,
+        "room_type": room_type_name
     })))
 }
 
@@ -1050,7 +1086,7 @@ pub async fn book_with_credits_handler(
         .ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
 
     // Check guest's complimentary credits for this room type
-    let room_type_credits: i32 = sqlx::query_scalar(
+    let available_credits: i32 = sqlx::query_scalar(
         "SELECT COALESCE(nights_available, 0) FROM guest_complimentary_credits WHERE guest_id = $1 AND room_type_id = $2"
     )
     .bind(input.guest_id)
@@ -1060,21 +1096,10 @@ pub async fn book_with_credits_handler(
     .map_err(|e| ApiError::Database(e.to_string()))?
     .unwrap_or(0);
 
-    // Also check legacy credits as fallback
-    let legacy_credits: i32 = sqlx::query_scalar(
-        "SELECT COALESCE(complimentary_nights_credit, 0) FROM guests WHERE id = $1"
-    )
-    .bind(input.guest_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap_or(0);
-
-    let total_available_credits = room_type_credits + legacy_credits;
-
-    if total_available_credits < complimentary_nights {
+    if available_credits < complimentary_nights {
         return Err(ApiError::BadRequest(format!(
-            "Insufficient complimentary credits for {}. Requested: {} nights, Available: {} nights (room type) + {} nights (legacy)",
-            room_type_name, complimentary_nights, room_type_credits, legacy_credits
+            "Insufficient complimentary credits for {}. Requested: {} nights, Available: {} nights",
+            room_type_name, complimentary_nights, available_credits
         )));
     }
 
@@ -1159,35 +1184,16 @@ pub async fn book_with_credits_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    // Deduct credits - first from room type specific, then from legacy
-    let mut credits_to_deduct = complimentary_nights;
-
-    // Deduct from room type specific credits first
-    if room_type_credits > 0 {
-        let deduct_from_room_type = std::cmp::min(credits_to_deduct, room_type_credits);
-        sqlx::query(
-            "UPDATE guest_complimentary_credits SET nights_available = nights_available - $1, updated_at = CURRENT_TIMESTAMP WHERE guest_id = $2 AND room_type_id = $3"
-        )
-        .bind(deduct_from_room_type)
-        .bind(input.guest_id)
-        .bind(room_type_id)
-        .execute(&pool)
-        .await
-        .ok();
-        credits_to_deduct -= deduct_from_room_type;
-    }
-
-    // Deduct remaining from legacy credits if needed
-    if credits_to_deduct > 0 {
-        sqlx::query(
-            "UPDATE guests SET complimentary_nights_credit = complimentary_nights_credit - $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2"
-        )
-        .bind(credits_to_deduct)
-        .bind(input.guest_id)
-        .execute(&pool)
-        .await
-        .ok();
-    }
+    // Deduct credits from room-type specific credits
+    sqlx::query(
+        "UPDATE guest_complimentary_credits SET nights_available = nights_available - $1, updated_at = CURRENT_TIMESTAMP WHERE guest_id = $2 AND room_type_id = $3"
+    )
+    .bind(complimentary_nights)
+    .bind(input.guest_id)
+    .bind(room_type_id)
+    .execute(&pool)
+    .await
+    .ok();
 
     // Update room status to reserved
     sqlx::query("UPDATE rooms SET status = 'reserved' WHERE id = $1")
@@ -1262,17 +1268,9 @@ pub async fn get_complimentary_summary_handler(
     .await
     .unwrap_or(0);
 
-    // Total credits issued (sum of all guest credits)
-    let total_credits_issued: i64 = sqlx::query_scalar(
+    // Total credits available (sum of all room-type specific credits)
+    let total_credits_available: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(nights_available), 0) FROM guest_complimentary_credits"
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap_or(0);
-
-    // Legacy credits
-    let legacy_credits: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(complimentary_nights_credit), 0) FROM guests WHERE complimentary_nights_credit > 0"
     )
     .fetch_one(&pool)
     .await
@@ -1289,9 +1287,7 @@ pub async fn get_complimentary_summary_handler(
     Ok(Json(serde_json::json!({
         "total_complimentary_bookings": total_bookings,
         "total_complimentary_nights": total_nights,
-        "total_credits_available": total_credits_issued + legacy_credits,
-        "room_type_credits": total_credits_issued,
-        "legacy_credits": legacy_credits,
+        "total_credits_available": total_credits_available,
         "value_of_complimentary_nights": value_given.to_string()
     })))
 }
@@ -1493,43 +1489,21 @@ pub async fn remove_complimentary_handler(
     })))
 }
 
-/// Guest credit information
-#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
-pub struct GuestCredit {
-    pub guest_id: i64,
-    pub guest_name: String,
-    pub email: Option<String>,
-    pub legacy_credits: i32,
-}
-
 /// Get all guests with complimentary credits
 pub async fn get_guests_with_credits_handler(
     State(pool): State<PgPool>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Get guests with legacy credits
-    let legacy_guests: Vec<GuestCredit> = sqlx::query_as(
-        r#"
-        SELECT id as guest_id, full_name as guest_name, email, COALESCE(complimentary_nights_credit, 0) as legacy_credits
-        FROM guests
-        WHERE complimentary_nights_credit > 0
-        ORDER BY complimentary_nights_credit DESC
-        "#
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
     // Get room type specific credits
-    let room_type_credits: Vec<serde_json::Value> = sqlx::query(
+    let credits: Vec<serde_json::Value> = sqlx::query(
         r#"
         SELECT gc.guest_id, g.full_name as guest_name, g.email,
                gc.room_type_id, rt.name as room_type_name, rt.code as room_type_code,
-               gc.nights_available
+               gc.nights_available, gc.notes
         FROM guest_complimentary_credits gc
         INNER JOIN guests g ON gc.guest_id = g.id
         INNER JOIN room_types rt ON gc.room_type_id = rt.id
         WHERE gc.nights_available > 0
-        ORDER BY gc.nights_available DESC
+        ORDER BY g.full_name, rt.name
         "#
     )
     .fetch_all(&pool)
@@ -1544,13 +1518,13 @@ pub async fn get_guests_with_credits_handler(
             "room_type_id": row.get::<i64, _>("room_type_id"),
             "room_type_name": row.get::<String, _>("room_type_name"),
             "room_type_code": row.get::<Option<String>, _>("room_type_code"),
-            "nights_available": row.get::<i32, _>("nights_available")
+            "nights_available": row.get::<i32, _>("nights_available"),
+            "notes": row.get::<Option<String>, _>("notes")
         })
     })
     .collect();
 
     Ok(Json(serde_json::json!({
-        "legacy_credits": legacy_guests,
-        "room_type_credits": room_type_credits
+        "credits": credits
     })))
 }

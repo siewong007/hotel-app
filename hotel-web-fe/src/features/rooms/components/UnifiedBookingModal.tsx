@@ -181,9 +181,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     try {
       const response = await HotelAPIService.getMyGuestsWithCredits();
       // Filter to only show guests who have any credits
-      const filteredGuests = response.filter(
-        g => g.legacy_complimentary_nights_credit > 0 || g.total_complimentary_credits > 0
-      );
+      const filteredGuests = response.filter(g => g.total_complimentary_credits > 0);
       setGuestsWithCredits(filteredGuests);
     } catch (error) {
       console.error('Failed to load guests with credits:', error);

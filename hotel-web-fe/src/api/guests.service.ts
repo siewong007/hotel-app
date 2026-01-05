@@ -96,7 +96,6 @@ export class GuestsService {
     id: number;
     full_name: string;
     email: string;
-    legacy_complimentary_nights_credit: number;
     total_complimentary_credits: number;
     credits_by_room_type: {
       room_type_id: number;
@@ -127,7 +126,6 @@ export class GuestsService {
     guest_id: number;
     guest_name: string;
     total_nights: number;
-    legacy_total_nights: number;
     credits_by_room_type: {
       id: number;
       guest_id: number;

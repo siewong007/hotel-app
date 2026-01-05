@@ -87,7 +87,6 @@ interface GuestWithCredits {
   id: number;
   full_name: string;
   email: string;
-  legacy_complimentary_nights_credit: number;
   total_complimentary_credits: number;
   credits_by_room_type: {
     room_type_id: number;
@@ -195,7 +194,6 @@ const RoomManagementPage: React.FC = () => {
     guest_id: number;
     guest_name: string;
     total_nights: number;
-    legacy_total_nights: number;
     credits_by_room_type: {
       id: number;
       room_type_id: number;
@@ -1298,14 +1296,14 @@ const RoomManagementPage: React.FC = () => {
   const getTotalCreditsForRoom = (roomId: string): number => {
     if (!guestCredits || !roomId) return 0;
     const room = availableRoomsForCredits.find(r => r.id.toString() === roomId);
-    if (!room) return guestCredits.legacy_total_nights;
+    if (!room) return 0;
 
     // Find credits for this room type
     const roomTypeCredits = guestCredits.credits_by_room_type.find(c =>
       room.room_type?.toLowerCase().includes(c.room_type_name.toLowerCase())
     );
 
-    return (roomTypeCredits?.nights_available || 0) + guestCredits.legacy_total_nights;
+    return roomTypeCredits?.nights_available || 0;
   };
 
   const handleCreditsDateToggle = (date: string) => {
@@ -3131,14 +3129,12 @@ const RoomManagementPage: React.FC = () => {
                   onChange={(_, newValue) => setComplimentaryCheckInGuest(newValue)}
                   options={guestsWithCredits}
                   getOptionLabel={(option) => {
-                    const totalCredits = option.legacy_complimentary_nights_credit + option.total_complimentary_credits;
                     return option.email
-                      ? `${option.full_name} - ${option.email} (${totalCredits} credits)`
-                      : `${option.full_name} (${totalCredits} credits)`;
+                      ? `${option.full_name} - ${option.email} (${option.total_complimentary_credits} credits)`
+                      : `${option.full_name} (${option.total_complimentary_credits} credits)`;
                   }}
                   renderOption={(props, option) => {
                     const { key, ...otherProps } = props;
-                    const totalCredits = option.legacy_complimentary_nights_credit + option.total_complimentary_credits;
                     return (
                       <Box component="li" key={key} {...otherProps}>
                         <Box sx={{ width: '100%' }}>
@@ -3149,7 +3145,7 @@ const RoomManagementPage: React.FC = () => {
                             </Box>
                             <Chip
                               icon={<GiftIcon sx={{ fontSize: 14 }} />}
-                              label={`${totalCredits} night${totalCredits !== 1 ? 's' : ''}`}
+                              label={`${option.total_complimentary_credits} night${option.total_complimentary_credits !== 1 ? 's' : ''}`}
                               size="small"
                               color="secondary"
                             />
@@ -3166,14 +3162,6 @@ const RoomManagementPage: React.FC = () => {
                                   sx={{ fontSize: '0.65rem', height: 20 }}
                                 />
                               ))}
-                              {option.legacy_complimentary_nights_credit > 0 && (
-                                <Chip
-                                  label={`Any room: ${option.legacy_complimentary_nights_credit}`}
-                                  size="small"
-                                  variant="outlined"
-                                  sx={{ fontSize: '0.65rem', height: 20 }}
-                                />
-                              )}
                             </Box>
                           )}
                         </Box>
@@ -3280,14 +3268,6 @@ const RoomManagementPage: React.FC = () => {
                               sx={{ fontSize: '0.7rem' }}
                             />
                           ))}
-                          {complimentaryCheckInGuest.legacy_complimentary_nights_credit > 0 && (
-                            <Chip
-                              size="small"
-                              icon={<GiftIcon sx={{ fontSize: 14 }} />}
-                              label={`Any: ${complimentaryCheckInGuest.legacy_complimentary_nights_credit}`}
-                              color="secondary"
-                            />
-                          )}
                         </Box>
                       </Grid>
                     </>
@@ -4232,9 +4212,9 @@ const RoomManagementPage: React.FC = () => {
             label={
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <span>Free Gift Credits</span>
-                {guestCredits && (guestCredits.total_nights + guestCredits.legacy_total_nights) > 0 && (
+                {guestCredits && guestCredits.total_nights > 0 && (
                   <Chip
-                    label={guestCredits.total_nights + guestCredits.legacy_total_nights}
+                    label={guestCredits.total_nights}
                     size="small"
                     color="secondary"
                   />
@@ -4347,7 +4327,7 @@ const RoomManagementPage: React.FC = () => {
                       <Typography variant="subtitle1" fontWeight={600} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <GiftIcon /> Available Free Gift Credits
                       </Typography>
-                      {guestCredits && (guestCredits.total_nights + guestCredits.legacy_total_nights) > 0 ? (
+                      {guestCredits && guestCredits.total_nights > 0 ? (
                         <Box>
                           {guestCredits.credits_by_room_type.map((credit) => (
                             <Chip
@@ -4358,14 +4338,6 @@ const RoomManagementPage: React.FC = () => {
                               sx={{ mr: 1, mb: 1 }}
                             />
                           ))}
-                          {guestCredits.legacy_total_nights > 0 && (
-                            <Chip
-                              icon={<GiftIcon />}
-                              label={`Any Room: ${guestCredits.legacy_total_nights} night(s)`}
-                              color="info"
-                              sx={{ mr: 1, mb: 1 }}
-                            />
-                          )}
                         </Box>
                       ) : (
                         <Typography variant="body2" color="text.secondary">
@@ -4376,7 +4348,7 @@ const RoomManagementPage: React.FC = () => {
                   </Grid>
 
                   {/* Booking Form */}
-                  {guestCredits && (guestCredits.total_nights + guestCredits.legacy_total_nights) > 0 && (
+                  {guestCredits && guestCredits.total_nights > 0 && (
                     <>
                       <Grid item xs={12}>
                         <Typography variant="subtitle1" fontWeight={600}>

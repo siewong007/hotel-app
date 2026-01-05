@@ -310,8 +310,6 @@ export class BookingsService {
     total_complimentary_bookings: number;
     total_complimentary_nights: number;
     total_credits_available: number;
-    room_type_credits: number;
-    legacy_credits: number;
     value_of_complimentary_nights: string;
   }> {
     try {
@@ -382,13 +380,7 @@ export class BookingsService {
   }
 
   static async getGuestsWithCredits(): Promise<{
-    legacy_credits: Array<{
-      guest_id: number;
-      guest_name: string;
-      email: string | null;
-      legacy_credits: number;
-    }>;
-    room_type_credits: Array<{
+    credits: Array<{
       guest_id: number;
       guest_name: string;
       email: string | null;
@@ -396,6 +388,7 @@ export class BookingsService {
       room_type_name: string;
       room_type_code: string | null;
       nights_available: number;
+      notes: string | null;
     }>;
   }> {
     try {
