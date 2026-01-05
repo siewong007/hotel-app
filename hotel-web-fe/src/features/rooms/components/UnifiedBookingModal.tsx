@@ -428,11 +428,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               onBookingCreated(bookingForModal, guestToUse!);
             }
           } else {
-            // Reservation mode: just create reservation
-            await HotelAPIService.updateRoomStatus(room.id, {
-              status: 'reserved',
-              notes: `Walk-in reservation for ${guestToUse!.full_name}`,
-            });
+            // Reservation mode: booking created, room status already set by backend
             onSuccess(`Reservation created for ${guestToUse!.full_name} in Room ${room.room_number}`);
             onClose();
             await onRefreshData();
@@ -455,11 +451,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           };
 
           await HotelAPIService.createBooking(bookingData);
-
-          await HotelAPIService.updateRoomStatus(room.id, {
-            status: 'reserved',
-            notes: `Reserved via ${bookingChannel}${bookingReference ? ` - Ref: ${bookingReference}` : ''}`,
-          });
 
           onSuccess(`Reservation created for ${guestToUse!.full_name} in Room ${room.room_number}`);
           onClose();
@@ -488,11 +479,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             check_in_date: checkInDate,
             check_out_date: checkOutDate,
             complimentary_dates: complimentaryDates,
-          });
-
-          await HotelAPIService.updateRoomStatus(room.id, {
-            status: 'reserved',
-            notes: `Complimentary reservation - ${bookingResult.complimentary_nights} nights used`,
           });
 
           onSuccess(`Complimentary reservation created for ${selectedGuestWithCredits.full_name} in Room ${room.room_number} (${bookingResult.complimentary_nights} nights used)`);

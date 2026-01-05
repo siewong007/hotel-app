@@ -1189,15 +1189,12 @@ pub async fn book_with_credits_handler(
         .ok();
     }
 
-    // Update room status to reserved if check-in is today
-    let today = chrono::Utc::now().date_naive();
-    if check_in <= today {
-        sqlx::query("UPDATE rooms SET status = 'reserved' WHERE id = $1")
-            .bind(input.room_id)
-            .execute(&pool)
-            .await
-            .ok();
-    }
+    // Update room status to reserved
+    sqlx::query("UPDATE rooms SET status = 'reserved' WHERE id = $1")
+        .bind(input.room_id)
+        .execute(&pool)
+        .await
+        .ok();
 
     Ok(Json(serde_json::json!({
         "success": true,
