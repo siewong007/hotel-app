@@ -136,7 +136,7 @@ export default function ComplimentaryManagementPage() {
 
   // Filtered and sorted bookings
   const filteredBookings = useMemo(() => {
-    let filtered = [...bookings];
+    let filtered = [...(bookings || [])];
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
@@ -556,7 +556,7 @@ export default function ComplimentaryManagementPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {guestCredits.map((credit, idx) => (
+                {(guestCredits || []).map((credit, idx) => (
                   <TableRow key={`${credit.guest_id}-${credit.room_type_id}-${idx}`}>
                     <TableCell>
                       <Typography variant="body2">{credit.guest_name}</Typography>
