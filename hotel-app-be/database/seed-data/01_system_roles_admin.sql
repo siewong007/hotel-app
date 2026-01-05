@@ -94,7 +94,7 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager'
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'receptionist' AND p.name IN (
     'rooms:read', 'rooms:update', 'bookings:create', 'bookings:read', 'bookings:update',
-    'guests:create', 'guests:read', 'guests:update', 'payments:create', 'payments:read',
+    'guests:create', 'guests:read', 'guests:update', 'guests:manage', 'payments:create', 'payments:read',
     'services:read', 'services:create', 'reviews:read', 'settings:read', 'analytics:read', 'reports:execute'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
