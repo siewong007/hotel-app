@@ -34,23 +34,18 @@ import {
   Warning as WarningIcon,
   CheckCircle as CheckIcon,
   Hotel as HotelIcon,
-  People as PeopleIcon,
   AttachMoney as MoneyIcon,
   EventAvailable as EventIcon,
   MeetingRoom as RoomIcon,
   Info as InfoIcon,
   KeyboardArrowDown as ExpandMoreIcon,
   KeyboardArrowUp as ExpandLessIcon,
-  CalendarToday as CalendarIcon,
   AccessTime as TimeIcon,
   Person as PersonIcon,
   PictureAsPdf as PdfIcon,
   TableChart as CsvIcon,
-  Download as DownloadIcon,
 } from '@mui/icons-material';
-import { NightAuditService, NightAuditPreview, NightAuditRun, UnpostedBooking, PostedBookingDetail, RevenueBreakdownItem } from '../../../api';
-import PaymentIcon from '@mui/icons-material/Payment';
-import SourceIcon from '@mui/icons-material/Campaign';
+import { NightAuditService, NightAuditPreview, NightAuditRun, UnpostedBooking } from '../../../api';
 import { formatCurrency } from '../../../utils/currency';
 
 interface TabPanelProps {
