@@ -491,12 +491,6 @@ const RoomManagementPage: React.FC = () => {
         complimentary_dates: complimentaryDates,
       });
 
-      // Update room status to reserved (NOT occupied - this is a reservation, not immediate check-in)
-      await HotelAPIService.updateRoomStatus(selectedRoom.id, {
-        status: 'reserved',
-        notes: `Complimentary reservation - ${bookingResult.complimentary_nights} nights used`,
-      });
-
       showSnackbar(`Complimentary reservation created for ${complimentaryCheckInGuest.full_name} in Room ${selectedRoom.room_number} (${bookingResult.complimentary_nights} nights used)`, 'success');
       setComplimentaryCheckInDialogOpen(false);
       setComplimentaryCheckInGuest(null);
@@ -925,12 +919,6 @@ const RoomManagementPage: React.FC = () => {
       console.log('Creating reservation with data:', bookingData);
 
       await HotelAPIService.createBooking(bookingData);
-
-      // Update room status to reserved (NOT occupied - guest hasn't arrived yet)
-      await HotelAPIService.updateRoomStatus(selectedRoom.id, {
-        status: 'reserved',
-        notes: `Reserved via ${onlineCheckInBookingChannel}${onlineReference ? ` - Ref: ${onlineReference}` : ''}`,
-      });
 
       showSnackbar(`Reservation created for ${guestToUse.full_name} in Room ${selectedRoom.room_number}`, 'success');
       setOnlineCheckInDialogOpen(false);
