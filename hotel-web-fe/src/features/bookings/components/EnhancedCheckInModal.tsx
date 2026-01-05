@@ -516,6 +516,44 @@ export default function EnhancedCheckInModal({
       };
 
       await HotelAPIService.checkInGuest(booking.id, checkinRequest);
+
+      // Automatically create company ledger if Direct Billing with a company selected
+      if (paymentType === 'Direct Billing' && selectedCompany) {
+        try {
+          const totalAmount = typeof booking.total_amount === 'string'
+            ? parseFloat(booking.total_amount)
+            : booking.total_amount;
+
+          const ledgerData: CustomerLedgerCreateRequest = {
+            company_name: selectedCompany.company_name,
+            company_registration_number: selectedCompany.registration_number,
+            contact_person: selectedCompany.contact_person,
+            contact_email: selectedCompany.contact_email,
+            contact_phone: selectedCompany.contact_phone,
+            billing_address_line1: selectedCompany.billing_address,
+            billing_city: selectedCompany.billing_city,
+            billing_state: selectedCompany.billing_state,
+            billing_postal_code: selectedCompany.billing_postal_code,
+            billing_country: selectedCompany.billing_country,
+            description: `Room charge for booking ${booking.booking_number || booking.id} - ${guest?.full_name || 'Guest'}`,
+            expense_type: 'accommodation',
+            amount: totalAmount || 0,
+            booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
+            guest_id: typeof booking.guest_id === 'string' ? parseInt(booking.guest_id) : booking.guest_id,
+            due_date: format(new Date(new Date().getTime() + (selectedCompany.payment_terms_days || 30) * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+            folio_type: 'city_ledger',
+            transaction_type: 'debit',
+            post_type: 'room_charge',
+            room_number: (booking as any).room_number || String(booking.room_id),
+          };
+
+          await LedgerService.createCustomerLedger(ledgerData);
+        } catch (ledgerErr: any) {
+          console.error('Failed to create company ledger:', ledgerErr);
+          // Don't fail check-in if ledger creation fails, but log the error
+        }
+      }
+
       onCheckInSuccess();
       onClose();
     } catch (err: any) {
