@@ -405,4 +405,99 @@ export class BookingsService {
       throw new APIError('Failed to fetch guests with credits');
     }
   }
+
+  static async addGuestCredits(data: {
+    guest_id: number;
+    room_type_id: number;
+    nights: number;
+    notes?: string;
+  }): Promise<{
+    success: boolean;
+    message: string;
+    credit: {
+      guest_id: number;
+      guest_name: string;
+      room_type_id: number;
+      room_type_name: string;
+      nights_available: number;
+      notes: string | null;
+    };
+  }> {
+    try {
+      return await api.post('guests/credits', { json: data }).json();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to add guest credits',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to add guest credits');
+    }
+  }
+
+  static async updateGuestCredits(
+    guestId: number,
+    roomTypeId: number,
+    data: {
+      nights_available?: number;
+      notes?: string;
+    }
+  ): Promise<{
+    success: boolean;
+    message: string;
+    credit: {
+      guest_id: number;
+      guest_name: string;
+      room_type_id: number;
+      room_type_name: string;
+      nights_available: number;
+      notes: string | null;
+    };
+  }> {
+    try {
+      return await api.patch(`guests/${guestId}/credits/${roomTypeId}`, { json: data }).json();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to update guest credits',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to update guest credits');
+    }
+  }
+
+  static async deleteGuestCredits(
+    guestId: number,
+    roomTypeId: number
+  ): Promise<{
+    success: boolean;
+    message: string;
+    deleted: {
+      guest_id: number;
+      guest_name: string;
+      room_type_id: number;
+      room_type_name: string;
+      nights_deleted: number;
+    };
+  }> {
+    try {
+      return await api.delete(`guests/${guestId}/credits/${roomTypeId}`).json();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to delete guest credits',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to delete guest credits');
+    }
+  }
 }

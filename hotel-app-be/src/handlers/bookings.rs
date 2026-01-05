@@ -1528,3 +1528,253 @@ pub async fn get_guests_with_credits_handler(
         "credits": credits
     })))
 }
+
+/// Request to add credits to a guest
+#[derive(Debug, Deserialize)]
+pub struct AddGuestCreditsRequest {
+    pub guest_id: i64,
+    pub room_type_id: i64,
+    pub nights: i32,
+    pub notes: Option<String>,
+}
+
+/// Add complimentary credits to a guest
+pub async fn add_guest_credits_handler(
+    State(pool): State<PgPool>,
+    Json(input): Json<AddGuestCreditsRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Validate guest exists
+    let guest_exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM guests WHERE id = $1)")
+        .bind(input.guest_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if !guest_exists {
+        return Err(ApiError::NotFound(format!("Guest with id {} not found", input.guest_id)));
+    }
+
+    // Validate room type exists
+    let room_type_exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM room_types WHERE id = $1)")
+        .bind(input.room_type_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if !room_type_exists {
+        return Err(ApiError::NotFound(format!("Room type with id {} not found", input.room_type_id)));
+    }
+
+    if input.nights <= 0 {
+        return Err(ApiError::BadRequest("Nights must be greater than 0".to_string()));
+    }
+
+    // Upsert credits
+    sqlx::query(
+        r#"
+        INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (guest_id, room_type_id)
+        DO UPDATE SET nights_available = guest_complimentary_credits.nights_available + $3,
+                      notes = COALESCE($4, guest_complimentary_credits.notes),
+                      updated_at = CURRENT_TIMESTAMP
+        "#
+    )
+    .bind(input.guest_id)
+    .bind(input.room_type_id)
+    .bind(input.nights)
+    .bind(&input.notes)
+    .execute(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Get updated credit info
+    let credit = sqlx::query(
+        r#"
+        SELECT gc.guest_id, g.full_name as guest_name, gc.room_type_id, rt.name as room_type_name,
+               gc.nights_available, gc.notes
+        FROM guest_complimentary_credits gc
+        INNER JOIN guests g ON gc.guest_id = g.id
+        INNER JOIN room_types rt ON gc.room_type_id = rt.id
+        WHERE gc.guest_id = $1 AND gc.room_type_id = $2
+        "#
+    )
+    .bind(input.guest_id)
+    .bind(input.room_type_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": format!("Added {} nights to guest credits", input.nights),
+        "credit": {
+            "guest_id": credit.get::<i64, _>("guest_id"),
+            "guest_name": credit.get::<String, _>("guest_name"),
+            "room_type_id": credit.get::<i64, _>("room_type_id"),
+            "room_type_name": credit.get::<String, _>("room_type_name"),
+            "nights_available": credit.get::<i32, _>("nights_available"),
+            "notes": credit.get::<Option<String>, _>("notes")
+        }
+    })))
+}
+
+/// Request to update guest credits
+#[derive(Debug, Deserialize)]
+pub struct UpdateGuestCreditsRequest {
+    pub nights_available: Option<i32>,
+    pub notes: Option<String>,
+}
+
+/// Update guest complimentary credits
+pub async fn update_guest_credits_handler(
+    State(pool): State<PgPool>,
+    Path((guest_id, room_type_id)): Path<(i64, i64)>,
+    Json(input): Json<UpdateGuestCreditsRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Check if credit record exists
+    let credit_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM guest_complimentary_credits WHERE guest_id = $1 AND room_type_id = $2)"
+    )
+    .bind(guest_id)
+    .bind(room_type_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if !credit_exists {
+        return Err(ApiError::NotFound(format!(
+            "Credit record not found for guest {} and room type {}", guest_id, room_type_id
+        )));
+    }
+
+    if let Some(nights) = input.nights_available {
+        if nights < 0 {
+            return Err(ApiError::BadRequest("Nights available cannot be negative".to_string()));
+        }
+    }
+
+    // Build update query dynamically
+    let mut updates = Vec::new();
+    let mut param_count = 0;
+
+    if input.nights_available.is_some() {
+        param_count += 1;
+        updates.push(format!("nights_available = ${}", param_count));
+    }
+    if input.notes.is_some() {
+        param_count += 1;
+        updates.push(format!("notes = ${}", param_count));
+    }
+
+    if updates.is_empty() {
+        return Err(ApiError::BadRequest("No fields to update".to_string()));
+    }
+
+    updates.push("updated_at = CURRENT_TIMESTAMP".to_string());
+
+    let query = format!(
+        "UPDATE guest_complimentary_credits SET {} WHERE guest_id = ${} AND room_type_id = ${}",
+        updates.join(", "),
+        param_count + 1,
+        param_count + 2
+    );
+
+    let mut q = sqlx::query(&query);
+
+    if let Some(nights) = input.nights_available {
+        q = q.bind(nights);
+    }
+    if let Some(ref notes) = input.notes {
+        q = q.bind(notes);
+    }
+
+    q = q.bind(guest_id).bind(room_type_id);
+
+    q.execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Get updated credit info
+    let credit = sqlx::query(
+        r#"
+        SELECT gc.guest_id, g.full_name as guest_name, gc.room_type_id, rt.name as room_type_name,
+               gc.nights_available, gc.notes
+        FROM guest_complimentary_credits gc
+        INNER JOIN guests g ON gc.guest_id = g.id
+        INNER JOIN room_types rt ON gc.room_type_id = rt.id
+        WHERE gc.guest_id = $1 AND gc.room_type_id = $2
+        "#
+    )
+    .bind(guest_id)
+    .bind(room_type_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Credits updated successfully",
+        "credit": {
+            "guest_id": credit.get::<i64, _>("guest_id"),
+            "guest_name": credit.get::<String, _>("guest_name"),
+            "room_type_id": credit.get::<i64, _>("room_type_id"),
+            "room_type_name": credit.get::<String, _>("room_type_name"),
+            "nights_available": credit.get::<i32, _>("nights_available"),
+            "notes": credit.get::<Option<String>, _>("notes")
+        }
+    })))
+}
+
+/// Delete guest complimentary credits
+pub async fn delete_guest_credits_handler(
+    State(pool): State<PgPool>,
+    Path((guest_id, room_type_id)): Path<(i64, i64)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Check if credit record exists
+    let credit = sqlx::query(
+        r#"
+        SELECT gc.nights_available, g.full_name as guest_name, rt.name as room_type_name
+        FROM guest_complimentary_credits gc
+        INNER JOIN guests g ON gc.guest_id = g.id
+        INNER JOIN room_types rt ON gc.room_type_id = rt.id
+        WHERE gc.guest_id = $1 AND gc.room_type_id = $2
+        "#
+    )
+    .bind(guest_id)
+    .bind(room_type_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let credit = match credit {
+        Some(c) => c,
+        None => return Err(ApiError::NotFound(format!(
+            "Credit record not found for guest {} and room type {}", guest_id, room_type_id
+        ))),
+    };
+
+    let nights_deleted = credit.get::<i32, _>("nights_available");
+    let guest_name = credit.get::<String, _>("guest_name");
+    let room_type_name = credit.get::<String, _>("room_type_name");
+
+    // Delete the credit record
+    sqlx::query("DELETE FROM guest_complimentary_credits WHERE guest_id = $1 AND room_type_id = $2")
+        .bind(guest_id)
+        .bind(room_type_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": format!("Deleted {} nights of {} credits for {}", nights_deleted, room_type_name, guest_name),
+        "deleted": {
+            "guest_id": guest_id,
+            "guest_name": guest_name,
+            "room_type_id": room_type_id,
+            "room_type_name": room_type_name,
+            "nights_deleted": nights_deleted
+        }
+    })))
+}
