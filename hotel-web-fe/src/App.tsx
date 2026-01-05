@@ -375,7 +375,7 @@ const NavigationTabs = React.memo(function NavigationTabs() {
       label: 'Complimentary Nights',
       path: '/complimentary',
       permissions: ['bookings:read', 'bookings:update'],
-      roles: ['admin', 'manager'],
+      roles: ['admin', 'manager', 'receptionist'],
       group: 'admin',
     },
     {
@@ -1399,7 +1399,7 @@ function AppContent() {
             <Route
               path="/complimentary"
               element={
-                <ProtectedRoute requiredRoles={['admin', 'manager']}>
+                <ProtectedRoute requiredRoles={['admin', 'manager', 'receptionist']}>
                   <AnimatedRoute animationType="slide">
                     <ComponentErrorBoundary>
                       <ComplimentaryManagementPage />
