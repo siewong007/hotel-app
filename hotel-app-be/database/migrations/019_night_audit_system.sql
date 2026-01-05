@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS night_audit_runs (
     rooms_maintenance INTEGER DEFAULT 0,
     rooms_dirty INTEGER DEFAULT 0,
 
+    -- Breakdown data
+    payment_method_breakdown JSONB DEFAULT '{}',
+    booking_channel_breakdown JSONB DEFAULT '{}',
+
     notes TEXT,
     error_message TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
