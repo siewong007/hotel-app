@@ -120,8 +120,8 @@ export default function ComplimentaryManagementPage() {
         HotelAPIService.getGuestsWithCredits(),
         HotelAPIService.getComplimentarySummary(),
       ]);
-      setBookings(bookingsData);
-      setGuestCredits(creditsData.credits);
+      setBookings(bookingsData || []);
+      setGuestCredits(creditsData?.credits || []);
       setSummary(summaryData);
     } catch (err: any) {
       setError(err.message || 'Failed to load data');
@@ -360,9 +360,9 @@ export default function ComplimentaryManagementPage() {
       {/* Tabs */}
       <Paper sx={{ mb: 2 }}>
         <Tabs value={tabValue} onChange={(_, newValue) => setTabValue(newValue)}>
-          <Tab label={`Complimentary Bookings (${bookings.length})`} />
+          <Tab label={`Complimentary Bookings (${bookings?.length || 0})`} />
           <Tab
-            label={`Guest Credits (${guestCredits.length})`}
+            label={`Guest Credits (${guestCredits?.length || 0})`}
           />
         </Tabs>
       </Paper>
@@ -543,7 +543,7 @@ export default function ComplimentaryManagementPage() {
           <Typography variant="h6" gutterBottom>
             Guest Complimentary Credits by Room Type
           </Typography>
-          {guestCredits.length === 0 ? (
+          {(!guestCredits || guestCredits.length === 0) ? (
             <Typography color="text.secondary">No guests with complimentary credits</Typography>
           ) : (
             <Table size="small">
