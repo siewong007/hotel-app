@@ -136,18 +136,11 @@ SELECT lm.id, 'redeem', -1575, 7200, 'Redeemed: Full Day Spa Package', CURRENT_T
 FROM loyalty_memberships lm JOIN guests g ON g.id = lm.guest_id WHERE g.email = 'michael.brown@corporate.com';
 
 -- ============================================================================
--- COMPLIMENTARY NIGHT CREDITS
+-- COMPLIMENTARY NIGHT CREDITS (Room-Type Specific)
 -- ============================================================================
 
--- Update legacy complimentary_nights_credit on guests table
--- Emily Williams (VIP Platinum) - 5 legacy credits
-UPDATE guests SET complimentary_nights_credit = 5 WHERE email = 'emily.williams@email.com';
-
--- Sarah Johnson (Silver) - 2 legacy credits
-UPDATE guests SET complimentary_nights_credit = 2 WHERE email = 'sarah.johnson@email.com';
-
--- Michael Brown (Gold, Corporate) - 3 legacy credits
-UPDATE guests SET complimentary_nights_credit = 3 WHERE email = 'michael.brown@corporate.com';
+-- Reset any legacy credits to 0 (using modern room-type specific credits only)
+UPDATE guests SET complimentary_nights_credit = 0 WHERE complimentary_nights_credit > 0;
 
 -- Room-type specific complimentary credits
 -- Emily Williams - 3 nights for Deluxe, 2 nights for Suite
