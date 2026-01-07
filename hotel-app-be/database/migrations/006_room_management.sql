@@ -95,6 +95,9 @@ CREATE TABLE IF NOT EXISTS rooms (
     connecting_room_id BIGINT REFERENCES rooms(id),
     notes TEXT,
     is_active BOOLEAN DEFAULT true,
+    -- Night audit tracking
+    last_posted_status VARCHAR(50),
+    last_posted_date DATE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
