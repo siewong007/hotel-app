@@ -1,12 +1,13 @@
 //! Embedded PostgreSQL database management
 //!
 //! Handles PostgreSQL lifecycle: download, initialization, startup, and shutdown.
+//! Supports Windows, macOS, and Linux platforms.
 
 use anyhow::{Context, Result};
 use postgresql_embedded::{PostgreSQL, Settings, VersionReq};
 use std::path::PathBuf;
 use std::str::FromStr;
-use tracing::info;
+use tracing::{info, warn};
 
 /// Manages the embedded PostgreSQL instance
 pub struct EmbeddedDatabase {
@@ -29,7 +30,7 @@ impl EmbeddedDatabase {
             version: VersionReq::from_str("=16.4.0").unwrap(),
             installation_dir: data_dir.join("postgresql"),
             data_dir: data_dir.join("data"),
-            port: 5433, // Use different port to avoid conflicts
+            port: find_available_port(5433), // Find available port starting from 5433
             username: "postgres".to_string(),
             password: "postgres".to_string(),
             ..Default::default()
@@ -128,6 +129,7 @@ impl EmbeddedDatabase {
     }
 
     /// Check if this is a fresh database (no tables exist)
+    #[allow(dead_code)]
     pub async fn is_fresh_install(&self) -> Result<bool> {
         let pool = sqlx::PgPool::connect(&self.connection_url())
             .await
@@ -199,19 +201,65 @@ impl EmbeddedDatabase {
     }
 
     /// Get the PostgreSQL port
+    #[allow(dead_code)]
     pub fn port(&self) -> u16 {
         self.port
     }
 }
 
+/// Find an available port starting from the given port
+fn find_available_port(start_port: u16) -> u16 {
+    use std::net::TcpListener;
+
+    for port in start_port..start_port + 100 {
+        if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return port;
+        }
+    }
+
+    warn!("Could not find available port in range {}-{}, using default", start_port, start_port + 100);
+    start_port
+}
+
 /// Get the platform-specific data directory for the application
 fn get_data_directory() -> Result<PathBuf> {
+    // Try platform-specific directories first
+    #[cfg(target_os = "windows")]
+    {
+        // On Windows, use %LOCALAPPDATA%\HotelManagement
+        if let Some(local_app_data) = std::env::var_os("LOCALAPPDATA") {
+            let path = PathBuf::from(local_app_data).join("HotelManagement");
+            return Ok(path);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // On macOS, use ~/Library/Application Support/com.hotelmanagement.desktop
+        if let Some(home) = dirs::home_dir() {
+            let path = home.join("Library")
+                .join("Application Support")
+                .join("com.hotelmanagement.desktop");
+            return Ok(path);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // On Linux, use ~/.local/share/hotel-management
+        if let Some(data_dir) = dirs::data_local_dir() {
+            let path = data_dir.join("hotel-management");
+            return Ok(path);
+        }
+    }
+
+    // Fallback to dirs crate
     let base_dir = dirs::data_local_dir()
         .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share")))
         .context("Failed to determine data directory")?;
 
     #[cfg(target_os = "macos")]
-    let app_dir = base_dir.join("com.hotelmanagement.app");
+    let app_dir = base_dir.join("com.hotelmanagement.desktop");
 
     #[cfg(target_os = "windows")]
     let app_dir = base_dir.join("HotelManagement");
@@ -227,35 +275,31 @@ fn get_data_directory() -> Result<PathBuf> {
 
 /// Get the path to migrations directory
 fn get_migrations_path() -> Result<PathBuf> {
-    // Try to find migrations relative to the executable
     let exe_path = std::env::current_exe()
         .context("Failed to get executable path")?;
 
-    // In development, migrations are in the source tree
-    // In production, they should be bundled as resources
-    let possible_paths = [
-        // Development path (relative to src-tauri)
-        exe_path.parent()
-            .and_then(|p| p.parent())
-            .and_then(|p| p.parent())
-            .map(|p| p.join("hotel-app-be").join("database").join("migrations")),
-        // Alternative development path
-        std::env::current_dir().ok()
-            .map(|p| p.join("..").join("hotel-app-be").join("database").join("migrations")),
-        // Bundled resources path (production)
-        exe_path.parent()
-            .map(|p| p.join("resources").join("migrations")),
-    ];
+    info!("Executable path: {:?}", exe_path);
 
-    for path_opt in possible_paths.iter() {
-        if let Some(path) = path_opt {
-            if path.exists() {
-                return Ok(path.clone());
+    // Platform-specific resource paths
+    let possible_paths = get_platform_migration_paths(&exe_path);
+
+    for path in possible_paths.into_iter().flatten() {
+        info!("Checking migration path: {:?}", path);
+        if path.exists() && path.is_dir() {
+            // Verify there are actually SQL files in the directory
+            if let Ok(entries) = std::fs::read_dir(&path) {
+                let has_sql_files = entries
+                    .filter_map(|e| e.ok())
+                    .any(|e| e.path().extension().map_or(false, |ext| ext == "sql"));
+                if has_sql_files {
+                    info!("Found migrations at: {:?}", path);
+                    return Ok(path);
+                }
             }
         }
     }
 
-    // Fallback to compile-time path
+    // Fallback to compile-time path (development only)
     let compile_time_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("..")
@@ -264,8 +308,72 @@ fn get_migrations_path() -> Result<PathBuf> {
         .join("migrations");
 
     if compile_time_path.exists() {
+        info!("Using compile-time migration path: {:?}", compile_time_path);
         return Ok(compile_time_path);
     }
 
-    anyhow::bail!("Could not find migrations directory")
+    anyhow::bail!("Could not find migrations directory. Checked paths and compile-time fallback.")
+}
+
+/// Get platform-specific migration paths
+fn get_platform_migration_paths(exe_path: &std::path::Path) -> Vec<Option<PathBuf>> {
+    let mut paths = Vec::new();
+
+    #[cfg(target_os = "windows")]
+    {
+        // Windows: Check next to executable and in resources folder
+        if let Some(exe_dir) = exe_path.parent() {
+            paths.push(Some(exe_dir.join("migrations")));
+            paths.push(Some(exe_dir.join("resources").join("migrations")));
+            paths.push(Some(exe_dir.join("_up_").join("migrations")));
+        }
+
+        // Check in program data
+        if let Some(program_data) = std::env::var_os("PROGRAMDATA") {
+            paths.push(Some(PathBuf::from(program_data)
+                .join("HotelManagement")
+                .join("migrations")));
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // macOS: Check inside .app bundle
+        if let Some(exe_dir) = exe_path.parent() {
+            // Inside .app bundle: Contents/MacOS/../Resources/migrations
+            paths.push(exe_dir.parent().map(|p| p.join("Resources").join("migrations")));
+            paths.push(Some(exe_dir.join("resources").join("migrations")));
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Linux: Check standard locations
+        if let Some(exe_dir) = exe_path.parent() {
+            paths.push(Some(exe_dir.join("migrations")));
+            paths.push(Some(exe_dir.join("resources").join("migrations")));
+            paths.push(Some(exe_dir.join("..").join("share").join("hotel-management").join("migrations")));
+        }
+
+        // Check /usr/share
+        paths.push(Some(PathBuf::from("/usr/share/hotel-management/migrations")));
+        paths.push(Some(PathBuf::from("/usr/local/share/hotel-management/migrations")));
+    }
+
+    // Common development paths (all platforms)
+    if let Some(exe_dir) = exe_path.parent() {
+        // Development path (relative to src-tauri/target/debug or release)
+        paths.push(exe_dir.parent()
+            .and_then(|p| p.parent())
+            .and_then(|p| p.parent())
+            .map(|p| p.join("hotel-app-be").join("database").join("migrations")));
+    }
+
+    // Alternative development path from current directory
+    if let Ok(cwd) = std::env::current_dir() {
+        paths.push(Some(cwd.join("..").join("hotel-app-be").join("database").join("migrations")));
+        paths.push(Some(cwd.join("hotel-app-be").join("database").join("migrations")));
+    }
+
+    paths
 }

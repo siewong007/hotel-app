@@ -144,6 +144,12 @@ CREATE TABLE IF NOT EXISTS bookings (
     cancellation_reason TEXT,
     cancellation_fee DECIMAL(10,2),
 
+    -- Night audit posting
+    is_posted BOOLEAN DEFAULT FALSE,
+    posted_date DATE,
+    posted_at TIMESTAMP WITH TIME ZONE,
+    posted_by BIGINT REFERENCES users(id),
+
     -- Metadata
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     created_by BIGINT REFERENCES users(id),
@@ -388,6 +394,8 @@ CREATE INDEX IF NOT EXISTS idx_booking_mods_date ON booking_modifications(modifi
 CREATE INDEX IF NOT EXISTS idx_booking_history_booking ON booking_history(booking_id);
 CREATE INDEX IF NOT EXISTS idx_booking_history_created_at ON booking_history(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookings_company_id ON bookings(company_id) WHERE company_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_bookings_is_posted ON bookings(is_posted);
+CREATE INDEX IF NOT EXISTS idx_bookings_posted_date ON bookings(posted_date);
 
 -- ============================================================================
 -- TRIGGERS
@@ -464,3 +472,189 @@ LEFT JOIN rooms r ON r.room_type_id = rt.id AND r.is_active = TRUE
 LEFT JOIN bookings b ON r.id = b.room_id AND b.status = 'checked_in' AND CURRENT_DATE >= b.check_in_date AND CURRENT_DATE <= b.check_out_date
 WHERE rt.is_active = TRUE
 GROUP BY rt.id, rt.name, rt.max_occupancy;
+
+-- ============================================================================
+-- NIGHT AUDIT FUNCTIONS
+-- ============================================================================
+
+-- Function to get unposted bookings for a date
+CREATE OR REPLACE FUNCTION get_unposted_bookings(p_audit_date DATE)
+RETURNS TABLE (
+    booking_id BIGINT,
+    booking_number VARCHAR,
+    guest_name TEXT,
+    room_number VARCHAR,
+    check_in_date DATE,
+    check_out_date DATE,
+    status VARCHAR,
+    total_amount DECIMAL
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        b.id as booking_id,
+        b.booking_number,
+        g.first_name || ' ' || g.last_name as guest_name,
+        r.room_number,
+        b.check_in_date,
+        b.check_out_date,
+        b.status,
+        b.total_amount
+    FROM bookings b
+    JOIN guests g ON b.guest_id = g.id
+    JOIN rooms r ON b.room_id = r.id
+    WHERE b.is_posted = FALSE
+    AND (
+        -- Bookings that are active on the audit date
+        (b.check_in_date <= p_audit_date AND b.check_out_date > p_audit_date)
+        OR
+        -- Bookings that checked out on the audit date
+        (b.check_out_date = p_audit_date AND b.status = 'checked_out')
+        OR
+        -- Bookings that were created/modified on the audit date
+        (DATE(b.created_at) = p_audit_date OR DATE(b.updated_at) = p_audit_date)
+    )
+    AND b.status NOT IN ('cancelled', 'no_show')
+    ORDER BY b.check_in_date;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to run night audit
+CREATE OR REPLACE FUNCTION run_night_audit(
+    p_audit_date DATE,
+    p_user_id BIGINT
+) RETURNS BIGINT AS $$
+DECLARE
+    v_audit_run_id BIGINT;
+    v_bookings_posted INTEGER := 0;
+    v_checkins INTEGER := 0;
+    v_checkouts INTEGER := 0;
+    v_revenue DECIMAL(12, 2) := 0;
+    v_rooms_occupied INTEGER := 0;
+    v_rooms_available INTEGER := 0;
+    v_rooms_reserved INTEGER := 0;
+    v_rooms_maintenance INTEGER := 0;
+    v_rooms_dirty INTEGER := 0;
+    v_total_rooms INTEGER := 0;
+    v_occupancy_rate DECIMAL(5, 2) := 0;
+    v_booking RECORD;
+BEGIN
+    -- Check if audit already run for this date
+    IF EXISTS (SELECT 1 FROM night_audit_runs WHERE audit_date = p_audit_date AND status = 'completed') THEN
+        RAISE EXCEPTION 'Night audit already completed for date %', p_audit_date;
+    END IF;
+
+    -- Create audit run record
+    INSERT INTO night_audit_runs (audit_date, run_by, status)
+    VALUES (p_audit_date, p_user_id, 'in_progress')
+    RETURNING id INTO v_audit_run_id;
+
+    -- Post all unposted bookings for this date
+    FOR v_booking IN
+        SELECT b.id, b.status, b.total_amount, b.check_in_date, b.check_out_date
+        FROM bookings b
+        WHERE b.is_posted = FALSE
+        AND (
+            (b.check_in_date <= p_audit_date AND b.check_out_date > p_audit_date)
+            OR (b.check_out_date = p_audit_date AND b.status = 'checked_out')
+            OR (DATE(b.created_at) = p_audit_date)
+        )
+        AND b.status NOT IN ('cancelled', 'no_show')
+    LOOP
+        -- Update booking as posted
+        UPDATE bookings
+        SET is_posted = TRUE,
+            posted_date = p_audit_date,
+            posted_at = NOW(),
+            posted_by = p_user_id
+        WHERE id = v_booking.id;
+
+        -- Record the posting detail
+        INSERT INTO night_audit_details (audit_run_id, booking_id, record_type, action, data)
+        VALUES (v_audit_run_id, v_booking.id, 'booking', 'posted',
+            jsonb_build_object(
+                'status', v_booking.status,
+                'total_amount', v_booking.total_amount,
+                'check_in_date', v_booking.check_in_date,
+                'check_out_date', v_booking.check_out_date
+            )
+        );
+
+        v_bookings_posted := v_bookings_posted + 1;
+
+        IF v_booking.status = 'checked_in' THEN
+            v_checkins := v_checkins + 1;
+            v_revenue := v_revenue + COALESCE(v_booking.total_amount, 0);
+        ELSIF v_booking.status = 'checked_out' AND v_booking.check_out_date = p_audit_date THEN
+            v_checkouts := v_checkouts + 1;
+        END IF;
+    END LOOP;
+
+    -- Get room statistics
+    SELECT COUNT(*) INTO v_total_rooms FROM rooms;
+
+    SELECT
+        COUNT(*) FILTER (WHERE status = 'available' OR status = 'clean'),
+        COUNT(*) FILTER (WHERE status = 'occupied'),
+        COUNT(*) FILTER (WHERE status = 'reserved'),
+        COUNT(*) FILTER (WHERE status IN ('maintenance', 'out_of_order')),
+        COUNT(*) FILTER (WHERE status = 'dirty' OR status = 'cleaning')
+    INTO v_rooms_available, v_rooms_occupied, v_rooms_reserved, v_rooms_maintenance, v_rooms_dirty
+    FROM rooms;
+
+    -- Also count rooms with checked_in bookings as occupied
+    SELECT COUNT(DISTINCT r.id) INTO v_rooms_occupied
+    FROM rooms r
+    JOIN bookings b ON r.id = b.room_id
+    WHERE b.status = 'checked_in'
+    AND b.check_in_date <= p_audit_date
+    AND b.check_out_date > p_audit_date;
+
+    -- Calculate occupancy rate
+    IF v_total_rooms > 0 THEN
+        v_occupancy_rate := (v_rooms_occupied::DECIMAL / v_total_rooms) * 100;
+    END IF;
+
+    -- Update room posted status
+    UPDATE rooms
+    SET last_posted_status = status, last_posted_date = p_audit_date;
+
+    -- Update audit run with statistics
+    UPDATE night_audit_runs
+    SET status = 'completed',
+        total_bookings_posted = v_bookings_posted,
+        total_checkins = v_checkins,
+        total_checkouts = v_checkouts,
+        total_revenue = v_revenue,
+        total_rooms_occupied = v_rooms_occupied,
+        total_rooms_available = v_rooms_available,
+        occupancy_rate = v_occupancy_rate,
+        rooms_available = v_rooms_available,
+        rooms_occupied = v_rooms_occupied,
+        rooms_reserved = v_rooms_reserved,
+        rooms_maintenance = v_rooms_maintenance,
+        rooms_dirty = v_rooms_dirty
+    WHERE id = v_audit_run_id;
+
+    RETURN v_audit_run_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================================
+-- DATA FIXES
+-- ============================================================================
+
+-- Fix NULL payment methods in bookings
+UPDATE bookings
+SET payment_method = CASE
+    WHEN source IN ('corporate') THEN 'company_billing'
+    WHEN source IN ('walk_in') THEN 'cash'
+    WHEN source IN ('online', 'website', 'mobile') THEN 'credit_card'
+    WHEN source IN ('agent') THEN 'bank_transfer'
+    ELSE 'credit_card'
+END
+WHERE payment_method IS NULL;
+
+COMMENT ON COLUMN bookings.is_posted IS 'Whether this booking has been included in a night audit';
+COMMENT ON COLUMN bookings.posted_date IS 'The business date when this booking was posted';
+COMMENT ON COLUMN bookings.payment_method IS 'Payment method: cash, credit_card, debit_card, bank_transfer, company_billing, online_payment, ewallet';

@@ -6,9 +6,34 @@
     "tauri": "tauri",
     "dev": "tauri dev",
     "build": "tauri build",
-    "build:frontend": "cd ../hotel-web-fe && npm run build"
+    "build:debug": "tauri build --debug",
+    "build:fresh": "npm run clean:fe && npm run build:fe-deps && npm run build",
+    "build:fresh:debug": "npm run clean:fe && npm run build:fe-deps && npm run build:debug",
+    "build:frontend": "cd ../hotel-web-fe && npm run build",
+    "build:fe-deps": "cd ../hotel-web-fe && npm ci --legacy-peer-deps && npm run build",
+    "build:windows": "tauri build --target x86_64-pc-windows-msvc",
+    "build:macos": "tauri build --target aarch64-apple-darwin",
+    "build:macos-intel": "tauri build --target x86_64-apple-darwin",
+    "build:linux": "tauri build --target x86_64-unknown-linux-gnu",
+    "build:all": "npm run build:fresh",
+    "clean": "rm -rf src-tauri/target ../hotel-web-fe/build ../hotel-app-be/target",
+    "clean:fe": "rm -rf ../hotel-web-fe/build",
+    "clean:be": "rm -rf ../hotel-app-be/target",
+    "clean:desktop": "rm -rf src-tauri/target",
+    "prebuild": "touch ../hotel-app-be/src/lib.rs 2>/dev/null || true",
+    "postinstall": "cd ../hotel-web-fe && npm install"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"
-  }
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hotel-management/hotel-desktop"
+  },
+  "author": "Hotel App Team",
+  "license": "MIT"
 }
