@@ -18,7 +18,7 @@ tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace", "fs", "set-header"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "uuid", "chrono", "rust_decimal", "migrate"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "rust_decimal", "migrate"] }
 bcrypt = "0.15"
 jsonwebtoken = "9.2"
 chrono = { version = "0.4", features = ["serde"] }
@@ -45,7 +45,7 @@ qrcode = "0.13"
 # tower_governor = "0.8"  # TODO: Add for rate limiting (requires version 0.8+)
 
 [dev-dependencies]
-sqlx = { version = "0.7", features = ["runtime-tokio-native-tls", "postgres", "uuid", "chrono", "migrate", "rust_decimal"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "migrate", "rust_decimal"] }
 tokio-test = "0.4"
 reqwest = { version = "0.11", features = ["json"] }
 serde_json = "1.0"
