@@ -180,10 +180,13 @@ pub async fn create_booking_handler(
     // Use provided booking_number for online bookings, or auto-generate for walk-ins
     let booking_number = match &input.booking_number {
         Some(bn) if !bn.trim().is_empty() => bn.trim().to_string(),
-        _ => format!("BK-{}-{:04}", chrono::Utc::now().format("%Y%m%d"),
-            sqlx::query_scalar::<_, i64>("SELECT nextval('bookings_id_seq')")
-                .fetch_one(&pool).await.unwrap_or(1)
-        )
+        _ => {
+            // Generate unique booking number with date and UUID suffix to guarantee uniqueness
+            format!("BK-{}-{}",
+                chrono::Utc::now().format("%Y%m%d"),
+                &uuid::Uuid::new_v4().to_string()[..8]
+            )
+        }
     };
 
     let source = input.source.clone().unwrap_or_else(|| "walk_in".to_string());
@@ -223,7 +226,18 @@ pub async fn create_booking_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    sqlx::query("UPDATE rooms SET status = 'reserved' WHERE id = $1")
+    // Set room status based on check-in date:
+    // - If check-in is today: set to 'occupied' (guest arriving today)
+    // - If check-in is in the future: set to 'reserved'
+    let today = chrono::Local::now().date_naive();
+    let room_status = if check_in == today {
+        "occupied"
+    } else {
+        "reserved"
+    };
+    sqlx::query("UPDATE rooms SET status = $1, status_notes = $2 WHERE id = $3")
+        .bind(room_status)
+        .bind(format!("Booking #{} - {}", booking.booking_number, if check_in == today { "Guest arriving today" } else { "Future reservation" }))
         .bind(input.room_id)
         .execute(&pool)
         .await
@@ -415,8 +429,11 @@ pub async fn update_booking_handler(
         }
 
         if updated_status == "confirmed" || updated_status == "pending" {
-            sqlx::query("UPDATE rooms SET status = 'reserved' WHERE id = $1")
-                .bind(new_room_id).execute(&pool).await.ok();
+            // Set room status based on check-in date
+            let today = chrono::Local::now().date_naive();
+            let room_status = if check_in == today { "occupied" } else { "reserved" };
+            sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
+                .bind(room_status).bind(new_room_id).execute(&pool).await.ok();
         }
     }
 
@@ -1200,8 +1217,13 @@ pub async fn book_with_credits_handler(
     .await
     .ok();
 
-    // Update room status to reserved
-    sqlx::query("UPDATE rooms SET status = 'reserved' WHERE id = $1")
+    // Update room status based on check-in date:
+    // - If check-in is today: set to 'occupied' (guest arriving today)
+    // - If check-in is in the future: set to 'reserved'
+    let today = chrono::Local::now().date_naive();
+    let room_status = if check_in == today { "occupied" } else { "reserved" };
+    sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
+        .bind(room_status)
         .bind(input.room_id)
         .execute(&pool)
         .await

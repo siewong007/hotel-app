@@ -47,30 +47,48 @@ pub fn create_router(pool: PgPool) -> Router {
     let allowed_origins = std::env::var("ALLOWED_ORIGINS")
         .unwrap_or_else(|_| "http://localhost:3000,http://localhost:5173".to_string());
 
-    let origins: Vec<axum::http::HeaderValue> = allowed_origins
-        .split(',')
-        .filter_map(|s| s.trim().parse().ok())
-        .collect();
+    log::info!("CORS allowed origins config: {:?}", allowed_origins);
 
-    log::info!("CORS allowed origins: {:?}", origins);
+    // CORS configuration - use permissive settings for desktop app (when "*" is specified)
+    // or specific origins for web deployment
+    let cors = if allowed_origins.trim() == "*" {
+        log::info!("Using permissive CORS (allow any origin) for desktop mode");
+        CorsLayer::new()
+            .allow_origin(tower_http::cors::Any)
+            .allow_headers(tower_http::cors::Any)
+            .allow_methods([
+                Method::GET,
+                Method::POST,
+                Method::PUT,
+                Method::PATCH,
+                Method::DELETE,
+                Method::OPTIONS,
+            ])
+    } else {
+        let origins: Vec<axum::http::HeaderValue> = allowed_origins
+            .split(',')
+            .filter_map(|s| s.trim().parse().ok())
+            .collect();
 
-    // CORS configuration
-    let cors = CorsLayer::new()
-        .allow_origin(origins)
-        .allow_headers([
-            axum::http::header::AUTHORIZATION,
-            axum::http::header::CONTENT_TYPE,
-            axum::http::header::ACCEPT,
-        ])
-        .allow_methods([
-            Method::GET,
-            Method::POST,
-            Method::PUT,
-            Method::PATCH,
-            Method::DELETE,
-            Method::OPTIONS,
-        ])
-        .allow_credentials(true);
+        log::info!("CORS allowed origins: {:?}", origins);
+
+        CorsLayer::new()
+            .allow_origin(origins)
+            .allow_headers([
+                axum::http::header::AUTHORIZATION,
+                axum::http::header::CONTENT_TYPE,
+                axum::http::header::ACCEPT,
+            ])
+            .allow_methods([
+                Method::GET,
+                Method::POST,
+                Method::PUT,
+                Method::PATCH,
+                Method::DELETE,
+                Method::OPTIONS,
+            ])
+            .allow_credentials(true)
+    };
 
     // Build all routes
     let app = Router::new()
