@@ -1,6 +1,6 @@
 //! System settings repository for database operations
 
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::SystemSetting;
 
@@ -8,7 +8,7 @@ pub struct SettingsRepository;
 
 impl SettingsRepository {
     /// Find all settings
-    pub async fn find_all(pool: &PgPool) -> Result<Vec<SystemSetting>, ApiError> {
+    pub async fn find_all(pool: &DbPool) -> Result<Vec<SystemSetting>, ApiError> {
         sqlx::query_as::<_, SystemSetting>(
             r#"
             SELECT id, key, value, description, category, created_at, updated_at
@@ -22,7 +22,7 @@ impl SettingsRepository {
     }
 
     /// Find settings by category
-    pub async fn find_by_category(pool: &PgPool, category: &str) -> Result<Vec<SystemSetting>, ApiError> {
+    pub async fn find_by_category(pool: &DbPool, category: &str) -> Result<Vec<SystemSetting>, ApiError> {
         sqlx::query_as::<_, SystemSetting>(
             r#"
             SELECT id, key, value, description, category, created_at, updated_at
@@ -38,7 +38,7 @@ impl SettingsRepository {
     }
 
     /// Find setting by key
-    pub async fn find_by_key(pool: &PgPool, key: &str) -> Result<Option<SystemSetting>, ApiError> {
+    pub async fn find_by_key(pool: &DbPool, key: &str) -> Result<Option<SystemSetting>, ApiError> {
         sqlx::query_as::<_, SystemSetting>(
             r#"
             SELECT id, key, value, description, category, created_at, updated_at
@@ -53,7 +53,7 @@ impl SettingsRepository {
     }
 
     /// Get setting value
-    pub async fn get_value(pool: &PgPool, key: &str) -> Result<Option<String>, ApiError> {
+    pub async fn get_value(pool: &DbPool, key: &str) -> Result<Option<String>, ApiError> {
         sqlx::query_scalar("SELECT value FROM system_settings WHERE key = $1")
             .bind(key)
             .fetch_optional(pool)
@@ -62,7 +62,7 @@ impl SettingsRepository {
     }
 
     /// Update setting value
-    pub async fn update_value(pool: &PgPool, key: &str, value: &str) -> Result<SystemSetting, ApiError> {
+    pub async fn update_value(pool: &DbPool, key: &str, value: &str) -> Result<SystemSetting, ApiError> {
         sqlx::query_as::<_, SystemSetting>(
             r#"
             UPDATE system_settings
@@ -80,7 +80,7 @@ impl SettingsRepository {
 
     /// Create or update setting
     pub async fn upsert(
-        pool: &PgPool,
+        pool: &DbPool,
         key: &str,
         value: &str,
         description: Option<&str>,
@@ -104,7 +104,7 @@ impl SettingsRepository {
     }
 
     /// Get rate codes from settings
-    pub async fn get_rate_codes(pool: &PgPool) -> Result<Vec<String>, ApiError> {
+    pub async fn get_rate_codes(pool: &DbPool) -> Result<Vec<String>, ApiError> {
         let codes: Vec<(String,)> = sqlx::query_as(
             "SELECT DISTINCT code FROM rate_plans WHERE is_active = true ORDER BY code"
         )
@@ -116,7 +116,7 @@ impl SettingsRepository {
     }
 
     /// Get market codes from settings
-    pub async fn get_market_codes(pool: &PgPool) -> Result<Vec<String>, ApiError> {
+    pub async fn get_market_codes(pool: &DbPool) -> Result<Vec<String>, ApiError> {
         let value = Self::get_value(pool, "market_codes").await?;
 
         Ok(value

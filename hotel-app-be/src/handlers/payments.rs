@@ -9,50 +9,76 @@ use axum::{
 };
 use chrono::NaiveDateTime;
 use rust_decimal::Decimal;
-use sqlx::PgPool;
+use rust_decimal::prelude::ToPrimitive;
+use sqlx::Row;
 
+use crate::core::db::{DbPool, DbRow, decimal_to_db};
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::*;
+use crate::models::row_mappers;
 
 /// Create a payment for a booking
 pub async fn create_payment_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(request): Json<PaymentRequest>,
 ) -> Result<Json<Payment>, ApiError> {
     let user_id = require_auth(&headers).await?;
 
     // Get booking details to calculate amounts
-    let booking: (i64, i64, NaiveDateTime, NaiveDateTime, String) = sqlx::query_as(
-        r#"
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let booking_query = r#"
+        SELECT b.id, b.room_id, b.check_in_date, b.check_out_date, r.room_number
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.id
+        WHERE b.id = ?1
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let booking_query = r#"
         SELECT b.id, b.room_id, b.check_in_date, b.check_out_date, r.room_number
         FROM bookings b
         JOIN rooms r ON b.room_id = r.id
         WHERE b.id = $1
-        "#,
-    )
-    .bind(request.booking_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    "#;
 
-    let (booking_id, room_id, check_in, check_out, _room_number) = booking;
+    let booking_row = sqlx::query(booking_query)
+        .bind(request.booking_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let booking_id: i64 = booking_row.get("id");
+    let room_id: i64 = booking_row.get("room_id");
+    let check_in: NaiveDateTime = booking_row.get("check_in_date");
+    let check_out: NaiveDateTime = booking_row.get("check_out_date");
+    let _room_number: String = booking_row.get("room_number");
 
     // Get room type configuration
-    let (base_price, keycard_deposit, service_charge_pct): (Decimal, Decimal, Decimal) =
-        sqlx::query_as(
-            r#"
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let room_type_query = r#"
+        SELECT rt.base_price, rt.keycard_deposit_amount, rt.service_charge_percentage
+        FROM rooms r
+        JOIN room_types rt ON r.room_type_id = rt.id
+        WHERE r.id = ?1
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let room_type_query = r#"
         SELECT rt.base_price, rt.keycard_deposit_amount, rt.service_charge_percentage
         FROM rooms r
         JOIN room_types rt ON r.room_type_id = rt.id
         WHERE r.id = $1
-        "#,
-        )
+    "#;
+
+    let room_type_row = sqlx::query(room_type_query)
         .bind(room_id)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let base_price = row_mappers::get_decimal(&room_type_row, "base_price");
+    let keycard_deposit = row_mappers::get_decimal(&room_type_row, "keycard_deposit_amount");
+    let service_charge_pct = row_mappers::get_decimal(&room_type_row, "service_charge_percentage");
 
     // Calculate number of nights
     let nights = (check_out.date() - check_in.date()).num_days();
@@ -126,7 +152,7 @@ pub async fn create_payment_handler(
 
 /// Get payment for a booking
 pub async fn get_payment_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<Option<Payment>>, ApiError> {
@@ -145,7 +171,7 @@ pub async fn get_payment_handler(
 
 /// Calculate payment summary for a booking (before actual payment)
 pub async fn calculate_payment_summary_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<PaymentSummary>, ApiError> {
@@ -196,7 +222,7 @@ pub async fn calculate_payment_summary_handler(
 
 /// Generate an invoice for a booking
 pub async fn generate_invoice_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<Invoice>, ApiError> {
@@ -358,7 +384,7 @@ pub async fn generate_invoice_handler(
 
 /// Get invoice preview with all details
 pub async fn get_invoice_preview_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<InvoicePreview>, ApiError> {
@@ -412,7 +438,7 @@ pub async fn get_invoice_preview_handler(
 
 /// Get all invoices for a user
 pub async fn get_user_invoices_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<Invoice>>, ApiError> {
     let user_id = require_auth(&headers).await?;

@@ -9,7 +9,7 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use std::collections::HashMap;
 use crate::handlers;
 use crate::models;
@@ -17,7 +17,7 @@ use crate::core::middleware::{require_permission_helper, require_auth, require_a
 use crate::core::error::ApiError;
 
 /// Create loyalty routes
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         // Admin loyalty management routes
         .route("/loyalty/programs", get(get_programs))
@@ -42,7 +42,7 @@ pub fn routes() -> Router<PgPool> {
 // Admin handlers
 
 async fn get_programs(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::LoyaltyProgram>>, ApiError> {
     require_permission_helper(&pool, &headers, "analytics:read").await?;
@@ -50,7 +50,7 @@ async fn get_programs(
 }
 
 async fn get_memberships(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::LoyaltyMembershipWithDetails>>, ApiError> {
     require_permission_helper(&pool, &headers, "analytics:read").await?;
@@ -58,7 +58,7 @@ async fn get_memberships(
 }
 
 async fn get_statistics(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<models::LoyaltyStatistics>, ApiError> {
     require_permission_helper(&pool, &headers, "analytics:read").await?;
@@ -66,7 +66,7 @@ async fn get_statistics(
 }
 
 async fn add_points(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::AddPointsInput>,
@@ -76,7 +76,7 @@ async fn add_points(
 }
 
 async fn redeem_points(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::AddPointsInput>,
@@ -88,7 +88,7 @@ async fn redeem_points(
 // User loyalty handlers
 
 async fn get_my_membership(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<models::UserLoyaltyMembership>, ApiError> {
     let user_id = require_auth(&headers).await?;
@@ -96,7 +96,7 @@ async fn get_my_membership(
 }
 
 async fn get_rewards(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::LoyaltyReward>>, ApiError> {
     let user_id = require_auth(&headers).await?;
@@ -104,7 +104,7 @@ async fn get_rewards(
 }
 
 async fn redeem_reward(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::RedeemRewardInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -115,7 +115,7 @@ async fn redeem_reward(
 // Admin reward CRUD handlers
 
 async fn get_all_rewards(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     query: Query<HashMap<String, String>>,
 ) -> Result<Json<Vec<models::LoyaltyReward>>, ApiError> {
@@ -124,7 +124,7 @@ async fn get_all_rewards(
 }
 
 async fn get_single_reward(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::LoyaltyReward>, ApiError> {
@@ -133,7 +133,7 @@ async fn get_single_reward(
 }
 
 async fn create_reward(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::RewardInput>,
 ) -> Result<Json<models::LoyaltyReward>, ApiError> {
@@ -142,7 +142,7 @@ async fn create_reward(
 }
 
 async fn update_reward(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::RewardUpdateInput>,
@@ -152,7 +152,7 @@ async fn update_reward(
 }
 
 async fn delete_reward(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -161,7 +161,7 @@ async fn delete_reward(
 }
 
 async fn get_redemptions(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::RewardRedemptionWithDetails>>, ApiError> {
     require_admin_helper(&pool, &headers).await?;
@@ -169,7 +169,7 @@ async fn get_redemptions(
 }
 
 async fn redeem_reward_by_id(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::RedeemRewardInput>,

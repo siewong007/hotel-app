@@ -2,6 +2,7 @@
 //!
 //! Handles system configuration and settings management.
 
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
 use crate::models::*;
@@ -10,11 +11,11 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use sqlx::{PgPool, Row};
+use sqlx::Row;
 
 /// Get all system settings
 pub async fn get_system_settings_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<SystemSetting>>, ApiError> {
     // Require admin permission
@@ -32,7 +33,7 @@ pub async fn get_system_settings_handler(
 
 /// Update a system setting by key
 pub async fn update_system_setting_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(key): Path<String>,
     headers: HeaderMap,
     Json(input): Json<SystemSettingUpdate>,
@@ -61,7 +62,7 @@ pub async fn update_system_setting_handler(
 
 /// Get available rate codes from settings
 pub async fn get_rate_codes_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<RateCodesResponse>, ApiError> {
     let value = get_setting_value(&pool, "rate_codes").await?;
     let rate_codes: Vec<String> = serde_json::from_str(&value)
@@ -72,7 +73,7 @@ pub async fn get_rate_codes_handler(
 
 /// Get available market codes from settings
 pub async fn get_market_codes_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<MarketCodesResponse>, ApiError> {
     let value = get_setting_value(&pool, "market_codes").await?;
     let market_codes: Vec<String> = serde_json::from_str(&value)
@@ -83,7 +84,7 @@ pub async fn get_market_codes_handler(
 
 /// Process auto check-in and late checkout based on system settings
 pub async fn process_auto_checkin_checkout_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Get settings
     let auto_checkin_enabled = get_setting_value(&pool, "auto_checkin_enabled").await?;
@@ -141,7 +142,7 @@ pub async fn process_auto_checkin_checkout_handler(
 }
 
 /// Helper function to get a setting value by key
-pub async fn get_setting_value(pool: &PgPool, key: &str) -> Result<String, ApiError> {
+pub async fn get_setting_value(pool: &DbPool, key: &str) -> Result<String, ApiError> {
     let row = sqlx::query("SELECT value FROM system_settings WHERE key = $1")
         .bind(key)
         .fetch_optional(pool)

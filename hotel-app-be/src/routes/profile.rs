@@ -9,14 +9,14 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::handlers;
 use crate::models;
 use crate::core::middleware::require_auth;
 use crate::core::error::ApiError;
 
 /// Create profile routes
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         // Profile management
         .route("/profile", get(get_profile))
@@ -37,7 +37,7 @@ pub fn routes() -> Router<PgPool> {
 // Profile handlers
 
 async fn get_profile(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<models::UserProfile>, ApiError> {
     let user_id = require_auth(&headers).await?;
@@ -45,7 +45,7 @@ async fn get_profile(
 }
 
 async fn update_profile(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::UserProfileUpdate>,
 ) -> Result<Json<models::UserProfile>, ApiError> {
@@ -54,7 +54,7 @@ async fn update_profile(
 }
 
 async fn update_password(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::PasswordUpdateInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -65,7 +65,7 @@ async fn update_password(
 // Passkey handlers
 
 async fn list_passkeys(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::PasskeyInfo>>, ApiError> {
     let user_id = require_auth(&headers).await?;
@@ -73,7 +73,7 @@ async fn list_passkeys(
 }
 
 async fn delete_passkey(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -82,7 +82,7 @@ async fn delete_passkey(
 }
 
 async fn update_passkey(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<uuid::Uuid>,
     Json(input): Json<models::PasskeyUpdateInput>,
@@ -94,7 +94,7 @@ async fn update_passkey(
 // 2FA handlers (profile context)
 
 async fn setup_2fa(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::TwoFactorSetupRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -102,7 +102,7 @@ async fn setup_2fa(
 }
 
 async fn enable_2fa(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::TwoFactorEnableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -110,7 +110,7 @@ async fn enable_2fa(
 }
 
 async fn disable_2fa(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::TwoFactorDisableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -118,14 +118,14 @@ async fn disable_2fa(
 }
 
 async fn get_2fa_status(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<models::TwoFactorStatusResponse>, ApiError> {
     handlers::two_factor::get_2fa_status_handler(State(pool), headers).await
 }
 
 async fn verify_2fa(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(input): Json<models::TwoFactorVerifyRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     handlers::two_factor::verify_2fa_code_handler(State(pool), Json(input)).await

@@ -9,13 +9,16 @@ use axum::{
 };
 use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 use serde_json::json;
-use sqlx::PgPool;
 
+use crate::core::db::{DbPool, DbRow};
 use crate::models::{
     RatePlan, RatePlanInput, RatePlanUpdateInput, RatePlanWithRates, RoomRate, RoomRateInput,
     RoomRateUpdateInput, RoomRateWithDetails, RoomType,
 };
+use crate::models::row_mappers;
+use sqlx::Row;
 
 /// Rate-specific error type
 pub enum RateError {
@@ -49,9 +52,62 @@ impl From<sqlx::Error> for RateError {
     }
 }
 
+/// Helper function to map a database row to RoomType
+/// This avoids using FromRow which doesn't work for Decimal in SQLite
+fn row_to_room_type(row: DbRow) -> RoomType {
+    // Read Decimal fields as String and parse (works for both PostgreSQL and SQLite)
+    let base_price: String = row.try_get::<String, _>("base_price")
+        .or_else(|_| row.try_get::<f64, _>("base_price").map(|f| f.to_string()))
+        .unwrap_or_else(|_| "0".to_string());
+    let weekday_rate: Option<String> = row.try_get::<String, _>("weekday_rate").ok()
+        .or_else(|| row.try_get::<f64, _>("weekday_rate").ok().map(|f| f.to_string()));
+    let weekend_rate: Option<String> = row.try_get::<String, _>("weekend_rate").ok()
+        .or_else(|| row.try_get::<f64, _>("weekend_rate").ok().map(|f| f.to_string()));
+    let extra_bed_charge: String = row.try_get::<String, _>("extra_bed_charge")
+        .or_else(|_| row.try_get::<f64, _>("extra_bed_charge").map(|f| f.to_string()))
+        .unwrap_or_else(|_| "0".to_string());
+
+    // Handle boolean fields for SQLite (returns 0/1)
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let allows_extra_bed: bool = row.try_get::<i32, _>("allows_extra_bed").map(|v| v != 0).unwrap_or(false);
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    let allows_extra_bed: bool = row.try_get("allows_extra_bed").unwrap_or(false);
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let is_active: bool = row.try_get::<i32, _>("is_active").map(|v| v != 0).unwrap_or(true);
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    let is_active: bool = row.try_get("is_active").unwrap_or(true);
+
+    RoomType {
+        id: row.get("id"),
+        name: row.get("name"),
+        code: row.get("code"),
+        description: row.try_get("description").ok(),
+        base_price: base_price.parse().unwrap_or_default(),
+        weekday_rate: weekday_rate.and_then(|s| s.parse().ok()),
+        weekend_rate: weekend_rate.and_then(|s| s.parse().ok()),
+        max_occupancy: row.get("max_occupancy"),
+        bed_type: row.try_get("bed_type").ok(),
+        bed_count: row.try_get("bed_count").ok(),
+        allows_extra_bed,
+        max_extra_beds: row.try_get("max_extra_beds").unwrap_or(0),
+        extra_bed_charge: extra_bed_charge.parse().unwrap_or_default(),
+        is_active,
+        sort_order: row.try_get("sort_order").unwrap_or(0),
+        created_at: row.get("created_at"),
+        updated_at: row.get("updated_at"),
+    }
+}
+
 /// Create a new rate plan
 pub async fn create_rate_plan(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(input): Json<RatePlanInput>,
 ) -> Result<impl IntoResponse, RateError> {
     let valid_from = input
@@ -63,46 +119,108 @@ pub async fn create_rate_plan(
         .as_ref()
         .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
 
-    let adjustment_value = input.adjustment_value.and_then(Decimal::from_f64_retain);
+    let adjustment_value = input.adjustment_value;
 
-    let rate_plan = sqlx::query_as::<_, RatePlan>(
-        r#"
-        INSERT INTO rate_plans (
-            name, code, description, plan_type, adjustment_type, adjustment_value,
-            valid_from, valid_to, applies_monday, applies_tuesday, applies_wednesday,
-            applies_thursday, applies_friday, applies_saturday, applies_sunday,
-            min_nights, max_nights, min_advance_booking, max_advance_booking,
-            blackout_dates, is_active, priority, created_by
+    // SQLite version - no RETURNING, use last_insert_rowid()
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let rate_plan = {
+        sqlx::query(
+            r#"
+            INSERT INTO rate_plans (
+                name, code, description, plan_type, adjustment_type, adjustment_value,
+                valid_from, valid_to, applies_monday, applies_tuesday, applies_wednesday,
+                applies_thursday, applies_friday, applies_saturday, applies_sunday,
+                min_nights, max_nights, min_advance_booking, max_advance_booking,
+                blackout_dates, is_active, priority, created_by
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)
+            "#,
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
-        RETURNING *
-        "#,
-    )
-    .bind(&input.name)
-    .bind(&input.code)
-    .bind(&input.description)
-    .bind(&input.plan_type)
-    .bind(&input.adjustment_type)
-    .bind(adjustment_value)
-    .bind(valid_from)
-    .bind(valid_to)
-    .bind(input.applies_monday.unwrap_or(true))
-    .bind(input.applies_tuesday.unwrap_or(true))
-    .bind(input.applies_wednesday.unwrap_or(true))
-    .bind(input.applies_thursday.unwrap_or(true))
-    .bind(input.applies_friday.unwrap_or(true))
-    .bind(input.applies_saturday.unwrap_or(true))
-    .bind(input.applies_sunday.unwrap_or(true))
-    .bind(input.min_nights.unwrap_or(1))
-    .bind(input.max_nights)
-    .bind(input.min_advance_booking.unwrap_or(0))
-    .bind(input.max_advance_booking)
-    .bind(&input.blackout_dates)
-    .bind(input.is_active.unwrap_or(true))
-    .bind(input.priority.unwrap_or(0))
-    .bind(1i64) // TODO: Get from auth token
-    .fetch_one(&pool)
-    .await?;
+        .bind(&input.name)
+        .bind(&input.code)
+        .bind(&input.description)
+        .bind(&input.plan_type)
+        .bind(&input.adjustment_type)
+        .bind(adjustment_value)
+        .bind(valid_from)
+        .bind(valid_to)
+        .bind(if input.applies_monday.unwrap_or(true) { 1i32 } else { 0i32 })
+        .bind(if input.applies_tuesday.unwrap_or(true) { 1i32 } else { 0i32 })
+        .bind(if input.applies_wednesday.unwrap_or(true) { 1i32 } else { 0i32 })
+        .bind(if input.applies_thursday.unwrap_or(true) { 1i32 } else { 0i32 })
+        .bind(if input.applies_friday.unwrap_or(true) { 1i32 } else { 0i32 })
+        .bind(if input.applies_saturday.unwrap_or(true) { 1i32 } else { 0i32 })
+        .bind(if input.applies_sunday.unwrap_or(true) { 1i32 } else { 0i32 })
+        .bind(input.min_nights.unwrap_or(1))
+        .bind(input.max_nights)
+        .bind(input.min_advance_booking.unwrap_or(0))
+        .bind(input.max_advance_booking)
+        .bind(&input.blackout_dates)
+        .bind(if input.is_active.unwrap_or(true) { 1i32 } else { 0i32 })
+        .bind(input.priority.unwrap_or(0))
+        .bind(1i64) // TODO: Get from auth token
+        .execute(&pool)
+        .await?;
+
+        let rate_plan_id: i64 = sqlx::query_scalar("SELECT last_insert_rowid()")
+            .fetch_one(&pool)
+            .await?;
+
+        let row = sqlx::query("SELECT * FROM rate_plans WHERE id = ?1")
+            .bind(rate_plan_id)
+            .fetch_one(&pool)
+            .await?;
+
+        row_mappers::row_to_rate_plan(&row)
+    };
+
+    // PostgreSQL version - use RETURNING
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    let rate_plan = {
+        let row = sqlx::query(
+            r#"
+            INSERT INTO rate_plans (
+                name, code, description, plan_type, adjustment_type, adjustment_value,
+                valid_from, valid_to, applies_monday, applies_tuesday, applies_wednesday,
+                applies_thursday, applies_friday, applies_saturday, applies_sunday,
+                min_nights, max_nights, min_advance_booking, max_advance_booking,
+                blackout_dates, is_active, priority, created_by
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+            RETURNING *
+            "#,
+        )
+        .bind(&input.name)
+        .bind(&input.code)
+        .bind(&input.description)
+        .bind(&input.plan_type)
+        .bind(&input.adjustment_type)
+        .bind(adjustment_value)
+        .bind(valid_from)
+        .bind(valid_to)
+        .bind(input.applies_monday.unwrap_or(true))
+        .bind(input.applies_tuesday.unwrap_or(true))
+        .bind(input.applies_wednesday.unwrap_or(true))
+        .bind(input.applies_thursday.unwrap_or(true))
+        .bind(input.applies_friday.unwrap_or(true))
+        .bind(input.applies_saturday.unwrap_or(true))
+        .bind(input.applies_sunday.unwrap_or(true))
+        .bind(input.min_nights.unwrap_or(1))
+        .bind(input.max_nights)
+        .bind(input.min_advance_booking.unwrap_or(0))
+        .bind(input.max_advance_booking)
+        .bind(&input.blackout_dates)
+        .bind(input.is_active.unwrap_or(true))
+        .bind(input.priority.unwrap_or(0))
+        .bind(1i64) // TODO: Get from auth token
+        .fetch_one(&pool)
+        .await?;
+
+        row_mappers::row_to_rate_plan(&row)
+    };
 
     Ok((
         StatusCode::CREATED,
@@ -114,7 +232,7 @@ pub async fn create_rate_plan(
 }
 
 /// Get all rate plans
-pub async fn get_rate_plans(State(pool): State<PgPool>) -> Result<impl IntoResponse, RateError> {
+pub async fn get_rate_plans(State(pool): State<DbPool>) -> Result<impl IntoResponse, RateError> {
     let rate_plans = sqlx::query_as::<_, RatePlan>(
         r#"
         SELECT * FROM rate_plans
@@ -129,7 +247,7 @@ pub async fn get_rate_plans(State(pool): State<PgPool>) -> Result<impl IntoRespo
 
 /// Get a single rate plan by ID
 pub async fn get_rate_plan(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(rate_plan_id): Path<i64>,
 ) -> Result<impl IntoResponse, RateError> {
     let rate_plan = sqlx::query_as::<_, RatePlan>(
@@ -146,7 +264,7 @@ pub async fn get_rate_plan(
 
 /// Get rate plan with all associated rates
 pub async fn get_rate_plan_with_rates(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(rate_plan_id): Path<i64>,
 ) -> Result<impl IntoResponse, RateError> {
     let rate_plan = sqlx::query_as::<_, RatePlan>(
@@ -189,7 +307,7 @@ pub async fn get_rate_plan_with_rates(
 
 /// Update a rate plan
 pub async fn update_rate_plan(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(rate_plan_id): Path<i64>,
     Json(input): Json<RatePlanUpdateInput>,
 ) -> Result<impl IntoResponse, RateError> {
@@ -346,7 +464,7 @@ pub async fn update_rate_plan(
 
 /// Delete a rate plan
 pub async fn delete_rate_plan(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(rate_plan_id): Path<i64>,
 ) -> Result<impl IntoResponse, RateError> {
     let result = sqlx::query(
@@ -369,7 +487,7 @@ pub async fn delete_rate_plan(
 
 /// Create a new room rate
 pub async fn create_room_rate(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(input): Json<RoomRateInput>,
 ) -> Result<impl IntoResponse, RateError> {
     let effective_from = NaiveDate::parse_from_str(&input.effective_from, "%Y-%m-%d").map_err(
@@ -409,7 +527,7 @@ pub async fn create_room_rate(
 }
 
 /// Get all room rates with details
-pub async fn get_room_rates(State(pool): State<PgPool>) -> Result<impl IntoResponse, RateError> {
+pub async fn get_room_rates(State(pool): State<DbPool>) -> Result<impl IntoResponse, RateError> {
     let rates = sqlx::query_as::<_, RoomRateWithDetails>(
         r#"
         SELECT
@@ -439,7 +557,7 @@ pub async fn get_room_rates(State(pool): State<PgPool>) -> Result<impl IntoRespo
 
 /// Get room rates by rate plan ID
 pub async fn get_room_rates_by_plan(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(rate_plan_id): Path<i64>,
 ) -> Result<impl IntoResponse, RateError> {
     let rates = sqlx::query_as::<_, RoomRateWithDetails>(
@@ -473,7 +591,7 @@ pub async fn get_room_rates_by_plan(
 
 /// Get a single room rate by ID
 pub async fn get_room_rate(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(rate_id): Path<i64>,
 ) -> Result<impl IntoResponse, RateError> {
     let rate = sqlx::query_as::<_, RoomRateWithDetails>(
@@ -506,7 +624,7 @@ pub async fn get_room_rate(
 
 /// Update a room rate
 pub async fn update_room_rate(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(rate_id): Path<i64>,
     Json(input): Json<RoomRateUpdateInput>,
 ) -> Result<impl IntoResponse, RateError> {
@@ -569,7 +687,7 @@ pub async fn update_room_rate(
 
 /// Delete a room rate
 pub async fn delete_room_rate(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(rate_id): Path<i64>,
 ) -> Result<impl IntoResponse, RateError> {
     let result = sqlx::query(
@@ -592,9 +710,9 @@ pub async fn delete_room_rate(
 
 /// Get all room types (for associating with rates)
 pub async fn get_room_types_for_rates(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<impl IntoResponse, RateError> {
-    let room_types = sqlx::query_as::<_, RoomType>(
+    let room_types: Vec<RoomType> = sqlx::query(
         r#"
         SELECT * FROM room_types
         WHERE is_active = true
@@ -602,7 +720,10 @@ pub async fn get_room_types_for_rates(
         "#,
     )
     .fetch_all(&pool)
-    .await?;
+    .await?
+    .into_iter()
+    .map(row_to_room_type)
+    .collect();
 
     Ok(Json(room_types))
 }
@@ -616,7 +737,7 @@ pub struct ApplicableRateQuery {
 
 /// Get applicable rate for a room type on a specific date
 pub async fn get_applicable_rate(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Query(query): Query<ApplicableRateQuery>,
 ) -> Result<impl IntoResponse, RateError> {
     let date = NaiveDate::parse_from_str(&query.date, "%Y-%m-%d")
@@ -672,14 +793,15 @@ pub async fn get_applicable_rate(
     }
 
     // Fall back to base price
-    let room_type = sqlx::query_as::<_, RoomType>(
+    let room_type = sqlx::query(
         r#"
         SELECT * FROM room_types WHERE id = $1
         "#,
     )
     .bind(query.room_type_id)
     .fetch_one(&pool)
-    .await?;
+    .await
+    .map(row_to_room_type)?;
 
     Ok(Json(json!({
         "rate_plan_code": "BASE",

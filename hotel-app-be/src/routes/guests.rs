@@ -9,14 +9,14 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::handlers;
 use crate::models;
 use crate::core::middleware::{require_permission_helper, require_auth};
 use crate::core::error::ApiError;
 
 /// Create guest routes
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/guests", get(get_guests))
         .route("/guests", post(create_guest))
@@ -32,7 +32,7 @@ pub fn routes() -> Router<PgPool> {
 }
 
 async fn get_guests(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::Guest>>, ApiError> {
     // Allow all authenticated users to access guests (filtering happens in handler)
@@ -40,7 +40,7 @@ async fn get_guests(
 }
 
 async fn create_guest(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::GuestInput>,
 ) -> Result<Json<models::Guest>, ApiError> {
@@ -49,14 +49,14 @@ async fn create_guest(
 }
 
 async fn get_my_guests(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::Guest>>, ApiError> {
     handlers::guests::get_my_guests_handler(State(pool), headers).await
 }
 
 async fn link_guest(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::LinkGuestInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -64,7 +64,7 @@ async fn link_guest(
 }
 
 async fn unlink_guest(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -72,7 +72,7 @@ async fn unlink_guest(
 }
 
 async fn upgrade_guest(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::UpgradeGuestInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -81,7 +81,7 @@ async fn upgrade_guest(
 }
 
 async fn update_guest(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::GuestUpdateInput>,
@@ -91,7 +91,7 @@ async fn update_guest(
 }
 
 async fn delete_guest(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -100,7 +100,7 @@ async fn delete_guest(
 }
 
 async fn get_guest_bookings(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
@@ -109,7 +109,7 @@ async fn get_guest_bookings(
 }
 
 async fn get_guest_credits(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -117,7 +117,7 @@ async fn get_guest_credits(
 }
 
 async fn get_my_guests_with_credits(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     handlers::guests::get_my_guests_with_credits_handler(State(pool), headers).await

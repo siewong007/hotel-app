@@ -17,6 +17,7 @@ pub mod ekyc;
 pub mod ledger;
 pub mod settings;
 pub mod company;
+pub mod row_mappers;
 
 // Re-export all models for convenience
 pub use common::*;

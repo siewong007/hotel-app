@@ -3,6 +3,7 @@
 //! Handles 2FA setup, verification, and management.
 
 use crate::core::auth::AuthService;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::*;
@@ -11,10 +12,9 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use sqlx::PgPool;
 
 pub async fn setup_2fa_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(_req): Json<TwoFactorSetupRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -90,7 +90,7 @@ pub async fn setup_2fa_handler(
 }
 
 pub async fn enable_2fa_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(req): Json<TwoFactorEnableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -154,7 +154,7 @@ pub async fn enable_2fa_handler(
 }
 
 pub async fn disable_2fa_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(req): Json<TwoFactorDisableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -225,7 +225,7 @@ pub async fn disable_2fa_handler(
 }
 
 pub async fn get_2fa_status_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<TwoFactorStatusResponse>, ApiError> {
     let user_id = require_auth(&headers).await?;
@@ -242,7 +242,7 @@ pub async fn get_2fa_status_handler(
 }
 
 pub async fn verify_2fa_code_handler(
-    State(_pool): State<PgPool>,
+    State(_pool): State<DbPool>,
     Json(_req): Json<TwoFactorVerifyRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // This is a standalone verification endpoint that can be used for various purposes
@@ -257,7 +257,7 @@ pub async fn verify_2fa_code_handler(
 }
 
 pub async fn regenerate_backup_codes_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(req): Json<RegenerateBackupCodesRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {

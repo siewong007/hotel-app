@@ -2,7 +2,7 @@
 
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{Booking, BookingWithDetails};
 
@@ -10,7 +10,7 @@ pub struct BookingRepository;
 
 impl BookingRepository {
     /// Find all bookings with details
-    pub async fn find_all_with_details(pool: &PgPool) -> Result<Vec<BookingWithDetails>, ApiError> {
+    pub async fn find_all_with_details(pool: &DbPool) -> Result<Vec<BookingWithDetails>, ApiError> {
         sqlx::query_as::<_, BookingWithDetails>(
             r#"
             SELECT b.id, b.booking_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
@@ -30,7 +30,7 @@ impl BookingRepository {
     }
 
     /// Find booking by ID
-    pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<Booking>, ApiError> {
+    pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<Booking>, ApiError> {
         sqlx::query_as::<_, Booking>(
             r#"
             SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date,
@@ -50,7 +50,7 @@ impl BookingRepository {
     }
 
     /// Find booking with details by ID
-    pub async fn find_by_id_with_details(pool: &PgPool, id: i64) -> Result<Option<BookingWithDetails>, ApiError> {
+    pub async fn find_by_id_with_details(pool: &DbPool, id: i64) -> Result<Option<BookingWithDetails>, ApiError> {
         sqlx::query_as::<_, BookingWithDetails>(
             r#"
             SELECT b.id, b.booking_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
@@ -71,7 +71,7 @@ impl BookingRepository {
     }
 
     /// Find bookings by guest ID
-    pub async fn find_by_guest_id(pool: &PgPool, guest_id: i64) -> Result<Vec<BookingWithDetails>, ApiError> {
+    pub async fn find_by_guest_id(pool: &DbPool, guest_id: i64) -> Result<Vec<BookingWithDetails>, ApiError> {
         sqlx::query_as::<_, BookingWithDetails>(
             r#"
             SELECT b.id, b.booking_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
@@ -94,7 +94,7 @@ impl BookingRepository {
 
     /// Create a new booking
     pub async fn create(
-        pool: &PgPool,
+        pool: &DbPool,
         guest_id: i64,
         room_id: i64,
         check_in_date: NaiveDate,
@@ -128,7 +128,7 @@ impl BookingRepository {
     }
 
     /// Update booking status
-    pub async fn update_status(pool: &PgPool, id: i64, status: &str) -> Result<(), ApiError> {
+    pub async fn update_status(pool: &DbPool, id: i64, status: &str) -> Result<(), ApiError> {
         sqlx::query("UPDATE bookings SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
             .bind(status)
             .bind(id)
@@ -140,7 +140,7 @@ impl BookingRepository {
     }
 
     /// Check in a booking
-    pub async fn check_in(pool: &PgPool, id: i64, _check_in_time: &str) -> Result<(), ApiError> {
+    pub async fn check_in(pool: &DbPool, id: i64, _check_in_time: &str) -> Result<(), ApiError> {
         sqlx::query(
             r#"
             UPDATE bookings
@@ -157,7 +157,7 @@ impl BookingRepository {
     }
 
     /// Check out a booking
-    pub async fn check_out(pool: &PgPool, id: i64, _check_out_time: &str) -> Result<(), ApiError> {
+    pub async fn check_out(pool: &DbPool, id: i64, _check_out_time: &str) -> Result<(), ApiError> {
         sqlx::query(
             r#"
             UPDATE bookings
@@ -174,7 +174,7 @@ impl BookingRepository {
     }
 
     /// Check if booking exists
-    pub async fn exists(pool: &PgPool, id: i64) -> Result<bool, ApiError> {
+    pub async fn exists(pool: &DbPool, id: i64) -> Result<bool, ApiError> {
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM bookings WHERE id = $1"
         )

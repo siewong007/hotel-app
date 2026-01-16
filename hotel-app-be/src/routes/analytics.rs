@@ -9,14 +9,14 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use std::collections::HashMap;
 use crate::handlers;
 use crate::core::middleware::require_permission_helper;
 use crate::core::error::ApiError;
 
 /// Create analytics routes
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/analytics/occupancy", get(get_occupancy))
         .route("/analytics/bookings", get(get_booking_analytics))
@@ -26,28 +26,28 @@ pub fn routes() -> Router<PgPool> {
 }
 
 async fn get_occupancy(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     handlers::analytics::get_occupancy_report_handler(State(pool), headers).await
 }
 
 async fn get_booking_analytics(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     handlers::analytics::get_booking_analytics_handler(State(pool), headers).await
 }
 
 async fn get_benchmark(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     handlers::analytics::get_occupancy_report_handler(State(pool), headers).await
 }
 
 async fn get_personalized(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     query: Query<HashMap<String, String>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -55,7 +55,7 @@ async fn get_personalized(
 }
 
 async fn generate_report(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     query: Query<handlers::analytics::ReportQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {

@@ -9,11 +9,11 @@ use axum::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use chrono::{NaiveDate, Utc};
-use sqlx::PgPool;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::{
@@ -52,7 +52,7 @@ fn save_base64_image(base64_data: &str, user_id: i64, image_type: &str) -> Resul
 
 /// Upload single document (multipart/form-data)
 pub async fn upload_document_handler(
-    State(_pool): State<PgPool>,
+    State(_pool): State<DbPool>,
     headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -144,7 +144,7 @@ pub async fn upload_document_handler(
 
 /// Submit eKYC verification
 pub async fn submit_ekyc_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(req): Json<EkycSubmissionRequest>,
 ) -> Result<Json<EkycStatusResponse>, ApiError> {
@@ -301,7 +301,7 @@ pub async fn submit_ekyc_handler(
 
 /// Get user's eKYC status
 pub async fn get_ekyc_status_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Option<EkycStatusResponse>>, ApiError> {
     let user_id = require_auth(&headers).await?;
@@ -340,7 +340,7 @@ pub async fn get_ekyc_status_handler(
 
 /// Get all eKYC verifications (admin only)
 pub async fn get_all_ekyc_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<Vec<EkycVerification>>, ApiError> {
     let verifications: Vec<EkycVerification> = sqlx::query_as(
         r#"
@@ -365,7 +365,7 @@ pub async fn get_all_ekyc_handler(
 
 /// Get eKYC verification by ID (admin only)
 pub async fn get_ekyc_by_id_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(id): Path<i64>,
 ) -> Result<Json<EkycVerification>, ApiError> {
     let verification: EkycVerification =
@@ -381,7 +381,7 @@ pub async fn get_ekyc_by_id_handler(
 
 /// Update eKYC verification (admin only)
 pub async fn update_ekyc_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Path(id): Path<i64>,
     Json(update): Json<EkycVerificationUpdate>,
@@ -463,7 +463,7 @@ pub async fn update_ekyc_handler(
 
 /// Self check-in
 pub async fn self_checkin_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(req): Json<SelfCheckinRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {

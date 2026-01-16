@@ -3809,12 +3809,53 @@ const RoomManagementPage: React.FC = () => {
                       </Typography>
                     </Grid>
                     <Grid item xs={12}>
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                        <Chip
-                          label={booking.status === 'checked_in' ? 'Currently Occupied' : booking.status === 'confirmed' ? 'Confirmed' : 'Pending'}
-                          size="small"
-                          color={booking.status === 'checked_in' ? 'warning' : booking.status === 'confirmed' ? 'info' : 'default'}
-                        />
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
+                        {(() => {
+                          const checkInDate = new Date(booking.check_in_date);
+                          checkInDate.setHours(0, 0, 0, 0);
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const isToday = checkInDate.getTime() === today.getTime();
+                          const canCheckIn = isToday && (booking.status === 'confirmed' || booking.status === 'pending');
+
+                          if (booking.status === 'checked_in') {
+                            return (
+                              <Chip
+                                label="Currently Occupied"
+                                size="small"
+                                color="warning"
+                              />
+                            );
+                          } else if (canCheckIn) {
+                            return (
+                              <Button
+                                size="small"
+                                variant="contained"
+                                color="success"
+                                startIcon={<LoginIcon />}
+                                onClick={() => {
+                                  setUpcomingBookingsDialogOpen(false);
+                                  // Find the room and trigger check-in
+                                  const room = rooms.find(r => String(r.id) === String(booking.room_id));
+                                  if (room) {
+                                    handleCheckIn(room);
+                                  }
+                                }}
+                                sx={{ fontWeight: 600 }}
+                              >
+                                Check-In Now
+                              </Button>
+                            );
+                          } else {
+                            return (
+                              <Chip
+                                label={booking.status === 'confirmed' ? 'Confirmed' : 'Pending'}
+                                size="small"
+                                color={booking.status === 'confirmed' ? 'info' : 'default'}
+                              />
+                            );
+                          }
+                        })()}
                         {booking.is_complimentary && (
                           <Chip
                             icon={<GiftIcon />}

@@ -1,6 +1,6 @@
 //! Guest repository for database operations
 
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::Guest;
 
@@ -8,7 +8,7 @@ pub struct GuestRepository;
 
 impl GuestRepository {
     /// Find all guests
-    pub async fn find_all(pool: &PgPool) -> Result<Vec<Guest>, ApiError> {
+    pub async fn find_all(pool: &DbPool) -> Result<Vec<Guest>, ApiError> {
         sqlx::query_as::<_, Guest>(
             r#"
             SELECT id, full_name, email, phone, ic_number, nationality,
@@ -25,7 +25,7 @@ impl GuestRepository {
     }
 
     /// Find guest by ID
-    pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<Guest>, ApiError> {
+    pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<Guest>, ApiError> {
         sqlx::query_as::<_, Guest>(
             r#"
             SELECT id, full_name, email, phone, ic_number, nationality,
@@ -42,7 +42,7 @@ impl GuestRepository {
     }
 
     /// Find guest by email
-    pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<Guest>, ApiError> {
+    pub async fn find_by_email(pool: &DbPool, email: &str) -> Result<Option<Guest>, ApiError> {
         sqlx::query_as::<_, Guest>(
             r#"
             SELECT id, full_name, email, phone, ic_number, nationality,
@@ -59,7 +59,7 @@ impl GuestRepository {
     }
 
     /// Find guests linked to a user
-    pub async fn find_by_user_id(pool: &PgPool, user_id: i64) -> Result<Vec<Guest>, ApiError> {
+    pub async fn find_by_user_id(pool: &DbPool, user_id: i64) -> Result<Vec<Guest>, ApiError> {
         sqlx::query_as::<_, Guest>(
             r#"
             SELECT g.id, g.full_name, g.email, g.phone, g.ic_number, g.nationality,
@@ -79,7 +79,7 @@ impl GuestRepository {
 
     /// Create a new guest
     pub async fn create(
-        pool: &PgPool,
+        pool: &DbPool,
         full_name: &str,
         email: &str,
         phone: Option<&str>,
@@ -107,7 +107,7 @@ impl GuestRepository {
 
     /// Link guest to user
     pub async fn link_to_user(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
         guest_id: i64,
         relationship_type: &str,
@@ -130,7 +130,7 @@ impl GuestRepository {
     }
 
     /// Unlink guest from user
-    pub async fn unlink_from_user(pool: &PgPool, user_id: i64, guest_id: i64) -> Result<(), ApiError> {
+    pub async fn unlink_from_user(pool: &DbPool, user_id: i64, guest_id: i64) -> Result<(), ApiError> {
         sqlx::query("DELETE FROM user_guests WHERE user_id = $1 AND guest_id = $2")
             .bind(user_id)
             .bind(guest_id)
@@ -142,7 +142,7 @@ impl GuestRepository {
     }
 
     /// Check if guest exists
-    pub async fn exists(pool: &PgPool, id: i64) -> Result<bool, ApiError> {
+    pub async fn exists(pool: &DbPool, id: i64) -> Result<bool, ApiError> {
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM guests WHERE id = $1 AND deleted_at IS NULL"
         )
@@ -155,7 +155,7 @@ impl GuestRepository {
     }
 
     /// Soft delete a guest
-    pub async fn delete(pool: &PgPool, id: i64) -> Result<(), ApiError> {
+    pub async fn delete(pool: &DbPool, id: i64) -> Result<(), ApiError> {
         sqlx::query("UPDATE guests SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1")
             .bind(id)
             .execute(pool)

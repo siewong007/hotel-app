@@ -1,7 +1,7 @@
 //! Payment repository for database operations
 
 use rust_decimal::Decimal;
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{Payment, Invoice};
 
@@ -9,7 +9,7 @@ pub struct PaymentRepository;
 
 impl PaymentRepository {
     /// Find payment by booking ID
-    pub async fn find_by_booking_id(pool: &PgPool, booking_id: i64) -> Result<Option<Payment>, ApiError> {
+    pub async fn find_by_booking_id(pool: &DbPool, booking_id: i64) -> Result<Option<Payment>, ApiError> {
         sqlx::query_as::<_, Payment>(
             r#"
             SELECT id, booking_id, user_id, payment_method, payment_status,
@@ -29,7 +29,7 @@ impl PaymentRepository {
     }
 
     /// Find all payments for a booking
-    pub async fn find_all_by_booking_id(pool: &PgPool, booking_id: i64) -> Result<Vec<Payment>, ApiError> {
+    pub async fn find_all_by_booking_id(pool: &DbPool, booking_id: i64) -> Result<Vec<Payment>, ApiError> {
         sqlx::query_as::<_, Payment>(
             r#"
             SELECT id, booking_id, user_id, payment_method, payment_status,
@@ -49,7 +49,7 @@ impl PaymentRepository {
 
     /// Create a payment
     pub async fn create(
-        pool: &PgPool,
+        pool: &DbPool,
         booking_id: i64,
         user_id: i64,
         payment_method: &str,
@@ -86,7 +86,7 @@ impl PaymentRepository {
     }
 
     /// Update payment status
-    pub async fn update_status(pool: &PgPool, id: i64, status: &str) -> Result<(), ApiError> {
+    pub async fn update_status(pool: &DbPool, id: i64, status: &str) -> Result<(), ApiError> {
         sqlx::query("UPDATE payments SET payment_status = $1 WHERE id = $2")
             .bind(status)
             .bind(id)
@@ -98,7 +98,7 @@ impl PaymentRepository {
     }
 
     /// Find invoice by booking ID
-    pub async fn find_invoice_by_booking_id(pool: &PgPool, booking_id: i64) -> Result<Option<Invoice>, ApiError> {
+    pub async fn find_invoice_by_booking_id(pool: &DbPool, booking_id: i64) -> Result<Option<Invoice>, ApiError> {
         sqlx::query_as::<_, Invoice>(
             r#"
             SELECT id, uuid, invoice_number, booking_id, user_id,
@@ -121,7 +121,7 @@ impl PaymentRepository {
     }
 
     /// Find invoice by invoice number
-    pub async fn find_invoice_by_number(pool: &PgPool, invoice_number: &str) -> Result<Option<Invoice>, ApiError> {
+    pub async fn find_invoice_by_number(pool: &DbPool, invoice_number: &str) -> Result<Option<Invoice>, ApiError> {
         sqlx::query_as::<_, Invoice>(
             r#"
             SELECT id, uuid, invoice_number, booking_id, user_id,

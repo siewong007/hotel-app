@@ -9,14 +9,14 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::handlers;
 use crate::models;
 use crate::core::middleware::require_permission_helper;
 use crate::core::error::ApiError;
 
 /// Create eKYC routes
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         // User eKYC routes
         .route("/ekyc/upload-document", post(upload_document))
@@ -30,7 +30,7 @@ pub fn routes() -> Router<PgPool> {
 }
 
 async fn upload_document(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -38,7 +38,7 @@ async fn upload_document(
 }
 
 async fn submit_ekyc(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::EkycSubmissionRequest>,
 ) -> Result<Json<models::EkycStatusResponse>, ApiError> {
@@ -46,14 +46,14 @@ async fn submit_ekyc(
 }
 
 async fn get_status(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Option<models::EkycStatusResponse>>, ApiError> {
     handlers::ekyc::get_ekyc_status_handler(State(pool), headers).await
 }
 
 async fn self_checkin(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::SelfCheckinRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -61,7 +61,7 @@ async fn self_checkin(
 }
 
 async fn get_all_verifications(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::EkycVerification>>, ApiError> {
     require_permission_helper(&pool, &headers, "ekyc:manage").await?;
@@ -69,7 +69,7 @@ async fn get_all_verifications(
 }
 
 async fn get_verification(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::EkycVerification>, ApiError> {
@@ -78,7 +78,7 @@ async fn get_verification(
 }
 
 async fn update_verification(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::EkycVerificationUpdate>,

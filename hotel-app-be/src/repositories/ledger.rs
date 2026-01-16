@@ -1,7 +1,7 @@
 //! Customer ledger repository for database operations
 
 use rust_decimal::Decimal;
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{CustomerLedger, CustomerLedgerPayment};
 
@@ -10,7 +10,7 @@ pub struct LedgerRepository;
 impl LedgerRepository {
     /// Find all ledgers with optional filters
     pub async fn find_all(
-        pool: &PgPool,
+        pool: &DbPool,
         status: Option<&str>,
         company_name: Option<&str>,
         expense_type: Option<&str>,
@@ -45,7 +45,7 @@ impl LedgerRepository {
     }
 
     /// Find ledger by ID
-    pub async fn find_by_id(pool: &PgPool, id: i64) -> Result<Option<CustomerLedger>, ApiError> {
+    pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<CustomerLedger>, ApiError> {
         sqlx::query_as::<_, CustomerLedger>(
             r#"
             SELECT id, company_name, company_registration_number, contact_person,
@@ -66,7 +66,7 @@ impl LedgerRepository {
     }
 
     /// Get payments for a ledger
-    pub async fn get_payments(pool: &PgPool, ledger_id: i64) -> Result<Vec<CustomerLedgerPayment>, ApiError> {
+    pub async fn get_payments(pool: &DbPool, ledger_id: i64) -> Result<Vec<CustomerLedgerPayment>, ApiError> {
         sqlx::query_as::<_, CustomerLedgerPayment>(
             r#"
             SELECT id, ledger_id, payment_amount, payment_method, payment_reference,
@@ -84,7 +84,7 @@ impl LedgerRepository {
 
     /// Record a payment
     pub async fn record_payment(
-        pool: &PgPool,
+        pool: &DbPool,
         ledger_id: i64,
         payment_amount: Decimal,
         payment_method: &str,
@@ -114,7 +114,7 @@ impl LedgerRepository {
 
     /// Update ledger paid amount and status
     pub async fn update_payment_status(
-        pool: &PgPool,
+        pool: &DbPool,
         ledger_id: i64,
         paid_amount: Decimal,
         status: &str,
@@ -139,7 +139,7 @@ impl LedgerRepository {
     }
 
     /// Check if ledger exists
-    pub async fn exists(pool: &PgPool, id: i64) -> Result<bool, ApiError> {
+    pub async fn exists(pool: &DbPool, id: i64) -> Result<bool, ApiError> {
         let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM customer_ledgers WHERE id = $1")
             .bind(id)
             .fetch_one(pool)
@@ -150,7 +150,7 @@ impl LedgerRepository {
     }
 
     /// Get ledger summary statistics
-    pub async fn get_summary(pool: &PgPool) -> Result<(i64, Decimal, Decimal, Decimal, i64, i64, i64), ApiError> {
+    pub async fn get_summary(pool: &DbPool) -> Result<(i64, Decimal, Decimal, Decimal, i64, i64, i64), ApiError> {
         sqlx::query_as(
             r#"
             SELECT

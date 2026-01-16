@@ -3,16 +3,16 @@
 //! Handles user profile management.
 
 use crate::core::auth::AuthService;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
 use axum::{
     extract::{Extension, State},
     response::Json,
 };
-use sqlx::PgPool;
 
 pub async fn get_user_profile_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
 ) -> Result<Json<UserProfile>, ApiError> {
     let profile = sqlx::query_as::<_, UserProfile>(
@@ -34,7 +34,7 @@ pub async fn get_user_profile_handler(
 }
 
 pub async fn update_user_profile_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
     Json(input): Json<UserProfileUpdate>,
 ) -> Result<Json<UserProfile>, ApiError> {
@@ -80,7 +80,7 @@ pub async fn update_user_profile_handler(
 }
 
 pub async fn update_password_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
     Json(input): Json<PasswordUpdateInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {

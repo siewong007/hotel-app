@@ -5,16 +5,19 @@
 //! - `db`: Database connection pool
 //! - `error`: Unified API error types
 //! - `middleware`: Request authentication and authorization middleware
+//! - `sql_compat`: SQL compatibility helpers for PostgreSQL/SQLite
 
 pub mod auth;
 pub mod db;
 pub mod error;
 pub mod middleware;
+pub mod sql_compat;
 
 // Re-export commonly used types
 pub use auth::{AuthService, Claims};
-pub use db::create_pool;
+pub use db::{create_pool, DbPool, DbRow};
 pub use error::ApiError;
+pub use sql_compat::adapt_query;
 pub use middleware::{
     require_auth,
     require_permission_helper,

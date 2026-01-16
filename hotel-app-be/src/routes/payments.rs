@@ -9,13 +9,13 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::handlers;
 use crate::models;
 use crate::core::error::ApiError;
 
 /// Create payment routes
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         // Payment routes
         .route("/payments/calculate/:booking_id", get(calculate_payment))
@@ -28,7 +28,7 @@ pub fn routes() -> Router<PgPool> {
 }
 
 async fn calculate_payment(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::PaymentSummary>, ApiError> {
@@ -36,7 +36,7 @@ async fn calculate_payment(
 }
 
 async fn create_payment(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::PaymentRequest>,
 ) -> Result<Json<models::Payment>, ApiError> {
@@ -44,7 +44,7 @@ async fn create_payment(
 }
 
 async fn get_payment(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<Option<models::Payment>>, ApiError> {
@@ -52,7 +52,7 @@ async fn get_payment(
 }
 
 async fn get_invoice_preview(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::InvoicePreview>, ApiError> {
@@ -60,7 +60,7 @@ async fn get_invoice_preview(
 }
 
 async fn generate_invoice(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::Invoice>, ApiError> {
@@ -68,7 +68,7 @@ async fn generate_invoice(
 }
 
 async fn get_user_invoices(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::Invoice>>, ApiError> {
     handlers::payments::get_user_invoices_handler(State(pool), headers).await

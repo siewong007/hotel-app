@@ -8,8 +8,9 @@ use axum::{
 use chrono::{NaiveDate, DateTime, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, Row};
+use sqlx::Row;
 
+use crate::core::db::DbPool;
 use crate::core::middleware::require_permission_helper;
 use crate::core::error::ApiError;
 use crate::services::audit::AuditLog;
@@ -112,7 +113,7 @@ pub struct RoomSnapshot {
 
 /// Get preview of what will be posted for a given date
 pub async fn get_night_audit_preview(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<NightAuditPreview>, ApiError> {
@@ -329,7 +330,7 @@ pub async fn get_night_audit_preview(
 
 /// Run night audit for a specific date
 pub async fn run_night_audit(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<RunNightAuditRequest>,
 ) -> Result<Json<NightAuditResponse>, ApiError> {
@@ -500,7 +501,7 @@ pub async fn run_night_audit(
 
 /// List all night audit runs
 pub async fn list_night_audits(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Query(params): Query<ListAuditsQuery>,
 ) -> Result<Json<Vec<NightAuditRunWithUser>>, ApiError> {
@@ -627,7 +628,7 @@ pub async fn list_night_audits(
 
 /// Get a specific night audit run by ID
 pub async fn get_night_audit(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(audit_id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<NightAuditRunWithUser>, ApiError> {
@@ -759,7 +760,7 @@ pub struct AuditDetailsResponse {
 
 /// Get audit details including all posted bookings
 pub async fn get_night_audit_details(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(audit_id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<AuditDetailsResponse>, ApiError> {
@@ -902,7 +903,7 @@ pub async fn get_night_audit_details(
 
 /// Check if a booking is posted (can be used to prevent editing)
 pub async fn is_booking_posted(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(booking_id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {

@@ -9,13 +9,13 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::handlers;
 use crate::models;
 use crate::core::error::ApiError;
 
 /// Create settings routes
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/settings", get(get_settings))
         .route("/settings/:key", patch(update_setting))
@@ -23,14 +23,14 @@ pub fn routes() -> Router<PgPool> {
 }
 
 async fn get_settings(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::SystemSetting>>, ApiError> {
     handlers::settings::get_system_settings_handler(State(pool), headers).await
 }
 
 async fn update_setting(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     path: Path<String>,
     headers: HeaderMap,
     Json(input): Json<models::SystemSettingUpdate>,
@@ -39,7 +39,7 @@ async fn update_setting(
 }
 
 async fn process_checkins(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     handlers::settings::process_auto_checkin_checkout_handler(State(pool)).await
 }

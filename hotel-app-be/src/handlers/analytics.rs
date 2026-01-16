@@ -3,8 +3,10 @@
 //! Handles reports and analytics dashboards.
 
 use crate::core::auth::AuthService;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_auth, require_permission_helper};
+use crate::models::row_mappers;
 use axum::{
     extract::{Query, State},
     http::HeaderMap,
@@ -12,7 +14,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sqlx::{PgPool, Row};
+use sqlx::Row;
 
 pub async fn websocket_status_handler() -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(serde_json::json!({
@@ -24,7 +26,7 @@ pub async fn websocket_status_handler() -> Result<Json<serde_json::Value>, ApiEr
 }
 
 pub async fn get_occupancy_report_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "analytics:read").await?;
@@ -34,6 +36,20 @@ pub async fn get_occupancy_report_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let occupied_rooms: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(DISTINCT room_id) FROM bookings
+        WHERE status != 'cancelled'
+        AND check_in_date <= date('now')
+        AND check_out_date > date('now')
+        "#
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let occupied_rooms: i64 = sqlx::query_scalar(
         r#"
         SELECT COUNT(DISTINCT room_id) FROM bookings
@@ -53,6 +69,15 @@ pub async fn get_occupancy_report_handler(
     };
 
     // Count only rooms with status 'available' (excludes maintenance, cleaning, out_of_order, etc.)
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let available_rooms: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM rooms WHERE status = 'available' AND is_active = 1"
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let available_rooms: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM rooms WHERE status = 'available' AND is_active = true"
     )
@@ -60,6 +85,23 @@ pub async fn get_occupancy_report_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let revenue_row = sqlx::query(
+        r#"
+        SELECT COALESCE(CAST(SUM(total_amount) AS TEXT), '0') as revenue FROM bookings
+        WHERE status != 'cancelled'
+        AND check_in_date <= date('now')
+        AND check_out_date > date('now')
+        "#
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let revenue = row_mappers::get_decimal(&revenue_row, "revenue");
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let revenue: Decimal = sqlx::query_scalar(
         r#"
         SELECT COALESCE(SUM(total_amount), 0) FROM bookings
@@ -83,7 +125,7 @@ pub async fn get_occupancy_report_handler(
 }
 
 pub async fn get_booking_analytics_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "analytics:read").await?;
@@ -93,6 +135,18 @@ pub async fn get_booking_analytics_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let revenue_row = sqlx::query(
+        "SELECT CAST(SUM(total_amount) AS TEXT) as revenue FROM bookings WHERE status != 'cancelled'"
+    )
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let total_revenue = row_mappers::get_opt_decimal(&revenue_row, "revenue").unwrap_or_default();
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let revenue_result: Option<Decimal> = sqlx::query_scalar(
         "SELECT SUM(total_amount) FROM bookings WHERE status != 'cancelled'"
     )
@@ -100,7 +154,9 @@ pub async fn get_booking_analytics_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let total_revenue = revenue_result.unwrap_or_default();
+
     let average_booking_value = if total_bookings > 0 {
         total_revenue / Decimal::from(total_bookings)
     } else {
@@ -108,7 +164,7 @@ pub async fn get_booking_analytics_handler(
     };
 
     // Bookings by room type
-    let bookings_by_type: Vec<(String, i64)> = sqlx::query_as(
+    let bookings_by_type_rows = sqlx::query(
         r#"
         SELECT rt.name, COUNT(*) as count
         FROM bookings b
@@ -122,9 +178,13 @@ pub async fn get_booking_analytics_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let bookings_by_room_type: serde_json::Map<String, serde_json::Value> = bookings_by_type
+    let bookings_by_room_type: serde_json::Map<String, serde_json::Value> = bookings_by_type_rows
         .into_iter()
-        .map(|(room_type, count)| (room_type, serde_json::Value::Number(count.into())))
+        .map(|row| {
+            let room_type: String = row.get("name");
+            let count: i64 = row.get("count");
+            (room_type, serde_json::Value::Number(count.into()))
+        })
         .collect();
 
     // Monthly trends (simplified - last 6 months)
@@ -148,7 +208,7 @@ pub async fn get_booking_analytics_handler(
 
 // Personalized report handler - generates reports tailored to user role and context
 pub async fn get_personalized_report_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -273,7 +333,7 @@ fn parse_date_flexible(date_str: &str) -> Result<NaiveDate, String> {
 }
 
 pub async fn generate_report_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Query(params): Query<ReportQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Note: Permission check is done in the route layer (routes/analytics.rs)
@@ -307,7 +367,7 @@ pub async fn generate_report_handler(
 
 // Balance Sheet Report
 async fn generate_balance_sheet(
-    pool: &PgPool,
+    pool: &DbPool,
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
@@ -377,7 +437,7 @@ async fn generate_balance_sheet(
 
 // Journal By Type Report
 async fn generate_journal_by_type(
-    pool: &PgPool,
+    pool: &DbPool,
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
@@ -447,7 +507,7 @@ async fn generate_journal_by_type(
 
 // Shift Report
 async fn generate_shift_report(
-    pool: &PgPool,
+    pool: &DbPool,
     start_date: NaiveDate,
     end_date: NaiveDate,
     _shift: Option<&str>,
@@ -561,7 +621,7 @@ async fn generate_shift_report(
 
 // Rooms Sold Detail Report
 async fn generate_rooms_sold_report(
-    pool: &PgPool,
+    pool: &DbPool,
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
@@ -622,7 +682,7 @@ async fn generate_rooms_sold_report(
 
 // General Journal Report - Double-entry accounting format
 async fn generate_general_journal(
-    pool: &PgPool,
+    pool: &DbPool,
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
@@ -866,7 +926,7 @@ async fn generate_general_journal(
 
 // Daily Operations Report - Today's hotel activity snapshot
 async fn generate_daily_operations_report(
-    pool: &PgPool,
+    pool: &DbPool,
     date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
     // Today's arrivals (expected check-ins)
@@ -1009,7 +1069,7 @@ async fn generate_daily_operations_report(
 
 // Occupancy Report - Occupancy metrics over a date range
 async fn generate_occupancy_report(
-    pool: &PgPool,
+    pool: &DbPool,
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
@@ -1140,7 +1200,7 @@ async fn generate_occupancy_report(
 
 // Revenue Report - Revenue breakdown and analysis
 async fn generate_revenue_report(
-    pool: &PgPool,
+    pool: &DbPool,
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
@@ -1285,7 +1345,7 @@ async fn generate_revenue_report(
 
 // Payment Status Report - Outstanding payments and payment performance
 async fn generate_payment_status_report(
-    pool: &PgPool,
+    pool: &DbPool,
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
@@ -1377,7 +1437,7 @@ async fn generate_payment_status_report(
 
 // Complimentary Report - Track complimentary stays
 async fn generate_complimentary_report(
-    pool: &PgPool,
+    pool: &DbPool,
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
@@ -1476,7 +1536,7 @@ async fn generate_complimentary_report(
 
 // Guest Statistics Report - Guest demographics and patterns
 async fn generate_guest_statistics_report(
-    pool: &PgPool,
+    pool: &DbPool,
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
@@ -1639,7 +1699,7 @@ async fn generate_guest_statistics_report(
 
 // Room Performance Report - Room and room type analysis
 async fn generate_room_performance_report(
-    pool: &PgPool,
+    pool: &DbPool,
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
@@ -1748,7 +1808,7 @@ async fn generate_room_performance_report(
 
 // Company Ledger Statement Report - Per-company account statement
 async fn generate_company_ledger_statement(
-    pool: &PgPool,
+    pool: &DbPool,
     start_date: NaiveDate,
     end_date: NaiveDate,
     company_name: Option<&str>,

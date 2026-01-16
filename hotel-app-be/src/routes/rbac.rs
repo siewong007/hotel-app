@@ -9,14 +9,14 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::handlers;
 use crate::models;
 use crate::core::middleware::{require_admin_helper, require_auth};
 use crate::core::error::ApiError;
 
 /// Create RBAC routes
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         // Role management
         .route("/rbac/roles", get(get_roles))
@@ -42,7 +42,7 @@ pub fn routes() -> Router<PgPool> {
 }
 
 async fn get_roles(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::Role>>, ApiError> {
     require_admin_helper(&pool, &headers).await?;
@@ -50,7 +50,7 @@ async fn get_roles(
 }
 
 async fn create_role(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::RoleInput>,
 ) -> Result<Json<models::Role>, ApiError> {
@@ -59,7 +59,7 @@ async fn create_role(
 }
 
 async fn get_role_permissions(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::RoleWithPermissions>, ApiError> {
@@ -68,7 +68,7 @@ async fn get_role_permissions(
 }
 
 async fn get_permissions(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::Permission>>, ApiError> {
     require_admin_helper(&pool, &headers).await?;
@@ -76,7 +76,7 @@ async fn get_permissions(
 }
 
 async fn create_permission(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::PermissionInput>,
 ) -> Result<Json<models::Permission>, ApiError> {
@@ -85,7 +85,7 @@ async fn create_permission(
 }
 
 async fn assign_role(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::AssignRoleInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -94,7 +94,7 @@ async fn assign_role(
 }
 
 async fn remove_role(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<(i64, i64)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -103,7 +103,7 @@ async fn remove_role(
 }
 
 async fn assign_permission(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::AssignPermissionInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -112,7 +112,7 @@ async fn assign_permission(
 }
 
 async fn remove_permission(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<(i64, i64)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -121,7 +121,7 @@ async fn remove_permission(
 }
 
 async fn get_users(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::UserResponse>>, ApiError> {
     require_admin_helper(&pool, &headers).await?;
@@ -129,7 +129,7 @@ async fn get_users(
 }
 
 async fn create_user(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::UserCreateInput>,
 ) -> Result<Json<models::UserResponse>, ApiError> {
@@ -139,7 +139,7 @@ async fn create_user(
 }
 
 async fn get_user(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::UserWithRolesAndPermissions>, ApiError> {
@@ -148,7 +148,7 @@ async fn get_user(
 }
 
 async fn update_role(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::RoleInput>,
@@ -158,7 +158,7 @@ async fn update_role(
 }
 
 async fn delete_role(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -167,7 +167,7 @@ async fn delete_role(
 }
 
 async fn update_permission(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::PermissionInput>,
@@ -177,7 +177,7 @@ async fn update_permission(
 }
 
 async fn delete_permission(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
