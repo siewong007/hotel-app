@@ -1,4 +1,4 @@
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use chrono::Utc;
 use serde_json::Value;
 
@@ -18,7 +18,7 @@ impl AuditLog {
     /// * `ip_address` - IP address of the requester
     /// * `user_agent` - User agent string from the request
     pub async fn log_event(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: Option<i64>,
         action: &str,
         resource_type: &str,
@@ -59,7 +59,7 @@ impl AuditLog {
 
     /// Log a successful login attempt
     pub async fn log_login_success(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
         method: &str, // "password", "passkey", "2fa"
         ip_address: Option<String>,
@@ -84,7 +84,7 @@ impl AuditLog {
 
     /// Log a failed login attempt
     pub async fn log_login_failure(
-        pool: &PgPool,
+        pool: &DbPool,
         username: &str,
         reason: &str,
         ip_address: Option<String>,
@@ -110,7 +110,7 @@ impl AuditLog {
 
     /// Log role assignment
     pub async fn log_role_assignment(
-        pool: &PgPool,
+        pool: &DbPool,
         admin_id: i64,
         user_id: i64,
         role_id: i64,
@@ -135,7 +135,7 @@ impl AuditLog {
 
     /// Log role removal
     pub async fn log_role_removal(
-        pool: &PgPool,
+        pool: &DbPool,
         admin_id: i64,
         user_id: i64,
         role_id: i64,
@@ -160,7 +160,7 @@ impl AuditLog {
 
     /// Log booking creation
     pub async fn log_booking_created(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
         booking_id: i64,
         guest_id: i64,
@@ -186,7 +186,7 @@ impl AuditLog {
 
     /// Log booking modification
     pub async fn log_booking_updated(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
         booking_id: i64,
         changes: Value,
@@ -205,7 +205,7 @@ impl AuditLog {
 
     /// Log booking cancellation
     pub async fn log_booking_cancelled(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
         booking_id: i64,
     ) -> Result<(), sqlx::Error> {
@@ -223,7 +223,7 @@ impl AuditLog {
 
     /// Log eKYC approval
     pub async fn log_ekyc_approved(
-        pool: &PgPool,
+        pool: &DbPool,
         admin_id: i64,
         verification_id: i64,
         guest_id: i64,
@@ -248,7 +248,7 @@ impl AuditLog {
 
     /// Log eKYC rejection
     pub async fn log_ekyc_rejected(
-        pool: &PgPool,
+        pool: &DbPool,
         admin_id: i64,
         verification_id: i64,
         guest_id: i64,
@@ -275,7 +275,7 @@ impl AuditLog {
 
     /// Log password change
     pub async fn log_password_changed(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
     ) -> Result<(), sqlx::Error> {
         Self::log_event(
@@ -292,7 +292,7 @@ impl AuditLog {
 
     /// Log system settings change
     pub async fn log_settings_changed(
-        pool: &PgPool,
+        pool: &DbPool,
         admin_id: i64,
         setting_key: &str,
         old_value: Option<&str>,

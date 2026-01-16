@@ -22,7 +22,7 @@ pub mod rooms;
 pub mod settings;
 
 use axum::{http::Method, routing::get, Router};
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use tower::ServiceBuilder;
 use tower_http::{
     cors::CorsLayer,
@@ -42,7 +42,7 @@ async fn websocket_status_handler() -> axum::response::Json<serde_json::Value> {
 }
 
 /// Create the complete application router by composing all domain routes
-pub fn create_router(pool: PgPool) -> Router {
+pub fn create_router(pool: DbPool) -> Router {
     // Get allowed origins from environment variable
     let allowed_origins = std::env::var("ALLOWED_ORIGINS")
         .unwrap_or_else(|_| "http://localhost:3000,http://localhost:5173".to_string());

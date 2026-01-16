@@ -1,6 +1,6 @@
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use chrono::{Duration, Utc};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use std::env;
@@ -57,7 +57,7 @@ impl AuthService {
         verify(password, hash)
     }
 
-    pub async fn get_user_permissions(pool: &PgPool, user_id: i64) -> Result<Vec<String>, sqlx::Error> {
+    pub async fn get_user_permissions(pool: &DbPool, user_id: i64) -> Result<Vec<String>, sqlx::Error> {
         let permissions = sqlx::query_scalar::<_, String>(
             r#"
             SELECT DISTINCT p.name
@@ -74,7 +74,7 @@ impl AuthService {
         Ok(permissions)
     }
 
-    pub async fn get_user_roles(pool: &PgPool, user_id: i64) -> Result<Vec<String>, sqlx::Error> {
+    pub async fn get_user_roles(pool: &DbPool, user_id: i64) -> Result<Vec<String>, sqlx::Error> {
         let roles = sqlx::query_scalar::<_, String>(
             r#"
             SELECT r.name
@@ -90,7 +90,7 @@ impl AuthService {
         Ok(roles)
     }
 
-    pub async fn check_permission(pool: &PgPool, user_id: i64, permission: &str) -> Result<bool, sqlx::Error> {
+    pub async fn check_permission(pool: &DbPool, user_id: i64, permission: &str) -> Result<bool, sqlx::Error> {
         let has_permission = sqlx::query_scalar::<_, bool>(
             r#"
             SELECT EXISTS(
@@ -110,7 +110,7 @@ impl AuthService {
         Ok(has_permission)
     }
 
-    pub async fn check_role(pool: &PgPool, user_id: i64, role_name: &str) -> Result<bool, sqlx::Error> {
+    pub async fn check_role(pool: &DbPool, user_id: i64, role_name: &str) -> Result<bool, sqlx::Error> {
         let has_role = sqlx::query_scalar::<_, bool>(
             r#"
             SELECT EXISTS(

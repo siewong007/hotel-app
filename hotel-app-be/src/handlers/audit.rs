@@ -10,8 +10,8 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::PgPool;
 
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
 
@@ -72,7 +72,7 @@ pub struct AuditLogResponse {
 /// GET /audit-logs
 /// Query audit logs with filters and pagination
 pub async fn get_audit_logs(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Query(params): Query<AuditLogQuery>,
 ) -> Result<Json<AuditLogResponse>, ApiError> {
@@ -266,7 +266,7 @@ pub async fn get_audit_logs(
 /// GET /audit-logs/actions
 /// Get distinct action types for filter dropdown
 pub async fn get_audit_actions(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<String>>, ApiError> {
     require_permission_helper(&pool, &headers, "audit:read").await?;
@@ -284,7 +284,7 @@ pub async fn get_audit_actions(
 /// GET /audit-logs/resource-types
 /// Get distinct resource types for filter dropdown
 pub async fn get_audit_resource_types(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<String>>, ApiError> {
     require_permission_helper(&pool, &headers, "audit:read").await?;
@@ -302,7 +302,7 @@ pub async fn get_audit_resource_types(
 /// GET /audit-logs/export/csv
 /// Export filtered audit logs as CSV
 pub async fn export_audit_logs_csv(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Query(params): Query<AuditLogQuery>,
 ) -> Result<axum::response::Response, ApiError> {
@@ -440,7 +440,7 @@ pub async fn export_audit_logs_csv(
 /// GET /audit-logs/users
 /// Get users who have audit log entries for filter dropdown
 pub async fn get_audit_users(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     require_permission_helper(&pool, &headers, "audit:read").await?;

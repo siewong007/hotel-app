@@ -3,12 +3,12 @@
 //! Routes for querying and exporting audit logs.
 
 use axum::{routing::get, Router};
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 
 use crate::handlers::audit;
 
 /// Create audit routes
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/audit-logs", get(audit::get_audit_logs))
         .route("/audit-logs/actions", get(audit::get_audit_actions))

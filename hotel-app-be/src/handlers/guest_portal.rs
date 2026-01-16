@@ -8,9 +8,9 @@ use axum::{
 };
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{Booking, Guest, PreCheckInUpdateRequest};
 
@@ -44,7 +44,7 @@ fn generate_precheckin_token() -> String {
 /// POST /guest-portal/verify
 /// Verifies booking number + email and generates a time-limited token
 pub async fn verify_guest_booking(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(request): Json<GuestPortalVerifyRequest>,
 ) -> Result<Json<GuestPortalVerifyResponse>, ApiError> {
     // Find booking by booking_number
@@ -122,7 +122,7 @@ pub async fn verify_guest_booking(
 /// GET /guest-portal/booking/:token
 /// Gets booking details using the pre-checkin token
 pub async fn get_booking_by_token(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(token): Path<String>,
 ) -> Result<Json<GuestPortalBookingResponse>, ApiError> {
     // Find booking by token
@@ -161,7 +161,7 @@ pub async fn get_booking_by_token(
 /// POST /guest-portal/pre-checkin/:token
 /// Allows guest to update their information before arrival
 pub async fn submit_precheckin_update(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(token): Path<String>,
     Json(request): Json<PreCheckInUpdateRequest>,
 ) -> Result<Json<GuestPortalBookingResponse>, ApiError> {

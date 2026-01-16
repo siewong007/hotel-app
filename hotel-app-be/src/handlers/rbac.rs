@@ -3,6 +3,7 @@
 //! Handles roles, permissions, and user access management.
 
 use crate::core::auth::AuthService;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
 use crate::services::audit::AuditLog;
@@ -10,10 +11,10 @@ use axum::{
     extract::{Extension, Path, State},
     response::Json,
 };
-use sqlx::{PgPool, Row};
+use sqlx::Row;
 
 pub async fn get_roles_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<Vec<Role>>, ApiError> {
     let rows = sqlx::query(
         "SELECT id, name, description, created_at FROM roles ORDER BY name"
@@ -36,7 +37,7 @@ pub async fn get_roles_handler(
 }
 
 pub async fn create_role_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(input): Json<RoleInput>,
 ) -> Result<Json<Role>, ApiError> {
     let row = sqlx::query(
@@ -61,7 +62,7 @@ pub async fn create_role_handler(
 }
 
 pub async fn get_permissions_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<Vec<Permission>>, ApiError> {
     let rows = sqlx::query(
         "SELECT id, name, resource, action, description, created_at FROM permissions ORDER BY resource, action"
@@ -86,7 +87,7 @@ pub async fn get_permissions_handler(
 }
 
 pub async fn create_permission_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(input): Json<PermissionInput>,
 ) -> Result<Json<Permission>, ApiError> {
     let row = sqlx::query(
@@ -115,7 +116,7 @@ pub async fn create_permission_handler(
 }
 
 pub async fn assign_role_to_user_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(input): Json<AssignRoleInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     sqlx::query(
@@ -138,7 +139,7 @@ pub async fn assign_role_to_user_handler(
 }
 
 pub async fn remove_role_from_user_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path((user_id, role_id)): Path<(i64, i64)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     sqlx::query("DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2")
@@ -155,7 +156,7 @@ pub async fn remove_role_from_user_handler(
 }
 
 pub async fn assign_permission_to_role_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(input): Json<AssignPermissionInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     sqlx::query(
@@ -175,7 +176,7 @@ pub async fn assign_permission_to_role_handler(
 }
 
 pub async fn remove_permission_from_role_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path((role_id, permission_id)): Path<(i64, i64)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     sqlx::query("DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2")
@@ -189,7 +190,7 @@ pub async fn remove_permission_from_role_handler(
 }
 
 pub async fn get_role_permissions_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(role_id): Path<i64>,
 ) -> Result<Json<RoleWithPermissions>, ApiError> {
     let role_row = sqlx::query(
@@ -238,7 +239,7 @@ pub async fn get_role_permissions_handler(
 }
 
 pub async fn get_users_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<Vec<UserResponse>>, ApiError> {
     let users = sqlx::query_as::<_, User>(
         "SELECT id, username, email, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at FROM users WHERE deleted_at IS NULL ORDER BY username"
@@ -252,7 +253,7 @@ pub async fn get_users_handler(
 }
 
 pub async fn create_user_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Extension(admin_user_id): Extension<i64>,
     Json(input): Json<UserCreateInput>,
 ) -> Result<Json<UserResponse>, ApiError> {
@@ -353,7 +354,7 @@ pub async fn create_user_handler(
 }
 
 pub async fn get_user_roles_permissions_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(user_id): Path<i64>,
 ) -> Result<Json<UserWithRolesAndPermissions>, ApiError> {
     let user = sqlx::query_as::<_, User>(
@@ -421,7 +422,7 @@ pub async fn get_user_roles_permissions_handler(
 
 /// Update an existing role
 pub async fn update_role_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(role_id): Path<i64>,
     Json(input): Json<RoleInput>,
 ) -> Result<Json<Role>, ApiError> {
@@ -465,7 +466,7 @@ pub async fn update_role_handler(
 
 /// Delete a role
 pub async fn delete_role_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(role_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Check if role exists and is not a system role
@@ -517,7 +518,7 @@ pub async fn delete_role_handler(
 
 /// Update an existing permission
 pub async fn update_permission_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(permission_id): Path<i64>,
     Json(input): Json<PermissionInput>,
 ) -> Result<Json<Permission>, ApiError> {
@@ -565,7 +566,7 @@ pub async fn update_permission_handler(
 
 /// Delete a permission
 pub async fn delete_permission_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(permission_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Check if permission exists and is not a system permission

@@ -3,17 +3,17 @@
 //! Handles login, logout, registration, and token management.
 
 use crate::core::auth::AuthService;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
 use crate::services::audit::AuditLog;
-use sqlx::PgPool;
 use axum::{
     extract::State,
     response::Json,
 };
 
 pub async fn login_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, ApiError> {
     let user = sqlx::query_as::<_, User>(
@@ -143,7 +143,7 @@ pub async fn login_handler(
 }
 
 pub async fn refresh_token_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(req): Json<RefreshTokenRequest>,
 ) -> Result<Json<RefreshTokenResponse>, ApiError> {
     // Validate refresh token
@@ -196,7 +196,7 @@ pub async fn refresh_token_handler(
 }
 
 pub async fn logout_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(req): Json<RefreshTokenRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Revoke the refresh token
@@ -208,7 +208,7 @@ pub async fn logout_handler(
 }
 
 pub async fn register_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(req): Json<RegisterRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Validate password
@@ -346,7 +346,7 @@ pub async fn register_handler(
 }
 
 pub async fn verify_email_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(req): Json<EmailVerificationConfirm>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = AuthService::verify_email_token(&pool, &req.token)
@@ -363,7 +363,7 @@ pub async fn verify_email_handler(
 }
 
 pub async fn resend_verification_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(req): Json<ResendVerificationRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user = AuthService::get_user_by_email(&pool, &req.email)

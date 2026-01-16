@@ -8,12 +8,12 @@ use axum::{
     extract::{State, Path, Query},
     response::{IntoResponse, Json},
 };
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::handlers;
 use crate::models;
 
 /// Create rate routes
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         // Rate plan routes
         .route("/rate-plans", get(get_rate_plans))
@@ -37,34 +37,34 @@ pub fn routes() -> Router<PgPool> {
 // Rate plan handlers
 
 async fn get_rate_plans(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     handlers::rates::get_rate_plans(State(pool)).await
 }
 
 async fn create_rate_plan(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(input): Json<models::RatePlanInput>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     handlers::rates::create_rate_plan(State(pool), Json(input)).await
 }
 
 async fn get_rate_plan(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     path: Path<i64>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     handlers::rates::get_rate_plan(State(pool), path).await
 }
 
 async fn get_rate_plan_with_rates(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     path: Path<i64>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     handlers::rates::get_rate_plan_with_rates(State(pool), path).await
 }
 
 async fn update_rate_plan(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     path: Path<i64>,
     Json(input): Json<models::RatePlanUpdateInput>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
@@ -72,7 +72,7 @@ async fn update_rate_plan(
 }
 
 async fn delete_rate_plan(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     path: Path<i64>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     handlers::rates::delete_rate_plan(State(pool), path).await
@@ -81,34 +81,34 @@ async fn delete_rate_plan(
 // Room rate handlers
 
 async fn get_room_rates(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     handlers::rates::get_room_rates(State(pool)).await
 }
 
 async fn create_room_rate(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(input): Json<models::RoomRateInput>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     handlers::rates::create_room_rate(State(pool), Json(input)).await
 }
 
 async fn get_room_rates_by_plan(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     path: Path<i64>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     handlers::rates::get_room_rates_by_plan(State(pool), path).await
 }
 
 async fn get_room_rate(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     path: Path<i64>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     handlers::rates::get_room_rate(State(pool), path).await
 }
 
 async fn update_room_rate(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     path: Path<i64>,
     Json(input): Json<models::RoomRateUpdateInput>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
@@ -116,21 +116,21 @@ async fn update_room_rate(
 }
 
 async fn delete_room_rate(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     path: Path<i64>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     handlers::rates::delete_room_rate(State(pool), path).await
 }
 
 async fn get_applicable_rate(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     query: Query<handlers::rates::ApplicableRateQuery>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     handlers::rates::get_applicable_rate(State(pool), query).await
 }
 
 async fn get_room_types_for_rates(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     handlers::rates::get_room_types_for_rates(State(pool)).await
 }

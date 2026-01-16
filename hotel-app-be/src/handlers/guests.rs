@@ -3,6 +3,7 @@
 //! Handles guest CRUD and user-guest relationships.
 
 use crate::core::auth::AuthService;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::*;
@@ -14,10 +15,9 @@ use axum::{
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sqlx::PgPool;
 
 pub async fn get_guests_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<Guest>>, ApiError> {
     let user_id = require_auth(&headers).await?;
@@ -69,7 +69,7 @@ pub async fn get_guests_handler(
 }
 
 pub async fn create_guest_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<GuestInput>,
 ) -> Result<Json<Guest>, ApiError> {
@@ -147,7 +147,7 @@ pub async fn create_guest_handler(
 }
 
 pub async fn update_guest_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(guest_id): Path<i64>,
     Json(input): Json<GuestUpdateInput>,
 ) -> Result<Json<Guest>, ApiError> {
@@ -256,7 +256,7 @@ pub async fn update_guest_handler(
 }
 
 pub async fn delete_guest_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(guest_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let exists: Option<i64> = sqlx::query_scalar("SELECT id FROM guests WHERE id = $1")
@@ -309,7 +309,7 @@ pub async fn delete_guest_handler(
 }
 
 pub async fn get_guest_bookings_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(guest_id): Path<i64>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     let rows: Vec<(i64, Option<String>, NaiveDate, NaiveDate, Option<i32>, String, Decimal, DateTime<Utc>, String, String)> = sqlx::query_as(
@@ -357,7 +357,7 @@ pub async fn get_guest_bookings_handler(
 }
 
 pub async fn link_guest_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<LinkGuestInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -406,7 +406,7 @@ pub async fn link_guest_handler(
 }
 
 pub async fn unlink_guest_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Path(guest_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -432,7 +432,7 @@ pub async fn unlink_guest_handler(
 }
 
 pub async fn get_my_guests_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<Guest>>, ApiError> {
     let user_id = require_auth(&headers).await?;
@@ -461,7 +461,7 @@ pub async fn get_my_guests_handler(
 }
 
 pub async fn upgrade_guest_to_user_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
     Json(input): Json<UpgradeGuestInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -512,7 +512,7 @@ pub async fn upgrade_guest_to_user_handler(
 
 /// Get guest complimentary credits by room type
 pub async fn get_guest_credits_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Path(guest_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -614,7 +614,7 @@ pub async fn get_guest_credits_handler(
 
 /// Get my linked guests with their complimentary credits by room type
 pub async fn get_my_guests_with_credits_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     let user_id = require_auth(&headers).await?;

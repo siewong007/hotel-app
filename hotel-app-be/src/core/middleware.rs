@@ -1,6 +1,6 @@
 use super::auth::{AuthService, Claims};
+use super::db::DbPool;
 use super::error::ApiError;
-use sqlx::PgPool;
 use axum::{
     http::header::HeaderMap,
 };
@@ -30,7 +30,7 @@ pub fn extract_user_id(claims: &Claims) -> Result<i64, ApiError> {
 // Check if user has permission
 // Also checks for :manage permission which implies all actions on that resource
 pub async fn check_permission(
-    pool: &PgPool,
+    pool: &DbPool,
     user_id: i64,
     permission: &str,
 ) -> Result<(), ApiError> {
@@ -59,7 +59,7 @@ pub async fn check_permission(
 
 // Check if user has admin role
 pub async fn check_admin_role(
-    pool: &PgPool,
+    pool: &DbPool,
     user_id: i64,
 ) -> Result<(), ApiError> {
     let is_admin = AuthService::check_role(pool, user_id, "admin").await
@@ -80,7 +80,7 @@ pub async fn require_auth(headers: &HeaderMap) -> Result<i64, ApiError> {
 
 // Helper function to require permission
 pub async fn require_permission_helper(
-    pool: &PgPool,
+    pool: &DbPool,
     headers: &HeaderMap,
     permission: &str,
 ) -> Result<i64, ApiError> {
@@ -91,7 +91,7 @@ pub async fn require_permission_helper(
 
 // Helper function to require admin role
 pub async fn require_admin_helper(
-    pool: &PgPool,
+    pool: &DbPool,
     headers: &HeaderMap,
 ) -> Result<i64, ApiError> {
     let user_id = require_auth(headers).await?;
@@ -101,7 +101,7 @@ pub async fn require_admin_helper(
 
 // Helper function to require super admin status
 pub async fn require_super_admin_helper(
-    pool: &PgPool,
+    pool: &DbPool,
     headers: &HeaderMap,
 ) -> Result<i64, ApiError> {
     let user_id = require_auth(headers).await?;

@@ -4,12 +4,12 @@ use axum::{
     routing::{get, post, put, delete},
     Router,
 };
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 
 use crate::handlers::companies::*;
 
 /// Create company routes
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/companies", get(list_companies_handler))
         .route("/companies", post(create_company_handler))

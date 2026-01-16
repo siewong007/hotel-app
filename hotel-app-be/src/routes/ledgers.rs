@@ -9,13 +9,13 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::handlers;
 use crate::models;
 use crate::core::error::ApiError;
 
 /// Create ledger routes
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/ledgers", get(list_ledgers))
         .route("/ledgers", post(create_ledger))
@@ -33,7 +33,7 @@ pub fn routes() -> Router<PgPool> {
 }
 
 async fn list_ledgers(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     query: Query<handlers::ledgers::LedgerListQuery>,
 ) -> Result<Json<Vec<models::CustomerLedger>>, ApiError> {
@@ -41,7 +41,7 @@ async fn list_ledgers(
 }
 
 async fn create_ledger(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::CustomerLedgerCreateRequest>,
 ) -> Result<Json<models::CustomerLedger>, ApiError> {
@@ -49,14 +49,14 @@ async fn create_ledger(
 }
 
 async fn get_ledger_summary(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     handlers::ledgers::get_ledger_summary_handler(State(pool), headers).await
 }
 
 async fn get_ledger(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::CustomerLedger>, ApiError> {
@@ -64,7 +64,7 @@ async fn get_ledger(
 }
 
 async fn update_ledger(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::CustomerLedgerUpdateRequest>,
@@ -73,7 +73,7 @@ async fn update_ledger(
 }
 
 async fn delete_ledger(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -81,7 +81,7 @@ async fn delete_ledger(
 }
 
 async fn get_ledger_with_payments(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::CustomerLedgerWithPayments>, ApiError> {
@@ -89,7 +89,7 @@ async fn get_ledger_with_payments(
 }
 
 async fn get_ledger_payments(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<Vec<models::CustomerLedgerPayment>>, ApiError> {
@@ -97,7 +97,7 @@ async fn get_ledger_payments(
 }
 
 async fn create_ledger_payment(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::CustomerLedgerPaymentRequest>,
@@ -106,21 +106,21 @@ async fn create_ledger_payment(
 }
 
 async fn get_transaction_codes(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::PatTransactionCode>>, ApiError> {
     handlers::ledgers::get_pat_transaction_codes_handler(State(pool), headers).await
 }
 
 async fn get_department_codes(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::PatDepartmentCode>>, ApiError> {
     handlers::ledgers::get_pat_department_codes_handler(State(pool), headers).await
 }
 
 async fn void_ledger(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::LedgerVoidRequest>,
@@ -129,7 +129,7 @@ async fn void_ledger(
 }
 
 async fn reverse_ledger(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::LedgerReversalRequest>,

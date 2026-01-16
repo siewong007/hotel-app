@@ -3,6 +3,7 @@
 //! Handles passkey registration and authentication.
 
 use crate::core::auth::AuthService;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
 use axum::{
@@ -11,7 +12,6 @@ use axum::{
 };
 use base64::engine::general_purpose;
 use base64::Engine;
-use sqlx::PgPool;
 use std::env;
 
 // Helper function to decode base64url (WebAuthn format)
@@ -34,7 +34,7 @@ fn decode_base64url(input: &str) -> Result<Vec<u8>, String> {
 }
 
 pub async fn list_passkeys_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
 ) -> Result<Json<Vec<PasskeyInfo>>, ApiError> {
     // Manually query and construct PasskeyInfo with base64url-encoded credential_id
@@ -85,7 +85,7 @@ pub async fn list_passkeys_handler(
 }
 
 pub async fn delete_passkey_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
     Path(passkey_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -106,7 +106,7 @@ pub async fn delete_passkey_handler(
 }
 
 pub async fn update_passkey_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
     Path(passkey_id): Path<uuid::Uuid>,
     Json(input): Json<PasskeyUpdateInput>,
@@ -129,7 +129,7 @@ pub async fn update_passkey_handler(
 }
 
 pub async fn passkey_register_start_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(req): Json<PasskeyRegistrationStart>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Get user by username
@@ -191,7 +191,7 @@ pub async fn passkey_register_start_handler(
 }
 
 pub async fn passkey_register_finish_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(req): Json<PasskeyRegistrationFinish>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Get user
@@ -264,7 +264,7 @@ pub async fn passkey_register_finish_handler(
 }
 
 pub async fn passkey_login_start_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(req): Json<PasskeyLoginStart>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Get user by username
@@ -335,7 +335,7 @@ pub async fn passkey_login_start_handler(
 }
 
 pub async fn passkey_login_finish_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(req): Json<PasskeyLoginFinish>,
 ) -> Result<Json<AuthResponse>, ApiError> {
     // Get user

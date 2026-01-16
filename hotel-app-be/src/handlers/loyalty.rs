@@ -2,17 +2,71 @@
 //!
 //! Handles loyalty programs, memberships, points, and rewards.
 
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
+use crate::models::row_mappers;
 use axum::{
     extract::{Extension, Path, Query, State},
     response::Json,
 };
-use sqlx::PgPool;
+use rust_decimal::Decimal;
+use sqlx::Row;
 use std::collections::HashMap;
 
+// =============================================================================
+// Row mappers for models with Decimal fields
+// =============================================================================
+
+fn row_to_loyalty_program(row: &crate::core::db::DbRow) -> LoyaltyProgram {
+    LoyaltyProgram {
+        id: row.try_get("id").unwrap_or_default(),
+        name: row.try_get("name").unwrap_or_default(),
+        description: row.try_get("description").ok(),
+        tier_level: row.try_get("tier_level").unwrap_or_default(),
+        points_multiplier: row_mappers::get_decimal(row, "points_multiplier"),
+        minimum_points_required: row.try_get("minimum_points_required").unwrap_or_default(),
+        is_active: row_mappers::get_bool(row, "is_active"),
+        created_at: row.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now()),
+        updated_at: row.try_get("updated_at").unwrap_or_else(|_| chrono::Utc::now()),
+    }
+}
+
+fn row_to_loyalty_membership_with_details(row: &crate::core::db::DbRow) -> LoyaltyMembershipWithDetails {
+    LoyaltyMembershipWithDetails {
+        id: row.try_get("id").unwrap_or_default(),
+        guest_id: row.try_get("guest_id").unwrap_or_default(),
+        guest_name: row.try_get("guest_name").unwrap_or_default(),
+        guest_email: row.try_get("guest_email").unwrap_or_default(),
+        program_id: row.try_get("program_id").unwrap_or_default(),
+        program_name: row.try_get("program_name").unwrap_or_default(),
+        program_description: row.try_get("program_description").ok(),
+        membership_number: row.try_get("membership_number").unwrap_or_default(),
+        points_balance: row.try_get("points_balance").unwrap_or_default(),
+        lifetime_points: row.try_get("lifetime_points").unwrap_or_default(),
+        tier_level: row.try_get("tier_level").unwrap_or_default(),
+        points_multiplier: row_mappers::get_decimal(row, "points_multiplier"),
+        status: row.try_get("status").unwrap_or_default(),
+        enrolled_date: row.try_get("enrolled_date").unwrap_or_else(|_| chrono::NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
+    }
+}
+
+fn row_to_points_transaction(row: &crate::core::db::DbRow) -> PointsTransaction {
+    PointsTransaction {
+        id: row.try_get("id").unwrap_or_default(),
+        membership_id: row.try_get("membership_id").unwrap_or_default(),
+        transaction_type: row.try_get("transaction_type").unwrap_or_default(),
+        points_amount: row.try_get("points_amount").unwrap_or_default(),
+        balance_after: row.try_get("balance_after").unwrap_or_default(),
+        reference_type: row.try_get("reference_type").ok(),
+        reference_id: row.try_get("reference_id").ok(),
+        description: row.try_get("description").ok(),
+        created_at: row.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now()),
+    }
+}
+
 pub async fn get_loyalty_programs_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<Vec<LoyaltyProgram>>, ApiError> {
     let programs = sqlx::query_as::<_, LoyaltyProgram>(
         "SELECT * FROM loyalty_programs WHERE is_active = true ORDER BY tier_level"
@@ -25,7 +79,7 @@ pub async fn get_loyalty_programs_handler(
 }
 
 pub async fn get_loyalty_memberships_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<Vec<LoyaltyMembershipWithDetails>>, ApiError> {
     let memberships = sqlx::query_as::<_, LoyaltyMembershipWithDetails>(
         r#"
@@ -59,7 +113,7 @@ pub async fn get_loyalty_memberships_handler(
 }
 
 pub async fn get_loyalty_statistics_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<LoyaltyStatistics>, ApiError> {
     // Get total and active members
     let (total_members, active_members): (i64, i64) = sqlx::query_as(
@@ -213,7 +267,7 @@ pub async fn get_loyalty_statistics_handler(
 }
 
 pub async fn add_points_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(membership_id): Path<i64>,
     Json(input): Json<AddPointsInput>,
 ) -> Result<Json<PointsTransaction>, ApiError> {
@@ -282,7 +336,7 @@ pub async fn add_points_handler(
 }
 
 pub async fn redeem_points_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(membership_id): Path<i64>,
     Json(input): Json<AddPointsInput>,
 ) -> Result<Json<PointsTransaction>, ApiError> {
@@ -355,7 +409,7 @@ pub async fn redeem_points_handler(
 
 // Get user's own loyalty membership with full details
 pub async fn get_user_loyalty_membership_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
 ) -> Result<Json<UserLoyaltyMembership>, ApiError> {
     // First, get the user's email
@@ -461,7 +515,7 @@ pub async fn get_user_loyalty_membership_handler(
 
 // Get available loyalty rewards filtered by user's tier
 pub async fn get_loyalty_rewards_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
 ) -> Result<Json<Vec<LoyaltyReward>>, ApiError> {
     // Get user's email
@@ -517,7 +571,7 @@ pub async fn get_loyalty_rewards_handler(
 
 // Redeem a loyalty reward
 pub async fn redeem_reward_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
     Json(input): Json<RedeemRewardInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -665,7 +719,7 @@ pub async fn redeem_reward_handler(
 
 // Get all rewards (with optional category filter)
 pub async fn get_rewards_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     query: Query<HashMap<String, String>>,
 ) -> Result<Json<Vec<LoyaltyReward>>, ApiError> {
     let category = query.get("category");
@@ -692,7 +746,7 @@ pub async fn get_rewards_handler(
 
 // Get single reward by ID
 pub async fn get_reward_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(reward_id): Path<i64>,
 ) -> Result<Json<LoyaltyReward>, ApiError> {
     let reward = sqlx::query_as::<_, LoyaltyReward>(
@@ -709,7 +763,7 @@ pub async fn get_reward_handler(
 
 // Create new reward (admin only)
 pub async fn create_reward_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(input): Json<RewardInput>,
 ) -> Result<Json<LoyaltyReward>, ApiError> {
     // Validate category
@@ -762,7 +816,7 @@ pub async fn create_reward_handler(
 
 // Update reward (admin only)
 pub async fn update_reward_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(reward_id): Path<i64>,
     Json(input): Json<RewardUpdateInput>,
 ) -> Result<Json<LoyaltyReward>, ApiError> {
@@ -859,7 +913,7 @@ pub async fn update_reward_handler(
 
 // Delete/deactivate reward (admin only)
 pub async fn delete_reward_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(reward_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Soft delete by setting is_active to false
@@ -882,7 +936,7 @@ pub async fn delete_reward_handler(
 
 // Get reward redemption history (admin only)
 pub async fn get_reward_redemptions_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<Vec<RewardRedemptionWithDetails>>, ApiError> {
     let redemptions = sqlx::query_as::<_, RewardRedemptionWithDetails>(
         r#"
@@ -916,7 +970,7 @@ pub async fn get_reward_redemptions_handler(
 
 // Redeem reward for user (user-facing endpoint with path parameter)
 pub async fn redeem_reward_for_user_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
     Path(reward_id): Path<i64>,
     Json(input): Json<RedeemRewardInput>,

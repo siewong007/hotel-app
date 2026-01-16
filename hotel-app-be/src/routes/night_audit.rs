@@ -4,11 +4,11 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 
 use crate::handlers::night_audit;
 
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         // Night audit endpoints
         .route("/night-audit/preview", get(night_audit::get_night_audit_preview))

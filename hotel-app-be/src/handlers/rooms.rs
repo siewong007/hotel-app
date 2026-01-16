@@ -2,8 +2,10 @@
 //!
 //! Handles room CRUD, status management, and events.
 
+use crate::core::db::{DbPool, opt_decimal_to_db, DbRow};
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_auth, require_permission_helper};
+use crate::handlers::rooms_queries::*;
 use crate::models::*;
 use crate::services::audit::AuditLog;
 use axum::{
@@ -13,81 +15,74 @@ use axum::{
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sqlx::{PgPool, Row};
+use sqlx::Row;
+
+/// Helper function to map a database row to RoomType
+/// This avoids using FromRow which doesn't work for Decimal in SQLite
+fn row_to_room_type(row: &DbRow) -> RoomType {
+    // Read Decimal fields as String and parse (works for both PostgreSQL and SQLite)
+    let base_price: String = row.try_get::<String, _>("base_price")
+        .or_else(|_| row.try_get::<f64, _>("base_price").map(|f| f.to_string()))
+        .unwrap_or_else(|_| "0".to_string());
+    let weekday_rate: Option<String> = row.try_get::<String, _>("weekday_rate").ok()
+        .or_else(|| row.try_get::<f64, _>("weekday_rate").ok().map(|f| f.to_string()));
+    let weekend_rate: Option<String> = row.try_get::<String, _>("weekend_rate").ok()
+        .or_else(|| row.try_get::<f64, _>("weekend_rate").ok().map(|f| f.to_string()));
+    let extra_bed_charge: String = row.try_get::<String, _>("extra_bed_charge")
+        .or_else(|_| row.try_get::<f64, _>("extra_bed_charge").map(|f| f.to_string()))
+        .unwrap_or_else(|_| "0".to_string());
+
+    // Handle boolean fields for SQLite (returns 0/1)
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let allows_extra_bed: bool = row.try_get::<i32, _>("allows_extra_bed").map(|v| v != 0).unwrap_or(false);
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    let allows_extra_bed: bool = row.try_get("allows_extra_bed").unwrap_or(false);
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let is_active: bool = row.try_get::<i32, _>("is_active").map(|v| v != 0).unwrap_or(true);
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    let is_active: bool = row.try_get("is_active").unwrap_or(true);
+
+    RoomType {
+        id: row.get("id"),
+        name: row.get("name"),
+        code: row.get("code"),
+        description: row.try_get("description").ok(),
+        base_price: base_price.parse().unwrap_or_default(),
+        weekday_rate: weekday_rate.and_then(|s| s.parse().ok()),
+        weekend_rate: weekend_rate.and_then(|s| s.parse().ok()),
+        max_occupancy: row.get("max_occupancy"),
+        bed_type: row.try_get("bed_type").ok(),
+        bed_count: row.try_get("bed_count").ok(),
+        allows_extra_bed,
+        max_extra_beds: row.try_get("max_extra_beds").unwrap_or(0),
+        extra_bed_charge: extra_bed_charge.parse().unwrap_or_default(),
+        is_active,
+        sort_order: row.try_get("sort_order").unwrap_or(0),
+        created_at: row.get("created_at"),
+        updated_at: row.get("updated_at"),
+    }
+}
 
 pub async fn get_rooms_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<Vec<RoomWithRating>>, ApiError> {
-    // Compute room status dynamically based on current bookings
-    // This ensures room management and reservation timeline show consistent status
-    let rows = sqlx::query(
-        r#"
-        WITH current_bookings AS (
-            -- Get the most relevant booking for each room based on today's date
-            SELECT DISTINCT ON (room_id)
-                room_id,
-                status as booking_status,
-                check_in_date,
-                check_out_date
-            FROM bookings
-            WHERE status IN ('checked_in', 'confirmed', 'pending')
-              AND check_out_date >= CURRENT_DATE
-            ORDER BY room_id,
-                -- Prioritize: checked_in > confirmed today > confirmed future
-                CASE
-                    WHEN status = 'checked_in' THEN 1
-                    WHEN status = 'confirmed' AND check_in_date <= CURRENT_DATE THEN 2
-                    WHEN status = 'confirmed' THEN 3
-                    WHEN status = 'pending' AND check_in_date <= CURRENT_DATE THEN 4
-                    ELSE 5
-                END,
-                check_in_date
-        )
-        SELECT
-            r.id,
-            r.room_number,
-            rt.name as room_type,
-            COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-            -- Compute availability based on dynamic status
-            CASE
-                WHEN cb.booking_status = 'checked_in' THEN false
-                WHEN cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= CURRENT_DATE THEN false
-                WHEN r.status IN ('maintenance', 'out_of_order', 'dirty') THEN false
-                ELSE true
-            END as available,
-            rt.description,
-            rt.max_occupancy,
-            r.created_at,
-            r.updated_at,
-            NULL::DECIMAL as average_rating,
-            NULL::BIGINT as review_count,
-            -- Compute dynamic status based on bookings
-            CASE
-                WHEN cb.booking_status = 'checked_in' THEN 'occupied'
-                WHEN cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= CURRENT_DATE THEN 'reserved'
-                WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning') THEN r.status
-                ELSE 'available'
-            END as status,
-            r.maintenance_start_date,
-            r.maintenance_end_date,
-            r.cleaning_start_date,
-            r.cleaning_end_date,
-            r.reserved_start_date,
-            r.reserved_end_date
-        FROM rooms r
-        INNER JOIN room_types rt ON r.room_type_id = rt.id
-        LEFT JOIN current_bookings cb ON cb.room_id = r.id
-        WHERE r.is_active = true
-        ORDER BY r.room_number
-        "#
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    // Use database-specific query
+    let rows = sqlx::query(GET_ROOMS_QUERY)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let mut rooms = Vec::new();
     for row in rows {
-        let average_rating: Option<rust_decimal::Decimal> = row.try_get(9).ok();
+        // Read average_rating as f64 (works for both PostgreSQL and SQLite NULL)
+        let average_rating: Option<f64> = row.try_get(9).ok();
         let review_count: Option<i64> = row.try_get(10).ok();
         let status: Option<String> = row.try_get(11).ok();
         let maintenance_start_date: Option<DateTime<Utc>> = row.try_get(12).ok();
@@ -97,17 +92,26 @@ pub async fn get_rooms_handler(
         let reserved_start_date: Option<DateTime<Utc>> = row.try_get(16).ok();
         let reserved_end_date: Option<DateTime<Utc>> = row.try_get(17).ok();
 
+        // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let available: bool = row.get::<i32, _>(4) != 0;
+        #[cfg(any(
+            all(feature = "postgres", not(feature = "sqlite")),
+            all(feature = "sqlite", feature = "postgres")
+        ))]
+        let available: bool = row.get(4);
+
         rooms.push(RoomWithRating {
             id: row.get(0),
             room_number: row.get(1),
             room_type: row.get(2),
             price_per_night: row.get::<String, _>(3).parse().unwrap_or_default(),
-            available: row.get(4),
+            available,
             description: row.get(5),
             max_occupancy: row.get(6),
             created_at: row.get(7),
             updated_at: row.get(8),
-            average_rating: average_rating.map(|d| d.to_string().parse::<f64>().unwrap_or(0.0)),
+            average_rating,
             review_count,
             status,
             maintenance_start_date,
@@ -123,7 +127,7 @@ pub async fn get_rooms_handler(
 }
 
 pub async fn search_rooms_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<Vec<RoomWithRating>>, ApiError> {
     // Parse date range if provided for availability check
@@ -132,104 +136,15 @@ pub async fn search_rooms_handler(
     let check_out: Option<NaiveDate> = query.check_out_date.as_ref()
         .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
-    // Build query based on whether date range is provided
-    let sql = if check_in.is_some() && check_out.is_some() {
-        // Query with date range - check for conflicts in the specified period
-        r#"
-        WITH conflicting_bookings AS (
-            SELECT DISTINCT room_id
-            FROM bookings
-            WHERE status NOT IN ('cancelled', 'no_show', 'checked_out')
-              AND (
-                  (check_in_date < $2 AND check_out_date > $1) -- Booking overlaps with requested dates
-              )
-        )
-        SELECT
-            r.id,
-            r.room_number,
-            rt.name as room_type,
-            COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-            true as available,
-            rt.description,
-            rt.max_occupancy,
-            r.created_at,
-            r.updated_at,
-            NULL::DECIMAL as average_rating,
-            NULL::BIGINT as review_count,
-            'available' as status,
-            r.maintenance_start_date,
-            r.maintenance_end_date,
-            r.cleaning_start_date,
-            r.cleaning_end_date,
-            r.reserved_start_date,
-            r.reserved_end_date
-        FROM rooms r
-        INNER JOIN room_types rt ON r.room_type_id = rt.id
-        LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
-        WHERE r.is_active = true
-          AND r.status NOT IN ('maintenance', 'out_of_order')
-          AND cb.room_id IS NULL
-        ORDER BY COALESCE(r.custom_price, rt.base_price)
-        "#
-    } else {
-        // Query without date range - show rooms available today
-        r#"
-        WITH current_bookings AS (
-            SELECT DISTINCT ON (room_id)
-                room_id,
-                status as booking_status,
-                check_in_date
-            FROM bookings
-            WHERE status IN ('checked_in', 'confirmed', 'pending')
-              AND check_out_date >= CURRENT_DATE
-            ORDER BY room_id,
-                CASE
-                    WHEN status = 'checked_in' THEN 1
-                    WHEN status = 'confirmed' AND check_in_date <= CURRENT_DATE THEN 2
-                    ELSE 3
-                END,
-                check_in_date
-        )
-        SELECT
-            r.id,
-            r.room_number,
-            rt.name as room_type,
-            COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-            true as available,
-            rt.description,
-            rt.max_occupancy,
-            r.created_at,
-            r.updated_at,
-            NULL::DECIMAL as average_rating,
-            NULL::BIGINT as review_count,
-            'available' as status,
-            r.maintenance_start_date,
-            r.maintenance_end_date,
-            r.cleaning_start_date,
-            r.cleaning_end_date,
-            r.reserved_start_date,
-            r.reserved_end_date
-        FROM rooms r
-        INNER JOIN room_types rt ON r.room_type_id = rt.id
-        LEFT JOIN current_bookings cb ON cb.room_id = r.id
-        WHERE r.is_active = true
-          AND r.status NOT IN ('maintenance', 'out_of_order')
-          AND (cb.room_id IS NULL OR NOT (
-              cb.booking_status = 'checked_in' OR
-              (cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= CURRENT_DATE)
-          ))
-        ORDER BY COALESCE(r.custom_price, rt.base_price)
-        "#
-    };
-
+    // Use database-specific queries
     let rows = if let (Some(ci), Some(co)) = (check_in, check_out) {
-        sqlx::query(sql)
+        sqlx::query(SEARCH_ROOMS_WITH_DATES_QUERY)
             .bind(ci)
             .bind(co)
             .fetch_all(&pool)
             .await
     } else {
-        sqlx::query(sql)
+        sqlx::query(SEARCH_ROOMS_NO_DATES_QUERY)
             .fetch_all(&pool)
             .await
     }
@@ -237,7 +152,7 @@ pub async fn search_rooms_handler(
 
     let mut rooms = Vec::new();
     for row in rows {
-        let average_rating: Option<rust_decimal::Decimal> = row.try_get(9).ok();
+        let average_rating: Option<f64> = row.try_get(9).ok();
         let review_count: Option<i64> = row.try_get(10).ok();
         let status: Option<String> = row.try_get(11).ok();
         let maintenance_start_date: Option<DateTime<Utc>> = row.try_get(12).ok();
@@ -247,17 +162,26 @@ pub async fn search_rooms_handler(
         let reserved_start_date: Option<DateTime<Utc>> = row.try_get(16).ok();
         let reserved_end_date: Option<DateTime<Utc>> = row.try_get(17).ok();
 
+        // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let available: bool = row.get::<i32, _>(4) != 0;
+        #[cfg(any(
+            all(feature = "postgres", not(feature = "sqlite")),
+            all(feature = "sqlite", feature = "postgres")
+        ))]
+        let available: bool = row.get(4);
+
         rooms.push(RoomWithRating {
             id: row.get(0),
             room_number: row.get(1),
             room_type: row.get(2),
             price_per_night: row.get::<String, _>(3).parse().unwrap_or_default(),
-            available: row.get(4),
+            available,
             description: row.get(5),
             max_occupancy: row.get(6),
             created_at: row.get(7),
             updated_at: row.get(8),
-            average_rating: average_rating.map(|d| d.to_string().parse::<f64>().unwrap_or(0.0)),
+            average_rating,
             review_count,
             status,
             maintenance_start_date,
@@ -273,32 +197,31 @@ pub async fn search_rooms_handler(
 }
 
 pub async fn update_room_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(room_id): Path<i64>,
     Json(input): Json<RoomUpdateInput>,
 ) -> Result<Json<Room>, ApiError> {
     // Check if room exists and get current values with JOIN to room_types
-    let existing_row = sqlx::query(
-        r#"
-        SELECT r.id, r.room_number, rt.name as room_type,
-               COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-               CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
-               rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.custom_price::text
-        FROM rooms r
-        INNER JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE r.id = $1
-        "#
-    )
-    .bind(room_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
+    let existing_row = sqlx::query(GET_EXISTING_ROOM_FOR_UPDATE)
+        .bind(room_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
 
     let current_room_number: String = existing_row.get(1);
     let current_room_type: String = existing_row.get(2);
     let current_price: Decimal = existing_row.get::<String, _>(3).parse().unwrap_or_default();
+
+    // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let current_available: bool = existing_row.get::<i32, _>(4) != 0;
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
     let current_available: bool = existing_row.get(4);
+
     let current_description: Option<String> = existing_row.get(5);
     let current_max_occupancy: i32 = existing_row.get(6);
     let current_status: Option<String> = existing_row.get(7);
@@ -333,20 +256,11 @@ pub async fn update_room_handler(
 
     // Check if trying to set room as available while there's an active booking
     if new_status == Some("available") {
-        let active_booking: Option<i64> = sqlx::query_scalar(
-            r#"
-            SELECT id FROM bookings
-            WHERE room_id = $1
-            AND status = 'checked_in'
-            AND check_in_date <= CURRENT_DATE
-            AND check_out_date >= CURRENT_DATE
-            LIMIT 1
-            "#
-        )
-        .bind(room_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        let active_booking: Option<i64> = sqlx::query_scalar(CHECK_ACTIVE_BOOKING)
+            .bind(room_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
         if active_booking.is_some() {
             return Err(ApiError::BadRequest(
@@ -356,63 +270,45 @@ pub async fn update_room_handler(
     }
 
     if let Some(status) = new_status {
-        sqlx::query(
-            r#"
-            UPDATE rooms
-            SET room_number = $1,
-                custom_price = $2,
-                status = $3,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = $4
-            "#
-        )
-        .bind(room_number)
-        .bind(custom_price)
-        .bind(status)
-        .bind(room_id)
-        .execute(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        sqlx::query(UPDATE_ROOM_WITH_STATUS_QUERY)
+            .bind(room_number)
+            .bind(opt_decimal_to_db(custom_price))
+            .bind(status)
+            .bind(room_id)
+            .execute(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
     } else {
-        sqlx::query(
-            r#"
-            UPDATE rooms
-            SET room_number = $1,
-                custom_price = $2,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = $3
-            "#
-        )
-        .bind(room_number)
-        .bind(custom_price)
-        .bind(room_id)
-        .execute(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        sqlx::query(UPDATE_ROOM_NO_STATUS_QUERY)
+            .bind(room_number)
+            .bind(opt_decimal_to_db(custom_price))
+            .bind(room_id)
+            .execute(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
     }
 
-    let row = sqlx::query(
-        r#"
-        SELECT r.id, r.room_number, rt.name as room_type,
-               COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-               CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
-               rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at
-        FROM rooms r
-        INNER JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE r.id = $1
-        "#
-    )
-    .bind(room_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let row = sqlx::query(GET_ROOM_BY_ID_QUERY)
+        .bind(room_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let available: bool = row.get::<i32, _>(4) != 0;
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    let available: bool = row.get(4);
 
     Ok(Json(Room {
         id: row.get(0),
         room_number: row.get(1),
         room_type: row.get(2),
         price_per_night: row.get::<String, _>(3).parse().unwrap_or_default(),
-        available: row.get(4),
+        available,
         description: row.get(5),
         max_occupancy: row.get(6),
         status: row.get(7),
@@ -422,12 +318,12 @@ pub async fn update_room_handler(
 }
 
 pub async fn create_room_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Json(input): Json<RoomCreateInput>,
 ) -> Result<Json<Room>, ApiError> {
     use rust_decimal::Decimal;
 
-    let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM rooms WHERE room_number = $1")
+    let existing: Option<i64> = sqlx::query_scalar(CHECK_ROOM_NUMBER_EXISTS)
         .bind(&input.room_number)
         .fetch_optional(&pool)
         .await
@@ -437,7 +333,7 @@ pub async fn create_room_handler(
         return Err(ApiError::BadRequest(format!("Room number '{}' already exists", input.room_number)));
     }
 
-    let room_type_exists: Option<i64> = sqlx::query_scalar("SELECT id FROM room_types WHERE id = $1")
+    let room_type_exists: Option<i64> = sqlx::query_scalar(CHECK_ROOM_TYPE_EXISTS)
         .bind(input.room_type_id)
         .fetch_optional(&pool)
         .await
@@ -450,45 +346,62 @@ pub async fn create_room_handler(
     let custom_price_decimal = input.custom_price
         .map(|p| Decimal::from_f64_retain(p).unwrap_or_default());
 
-    let room_id: i64 = sqlx::query_scalar(
-        r#"
-        INSERT INTO rooms (room_number, room_type_id, floor, building, custom_price, is_accessible, status, is_active)
-        VALUES ($1, $2, $3, $4, $5, $6, 'available', true)
-        RETURNING id
-        "#
-    )
-    .bind(&input.room_number)
-    .bind(input.room_type_id)
-    .bind(input.floor)
-    .bind(&input.building)
-    .bind(custom_price_decimal)
-    .bind(input.is_accessible.unwrap_or(false))
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    // SQLite doesn't support RETURNING, so we need different handling
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let room_id: i64 = {
+        sqlx::query(INSERT_ROOM_QUERY)
+            .bind(&input.room_number)
+            .bind(input.room_type_id)
+            .bind(input.floor)
+            .bind(&input.building)
+            .bind(opt_decimal_to_db(custom_price_decimal))
+            .bind(if input.is_accessible.unwrap_or(false) { 1i32 } else { 0i32 })
+            .execute(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let row = sqlx::query(
-        r#"
-        SELECT r.id, r.room_number, rt.name as room_type,
-               COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-               CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
-               rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at
-        FROM rooms r
-        INNER JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE r.id = $1
-        "#
-    )
-    .bind(room_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+        sqlx::query_scalar::<_, i64>("SELECT last_insert_rowid()")
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?
+    };
+
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    let room_id: i64 = sqlx::query_scalar(INSERT_ROOM_QUERY)
+        .bind(&input.room_number)
+        .bind(input.room_type_id)
+        .bind(input.floor)
+        .bind(&input.building)
+        .bind(opt_decimal_to_db(custom_price_decimal))
+        .bind(input.is_accessible.unwrap_or(false))
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let row = sqlx::query(GET_ROOM_BY_ID_QUERY)
+        .bind(room_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let available: bool = row.get::<i32, _>(4) != 0;
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    let available: bool = row.get(4);
 
     Ok(Json(Room {
         id: row.get(0),
         room_number: row.get(1),
         room_type: row.get(2),
         price_per_night: row.get::<String, _>(3).parse().unwrap_or_default(),
-        available: row.get(4),
+        available,
         description: row.get(5),
         max_occupancy: row.get(6),
         status: row.get(7),
@@ -498,10 +411,10 @@ pub async fn create_room_handler(
 }
 
 pub async fn delete_room_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(room_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let room_exists: Option<i64> = sqlx::query_scalar("SELECT id FROM rooms WHERE id = $1")
+    let room_exists: Option<i64> = sqlx::query_scalar(CHECK_ROOM_EXISTS_BY_ID)
         .bind(room_id)
         .fetch_optional(&pool)
         .await
@@ -511,13 +424,11 @@ pub async fn delete_room_handler(
         return Err(ApiError::NotFound("Room not found".to_string()));
     }
 
-    let has_bookings: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM bookings WHERE room_id = $1 LIMIT 1"
-    )
-    .bind(room_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let has_bookings: Option<i64> = sqlx::query_scalar(CHECK_ROOM_HAS_BOOKINGS)
+        .bind(room_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if has_bookings.is_some() {
         return Err(ApiError::BadRequest(
@@ -525,7 +436,7 @@ pub async fn delete_room_handler(
         ));
     }
 
-    sqlx::query("DELETE FROM rooms WHERE id = $1")
+    sqlx::query(DELETE_ROOM_QUERY)
         .bind(room_id)
         .execute(&pool)
         .await
@@ -538,107 +449,141 @@ pub async fn delete_room_handler(
 }
 
 pub async fn get_room_types_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<Vec<RoomType>>, ApiError> {
-    let room_types: Vec<RoomType> = sqlx::query_as(
-        r#"
-        SELECT id, name, code, description, base_price, weekday_rate, weekend_rate,
-               max_occupancy, bed_type, bed_count, allows_extra_bed, max_extra_beds,
-               extra_bed_charge, is_active, sort_order, created_at, updated_at
-        FROM room_types
-        WHERE is_active = true
-        ORDER BY sort_order, name
-        "#
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let rows = sqlx::query(GET_ROOM_TYPES_ACTIVE)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    let room_types: Vec<RoomType> = rows.iter().map(row_to_room_type).collect();
     Ok(Json(room_types))
 }
 
 pub async fn get_all_room_types_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<RoomType>>, ApiError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
 
-    let room_types: Vec<RoomType> = sqlx::query_as(
-        r#"
-        SELECT id, name, code, description, base_price, weekday_rate, weekend_rate,
-               max_occupancy, bed_type, bed_count, allows_extra_bed, max_extra_beds,
-               extra_bed_charge, is_active, sort_order, created_at, updated_at
-        FROM room_types
-        ORDER BY sort_order, name
-        "#
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let rows = sqlx::query(GET_ALL_ROOM_TYPES)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    let room_types: Vec<RoomType> = rows.iter().map(row_to_room_type).collect();
     Ok(Json(room_types))
 }
 
 pub async fn get_room_type_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<RoomType>, ApiError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
 
-    let room_type: RoomType = sqlx::query_as(
-        r#"
-        SELECT id, name, code, description, base_price, weekday_rate, weekend_rate,
-               max_occupancy, bed_type, bed_count, allows_extra_bed, max_extra_beds,
-               extra_bed_charge, is_active, sort_order, created_at, updated_at
-        FROM room_types
-        WHERE id = $1
-        "#
-    )
-    .bind(id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let row = sqlx::query(GET_ROOM_TYPE_BY_ID)
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(room_type))
+    Ok(Json(row_to_room_type(&row)))
 }
 
 pub async fn create_room_type_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<RoomTypeCreateInput>,
 ) -> Result<Json<RoomType>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
 
-    let room_type: RoomType = sqlx::query_as(
-        r#"
-        INSERT INTO room_types (
-            name, code, description, base_price, weekday_rate, weekend_rate,
-            max_occupancy, bed_type, bed_count, allows_extra_bed, max_extra_beds,
-            extra_bed_charge, sort_order
+    // Use f64 for price bindings (works for both SQLite and PostgreSQL)
+    let base_price = input.base_price;
+    let weekday_rate = input.weekday_rate;
+    let weekend_rate = input.weekend_rate;
+    let extra_bed_charge = input.extra_bed_charge.unwrap_or(0.0);
+
+    // PostgreSQL version with RETURNING
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    let room_type_id: i64 = {
+        let row = sqlx::query(
+            r#"
+            INSERT INTO room_types (
+                name, code, description, base_price, weekday_rate, weekend_rate,
+                max_occupancy, bed_type, bed_count, allows_extra_bed, max_extra_beds,
+                extra_bed_charge, sort_order
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            RETURNING id
+            "#
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-        RETURNING id, name, code, description, base_price, weekday_rate, weekend_rate,
-                  max_occupancy, bed_type, bed_count, allows_extra_bed, max_extra_beds,
-                  extra_bed_charge, is_active, sort_order, created_at, updated_at
-        "#
-    )
-    .bind(&input.name)
-    .bind(&input.code)
-    .bind(&input.description)
-    .bind(Decimal::from_f64_retain(input.base_price).unwrap_or(Decimal::ZERO))
-    .bind(input.weekday_rate.map(|r| Decimal::from_f64_retain(r).unwrap_or(Decimal::ZERO)))
-    .bind(input.weekend_rate.map(|r| Decimal::from_f64_retain(r).unwrap_or(Decimal::ZERO)))
-    .bind(input.max_occupancy.unwrap_or(2))
-    .bind(&input.bed_type)
-    .bind(input.bed_count.unwrap_or(1))
-    .bind(input.allows_extra_bed.unwrap_or(false))
-    .bind(input.max_extra_beds.unwrap_or(0))
-    .bind(Decimal::from_f64_retain(input.extra_bed_charge.unwrap_or(0.0)).unwrap_or(Decimal::ZERO))
-    .bind(input.sort_order.unwrap_or(0))
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+        .bind(&input.name)
+        .bind(&input.code)
+        .bind(&input.description)
+        .bind(base_price)
+        .bind(weekday_rate)
+        .bind(weekend_rate)
+        .bind(input.max_occupancy.unwrap_or(2))
+        .bind(&input.bed_type)
+        .bind(input.bed_count.unwrap_or(1))
+        .bind(input.allows_extra_bed.unwrap_or(false))
+        .bind(input.max_extra_beds.unwrap_or(0))
+        .bind(extra_bed_charge)
+        .bind(input.sort_order.unwrap_or(0))
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+        row.get::<i64, _>("id")
+    };
+
+    // SQLite version without RETURNING
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let room_type_id: i64 = {
+        sqlx::query(
+            r#"
+            INSERT INTO room_types (
+                name, code, description, base_price, weekday_rate, weekend_rate,
+                max_occupancy, bed_type, bed_count, allows_extra_bed, max_extra_beds,
+                extra_bed_charge, sort_order
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+            "#
+        )
+        .bind(&input.name)
+        .bind(&input.code)
+        .bind(&input.description)
+        .bind(base_price)
+        .bind(weekday_rate)
+        .bind(weekend_rate)
+        .bind(input.max_occupancy.unwrap_or(2))
+        .bind(&input.bed_type)
+        .bind(input.bed_count.unwrap_or(1))
+        .bind(input.allows_extra_bed.unwrap_or(false) as i32)
+        .bind(input.max_extra_beds.unwrap_or(0))
+        .bind(extra_bed_charge)
+        .bind(input.sort_order.unwrap_or(0))
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        sqlx::query_scalar::<_, i64>("SELECT last_insert_rowid()")
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?
+    };
+
+    // Fetch the created room type
+    let row = sqlx::query(GET_ROOM_TYPE_BY_ID)
+        .bind(room_type_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let room_type = row_to_room_type(&row);
 
     // Audit log: room type created
     let _ = AuditLog::log_event(
@@ -660,55 +605,116 @@ pub async fn create_room_type_handler(
 }
 
 pub async fn update_room_type_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(id): Path<i64>,
     headers: HeaderMap,
     Json(input): Json<RoomTypeUpdateInput>,
 ) -> Result<Json<RoomType>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
 
-    let room_type: RoomType = sqlx::query_as(
-        r#"
-        UPDATE room_types SET
-            name = COALESCE($2, name),
-            code = COALESCE($3, code),
-            description = COALESCE($4, description),
-            base_price = COALESCE($5, base_price),
-            weekday_rate = COALESCE($6, weekday_rate),
-            weekend_rate = COALESCE($7, weekend_rate),
-            max_occupancy = COALESCE($8, max_occupancy),
-            bed_type = COALESCE($9, bed_type),
-            bed_count = COALESCE($10, bed_count),
-            allows_extra_bed = COALESCE($11, allows_extra_bed),
-            max_extra_beds = COALESCE($12, max_extra_beds),
-            extra_bed_charge = COALESCE($13, extra_bed_charge),
-            is_active = COALESCE($14, is_active),
-            sort_order = COALESCE($15, sort_order),
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1
-        RETURNING id, name, code, description, base_price, weekday_rate, weekend_rate,
-                  max_occupancy, bed_type, bed_count, allows_extra_bed, max_extra_beds,
-                  extra_bed_charge, is_active, sort_order, created_at, updated_at
-        "#
-    )
-    .bind(id)
-    .bind(&input.name)
-    .bind(&input.code)
-    .bind(&input.description)
-    .bind(input.base_price.map(|p| Decimal::from_f64_retain(p).unwrap_or(Decimal::ZERO)))
-    .bind(input.weekday_rate.map(|r| Decimal::from_f64_retain(r).unwrap_or(Decimal::ZERO)))
-    .bind(input.weekend_rate.map(|r| Decimal::from_f64_retain(r).unwrap_or(Decimal::ZERO)))
-    .bind(input.max_occupancy)
-    .bind(&input.bed_type)
-    .bind(input.bed_count)
-    .bind(input.allows_extra_bed)
-    .bind(input.max_extra_beds)
-    .bind(input.extra_bed_charge.map(|c| Decimal::from_f64_retain(c).unwrap_or(Decimal::ZERO)))
-    .bind(input.is_active)
-    .bind(input.sort_order)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    // PostgreSQL version with RETURNING
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    {
+        sqlx::query(
+            r#"
+            UPDATE room_types SET
+                name = COALESCE($2, name),
+                code = COALESCE($3, code),
+                description = COALESCE($4, description),
+                base_price = COALESCE($5, base_price),
+                weekday_rate = COALESCE($6, weekday_rate),
+                weekend_rate = COALESCE($7, weekend_rate),
+                max_occupancy = COALESCE($8, max_occupancy),
+                bed_type = COALESCE($9, bed_type),
+                bed_count = COALESCE($10, bed_count),
+                allows_extra_bed = COALESCE($11, allows_extra_bed),
+                max_extra_beds = COALESCE($12, max_extra_beds),
+                extra_bed_charge = COALESCE($13, extra_bed_charge),
+                is_active = COALESCE($14, is_active),
+                sort_order = COALESCE($15, sort_order),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1
+            "#
+        )
+        .bind(id)
+        .bind(&input.name)
+        .bind(&input.code)
+        .bind(&input.description)
+        .bind(input.base_price)
+        .bind(input.weekday_rate)
+        .bind(input.weekend_rate)
+        .bind(input.max_occupancy)
+        .bind(&input.bed_type)
+        .bind(input.bed_count)
+        .bind(input.allows_extra_bed)
+        .bind(input.max_extra_beds)
+        .bind(input.extra_bed_charge)
+        .bind(input.is_active)
+        .bind(input.sort_order)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    }
+
+    // SQLite version without RETURNING
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    {
+        // Convert Option<bool> to Option<i32> for SQLite
+        let allows_extra_bed_i32 = input.allows_extra_bed.map(|b| if b { 1i32 } else { 0i32 });
+        let is_active_i32 = input.is_active.map(|b| if b { 1i32 } else { 0i32 });
+
+        sqlx::query(
+            r#"
+            UPDATE room_types SET
+                name = COALESCE(?2, name),
+                code = COALESCE(?3, code),
+                description = COALESCE(?4, description),
+                base_price = COALESCE(?5, base_price),
+                weekday_rate = COALESCE(?6, weekday_rate),
+                weekend_rate = COALESCE(?7, weekend_rate),
+                max_occupancy = COALESCE(?8, max_occupancy),
+                bed_type = COALESCE(?9, bed_type),
+                bed_count = COALESCE(?10, bed_count),
+                allows_extra_bed = COALESCE(?11, allows_extra_bed),
+                max_extra_beds = COALESCE(?12, max_extra_beds),
+                extra_bed_charge = COALESCE(?13, extra_bed_charge),
+                is_active = COALESCE(?14, is_active),
+                sort_order = COALESCE(?15, sort_order),
+                updated_at = datetime('now')
+            WHERE id = ?1
+            "#
+        )
+        .bind(id)
+        .bind(&input.name)
+        .bind(&input.code)
+        .bind(&input.description)
+        .bind(input.base_price)
+        .bind(input.weekday_rate)
+        .bind(input.weekend_rate)
+        .bind(input.max_occupancy)
+        .bind(&input.bed_type)
+        .bind(input.bed_count)
+        .bind(allows_extra_bed_i32)
+        .bind(input.max_extra_beds)
+        .bind(input.extra_bed_charge)
+        .bind(is_active_i32)
+        .bind(input.sort_order)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    }
+
+    // Fetch the updated room type
+    let row = sqlx::query(GET_ROOM_TYPE_BY_ID)
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let room_type = row_to_room_type(&row);
 
     // Audit log: room type updated
     let _ = AuditLog::log_event(
@@ -731,29 +737,25 @@ pub async fn update_room_type_handler(
 }
 
 pub async fn delete_room_type_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
 
     // Get room type info before deletion for audit log
-    let room_type_info: Option<(String, String)> = sqlx::query_as(
-        "SELECT name, code FROM room_types WHERE id = $1"
-    )
-    .bind(id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let room_type_info: Option<(String, String)> = sqlx::query_as(GET_ROOM_TYPE_NAME_CODE)
+        .bind(id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Check if any rooms use this room type
-    let room_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM rooms WHERE room_type_id = $1"
-    )
-    .bind(id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let room_count: i64 = sqlx::query_scalar(COUNT_ROOMS_BY_TYPE)
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if room_count > 0 {
         return Err(ApiError::BadRequest(format!(
@@ -762,7 +764,7 @@ pub async fn delete_room_type_handler(
         )));
     }
 
-    sqlx::query("DELETE FROM room_types WHERE id = $1")
+    sqlx::query(DELETE_ROOM_TYPE)
         .bind(id)
         .execute(&pool)
         .await
@@ -792,7 +794,7 @@ pub async fn delete_room_type_handler(
 }
 
 pub async fn update_room_status_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(room_id): Path<i64>,
     headers: HeaderMap,
     Json(input): Json<RoomStatusUpdateInput>,
@@ -808,7 +810,7 @@ pub async fn update_room_status_handler(
     let target_status = if input.status == "clean" { "available".to_string() } else { input.status.clone() };
 
     // Get current status to check if we're transitioning from a protected status
-    let current_status_check: Option<String> = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
+    let current_status_check: Option<String> = sqlx::query_scalar(GET_ROOM_STATUS)
         .bind(room_id)
         .fetch_optional(&pool)
         .await
@@ -828,27 +830,18 @@ pub async fn update_room_status_handler(
         input.notes.clone()
     };
 
-    let current_status: Option<String> = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
+    let current_status: Option<String> = sqlx::query_scalar(GET_ROOM_STATUS)
         .bind(room_id)
         .fetch_optional(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if target_status == "available" {
-        let active_booking: Option<i64> = sqlx::query_scalar(
-            r#"
-            SELECT id FROM bookings
-            WHERE room_id = $1
-            AND status = 'checked_in'
-            AND check_in_date <= CURRENT_DATE
-            AND check_out_date >= CURRENT_DATE
-            LIMIT 1
-            "#
-        )
-        .bind(room_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        let active_booking: Option<i64> = sqlx::query_scalar(CHECK_ACTIVE_BOOKING)
+            .bind(room_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
         if active_booking.is_some() {
             return Err(ApiError::BadRequest(
@@ -867,14 +860,12 @@ pub async fn update_room_status_handler(
         }
 
         // Verify the booking exists and is valid
-        let booking_exists: Option<i64> = sqlx::query_scalar(
-            "SELECT id FROM bookings WHERE id = $1 AND room_id = $2 AND status IN ('confirmed', 'pending')"
-        )
-        .bind(input.booking_id)
-        .bind(room_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        let booking_exists: Option<i64> = sqlx::query_scalar(CHECK_BOOKING_FOR_RESERVATION)
+            .bind(input.booking_id)
+            .bind(room_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
         if booking_exists.is_none() {
             return Err(ApiError::BadRequest(
@@ -908,89 +899,60 @@ pub async fn update_room_status_handler(
     let cleaning_start = parse_datetime(&input.cleaning_start_date);
     let cleaning_end = parse_datetime(&input.cleaning_end_date);
 
-    sqlx::query(
-        r#"
-        UPDATE rooms
-        SET status = $1,
-            notes = COALESCE($2, notes),
-            status_notes = $3,
-            reserved_start_date = $4,
-            reserved_end_date = $5,
-            maintenance_start_date = $6,
-            maintenance_end_date = $7,
-            cleaning_start_date = $8,
-            cleaning_end_date = $9,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $10
-        "#
-    )
-    .bind(&target_status)
-    .bind(&input.notes)
-    .bind(&status_notes)
-    .bind(&reserved_start)
-    .bind(&reserved_end)
-    .bind(&maintenance_start)
-    .bind(&maintenance_end)
-    .bind(&cleaning_start)
-    .bind(&cleaning_end)
-    .bind(room_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    sqlx::query(UPDATE_ROOM_STATUS_WITH_DATES)
+        .bind(&target_status)
+        .bind(&input.notes)
+        .bind(&status_notes)
+        .bind(&reserved_start)
+        .bind(&reserved_end)
+        .bind(&maintenance_start)
+        .bind(&maintenance_end)
+        .bind(&cleaning_start)
+        .bind(&cleaning_end)
+        .bind(room_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Insert room history record
     let history_start = reserved_start.or(maintenance_start).or(cleaning_start);
     let history_end = reserved_end.or(maintenance_end).or(cleaning_end);
 
-    let _ = sqlx::query(
-        r#"
-        INSERT INTO room_history (
-            room_id, from_status, to_status,
-            start_date, end_date, changed_by, notes, is_auto_generated
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, false)
-        "#
-    )
-    .bind(room_id)
-    .bind(&current_status)
-    .bind(&target_status)
-    .bind(&history_start)
-    .bind(&history_end)
-    .bind(user_id)
-    .bind(&input.notes)
-    .execute(&pool)
-    .await;
+    let _ = sqlx::query(INSERT_ROOM_HISTORY)
+        .bind(room_id)
+        .bind(&current_status)
+        .bind(&target_status)
+        .bind(&history_start)
+        .bind(&history_end)
+        .bind(user_id)
+        .bind(&input.notes)
+        .execute(&pool)
+        .await;
 
     // Create event log
-    let _ = sqlx::query(
-        r#"
-        INSERT INTO room_events (room_id, event_type, status, priority, notes, created_by)
-        VALUES ($1, 'status_change', 'completed', 'normal', $2, $3)
-        "#
-    )
-    .bind(room_id)
-    .bind(format!("Status changed to: {}", target_status))
-    .bind(user_id)
-    .execute(&pool)
-    .await;
+    let _ = sqlx::query(INSERT_ROOM_EVENT)
+        .bind(room_id)
+        .bind(format!("Status changed to: {}", target_status))
+        .bind(user_id)
+        .execute(&pool)
+        .await;
 
-    let row = sqlx::query(
-        r#"
-        SELECT r.id, r.room_number, rt.name as room_type,
-               COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-               CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
-               rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at
-        FROM rooms r
-        INNER JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE r.id = $1
-        "#
-    )
-    .bind(room_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let row = sqlx::query(GET_ROOM_BY_ID_QUERY)
+        .bind(room_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let room_number: String = row.get(1);
+
+    // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let available: bool = row.get::<i32, _>(4) != 0;
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    let available: bool = row.get(4);
 
     // Audit log: room status change
     let _ = AuditLog::log_event(
@@ -1014,7 +976,7 @@ pub async fn update_room_status_handler(
         room_number,
         room_type: row.get(2),
         price_per_night: row.get::<String, _>(3).parse().unwrap_or_default(),
-        available: row.get(4),
+        available,
         description: row.get::<Option<String>, _>(5),
         max_occupancy: row.get(6),
         status: row.get(7),
@@ -1024,13 +986,13 @@ pub async fn update_room_status_handler(
 }
 
 pub async fn end_maintenance_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(room_id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<Room>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
 
-    let current_status: Option<String> = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
+    let current_status: Option<String> = sqlx::query_scalar(GET_ROOM_STATUS)
         .bind(room_id)
         .fetch_optional(&pool)
         .await
@@ -1042,46 +1004,33 @@ pub async fn end_maintenance_handler(
 
     let status = current_status.as_ref().unwrap();
     if status == "available" {
-        sqlx::query(
-            r#"
-            UPDATE rooms
-            SET maintenance_start_date = NULL,
-                maintenance_end_date = NULL,
-                cleaning_start_date = NULL,
-                cleaning_end_date = NULL,
-                reserved_start_date = NULL,
-                reserved_end_date = NULL,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = $1
-            "#
-        )
-        .bind(room_id)
-        .execute(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        sqlx::query(CLEAR_MAINTENANCE_DATES)
+            .bind(room_id)
+            .execute(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
-        let row = sqlx::query(
-            r#"
-            SELECT r.id, r.room_number, rt.name as room_type,
-                   COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-                   CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
-                   rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at
-            FROM rooms r
-            INNER JOIN room_types rt ON r.room_type_id = rt.id
-            WHERE r.id = $1
-            "#
-        )
-        .bind(room_id)
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        let row = sqlx::query(GET_ROOM_BY_ID_QUERY)
+            .bind(room_id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let available: bool = row.get::<i32, _>(4) != 0;
+        #[cfg(any(
+            all(feature = "postgres", not(feature = "sqlite")),
+            all(feature = "sqlite", feature = "postgres")
+        ))]
+        let available: bool = row.get(4);
 
         return Ok(Json(Room {
             id: row.get(0),
             room_number: row.get(1),
             room_type: row.get(2),
             price_per_night: row.get::<String, _>(3).parse().unwrap_or_default(),
-            available: row.get(4),
+            available,
             description: row.get::<Option<String>, _>(5),
             max_occupancy: row.get(6),
             status: row.get(7),
@@ -1096,70 +1045,44 @@ pub async fn end_maintenance_handler(
         ));
     }
 
-    sqlx::query(
-        r#"
-        UPDATE rooms
-        SET status = 'available',
-            maintenance_start_date = NULL,
-            maintenance_end_date = NULL,
-            cleaning_start_date = NULL,
-            cleaning_end_date = NULL,
-            reserved_start_date = NULL,
-            reserved_end_date = NULL,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1
-        "#
-    )
-    .bind(room_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    sqlx::query(END_MAINTENANCE_SET_AVAILABLE)
+        .bind(room_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let status_label = current_status.as_ref().unwrap_or(&"unknown".to_string()).clone();
-    let _ = sqlx::query(
-        r#"
-        INSERT INTO room_history (
-            room_id, from_status, to_status, changed_by, notes, is_auto_generated
-        )
-        VALUES ($1, $2, 'available', $3, $4, false)
-        "#
-    )
-    .bind(room_id)
-    .bind(&current_status)
-    .bind(user_id)
-    .bind(format!("{} completed and room returned to available", status_label))
-    .execute(&pool)
-    .await;
+    let _ = sqlx::query(INSERT_ROOM_HISTORY_SIMPLE)
+        .bind(room_id)
+        .bind(&current_status)
+        .bind(user_id)
+        .bind(format!("{} completed and room returned to available", status_label))
+        .execute(&pool)
+        .await;
 
-    let _ = sqlx::query(
-        r#"
-        INSERT INTO room_events (room_id, event_type, status, priority, notes, created_by)
-        VALUES ($1, 'status_change', 'completed', 'normal', $2, $3)
-        "#
-    )
-    .bind(room_id)
-    .bind(format!("Ended {} - Room available", status_label))
-    .bind(user_id)
-    .execute(&pool)
-    .await;
+    let _ = sqlx::query(INSERT_ROOM_EVENT)
+        .bind(room_id)
+        .bind(format!("Ended {} - Room available", status_label))
+        .bind(user_id)
+        .execute(&pool)
+        .await;
 
-    let row = sqlx::query(
-        r#"
-        SELECT r.id, r.room_number, rt.name as room_type,
-               COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-               CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
-               rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at
-        FROM rooms r
-        INNER JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE r.id = $1
-        "#
-    )
-    .bind(room_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let row = sqlx::query(GET_ROOM_BY_ID_QUERY)
+        .bind(room_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let room_number: String = row.get(1);
+
+    // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let available: bool = row.get::<i32, _>(4) != 0;
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    let available: bool = row.get(4);
 
     // Audit log: maintenance ended
     let _ = AuditLog::log_event(
@@ -1182,7 +1105,7 @@ pub async fn end_maintenance_handler(
         room_number,
         room_type: row.get(2),
         price_per_night: row.get::<String, _>(3).parse().unwrap_or_default(),
-        available: row.get(4),
+        available,
         description: row.get::<Option<String>, _>(5),
         max_occupancy: row.get(6),
         status: row.get(7),
@@ -1192,13 +1115,13 @@ pub async fn end_maintenance_handler(
 }
 
 pub async fn end_cleaning_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(room_id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
 
-    let current_status: Option<String> = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
+    let current_status: Option<String> = sqlx::query_scalar(GET_ROOM_STATUS)
         .bind(room_id)
         .fetch_optional(&pool)
         .await
@@ -1214,56 +1137,35 @@ pub async fn end_cleaning_handler(
         return Err(ApiError::NotFound("Room not found".to_string()));
     }
 
-    let next_status: String = sqlx::query_scalar("SELECT get_room_next_status($1)")
+    let next_status: String = sqlx::query_scalar(GET_NEXT_ROOM_STATUS)
         .bind(room_id)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    sqlx::query(
-        r#"
-        UPDATE rooms
-        SET status = $1,
-            cleaning_start_date = NULL,
-            cleaning_end_date = NULL,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-        "#
-    )
-    .bind(&next_status)
-    .bind(room_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    sqlx::query(END_CLEANING_UPDATE)
+        .bind(&next_status)
+        .bind(room_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let _ = sqlx::query(
-        r#"
-        INSERT INTO room_history (
-            room_id, from_status, to_status, changed_by, notes, is_auto_generated
-        )
-        VALUES ($1, 'cleaning', $2, $3, 'Cleaning completed by staff', false)
-        "#
-    )
-    .bind(room_id)
-    .bind(&next_status)
-    .bind(user_id)
-    .execute(&pool)
-    .await;
+    let _ = sqlx::query(INSERT_ROOM_HISTORY_CLEANING)
+        .bind(room_id)
+        .bind(&next_status)
+        .bind(user_id)
+        .execute(&pool)
+        .await;
 
-    let _ = sqlx::query(
-        r#"
-        INSERT INTO room_events (room_id, event_type, status, priority, notes, created_by)
-        VALUES ($1, 'status_change', 'completed', 'normal', $2, $3)
-        "#
-    )
-    .bind(room_id)
-    .bind(format!("Cleaning completed - Room now {}", next_status))
-    .bind(user_id)
-    .execute(&pool)
-    .await;
+    let _ = sqlx::query(INSERT_ROOM_EVENT)
+        .bind(room_id)
+        .bind(format!("Cleaning completed - Room now {}", next_status))
+        .bind(user_id)
+        .execute(&pool)
+        .await;
 
     // Get room number for audit log
-    let room_number: String = sqlx::query_scalar("SELECT room_number FROM rooms WHERE id = $1")
+    let room_number: String = sqlx::query_scalar(GET_ROOM_NUMBER)
         .bind(room_id)
         .fetch_one(&pool)
         .await
@@ -1295,7 +1197,7 @@ pub async fn end_cleaning_handler(
 }
 
 pub async fn sync_room_statuses_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let _user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
@@ -1328,7 +1230,7 @@ pub async fn sync_room_statuses_handler(
 }
 
 pub async fn execute_room_change_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(room_id): Path<i64>,
     headers: HeaderMap,
     Json(input): Json<serde_json::Value>,
@@ -1353,23 +1255,11 @@ pub async fn execute_room_change_handler(
 
     // Find the currently active booking for this room
     // Priority: checked_in first, then confirmed bookings that are currently active
-    let booking: Option<(i64, i64)> = sqlx::query_as(
-        r#"
-        SELECT id, guest_id FROM bookings
-        WHERE room_id = $1
-          AND status IN ('confirmed', 'checked_in')
-          AND check_in_date <= CURRENT_DATE
-          AND check_out_date >= CURRENT_DATE
-        ORDER BY
-            CASE WHEN status = 'checked_in' THEN 0 ELSE 1 END,
-            check_in_date
-        LIMIT 1
-        "#
-    )
-    .bind(room_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let booking: Option<(i64, i64)> = sqlx::query_as(GET_ACTIVE_BOOKING_FOR_ROOM)
+        .bind(room_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let (booking_id, guest_id) = booking.ok_or_else(||
         ApiError::BadRequest("No active booking found for this room. The room must have a guest currently checked in or a confirmed booking for today.".to_string())
@@ -1377,37 +1267,11 @@ pub async fn execute_room_change_handler(
 
     // Check target room exists and is available using dynamic status computation
     // This matches the logic used in get_rooms_handler for consistency
-    let target_room: Option<(String, bool, bool)> = sqlx::query_as(
-        r#"
-        SELECT
-            -- Compute dynamic status based on bookings (same logic as get_rooms_handler)
-            CASE
-                WHEN EXISTS (
-                    SELECT 1 FROM bookings
-                    WHERE room_id = r.id
-                    AND status = 'checked_in'
-                    AND check_out_date >= CURRENT_DATE
-                ) THEN 'occupied'
-                WHEN EXISTS (
-                    SELECT 1 FROM bookings
-                    WHERE room_id = r.id
-                    AND status IN ('confirmed', 'pending')
-                    AND check_in_date <= CURRENT_DATE
-                    AND check_out_date >= CURRENT_DATE
-                ) THEN 'reserved'
-                WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning') THEN r.status
-                ELSE 'available'
-            END as computed_status,
-            r.is_active,
-            r.id IS NOT NULL as exists
-        FROM rooms r
-        WHERE r.id = $1
-        "#
-    )
-    .bind(target_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let target_room: Option<(String, bool, bool)> = sqlx::query_as(GET_TARGET_ROOM_STATUS)
+        .bind(target_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let (target_status, target_active, _) = target_room.ok_or_else(||
         ApiError::BadRequest("Target room not found".to_string())
@@ -1422,13 +1286,13 @@ pub async fn execute_room_change_handler(
     }
 
     // Get room numbers for the history notes
-    let from_room_number: String = sqlx::query_scalar("SELECT room_number FROM rooms WHERE id = $1")
+    let from_room_number: String = sqlx::query_scalar(GET_ROOM_NUMBER)
         .bind(room_id)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let to_room_number: String = sqlx::query_scalar("SELECT room_number FROM rooms WHERE id = $1")
+    let to_room_number: String = sqlx::query_scalar(GET_ROOM_NUMBER)
         .bind(target_id)
         .fetch_one(&pool)
         .await
@@ -1437,7 +1301,7 @@ pub async fn execute_room_change_handler(
     let mut tx = pool.begin().await.map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Update booking to new room
-    sqlx::query("UPDATE bookings SET room_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
+    sqlx::query(UPDATE_BOOKING_ROOM)
         .bind(target_id)
         .bind(booking_id)
         .execute(&mut *tx)
@@ -1445,94 +1309,62 @@ pub async fn execute_room_change_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Set source room to 'dirty' (needs cleaning after guest vacated)
-    sqlx::query(
-        "UPDATE rooms SET status = 'dirty', updated_at = CURRENT_TIMESTAMP WHERE id = $1"
-    )
-    .bind(room_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    sqlx::query(SET_ROOM_DIRTY)
+        .bind(room_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Set target room to 'occupied'
-    sqlx::query(
-        "UPDATE rooms SET status = 'occupied', updated_at = CURRENT_TIMESTAMP WHERE id = $1"
-    )
-    .bind(target_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    sqlx::query(SET_ROOM_OCCUPIED)
+        .bind(target_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Record in room_changes table
-    sqlx::query(
-        r#"
-        INSERT INTO room_changes (booking_id, from_room_id, to_room_id, guest_id, reason, changed_by)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        "#
-    )
-    .bind(booking_id)
-    .bind(room_id)
-    .bind(target_id)
-    .bind(guest_id)
-    .bind(&reason)
-    .bind(user_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    sqlx::query(INSERT_ROOM_CHANGE)
+        .bind(booking_id)
+        .bind(room_id)
+        .bind(target_id)
+        .bind(guest_id)
+        .bind(&reason)
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Record history for source room (occupied -> dirty)
-    sqlx::query(
-        r#"
-        INSERT INTO room_history (
-            room_id, from_status, to_status,
-            changed_by, notes, is_auto_generated
-        )
-        VALUES ($1, $2, $3, $4, $5, $6)
-        "#
-    )
-    .bind(room_id)
-    .bind("occupied")
-    .bind("dirty")
-    .bind(user_id)
-    .bind(format!("Guest moved to room {} - {}", to_room_number, reason))
-    .bind(false)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    sqlx::query(INSERT_ROOM_HISTORY_CHANGE)
+        .bind(room_id)
+        .bind("occupied")
+        .bind("dirty")
+        .bind(user_id)
+        .bind(format!("Guest moved to room {} - {}", to_room_number, reason))
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Record history for target room (available -> occupied)
-    sqlx::query(
-        r#"
-        INSERT INTO room_history (
-            room_id, from_status, to_status,
-            changed_by, notes, is_auto_generated
-        )
-        VALUES ($1, $2, $3, $4, $5, $6)
-        "#
-    )
-    .bind(target_id)
-    .bind("available")
-    .bind("occupied")
-    .bind(user_id)
-    .bind(format!("Guest moved from room {} - {}", from_room_number, reason))
-    .bind(false)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    sqlx::query(INSERT_ROOM_HISTORY_CHANGE)
+        .bind(target_id)
+        .bind("available")
+        .bind("occupied")
+        .bind(user_id)
+        .bind(format!("Guest moved from room {} - {}", from_room_number, reason))
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Record in booking_modifications for audit trail
-    sqlx::query(
-        r#"
-        INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by)
-        VALUES ($1, 'room_change', $2, $3, $4)
-        "#
-    )
-    .bind(booking_id)
-    .bind(serde_json::json!({ "room_id": room_id, "room_number": from_room_number }))
-    .bind(serde_json::json!({ "room_id": target_id, "room_number": to_room_number, "reason": reason }))
-    .bind(user_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    sqlx::query(INSERT_BOOKING_MODIFICATION)
+        .bind(booking_id)
+        .bind(serde_json::json!({ "room_id": room_id, "room_number": from_room_number }))
+        .bind(serde_json::json!({ "room_id": target_id, "room_number": to_room_number, "reason": reason }))
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     tx.commit().await.map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1569,7 +1401,7 @@ pub async fn execute_room_change_handler(
 }
 
 pub async fn get_room_change_history_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
@@ -1580,46 +1412,14 @@ pub async fn get_room_change_history_handler(
     let room_id = params.get("room_id").and_then(|v| v.parse::<i64>().ok());
     let limit = params.get("limit").and_then(|v| v.parse::<i64>().ok()).unwrap_or(50);
 
-    let rows = sqlx::query(
-        r#"
-        SELECT
-            rc.id,
-            rc.booking_id,
-            b.booking_number,
-            rc.from_room_id,
-            fr.room_number as from_room_number,
-            frt.name as from_room_type,
-            rc.to_room_id,
-            tr.room_number as to_room_number,
-            trt.name as to_room_type,
-            rc.guest_id,
-            g.full_name as guest_name,
-            rc.reason,
-            rc.changed_by,
-            u.full_name as changed_by_name,
-            rc.changed_at
-        FROM room_changes rc
-        JOIN bookings b ON rc.booking_id = b.id
-        JOIN rooms fr ON rc.from_room_id = fr.id
-        JOIN room_types frt ON fr.room_type_id = frt.id
-        JOIN rooms tr ON rc.to_room_id = tr.id
-        JOIN room_types trt ON tr.room_type_id = trt.id
-        JOIN guests g ON rc.guest_id = g.id
-        LEFT JOIN users u ON rc.changed_by = u.id
-        WHERE ($1::BIGINT IS NULL OR rc.booking_id = $1)
-          AND ($2::BIGINT IS NULL OR rc.guest_id = $2)
-          AND ($3::BIGINT IS NULL OR rc.from_room_id = $3 OR rc.to_room_id = $3)
-        ORDER BY rc.changed_at DESC
-        LIMIT $4
-        "#
-    )
-    .bind(booking_id)
-    .bind(guest_id)
-    .bind(room_id)
-    .bind(limit)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let rows = sqlx::query(GET_ROOM_CHANGE_HISTORY)
+        .bind(booking_id)
+        .bind(guest_id)
+        .bind(room_id)
+        .bind(limit)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let changes: Vec<serde_json::Value> = rows.iter().map(|row| {
         serde_json::json!({
@@ -1653,7 +1453,7 @@ pub async fn get_room_change_history_handler(
 }
 
 pub async fn create_room_event_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(room_id): Path<i64>,
     headers: HeaderMap,
     Json(input): Json<RoomEventInput>,
@@ -1684,79 +1484,113 @@ pub async fn create_room_event_handler(
         return Err(ApiError::BadRequest(format!("Invalid priority. Must be one of: {:?}", valid_priorities)));
     }
 
-    let row = sqlx::query(
-        r#"
-        INSERT INTO room_events (room_id, event_type, status, priority, notes, scheduled_date, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id, room_id, event_type, status, priority, notes, scheduled_date, created_by, created_at, updated_at
-        "#
-    )
-    .bind(room_id)
-    .bind(&input.event_type)
-    .bind(&input.status)
-    .bind(priority)
-    .bind(&input.notes)
-    .bind(scheduled_date)
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    // SQLite doesn't support RETURNING, so we need different handling
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let event = {
+        sqlx::query(INSERT_ROOM_EVENT_FULL)
+            .bind(room_id)
+            .bind(&input.event_type)
+            .bind(&input.status)
+            .bind(priority)
+            .bind(&input.notes)
+            .bind(scheduled_date)
+            .bind(user_id)
+            .execute(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let event = RoomEvent {
-        id: row.get(0),
-        room_id: row.get(1),
-        event_type: row.get(2),
-        status: row.get(3),
-        priority: row.get(4),
-        notes: row.get(5),
-        scheduled_date: row.get(6),
-        created_by: row.get(7),
-        created_at: row.get(8),
-        updated_at: row.get(9),
+        let event_id: i64 = sqlx::query_scalar::<_, i64>("SELECT last_insert_rowid()")
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        let row = sqlx::query(GET_ROOM_EVENT_BY_ID)
+            .bind(event_id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        RoomEvent {
+            id: row.get(0),
+            room_id: row.get(1),
+            event_type: row.get(2),
+            status: row.get(3),
+            priority: row.get(4),
+            notes: row.get(5),
+            scheduled_date: row.get(6),
+            created_by: row.get(7),
+            created_at: row.get(8),
+            updated_at: row.get(9),
+        }
+    };
+
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    let event = {
+        let row = sqlx::query(INSERT_ROOM_EVENT_FULL)
+            .bind(room_id)
+            .bind(&input.event_type)
+            .bind(&input.status)
+            .bind(priority)
+            .bind(&input.notes)
+            .bind(scheduled_date)
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        RoomEvent {
+            id: row.get(0),
+            room_id: row.get(1),
+            event_type: row.get(2),
+            status: row.get(3),
+            priority: row.get(4),
+            notes: row.get(5),
+            scheduled_date: row.get(6),
+            created_by: row.get(7),
+            created_at: row.get(8),
+            updated_at: row.get(9),
+        }
     };
 
     if input.event_type == "cleaning" || input.event_type == "maintenance" {
-        let _ = sqlx::query(
-            "UPDATE rooms SET status = $1 WHERE id = $2"
-        )
-        .bind(&input.event_type)
-        .bind(room_id)
-        .execute(&pool)
-        .await;
+        let _ = sqlx::query(UPDATE_ROOM_STATUS_SIMPLE)
+            .bind(&input.event_type)
+            .bind(room_id)
+            .execute(&pool)
+            .await;
     }
 
     Ok(Json(event))
 }
 
 pub async fn get_room_detailed_status_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(room_id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<RoomDetailedStatus>, ApiError> {
     let _user_id = require_auth(&headers).await?;
 
-    let room_row = sqlx::query(
-        r#"
-        SELECT r.id, r.room_number, rt.name as room_type, r.status,
-               CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
-               r.notes, r.last_cleaned_at, r.last_inspected_at,
-               r.reserved_start_date, r.reserved_end_date,
-               r.maintenance_start_date, r.maintenance_end_date,
-               r.cleaning_start_date, r.cleaning_end_date,
-               r.connecting_room_id, r.status_notes
-        FROM rooms r
-        INNER JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE r.id = $1
-        "#
-    )
-    .bind(room_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
+    let room_row = sqlx::query(GET_ROOM_DETAILED_STATUS)
+        .bind(room_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
 
     let status: Option<String> = room_row.try_get(3).ok();
+
+    // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let available: bool = room_row.try_get::<i32, _>(4).unwrap_or(0) != 0;
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
     let available: bool = room_row.try_get(4).unwrap_or(false);
+
     let maintenance_notes: Option<String> = room_row.try_get(5).ok(); // now 'notes' column
     let last_maintenance_date: Option<DateTime<Utc>> = room_row.try_get(6).ok(); // now 'last_cleaned_at'
     let next_maintenance_date: Option<DateTime<Utc>> = room_row.try_get(7).ok(); // now 'last_inspected_at'
@@ -1769,65 +1603,26 @@ pub async fn get_room_detailed_status_handler(
     let target_room_id: Option<i64> = room_row.try_get(14).ok();
     let status_notes: Option<String> = room_row.try_get(15).ok();
 
-    let current_booking = sqlx::query_as::<_, BookingWithDetails>(
-        r#"
-        SELECT b.id, b.guest_id, g.full_name as guest_name, g.email as guest_email,
-               b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
-               b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
-               b.booking_number, NULL::VARCHAR as post_type, NULL::VARCHAR as rate_code, b.created_at
-        FROM bookings b
-        JOIN guests g ON b.guest_id = g.id
-        JOIN rooms r ON b.room_id = r.id
-        JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE b.room_id = $1
-          AND b.status NOT IN ('cancelled', 'checked_out')
-          AND b.check_in_date <= CURRENT_DATE
-          AND b.check_out_date > CURRENT_DATE
-        ORDER BY b.check_in_date DESC
-        LIMIT 1
-        "#
-    )
-    .bind(room_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let current_booking = sqlx::query(GET_CURRENT_BOOKING_FOR_ROOM)
+        .bind(room_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .map(|row| row_mappers::row_to_booking_with_details(&row));
 
-    let next_booking = sqlx::query_as::<_, BookingWithDetails>(
-        r#"
-        SELECT b.id, b.guest_id, g.full_name as guest_name, g.email as guest_email,
-               b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
-               b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
-               b.booking_number, NULL::VARCHAR as post_type, NULL::VARCHAR as rate_code, b.created_at
-        FROM bookings b
-        JOIN guests g ON b.guest_id = g.id
-        JOIN rooms r ON b.room_id = r.id
-        JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE b.room_id = $1
-          AND b.status = 'confirmed'
-          AND b.check_in_date > CURRENT_DATE
-        ORDER BY b.check_in_date ASC
-        LIMIT 1
-        "#
-    )
-    .bind(room_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let next_booking = sqlx::query(GET_NEXT_BOOKING_FOR_ROOM)
+        .bind(room_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .map(|row| row_mappers::row_to_booking_with_details(&row));
 
     // Query room_events if table exists, otherwise return empty list
-    let recent_events = sqlx::query_as::<_, RoomEvent>(
-        r#"
-        SELECT id, room_id, event_type, status, priority, notes, scheduled_date, created_by, created_at, updated_at
-        FROM room_events
-        WHERE room_id = $1
-        ORDER BY created_at DESC
-        LIMIT 10
-        "#
-    )
-    .bind(room_id)
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
+    let recent_events = sqlx::query_as::<_, RoomEvent>(GET_ROOM_EVENTS)
+        .bind(room_id)
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
 
     let detailed_status = RoomDetailedStatus {
         id: room_row.get(0),
@@ -1855,36 +1650,16 @@ pub async fn get_room_detailed_status_handler(
 }
 
 pub async fn get_room_history_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(room_id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     let _user_id = require_auth(&headers).await?;
 
-    let history = match sqlx::query(
-        r#"
-        SELECT
-            rh.id,
-            rh.room_id,
-            rh.from_status,
-            rh.to_status,
-            rh.start_date,
-            rh.end_date,
-            rh.changed_by,
-            u.full_name as changed_by_name,
-            rh.created_at,
-            rh.notes,
-            rh.is_auto_generated
-        FROM room_history rh
-        LEFT JOIN users u ON rh.changed_by = u.id
-        WHERE rh.room_id = $1
-        ORDER BY rh.created_at DESC
-        LIMIT 50
-        "#
-    )
-    .bind(room_id)
-    .fetch_all(&pool)
-    .await {
+    let history = match sqlx::query(GET_ROOM_HISTORY)
+        .bind(room_id)
+        .fetch_all(&pool)
+        .await {
         Ok(rows) => rows,
         Err(e) => {
             if e.to_string().contains("relation") && e.to_string().contains("does not exist") {
@@ -1897,6 +1672,15 @@ pub async fn get_room_history_handler(
     let history_json: Vec<serde_json::Value> = history
         .iter()
         .map(|row| {
+            // Handle is_auto_generated - SQLite returns 0/1, PostgreSQL returns bool
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            let is_auto_generated = row.get::<i32, _>("is_auto_generated") != 0;
+            #[cfg(any(
+                all(feature = "postgres", not(feature = "sqlite")),
+                all(feature = "sqlite", feature = "postgres")
+            ))]
+            let is_auto_generated = row.get::<bool, _>("is_auto_generated");
+
             serde_json::json!({
                 "id": row.get::<i64, _>("id").to_string(),
                 "room_id": row.get::<i64, _>("room_id").to_string(),
@@ -1908,7 +1692,7 @@ pub async fn get_room_history_handler(
                 "changed_by_name": row.get::<Option<String>, _>("changed_by_name"),
                 "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at").to_rfc3339(),
                 "notes": row.get::<Option<String>, _>("notes"),
-                "is_auto_generated": row.get::<bool, _>("is_auto_generated"),
+                "is_auto_generated": is_auto_generated,
             })
         })
         .collect();
@@ -1917,43 +1701,16 @@ pub async fn get_room_history_handler(
 }
 
 pub async fn get_room_reviews_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(room_type): Path<String>,
 ) -> Result<Json<Vec<GuestReview>>, ApiError> {
-    let reviews = sqlx::query_as::<_, GuestReview>(
-        r#"
-        SELECT
-            gr.id,
-            gr.guest_id,
-            g.full_name as guest_name,
-            gr.room_type_id,
-            gr.overall_rating,
-            gr.cleanliness_rating,
-            gr.staff_rating,
-            gr.facilities_rating,
-            gr.value_rating,
-            gr.location_rating,
-            gr.title,
-            gr.review_text,
-            gr.pros,
-            gr.cons,
-            gr.recommend,
-            gr.stay_type,
-            gr.is_verified,
-            gr.helpful_count,
-            gr.created_at
-        FROM guest_reviews gr
-        INNER JOIN guests g ON gr.guest_id = g.id
-        INNER JOIN room_types rt ON gr.room_type_id = rt.id
-        WHERE rt.name = $1 AND gr.is_published = true
-        ORDER BY gr.created_at DESC
-        "#
-    )
-    .bind(&room_type)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let rows = sqlx::query(GET_ROOM_REVIEWS)
+        .bind(&room_type)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    let reviews: Vec<GuestReview> = rows.iter().map(|row| row_mappers::row_to_guest_review(row)).collect();
     Ok(Json(reviews))
 }
 
@@ -1963,12 +1720,12 @@ pub async fn get_room_reviews_handler(
 
 /// Get all rooms with their current occupancy status
 pub async fn get_all_room_occupancy_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<RoomCurrentOccupancy>>, ApiError> {
     let _user_id = require_auth(&headers).await?;
 
-    let occupancy = sqlx::query_as::<_, RoomCurrentOccupancy>(
+    let rows = sqlx::query(
         r#"
         SELECT
             room_id,
@@ -1996,19 +1753,44 @@ pub async fn get_all_room_occupancy_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    let occupancy: Vec<RoomCurrentOccupancy> = rows.iter().map(|row| row_mappers::row_to_room_current_occupancy(row)).collect();
     Ok(Json(occupancy))
 }
 
 /// Get occupancy for a specific room
 pub async fn get_room_occupancy_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     Path(room_id): Path<i64>,
     headers: HeaderMap,
 ) -> Result<Json<RoomCurrentOccupancy>, ApiError> {
     let _user_id = require_auth(&headers).await?;
 
-    let occupancy = sqlx::query_as::<_, RoomCurrentOccupancy>(
-        r#"
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let query = r#"
+        SELECT
+            room_id,
+            room_number,
+            room_type_id,
+            room_type_name,
+            max_occupancy,
+            room_status,
+            current_adults,
+            current_children,
+            current_infants,
+            current_total_guests,
+            occupancy_percentage,
+            current_booking_id,
+            current_booking_number,
+            current_guest_id,
+            check_in_date,
+            check_out_date,
+            is_occupied
+        FROM room_current_occupancy
+        WHERE room_id = ?1
+        "#;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let query = r#"
         SELECT
             room_id,
             room_number,
@@ -2029,25 +1811,26 @@ pub async fn get_room_occupancy_handler(
             is_occupied
         FROM room_current_occupancy
         WHERE room_id = $1
-        "#
-    )
-    .bind(room_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
+        "#;
 
-    Ok(Json(occupancy))
+    let row = sqlx::query(query)
+        .bind(room_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
+
+    Ok(Json(row_mappers::row_to_room_current_occupancy(&row)))
 }
 
 /// Get hotel-wide occupancy summary
 pub async fn get_hotel_occupancy_summary_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<HotelOccupancySummary>, ApiError> {
     let _user_id = require_auth(&headers).await?;
 
-    let summary = sqlx::query_as::<_, HotelOccupancySummary>(
+    let row = sqlx::query(
         r#"
         SELECT
             total_rooms,
@@ -2067,17 +1850,17 @@ pub async fn get_hotel_occupancy_summary_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(summary))
+    Ok(Json(row_mappers::row_to_hotel_occupancy_summary(&row)))
 }
 
 /// Get occupancy breakdown by room type
 pub async fn get_occupancy_by_room_type_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<OccupancyByRoomType>>, ApiError> {
     let _user_id = require_auth(&headers).await?;
 
-    let occupancy = sqlx::query_as::<_, OccupancyByRoomType>(
+    let rows = sqlx::query(
         r#"
         SELECT
             room_type_id,
@@ -2097,55 +1880,49 @@ pub async fn get_occupancy_by_room_type_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    let occupancy: Vec<OccupancyByRoomType> = rows.iter().map(|row| row_mappers::row_to_occupancy_by_room_type(row)).collect();
+
     Ok(Json(occupancy))
 }
 
 /// Get rooms with their occupancy combined
 pub async fn get_rooms_with_occupancy_handler(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<RoomWithOccupancy>>, ApiError> {
     let _user_id = require_auth(&headers).await?;
 
-    let rows = sqlx::query(
-        r#"
-        SELECT
-            r.id,
-            r.room_number,
-            rt.name as room_type,
-            COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-            CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
-            rt.description,
-            rt.max_occupancy,
-            r.status,
-            r.created_at,
-            r.updated_at,
-            COALESCE(rco.current_adults, 0) as current_adults,
-            COALESCE(rco.current_children, 0) as current_children,
-            COALESCE(rco.current_infants, 0) as current_infants,
-            COALESCE(rco.current_total_guests, 0) as current_total_guests,
-            COALESCE(rco.is_occupied, false) as is_occupied,
-            rco.current_booking_id,
-            rco.current_guest_id
-        FROM rooms r
-        INNER JOIN room_types rt ON r.room_type_id = rt.id
-        LEFT JOIN room_current_occupancy rco ON r.id = rco.room_id
-        WHERE r.is_active = true
-        ORDER BY r.room_number
-        "#
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let rows = sqlx::query(GET_ROOMS_WITH_OCCUPANCY)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let mut rooms_with_occupancy = Vec::new();
     for row in rows {
+        // Handle available field - SQLite returns 0/1, PostgreSQL returns bool
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let available: bool = row.get::<i32, _>(4) != 0;
+        #[cfg(any(
+            all(feature = "postgres", not(feature = "sqlite")),
+            all(feature = "sqlite", feature = "postgres")
+        ))]
+        let available: bool = row.get(4);
+
+        // Handle is_occupied field - SQLite returns 0/1, PostgreSQL returns bool
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let is_occupied: bool = row.get::<i32, _>(14) != 0;
+        #[cfg(any(
+            all(feature = "postgres", not(feature = "sqlite")),
+            all(feature = "sqlite", feature = "postgres")
+        ))]
+        let is_occupied: bool = row.get(14);
+
         let room = Room {
             id: row.get(0),
             room_number: row.get(1),
             room_type: row.get(2),
             price_per_night: row.get::<String, _>(3).parse().unwrap_or_default(),
-            available: row.get(4),
+            available,
             description: row.get(5),
             max_occupancy: row.get(6),
             status: row.get(7),
@@ -2159,7 +1936,7 @@ pub async fn get_rooms_with_occupancy_handler(
             current_children: row.get(11),
             current_infants: row.get(12),
             current_total_guests: row.get(13),
-            is_occupied: row.get(14),
+            is_occupied,
             current_booking_id: row.get(15),
             current_guest_id: row.get(16),
         });

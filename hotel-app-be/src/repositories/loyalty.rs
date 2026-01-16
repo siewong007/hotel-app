@@ -1,6 +1,6 @@
 //! Loyalty program repository for database operations
 
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{LoyaltyMembership, LoyaltyMembershipWithDetails, PointsTransaction, LoyaltyReward};
 
@@ -9,7 +9,7 @@ pub struct LoyaltyRepository;
 impl LoyaltyRepository {
     /// Find membership by guest ID
     pub async fn find_membership_by_guest_id(
-        pool: &PgPool,
+        pool: &DbPool,
         guest_id: i64,
     ) -> Result<Option<LoyaltyMembershipWithDetails>, ApiError> {
         sqlx::query_as::<_, LoyaltyMembershipWithDetails>(
@@ -32,7 +32,7 @@ impl LoyaltyRepository {
 
     /// Find membership by ID
     pub async fn find_membership_by_id(
-        pool: &PgPool,
+        pool: &DbPool,
         id: i64,
     ) -> Result<Option<LoyaltyMembership>, ApiError> {
         sqlx::query_as::<_, LoyaltyMembership>(
@@ -52,7 +52,7 @@ impl LoyaltyRepository {
 
     /// Get points transactions for a membership
     pub async fn get_transactions(
-        pool: &PgPool,
+        pool: &DbPool,
         membership_id: i64,
         limit: i64,
     ) -> Result<Vec<PointsTransaction>, ApiError> {
@@ -75,7 +75,7 @@ impl LoyaltyRepository {
 
     /// Add points to a membership
     pub async fn add_points(
-        pool: &PgPool,
+        pool: &DbPool,
         membership_id: i64,
         points: i32,
         description: Option<&str>,
@@ -128,7 +128,7 @@ impl LoyaltyRepository {
 
     /// Redeem points from a membership
     pub async fn redeem_points(
-        pool: &PgPool,
+        pool: &DbPool,
         membership_id: i64,
         points: i32,
         description: Option<&str>,
@@ -177,7 +177,7 @@ impl LoyaltyRepository {
     }
 
     /// Get available rewards
-    pub async fn get_rewards(pool: &PgPool, tier_level: i32) -> Result<Vec<LoyaltyReward>, ApiError> {
+    pub async fn get_rewards(pool: &DbPool, tier_level: i32) -> Result<Vec<LoyaltyReward>, ApiError> {
         sqlx::query_as::<_, LoyaltyReward>(
             r#"
             SELECT id, name, description, category, points_cost, monetary_value,

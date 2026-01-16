@@ -9,14 +9,14 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::handlers;
 use crate::models;
 use crate::core::middleware::require_permission_helper;
 use crate::core::error::ApiError;
 
 /// Create booking routes
-pub fn routes() -> Router<PgPool> {
+pub fn routes() -> Router<DbPool> {
     Router::new()
         // Static routes MUST come before parameterized routes
         .route("/bookings", get(get_bookings))
@@ -46,7 +46,7 @@ pub fn routes() -> Router<PgPool> {
 }
 
 async fn get_bookings(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::BookingWithDetails>>, ApiError> {
     require_permission_helper(&pool, &headers, "bookings:read").await?;
@@ -54,7 +54,7 @@ async fn get_bookings(
 }
 
 async fn create_booking(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::BookingInput>,
 ) -> Result<Json<models::Booking>, ApiError> {
@@ -63,7 +63,7 @@ async fn create_booking(
 }
 
 async fn get_my_bookings(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::BookingWithDetails>>, ApiError> {
     // Only requires authentication, not specific permissions
@@ -71,7 +71,7 @@ async fn get_my_bookings(
 }
 
 async fn get_booking(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::BookingWithDetails>, ApiError> {
@@ -80,7 +80,7 @@ async fn get_booking(
 }
 
 async fn update_booking(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::BookingUpdateInput>,
@@ -90,7 +90,7 @@ async fn update_booking(
 }
 
 async fn delete_booking(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -99,7 +99,7 @@ async fn delete_booking(
 }
 
 async fn cancel_booking(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::BookingCancellationRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -108,7 +108,7 @@ async fn cancel_booking(
 }
 
 async fn manual_checkin(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(data): Json<Option<models::CheckInRequest>>,
@@ -118,7 +118,7 @@ async fn manual_checkin(
 }
 
 async fn pre_checkin_update(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     path: Path<i64>,
     Json(input): Json<models::PreCheckInUpdateRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -127,21 +127,21 @@ async fn pre_checkin_update(
 }
 
 async fn get_rate_codes(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<models::RateCodesResponse>, ApiError> {
     // Public endpoint - no authentication required
     handlers::settings::get_rate_codes_handler(State(pool)).await
 }
 
 async fn get_market_codes(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
 ) -> Result<Json<models::MarketCodesResponse>, ApiError> {
     // Public endpoint - no authentication required
     handlers::settings::get_market_codes_handler(State(pool)).await
 }
 
 async fn mark_complimentary(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::MarkComplimentaryRequest>,
@@ -151,7 +151,7 @@ async fn mark_complimentary(
 }
 
 async fn convert_complimentary_to_credits(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -160,7 +160,7 @@ async fn convert_complimentary_to_credits(
 }
 
 async fn book_with_credits(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<handlers::bookings::BookWithCreditsRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -169,7 +169,7 @@ async fn book_with_credits(
 }
 
 async fn get_complimentary_bookings(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::BookingWithDetails>>, ApiError> {
     require_permission_helper(&pool, &headers, "bookings:read").await?;
@@ -177,7 +177,7 @@ async fn get_complimentary_bookings(
 }
 
 async fn get_complimentary_summary(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "bookings:read").await?;
@@ -185,7 +185,7 @@ async fn get_complimentary_summary(
 }
 
 async fn update_complimentary(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<handlers::bookings::UpdateComplimentaryRequest>,
@@ -195,7 +195,7 @@ async fn update_complimentary(
 }
 
 async fn remove_complimentary(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -204,7 +204,7 @@ async fn remove_complimentary(
 }
 
 async fn get_guests_with_credits(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "guests:read").await?;
@@ -212,7 +212,7 @@ async fn get_guests_with_credits(
 }
 
 async fn add_guest_credits(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<handlers::bookings::AddGuestCreditsRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
@@ -221,7 +221,7 @@ async fn add_guest_credits(
 }
 
 async fn update_guest_credits(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<(i64, i64)>,
     Json(input): Json<handlers::bookings::UpdateGuestCreditsRequest>,
@@ -231,7 +231,7 @@ async fn update_guest_credits(
 }
 
 async fn delete_guest_credits(
-    State(pool): State<PgPool>,
+    State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<(i64, i64)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {

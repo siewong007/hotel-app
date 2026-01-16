@@ -1,6 +1,7 @@
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgPool, Row};
+use super::db::{DbPool, array_to_json};
+use sqlx::Row;
 use chrono::{Duration, Utc};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use std::env;
@@ -129,7 +130,7 @@ impl AuthService {
 
     /// Stores a refresh token in the database
     pub async fn store_refresh_token(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
         token: &str,
         expires_in_days: i64,
@@ -154,7 +155,7 @@ impl AuthService {
 
     /// Validates a refresh token and returns the user_id if valid
     pub async fn validate_refresh_token(
-        pool: &PgPool,
+        pool: &DbPool,
         token: &str,
     ) -> Result<Option<i64>, sqlx::Error> {
         let token_hash = Self::hash_refresh_token(token);
@@ -177,7 +178,7 @@ impl AuthService {
 
     /// Revokes a refresh token
     pub async fn revoke_refresh_token(
-        pool: &PgPool,
+        pool: &DbPool,
         token: &str,
     ) -> Result<(), sqlx::Error> {
         let token_hash = Self::hash_refresh_token(token);
@@ -198,7 +199,7 @@ impl AuthService {
 
     /// Revokes all refresh tokens for a user
     pub async fn revoke_all_user_tokens(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
@@ -215,7 +216,7 @@ impl AuthService {
         Ok(())
     }
 
-    pub async fn get_user_permissions(pool: &PgPool, user_id: i64) -> Result<Vec<String>, sqlx::Error> {
+    pub async fn get_user_permissions(pool: &DbPool, user_id: i64) -> Result<Vec<String>, sqlx::Error> {
         let permissions = sqlx::query_scalar::<_, String>(
             r#"
             SELECT DISTINCT p.name
@@ -232,7 +233,7 @@ impl AuthService {
         Ok(permissions)
     }
 
-    pub async fn get_user_roles(pool: &PgPool, user_id: i64) -> Result<Vec<String>, sqlx::Error> {
+    pub async fn get_user_roles(pool: &DbPool, user_id: i64) -> Result<Vec<String>, sqlx::Error> {
         let roles = sqlx::query_scalar::<_, String>(
             r#"
             SELECT r.name
@@ -248,7 +249,7 @@ impl AuthService {
         Ok(roles)
     }
 
-    pub async fn check_permission(pool: &PgPool, user_id: i64, permission: &str) -> Result<bool, sqlx::Error> {
+    pub async fn check_permission(pool: &DbPool, user_id: i64, permission: &str) -> Result<bool, sqlx::Error> {
         let has_permission = sqlx::query_scalar::<_, bool>(
             r#"
             SELECT EXISTS(
@@ -268,7 +269,7 @@ impl AuthService {
         Ok(has_permission)
     }
 
-    pub async fn check_role(pool: &PgPool, user_id: i64, role_name: &str) -> Result<bool, sqlx::Error> {
+    pub async fn check_role(pool: &DbPool, user_id: i64, role_name: &str) -> Result<bool, sqlx::Error> {
         let has_role = sqlx::query_scalar::<_, bool>(
             r#"
             SELECT EXISTS(
@@ -296,7 +297,7 @@ impl AuthService {
 
     /// Update user with email verification token
     pub async fn create_email_verification_token(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
     ) -> Result<String, sqlx::Error> {
         let token = Self::generate_email_verification_token();
@@ -322,7 +323,7 @@ impl AuthService {
 
     /// Verify email token and mark user as verified
     pub async fn verify_email_token(
-        pool: &PgPool,
+        pool: &DbPool,
         token: &str,
     ) -> Result<Option<i64>, sqlx::Error> {
         let result = sqlx::query_scalar::<_, i64>(
@@ -347,7 +348,7 @@ impl AuthService {
 
     /// Get user by email for verification
     pub async fn get_user_by_email(
-        pool: &PgPool,
+        pool: &DbPool,
         email: &str,
     ) -> Result<Option<crate::models::User>, sqlx::Error> {
         let user = sqlx::query_as::<_, crate::models::User>(
@@ -459,7 +460,7 @@ impl AuthService {
 
     /// Create a temporary 2FA challenge for user operations
     pub async fn create_2fa_challenge(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
         purpose: &str,
     ) -> Result<String, sqlx::Error> {
@@ -488,11 +489,14 @@ impl AuthService {
 
     /// Enable 2FA for a user
     pub async fn enable_2fa(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
         secret: &str,
         recovery_codes: &[String],
     ) -> Result<(), sqlx::Error> {
+        // Convert recovery codes to JSON string for SQLite compatibility
+        let codes_json = array_to_json(recovery_codes);
+
         sqlx::query(
             r#"
             UPDATE users
@@ -505,7 +509,7 @@ impl AuthService {
         )
         .bind(user_id)
         .bind(secret)
-        .bind(recovery_codes)
+        .bind(&codes_json)
         .execute(pool)
         .await?;
 
@@ -514,7 +518,7 @@ impl AuthService {
 
     /// Disable 2FA for a user
     pub async fn disable_2fa(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
@@ -536,10 +540,13 @@ impl AuthService {
 
     /// Update recovery codes for a user (e.g., after using one)
     pub async fn update_recovery_codes(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
         recovery_codes: &[String],
     ) -> Result<(), sqlx::Error> {
+        // Convert recovery codes to JSON string for SQLite compatibility
+        let codes_json = array_to_json(recovery_codes);
+
         sqlx::query(
             r#"
             UPDATE users
@@ -549,7 +556,7 @@ impl AuthService {
             "#
         )
         .bind(user_id)
-        .bind(recovery_codes)
+        .bind(&codes_json)
         .execute(pool)
         .await?;
 
@@ -558,7 +565,7 @@ impl AuthService {
 
     /// Get user 2FA status
     pub async fn get_user_2fa_status(
-        pool: &PgPool,
+        pool: &DbPool,
         user_id: i64,
     ) -> Result<(bool, i32), sqlx::Error> {
         let result = sqlx::query(

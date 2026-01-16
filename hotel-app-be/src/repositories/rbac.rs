@@ -1,6 +1,6 @@
 //! RBAC (Role-Based Access Control) repository for database operations
 
-use sqlx::PgPool;
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{Role, Permission};
 
@@ -8,7 +8,7 @@ pub struct RbacRepository;
 
 impl RbacRepository {
     /// Find all roles
-    pub async fn find_all_roles(pool: &PgPool) -> Result<Vec<Role>, ApiError> {
+    pub async fn find_all_roles(pool: &DbPool) -> Result<Vec<Role>, ApiError> {
         sqlx::query_as::<_, Role>(
             r#"
             SELECT id, name, description, created_at
@@ -22,7 +22,7 @@ impl RbacRepository {
     }
 
     /// Find role by ID
-    pub async fn find_role_by_id(pool: &PgPool, id: i64) -> Result<Option<Role>, ApiError> {
+    pub async fn find_role_by_id(pool: &DbPool, id: i64) -> Result<Option<Role>, ApiError> {
         sqlx::query_as::<_, Role>(
             "SELECT id, name, description, created_at FROM roles WHERE id = $1"
         )
@@ -33,7 +33,7 @@ impl RbacRepository {
     }
 
     /// Find role by name
-    pub async fn find_role_by_name(pool: &PgPool, name: &str) -> Result<Option<Role>, ApiError> {
+    pub async fn find_role_by_name(pool: &DbPool, name: &str) -> Result<Option<Role>, ApiError> {
         sqlx::query_as::<_, Role>(
             "SELECT id, name, description, created_at FROM roles WHERE name = $1"
         )
@@ -44,7 +44,7 @@ impl RbacRepository {
     }
 
     /// Create a new role
-    pub async fn create_role(pool: &PgPool, name: &str, description: Option<&str>) -> Result<Role, ApiError> {
+    pub async fn create_role(pool: &DbPool, name: &str, description: Option<&str>) -> Result<Role, ApiError> {
         sqlx::query_as::<_, Role>(
             r#"
             INSERT INTO roles (name, description)
@@ -60,7 +60,7 @@ impl RbacRepository {
     }
 
     /// Find all permissions
-    pub async fn find_all_permissions(pool: &PgPool) -> Result<Vec<Permission>, ApiError> {
+    pub async fn find_all_permissions(pool: &DbPool) -> Result<Vec<Permission>, ApiError> {
         sqlx::query_as::<_, Permission>(
             r#"
             SELECT id, name, resource, action, description, created_at
@@ -74,7 +74,7 @@ impl RbacRepository {
     }
 
     /// Get permissions for a role
-    pub async fn get_role_permissions(pool: &PgPool, role_id: i64) -> Result<Vec<Permission>, ApiError> {
+    pub async fn get_role_permissions(pool: &DbPool, role_id: i64) -> Result<Vec<Permission>, ApiError> {
         sqlx::query_as::<_, Permission>(
             r#"
             SELECT p.id, p.name, p.resource, p.action, p.description, p.created_at
@@ -91,7 +91,7 @@ impl RbacRepository {
     }
 
     /// Assign role to user
-    pub async fn assign_role_to_user(pool: &PgPool, user_id: i64, role_id: i64) -> Result<(), ApiError> {
+    pub async fn assign_role_to_user(pool: &DbPool, user_id: i64, role_id: i64) -> Result<(), ApiError> {
         sqlx::query(
             "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING"
         )
@@ -105,7 +105,7 @@ impl RbacRepository {
     }
 
     /// Remove role from user
-    pub async fn remove_role_from_user(pool: &PgPool, user_id: i64, role_id: i64) -> Result<(), ApiError> {
+    pub async fn remove_role_from_user(pool: &DbPool, user_id: i64, role_id: i64) -> Result<(), ApiError> {
         sqlx::query("DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2")
             .bind(user_id)
             .bind(role_id)
@@ -117,7 +117,7 @@ impl RbacRepository {
     }
 
     /// Assign permission to role
-    pub async fn assign_permission_to_role(pool: &PgPool, role_id: i64, permission_id: i64) -> Result<(), ApiError> {
+    pub async fn assign_permission_to_role(pool: &DbPool, role_id: i64, permission_id: i64) -> Result<(), ApiError> {
         sqlx::query(
             "INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING"
         )
@@ -131,7 +131,7 @@ impl RbacRepository {
     }
 
     /// Remove permission from role
-    pub async fn remove_permission_from_role(pool: &PgPool, role_id: i64, permission_id: i64) -> Result<(), ApiError> {
+    pub async fn remove_permission_from_role(pool: &DbPool, role_id: i64, permission_id: i64) -> Result<(), ApiError> {
         sqlx::query("DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2")
             .bind(role_id)
             .bind(permission_id)
@@ -143,7 +143,7 @@ impl RbacRepository {
     }
 
     /// Get roles for a user
-    pub async fn get_user_roles(pool: &PgPool, user_id: i64) -> Result<Vec<Role>, ApiError> {
+    pub async fn get_user_roles(pool: &DbPool, user_id: i64) -> Result<Vec<Role>, ApiError> {
         sqlx::query_as::<_, Role>(
             r#"
             SELECT r.id, r.name, r.description, r.created_at
