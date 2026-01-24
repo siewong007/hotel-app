@@ -182,8 +182,7 @@ pub async fn disable_2fa_handler(
 
     // Verify the code (either TOTP or recovery code)
     let totp_secret = user.two_factor_secret.ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?;
-    let recovery_codes_str = user.two_factor_recovery_codes.unwrap_or_default();
-    let recovery_codes: Vec<String> = serde_json::from_str(&recovery_codes_str).unwrap_or_default();
+    let recovery_codes: Vec<String> = user.two_factor_recovery_codes.unwrap_or_default();
 
     let mut code_valid = false;
 
