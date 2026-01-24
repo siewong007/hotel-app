@@ -25,7 +25,7 @@ pub struct User {
     pub user_type: Option<UserType>,
     pub two_factor_enabled: Option<bool>,
     pub two_factor_secret: Option<String>,
-    pub two_factor_recovery_codes: Option<String>,
+    pub two_factor_recovery_codes: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
