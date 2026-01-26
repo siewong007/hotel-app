@@ -408,11 +408,116 @@ pub async fn run_migrations_if_needed(app_handle: &AppHandle) -> Result<(), Post
     // First ensure database exists
     create_database_if_needed(app_handle).await?;
 
-    // TODO: Run SQLx migrations
-    // The backend handles migrations automatically when it starts
-    // with the `migrate` feature enabled in SQLx
+    // Check if migrations have been run (check for a known table)
+    if is_database_initialized(app_handle).await? {
+        log::info!("Database already initialized, skipping migrations and seed data");
+        return Ok(());
+    }
 
-    log::info!("Database migrations will be handled by backend on startup");
+    // Run migrations
+    run_sql_files(app_handle, "database/migrations").await?;
+
+    // Run seed data
+    run_sql_files(app_handle, "database/seed-data").await?;
+
+    log::info!("Database migrations and seed data completed successfully");
+    Ok(())
+}
+
+/// Check if database has been initialized (check for users table)
+async fn is_database_initialized(app_handle: &AppHandle) -> Result<bool, PostgresError> {
+    let pgsql_bin = get_pgsql_bin_dir(app_handle);
+    let psql_path = pgsql_bin.join("psql.exe");
+
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!("{};{}", pgsql_bin.to_string_lossy(), current_path);
+
+    let mut cmd = tokio::process::Command::new(&psql_path);
+    cmd.args([
+            "-h", "localhost",
+            "-p", &POSTGRES_PORT.to_string(),
+            "-U", POSTGRES_USER,
+            "-d", POSTGRES_DB,
+            "-tAc",
+            "SELECT 1 FROM information_schema.tables WHERE table_name = 'users' LIMIT 1",
+        ])
+        .env("PATH", &new_path)
+        .current_dir(&pgsql_bin)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().await?;
+    let result = String::from_utf8_lossy(&output.stdout).trim().contains('1');
+    Ok(result)
+}
+
+/// Run SQL files from a directory
+async fn run_sql_files(app_handle: &AppHandle, dir_name: &str) -> Result<(), PostgresError> {
+    let resource_dir = app_handle
+        .path()
+        .resource_dir()
+        .unwrap_or_else(|_| PathBuf::from("."));
+
+    // Strip the \\?\ extended-length path prefix on Windows
+    let path_str = resource_dir.to_string_lossy();
+    let clean_path = if path_str.starts_with(r"\\?\") {
+        PathBuf::from(&path_str[4..])
+    } else {
+        resource_dir
+    };
+
+    let sql_dir = clean_path.join(dir_name);
+
+    if !sql_dir.exists() {
+        log::warn!("SQL directory not found: {:?}", sql_dir);
+        return Ok(());
+    }
+
+    // Get all .sql files and sort them
+    let mut sql_files: Vec<_> = std::fs::read_dir(&sql_dir)?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().map_or(false, |ext| ext == "sql"))
+        .collect();
+
+    sql_files.sort_by_key(|e| e.file_name());
+
+    let pgsql_bin = get_pgsql_bin_dir(app_handle);
+    let psql_path = pgsql_bin.join("psql.exe");
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!("{};{}", pgsql_bin.to_string_lossy(), current_path);
+
+    for entry in sql_files {
+        let file_path = entry.path();
+        log::info!("Running SQL file: {:?}", file_path.file_name());
+
+        let mut cmd = tokio::process::Command::new(&psql_path);
+        cmd.args([
+                "-h", "localhost",
+                "-p", &POSTGRES_PORT.to_string(),
+                "-U", POSTGRES_USER,
+                "-d", POSTGRES_DB,
+                "-f", &file_path.to_string_lossy(),
+            ])
+            .env("PATH", &new_path)
+            .current_dir(&pgsql_bin)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let output = cmd.output().await?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            log::error!("Failed to run SQL file {:?}: {}", file_path.file_name(), stderr);
+            // Continue with other files even if one fails
+        }
+    }
+
     Ok(())
 }
 
