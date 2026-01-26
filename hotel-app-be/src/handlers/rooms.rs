@@ -424,18 +424,34 @@ pub async fn delete_room_handler(
         return Err(ApiError::NotFound("Room not found".to_string()));
     }
 
-    let has_bookings: Option<i64> = sqlx::query_scalar(CHECK_ROOM_HAS_BOOKINGS)
+    // Only block deletion if there are currently checked-in guests
+    let has_active_booking: Option<i64> = sqlx::query_scalar(CHECK_ROOM_HAS_ACTIVE_BOOKING)
         .bind(room_id)
         .fetch_optional(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    if has_bookings.is_some() {
+    if has_active_booking.is_some() {
         return Err(ApiError::BadRequest(
-            "Cannot delete room with existing bookings. Please cancel all bookings first.".to_string()
+            "Cannot delete room with a guest currently checked in. Please complete the checkout first.".to_string()
         ));
     }
 
+    // Delete all bookings associated with this room (past, pending, confirmed, cancelled)
+    sqlx::query(DELETE_ROOM_BOOKINGS)
+        .bind(room_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Delete room status change logs
+    sqlx::query(DELETE_ROOM_STATUS_LOGS)
+        .bind(room_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Now delete the room
     sqlx::query(DELETE_ROOM_QUERY)
         .bind(room_id)
         .execute(&pool)
@@ -444,7 +460,7 @@ pub async fn delete_room_handler(
 
     Ok(Json(serde_json::json!({
         "success": true,
-        "message": "Room deleted successfully"
+        "message": "Room and associated bookings deleted successfully"
     })))
 }
 
