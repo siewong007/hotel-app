@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     is_accessible BOOLEAN DEFAULT false,
     has_view BOOLEAN DEFAULT false,
     view_type VARCHAR(50),
-    connecting_room_id BIGINT REFERENCES rooms(id),
+    connecting_room_id BIGINT REFERENCES rooms(id) ON DELETE SET NULL,
     notes TEXT,
     is_active BOOLEAN DEFAULT true,
     -- Night audit tracking
@@ -220,8 +220,8 @@ CREATE TABLE IF NOT EXISTS maintenance_tickets (
 CREATE TABLE IF NOT EXISTS room_changes (
     id BIGINT PRIMARY KEY DEFAULT nextval('room_changes_id_seq'),
     booking_id BIGINT NOT NULL,
-    from_room_id BIGINT NOT NULL REFERENCES rooms(id),
-    to_room_id BIGINT NOT NULL REFERENCES rooms(id),
+    from_room_id BIGINT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    to_room_id BIGINT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     guest_id BIGINT NOT NULL,
     reason TEXT,
     changed_by BIGINT,
@@ -236,7 +236,7 @@ CREATE TABLE IF NOT EXISTS room_changes (
 
 CREATE TABLE IF NOT EXISTS room_status_change_log (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    room_id BIGINT NOT NULL REFERENCES rooms(id),
+    room_id BIGINT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     from_status VARCHAR(20),
     to_status VARCHAR(20),
     trigger_source VARCHAR(100),
