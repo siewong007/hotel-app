@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     corporate_account_id UUID REFERENCES corporate_accounts(id),
 
     -- Room and dates
-    room_id BIGINT NOT NULL REFERENCES rooms(id),
+    room_id BIGINT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     check_in_date DATE NOT NULL,
     check_out_date DATE NOT NULL,
     nights INTEGER GENERATED ALWAYS AS (check_out_date - check_in_date) STORED,
