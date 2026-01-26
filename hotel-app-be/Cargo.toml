@@ -30,7 +30,7 @@ jsonwebtoken = "9.2"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.6", features = ["v4", "serde"] }
 rust_decimal = "1.32"
-webauthn-rs = "0.4"
+# webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }  # Requires OpenSSL - disabled for Windows build
 base64 = "0.21"
 hex = "0.4"
 thiserror = "1.0"

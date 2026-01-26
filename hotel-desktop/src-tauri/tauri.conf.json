@@ -41,7 +41,9 @@
     "resources": [
       "pgsql/bin/**/*",
       "pgsql/lib/**/*",
-      "pgsql/share/**/*"
+      "pgsql/share/**/*",
+      "database/migrations/**/*",
+      "database/seed-data/**/*"
     ],
     "windows": {
       "certificateThumbprint": null,
