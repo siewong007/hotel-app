@@ -441,14 +441,50 @@ pub const CHECK_ROOM_EXISTS_BY_ID: &str = "SELECT id FROM rooms WHERE id = $1";
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 pub const CHECK_ROOM_EXISTS_BY_ID: &str = "SELECT id FROM rooms WHERE id = ?1";
 
-/// Check room has bookings - PostgreSQL version
+/// Check room has active booking (currently checked in) - PostgreSQL version
+/// Only blocks deletion if there's a guest currently checked in
+#[cfg(any(
+    all(feature = "postgres", not(feature = "sqlite")),
+    all(feature = "sqlite", feature = "postgres")
+))]
+pub const CHECK_ROOM_HAS_ACTIVE_BOOKING: &str =
+    "SELECT id FROM bookings WHERE room_id = $1 AND status = 'checked_in' LIMIT 1";
+
+/// Check room has active booking (currently checked in) - SQLite version
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+pub const CHECK_ROOM_HAS_ACTIVE_BOOKING: &str =
+    "SELECT id FROM bookings WHERE room_id = ?1 AND status = 'checked_in' LIMIT 1";
+
+/// Delete all bookings for a room - PostgreSQL version
+#[cfg(any(
+    all(feature = "postgres", not(feature = "sqlite")),
+    all(feature = "sqlite", feature = "postgres")
+))]
+pub const DELETE_ROOM_BOOKINGS: &str = "DELETE FROM bookings WHERE room_id = $1";
+
+/// Delete all bookings for a room - SQLite version
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+pub const DELETE_ROOM_BOOKINGS: &str = "DELETE FROM bookings WHERE room_id = ?1";
+
+/// Delete room status change logs for a room - PostgreSQL version
+#[cfg(any(
+    all(feature = "postgres", not(feature = "sqlite")),
+    all(feature = "sqlite", feature = "postgres")
+))]
+pub const DELETE_ROOM_STATUS_LOGS: &str = "DELETE FROM room_status_change_log WHERE room_id = $1";
+
+/// Delete room status change logs for a room - SQLite version
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+pub const DELETE_ROOM_STATUS_LOGS: &str = "DELETE FROM room_status_change_log WHERE room_id = ?1";
+
+/// Legacy: Check room has bookings - PostgreSQL version (kept for compatibility)
 #[cfg(any(
     all(feature = "postgres", not(feature = "sqlite")),
     all(feature = "sqlite", feature = "postgres")
 ))]
 pub const CHECK_ROOM_HAS_BOOKINGS: &str = "SELECT id FROM bookings WHERE room_id = $1 LIMIT 1";
 
-/// Check room has bookings - SQLite version
+/// Legacy: Check room has bookings - SQLite version (kept for compatibility)
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 pub const CHECK_ROOM_HAS_BOOKINGS: &str = "SELECT id FROM bookings WHERE room_id = ?1 LIMIT 1";
 
