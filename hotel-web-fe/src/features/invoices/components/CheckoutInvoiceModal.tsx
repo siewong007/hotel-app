@@ -268,12 +268,24 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     const invoiceContent = document.getElementById('printable-invoice');
     if (!invoiceContent) return;
 
-    // Create a new window for printing
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    // Create an iframe for printing (works better in Tauri desktop apps)
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'absolute';
+    printFrame.style.top = '-10000px';
+    printFrame.style.left = '-10000px';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    document.body.appendChild(printFrame);
+
+    const printDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
+    if (!printDoc) {
+      document.body.removeChild(printFrame);
+      return;
+    }
 
     // Write the invoice HTML with styles
-    printWindow.document.write(`
+    printDoc.open();
+    printDoc.write(`
       <!DOCTYPE html>
       <html>
         <head>
@@ -421,14 +433,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         </body>
       </html>
     `);
-
-    printWindow.document.close();
-    printWindow.focus();
+    printDoc.close();
 
     // Wait for content to load, then print
     setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
+      printFrame.contentWindow?.focus();
+      printFrame.contentWindow?.print();
+
+      // Clean up the iframe after printing
+      setTimeout(() => {
+        document.body.removeChild(printFrame);
+      }, 1000);
     }, 250);
   };
 
@@ -438,6 +453,20 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     const checkIn = new Date(booking.check_in_date);
     const checkOut = new Date(booking.check_out_date);
     return Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  // Get actual checkout date (today for early/normal checkout)
+  const getActualCheckoutDate = () => {
+    return new Date();
+  };
+
+  // Check if this is an early checkout (today is before scheduled checkout)
+  const isEarlyCheckout = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const scheduledCheckout = new Date(booking.check_out_date);
+    scheduledCheckout.setHours(0, 0, 0, 0);
+    return today < scheduledCheckout;
   };
 
   return (
@@ -576,9 +605,22 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     Check-out:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
-                    {new Date(booking?.check_out_date || '').toLocaleDateString()}
+                    {getActualCheckoutDate().toLocaleDateString()}
+                    {isEarlyCheckout() && (
+                      <Chip label="Early" size="small" color="info" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
+                    )}
                   </Box>
                 </Typography>
+                {isEarlyCheckout() && (
+                  <Typography variant="body2" sx={{ mb: 0.5 }}>
+                    <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
+                      Scheduled:
+                    </Box>
+                    <Box component="span" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                      {new Date(booking?.check_out_date || '').toLocaleDateString()}
+                    </Box>
+                  </Typography>
+                )}
                 <Typography variant="body2">
                   <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
                     Duration:
@@ -817,7 +859,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">Check-out Date</Typography>
-                  <Typography variant="body1" fontWeight={600}>{new Date(booking.check_out_date).toLocaleDateString()}</Typography>
+                  <Typography variant="body1" fontWeight={600}>{getActualCheckoutDate().toLocaleDateString()}</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">Current Time</Typography>
@@ -1010,7 +1052,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Grid>
               <Grid item xs={6}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {new Date(booking.check_out_date).toLocaleString()}
+                  {getActualCheckoutDate().toLocaleString()}
+                  {isEarlyCheckout() && (
+                    <Chip label="Early" size="small" color="info" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
+                  )}
                 </Typography>
               </Grid>
               <Grid item xs={6}>
@@ -1292,8 +1337,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             </p>
             <p>
               <span className="label">Check-out:</span>
-              <span className="value">{new Date(booking?.check_out_date || '').toLocaleDateString()}</span>
+              <span className="value">
+                {getActualCheckoutDate().toLocaleDateString()}
+                {isEarlyCheckout() && ' (Early Checkout)'}
+              </span>
             </p>
+            {isEarlyCheckout() && (
+              <p>
+                <span className="label">Scheduled:</span>
+                <span className="value">{new Date(booking?.check_out_date || '').toLocaleDateString()}</span>
+              </p>
+            )}
             <p>
               <span className="label">Duration:</span>
               <span className="value">{calculateNights()} night(s)</span>
