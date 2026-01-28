@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS invoices (
     uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     invoice_number VARCHAR(50) UNIQUE NOT NULL,
     booking_id BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-    bill_to_guest_id BIGINT REFERENCES guests(id),
+    bill_to_guest_id BIGINT REFERENCES guests(id) ON DELETE SET NULL,
     bill_to_corporate_id UUID REFERENCES corporate_accounts(id),
     billing_name VARCHAR(255) NOT NULL,
     billing_address TEXT,

@@ -269,22 +269,23 @@ pub async fn delete_guest_handler(
         return Err(ApiError::NotFound("Guest not found".to_string()));
     }
 
-    let has_bookings: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM bookings WHERE guest_id = $1 LIMIT 1"
+    // Only block deletion if the guest is currently checked in
+    let has_active_booking: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM bookings WHERE guest_id = $1 AND status = 'checked_in' LIMIT 1"
     )
     .bind(guest_id)
     .fetch_optional(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    if has_bookings.is_some() {
+    if has_active_booking.is_some() {
         return Err(ApiError::BadRequest(
-            "Cannot delete guest with existing bookings. Please cancel or complete all bookings first.".to_string()
+            "Cannot delete guest who is currently checked in. Please complete the checkout first.".to_string()
         ));
     }
 
-    // Soft delete: set deleted_at timestamp instead of actually deleting
-    sqlx::query("UPDATE guests SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1")
+    // Hard delete guest - related bookings will be cascade deleted via foreign key constraint
+    sqlx::query("DELETE FROM guests WHERE id = $1")
         .bind(guest_id)
         .execute(&pool)
         .await

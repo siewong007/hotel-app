@@ -361,8 +361,8 @@ CREATE TABLE IF NOT EXISTS bookings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     booking_number TEXT UNIQUE,
     folio_number TEXT UNIQUE,
-    guest_id INTEGER NOT NULL REFERENCES guests(id),
-    room_id INTEGER NOT NULL REFERENCES rooms(id),
+    guest_id INTEGER NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+    room_id INTEGER NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     room_type_id INTEGER REFERENCES room_types(id),
     check_in_date TEXT NOT NULL,
     check_out_date TEXT NOT NULL,
@@ -407,7 +407,7 @@ CREATE TABLE IF NOT EXISTS bookings (
 CREATE TABLE IF NOT EXISTS booking_guests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-    guest_id INTEGER NOT NULL REFERENCES guests(id),
+    guest_id INTEGER REFERENCES guests(id) ON DELETE SET NULL,
     is_primary INTEGER DEFAULT 0,
     relationship TEXT,
     created_at TEXT DEFAULT (datetime('now'))
@@ -420,8 +420,8 @@ CREATE TABLE IF NOT EXISTS booking_guests (
 CREATE TABLE IF NOT EXISTS payments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     payment_number TEXT UNIQUE,
-    booking_id INTEGER REFERENCES bookings(id),
-    guest_id INTEGER REFERENCES guests(id),
+    booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+    guest_id INTEGER REFERENCES guests(id) ON DELETE SET NULL,
     amount REAL NOT NULL,
     payment_method TEXT NOT NULL,
     payment_type TEXT DEFAULT 'room_charge',
@@ -439,8 +439,8 @@ CREATE TABLE IF NOT EXISTS payments (
 CREATE TABLE IF NOT EXISTS invoices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     invoice_number TEXT UNIQUE NOT NULL,
-    booking_id INTEGER REFERENCES bookings(id),
-    guest_id INTEGER NOT NULL REFERENCES guests(id),
+    booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+    guest_id INTEGER REFERENCES guests(id) ON DELETE SET NULL,
     invoice_type TEXT DEFAULT 'checkout',
     subtotal REAL NOT NULL DEFAULT 0,
     tax_amount REAL DEFAULT 0,
@@ -480,8 +480,8 @@ CREATE TABLE IF NOT EXISTS invoice_items (
 CREATE TABLE IF NOT EXISTS customer_ledgers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     ledger_number TEXT UNIQUE NOT NULL,
-    guest_id INTEGER NOT NULL REFERENCES guests(id),
-    booking_id INTEGER REFERENCES bookings(id),
+    guest_id INTEGER REFERENCES guests(id) ON DELETE CASCADE,
+    booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
     transaction_type TEXT NOT NULL,
     transaction_date TEXT NOT NULL,
     description TEXT NOT NULL,

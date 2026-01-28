@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     folio_number VARCHAR(50),
 
     -- Guest information
-    guest_id BIGINT NOT NULL REFERENCES guests(id),
+    guest_id BIGINT NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
     guest_name VARCHAR(255),
     guest_email VARCHAR(255),
     guest_phone VARCHAR(20),
@@ -187,7 +187,7 @@ ALTER TABLE guest_reviews ADD CONSTRAINT fk_guest_reviews_booking
 ALTER TABLE room_changes ADD CONSTRAINT fk_room_changes_booking
     FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE;
 ALTER TABLE room_changes ADD CONSTRAINT fk_room_changes_guest
-    FOREIGN KEY (guest_id) REFERENCES guests(id);
+    FOREIGN KEY (guest_id) REFERENCES guests(id) ON DELETE SET NULL;
 ALTER TABLE room_changes ADD CONSTRAINT fk_room_changes_user
     FOREIGN KEY (changed_by) REFERENCES users(id);
 
@@ -198,7 +198,7 @@ ALTER TABLE room_changes ADD CONSTRAINT fk_room_changes_user
 CREATE TABLE IF NOT EXISTS booking_guests (
     id BIGINT PRIMARY KEY DEFAULT nextval('booking_guests_id_seq'),
     booking_id BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
-    guest_id BIGINT REFERENCES guests(id),
+    guest_id BIGINT REFERENCES guests(id) ON DELETE SET NULL,
     first_name VARCHAR(100),
     last_name VARCHAR(100),
     age_group VARCHAR(20) CHECK (age_group IN ('adult', 'child', 'infant')),

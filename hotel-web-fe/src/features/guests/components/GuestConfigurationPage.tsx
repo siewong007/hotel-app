@@ -924,7 +924,7 @@ const GuestConfigurationPage: React.FC = () => {
             Are you sure you want to delete guest <strong>{deletingGuest?.full_name}</strong>?
           </Alert>
           <Typography variant="body2" color="text.secondary">
-            This action cannot be undone. The guest can only be deleted if they have no existing bookings.
+            This action cannot be undone. All bookings associated with this guest will also be deleted. The guest cannot be deleted if they are currently checked in.
           </Typography>
         </DialogContent>
         <DialogActions>
