@@ -23,6 +23,7 @@ pub struct Booking {
     pub total_amount: Decimal,
     pub status: String,
     pub payment_status: Option<String>,
+    pub payment_method: Option<String>,
     pub adults: Option<i32>,
     pub children: Option<i32>,
     pub special_requests: Option<String>,

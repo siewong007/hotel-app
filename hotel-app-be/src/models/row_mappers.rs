@@ -136,6 +136,7 @@ pub fn row_to_booking(row: &DbRow) -> Booking {
         total_amount: get_decimal(row, "total_amount"),
         status: row.try_get("status").unwrap_or_default(),
         payment_status: row.try_get("payment_status").ok(),
+        payment_method: row.try_get("payment_method").ok(),
         adults: row.try_get("adults").ok(),
         children: row.try_get("children").ok(),
         special_requests: row.try_get("special_requests").ok(),
