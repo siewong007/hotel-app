@@ -1200,13 +1200,9 @@ const BookingsPage: React.FC = () => {
                 onChange={(e) => setEditFormData({ ...editFormData, payment_method: e.target.value })}
               >
                 <MenuItem value="">Not Specified</MenuItem>
-                <MenuItem value="cash">Cash</MenuItem>
-                <MenuItem value="credit_card">Credit Card</MenuItem>
-                <MenuItem value="debit_card">Debit Card</MenuItem>
-                <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
-                <MenuItem value="company_billing">Company Billing</MenuItem>
-                <MenuItem value="online_payment">Online Payment</MenuItem>
-                <MenuItem value="ewallet">E-Wallet</MenuItem>
+                {getHotelSettings().payment_methods.map((method) => (
+                  <MenuItem key={method} value={method}>{method}</MenuItem>
+                ))}
               </TextField>
             </Grid>
             <Grid item xs={12} sm={6}>
