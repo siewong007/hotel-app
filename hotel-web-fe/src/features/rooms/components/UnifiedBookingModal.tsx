@@ -1101,10 +1101,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                       onChange={(e) => setPaymentMethod(e.target.value)}
                       label="Payment Method"
                     >
-                      <MenuItem value="cash">Cash</MenuItem>
-                      <MenuItem value="card">Credit/Debit Card</MenuItem>
-                      <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
-                      <MenuItem value="e_wallet">E-Wallet</MenuItem>
+                      {getHotelSettings().payment_methods.map((method) => (
+                        <MenuItem key={method} value={method}>{method}</MenuItem>
+                      ))}
                     </Select>
                   </FormControl>
                 </Grid>
@@ -1144,7 +1143,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     // Check-In step (for direct booking)
     if (currentStepName === 'Check-In' && createdBooking) {
       const titleOptions = ['Mr', 'Mrs', 'Ms', 'Dr', 'Prof'];
-      const paymentMethods = ['Cash', 'Credit Card', 'Debit Card', 'DuitNow', 'Online Banking', 'E-Wallet', 'Direct Billing'];
+      const paymentMethods = getHotelSettings().payment_methods;
 
       return (
         <Box>
