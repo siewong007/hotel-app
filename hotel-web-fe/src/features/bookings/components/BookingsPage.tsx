@@ -279,7 +279,7 @@ const BookingsPage: React.FC = () => {
 
   const handleEditBooking = (booking: BookingWithDetails) => {
     setEditingBooking(booking);
-    setEditFormData({
+    const formData = {
       status: booking.status,
       payment_status: booking.payment_status || 'unpaid',
       payment_method: booking.payment_method || '',
@@ -290,7 +290,9 @@ const BookingsPage: React.FC = () => {
       rate_code: booking.rate_code || 'RACK',
       deposit_paid: booking.deposit_paid || false,
       remarks: booking.remarks || '',
-    });
+    };
+    console.log('Opening edit with payment_method:', formData.payment_method);
+    setEditFormData(formData);
     setEditDialogOpen(true);
   };
 
@@ -299,7 +301,11 @@ const BookingsPage: React.FC = () => {
 
     try {
       setUpdating(true);
-      await HotelAPIService.updateBooking(editingBooking.id, editFormData);
+      const updateData = {
+        ...editFormData,
+        payment_method: editFormData.payment_method || null,
+      };
+      await HotelAPIService.updateBooking(editingBooking.id, updateData);
       setSnackbarMessage('Booking updated successfully!');
       setSnackbarOpen(true);
       setEditDialogOpen(false);
@@ -1127,7 +1133,7 @@ const BookingsPage: React.FC = () => {
                 label="Check-In Date"
                 type="date"
                 value={editFormData.check_in_date || ''}
-                onChange={(e) => setEditFormData({ ...editFormData, check_in_date: e.target.value })}
+                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, check_in_date: e.target.value }))}
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
@@ -1137,7 +1143,7 @@ const BookingsPage: React.FC = () => {
                 label="Check-Out Date"
                 type="date"
                 value={editFormData.check_out_date || ''}
-                onChange={(e) => setEditFormData({ ...editFormData, check_out_date: e.target.value })}
+                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, check_out_date: e.target.value }))}
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
@@ -1147,7 +1153,7 @@ const BookingsPage: React.FC = () => {
                 fullWidth
                 label="Status"
                 value={editFormData.status || 'pending'}
-                onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, status: e.target.value }))}
 
               >
                 <MenuItem value="pending">Pending</MenuItem>
@@ -1167,7 +1173,7 @@ const BookingsPage: React.FC = () => {
                 fullWidth
                 label="Post Type"
                 value={editFormData.post_type || 'normal_stay'}
-                onChange={(e) => setEditFormData({ ...editFormData, post_type: e.target.value })}
+                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, post_type: e.target.value }))}
               >
                 <MenuItem value="normal_stay">Normal Stay</MenuItem>
                 <MenuItem value="same_day">Same Day</MenuItem>
@@ -1179,7 +1185,7 @@ const BookingsPage: React.FC = () => {
                 fullWidth
                 label="Channel"
                 value={editFormData.source || 'walk_in'}
-                onChange={(e) => setEditFormData({ ...editFormData, source: e.target.value })}
+                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, source: e.target.value }))}
               >
                 <MenuItem value="walk_in">Walk-in</MenuItem>
                 <MenuItem value="phone">Phone Reservation</MenuItem>
@@ -1197,7 +1203,7 @@ const BookingsPage: React.FC = () => {
                 fullWidth
                 label="Payment Method"
                 value={editFormData.payment_method || ''}
-                onChange={(e) => setEditFormData({ ...editFormData, payment_method: e.target.value })}
+                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, payment_method: e.target.value }))}
               >
                 <MenuItem value="">Not Specified</MenuItem>
                 {getHotelSettings().payment_methods.map((method) => (
@@ -1211,7 +1217,7 @@ const BookingsPage: React.FC = () => {
                 fullWidth
                 label="Payment Status"
                 value={editFormData.payment_status || 'unpaid'}
-                onChange={(e) => setEditFormData({ ...editFormData, payment_status: e.target.value })}
+                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, payment_status: e.target.value }))}
               >
                 <MenuItem value="unpaid">Unpaid</MenuItem>
                 <MenuItem value="unpaid_deposit">Unpaid Deposit</MenuItem>
@@ -1227,7 +1233,7 @@ const BookingsPage: React.FC = () => {
                 fullWidth
                 label="Rate Code"
                 value={editFormData.rate_code || 'RACK'}
-                onChange={(e) => setEditFormData({ ...editFormData, rate_code: e.target.value })}
+                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, rate_code: e.target.value }))}
               />
             </Grid>
             <Grid item xs={12}>
@@ -1237,7 +1243,7 @@ const BookingsPage: React.FC = () => {
                 multiline
                 rows={3}
                 value={editFormData.remarks || ''}
-                onChange={(e) => setEditFormData({ ...editFormData, remarks: e.target.value })}
+                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, remarks: e.target.value }))}
                 placeholder="Enter any notes or remarks for this booking..."
               />
             </Grid>
