@@ -26,6 +26,7 @@ import {
 import { BookingWithDetails } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
+import { HotelAPIService } from '../../../api';
 
 interface LateCheckoutData {
   penalty: number;
@@ -65,6 +66,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [isLateCheckout, setIsLateCheckout] = useState(false);
   const [lateCheckoutPenalty, setLateCheckoutPenalty] = useState(0);
   const [lateCheckoutNotes, setLateCheckoutNotes] = useState('');
+  const [roomPrice, setRoomPrice] = useState<number>(0);
   const [charges, setCharges] = useState<ChargesBreakdown>({
     roomCharges: 0,
     roomCardDeposit: 50,
@@ -118,11 +120,39 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setLateCheckoutPenalty(0);
       setLateCheckoutNotes('');
 
-      calculateCharges(0);
+      // Fetch room price directly from API
+      const fetchRoomPrice = async () => {
+        try {
+          const rooms = await HotelAPIService.getAllRooms();
+          const room = rooms.find(r => r.id.toString() === booking.room_id.toString());
+          if (room) {
+            const price = typeof room.price_per_night === 'string'
+              ? parseFloat(room.price_per_night)
+              : room.price_per_night || 0;
+            console.log('Fetched room price from API:', price, 'for room:', room.room_number);
+            setRoomPrice(price);
+          } else {
+            console.error('Room not found in API response');
+            setRoomPrice(0);
+          }
+        } catch (err) {
+          console.error('Failed to fetch room price:', err);
+          setRoomPrice(0);
+        }
+      };
+      fetchRoomPrice();
+
       // Reset to preview step when modal opens
       setCheckoutStep('preview');
     }
   }, [open, booking]);
+
+  // Recalculate charges when room price is loaded
+  useEffect(() => {
+    if (open && booking && roomPrice > 0) {
+      calculateCharges(0);
+    }
+  }, [roomPrice]);
 
   // Listen for hotel settings changes
   useEffect(() => {
@@ -144,16 +174,32 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     const checkOut = new Date(booking.check_out_date);
     const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
 
+    // Debug: log booking price info
+    console.log('Checkout calculation - booking:', {
+      price_per_night: booking.price_per_night,
+      total_amount: booking.total_amount,
+      room_number: booking.room_number,
+      nights
+    });
+
     // Get the configured price per night (custom_price or base_price)
     // This is the TAX-INCLUSIVE price - what the hotel configured as the room rate
     let configuredPricePerNight = typeof booking.price_per_night === 'string'
       ? parseFloat(booking.price_per_night)
       : booking.price_per_night || 0;
 
+    console.log('Parsed configuredPricePerNight:', configuredPricePerNight);
+
     // Tax multiplier for display calculations (using hotel settings rate)
     const taxMultiplier = 1 + (hotelSettings.service_tax_rate / 100);
 
-    // Fallback: if price_per_night is not available, derive from total_amount
+    // Fallback 1: Use room price fetched directly from API
+    if (!configuredPricePerNight || configuredPricePerNight === 0) {
+      configuredPricePerNight = roomPrice;
+      console.log('Using room price from API:', roomPrice);
+    }
+
+    // Fallback 2: if still not available, derive from total_amount
     // Old bookings have total_amount = room_rate × nights × 1.10 (with 10% tax)
     // New bookings have total_amount = room_rate × nights (no tax)
     if (!configuredPricePerNight || configuredPricePerNight === 0) {
@@ -163,6 +209,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       // Divide by 1.10 to remove old backend tax, then divide by nights
       // This ensures old bookings show the correct configured price
       configuredPricePerNight = nights > 0 ? (totalAmount / 1.10) / nights : 0;
+      console.log('Using fallback from total_amount:', configuredPricePerNight);
     }
 
     // The configured price IS the final price (subtotal = configured price × nights)
