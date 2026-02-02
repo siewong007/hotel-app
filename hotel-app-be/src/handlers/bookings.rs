@@ -170,7 +170,9 @@ pub async fn create_booking_handler(
     }
 
     let nights = (check_out - check_in).num_days() as i32;
-    let room_rate = room.price_per_night;
+    let room_rate = input.room_rate_override
+        .map(|r| Decimal::from_f64_retain(r).unwrap_or(room.price_per_night))
+        .unwrap_or(room.price_per_night);
     // The configured room price is tax-inclusive (final price)
     // Store total_amount as the configured price × nights without adding additional tax
     let subtotal = room_rate * Decimal::from(nights);
@@ -195,6 +197,9 @@ pub async fn create_booking_handler(
     let deposit_amount_f64 = input.deposit_amount;
     let payment_status = input.payment_status.clone().unwrap_or_else(|| "unpaid".to_string());
 
+    // Get the override rate value if provided (to store in rate_override_weekday)
+    let rate_override_value = input.room_rate_override;
+
     // SQLite version: INSERT then SELECT
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let booking: Booking = {
@@ -204,9 +209,9 @@ pub async fn create_booking_handler(
             INSERT INTO bookings (
                 booking_number, guest_id, room_id, check_in_date, check_out_date,
                 room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
-                deposit_paid, deposit_amount, deposit_paid_at
+                deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'confirmed', ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16, CASE WHEN ?15 THEN datetime('now') ELSE NULL END)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'confirmed', ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16, CASE WHEN ?15 THEN datetime('now') ELSE NULL END, ?17, ?17)
             "#
         )
         .bind(&booking_number)
@@ -225,6 +230,7 @@ pub async fn create_booking_handler(
         .bind(&source)
         .bind(if deposit_paid { 1i32 } else { 0i32 })
         .bind(deposit_amount_f64)
+        .bind(rate_override_value)
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -245,14 +251,15 @@ pub async fn create_booking_handler(
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let booking: Booking = {
         let deposit_amount = deposit_amount_f64.map(|d| Decimal::from_f64_retain(d).unwrap_or(Decimal::ZERO));
+        let rate_override_decimal = rate_override_value.and_then(|r| Decimal::from_f64_retain(r));
         sqlx::query_as(
             r#"
             INSERT INTO bookings (
                 booking_number, guest_id, room_id, check_in_date, check_out_date,
                 room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
-                deposit_paid, deposit_amount, deposit_paid_at
+                deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, $12, $13, 1, $14, $15, $16, CASE WHEN $15 THEN CURRENT_TIMESTAMP ELSE NULL END)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, $12, $13, 1, $14, $15, $16, CASE WHEN $15 THEN CURRENT_TIMESTAMP ELSE NULL END, $17, $17)
             RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at
             "#
         )
@@ -272,6 +279,7 @@ pub async fn create_booking_handler(
         .bind(&source)
         .bind(deposit_paid)
         .bind(deposit_amount)
+        .bind(rate_override_decimal)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
@@ -435,9 +443,21 @@ pub async fn update_booking_handler(
     let deposit_paid = input.deposit_paid;
     let deposit_amount_f64 = input.deposit_amount;
 
+    // Handle room rate override - recalculate totals if provided
+    let (new_room_rate, new_subtotal, new_total_amount) = if let Some(rate_override) = input.room_rate_override {
+        let nights = std::cmp::max((check_out - check_in).num_days() as i32, 1);
+        let room_rate = Decimal::from_f64_retain(rate_override).unwrap_or(existing_booking.room_rate);
+        let subtotal = room_rate * Decimal::from(nights);
+        let total_amount = subtotal; // Tax is calculated on frontend using hotel settings rate
+        (Some(room_rate), Some(subtotal), Some(total_amount))
+    } else {
+        (None, None, None)
+    };
+
     // SQLite version: UPDATE then SELECT
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let booking: Booking = {
+        use rust_decimal::prelude::ToPrimitive;
         sqlx::query(
             r#"UPDATE bookings SET
                 room_id = ?1, status = ?2, check_in_date = ?3, check_out_date = ?4,
@@ -451,6 +471,11 @@ pub async fn update_booking_handler(
                 remarks = COALESCE(?13, remarks),
                 source = COALESCE(?14, source),
                 payment_method = ?15,
+                room_rate = COALESCE(?16, room_rate),
+                subtotal = COALESCE(?17, subtotal),
+                total_amount = COALESCE(?18, total_amount),
+                rate_override_weekday = COALESCE(?19, rate_override_weekday),
+                rate_override_weekend = COALESCE(?19, rate_override_weekend),
                 updated_at = datetime('now')
             WHERE id = ?7"#
         )
@@ -469,6 +494,10 @@ pub async fn update_booking_handler(
         .bind(&input.remarks)
         .bind(&input.source)
         .bind(&input.payment_method)
+        .bind(new_room_rate.map(|r| r.to_f64().unwrap_or(0.0)))
+        .bind(new_subtotal.map(|s| s.to_f64().unwrap_or(0.0)))
+        .bind(new_total_amount.map(|t| t.to_f64().unwrap_or(0.0)))
+        .bind(input.room_rate_override)
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -486,6 +515,7 @@ pub async fn update_booking_handler(
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let booking: Booking = {
         let deposit_amount = deposit_amount_f64.map(|d| Decimal::from_f64_retain(d).unwrap_or(Decimal::ZERO));
+        let rate_override_decimal = input.room_rate_override.and_then(|r| Decimal::from_f64_retain(r));
         sqlx::query_as(
             r#"UPDATE bookings SET
                 room_id = $1, status = $2, check_in_date = $3, check_out_date = $4,
@@ -499,6 +529,11 @@ pub async fn update_booking_handler(
                 remarks = COALESCE($13, remarks),
                 source = COALESCE($14, source),
                 payment_method = $15,
+                room_rate = COALESCE($16, room_rate),
+                subtotal = COALESCE($17, subtotal),
+                total_amount = COALESCE($18, total_amount),
+                rate_override_weekday = COALESCE($19, rate_override_weekday),
+                rate_override_weekend = COALESCE($19, rate_override_weekend),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $7
             RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at"#
@@ -518,6 +553,10 @@ pub async fn update_booking_handler(
         .bind(&input.remarks)
         .bind(&input.source)
         .bind(&input.payment_method)
+        .bind(new_room_rate)
+        .bind(new_subtotal)
+        .bind(new_total_amount)
+        .bind(rate_override_decimal)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?

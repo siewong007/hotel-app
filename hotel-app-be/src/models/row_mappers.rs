@@ -13,12 +13,19 @@ use crate::core::db::DbRow;
 // Helper functions for reading Decimal values from SQLite rows
 // =============================================================================
 
-/// Read a required Decimal field from a row (tries String first, then f64)
+/// Read a required Decimal field from a row (tries Decimal first for PostgreSQL, then String, then f64)
 pub fn get_decimal(row: &DbRow, col: &str) -> Decimal {
-    row.try_get::<String, _>(col)
+    // For PostgreSQL: try reading as Decimal directly (works with numeric columns)
+    row.try_get::<Decimal, _>(col)
         .ok()
-        .and_then(|s| s.parse().ok())
         .or_else(|| {
+            // For SQLite or text columns: try reading as String and parse
+            row.try_get::<String, _>(col)
+                .ok()
+                .and_then(|s| s.parse().ok())
+        })
+        .or_else(|| {
+            // Fallback: try reading as f64 and convert
             row.try_get::<f64, _>(col)
                 .ok()
                 .and_then(Decimal::from_f64_retain)
@@ -28,11 +35,19 @@ pub fn get_decimal(row: &DbRow, col: &str) -> Decimal {
 
 /// Read an optional Decimal field from a row
 pub fn get_opt_decimal(row: &DbRow, col: &str) -> Option<Decimal> {
-    row.try_get::<Option<String>, _>(col)
+    // For PostgreSQL: try reading as Decimal directly (works with numeric columns)
+    row.try_get::<Option<Decimal>, _>(col)
         .ok()
         .flatten()
-        .and_then(|s| s.parse().ok())
         .or_else(|| {
+            // For SQLite or text columns: try reading as String and parse
+            row.try_get::<Option<String>, _>(col)
+                .ok()
+                .flatten()
+                .and_then(|s| s.parse().ok())
+        })
+        .or_else(|| {
+            // Fallback: try reading as f64 and convert
             row.try_get::<Option<f64>, _>(col)
                 .ok()
                 .flatten()
@@ -112,6 +127,8 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
         is_posted: get_opt_bool(row, "is_posted"),
         posted_date: row.try_get("posted_date").ok(),
+        rate_override_weekday: get_opt_decimal(row, "rate_override_weekday"),
+        rate_override_weekend: get_opt_decimal(row, "rate_override_weekend"),
     }
 }
 

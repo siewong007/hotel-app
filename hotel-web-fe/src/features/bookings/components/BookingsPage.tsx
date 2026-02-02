@@ -279,6 +279,12 @@ const BookingsPage: React.FC = () => {
 
   const handleEditBooking = (booking: BookingWithDetails) => {
     setEditingBooking(booking);
+
+    // Get the booking's room rate (price_per_night) - this contains the override if one was set
+    const bookingRate = typeof booking.price_per_night === 'string'
+      ? parseFloat(booking.price_per_night) || 0
+      : booking.price_per_night || 0;
+
     const formData = {
       status: booking.status,
       payment_status: booking.payment_status || 'unpaid',
@@ -290,8 +296,11 @@ const BookingsPage: React.FC = () => {
       rate_code: booking.rate_code || 'RACK',
       deposit_paid: booking.deposit_paid || false,
       remarks: booking.remarks || '',
+      // Use the booking's room rate directly (this is the override rate if one was set)
+      price_per_night: bookingRate,
+      has_override: bookingRate > 0,
     };
-    console.log('Opening edit with payment_method:', formData.payment_method);
+    console.log('Opening edit with payment_method:', formData.payment_method, 'rate:', bookingRate);
     setEditFormData(formData);
     setEditDialogOpen(true);
   };
@@ -301,10 +310,25 @@ const BookingsPage: React.FC = () => {
 
     try {
       setUpdating(true);
+
+      // Get the original booking rate
+      const originalPrice = typeof editingBooking.price_per_night === 'string'
+        ? parseFloat(editingBooking.price_per_night) || 0
+        : editingBooking.price_per_night || 0;
+
+      const newPrice = editFormData.price_per_night || 0;
+      const priceChanged = Math.abs(newPrice - originalPrice) > 0.01;
+
       const updateData = {
         ...editFormData,
         payment_method: editFormData.payment_method || null,
+        // Always send room_rate_override if there's a price value
+        room_rate_override: newPrice > 0 ? newPrice : undefined,
       };
+      // Remove fields that are not valid backend fields
+      delete updateData.price_per_night;
+      delete updateData.has_override;
+
       await HotelAPIService.updateBooking(editingBooking.id, updateData);
       setSnackbarMessage('Booking updated successfully!');
       setSnackbarOpen(true);
@@ -1234,6 +1258,22 @@ const BookingsPage: React.FC = () => {
                 label="Rate Code"
                 value={editFormData.rate_code || 'RACK'}
                 onChange={(e) => setEditFormData((prev: any) => ({ ...prev, rate_code: e.target.value }))}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Room Rate (Before Tax)"
+                type="number"
+                value={editFormData.price_per_night || 0}
+                onChange={(e) => setEditFormData((prev: any) => ({
+                  ...prev,
+                  price_per_night: parseFloat(e.target.value) || 0,
+                }))}
+                InputProps={{
+                  startAdornment: <span style={{ marginRight: 4 }}>RM</span>,
+                }}
+                helperText="Rate per night (before tax) - modifying will recalculate total"
               />
             </Grid>
             <Grid item xs={12}>

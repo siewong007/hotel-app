@@ -86,6 +86,10 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   const [extraBedCharge, setExtraBedCharge] = useState(0);
   const [lateCheckoutPenalty, setLateCheckoutPenalty] = useState(0);
 
+  // Custom rate override state
+  const [useCustomRate, setUseCustomRate] = useState(false);
+  const [customRate, setCustomRate] = useState<number>(0);
+
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -184,6 +188,8 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     setExtraBedCount(0);
     setExtraBedCharge(0);
     setLateCheckoutPenalty(0);
+    setUseCustomRate(false);
+    setCustomRate(0);
     setError(null);
   };
 
@@ -304,6 +310,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
         amount_paid: amountPaid,
         deposit_paid: paymentStatus !== 'unpaid',
         deposit_amount: paymentStatus === 'unpaid' ? 0 : amountPaid,
+        room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
       });
 
       // Note: Booking is created with status 'confirmed' which shows room as 'reserved'
@@ -328,6 +335,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   const calculateRoomTotal = () => {
     if (!room) return 0;
     const nights = calculateNights();
+    if (useCustomRate && customRate > 0) {
+      return customRate * nights;
+    }
     const price = typeof room.price_per_night === 'string'
       ? parseFloat(room.price_per_night)
       : room.price_per_night;
@@ -593,6 +603,48 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   <option value="OVR">OVR (Override Rate)</option>
                 </TextField>
               </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={useCustomRate}
+                      onChange={(e) => {
+                        setUseCustomRate(e.target.checked);
+                        if (e.target.checked && room) {
+                          const price = typeof room.price_per_night === 'string'
+                            ? parseFloat(room.price_per_night)
+                            : room.price_per_night;
+                          setCustomRate(price);
+                        }
+                      }}
+                      color="primary"
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        Use Custom Rate
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Override the default room rate
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Grid>
+              {useCustomRate && (
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Custom Rate per Night"
+                    type="number"
+                    value={customRate}
+                    onChange={(e) => setCustomRate(parseFloat(e.target.value) || 0)}
+                    InputProps={{ startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography> }}
+                    helperText={`Original rate: ${formatCurrency(typeof room?.price_per_night === 'string' ? parseFloat(room.price_per_night) : room?.price_per_night || 0)}/night`}
+                  />
+                </Grid>
+              )}
               <Grid item xs={12}>
                 <TextField
                   fullWidth
@@ -774,12 +826,17 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">
-                    Room Rate:
+                    Room Rate{useCustomRate ? ' (Custom)' : ''}:
                   </Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {formatCurrency(calculateRoomTotal())}
+                    {useCustomRate && (
+                      <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                        ({formatCurrency(useCustomRate ? customRate : 0)}/night)
+                      </Typography>
+                    )}
                   </Typography>
                 </Grid>
                 {roomCardDeposit > 0 && (
