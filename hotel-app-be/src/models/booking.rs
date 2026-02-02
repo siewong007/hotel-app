@@ -77,6 +77,7 @@ pub struct BookingInput {
     pub booking_number: Option<String>, // Optional - if provided, use this instead of auto-generating
     pub deposit_paid: Option<bool>,
     pub deposit_amount: Option<f64>,
+    pub room_rate_override: Option<f64>,
 }
 
 /// Input for cancelling a booking
@@ -117,6 +118,7 @@ pub struct BookingUpdateInput {
     pub payment_note: Option<String>,
     pub remarks: Option<String>,
     pub source: Option<String>,
+    pub room_rate_override: Option<f64>,
 }
 
 /// Request for checking in a guest
@@ -182,4 +184,7 @@ pub struct BookingWithDetails {
     // Night audit posting fields
     pub is_posted: Option<bool>,
     pub posted_date: Option<NaiveDate>,
+    // Rate override fields
+    pub rate_override_weekday: Option<Decimal>,
+    pub rate_override_weekend: Option<Decimal>,
 }

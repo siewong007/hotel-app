@@ -137,6 +137,7 @@ export interface BookingCreateRequest {
   booking_number?: string; // Optional - auto-generated for walk-in, manual for online
   deposit_paid?: boolean;
   deposit_amount?: number;
+  room_rate_override?: number;
 }
 
 export interface BookingUpdateRequest {
@@ -168,6 +169,7 @@ export interface BookingUpdateRequest {
   late_checkout_notes?: string;
   remarks?: string;
   source?: string;
+  room_rate_override?: number;
 }
 
 export interface BookingCancellationRequest {

@@ -27,6 +27,8 @@ import {
   Autocomplete,
   Tabs,
   Tab,
+  FormControlLabel,
+  Checkbox,
 } from '@mui/material';
 import {
   PersonAdd as PersonAddIcon,
@@ -142,6 +144,10 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [roomCardDeposit, setRoomCardDeposit] = useState(roomCardDepositDefault);
 
+  // Custom rate override state
+  const [useCustomRate, setUseCustomRate] = useState(false);
+  const [customRate, setCustomRate] = useState<number>(0);
+
   // Processing state
   const [processing, setProcessing] = useState(false);
 
@@ -193,6 +199,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setDeposit(0);
       setPaymentMethod('cash');
       setRoomCardDeposit(roomCardDepositDefault);
+      setUseCustomRate(false);
+      setCustomRate(0);
       setSelectedRoom(null);
       setAvailableRooms([]);
       // Reset check-in state
@@ -467,6 +475,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         room_card_deposit: effectiveRoomCardDeposit,
         payment_method: paymentMethod,
         amount_paid: deposit,
+        room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
       };
 
       const createdBookingResult = await HotelAPIService.createBooking(bookingData);
@@ -655,6 +664,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             room_card_deposit: effectiveRoomCardDeposit,
             payment_method: paymentMethod,
             amount_paid: deposit,
+            room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
           };
 
           await HotelAPIService.createBooking(bookingData);
@@ -677,6 +687,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             booking_remarks: bookingReference
               ? `${bookingChannel} - Ref: ${bookingReference}`
               : `${bookingChannel} Booking`,
+            room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
           };
 
           await HotelAPIService.createBooking(bookingData);
@@ -752,6 +763,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Calculate total amount
   const calculateTotal = () => {
+    if (useCustomRate && customRate > 0) {
+      return customRate * numberOfNights;
+    }
     const price = room?.price_per_night || 0;
     const numPrice = typeof price === 'string' ? parseFloat(price) : price;
     return numPrice * numberOfNights;
@@ -1081,6 +1095,62 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                     placeholder="e.g., OL-123456"
                   />
                 </Grid>
+              </>
+            )}
+
+            {/* Custom Rate Override (for walk-in and online, not complimentary) */}
+            {(isWalkIn || isOnline) && (
+              <>
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }} />
+                  <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
+                    Room Rate
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={useCustomRate}
+                        onChange={(e) => {
+                          setUseCustomRate(e.target.checked);
+                          if (e.target.checked && room) {
+                            const price = typeof room.price_per_night === 'string'
+                              ? parseFloat(room.price_per_night)
+                              : room.price_per_night;
+                            setCustomRate(price);
+                          }
+                        }}
+                        color="primary"
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          Use Custom Rate
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Override the default room rate
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Grid>
+                {useCustomRate && (
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      label="Custom Rate per Night"
+                      type="number"
+                      value={customRate}
+                      onChange={(e) => setCustomRate(parseFloat(e.target.value) || 0)}
+                      InputProps={{
+                        startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
+                      }}
+                      helperText={`Original rate: ${formatCurrency(Number(room?.price_per_night || 0))}/night`}
+                    />
+                  </Grid>
+                )}
               </>
             )}
 
@@ -1503,7 +1573,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
             {/* Pricing */}
             <Grid item xs={6}>
-              <Typography variant="body2" color="text.secondary">Rate</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Rate{useCustomRate ? ' (Custom)' : ''}
+              </Typography>
             </Grid>
             <Grid item xs={6}>
               <Typography variant="body2">
@@ -1511,6 +1583,13 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                   <Box component="span" sx={{ textDecoration: 'line-through', color: 'text.disabled' }}>
                     {currencySymbol}{room?.price_per_night}/night
                   </Box>
+                ) : useCustomRate && customRate > 0 ? (
+                  <>
+                    {formatCurrency(customRate)}/night
+                    <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      (was {formatCurrency(Number(room?.price_per_night || 0))})
+                    </Typography>
+                  </>
                 ) : (
                   `${currencySymbol}${room?.price_per_night}/night`
                 )}
@@ -1521,7 +1600,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             </Grid>
             <Grid item xs={6}>
               <Typography variant="body2" fontWeight={600} color={effectiveType === 'complimentary' ? 'success.main' : 'text.primary'}>
-                {effectiveType === 'complimentary' ? 'FREE (Complimentary)' : `${currencySymbol}${calculateTotal().toFixed(2)}`}
+                {effectiveType === 'complimentary' ? 'FREE (Complimentary)' : formatCurrency(calculateTotal())}
               </Typography>
             </Grid>
 
