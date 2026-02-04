@@ -74,6 +74,7 @@ interface TimelineBooking {
   extra_bed_count?: number;
   extra_bed_charge?: number | string;
   company_name?: string;
+  rate_code?: string;
 }
 
 interface TimelineCell {
@@ -205,6 +206,7 @@ const RoomReservationTimeline: React.FC = () => {
           extra_bed_count: b.extra_bed_count,
           extra_bed_charge: b.extra_bed_charge,
           company_name: b.company_name,
+          rate_code: b.rate_code,
         }));
 
       console.log('Timeline - Filtered bookings from API:', relevantBookings.length);
@@ -777,6 +779,21 @@ const RoomReservationTimeline: React.FC = () => {
                               }}
                             >
                               In: {new Date(cell.booking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </Typography>
+                          )}
+
+                          {/* Room rate - shown on start cell for real bookings */}
+                          {cell.isStart && !isSyntheticBooking && cell.booking.price_per_night && (
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: 'rgba(255,255,255,0.9)',
+                                fontSize: '0.6rem',
+                                fontWeight: 600,
+                                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                              }}
+                            >
+                              {formatCurrency(Number(cell.booking.price_per_night))}/night
                             </Typography>
                           )}
 
