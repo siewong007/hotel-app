@@ -870,6 +870,7 @@ const BookingsPage: React.FC = () => {
               </TableCell>
               <TableCell><strong>Post Type</strong></TableCell>
               <TableCell><strong>Rate</strong></TableCell>
+              <TableCell><strong>Room Rate</strong></TableCell>
               <TableCell><strong>Complimentary</strong></TableCell>
               <TableCell><strong>Channel</strong></TableCell>
               <TableCell><strong>Payment Method</strong></TableCell>
@@ -921,6 +922,7 @@ const BookingsPage: React.FC = () => {
                   )}
                 </TableCell>
                 <TableCell>{booking.rate_code || 'RACK'}</TableCell>
+                <TableCell>{formatCurrency(Number(booking.price_per_night) || 0)}</TableCell>
                 <TableCell>
                   {booking.is_complimentary ? (
                     <Tooltip
