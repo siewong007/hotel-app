@@ -782,8 +782,8 @@ const RoomReservationTimeline: React.FC = () => {
                             </Typography>
                           )}
 
-                          {/* Room rate - shown on start cell for real bookings */}
-                          {cell.isStart && !isSyntheticBooking && cell.booking.price_per_night && (
+                          {/* Room rate - shown on all cells for real bookings */}
+                          {!isSyntheticBooking && cell.booking.price_per_night && (
                             <Typography
                               variant="caption"
                               sx={{
