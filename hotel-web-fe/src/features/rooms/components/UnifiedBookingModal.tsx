@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Box,
   Dialog,
@@ -113,8 +113,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   onRefreshData,
 }) => {
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
-  const BOOKING_CHANNELS = getHotelSettings().booking_channels;
-  const roomCardDepositDefault = getHotelSettings().room_card_deposit;
+
+  // Memoize hotel settings to prevent unnecessary re-renders
+  const hotelSettings = useMemo(() => getHotelSettings(), []);
+  const BOOKING_CHANNELS = hotelSettings.booking_channels;
+  const roomCardDepositDefault = hotelSettings.room_card_deposit;
 
   // Determine if we need room selection (when room is not pre-selected)
   const needsRoomSelection = !roomProp;
@@ -168,22 +171,68 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   // Use selected room or prop room
   const room = roomProp || selectedRoom;
 
-  // Reset form when modal opens/closes
+  // Track previous open state to detect true open/close transitions
+  const wasOpenRef = useRef(false);
+  // Track if modal is currently initializing to prevent race conditions
+  const isInitializingRef = useRef(false);
+
+  // Store roomCardDepositDefault in a ref to avoid dependency issues
+  const roomCardDepositDefaultRef = useRef(roomCardDepositDefault);
   useEffect(() => {
-    if (open) {
-      // Set defaults
+    roomCardDepositDefaultRef.current = roomCardDepositDefault;
+  }, [roomCardDepositDefault]);
+
+  // Reset form when modal opens/closes - use proper transition detection
+  // IMPORTANT: Only depends on `open` to prevent unexpected resets
+  useEffect(() => {
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = open;
+
+    // Only run initialization when transitioning from closed to open
+    if (open && !wasOpen) {
+      // Prevent multiple concurrent initializations
+      if (isInitializingRef.current) return;
+      isInitializingRef.current = true;
+
+      // Set defaults for new modal session
       const today = new Date().toISOString().split('T')[0];
       const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
-      setCheckInDate(today);
-      setCheckOutDate(tomorrow);
-      setNumberOfNights(1);
+
+      // Batch all state resets together using functional updates
       setActiveStep(0);
       setBookingMode(null);
       setReservationType(null);
+      setSelectedGuest(null);
+      setNewGuestForm(emptyNewGuestForm);
+      setIsCreatingNewGuest(false);
+      setSelectedGuestWithCredits(null);
+      setCheckInDate(today);
+      setCheckOutDate(tomorrow);
+      setNumberOfNights(1);
+      setBookingChannel('');
+      setBookingReference('');
+      setDeposit(0);
+      setPaymentMethod('cash');
+      setRoomCardDeposit(roomCardDepositDefaultRef.current);
+      setUseCustomRate(false);
+      setCustomRate(0);
       setSelectedRoom(null);
       setAvailableRooms([]);
-    } else {
-      // Reset all state when closing
+      setCreatedBooking(null);
+      setCreatedGuest(null);
+      setCheckInTabIndex(0);
+      setGuestUpdateData({});
+      setBookingUpdateData({});
+
+      // Mark initialization complete after a microtask to ensure state has settled
+      Promise.resolve().then(() => {
+        isInitializingRef.current = false;
+      });
+    }
+
+    // Only run cleanup when transitioning from open to closed
+    if (!open && wasOpen) {
+      // Reset state when closing (for cleanup)
       setActiveStep(0);
       setBookingMode(null);
       setReservationType(null);
@@ -198,19 +247,19 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setBookingReference('');
       setDeposit(0);
       setPaymentMethod('cash');
-      setRoomCardDeposit(roomCardDepositDefault);
+      setRoomCardDeposit(roomCardDepositDefaultRef.current);
       setUseCustomRate(false);
       setCustomRate(0);
       setSelectedRoom(null);
       setAvailableRooms([]);
-      // Reset check-in state
       setCreatedBooking(null);
       setCreatedGuest(null);
       setCheckInTabIndex(0);
       setGuestUpdateData({});
       setBookingUpdateData({});
     }
-  }, [open, roomCardDepositDefault]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Store rooms in a ref to avoid dependency issues
   const roomsRef = useRef(rooms);
@@ -309,7 +358,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   };
 
   // Get steps based on booking mode and room selection need
-  const getSteps = (): string[] => {
+  // Memoized to prevent unnecessary recalculations
+  const getSteps = useCallback((): string[] => {
     if (needsRoomSelection) {
       // Room selection mode: add Room step after Mode
       if (bookingMode === 'direct') {
@@ -327,7 +377,16 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       }
       return ['Mode', 'Guest', 'Details', 'Confirm'];
     }
-  };
+  }, [needsRoomSelection, bookingMode]);
+
+  // Guard against activeStep becoming invalid when steps array changes
+  // This prevents glitches when switching between modes
+  useEffect(() => {
+    const steps = getSteps();
+    if (activeStep >= steps.length && steps.length > 0) {
+      setActiveStep(steps.length - 1);
+    }
+  }, [getSteps, activeStep]);
 
   // Get step indices dynamically based on booking mode and room selection
   const getStepIndex = (stepName: string): number => {
@@ -392,8 +451,14 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Handle next step
   const handleNext = async () => {
+    // Guard against navigation during processing or initialization
+    if (processing || isInitializingRef.current) return;
+
     const steps = getSteps();
     const currentStepName = steps[activeStep];
+
+    // Guard against invalid step navigation
+    if (activeStep >= steps.length - 1) return;
 
     // For direct booking, create the booking when moving from Confirm to Check-In step
     if (bookingMode === 'direct' && currentStepName === 'Confirm') {
@@ -401,7 +466,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       return;
     }
 
-    setActiveStep((prev) => prev + 1);
+    setActiveStep((prev) => Math.min(prev + 1, steps.length - 1));
   };
 
   // Create booking and transition to check-in step (for direct booking)
@@ -540,11 +605,23 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Handle back step
   const handleBack = () => {
-    setActiveStep((prev) => prev - 1);
+    // Guard against navigation during processing or initialization
+    if (processing || isInitializingRef.current) return;
+
+    // Guard against going below step 0
+    if (activeStep <= 0) return;
+
+    setActiveStep((prev) => Math.max(prev - 1, 0));
   };
 
   // Handle mode selection (Step 0)
   const handleModeSelect = (mode: BookingMode) => {
+    // Guard against selection during processing or initialization
+    if (processing || isInitializingRef.current) return;
+
+    // Only change if actually different to prevent unnecessary re-renders
+    if (mode === bookingMode) return;
+
     setBookingMode(mode);
     // Reset dependent state
     setReservationType(null);
@@ -552,10 +629,20 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     setSelectedGuestWithCredits(null);
     setIsCreatingNewGuest(false);
     setNewGuestForm(emptyNewGuestForm);
+    // Reset step-related state to prevent stale data
+    setCreatedBooking(null);
+    setCreatedGuest(null);
+    setCheckInTabIndex(0);
   };
 
   // Handle reservation type selection (Step 1 for reservation mode)
   const handleReservationTypeSelect = (type: 'walk_in' | 'online' | 'complimentary') => {
+    // Guard against selection during processing or initialization
+    if (processing || isInitializingRef.current) return;
+
+    // Only change if actually different
+    if (type === reservationType) return;
+
     setReservationType(type);
     // Reset guest state when changing type
     setSelectedGuest(null);
@@ -1213,7 +1300,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     // Check-In step (for direct booking)
     if (currentStepName === 'Check-In' && createdBooking) {
       const titleOptions = ['Mr', 'Mrs', 'Ms', 'Dr', 'Prof'];
-      const paymentMethods = getHotelSettings().payment_methods;
+      const paymentMethods = hotelSettings.payment_methods;
+      // Ensure tab index is valid (0-2)
+      const safeTabIndex = Math.max(0, Math.min(2, checkInTabIndex));
 
       return (
         <Box>
@@ -1226,8 +1315,15 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           </Alert>
 
           <Tabs
-            value={checkInTabIndex}
-            onChange={(_, newValue) => setCheckInTabIndex(newValue)}
+            value={safeTabIndex}
+            onChange={(_, newValue) => {
+              // Guard against tab changes during processing
+              if (processing || isInitializingRef.current) return;
+              // Ensure tab index is valid (0, 1, or 2)
+              if (newValue >= 0 && newValue <= 2) {
+                setCheckInTabIndex(newValue);
+              }
+            }}
             variant="scrollable"
             scrollButtons="auto"
             sx={{ mb: 2 }}
@@ -1238,7 +1334,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           </Tabs>
 
           {/* Tab 0: Guest Information */}
-          {checkInTabIndex === 0 && (
+          {safeTabIndex === 0 && (
             <Grid container spacing={2}>
               <Grid item xs={12} sm={3}>
                 <FormControl fullWidth size="small">
@@ -1341,7 +1437,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           )}
 
           {/* Tab 1: Stay Details */}
-          {checkInTabIndex === 1 && (
+          {safeTabIndex === 1 && (
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
                 <TextField
@@ -1420,7 +1516,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           )}
 
           {/* Tab 2: Payment */}
-          {checkInTabIndex === 2 && (
+          {safeTabIndex === 2 && (
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
                 <FormControl fullWidth size="small">
@@ -1472,7 +1568,21 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
     // Confirm step content (shown for both direct booking and reservation modes)
     if (currentStepName !== 'Confirm') {
-      return null; // Should not reach here
+      // Fallback for Check-In step when booking is still being created
+      if (currentStepName === 'Check-In' && !createdBooking) {
+        return (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
+            <CircularProgress />
+            <Typography sx={{ ml: 2 }}>Creating booking...</Typography>
+          </Box>
+        );
+      }
+      // Return loading state for any unexpected step
+      return (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
+          <CircularProgress />
+        </Box>
+      );
     }
 
     return (

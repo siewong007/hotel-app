@@ -174,6 +174,8 @@ export default function EnhancedCheckInModal({
 
   // Track if form has been initialized to prevent re-initialization
   const initializedRef = useRef<{ bookingId: string | null; guestId: number | null }>({ bookingId: null, guestId: null });
+  // Track previous open state to detect true open/close transitions
+  const wasOpenRef = useRef(false);
 
   // Guest data state
   const [guestData, setGuestData] = useState<GuestUpdateRequest>({});
@@ -239,13 +241,18 @@ export default function EnhancedCheckInModal({
   const [paymentMethods] = useState(['Cash', 'Credit Card', 'Debit Card', 'DuitNow', 'Online Banking', 'E-Wallet', 'Direct Billing']);
   const [contactTypes] = useState(['Mobile', 'Home', 'Work', 'Fax']);
 
-  // Reset form when modal closes
+  // Reset form when modal closes - use proper transition detection
   useEffect(() => {
-    if (!open) {
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = open;
+
+    // Only reset when transitioning from open to closed
+    if (!open && wasOpen) {
       initializedRef.current = { bookingId: null, guestId: null };
       setValidationErrors({});
       setTouched({});
       setActiveTab(0);
+      setError(null);
     }
   }, [open]);
 
@@ -649,7 +656,19 @@ export default function EnhancedCheckInModal({
           </Alert>
         )}
 
-        <Tabs value={activeTab} onChange={(_, newValue) => setActiveTab(newValue)} variant="scrollable" scrollButtons="auto">
+        <Tabs
+          value={activeTab}
+          onChange={(_, newValue) => {
+            // Guard against tab changes during loading
+            if (loading) return;
+            // Ensure tab index is valid (0-4 for 5 tabs)
+            if (newValue >= 0 && newValue <= 4) {
+              setActiveTab(newValue);
+            }
+          }}
+          variant="scrollable"
+          scrollButtons="auto"
+        >
           <Tab label="General Information" />
           <Tab label="Stay Information" />
           <Tab label="Payment" />

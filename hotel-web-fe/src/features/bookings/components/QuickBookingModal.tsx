@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -94,6 +94,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Track previous open state to detect true open/close transitions
+  const wasOpenRef = useRef(false);
+
   // Payment method options
   const paymentMethods = [
     'Cash',
@@ -113,9 +116,13 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     'Boost',
   ];
 
-  // Load guests when modal opens
+  // Load guests when modal opens - use proper transition detection
   useEffect(() => {
-    if (open) {
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = open;
+
+    // Only run initialization when transitioning from closed to open
+    if (open && !wasOpen) {
       if (guestMode) {
         // In guest mode, use the current user's ID directly
         if (user && user.id) {
@@ -137,8 +144,10 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
       // Load hotel settings for default values
       const settings = getHotelSettings();
       setRoomCardDeposit(settings.room_card_deposit);
-    } else {
-      // Reset form when modal closes
+    }
+
+    // Only reset when transitioning from open to closed
+    if (!open && wasOpen) {
       resetForm();
     }
   }, [open, defaultCheckInTime, defaultCheckOutTime, guestMode, user]);
