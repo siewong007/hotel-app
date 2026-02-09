@@ -543,10 +543,10 @@ const BookingsPage: React.FC = () => {
     return status === 'checked_in';
   };
 
-  // Can delete/cancel booking only if not checked in, checked out, or already cancelled
+  // Can delete/cancel booking only if not checked in or already cancelled
   const canDelete = (booking: BookingWithDetails) => {
     const status = booking.status;
-    return status === 'confirmed' || status === 'pending';
+    return status === 'confirmed' || status === 'pending' || status === 'checked_out';
   };
 
   // Can mark as complimentary only if confirmed/pending (not checked in yet)
