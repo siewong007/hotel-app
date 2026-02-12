@@ -112,6 +112,7 @@ export interface BookingWithDetails extends Booking {
   deposit_amount?: number | string;
   deposit_paid?: boolean;
   remarks?: string;
+  actual_check_out?: string;
 }
 
 export interface BookingCreateRequest {

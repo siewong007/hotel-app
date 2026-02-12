@@ -129,6 +129,7 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
         posted_date: row.try_get("posted_date").ok(),
         rate_override_weekday: get_opt_decimal(row, "rate_override_weekday"),
         rate_override_weekend: get_opt_decimal(row, "rate_override_weekend"),
+        actual_check_out: row.try_get("actual_check_out").ok(),
     }
 }
 
