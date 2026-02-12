@@ -913,7 +913,25 @@ const BookingsPage: React.FC = () => {
                   </Box>
                 </TableCell>
                 <TableCell>{booking.formatted_check_in || booking.check_in_date.split('T')[0]}</TableCell>
-                <TableCell>{booking.formatted_check_out || booking.check_out_date.split('T')[0]}</TableCell>
+                <TableCell>
+                  {(() => {
+                    const scheduledCheckout = booking.formatted_check_out || booking.check_out_date.split('T')[0];
+                    const actualCheckout = booking.actual_check_out ? booking.actual_check_out.split('T')[0] : null;
+                    const isEarlyCheckout = actualCheckout && actualCheckout < booking.check_out_date.split('T')[0];
+
+                    if (isEarlyCheckout) {
+                      return (
+                        <Tooltip title={`Originally scheduled: ${scheduledCheckout}`}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <Typography variant="body2">{actualCheckout}</Typography>
+                            <Chip label="Early" size="small" color="info" sx={{ height: 18, fontSize: '0.65rem' }} />
+                          </Box>
+                        </Tooltip>
+                      );
+                    }
+                    return scheduledCheckout;
+                  })()}
+                </TableCell>
                 <TableCell>
                   {booking.post_type === 'same_day' ? (
                     <Chip label="Same Day" size="small" color="warning" />

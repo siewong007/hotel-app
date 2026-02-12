@@ -476,6 +476,7 @@ pub async fn update_booking_handler(
                 total_amount = COALESCE(?18, total_amount),
                 rate_override_weekday = COALESCE(?19, rate_override_weekday),
                 rate_override_weekend = COALESCE(?19, rate_override_weekend),
+                actual_check_out = CASE WHEN ?2 = 'checked_out' AND actual_check_out IS NULL THEN datetime('now') ELSE actual_check_out END,
                 updated_at = datetime('now')
             WHERE id = ?7"#
         )
@@ -534,6 +535,7 @@ pub async fn update_booking_handler(
                 total_amount = COALESCE($18, total_amount),
                 rate_override_weekday = COALESCE($19, rate_override_weekday),
                 rate_override_weekend = COALESCE($19, rate_override_weekend),
+                actual_check_out = CASE WHEN $2 = 'checked_out' AND actual_check_out IS NULL THEN CURRENT_TIMESTAMP ELSE actual_check_out END,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $7
             RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at"#
@@ -1461,7 +1463,8 @@ pub async fn get_complimentary_bookings_handler(
             b.payment_status, b.payment_method, b.source, b.remarks, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
             b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
-            b.created_at, b.is_posted, b.posted_date
+            b.created_at, b.is_posted, b.posted_date,
+            b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id
         INNER JOIN rooms r ON b.room_id = r.id

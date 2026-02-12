@@ -187,4 +187,6 @@ pub struct BookingWithDetails {
     // Rate override fields
     pub rate_override_weekday: Option<Decimal>,
     pub rate_override_weekend: Option<Decimal>,
+    // Actual checkout timestamp (for early checkout detection)
+    pub actual_check_out: Option<DateTime<Utc>>,
 }
