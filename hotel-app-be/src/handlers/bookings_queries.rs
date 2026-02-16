@@ -19,6 +19,7 @@ pub const GET_BOOKINGS_QUERY: &str = r#"
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
         b.created_at, b.is_posted, b.posted_date,
+        b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
@@ -40,6 +41,7 @@ pub const GET_BOOKINGS_QUERY: &str = r#"
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
         b.created_at, b.is_posted, b.posted_date,
+        b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
@@ -65,6 +67,7 @@ pub const GET_USER_BOOKINGS_QUERY: &str = r#"
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
         b.created_at, b.is_posted, b.posted_date,
+        b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
@@ -87,6 +90,7 @@ pub const GET_USER_BOOKINGS_QUERY: &str = r#"
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
         b.created_at, b.is_posted, b.posted_date,
+        b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
@@ -113,6 +117,7 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
         b.created_at, b.is_posted, b.posted_date,
+        b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
@@ -134,6 +139,7 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
         b.created_at, b.is_posted, b.posted_date,
+        b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
@@ -169,6 +175,7 @@ pub const GET_TODAYS_CHECKINS_QUERY: &str = r#"
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
         b.created_at, b.is_posted, b.posted_date,
+        b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
@@ -191,6 +198,7 @@ pub const GET_TODAYS_CHECKINS_QUERY: &str = r#"
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
         b.created_at, b.is_posted, b.posted_date,
+        b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
@@ -217,6 +225,7 @@ pub const GET_TODAYS_CHECKOUTS_QUERY: &str = r#"
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
         b.created_at, b.is_posted, b.posted_date,
+        b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
@@ -239,6 +248,7 @@ pub const GET_TODAYS_CHECKOUTS_QUERY: &str = r#"
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
         b.created_at, b.is_posted, b.posted_date,
+        b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
@@ -265,6 +275,7 @@ pub const GET_ACTIVE_BOOKINGS_QUERY: &str = r#"
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
         b.created_at, b.is_posted, b.posted_date,
+        b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
@@ -287,6 +298,7 @@ pub const GET_ACTIVE_BOOKINGS_QUERY: &str = r#"
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
         b.created_at, b.is_posted, b.posted_date,
+        b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id

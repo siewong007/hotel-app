@@ -192,71 +192,46 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     const taxRate = hotelSettings.service_tax_rate / 100;
     const taxMultiplier = 1 + taxRate;
 
-    // Check if rate override fields are explicitly set AND have a non-zero value
-    const weekdayOverride = booking.rate_override_weekday !== undefined && booking.rate_override_weekday !== null
-      ? (typeof booking.rate_override_weekday === 'string' ? parseFloat(booking.rate_override_weekday) : booking.rate_override_weekday)
-      : 0;
-    const weekendOverride = booking.rate_override_weekend !== undefined && booking.rate_override_weekend !== null
-      ? (typeof booking.rate_override_weekend === 'string' ? parseFloat(booking.rate_override_weekend) : booking.rate_override_weekend)
-      : 0;
+    // All prices (regular or override) are treated as tax-inclusive
+    let taxInclusivePrice = bookingPricePerNight;
 
-    // Override is only active if the value is greater than 0
-    const hasActiveOverride = weekdayOverride > 0 || weekendOverride > 0;
-
-    // If override is 0 or not set → use room price as AFTER tax (tax-inclusive)
-    // If override is set (non-zero) → use override price as BEFORE tax (add tax on top)
-    const isOverrideRate = hasActiveOverride;
-
-    console.log('Override rate detection:', { isOverrideRate, hasActiveOverride, weekdayOverride, weekendOverride, bookingPricePerNight, roomPrice });
-
-    let roomCharges: number;
-    let serviceTax: number;
-
-    if (isOverrideRate) {
-      // Override price is BEFORE tax - add tax on top
-      // Use the booking's price_per_night which contains the override rate
-      const overridePrice = bookingPricePerNight;
-      roomCharges = overridePrice * nights;
-      serviceTax = roomCharges * taxRate;
-      console.log('Using override rate (before tax):', { overridePrice, roomCharges, serviceTax });
-    } else {
-      // No override - use room price as TAX-INCLUSIVE (after tax)
-      // The room price from API is the final price including tax
-      let taxInclusivePrice = roomPrice;
-
-      // Fallback: if room price not available, use booking's price_per_night
-      if (!taxInclusivePrice || taxInclusivePrice === 0) {
-        taxInclusivePrice = bookingPricePerNight;
-        console.log('Using booking price_per_night as fallback:', bookingPricePerNight);
-      }
-
-      // Fallback 2: if still not available, derive from total_amount
-      if (!taxInclusivePrice || taxInclusivePrice === 0) {
-        const totalAmount = typeof booking.total_amount === 'string'
-          ? parseFloat(booking.total_amount)
-          : booking.total_amount || 0;
-        taxInclusivePrice = nights > 0 ? totalAmount / nights : 0;
-        console.log('Using fallback from total_amount:', taxInclusivePrice);
-      }
-
-      // The room price IS the final price (tax-inclusive)
-      const roomSubtotal = taxInclusivePrice * nights;
-      // Room Charges (before tax) = Subtotal / (1 + tax_rate)
-      roomCharges = roomSubtotal / taxMultiplier;
-      // Service Tax is the difference
-      serviceTax = roomSubtotal - roomCharges;
-      console.log('Using room price (tax-inclusive):', { taxInclusivePrice, roomCharges, serviceTax });
+    // Fallback: if booking price not available, use room price from API
+    if (!taxInclusivePrice || taxInclusivePrice === 0) {
+      taxInclusivePrice = roomPrice;
+      console.log('Using room price as fallback:', roomPrice);
     }
+
+    // Fallback 2: if still not available, derive from total_amount
+    if (!taxInclusivePrice || taxInclusivePrice === 0) {
+      const totalAmount = typeof booking.total_amount === 'string'
+        ? parseFloat(booking.total_amount)
+        : booking.total_amount || 0;
+      taxInclusivePrice = nights > 0 ? totalAmount / nights : 0;
+      console.log('Using fallback from total_amount:', taxInclusivePrice);
+    }
+
+    console.log('Price calculation (tax-inclusive):', { taxInclusivePrice, bookingPricePerNight, roomPrice });
+
+    // The price IS the final price per night (tax-inclusive)
+    const roomSubtotal = taxInclusivePrice * nights;
+    // Room Charges (before tax) = Subtotal / (1 + tax_rate)
+    const roomCharges = roomSubtotal / taxMultiplier;
+    // Service Tax is the difference
+    const serviceTax = roomSubtotal - roomCharges;
 
     // Get deposit from booking - use 0 if explicitly set (member waiver), otherwise fallback to settings
     const roomCardDeposit = booking.room_card_deposit !== undefined && booking.room_card_deposit !== null
       ? (typeof booking.room_card_deposit === 'string' ? parseFloat(booking.room_card_deposit) : booking.room_card_deposit)
       : hotelSettings.room_card_deposit;
 
-    // Get tourism tax from booking
-    const tourismTax = booking.tourism_tax_amount
+    // Get tourism tax from booking, or calculate from settings if tourist but amount not stored
+    console.log('Tourism tax debug:', { is_tourist: booking.is_tourist, tourism_tax_amount: booking.tourism_tax_amount, tourism_tax_rate: hotelSettings.tourism_tax_rate, nights });
+    let tourismTax = booking.tourism_tax_amount
       ? (typeof booking.tourism_tax_amount === 'string' ? parseFloat(booking.tourism_tax_amount) : booking.tourism_tax_amount)
       : 0;
+    if (tourismTax === 0 && booking.is_tourist) {
+      tourismTax = nights * hotelSettings.tourism_tax_rate;
+    }
 
     // Get extra bed charge from booking
     const extraBedCharge = booking.extra_bed_charge
