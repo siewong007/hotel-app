@@ -288,7 +288,9 @@ const BookingsPage: React.FC = () => {
     const formData = {
       status: booking.status,
       payment_status: booking.payment_status || 'unpaid',
-      payment_method: booking.payment_method || '',
+      payment_method: booking.payment_method
+        ? booking.payment_method.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+        : '',
       source: booking.source || 'walk_in',
       check_in_date: booking.check_in_date.split('T')[0],
       check_out_date: booking.check_out_date.split('T')[0],
@@ -1250,9 +1252,14 @@ const BookingsPage: React.FC = () => {
                 onChange={(e) => setEditFormData((prev: any) => ({ ...prev, payment_method: e.target.value }))}
               >
                 <MenuItem value="">Not Specified</MenuItem>
-                {getHotelSettings().payment_methods.map((method) => (
-                  <MenuItem key={method} value={method}>{method}</MenuItem>
-                ))}
+                {(() => {
+                  const methods = getHotelSettings().payment_methods;
+                  const current = editFormData.payment_method;
+                  const allMethods = current && !methods.includes(current) ? [...methods, current] : methods;
+                  return allMethods.map((method) => (
+                    <MenuItem key={method} value={method}>{method}</MenuItem>
+                  ));
+                })()}
               </TextField>
             </Grid>
             <Grid item xs={12} sm={6}>
