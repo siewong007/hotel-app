@@ -209,9 +209,9 @@ pub async fn create_booking_handler(
             INSERT INTO bookings (
                 booking_number, guest_id, room_id, check_in_date, check_out_date,
                 room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
-                deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend
+                deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'confirmed', ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16, CASE WHEN ?15 THEN datetime('now') ELSE NULL END, ?17, ?17)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'confirmed', ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16, CASE WHEN ?15 THEN datetime('now') ELSE NULL END, ?17, ?17, ?18)
             "#
         )
         .bind(&booking_number)
@@ -231,6 +231,7 @@ pub async fn create_booking_handler(
         .bind(if deposit_paid { 1i32 } else { 0i32 })
         .bind(deposit_amount_f64)
         .bind(rate_override_value)
+        .bind(input.special_requests.as_deref())
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -257,9 +258,9 @@ pub async fn create_booking_handler(
             INSERT INTO bookings (
                 booking_number, guest_id, room_id, check_in_date, check_out_date,
                 room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
-                deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend
+                deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, $12, $13, 1, $14, $15, $16, CASE WHEN $15 THEN CURRENT_TIMESTAMP ELSE NULL END, $17, $17)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, $12, $13, 1, $14, $15, $16, CASE WHEN $15 THEN CURRENT_TIMESTAMP ELSE NULL END, $17, $17, $18)
             RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at
             "#
         )
@@ -280,6 +281,7 @@ pub async fn create_booking_handler(
         .bind(deposit_paid)
         .bind(deposit_amount)
         .bind(rate_override_decimal)
+        .bind(input.special_requests.as_deref())
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
@@ -476,6 +478,7 @@ pub async fn update_booking_handler(
                 total_amount = COALESCE(?18, total_amount),
                 rate_override_weekday = COALESCE(?19, rate_override_weekday),
                 rate_override_weekend = COALESCE(?19, rate_override_weekend),
+                special_requests = COALESCE(?20, special_requests),
                 actual_check_out = CASE WHEN ?2 = 'checked_out' AND actual_check_out IS NULL THEN datetime('now') ELSE actual_check_out END,
                 updated_at = datetime('now')
             WHERE id = ?7"#
@@ -499,6 +502,7 @@ pub async fn update_booking_handler(
         .bind(new_subtotal.map(|s| s.to_f64().unwrap_or(0.0)))
         .bind(new_total_amount.map(|t| t.to_f64().unwrap_or(0.0)))
         .bind(input.room_rate_override)
+        .bind(&input.special_requests)
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -535,6 +539,7 @@ pub async fn update_booking_handler(
                 total_amount = COALESCE($18, total_amount),
                 rate_override_weekday = COALESCE($19, rate_override_weekday),
                 rate_override_weekend = COALESCE($19, rate_override_weekend),
+                special_requests = COALESCE($20, special_requests),
                 actual_check_out = CASE WHEN $2 = 'checked_out' AND actual_check_out IS NULL THEN CURRENT_TIMESTAMP ELSE actual_check_out END,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $7
@@ -559,6 +564,7 @@ pub async fn update_booking_handler(
         .bind(new_subtotal)
         .bind(new_total_amount)
         .bind(rate_override_decimal)
+        .bind(&input.special_requests)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
@@ -724,15 +730,15 @@ pub async fn delete_booking_handler(
         return Err(ApiError::Forbidden("You don't have permission to delete this booking".to_string()));
     }
 
-    if matches!(status.as_str(), "checked_in" | "completed") {
-        return Err(ApiError::BadRequest("Cannot delete booking that is checked in or completed".to_string()));
+    if status == "cancelled" {
+        return Err(ApiError::BadRequest("Booking is already cancelled".to_string()));
     }
 
     let result = sqlx::query(
         r#"
         UPDATE bookings
         SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP, cancelled_at = CURRENT_TIMESTAMP, cancelled_by = $2
-        WHERE id = $1 AND status NOT IN ('checked_in', 'completed')
+        WHERE id = $1 AND status != 'cancelled'
         "#
     )
     .bind(booking_id)
@@ -872,6 +878,29 @@ pub async fn manual_checkin_handler(
                 let mut q = sqlx::query(&query);
                 for p in &params { q = q.bind(p); }
                 q = q.bind(booking.guest_id);
+                q.execute(&pool).await.ok();
+            }
+        }
+    }
+
+    // Apply booking_update fields if provided (market_code, payment_method, special_requests, etc.)
+    if let Some(ref checkin) = checkin_data {
+        if let Some(ref booking_update) = checkin.booking_update {
+            let mut updates = vec![];
+            let mut params: Vec<String> = vec![];
+
+            if let Some(ref v) = booking_update.market_code { updates.push(format!("market_code = ${}", params.len() + 1)); params.push(v.clone()); }
+            // Note: rate_code column does not exist in bookings table - skip it
+            if let Some(ref v) = booking_update.payment_method { updates.push(format!("payment_method = ${}", params.len() + 1)); params.push(v.clone()); }
+            if let Some(ref v) = booking_update.special_requests { updates.push(format!("special_requests = ${}", params.len() + 1)); params.push(v.clone()); }
+            if let Some(ref v) = booking_update.remarks { updates.push(format!("remarks = ${}", params.len() + 1)); params.push(v.clone()); }
+            if let Some(ref v) = booking_update.company_name { updates.push(format!("company_name = ${}", params.len() + 1)); params.push(v.clone()); }
+
+            if !params.is_empty() {
+                let query = format!("UPDATE bookings SET {} WHERE id = ${}", updates.join(", "), params.len() + 1);
+                let mut q = sqlx::query(&query);
+                for p in &params { q = q.bind(p); }
+                q = q.bind(booking_id);
                 q.execute(&pool).await.ok();
             }
         }
@@ -1460,7 +1489,7 @@ pub async fn get_complimentary_bookings_handler(
             g.guest_type::text as guest_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
             b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
-            b.payment_status, b.payment_method, b.source, b.remarks, b.is_complimentary, b.complimentary_reason,
+            b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
             b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
             b.created_at, b.is_posted, b.posted_date,

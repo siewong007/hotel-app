@@ -78,6 +78,7 @@ pub struct BookingInput {
     pub deposit_paid: Option<bool>,
     pub deposit_amount: Option<f64>,
     pub room_rate_override: Option<f64>,
+    pub special_requests: Option<String>,
 }
 
 /// Input for cancelling a booking
@@ -117,6 +118,7 @@ pub struct BookingUpdateInput {
     pub company_name: Option<String>,
     pub payment_note: Option<String>,
     pub remarks: Option<String>,
+    pub special_requests: Option<String>,
     pub source: Option<String>,
     pub room_rate_override: Option<f64>,
 }
@@ -168,6 +170,7 @@ pub struct BookingWithDetails {
     pub payment_method: Option<String>,
     pub source: Option<String>,
     pub remarks: Option<String>,
+    pub special_requests: Option<String>,
     pub is_complimentary: Option<bool>,
     pub complimentary_reason: Option<String>,
     pub complimentary_start_date: Option<NaiveDate>,

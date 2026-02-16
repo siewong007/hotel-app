@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -270,13 +270,14 @@ const RoomManagementPage: React.FC = () => {
     }
   }, [roomBlockedDates]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     await Promise.all([loadRooms(true), loadGuests(), loadBookings()]);
-  };
+  }, []);
 
   const loadRooms = async (fixHiddenOnLoad = false) => {
     try {
-      setLoading(true);
+      // Only show loading spinner on initial load, not periodic refreshes
+      if (fixHiddenOnLoad) setLoading(true);
       // Use getAllRooms() instead of searchRooms() to get ALL rooms including dirty ones
       const roomsData = await HotelAPIService.getAllRooms();
 
@@ -303,7 +304,7 @@ const RoomManagementPage: React.FC = () => {
     } catch (error: any) {
       showSnackbar(error.message || 'Failed to load rooms', 'error');
     } finally {
-      setLoading(false);
+      if (fixHiddenOnLoad) setLoading(false);
     }
   };
 
@@ -353,6 +354,26 @@ const RoomManagementPage: React.FC = () => {
   const showSnackbar = (message: string, severity: 'success' | 'error') => {
     setSnackbar({ open: true, message, severity });
   };
+
+  // Memoized callbacks for UnifiedBookingModal to prevent re-renders during periodic refresh
+  const handleUnifiedBookingClose = useCallback(() => {
+    setUnifiedBookingOpen(false);
+    setUnifiedBookingType(undefined);
+  }, []);
+
+  const handleUnifiedBookingSuccess = useCallback((message: string) => {
+    showSnackbar(message, 'success');
+  }, []);
+
+  const handleUnifiedBookingError = useCallback((message: string) => {
+    showSnackbar(message, 'error');
+  }, []);
+
+  const handleUnifiedBookingCreated = useCallback((booking: any, guest: any) => {
+    setCheckInBooking(booking);
+    setCheckInGuest(guest);
+    setEnhancedCheckInOpen(true);
+  }, []);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, room: Room) => {
     event.preventDefault();
@@ -3473,21 +3494,13 @@ const RoomManagementPage: React.FC = () => {
       {/* Unified Booking Modal */}
       <UnifiedBookingModal
         open={unifiedBookingOpen}
-        onClose={() => {
-          setUnifiedBookingOpen(false);
-          setUnifiedBookingType(undefined);
-        }}
+        onClose={handleUnifiedBookingClose}
         room={selectedRoom}
         guests={guests}
         initialBookingType={unifiedBookingType}
-        onSuccess={(message) => showSnackbar(message, 'success')}
-        onError={(message) => showSnackbar(message, 'error')}
-        onBookingCreated={(booking, guest) => {
-          // For walk-in bookings, open the enhanced check-in modal
-          setCheckInBooking(booking);
-          setCheckInGuest(guest);
-          setEnhancedCheckInOpen(true);
-        }}
+        onSuccess={handleUnifiedBookingSuccess}
+        onError={handleUnifiedBookingError}
+        onBookingCreated={handleUnifiedBookingCreated}
         onRefreshData={loadData}
       />
 
