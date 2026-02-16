@@ -187,6 +187,11 @@ pub struct BookingWithDetails {
     // Night audit posting fields
     pub is_posted: Option<bool>,
     pub posted_date: Option<NaiveDate>,
+    // Tourist and extra charges
+    pub is_tourist: Option<bool>,
+    pub tourism_tax_amount: Option<Decimal>,
+    pub extra_bed_count: Option<i32>,
+    pub extra_bed_charge: Option<Decimal>,
     // Rate override fields
     pub rate_override_weekday: Option<Decimal>,
     pub rate_override_weekend: Option<Decimal>,
