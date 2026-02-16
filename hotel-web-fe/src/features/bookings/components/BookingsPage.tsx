@@ -296,6 +296,7 @@ const BookingsPage: React.FC = () => {
       rate_code: booking.rate_code || 'RACK',
       deposit_paid: booking.deposit_paid || false,
       remarks: booking.remarks || '',
+      special_requests: booking.special_requests || '',
       // Use the booking's room rate directly (this is the override rate if one was set)
       price_per_night: bookingRate,
       has_override: bookingRate > 0,
@@ -543,10 +544,9 @@ const BookingsPage: React.FC = () => {
     return status === 'checked_in';
   };
 
-  // Can delete/cancel booking only if not checked in or already cancelled
+  // Can delete/cancel booking in any state except already cancelled
   const canDelete = (booking: BookingWithDetails) => {
-    const status = booking.status;
-    return status === 'confirmed' || status === 'pending' || status === 'checked_out';
+    return booking.status !== 'cancelled';
   };
 
   // Can mark as complimentary only if confirmed/pending (not checked in yet)
@@ -998,7 +998,7 @@ const BookingsPage: React.FC = () => {
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap'
                   }}>
-                    {booking.remarks || '-'}
+                    {[booking.remarks, booking.special_requests].filter(Boolean).join(' | ') || '-'}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -1301,10 +1301,21 @@ const BookingsPage: React.FC = () => {
                 fullWidth
                 label="Notes / Remarks"
                 multiline
-                rows={3}
+                rows={2}
                 value={editFormData.remarks || ''}
                 onChange={(e) => setEditFormData((prev: any) => ({ ...prev, remarks: e.target.value }))}
                 placeholder="Enter any notes or remarks for this booking..."
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Special Requests"
+                multiline
+                rows={2}
+                value={editFormData.special_requests || ''}
+                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, special_requests: e.target.value }))}
+                placeholder="Enter any special requests..."
               />
             </Grid>
             <Grid item xs={12}>

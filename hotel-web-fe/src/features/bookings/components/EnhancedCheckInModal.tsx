@@ -26,6 +26,7 @@ import {
   FormHelperText,
   Autocomplete,
   Snackbar,
+  Chip,
 } from '@mui/material';
 import {
   Visibility as VisibilityIcon,
@@ -33,6 +34,7 @@ import {
   Search as SearchIcon,
   PersonAdd as PersonAddIcon,
   Business as BusinessIcon,
+  Hotel as HotelIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { HotelAPIService, LedgerService } from '../../../api';
@@ -47,6 +49,7 @@ import {
   CustomerLedgerCreateRequest
 } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { getHotelSettings } from '../../../utils/hotelSettings';
 
 // Validation helper functions
 const validateEmail = (email: string): boolean => {
@@ -208,6 +211,7 @@ export default function EnhancedCheckInModal({
   const [language, setLanguage] = useState('Default Language (English)');
   const [travelAgent1, setTravelAgent1] = useState('');
   const [travelAgent2, setTravelAgent2] = useState('');
+  const [specialRequests, setSpecialRequests] = useState('');
   const [carPlateNo, setCarPlateNo] = useState('');
   const [eta, setEta] = useState('');
 
@@ -238,7 +242,12 @@ export default function EnhancedCheckInModal({
   const [rateCodes, setRateCodes] = useState<string[]>([]);
   const [marketCodes, setMarketCodes] = useState<string[]>([]);
   const [titleOptions] = useState(['Mr', 'Mrs', 'Ms', 'Dr', 'Prof']);
-  const [paymentMethods] = useState(['Cash', 'Credit Card', 'Debit Card', 'DuitNow', 'Online Banking', 'E-Wallet', 'Direct Billing']);
+  const [paymentMethods] = useState(() => {
+    const settings = getHotelSettings();
+    return settings.payment_methods && settings.payment_methods.length > 0
+      ? settings.payment_methods
+      : ['Cash', 'Credit Card', 'Debit Card', 'DuitNow', 'Online Banking', 'E-Wallet', 'Direct Billing'];
+  });
   const [contactTypes] = useState(['Mobile', 'Home', 'Work', 'Fax']);
 
   // Reset form when modal closes - use proper transition detection
@@ -378,13 +387,17 @@ export default function EnhancedCheckInModal({
       alt_phone: guest.alt_phone,
     });
 
+    const initialPaymentMethod = booking.payment_method || 'Cash';
     setBookingData({
       market_code: booking.market_code || 'WKII',
       rate_code: booking.rate_code || 'RACK',
-      payment_method: booking.payment_method || 'Cash',
+      payment_method: initialPaymentMethod,
       check_in_time: booking.check_in_time || '15:00',
       check_out_time: booking.check_out_time || '11:00',
     });
+    setPaymentType(initialPaymentMethod);
+
+    setSpecialRequests(booking.special_requests || '');
   };
 
   // Validate a single field
@@ -511,6 +524,7 @@ export default function EnhancedCheckInModal({
       // Include company info if Direct Billing is selected
       const bookingUpdateWithCompany = {
         ...bookingData,
+        special_requests: specialRequests || undefined,
         ...(paymentType === 'Direct Billing' && selectedCompany ? {
           company_id: selectedCompany.id,
           company_name: selectedCompany.company_name,
@@ -644,7 +658,7 @@ export default function EnhancedCheckInModal({
             Walk-in Guest - Folio: {booking.folio_number || booking.id}
           </Typography>
           <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.9 }}>
-            Room Number: {booking.room_id} | Room Type: {booking.room_type || 'STDQ - Standard Queen'}
+            Room Number: {(booking as any).room_number || booking.room_id} | Room Type: {booking.room_type || 'STDQ - Standard Queen'}
           </Typography>
         </Box>
       </DialogTitle>
@@ -655,6 +669,92 @@ export default function EnhancedCheckInModal({
             {error}
           </Alert>
         )}
+
+        {/* Booking Summary */}
+        <Paper sx={{ p: 2, mb: 2, bgcolor: 'grey.50', border: 1, borderColor: 'divider' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+            <HotelIcon color="primary" fontSize="small" />
+            <Typography variant="subtitle2" fontWeight={600}>Booking Summary</Typography>
+            <Box sx={{ flex: 1 }} />
+            <Chip
+              label={booking.source === 'walk_in' ? 'Walk-In' : booking.source === 'online' ? 'Online' : booking.source || 'Direct'}
+              size="small"
+              color={booking.source === 'walk_in' ? 'primary' : booking.source === 'online' ? 'success' : 'default'}
+              sx={{ fontWeight: 600 }}
+            />
+          </Box>
+          <Grid container spacing={1}>
+            <Grid item xs={4}>
+              <Typography variant="caption" color="text.secondary">Room</Typography>
+              <Typography variant="body2" fontWeight={600}>
+                {(booking as any).room_number || booking.room_id} ({booking.room_type || 'N/A'})
+              </Typography>
+            </Grid>
+            <Grid item xs={4}>
+              <Typography variant="caption" color="text.secondary">Guest</Typography>
+              <Typography variant="body2" fontWeight={600}>{guest.full_name}</Typography>
+            </Grid>
+            <Grid item xs={4}>
+              <Typography variant="caption" color="text.secondary">Folio</Typography>
+              <Typography variant="body2" fontWeight={600}>{booking.folio_number || 'N/A'}</Typography>
+            </Grid>
+            <Grid item xs={12}>
+              <Divider sx={{ my: 0.5 }} />
+            </Grid>
+            <Grid item xs={4}>
+              <Typography variant="caption" color="text.secondary">Check-in</Typography>
+              <Typography variant="body2">{booking.check_in_date}</Typography>
+            </Grid>
+            <Grid item xs={4}>
+              <Typography variant="caption" color="text.secondary">Check-out</Typography>
+              <Typography variant="body2">{booking.check_out_date}</Typography>
+            </Grid>
+            <Grid item xs={4}>
+              <Typography variant="caption" color="text.secondary">Nights</Typography>
+              <Typography variant="body2">{calculateNights()}</Typography>
+            </Grid>
+            <Grid item xs={12}>
+              <Divider sx={{ my: 0.5 }} />
+            </Grid>
+            <Grid item xs={4}>
+              <Typography variant="caption" color="text.secondary">Room Rate</Typography>
+              <Typography variant="body2">
+                {booking.rate_override_weekday
+                  ? `${formatCurrency(Number(booking.rate_override_weekday))}/night (Custom)`
+                  : `${formatCurrency(Number(booking.total_amount) / Math.max(calculateNights(), 1))}/night`
+                }
+              </Typography>
+            </Grid>
+            {booking.is_tourist && Number(booking.tourism_tax_amount || 0) > 0 && (
+              <Grid item xs={4}>
+                <Typography variant="caption" color="text.secondary">Tourism Tax</Typography>
+                <Typography variant="body2">{formatCurrency(Number(booking.tourism_tax_amount))}</Typography>
+              </Grid>
+            )}
+            <Grid item xs={4}>
+              <Typography variant="caption" color="text.secondary">Total Amount</Typography>
+              <Typography variant="body2" fontWeight={600} color="primary.main">
+                {formatCurrency(Number(booking.total_amount))}
+              </Typography>
+            </Grid>
+            {(Number(booking.deposit_amount || 0) > 0 || Number(booking.room_card_deposit || 0) > 0) && (
+              <>
+                {Number(booking.deposit_amount || 0) > 0 && (
+                  <Grid item xs={4}>
+                    <Typography variant="caption" color="text.secondary">Deposit Paid</Typography>
+                    <Typography variant="body2" color="success.main">{formatCurrency(Number(booking.deposit_amount))}</Typography>
+                  </Grid>
+                )}
+                {Number(booking.room_card_deposit || 0) > 0 && (
+                  <Grid item xs={4}>
+                    <Typography variant="caption" color="text.secondary">Room Card Deposit</Typography>
+                    <Typography variant="body2">{formatCurrency(Number(booking.room_card_deposit))}</Typography>
+                  </Grid>
+                )}
+              </>
+            )}
+          </Grid>
+        </Paper>
 
         <Tabs
           value={activeTab}
@@ -676,33 +776,25 @@ export default function EnhancedCheckInModal({
           <Tab label="Notes" />
         </Tabs>
 
-        {/* Tab 1: Personal Information */}
+        {/* Tab 1: Personal Information (View Only) */}
         <TabPanel value={activeTab} index={0}>
           <Grid container spacing={2}>
             <Grid item xs={12} sm={3}>
-              <FormControl fullWidth>
-                <InputLabel>Title</InputLabel>
-                <Select
-                  value={guestData.title || ''}
-                  onChange={(e) => handleGuestChange('title', e.target.value)}
-                  label="Title"
-                >
-                  {titleOptions.map(title => (
-                    <MenuItem key={title} value={title}>{title}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <TextField
+                fullWidth
+                label="Title"
+                value={guestData.title || ''}
+                disabled
+                InputProps={{ readOnly: true }}
+              />
             </Grid>
             <Grid item xs={12} sm={4.5}>
               <TextField
                 fullWidth
                 label="First Name"
                 value={guestData.first_name || ''}
-                onChange={(e) => handleGuestChange('first_name', e.target.value)}
-                onBlur={(e) => handleBlur('first_name', e.target.value)}
-                error={touched.first_name && !!validationErrors.first_name}
-                helperText={touched.first_name && validationErrors.first_name}
-                required
+                disabled
+                InputProps={{ readOnly: true }}
               />
             </Grid>
             <Grid item xs={12} sm={4.5}>
@@ -710,7 +802,8 @@ export default function EnhancedCheckInModal({
                 fullWidth
                 label="Last Name"
                 value={guestData.last_name || ''}
-                onChange={(e) => handleGuestChange('last_name', e.target.value)}
+                disabled
+                InputProps={{ readOnly: true }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -719,10 +812,8 @@ export default function EnhancedCheckInModal({
                 label="Email"
                 type="email"
                 value={guestData.email || ''}
-                onChange={(e) => handleGuestChange('email', e.target.value)}
-                onBlur={(e) => handleBlur('email', e.target.value)}
-                error={touched.email && !!validationErrors.email}
-                helperText={touched.email && validationErrors.email}
+                disabled
+                InputProps={{ readOnly: true }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -730,10 +821,8 @@ export default function EnhancedCheckInModal({
                 fullWidth
                 label="Phone 1"
                 value={guestData.phone || ''}
-                onChange={(e) => handleGuestChange('phone', e.target.value)}
-                onBlur={(e) => handleBlur('phone', e.target.value)}
-                error={touched.phone && !!validationErrors.phone}
-                helperText={(touched.phone && validationErrors.phone) || 'Format: +60XXXXXXXXX or 0XXXXXXXXX'}
+                disabled
+                InputProps={{ readOnly: true }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -741,10 +830,8 @@ export default function EnhancedCheckInModal({
                 fullWidth
                 label="Phone 2"
                 value={guestData.alt_phone || ''}
-                onChange={(e) => handleGuestChange('alt_phone', e.target.value)}
-                onBlur={(e) => handleBlur('alt_phone', e.target.value)}
-                error={touched.alt_phone && !!validationErrors.alt_phone}
-                helperText={touched.alt_phone && validationErrors.alt_phone}
+                disabled
+                InputProps={{ readOnly: true }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -752,10 +839,8 @@ export default function EnhancedCheckInModal({
                 fullWidth
                 label="Reference/IC Number"
                 value={guestData.ic_number || ''}
-                onChange={(e) => handleGuestChange('ic_number', e.target.value)}
-                onBlur={(e) => handleBlur('ic_number', e.target.value)}
-                error={touched.ic_number && !!validationErrors.ic_number}
-                helperText={(touched.ic_number && validationErrors.ic_number) || 'IC: YYMMDD-SS-NNNN or Passport'}
+                disabled
+                InputProps={{ readOnly: true }}
               />
             </Grid>
             <Grid item xs={12}>
@@ -763,7 +848,8 @@ export default function EnhancedCheckInModal({
                 fullWidth
                 label="Street Address"
                 value={guestData.address_line1 || ''}
-                onChange={(e) => handleGuestChange('address_line1', e.target.value)}
+                disabled
+                InputProps={{ readOnly: true }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -771,7 +857,8 @@ export default function EnhancedCheckInModal({
                 fullWidth
                 label="City"
                 value={guestData.city || ''}
-                onChange={(e) => handleGuestChange('city', e.target.value)}
+                disabled
+                InputProps={{ readOnly: true }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -779,7 +866,8 @@ export default function EnhancedCheckInModal({
                 fullWidth
                 label="State/Province"
                 value={guestData.state_province || ''}
-                onChange={(e) => handleGuestChange('state_province', e.target.value)}
+                disabled
+                InputProps={{ readOnly: true }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -787,7 +875,8 @@ export default function EnhancedCheckInModal({
                 fullWidth
                 label="Zip Code"
                 value={guestData.postal_code || ''}
-                onChange={(e) => handleGuestChange('postal_code', e.target.value)}
+                disabled
+                InputProps={{ readOnly: true }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -795,7 +884,8 @@ export default function EnhancedCheckInModal({
                 fullWidth
                 label="Country"
                 value={guestData.country || ''}
-                onChange={(e) => handleGuestChange('country', e.target.value)}
+                disabled
+                InputProps={{ readOnly: true }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -803,7 +893,8 @@ export default function EnhancedCheckInModal({
                 fullWidth
                 label="Nationality"
                 value={guestData.nationality || ''}
-                onChange={(e) => handleGuestChange('nationality', e.target.value)}
+                disabled
+                InputProps={{ readOnly: true }}
               />
             </Grid>
           </Grid>
@@ -903,7 +994,7 @@ export default function EnhancedCheckInModal({
               <Divider sx={{ mb: 2 }} />
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={4}>
               <FormControl fullWidth>
                 <InputLabel>Rate Code</InputLabel>
                 <Select
@@ -917,7 +1008,23 @@ export default function EnhancedCheckInModal({
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={4}>
+              <Autocomplete
+                freeSolo
+                options={marketCodes}
+                value={bookingData.market_code || 'WKII'}
+                onChange={(_, newValue) => handleBookingChange('market_code', newValue || '')}
+                onInputChange={(_, newInputValue) => handleBookingChange('market_code', newInputValue)}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Market Code"
+                    placeholder="Type or select..."
+                  />
+                )}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
               <TextField
                 fullWidth
                 label="Discount %"
@@ -1275,39 +1382,6 @@ export default function EnhancedCheckInModal({
               </>
             )}
 
-            <Grid item xs={12}>
-              <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
-                Guest Identification
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Nationality"
-                value={guestData.nationality || ''}
-                onChange={(e) => handleGuestChange('nationality', e.target.value)}
-                placeholder="@SAR - Sarawak"
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton size="small">
-                        <SearchIcon />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Passport or IC #"
-                value={guestData.ic_number || ''}
-                onChange={(e) => handleGuestChange('ic_number', e.target.value)}
-                placeholder="1234"
-              />
-            </Grid>
           </Grid>
         </TabPanel>
 
@@ -1489,9 +1563,9 @@ export default function EnhancedCheckInModal({
                 label="Special Requests"
                 multiline
                 rows={4}
-                value={booking.special_requests || ''}
-                disabled
-                helperText="Special requests from booking"
+                value={specialRequests}
+                onChange={(e) => setSpecialRequests(e.target.value)}
+                helperText="Add or edit special requests for this booking"
               />
             </Grid>
             <Grid item xs={12}>

@@ -25,8 +25,6 @@ import {
   Alert,
   Chip,
   Autocomplete,
-  Tabs,
-  Tab,
   FormControlLabel,
   Checkbox,
 } from '@mui/material';
@@ -39,7 +37,7 @@ import {
   ArrowForward as ArrowForwardIcon,
   Check as CheckIcon,
 } from '@mui/icons-material';
-import { Room, Guest, Booking, CheckInRequest, GuestUpdateRequest, BookingUpdateRequest } from '../../../types';
+import { Room, Guest, Booking } from '../../../types';
 import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
@@ -151,6 +149,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const [useCustomRate, setUseCustomRate] = useState(false);
   const [customRate, setCustomRate] = useState<number>(0);
 
+  // Tourism tax state
+  const [isTourist, setIsTourist] = useState(false);
+
   // Processing state
   const [processing, setProcessing] = useState(false);
 
@@ -158,15 +159,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [loadingAvailableRooms, setLoadingAvailableRooms] = useState(false);
-
-  // Check-in step state (for direct booking)
-  const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
-  const [createdGuest, setCreatedGuest] = useState<Guest | null>(null);
-  const [checkInTabIndex, setCheckInTabIndex] = useState(0);
-  const [guestUpdateData, setGuestUpdateData] = useState<GuestUpdateRequest>({});
-  const [bookingUpdateData, setBookingUpdateData] = useState<BookingUpdateRequest>({});
-  const [rateCodes, setRateCodes] = useState<string[]>([]);
-  const [marketCodes, setMarketCodes] = useState<string[]>([]);
 
   // Use selected room or prop room
   const room = roomProp || selectedRoom;
@@ -216,13 +208,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setRoomCardDeposit(roomCardDepositDefaultRef.current);
       setUseCustomRate(false);
       setCustomRate(0);
+      setIsTourist(false);
       setSelectedRoom(null);
       setAvailableRooms([]);
-      setCreatedBooking(null);
-      setCreatedGuest(null);
-      setCheckInTabIndex(0);
-      setGuestUpdateData({});
-      setBookingUpdateData({});
 
       // Mark initialization complete after a microtask to ensure state has settled
       Promise.resolve().then(() => {
@@ -250,13 +238,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setRoomCardDeposit(roomCardDepositDefaultRef.current);
       setUseCustomRate(false);
       setCustomRate(0);
+      setIsTourist(false);
       setSelectedRoom(null);
       setAvailableRooms([]);
-      setCreatedBooking(null);
-      setCreatedGuest(null);
-      setCheckInTabIndex(0);
-      setGuestUpdateData({});
-      setBookingUpdateData({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -296,26 +280,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       loadGuestsWithCredits();
     }
   }, [reservationType, open]);
-
-  // Load rate/market codes when entering check-in step
-  useEffect(() => {
-    const loadDropdownData = async () => {
-      try {
-        const [ratesResp, marketsResp] = await Promise.all([
-          HotelAPIService.getRateCodes(),
-          HotelAPIService.getMarketCodes(),
-        ]);
-        setRateCodes(ratesResp.rate_codes);
-        setMarketCodes(marketsResp.market_codes);
-      } catch (err) {
-        console.error('Failed to load dropdown data:', err);
-      }
-    };
-
-    if (createdBooking && open) {
-      loadDropdownData();
-    }
-  }, [createdBooking, open]);
 
   const loadGuestsWithCredits = async () => {
     setLoadingGuestsWithCredits(true);
@@ -363,7 +327,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     if (needsRoomSelection) {
       // Room selection mode: add Room step after Mode
       if (bookingMode === 'direct') {
-        return ['Mode', 'Room', 'Guest', 'Dates & Payment', 'Confirm', 'Check-In'];
+        return ['Mode', 'Room', 'Guest', 'Dates & Payment', 'Confirm'];
       } else if (bookingMode === 'reservation') {
         return ['Mode', 'Type', 'Room', 'Guest', 'Details', 'Confirm'];
       }
@@ -371,7 +335,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     } else {
       // Room pre-selected: original flow
       if (bookingMode === 'direct') {
-        return ['Mode', 'Guest', 'Dates & Payment', 'Confirm', 'Check-In'];
+        return ['Mode', 'Guest', 'Dates & Payment', 'Confirm'];
       } else if (bookingMode === 'reservation') {
         return ['Mode', 'Type', 'Guest', 'Details', 'Confirm'];
       }
@@ -440,10 +404,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       case 'Confirm':
         return true;
 
-      case 'Check-In':
-        // Check-in step validation - require first name at minimum
-        return !!(guestUpdateData.first_name && guestUpdateData.first_name.trim());
-
       default:
         return false;
     }
@@ -455,22 +415,15 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     if (processing || isInitializingRef.current) return;
 
     const steps = getSteps();
-    const currentStepName = steps[activeStep];
 
     // Guard against invalid step navigation
     if (activeStep >= steps.length - 1) return;
 
-    // For direct booking, create the booking when moving from Confirm to Check-In step
-    if (bookingMode === 'direct' && currentStepName === 'Confirm') {
-      await createBookingForCheckIn();
-      return;
-    }
-
     setActiveStep((prev) => Math.min(prev + 1, steps.length - 1));
   };
 
-  // Create booking and transition to check-in step (for direct booking)
-  const createBookingForCheckIn = async () => {
+  // Create booking and hand off to EnhancedCheckInModal (for direct booking)
+  const createBookingAndHandOff = async () => {
     if (!room) {
       onError('No room selected');
       return;
@@ -541,11 +494,13 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         payment_method: paymentMethod,
         amount_paid: deposit,
         room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
+        is_tourist: isTourist,
+        tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
       };
 
       const createdBookingResult = await HotelAPIService.createBooking(bookingData);
 
-      // Create booking object for check-in step
+      // Create booking object for EnhancedCheckInModal
       const bookingForCheckIn: Booking = {
         id: createdBookingResult.id,
         guest_id: guestToUse.id.toString(),
@@ -562,40 +517,22 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         post_type: createdBookingResult.post_type,
         created_at: createdBookingResult.created_at,
         updated_at: createdBookingResult.updated_at,
+        is_tourist: isTourist,
+        tourism_tax_amount: createdBookingResult.tourism_tax_amount || (tourismTaxAmount > 0 ? tourismTaxAmount : undefined),
+        room_card_deposit: effectiveRoomCardDeposit,
+        deposit_amount: deposit,
+        source: 'walk_in',
       };
 
-      // Parse full_name into first and last name
-      const nameParts = guestToUse.full_name?.split(' ') || [];
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
+      // Add room_number to booking for EnhancedCheckInModal display
+      (bookingForCheckIn as any).room_number = room.room_number;
 
-      // Initialize guest update data from guest
-      setGuestUpdateData({
-        first_name: firstName,
-        last_name: lastName,
-        email: guestToUse.email,
-        phone: guestToUse.phone,
-        ic_number: guestToUse.ic_number,
-        nationality: guestToUse.nationality,
-        address_line1: guestToUse.address_line1,
-        city: guestToUse.city,
-        state_province: guestToUse.state_province,
-        postal_code: guestToUse.postal_code,
-        country: guestToUse.country,
-        title: guestToUse.title,
-        alt_phone: guestToUse.alt_phone,
-      });
-
-      // Initialize booking update data
-      setBookingUpdateData({
-        market_code: 'WKII',
-        rate_code: 'RACK',
-        payment_method: paymentMethod === 'cash' ? 'Cash' : paymentMethod === 'card' ? 'Credit Card' : paymentMethod === 'bank_transfer' ? 'Online Banking' : 'E-Wallet',
-      });
-
-      setCreatedBooking(bookingForCheckIn);
-      setCreatedGuest(guestToUse);
-      setActiveStep((prev) => prev + 1);
+      // Hand off to EnhancedCheckInModal
+      if (onBookingCreated) {
+        onBookingCreated(bookingForCheckIn, guestToUse);
+      }
+      onClose();
+      await onRefreshData();
     } catch (error: any) {
       onError(error.message || 'Failed to create booking');
     } finally {
@@ -629,10 +566,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     setSelectedGuestWithCredits(null);
     setIsCreatingNewGuest(false);
     setNewGuestForm(emptyNewGuestForm);
-    // Reset step-related state to prevent stale data
-    setCreatedBooking(null);
-    setCreatedGuest(null);
-    setCheckInTabIndex(0);
   };
 
   // Handle reservation type selection (Step 1 for reservation mode)
@@ -659,14 +592,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     return reservationType;
   };
 
-  // Submit booking (or complete check-in for direct booking)
+  // Submit booking
   const handleSubmit = async () => {
-    const steps = getSteps();
-    const currentStepName = steps[activeStep];
-
-    // Handle check-in completion for direct booking
-    if (bookingMode === 'direct' && currentStepName === 'Check-In' && createdBooking) {
-      await completeCheckIn();
+    // Handle direct booking: create booking and hand off to EnhancedCheckInModal
+    if (bookingMode === 'direct') {
+      await createBookingAndHandOff();
       return;
     }
 
@@ -752,6 +682,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             payment_method: paymentMethod,
             amount_paid: deposit,
             room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
+            is_tourist: isTourist,
+            tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
           };
 
           await HotelAPIService.createBooking(bookingData);
@@ -775,6 +707,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               ? `${bookingChannel} - Ref: ${bookingReference}`
               : `${bookingChannel} Booking`,
             room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
+            is_tourist: isTourist,
+            tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
           };
 
           await HotelAPIService.createBooking(bookingData);
@@ -821,41 +755,20 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     }
   };
 
-  // Complete check-in for direct booking
-  const completeCheckIn = async () => {
-    if (!createdBooking) {
-      onError('No booking found for check-in');
-      return;
-    }
-
-    setProcessing(true);
-
-    try {
-      const checkinRequest: CheckInRequest = {
-        guest_update: guestUpdateData,
-        booking_update: bookingUpdateData,
-      };
-
-      await HotelAPIService.checkInGuest(createdBooking.id, checkinRequest);
-
-      onSuccess(`Guest checked in successfully to Room ${room?.room_number}`);
-      onClose();
-      await onRefreshData();
-    } catch (error: any) {
-      onError(error.message || 'Failed to complete check-in');
-    } finally {
-      setProcessing(false);
-    }
-  };
+  // Calculate tourism tax amount
+  const tourismTaxAmount = isTourist ? numberOfNights * hotelSettings.tourism_tax_rate : 0;
 
   // Calculate total amount
   const calculateTotal = () => {
+    let total: number;
     if (useCustomRate && customRate > 0) {
-      return customRate * numberOfNights;
+      total = customRate * numberOfNights;
+    } else {
+      const price = room?.price_per_night || 0;
+      const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+      total = numPrice * numberOfNights;
     }
-    const price = room?.price_per_night || 0;
-    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-    return numPrice * numberOfNights;
+    return total + tourismTaxAmount;
   };
 
 
@@ -1115,7 +1028,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     if (currentStepName === 'Dates & Payment' || currentStepName === 'Details') {
       const isWalkIn = effectiveType === 'walk_in';
       const isOnline = effectiveType === 'online';
-      const showPayment = isWalkIn && bookingMode === 'direct';
+      const showPayment = isWalkIn;
       // Only show dates if room was pre-selected (dates already entered in Room step otherwise)
       const showDates = !needsRoomSelection;
 
@@ -1241,6 +1154,48 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               </>
             )}
 
+            {/* Tourism Tax Toggle (for walk-in and online, not complimentary) */}
+            {(isWalkIn || isOnline) && (
+              <>
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }} />
+                  <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
+                    Tourism Tax
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={isTourist}
+                        onChange={(e) => setIsTourist(e.target.checked)}
+                        color="primary"
+                      />
+                    }
+                    label={
+                      <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          Guest is a Tourist
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Apply tourism tax of {formatCurrency(hotelSettings.tourism_tax_rate)} per night
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Grid>
+                {isTourist && (
+                  <Grid item xs={12} md={6}>
+                    <Alert severity="info" sx={{ py: 0.5 }}>
+                      <Typography variant="body2">
+                        Tourism Tax: {formatCurrency(hotelSettings.tourism_tax_rate)} x {numberOfNights} night(s) = {formatCurrency(tourismTaxAmount)}
+                      </Typography>
+                    </Alert>
+                  </Grid>
+                )}
+              </>
+            )}
+
             {/* Walk-in payment fields (only for direct booking) */}
             {showPayment && (
               <>
@@ -1297,260 +1252,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       );
     }
 
-    // Check-In step (for direct booking)
-    if (currentStepName === 'Check-In' && createdBooking) {
-      const titleOptions = ['Mr', 'Mrs', 'Ms', 'Dr', 'Prof'];
-      const paymentMethods = hotelSettings.payment_methods;
-      // Ensure tab index is valid (0-2)
-      const safeTabIndex = Math.max(0, Math.min(2, checkInTabIndex));
-
-      return (
-        <Box>
-          <Typography variant="subtitle1" gutterBottom sx={{ mb: 2, fontWeight: 600 }}>
-            Complete Check-In - Folio: {createdBooking.folio_number}
-          </Typography>
-
-          <Alert severity="success" sx={{ mb: 2 }}>
-            Booking created successfully! Please verify guest details and complete the check-in.
-          </Alert>
-
-          <Tabs
-            value={safeTabIndex}
-            onChange={(_, newValue) => {
-              // Guard against tab changes during processing
-              if (processing || isInitializingRef.current) return;
-              // Ensure tab index is valid (0, 1, or 2)
-              if (newValue >= 0 && newValue <= 2) {
-                setCheckInTabIndex(newValue);
-              }
-            }}
-            variant="scrollable"
-            scrollButtons="auto"
-            sx={{ mb: 2 }}
-          >
-            <Tab label="Guest Info" />
-            <Tab label="Stay Details" />
-            <Tab label="Payment" />
-          </Tabs>
-
-          {/* Tab 0: Guest Information */}
-          {safeTabIndex === 0 && (
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={3}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Title</InputLabel>
-                  <Select
-                    value={guestUpdateData.title || ''}
-                    onChange={(e) => setGuestUpdateData({ ...guestUpdateData, title: e.target.value })}
-                    label="Title"
-                  >
-                    {titleOptions.map(title => (
-                      <MenuItem key={title} value={title}>{title}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={4.5}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="First Name"
-                  value={guestUpdateData.first_name || ''}
-                  onChange={(e) => setGuestUpdateData({ ...guestUpdateData, first_name: e.target.value })}
-                  required
-                />
-              </Grid>
-              <Grid item xs={12} sm={4.5}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Last Name"
-                  value={guestUpdateData.last_name || ''}
-                  onChange={(e) => setGuestUpdateData({ ...guestUpdateData, last_name: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Email"
-                  type="email"
-                  value={guestUpdateData.email || ''}
-                  onChange={(e) => setGuestUpdateData({ ...guestUpdateData, email: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Phone"
-                  value={guestUpdateData.phone || ''}
-                  onChange={(e) => setGuestUpdateData({ ...guestUpdateData, phone: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="IC/Passport Number"
-                  value={guestUpdateData.ic_number || ''}
-                  onChange={(e) => setGuestUpdateData({ ...guestUpdateData, ic_number: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Nationality"
-                  value={guestUpdateData.nationality || ''}
-                  onChange={(e) => setGuestUpdateData({ ...guestUpdateData, nationality: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Address"
-                  value={guestUpdateData.address_line1 || ''}
-                  onChange={(e) => setGuestUpdateData({ ...guestUpdateData, address_line1: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="City"
-                  value={guestUpdateData.city || ''}
-                  onChange={(e) => setGuestUpdateData({ ...guestUpdateData, city: e.target.value })}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Country"
-                  value={guestUpdateData.country || ''}
-                  onChange={(e) => setGuestUpdateData({ ...guestUpdateData, country: e.target.value })}
-                />
-              </Grid>
-            </Grid>
-          )}
-
-          {/* Tab 1: Stay Details */}
-          {safeTabIndex === 1 && (
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Check-in Date"
-                  type="date"
-                  value={createdBooking.check_in_date}
-                  disabled
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Check-out Date"
-                  type="date"
-                  value={createdBooking.check_out_date}
-                  disabled
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Rate Code</InputLabel>
-                  <Select
-                    value={bookingUpdateData.rate_code || 'RACK'}
-                    onChange={(e) => setBookingUpdateData({ ...bookingUpdateData, rate_code: e.target.value })}
-                    label="Rate Code"
-                  >
-                    {rateCodes.length > 0 ? rateCodes.map(code => (
-                      <MenuItem key={code} value={code}>{code}</MenuItem>
-                    )) : (
-                      <MenuItem value="RACK">RACK</MenuItem>
-                    )}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Market Code</InputLabel>
-                  <Select
-                    value={bookingUpdateData.market_code || 'WKII'}
-                    onChange={(e) => setBookingUpdateData({ ...bookingUpdateData, market_code: e.target.value })}
-                    label="Market Code"
-                  >
-                    {marketCodes.length > 0 ? marketCodes.map(code => (
-                      <MenuItem key={code} value={code}>{code}</MenuItem>
-                    )) : (
-                      <MenuItem value="WKII">WKII</MenuItem>
-                    )}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12}>
-                <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-                  <Typography variant="subtitle2" gutterBottom>Room Details</Typography>
-                  <Grid container spacing={1}>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" color="text.secondary">Room:</Typography>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2">{room?.room_number} ({room?.room_type})</Typography>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" color="text.secondary">Total:</Typography>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" fontWeight="bold">{formatCurrency(Number(createdBooking.total_amount))}</Typography>
-                    </Grid>
-                  </Grid>
-                </Paper>
-              </Grid>
-            </Grid>
-          )}
-
-          {/* Tab 2: Payment */}
-          {safeTabIndex === 2 && (
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>Payment Method</InputLabel>
-                  <Select
-                    value={bookingUpdateData.payment_method || 'Cash'}
-                    onChange={(e) => setBookingUpdateData({ ...bookingUpdateData, payment_method: e.target.value })}
-                    label="Payment Method"
-                  >
-                    {paymentMethods.map(method => (
-                      <MenuItem key={method} value={method}>{method}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12}>
-                <Paper sx={{ p: 2, bgcolor: 'info.50', borderLeft: 4, borderColor: 'info.main' }}>
-                  <Typography variant="body2">
-                    <strong>Folio Number:</strong> {createdBooking.folio_number}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    <strong>Status:</strong> {createdBooking.status.toUpperCase()}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    <strong>Total Amount:</strong> {formatCurrency(Number(createdBooking.total_amount))}
-                  </Typography>
-                </Paper>
-              </Grid>
-            </Grid>
-          )}
-        </Box>
-      );
-    }
-
     // Confirm step
     const getModeLabel = () => {
       if (bookingMode === 'direct') return 'Direct Booking';
@@ -1566,18 +1267,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       return '#1976d2';
     };
 
-    // Confirm step content (shown for both direct booking and reservation modes)
+    // Guard: should only reach here for Confirm step
     if (currentStepName !== 'Confirm') {
-      // Fallback for Check-In step when booking is still being created
-      if (currentStepName === 'Check-In' && !createdBooking) {
-        return (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
-            <CircularProgress />
-            <Typography sx={{ ml: 2 }}>Creating booking...</Typography>
-          </Box>
-        );
-      }
-      // Return loading state for any unexpected step
       return (
         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}>
           <CircularProgress />
@@ -1705,6 +1396,22 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                 )}
               </Typography>
             </Grid>
+            {/* Tourism Tax */}
+            {isTourist && effectiveType !== 'complimentary' && (
+              <>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Tourism Tax ({formatCurrency(hotelSettings.tourism_tax_rate)}/night)
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2">
+                    {formatCurrency(tourismTaxAmount)}
+                  </Typography>
+                </Grid>
+              </>
+            )}
+
             <Grid item xs={6}>
               <Typography variant="body2" fontWeight={600}>Total</Typography>
             </Grid>
@@ -1770,23 +1477,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     return '#1976d2';
   };
 
-  // Get submit button text
+  // Get submit button text for last step
   const getSubmitButtonText = () => {
     if (processing) return 'Processing...';
-    const currentStepName = steps[activeStep];
-    if (bookingMode === 'direct' && currentStepName === 'Check-In') {
-      return 'Complete Check-In';
-    }
+    if (bookingMode === 'direct') return 'Create Booking';
     return 'Create Reservation';
-  };
-
-  // Get next button text (for direct booking Confirm step)
-  const getNextButtonText = () => {
-    const currentStepName = steps[activeStep];
-    if (bookingMode === 'direct' && currentStepName === 'Confirm') {
-      return processing ? 'Creating...' : 'Create Booking';
-    }
-    return 'Next';
   };
 
   return (
@@ -1831,7 +1526,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           Cancel
         </Button>
         <Box sx={{ flex: 1 }} />
-        {activeStep > 0 && steps[activeStep] !== 'Check-In' && (
+        {activeStep > 0 && (
           <Button
             onClick={handleBack}
             disabled={processing}
@@ -1847,7 +1542,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             disabled={!canProceed || processing}
             endIcon={processing ? <CircularProgress size={20} /> : <ArrowForwardIcon />}
           >
-            {getNextButtonText()}
+            Next
           </Button>
         ) : (
           <Button
@@ -1865,4 +1560,4 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   );
 };
 
-export default UnifiedBookingModal;
+export default React.memo(UnifiedBookingModal);

@@ -112,6 +112,7 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
         payment_method: row.try_get("payment_method").ok(),
         source: row.try_get("source").ok(),
         remarks: row.try_get("remarks").ok(),
+        special_requests: row.try_get("special_requests").ok(),
         is_complimentary: get_opt_bool(row, "is_complimentary"),
         complimentary_reason: row.try_get("complimentary_reason").ok(),
         complimentary_start_date: row.try_get("complimentary_start_date").ok(),
