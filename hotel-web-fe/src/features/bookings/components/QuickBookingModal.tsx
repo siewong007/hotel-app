@@ -22,7 +22,7 @@ import {
   EventAvailable as BookIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
-import { Room, Guest } from '../../../types';
+import { Room, Guest, RoomType } from '../../../types';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { useAuth } from '../../../auth/AuthContext';
@@ -50,6 +50,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
 }) => {
   const { user } = useAuth();
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
+
+  // Room type config for extra bed
+  const [roomTypeConfig, setRoomTypeConfig] = useState<RoomType | null>(null);
 
   // Guest selection state
   const [guests, setGuests] = useState<Guest[]>([]);
@@ -144,6 +147,11 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
       // Load hotel settings for default values
       const settings = getHotelSettings();
       setRoomCardDeposit(settings.room_card_deposit);
+
+      // Load room type config to get extra bed settings
+      if (room) {
+        loadRoomTypeConfig(room.room_type);
+      }
     }
 
     // Only reset when transitioning from open to closed
@@ -175,6 +183,26 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     }
   };
 
+  const loadRoomTypeConfig = async (roomTypeName: string) => {
+    try {
+      const roomTypes = await HotelAPIService.getAllRoomTypes();
+      const matched = roomTypes.find(rt => rt.name === roomTypeName);
+      setRoomTypeConfig(matched || null);
+    } catch (err) {
+      console.error('Failed to load room type config:', err);
+      setRoomTypeConfig(null);
+    }
+  };
+
+  // Derived extra bed config from room type
+  const allowsExtraBed = roomTypeConfig?.allows_extra_bed ?? false;
+  const maxExtraBeds = roomTypeConfig?.max_extra_beds ?? 0;
+  const extraBedChargePerBed = roomTypeConfig
+    ? (typeof roomTypeConfig.extra_bed_charge === 'string'
+        ? parseFloat(roomTypeConfig.extra_bed_charge)
+        : roomTypeConfig.extra_bed_charge) || 0
+    : 0;
+
   const resetForm = () => {
     setSelectedGuest(null);
     setShowNewGuestForm(false);
@@ -199,6 +227,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     setLateCheckoutPenalty(0);
     setUseCustomRate(false);
     setCustomRate(0);
+    setRoomTypeConfig(null);
     setError(null);
   };
 
@@ -766,32 +795,36 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   helperText={isTourist ? `${calculateNights()} night(s) × ${formatCurrency(getHotelSettings().tourism_tax_rate)}/night` : 'Check "Guest is a Tourist" to apply'}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Number of Extra Beds"
-                  type="number"
-                  value={extraBedCount}
-                  onChange={(e) => {
-                    const count = parseInt(e.target.value) || 0;
-                    setExtraBedCount(count);
-                    setExtraBedCharge(count * 50); // Default 50 per extra bed
-                  }}
-                  inputProps={{ min: 0, max: 5 }}
-                  helperText={`${formatCurrency(50)} per extra bed`}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Extra Bed Charge"
-                  type="number"
-                  value={extraBedCharge}
-                  onChange={(e) => setExtraBedCharge(parseFloat(e.target.value) || 0)}
-                  InputProps={{ startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography> }}
-                  helperText="Auto-calculated or manually adjust"
-                />
-              </Grid>
+              {allowsExtraBed && maxExtraBeds > 0 && (
+                <>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Number of Extra Beds"
+                      type="number"
+                      value={extraBedCount}
+                      onChange={(e) => {
+                        const count = Math.min(Math.max(parseInt(e.target.value) || 0, 0), maxExtraBeds);
+                        setExtraBedCount(count);
+                        setExtraBedCharge(count * extraBedChargePerBed);
+                      }}
+                      inputProps={{ min: 0, max: maxExtraBeds }}
+                      helperText={`${formatCurrency(extraBedChargePerBed)} per extra bed (max ${maxExtraBeds})`}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Extra Bed Charge"
+                      type="number"
+                      value={extraBedCharge}
+                      onChange={(e) => setExtraBedCharge(parseFloat(e.target.value) || 0)}
+                      InputProps={{ startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography> }}
+                      helperText="Auto-calculated or manually adjust"
+                    />
+                  </Grid>
+                </>
+              )}
               <Grid item xs={12}>
                 <TextField
                   fullWidth

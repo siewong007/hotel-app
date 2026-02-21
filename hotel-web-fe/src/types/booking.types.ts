@@ -171,6 +171,8 @@ export interface BookingUpdateRequest {
   remarks?: string;
   source?: string;
   room_rate_override?: number;
+  extra_bed_count?: number;
+  extra_bed_charge?: number;
 }
 
 export interface BookingCancellationRequest {

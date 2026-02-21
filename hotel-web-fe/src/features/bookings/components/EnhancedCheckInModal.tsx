@@ -46,7 +46,8 @@ import {
   BookingUpdateRequest,
   RateCodesResponse,
   MarketCodesResponse,
-  CustomerLedgerCreateRequest
+  CustomerLedgerCreateRequest,
+  RoomType,
 } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
@@ -238,6 +239,11 @@ export default function EnhancedCheckInModal({
   // Company Ledger state
   const [creatingLedger, setCreatingLedger] = useState(false);
 
+  // Room type config for extra bed
+  const [roomTypeConfig, setRoomTypeConfig] = useState<RoomType | null>(null);
+  const [extraBedCount, setExtraBedCount] = useState(0);
+  const [extraBedCharge, setExtraBedCharge] = useState(0);
+
   // Dropdowns data
   const [rateCodes, setRateCodes] = useState<string[]>([]);
   const [marketCodes, setMarketCodes] = useState<string[]>([]);
@@ -249,6 +255,15 @@ export default function EnhancedCheckInModal({
       : ['Cash', 'Credit Card', 'Debit Card', 'DuitNow', 'Online Banking', 'E-Wallet', 'Direct Billing'];
   });
   const [contactTypes] = useState(['Mobile', 'Home', 'Work', 'Fax']);
+
+  // Derived extra bed config from room type
+  const allowsExtraBed = roomTypeConfig?.allows_extra_bed ?? false;
+  const maxExtraBeds = roomTypeConfig?.max_extra_beds ?? 0;
+  const extraBedChargePerBed = roomTypeConfig
+    ? (typeof roomTypeConfig.extra_bed_charge === 'string'
+        ? parseFloat(roomTypeConfig.extra_bed_charge)
+        : roomTypeConfig.extra_bed_charge) || 0
+    : 0;
 
   // Reset form when modal closes - use proper transition detection
   useEffect(() => {
@@ -277,6 +292,13 @@ export default function EnhancedCheckInModal({
         loadDropdownData();
         loadCompanies();
         initializeFormData();
+        // Load room type config for extra bed settings
+        if (booking.room_type) {
+          HotelAPIService.getAllRoomTypes().then(roomTypes => {
+            const matched = roomTypes.find(rt => rt.name === booking.room_type);
+            setRoomTypeConfig(matched || null);
+          }).catch(() => setRoomTypeConfig(null));
+        }
         initializedRef.current = { bookingId: booking.id, guestId: guest.id };
       }
     }
@@ -398,6 +420,13 @@ export default function EnhancedCheckInModal({
     setPaymentType(initialPaymentMethod);
 
     setSpecialRequests(booking.special_requests || '');
+
+    // Initialize extra bed from booking
+    setExtraBedCount(booking.extra_bed_count || 0);
+    const ebCharge = typeof booking.extra_bed_charge === 'string'
+      ? parseFloat(booking.extra_bed_charge) || 0
+      : booking.extra_bed_charge || 0;
+    setExtraBedCharge(ebCharge);
   };
 
   // Validate a single field
@@ -525,6 +554,8 @@ export default function EnhancedCheckInModal({
       const bookingUpdateWithCompany = {
         ...bookingData,
         special_requests: specialRequests || undefined,
+        extra_bed_count: extraBedCount,
+        extra_bed_charge: extraBedCharge,
         ...(paymentType === 'Direct Billing' && selectedCompany ? {
           company_id: selectedCompany.id,
           company_name: selectedCompany.company_name,
@@ -729,6 +760,12 @@ export default function EnhancedCheckInModal({
               <Grid item xs={4}>
                 <Typography variant="caption" color="text.secondary">Tourism Tax</Typography>
                 <Typography variant="body2">{formatCurrency(Number(booking.tourism_tax_amount))}</Typography>
+              </Grid>
+            )}
+            {extraBedCount > 0 && (
+              <Grid item xs={4}>
+                <Typography variant="caption" color="text.secondary">Extra Bed ({extraBedCount})</Typography>
+                <Typography variant="body2">{formatCurrency(extraBedCharge)}</Typography>
               </Grid>
             )}
             <Grid item xs={4}>
@@ -972,9 +1009,9 @@ export default function EnhancedCheckInModal({
             <Grid item xs={12} sm={4}>
               <TextField
                 fullWidth
-                label="Children"
+                label="Extra Beds"
                 type="number"
-                value={booking.extra_bed_count || 0}
+                value={extraBedCount}
                 disabled
               />
             </Grid>
@@ -1525,26 +1562,62 @@ export default function EnhancedCheckInModal({
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Extra Bed Count"
-                type="number"
-                value={booking.extra_bed_count || 0}
-                disabled
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Extra Bed Charge"
-                value={booking.extra_bed_charge || 0}
-                disabled
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                }}
-              />
-            </Grid>
+            {allowsExtraBed && maxExtraBeds > 0 ? (
+              <>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Extra Bed Count"
+                    type="number"
+                    value={extraBedCount}
+                    onChange={(e) => {
+                      const count = Math.min(Math.max(parseInt(e.target.value) || 0, 0), maxExtraBeds);
+                      setExtraBedCount(count);
+                      setExtraBedCharge(count * extraBedChargePerBed);
+                    }}
+                    inputProps={{ min: 0, max: maxExtraBeds }}
+                    helperText={`${formatCurrency(extraBedChargePerBed)} per extra bed (max ${maxExtraBeds})`}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Extra Bed Charge"
+                    type="number"
+                    value={extraBedCharge}
+                    onChange={(e) => setExtraBedCharge(parseFloat(e.target.value) || 0)}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                    }}
+                    helperText="Auto-calculated or manually adjust"
+                  />
+                </Grid>
+              </>
+            ) : (
+              <>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Extra Bed Count"
+                    type="number"
+                    value={extraBedCount}
+                    disabled
+                    helperText="This room type does not allow extra beds"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Extra Bed Charge"
+                    value={extraBedCharge}
+                    disabled
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                    }}
+                  />
+                </Grid>
+              </>
+            )}
           </Grid>
         </TabPanel>
 

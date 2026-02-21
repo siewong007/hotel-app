@@ -37,7 +37,7 @@ import {
   ArrowForward as ArrowForwardIcon,
   Check as CheckIcon,
 } from '@mui/icons-material';
-import { Room, Guest, Booking } from '../../../types';
+import { Room, Guest, Booking, RoomType } from '../../../types';
 import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
@@ -152,6 +152,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   // Tourism tax state
   const [isTourist, setIsTourist] = useState(false);
 
+  // Extra bed state
+  const [roomTypeConfig, setRoomTypeConfig] = useState<RoomType | null>(null);
+  const [extraBedCount, setExtraBedCount] = useState(0);
+  const [extraBedCharge, setExtraBedCharge] = useState(0);
+
   // Processing state
   const [processing, setProcessing] = useState(false);
 
@@ -173,6 +178,26 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   useEffect(() => {
     roomCardDepositDefaultRef.current = roomCardDepositDefault;
   }, [roomCardDepositDefault]);
+
+  // Derived extra bed config from room type
+  const allowsExtraBed = roomTypeConfig?.allows_extra_bed ?? false;
+  const maxExtraBeds = roomTypeConfig?.max_extra_beds ?? 0;
+  const extraBedChargePerBed = roomTypeConfig
+    ? (typeof roomTypeConfig.extra_bed_charge === 'string'
+        ? parseFloat(roomTypeConfig.extra_bed_charge)
+        : roomTypeConfig.extra_bed_charge) || 0
+    : 0;
+
+  // Load room type config when room changes
+  useEffect(() => {
+    const roomTypeName = room?.room_type;
+    if (roomTypeName && open) {
+      HotelAPIService.getAllRoomTypes().then(roomTypes => {
+        const matched = roomTypes.find(rt => rt.name === roomTypeName);
+        setRoomTypeConfig(matched || null);
+      }).catch(() => setRoomTypeConfig(null));
+    }
+  }, [room?.room_type, open]);
 
   // Reset form when modal opens/closes - use proper transition detection
   // IMPORTANT: Only depends on `open` to prevent unexpected resets
@@ -209,6 +234,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setUseCustomRate(false);
       setCustomRate(0);
       setIsTourist(false);
+      setExtraBedCount(0);
+      setExtraBedCharge(0);
+      setRoomTypeConfig(null);
       setSelectedRoom(null);
       setAvailableRooms([]);
 
@@ -239,6 +267,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setUseCustomRate(false);
       setCustomRate(0);
       setIsTourist(false);
+      setExtraBedCount(0);
+      setExtraBedCharge(0);
+      setRoomTypeConfig(null);
       setSelectedRoom(null);
       setAvailableRooms([]);
     }
@@ -496,6 +527,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
         is_tourist: isTourist,
         tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
+        extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
+        extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
       };
 
       const createdBookingResult = await HotelAPIService.createBooking(bookingData);
@@ -684,6 +717,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
             is_tourist: isTourist,
             tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
+            extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
+            extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
           };
 
           await HotelAPIService.createBooking(bookingData);
@@ -709,6 +744,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
             is_tourist: isTourist,
             tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
+            extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
+            extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
           };
 
           await HotelAPIService.createBooking(bookingData);
@@ -768,7 +805,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       const numPrice = typeof price === 'string' ? parseFloat(price) : price;
       total = numPrice * numberOfNights;
     }
-    return total + tourismTaxAmount;
+    return total + tourismTaxAmount + extraBedCharge;
   };
 
 
@@ -1196,6 +1233,46 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               </>
             )}
 
+            {/* Extra Bed (for walk-in and online, not complimentary) */}
+            {(isWalkIn || isOnline) && allowsExtraBed && maxExtraBeds > 0 && (
+              <>
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }} />
+                  <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
+                    Extra Bed
+                  </Typography>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Number of Extra Beds"
+                    type="number"
+                    value={extraBedCount}
+                    onChange={(e) => {
+                      const count = Math.min(Math.max(parseInt(e.target.value) || 0, 0), maxExtraBeds);
+                      setExtraBedCount(count);
+                      setExtraBedCharge(count * extraBedChargePerBed);
+                    }}
+                    inputProps={{ min: 0, max: maxExtraBeds }}
+                    helperText={`${formatCurrency(extraBedChargePerBed)} per extra bed (max ${maxExtraBeds})`}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Extra Bed Charge"
+                    type="number"
+                    value={extraBedCharge}
+                    onChange={(e) => setExtraBedCharge(parseFloat(e.target.value) || 0)}
+                    InputProps={{
+                      startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
+                    }}
+                    helperText="Auto-calculated or manually adjust"
+                  />
+                </Grid>
+              </>
+            )}
+
             {/* Walk-in payment fields (only for direct booking) */}
             {showPayment && (
               <>
@@ -1407,6 +1484,22 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                 <Grid item xs={6}>
                   <Typography variant="body2">
                     {formatCurrency(tourismTaxAmount)}
+                  </Typography>
+                </Grid>
+              </>
+            )}
+
+            {/* Extra Bed */}
+            {extraBedCount > 0 && effectiveType !== 'complimentary' && (
+              <>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Extra Bed ({extraBedCount})
+                  </Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2">
+                    {formatCurrency(extraBedCharge)}
                   </Typography>
                 </Grid>
               </>
