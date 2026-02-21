@@ -51,7 +51,7 @@ import {
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
 import { HotelAPIService } from '../../../api';
-import { BookingWithDetails, Room, Guest } from '../../../types';
+import { BookingWithDetails, Room, Guest, RoomType } from '../../../types';
 import { getBookingStatusColor, getBookingStatusText, getPaymentStatusColor, getPaymentStatusText } from '../../../utils/bookingUtils';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
@@ -96,6 +96,7 @@ const BookingsPage: React.FC = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState<BookingWithDetails | null>(null);
   const [editFormData, setEditFormData] = useState<any>({});
+  const [editRoomTypeConfig, setEditRoomTypeConfig] = useState<RoomType | null>(null);
   const [updating, setUpdating] = useState(false);
 
   // Delete booking dialog
@@ -285,6 +286,11 @@ const BookingsPage: React.FC = () => {
       ? parseFloat(booking.price_per_night) || 0
       : booking.price_per_night || 0;
 
+    const extraBedCount = booking.extra_bed_count || 0;
+    const extraBedCharge = typeof booking.extra_bed_charge === 'string'
+      ? parseFloat(booking.extra_bed_charge) || 0
+      : booking.extra_bed_charge || 0;
+
     const formData = {
       status: booking.status,
       payment_status: booking.payment_status || 'unpaid',
@@ -302,9 +308,18 @@ const BookingsPage: React.FC = () => {
       // Use the booking's room rate directly (this is the override rate if one was set)
       price_per_night: bookingRate,
       has_override: bookingRate > 0,
+      extra_bed_count: extraBedCount,
+      extra_bed_charge: extraBedCharge,
     };
     console.log('Opening edit with payment_method:', formData.payment_method, 'rate:', bookingRate);
     setEditFormData(formData);
+
+    // Load room type config for extra bed settings
+    HotelAPIService.getAllRoomTypes().then(roomTypes => {
+      const matched = roomTypes.find(rt => rt.name === booking.room_type);
+      setEditRoomTypeConfig(matched || null);
+    }).catch(() => setEditRoomTypeConfig(null));
+
     setEditDialogOpen(true);
   };
 
@@ -327,6 +342,8 @@ const BookingsPage: React.FC = () => {
         payment_method: editFormData.payment_method || null,
         // Always send room_rate_override if there's a price value
         room_rate_override: newPrice > 0 ? newPrice : undefined,
+        extra_bed_count: editFormData.extra_bed_count || 0,
+        extra_bed_charge: editFormData.extra_bed_charge || 0,
       };
       // Remove fields that are not valid backend fields
       delete updateData.price_per_night;
@@ -1303,6 +1320,54 @@ const BookingsPage: React.FC = () => {
                 helperText="Rate per night (before tax) - modifying will recalculate total"
               />
             </Grid>
+            {editRoomTypeConfig?.allows_extra_bed && (editRoomTypeConfig?.max_extra_beds || 0) > 0 && (
+              <>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Number of Extra Beds"
+                    type="number"
+                    value={editFormData.extra_bed_count || 0}
+                    onChange={(e) => {
+                      const maxBeds = editRoomTypeConfig?.max_extra_beds || 0;
+                      const chargePerBed = editRoomTypeConfig
+                        ? (typeof editRoomTypeConfig.extra_bed_charge === 'string'
+                            ? parseFloat(editRoomTypeConfig.extra_bed_charge)
+                            : editRoomTypeConfig.extra_bed_charge) || 0
+                        : 0;
+                      const count = Math.min(Math.max(parseInt(e.target.value) || 0, 0), maxBeds);
+                      setEditFormData((prev: any) => ({
+                        ...prev,
+                        extra_bed_count: count,
+                        extra_bed_charge: count * chargePerBed,
+                      }));
+                    }}
+                    inputProps={{ min: 0, max: editRoomTypeConfig?.max_extra_beds || 0 }}
+                    helperText={`${formatCurrency(
+                      (typeof editRoomTypeConfig?.extra_bed_charge === 'string'
+                        ? parseFloat(editRoomTypeConfig.extra_bed_charge)
+                        : editRoomTypeConfig?.extra_bed_charge) || 0
+                    )} per extra bed (max ${editRoomTypeConfig?.max_extra_beds || 0})`}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Extra Bed Charge"
+                    type="number"
+                    value={editFormData.extra_bed_charge || 0}
+                    onChange={(e) => setEditFormData((prev: any) => ({
+                      ...prev,
+                      extra_bed_charge: parseFloat(e.target.value) || 0,
+                    }))}
+                    InputProps={{
+                      startAdornment: <span style={{ marginRight: 4 }}>RM</span>,
+                    }}
+                    helperText="Auto-calculated or manually adjust"
+                  />
+                </Grid>
+              </>
+            )}
             <Grid item xs={12}>
               <TextField
                 fullWidth
