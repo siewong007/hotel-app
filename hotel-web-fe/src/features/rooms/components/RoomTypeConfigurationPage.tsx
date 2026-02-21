@@ -191,6 +191,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
       showSnackbar('Room type created successfully');
       loadData();
     } catch (err) {
+      console.error('CREATE room type error:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
       // Handle duplicate key constraint errors with user-friendly messages
       if (errorMessage.includes('duplicate key') || errorMessage.includes('unique constraint')) {
@@ -235,6 +236,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
       showSnackbar('Room type updated successfully');
       loadData();
     } catch (err) {
+      console.error('UPDATE room type error:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
       // Handle duplicate key constraint errors with user-friendly messages
       if (errorMessage.includes('duplicate key') || errorMessage.includes('unique constraint')) {
