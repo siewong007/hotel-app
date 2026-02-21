@@ -20,17 +20,21 @@ use sqlx::Row;
 /// Helper function to map a database row to RoomType
 /// This avoids using FromRow which doesn't work for Decimal in SQLite
 fn row_to_room_type(row: &DbRow) -> RoomType {
-    // Read Decimal fields as String and parse (works for both PostgreSQL and SQLite)
-    let base_price: String = row.try_get::<String, _>("base_price")
-        .or_else(|_| row.try_get::<f64, _>("base_price").map(|f| f.to_string()))
-        .unwrap_or_else(|_| "0".to_string());
-    let weekday_rate: Option<String> = row.try_get::<String, _>("weekday_rate").ok()
-        .or_else(|| row.try_get::<f64, _>("weekday_rate").ok().map(|f| f.to_string()));
-    let weekend_rate: Option<String> = row.try_get::<String, _>("weekend_rate").ok()
-        .or_else(|| row.try_get::<f64, _>("weekend_rate").ok().map(|f| f.to_string()));
-    let extra_bed_charge: String = row.try_get::<String, _>("extra_bed_charge")
-        .or_else(|_| row.try_get::<f64, _>("extra_bed_charge").map(|f| f.to_string()))
-        .unwrap_or_else(|_| "0".to_string());
+    // Read Decimal fields - try Decimal first (PostgreSQL NUMERIC), then String, then f64 (SQLite)
+    let base_price: Decimal = row.try_get::<Decimal, _>("base_price")
+        .or_else(|_| row.try_get::<String, _>("base_price").map(|s| s.parse().unwrap_or_default()))
+        .or_else(|_| row.try_get::<f64, _>("base_price").map(|f| Decimal::from_f64_retain(f).unwrap_or_default()))
+        .unwrap_or_default();
+    let weekday_rate: Option<Decimal> = row.try_get::<Decimal, _>("weekday_rate").ok()
+        .or_else(|| row.try_get::<String, _>("weekday_rate").ok().and_then(|s| s.parse().ok()))
+        .or_else(|| row.try_get::<f64, _>("weekday_rate").ok().and_then(|f| Decimal::from_f64_retain(f)));
+    let weekend_rate: Option<Decimal> = row.try_get::<Decimal, _>("weekend_rate").ok()
+        .or_else(|| row.try_get::<String, _>("weekend_rate").ok().and_then(|s| s.parse().ok()))
+        .or_else(|| row.try_get::<f64, _>("weekend_rate").ok().and_then(|f| Decimal::from_f64_retain(f)));
+    let extra_bed_charge: Decimal = row.try_get::<Decimal, _>("extra_bed_charge")
+        .or_else(|_| row.try_get::<String, _>("extra_bed_charge").map(|s| s.parse().unwrap_or_default()))
+        .or_else(|_| row.try_get::<f64, _>("extra_bed_charge").map(|f| Decimal::from_f64_retain(f).unwrap_or_default()))
+        .unwrap_or_default();
 
     // Handle boolean fields for SQLite (returns 0/1)
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
@@ -54,15 +58,15 @@ fn row_to_room_type(row: &DbRow) -> RoomType {
         name: row.get("name"),
         code: row.get("code"),
         description: row.try_get("description").ok(),
-        base_price: base_price.parse().unwrap_or_default(),
-        weekday_rate: weekday_rate.and_then(|s| s.parse().ok()),
-        weekend_rate: weekend_rate.and_then(|s| s.parse().ok()),
+        base_price,
+        weekday_rate,
+        weekend_rate,
         max_occupancy: row.get("max_occupancy"),
         bed_type: row.try_get("bed_type").ok(),
         bed_count: row.try_get("bed_count").ok(),
         allows_extra_bed,
         max_extra_beds: row.try_get("max_extra_beds").unwrap_or(0),
-        extra_bed_charge: extra_bed_charge.parse().unwrap_or_default(),
+        extra_bed_charge,
         is_active,
         sort_order: row.try_get("sort_order").unwrap_or(0),
         created_at: row.get("created_at"),
@@ -321,8 +325,6 @@ pub async fn create_room_handler(
     State(pool): State<DbPool>,
     Json(input): Json<RoomCreateInput>,
 ) -> Result<Json<Room>, ApiError> {
-    use rust_decimal::Decimal;
-
     let existing: Option<i64> = sqlx::query_scalar(CHECK_ROOM_NUMBER_EXISTS)
         .bind(&input.room_number)
         .fetch_optional(&pool)
@@ -514,11 +516,11 @@ pub async fn create_room_type_handler(
 ) -> Result<Json<RoomType>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
 
-    // Use f64 for price bindings (works for both SQLite and PostgreSQL)
-    let base_price = input.base_price;
-    let weekday_rate = input.weekday_rate;
-    let weekend_rate = input.weekend_rate;
-    let extra_bed_charge = input.extra_bed_charge.unwrap_or(0.0);
+    // Convert f64 prices to Decimal for proper binding to DECIMAL columns
+    let base_price_decimal = Decimal::from_f64_retain(input.base_price).unwrap_or(Decimal::ZERO);
+    let weekday_rate_decimal = input.weekday_rate.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
+    let weekend_rate_decimal = input.weekend_rate.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
+    let extra_bed_charge_decimal = Decimal::from_f64_retain(input.extra_bed_charge.unwrap_or(0.0)).unwrap_or(Decimal::ZERO);
 
     // PostgreSQL version with RETURNING
     #[cfg(any(
@@ -540,15 +542,15 @@ pub async fn create_room_type_handler(
         .bind(&input.name)
         .bind(&input.code)
         .bind(&input.description)
-        .bind(base_price)
-        .bind(weekday_rate)
-        .bind(weekend_rate)
+        .bind(base_price_decimal)
+        .bind(weekday_rate_decimal)
+        .bind(weekend_rate_decimal)
         .bind(input.max_occupancy.unwrap_or(2))
         .bind(&input.bed_type)
         .bind(input.bed_count.unwrap_or(1))
         .bind(input.allows_extra_bed.unwrap_or(false))
         .bind(input.max_extra_beds.unwrap_or(0))
-        .bind(extra_bed_charge)
+        .bind(extra_bed_charge_decimal)
         .bind(input.sort_order.unwrap_or(0))
         .fetch_one(&pool)
         .await
@@ -572,15 +574,15 @@ pub async fn create_room_type_handler(
         .bind(&input.name)
         .bind(&input.code)
         .bind(&input.description)
-        .bind(base_price)
-        .bind(weekday_rate)
-        .bind(weekend_rate)
+        .bind(base_price_decimal)
+        .bind(weekday_rate_decimal)
+        .bind(weekend_rate_decimal)
         .bind(input.max_occupancy.unwrap_or(2))
         .bind(&input.bed_type)
         .bind(input.bed_count.unwrap_or(1))
         .bind(input.allows_extra_bed.unwrap_or(false) as i32)
         .bind(input.max_extra_beds.unwrap_or(0))
-        .bind(extra_bed_charge)
+        .bind(extra_bed_charge_decimal)
         .bind(input.sort_order.unwrap_or(0))
         .execute(&pool)
         .await
@@ -628,6 +630,12 @@ pub async fn update_room_type_handler(
 ) -> Result<Json<RoomType>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
 
+    // Convert f64 prices to Decimal for proper binding to DECIMAL columns
+    let base_price_decimal = input.base_price.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
+    let weekday_rate_decimal = input.weekday_rate.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
+    let weekend_rate_decimal = input.weekend_rate.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
+    let extra_bed_charge_decimal = input.extra_bed_charge.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
+
     // PostgreSQL version with RETURNING
     #[cfg(any(
         all(feature = "postgres", not(feature = "sqlite")),
@@ -659,15 +667,15 @@ pub async fn update_room_type_handler(
         .bind(&input.name)
         .bind(&input.code)
         .bind(&input.description)
-        .bind(input.base_price)
-        .bind(input.weekday_rate)
-        .bind(input.weekend_rate)
+        .bind(base_price_decimal)
+        .bind(weekday_rate_decimal)
+        .bind(weekend_rate_decimal)
         .bind(input.max_occupancy)
         .bind(&input.bed_type)
         .bind(input.bed_count)
         .bind(input.allows_extra_bed)
         .bind(input.max_extra_beds)
-        .bind(input.extra_bed_charge)
+        .bind(extra_bed_charge_decimal)
         .bind(input.is_active)
         .bind(input.sort_order)
         .execute(&pool)
@@ -707,15 +715,15 @@ pub async fn update_room_type_handler(
         .bind(&input.name)
         .bind(&input.code)
         .bind(&input.description)
-        .bind(input.base_price)
-        .bind(input.weekday_rate)
-        .bind(input.weekend_rate)
+        .bind(base_price_decimal)
+        .bind(weekday_rate_decimal)
+        .bind(weekend_rate_decimal)
         .bind(input.max_occupancy)
         .bind(&input.bed_type)
         .bind(input.bed_count)
         .bind(allows_extra_bed_i32)
         .bind(input.max_extra_beds)
-        .bind(input.extra_bed_charge)
+        .bind(extra_bed_charge_decimal)
         .bind(is_active_i32)
         .bind(input.sort_order)
         .execute(&pool)
