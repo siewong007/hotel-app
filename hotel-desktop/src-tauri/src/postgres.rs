@@ -408,19 +408,20 @@ pub async fn run_migrations_if_needed(app_handle: &AppHandle) -> Result<(), Post
     // First ensure database exists
     create_database_if_needed(app_handle).await?;
 
-    // Check if migrations have been run (check for a known table)
-    if is_database_initialized(app_handle).await? {
-        log::info!("Database already initialized, skipping migrations and seed data");
-        return Ok(());
-    }
+    let already_initialized = is_database_initialized(app_handle).await?;
 
-    // Run migrations
+    // Always run migrations - they use IF NOT EXISTS patterns and are idempotent
+    // This ensures new migrations are applied even if the database was initialized before
+    log::info!("Running database migrations...");
     run_sql_files(app_handle, "database/migrations").await?;
 
-    // Run seed data
-    run_sql_files(app_handle, "database/seed-data").await?;
+    // Only run seed data if database was not previously initialized
+    if !already_initialized {
+        log::info!("Running seed data...");
+        run_sql_files(app_handle, "database/seed-data").await?;
+    }
 
-    log::info!("Database migrations and seed data completed successfully");
+    log::info!("Database migrations completed successfully");
     Ok(())
 }
 

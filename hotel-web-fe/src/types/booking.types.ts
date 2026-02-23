@@ -79,6 +79,7 @@ export interface BookingWithDetails extends Booking {
   guest_email: string;
   guest_phone?: string;
   guest_type?: 'member' | 'non_member';
+  guest_tourism_type?: 'local' | 'foreign';
   room_number: string;
   room_type: string;
   room_type_code?: string;

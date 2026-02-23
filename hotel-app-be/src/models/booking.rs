@@ -156,6 +156,7 @@ pub struct BookingWithDetails {
     pub guest_name: String,
     pub guest_email: Option<String>,
     pub guest_type: Option<String>,
+    pub guest_tourism_type: Option<String>,
     pub room_id: i64,
     pub room_number: String,
     pub room_type: String,

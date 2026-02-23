@@ -19,6 +19,15 @@ impl Default for GuestType {
     }
 }
 
+/// Tourism type for tourism tax calculation
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
+#[sqlx(type_name = "tourism_type", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum TourismType {
+    Local,
+    Foreign,
+}
+
 /// Core guest entity
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Guest {
@@ -37,6 +46,7 @@ pub struct Guest {
     pub alt_phone: Option<String>,
     pub is_active: bool,
     pub guest_type: GuestType,
+    pub tourism_type: Option<TourismType>,
     pub discount_percentage: i32,
     pub complimentary_nights_credit: i32,
     pub created_at: DateTime<Utc>,
@@ -58,6 +68,7 @@ pub struct GuestInput {
     pub postal_code: Option<String>,
     pub country: Option<String>,
     pub guest_type: Option<GuestType>,
+    pub tourism_type: Option<TourismType>,
     pub discount_percentage: Option<i32>,
 }
 
@@ -79,6 +90,7 @@ pub struct GuestUpdateInput {
     pub country: Option<String>,
     pub is_active: Option<bool>,
     pub guest_type: Option<GuestType>,
+    pub tourism_type: Option<TourismType>,
     pub discount_percentage: Option<i32>,
 }
 

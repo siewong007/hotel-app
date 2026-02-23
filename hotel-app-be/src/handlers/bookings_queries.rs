@@ -10,7 +10,7 @@
 pub const GET_BOOKINGS_QUERY: &str = r#"
     SELECT
         b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
-        g.guest_type as guest_type,
+        g.guest_type as guest_type, g.tourism_type as guest_tourism_type,
         b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
@@ -32,7 +32,7 @@ pub const GET_BOOKINGS_QUERY: &str = r#"
 pub const GET_BOOKINGS_QUERY: &str = r#"
     SELECT
         b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
-        g.guest_type::text as guest_type,
+        g.guest_type::text as guest_type, g.tourism_type::text as guest_tourism_type,
         b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
@@ -58,7 +58,7 @@ pub const GET_BOOKINGS_QUERY: &str = r#"
 pub const GET_USER_BOOKINGS_QUERY: &str = r#"
     SELECT
         b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
-        g.guest_type as guest_type,
+        g.guest_type as guest_type, g.tourism_type as guest_tourism_type,
         b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
@@ -81,7 +81,7 @@ pub const GET_USER_BOOKINGS_QUERY: &str = r#"
 pub const GET_USER_BOOKINGS_QUERY: &str = r#"
     SELECT
         b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
-        g.guest_type::text as guest_type,
+        g.guest_type::text as guest_type, g.tourism_type::text as guest_tourism_type,
         b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
@@ -108,7 +108,7 @@ pub const GET_USER_BOOKINGS_QUERY: &str = r#"
 pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
     SELECT
         b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
-        g.guest_type as guest_type,
+        g.guest_type as guest_type, g.tourism_type as guest_tourism_type,
         b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
@@ -130,7 +130,7 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
 pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
     SELECT
         b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
-        g.guest_type::text as guest_type,
+        g.guest_type::text as guest_type, g.tourism_type::text as guest_tourism_type,
         b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,

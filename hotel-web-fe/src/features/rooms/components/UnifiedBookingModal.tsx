@@ -149,8 +149,15 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const [useCustomRate, setUseCustomRate] = useState(false);
   const [customRate, setCustomRate] = useState<number>(0);
 
-  // Tourism tax state
-  const [isTourist, setIsTourist] = useState(false);
+  // Tourism tax - derived from guest's tourism_type
+  // Foreign tourism = tax applies, Local tourism = no tax
+  const getIsForeignTourist = (): boolean => {
+    if (isCreatingNewGuest) {
+      return newGuestForm.tourism_type === 'foreign';
+    }
+    return selectedGuest?.tourism_type === 'foreign';
+  };
+  const isTourist = getIsForeignTourist();
 
   // Extra bed state
   const [roomTypeConfig, setRoomTypeConfig] = useState<RoomType | null>(null);
@@ -233,7 +240,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setRoomCardDeposit(roomCardDepositDefaultRef.current);
       setUseCustomRate(false);
       setCustomRate(0);
-      setIsTourist(false);
       setExtraBedCount(0);
       setExtraBedCharge(0);
       setRoomTypeConfig(null);
@@ -266,7 +272,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setRoomCardDeposit(roomCardDepositDefaultRef.current);
       setUseCustomRate(false);
       setCustomRate(0);
-      setIsTourist(false);
       setExtraBedCount(0);
       setExtraBedCharge(0);
       setRoomTypeConfig(null);
@@ -496,6 +501,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           phone: newGuestForm.phone,
           ic_number: newGuestForm.ic_number,
           nationality: newGuestForm.nationality,
+          tourism_type: newGuestForm.tourism_type,
         });
 
         guestToUse = newGuest;
@@ -691,6 +697,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             phone: newGuestForm.phone,
             ic_number: newGuestForm.ic_number,
             nationality: newGuestForm.nationality,
+            tourism_type: newGuestForm.tourism_type,
           });
 
           guestToUse = newGuest;
@@ -1210,36 +1217,26 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                     Tourism Tax
                   </Typography>
                 </Grid>
-                <Grid item xs={12} md={6}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={isTourist}
-                        onChange={(e) => setIsTourist(e.target.checked)}
-                        color="primary"
-                      />
-                    }
-                    label={
-                      <Box>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          Guest is a Tourist
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Apply tourism tax of {formatCurrency(hotelSettings.tourism_tax_rate)} per night
-                        </Typography>
-                      </Box>
-                    }
-                  />
-                </Grid>
-                {isTourist && (
-                  <Grid item xs={12} md={6}>
-                    <Alert severity="info" sx={{ py: 0.5 }}>
+                <Grid item xs={12}>
+                  {isTourist ? (
+                    <Alert severity="warning" sx={{ py: 0.5 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        Foreign Tourist - Tourism Tax Applies
+                      </Typography>
                       <Typography variant="body2">
                         Tourism Tax: {formatCurrency(hotelSettings.tourism_tax_rate)} x {numberOfNights} night(s) = {formatCurrency(tourismTaxAmount)}
                       </Typography>
                     </Alert>
-                  </Grid>
-                )}
+                  ) : (
+                    <Alert severity="info" sx={{ py: 0.5 }}>
+                      <Typography variant="body2">
+                        {(isCreatingNewGuest ? newGuestForm.tourism_type : selectedGuest?.tourism_type) === 'local'
+                          ? 'Local Tourist - No Tourism Tax'
+                          : 'Tourism type not specified - No Tourism Tax'}
+                      </Typography>
+                    </Alert>
+                  )}
+                </Grid>
               </>
             )}
 

@@ -23,8 +23,8 @@ export type {
 } from './room.types';
 
 // Guest types
-export type { Guest, GuestCreateRequest, GuestUpdateRequest, GuestType } from './guest.types';
-export { GUEST_TYPE_CONFIG } from './guest.types';
+export type { Guest, GuestCreateRequest, GuestUpdateRequest, GuestType, TourismType } from './guest.types';
+export { GUEST_TYPE_CONFIG, TOURISM_TYPE_CONFIG } from './guest.types';
 
 // Booking types - Note: BookingStatus is an enum, not just a type
 export { BookingStatus } from './booking.types';
