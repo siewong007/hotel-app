@@ -219,10 +219,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     // Service Tax is the difference
     const serviceTax = roomSubtotal - roomCharges;
 
-    // Get deposit from booking - use 0 if explicitly set (member waiver), otherwise fallback to settings
-    const roomCardDeposit = booking.room_card_deposit !== undefined && booking.room_card_deposit !== null
-      ? (typeof booking.room_card_deposit === 'string' ? parseFloat(booking.room_card_deposit) : booking.room_card_deposit)
-      : hotelSettings.room_card_deposit;
+    // Get deposit based on guest membership status
+    // Members get deposit waived (0), non-members always pay the configured deposit
+    const isMember = booking.guest_type === 'member';
+    const roomCardDeposit = isMember ? 0 : hotelSettings.room_card_deposit;
 
     // Get tourism tax from booking, or calculate from settings if tourist but amount not stored
     console.log('Tourism tax debug:', { is_tourist: booking.is_tourist, tourism_tax_amount: booking.tourism_tax_amount, tourism_tax_rate: hotelSettings.tourism_tax_rate, nights });
