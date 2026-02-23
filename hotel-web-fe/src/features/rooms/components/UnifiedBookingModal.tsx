@@ -617,6 +617,16 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     setNewGuestForm(emptyNewGuestForm);
   };
 
+  // Handle toggle between existing guest and new guest mode
+  const handleToggleGuestMode = (isNew: boolean) => {
+    setIsCreatingNewGuest(isNew);
+    // Reset deposit to default when switching to new guest mode
+    // since new guests are always non-members
+    if (isNew) {
+      setRoomCardDeposit(roomCardDepositDefault);
+    }
+  };
+
   // Get effective booking type for submission (combines mode + reservation type)
   const getEffectiveBookingType = (): 'walk_in' | 'online' | 'complimentary' | null => {
     if (bookingMode === 'direct') {
@@ -1049,7 +1059,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             newGuestForm={newGuestForm}
             onNewGuestFormChange={setNewGuestForm}
             isCreatingNew={isCreatingNewGuest}
-            onToggleMode={setIsCreatingNewGuest}
+            onToggleMode={handleToggleGuestMode}
             filterByCredits={effectiveType === 'complimentary'}
             guestsWithCredits={guestsWithCredits}
             selectedGuestWithCredits={selectedGuestWithCredits}
