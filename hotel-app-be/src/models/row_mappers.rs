@@ -99,6 +99,7 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
         guest_name: row.try_get("guest_name").unwrap_or_default(),
         guest_email: row.try_get("guest_email").ok(),
         guest_type: row.try_get("guest_type").ok(),
+        guest_tourism_type: row.try_get("guest_tourism_type").ok(),
         room_id: row.try_get("room_id").unwrap_or_default(),
         room_number: row.try_get("room_number").unwrap_or_default(),
         room_type: row.try_get("room_type").unwrap_or_default(),

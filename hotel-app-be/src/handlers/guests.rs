@@ -49,6 +49,7 @@ pub async fn get_guests_handler(
                 alt_phone,
                 true as is_active,
                 guest_type,
+                tourism_type,
                 COALESCE(discount_percentage, 0) as discount_percentage,
                 COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
                 created_at,
@@ -101,12 +102,13 @@ pub async fn create_guest_handler(
 
     let guest = sqlx::query_as::<_, Guest>(
         r#"
-        INSERT INTO guests (full_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, guest_type, discount_percentage, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        INSERT INTO guests (full_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, guest_type, tourism_type, discount_percentage, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country,
                   NULL::TEXT as title, NULL::TEXT as alt_phone,
                   true as is_active,
                   guest_type,
+                  tourism_type,
                   COALESCE(discount_percentage, 0) as discount_percentage,
                   COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
                   created_at, updated_at
@@ -125,6 +127,7 @@ pub async fn create_guest_handler(
     .bind(&input.postal_code)
     .bind(&input.country)
     .bind(&guest_type)
+    .bind(&input.tourism_type)
     .bind(discount_percentage)
     .bind(user_id)
     .fetch_one(&pool)
@@ -162,9 +165,9 @@ pub async fn update_guest_handler(
 
     let existing_basic = existing_basic.ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
 
-    // Get guest_type and discount_percentage separately
-    let (existing_guest_type, existing_discount_percentage): (GuestType, i32) = sqlx::query_as(
-        "SELECT guest_type, COALESCE(discount_percentage, 0) FROM guests WHERE id = $1"
+    // Get guest_type, tourism_type, and discount_percentage separately
+    let (existing_guest_type, existing_tourism_type, existing_discount_percentage): (GuestType, Option<TourismType>, i32) = sqlx::query_as(
+        "SELECT guest_type, tourism_type, COALESCE(discount_percentage, 0) FROM guests WHERE id = $1"
     )
     .bind(guest_id)
     .fetch_one(&pool)
@@ -190,6 +193,7 @@ pub async fn update_guest_handler(
     let alt_phone = input.alt_phone.or(existing_alt_phone);
     let _is_active = input.is_active.unwrap_or(true);
     let guest_type = input.guest_type.unwrap_or(existing_guest_type);
+    let tourism_type = input.tourism_type.or(existing_tourism_type);
     let discount_percentage = input.discount_percentage.unwrap_or(existing_discount_percentage);
 
     // Compute full_name from first_name and last_name
@@ -213,10 +217,11 @@ pub async fn update_guest_handler(
             title = $13,
             alt_phone = $14,
             guest_type = $15,
-            discount_percentage = $16,
+            tourism_type = $16,
+            discount_percentage = $17,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $17
-        RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, guest_type, COALESCE(discount_percentage, 0) as discount_percentage, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at
+        WHERE id = $18
+        RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, guest_type, tourism_type, COALESCE(discount_percentage, 0) as discount_percentage, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at
         "#
     )
     .bind(&full_name)
@@ -234,6 +239,7 @@ pub async fn update_guest_handler(
     .bind(&title)
     .bind(&alt_phone)
     .bind(&guest_type)
+    .bind(&tourism_type)
     .bind(discount_percentage)
     .bind(guest_id)
     .fetch_one(&pool)
@@ -444,6 +450,7 @@ pub async fn get_my_guests_handler(
                g.address_line_1 as address_line1, g.city, g.state as state_province, g.postal_code, g.country, g.title, g.alt_phone,
                true as is_active,
                g.guest_type,
+               g.tourism_type,
                COALESCE(g.discount_percentage, 0) as discount_percentage,
                COALESCE(g.complimentary_nights_credit, 0) as complimentary_nights_credit,
                g.created_at, g.updated_at

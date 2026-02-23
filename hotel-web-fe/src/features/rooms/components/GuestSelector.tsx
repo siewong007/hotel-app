@@ -10,11 +10,15 @@ import {
   Alert,
   Autocomplete,
   CircularProgress,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   CardGiftcard as GiftIcon,
 } from '@mui/icons-material';
-import { Guest } from '../../../types';
+import { Guest, TourismType, TOURISM_TYPE_CONFIG } from '../../../types';
 
 export interface NewGuestForm {
   first_name: string;
@@ -23,6 +27,7 @@ export interface NewGuestForm {
   phone: string;
   nationality: string;
   ic_number: string;
+  tourism_type?: TourismType;
 }
 
 export interface GuestWithCredits {
@@ -68,6 +73,7 @@ export const emptyNewGuestForm: NewGuestForm = {
   phone: '',
   nationality: '',
   ic_number: '',
+  tourism_type: undefined,
 };
 
 const GuestSelector: React.FC<GuestSelectorProps> = ({
@@ -289,6 +295,32 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               value={newGuestForm.nationality}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, nationality: e.target.value })}
             />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <FormControl fullWidth>
+              <InputLabel>Tourism Type</InputLabel>
+              <Select
+                value={newGuestForm.tourism_type || ''}
+                label="Tourism Type"
+                onChange={(e) => onNewGuestFormChange({ ...newGuestForm, tourism_type: e.target.value as TourismType || undefined })}
+              >
+                <MenuItem value="">
+                  <em>Not specified</em>
+                </MenuItem>
+                <MenuItem value="local">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip label={TOURISM_TYPE_CONFIG.local.label} size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.local.color, color: 'white' }} />
+                    <Typography variant="body2" color="text.secondary">{TOURISM_TYPE_CONFIG.local.taxLabel}</Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem value="foreign">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip label={TOURISM_TYPE_CONFIG.foreign.label} size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.foreign.color, color: 'white' }} />
+                    <Typography variant="body2" color="text.secondary">{TOURISM_TYPE_CONFIG.foreign.taxLabel}</Typography>
+                  </Box>
+                </MenuItem>
+              </Select>
+            </FormControl>
           </Grid>
         </Grid>
       )}

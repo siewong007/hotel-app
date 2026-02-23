@@ -41,7 +41,7 @@ import {
   CardGiftcard as GiftIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
-import { Guest, GuestCreateRequest, GuestType, GUEST_TYPE_CONFIG } from '../../../types';
+import { Guest, GuestCreateRequest, GuestType, GUEST_TYPE_CONFIG, TourismType, TOURISM_TYPE_CONFIG } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail } from '../../../utils/validation';
 import { useCurrency } from '../../../hooks/useCurrency';
@@ -104,6 +104,7 @@ const GuestConfigurationPage: React.FC = () => {
     postal_code: '',
     country: '',
     guest_type: 'non_member',
+    tourism_type: undefined,
     discount_percentage: 0,
   });
 
@@ -170,6 +171,7 @@ const GuestConfigurationPage: React.FC = () => {
       postal_code: '',
       country: '',
       guest_type: 'non_member',
+      tourism_type: undefined,
       discount_percentage: 0,
     });
   };
@@ -195,6 +197,7 @@ const GuestConfigurationPage: React.FC = () => {
       postal_code: guest.postal_code || '',
       country: guest.country || '',
       guest_type: guest.guest_type || 'non_member',
+      tourism_type: guest.tourism_type,
       discount_percentage: guest.discount_percentage || 0,
     });
     setEditDialogOpen(true);
@@ -472,6 +475,7 @@ const GuestConfigurationPage: React.FC = () => {
               <TableRow>
                 <TableCell>Name</TableCell>
                 <TableCell>Type</TableCell>
+                <TableCell>Tourism</TableCell>
                 <TableCell>Email</TableCell>
                 <TableCell>Phone</TableCell>
                 <TableCell>IC Number</TableCell>
@@ -506,6 +510,21 @@ const GuestConfigurationPage: React.FC = () => {
                         />
                       );
                     })()}
+                  </TableCell>
+                  <TableCell>
+                    {guest.tourism_type ? (
+                      <Chip
+                        label={TOURISM_TYPE_CONFIG[guest.tourism_type].label}
+                        size="small"
+                        sx={{
+                          backgroundColor: alpha(TOURISM_TYPE_CONFIG[guest.tourism_type].color, 0.1),
+                          color: TOURISM_TYPE_CONFIG[guest.tourism_type].color,
+                          fontWeight: 500,
+                        }}
+                      />
+                    ) : (
+                      <Typography variant="body2" color="text.disabled">-</Typography>
+                    )}
                   </TableCell>
                   <TableCell>{guest.email || '-'}</TableCell>
                   <TableCell>{guest.phone || '-'}</TableCell>
@@ -727,6 +746,54 @@ const GuestConfigurationPage: React.FC = () => {
                 </Grid>
               </Box>
             </Grid>
+
+            {/* Tourism Type Section */}
+            <Grid item xs={12}>
+              <Box
+                sx={{
+                  p: 2,
+                  bgcolor: formData.tourism_type === 'foreign' ? alpha(TOURISM_TYPE_CONFIG.foreign.color, 0.1) : 'grey.100',
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: formData.tourism_type === 'foreign' ? TOURISM_TYPE_CONFIG.foreign.color : 'divider',
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                  Tourism Classification
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Tourism Type"
+                      value={formData.tourism_type || ''}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        tourism_type: e.target.value as TourismType || undefined,
+                      })}
+                      helperText="Determines if tourism tax is charged"
+                    >
+                      <MenuItem value="">
+                        <em>Not specified</em>
+                      </MenuItem>
+                      <MenuItem value="local">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Chip label="Local" size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.local.color, color: 'white' }} />
+                          <Typography variant="body2" color="text.secondary">{TOURISM_TYPE_CONFIG.local.taxLabel}</Typography>
+                        </Box>
+                      </MenuItem>
+                      <MenuItem value="foreign">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Chip label="Foreign" size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.foreign.color, color: 'white' }} />
+                          <Typography variant="body2" color="text.secondary">{TOURISM_TYPE_CONFIG.foreign.taxLabel}</Typography>
+                        </Box>
+                      </MenuItem>
+                    </TextField>
+                  </Grid>
+                </Grid>
+              </Box>
+            </Grid>
           </Grid>
         </DialogContent>
         <DialogActions>
@@ -895,6 +962,54 @@ const GuestConfigurationPage: React.FC = () => {
                       inputProps={{ min: 0, max: 100 }}
                       helperText={formData.guest_type === 'member' ? 'Discount applied to room rates' : 'Only available for members'}
                     />
+                  </Grid>
+                </Grid>
+              </Box>
+            </Grid>
+
+            {/* Tourism Type Section */}
+            <Grid item xs={12}>
+              <Box
+                sx={{
+                  p: 2,
+                  bgcolor: formData.tourism_type === 'foreign' ? alpha(TOURISM_TYPE_CONFIG.foreign.color, 0.1) : 'grey.100',
+                  borderRadius: 1,
+                  border: 1,
+                  borderColor: formData.tourism_type === 'foreign' ? TOURISM_TYPE_CONFIG.foreign.color : 'divider',
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+                  Tourism Classification
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Tourism Type"
+                      value={formData.tourism_type || ''}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        tourism_type: e.target.value as TourismType || undefined,
+                      })}
+                      helperText="Determines if tourism tax is charged"
+                    >
+                      <MenuItem value="">
+                        <em>Not specified</em>
+                      </MenuItem>
+                      <MenuItem value="local">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Chip label="Local" size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.local.color, color: 'white' }} />
+                          <Typography variant="body2" color="text.secondary">{TOURISM_TYPE_CONFIG.local.taxLabel}</Typography>
+                        </Box>
+                      </MenuItem>
+                      <MenuItem value="foreign">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Chip label="Foreign" size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.foreign.color, color: 'white' }} />
+                          <Typography variant="body2" color="text.secondary">{TOURISM_TYPE_CONFIG.foreign.taxLabel}</Typography>
+                        </Box>
+                      </MenuItem>
+                    </TextField>
                   </Grid>
                 </Grid>
               </Box>

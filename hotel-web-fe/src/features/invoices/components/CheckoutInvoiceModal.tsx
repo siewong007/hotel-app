@@ -224,13 +224,15 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     const isMember = booking.guest_type === 'member';
     const roomCardDeposit = isMember ? 0 : hotelSettings.room_card_deposit;
 
-    // Get tourism tax from booking, or calculate from settings if tourist but amount not stored
-    console.log('Tourism tax debug:', { is_tourist: booking.is_tourist, tourism_tax_amount: booking.tourism_tax_amount, tourism_tax_rate: hotelSettings.tourism_tax_rate, nights });
-    let tourismTax = booking.tourism_tax_amount
-      ? (typeof booking.tourism_tax_amount === 'string' ? parseFloat(booking.tourism_tax_amount) : booking.tourism_tax_amount)
-      : 0;
-    if (tourismTax === 0 && booking.is_tourist) {
-      tourismTax = nights * hotelSettings.tourism_tax_rate;
+    // Get tourism tax - foreign tourists are charged, local tourists are not
+    // Use guest_tourism_type (current guest setting) or fall back to is_tourist (booking-time setting)
+    const isForeignTourist = booking.guest_tourism_type === 'foreign' || booking.is_tourist === true;
+    console.log('Tourism tax debug:', { guest_tourism_type: booking.guest_tourism_type, is_tourist: booking.is_tourist, isForeignTourist, tourism_tax_amount: booking.tourism_tax_amount, tourism_tax_rate: hotelSettings.tourism_tax_rate, nights });
+    let tourismTax = 0;
+    if (isForeignTourist) {
+      tourismTax = booking.tourism_tax_amount
+        ? (typeof booking.tourism_tax_amount === 'string' ? parseFloat(booking.tourism_tax_amount) : booking.tourism_tax_amount)
+        : nights * hotelSettings.tourism_tax_rate;
     }
 
     // Get extra bed charge from booking
