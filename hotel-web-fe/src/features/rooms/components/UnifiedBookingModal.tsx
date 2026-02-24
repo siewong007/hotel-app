@@ -502,6 +502,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           ic_number: newGuestForm.ic_number,
           nationality: newGuestForm.nationality,
           tourism_type: newGuestForm.tourism_type,
+          address_line1: newGuestForm.address_line1 || undefined,
+          city: newGuestForm.city || undefined,
+          state_province: newGuestForm.state_province || undefined,
+          postal_code: newGuestForm.postal_code || undefined,
+          country: newGuestForm.country || undefined,
         });
 
         guestToUse = newGuest;

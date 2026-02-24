@@ -28,6 +28,11 @@ export interface NewGuestForm {
   nationality: string;
   ic_number: string;
   tourism_type?: TourismType;
+  address_line1: string;
+  city: string;
+  state_province: string;
+  postal_code: string;
+  country: string;
 }
 
 export interface GuestWithCredits {
@@ -74,6 +79,11 @@ export const emptyNewGuestForm: NewGuestForm = {
   nationality: '',
   ic_number: '',
   tourism_type: undefined,
+  address_line1: '',
+  city: '',
+  state_province: '',
+  postal_code: '',
+  country: '',
 };
 
 const GuestSelector: React.FC<GuestSelectorProps> = ({
@@ -321,6 +331,46 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                 </MenuItem>
               </Select>
             </FormControl>
+          </Grid>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Address"
+              value={newGuestForm.address_line1}
+              onChange={(e) => onNewGuestFormChange({ ...newGuestForm, address_line1: e.target.value })}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="City"
+              value={newGuestForm.city}
+              onChange={(e) => onNewGuestFormChange({ ...newGuestForm, city: e.target.value })}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="State/Province"
+              value={newGuestForm.state_province}
+              onChange={(e) => onNewGuestFormChange({ ...newGuestForm, state_province: e.target.value })}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Postal Code"
+              value={newGuestForm.postal_code}
+              onChange={(e) => onNewGuestFormChange({ ...newGuestForm, postal_code: e.target.value })}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Country"
+              value={newGuestForm.country}
+              onChange={(e) => onNewGuestFormChange({ ...newGuestForm, country: e.target.value })}
+            />
           </Grid>
         </Grid>
       )}
