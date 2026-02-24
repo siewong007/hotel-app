@@ -1509,13 +1509,14 @@ pub async fn get_complimentary_bookings_handler(
         r#"
         SELECT
             b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
-            g.guest_type::text as guest_type,
+            g.guest_type::text as guest_type, g.tourism_type::text as guest_tourism_type,
             b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
             b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
             b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
             b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
             b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
             b.created_at, b.is_posted, b.posted_date,
+            b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
             b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out
         FROM bookings b
         INNER JOIN guests g ON b.guest_id = g.id
