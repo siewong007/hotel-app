@@ -157,6 +157,17 @@ pub struct InvoiceLineItem {
     pub total: Decimal,
 }
 
+/// Record payment request (explicit payment recording)
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RecordPaymentRequest {
+    pub booking_id: i64,
+    pub amount: f64,
+    pub payment_method: String,
+    pub payment_type: Option<String>,
+    pub transaction_reference: Option<String>,
+    pub notes: Option<String>,
+}
+
 /// Keycard deposit record
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct KeycardDeposit {

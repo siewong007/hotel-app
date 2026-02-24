@@ -15,6 +15,11 @@ import {
   CircularProgress,
   TextField,
   InputAdornment,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Collapse,
 } from '@mui/material';
 import {
   Receipt as ReceiptIcon,
@@ -22,11 +27,15 @@ import {
   Print as PrintIcon,
   WarningAmber as WarningIcon,
   Business as BusinessIcon,
+  Payment as PaymentIcon,
+  Add as AddIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import { BookingWithDetails } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
 import { HotelAPIService } from '../../../api';
+import { InvoicesService } from '../../../api/invoices.service';
 
 interface LateCheckoutData {
   penalty: number;
@@ -67,6 +76,21 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [lateCheckoutPenalty, setLateCheckoutPenalty] = useState(0);
   const [lateCheckoutNotes, setLateCheckoutNotes] = useState('');
   const [roomPrice, setRoomPrice] = useState<number>(0);
+
+  // Payment recording state
+  const [payments, setPayments] = useState<any[]>([]);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [recordingPayment, setRecordingPayment] = useState(false);
+
+  // Deposit refund state
+  const [depositRefunded, setDepositRefunded] = useState(false);
+  const [refundingDeposit, setRefundingDeposit] = useState(false);
+  const [refundPaymentMethod, setRefundPaymentMethod] = useState('cash');
+
   const [charges, setCharges] = useState<ChargesBreakdown>({
     roomCharges: 0,
     roomCardDeposit: 50,
@@ -144,6 +168,30 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
       // Reset to preview step when modal opens
       setCheckoutStep('preview');
+
+      // Reset payment form state
+      setShowPaymentForm(false);
+      setPaymentAmount(0);
+      setPaymentMethod('cash');
+      setPaymentReference('');
+      setPaymentNotes('');
+      setDepositRefunded(false);
+
+      // Load existing payments
+      const loadPayments = async () => {
+        try {
+          const existingPayments = await InvoicesService.getBookingPayments(booking.id);
+          setPayments(existingPayments || []);
+          // Check if deposit was already refunded
+          const hasRefund = (existingPayments || []).some(
+            (p: any) => p.payment_status === 'refunded' && p.notes === 'Keycard deposit refund'
+          );
+          setDepositRefunded(hasRefund);
+        } catch {
+          setPayments([]);
+        }
+      };
+      loadPayments();
     }
   }, [open, booking]);
 
@@ -249,10 +297,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     // This equals configured_price × nights + other charges
     const subtotal = roomCharges + serviceTax + tourismTax + extraBedCharge + lateCheckoutPenaltyAmount;
 
-    // Deposit is always refunded - late checkout penalty is separate
+    // Deposit is refunded separately - does not reduce the total amount due
     const depositRefund = roomCardDeposit;
 
-    const grandTotal = subtotal - depositRefund;
+    const grandTotal = subtotal;
 
     setCharges({
       roomCharges,
@@ -271,6 +319,48 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const handlePenaltyChange = (value: number) => {
     setLateCheckoutPenalty(value);
     calculateCharges(value);
+  };
+
+  const totalPayments = payments
+    .filter((p: any) => p.payment_status === 'completed')
+    .reduce((sum: number, p: any) => sum + parseFloat(p.total_amount || '0'), 0);
+  const balanceDue = charges.grandTotal - totalPayments;
+
+  const handleRecordPayment = async () => {
+    if (!booking || paymentAmount <= 0) return;
+    try {
+      setRecordingPayment(true);
+      const newPayment = await InvoicesService.recordPayment({
+        booking_id: Number(booking.id),
+        amount: paymentAmount,
+        payment_method: paymentMethod,
+        transaction_reference: paymentReference || undefined,
+        notes: paymentNotes || undefined,
+      });
+      setPayments(prev => [...prev, newPayment]);
+      setShowPaymentForm(false);
+      setPaymentAmount(0);
+      setPaymentReference('');
+      setPaymentNotes('');
+    } catch (err: any) {
+      setError(err.message || 'Failed to record payment');
+    } finally {
+      setRecordingPayment(false);
+    }
+  };
+
+  const handleRefundDeposit = async () => {
+    if (!booking) return;
+    try {
+      setRefundingDeposit(true);
+      const refundPayment = await InvoicesService.refundDeposit(booking.id, refundPaymentMethod, charges.depositRefund);
+      setPayments(prev => [...prev, refundPayment]);
+      setDepositRefunded(true);
+    } catch (err: any) {
+      setError(err.message || 'Failed to refund deposit');
+    } finally {
+      setRefundingDeposit(false);
+    }
   };
 
   const handleConfirmCheckout = async () => {
@@ -650,7 +740,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     {new Date(booking?.check_in_date || '').toLocaleDateString()}
                   </Box>
                 </Typography>
-                <Typography variant="body2" sx={{ mb: 0.5 }}>
+                <Typography variant="body2" component="div" sx={{ mb: 0.5 }}>
                   <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
                     Check-out:
                   </Box>
@@ -800,39 +890,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   </Grid>
                 </Box>
 
-                {/* Deposit Refund or Waived */}
-                {charges.depositRefund > 0 ? (
-                  <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd', bgcolor: '#e8f5e9' }}>
-                    <Grid container>
-                      <Grid item xs={8}>
-                        <Typography variant="body2" sx={{ color: '#2e7d32' }}>
-                          Room Card Deposit Refund
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
-                          -{formatCurrency(charges.depositRefund)}
-                        </Typography>
-                      </Grid>
-                    </Grid>
-                  </Box>
-                ) : (
-                  <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd', bgcolor: '#e3f2fd' }}>
-                    <Grid container>
-                      <Grid item xs={8}>
-                        <Typography variant="body2" sx={{ color: '#1565c0' }}>
-                          Room Card Deposit
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#1565c0' }}>
-                          Waived
-                        </Typography>
-                      </Grid>
-                    </Grid>
-                  </Box>
-                )}
-
                 {/* Grand Total */}
                 <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderTop: '3px double #1976d2' }}>
                   <Grid container>
@@ -851,6 +908,242 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Box>
             </Box>
 
+            {/* Room Card Deposit Refund Section */}
+            {charges.depositRefund > 0 ? (
+              <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
+                <Box sx={{ p: 1.5, bgcolor: depositRefunded ? '#e8f5e9' : '#fff3e0' }}>
+                  <Grid container alignItems="center">
+                    <Grid item xs={5}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: depositRefunded ? '#2e7d32' : '#e65100' }}>
+                        Room Card Deposit Refund
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {depositRefunded ? 'Refunded separately to guest' : 'Must be refunded before checkout'}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={7} sx={{ textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                      {depositRefunded ? (
+                        <>
+                          <Chip label="Refunded" size="small" color="success" />
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+                            {formatCurrency(charges.depositRefund)}
+                          </Typography>
+                        </>
+                      ) : (
+                        <>
+                          <FormControl size="small" sx={{ minWidth: 100 }}>
+                            <Select
+                              value={refundPaymentMethod}
+                              onChange={(e) => setRefundPaymentMethod(e.target.value)}
+                              size="small"
+                              sx={{ fontSize: '0.8rem' }}
+                            >
+                              <MenuItem value="cash">Cash</MenuItem>
+                              <MenuItem value="card">Card</MenuItem>
+                              <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
+                              <MenuItem value="duitnow">DuitNow</MenuItem>
+                            </Select>
+                          </FormControl>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            color="success"
+                            onClick={handleRefundDeposit}
+                            disabled={refundingDeposit}
+                            startIcon={refundingDeposit ? <CircularProgress size={14} /> : <PaymentIcon />}
+                            sx={{ fontSize: '0.75rem', py: 0.5 }}
+                          >
+                            Refund {formatCurrency(charges.depositRefund)}
+                          </Button>
+                        </>
+                      )}
+                    </Grid>
+                  </Grid>
+                </Box>
+              </Box>
+            ) : (
+              <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
+                <Box sx={{ p: 1.5, bgcolor: '#e3f2fd' }}>
+                  <Grid container alignItems="center">
+                    <Grid item xs={8}>
+                      <Typography variant="body2" sx={{ color: '#1565c0' }}>
+                        Room Card Deposit
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                      <Chip label="Waived" size="small" color="info" />
+                    </Grid>
+                  </Grid>
+                </Box>
+              </Box>
+            )}
+
+            {/* Payments Section */}
+            <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
+              <Box sx={{ bgcolor: '#2e7d32', color: 'white', p: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
+                  <PaymentIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
+                  Payments
+                </Typography>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={() => setShowPaymentForm(!showPaymentForm)}
+                  startIcon={showPaymentForm ? <CloseIcon /> : <AddIcon />}
+                  sx={{ color: 'white', borderColor: 'white', fontSize: '0.75rem', py: 0.25, '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
+                >
+                  {showPaymentForm ? 'Cancel' : 'Record Payment'}
+                </Button>
+              </Box>
+
+              {/* Existing Payments List */}
+              {payments.filter((p: any) => p.payment_status === 'completed').length > 0 && (
+                <Box sx={{ p: 0 }}>
+                  {payments.filter((p: any) => p.payment_status === 'completed').map((p: any, idx: number) => (
+                    <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid #eee' }}>
+                      <Grid container alignItems="center">
+                        <Grid item xs={5}>
+                          <Typography variant="body2">
+                            {p.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(p.created_at).toLocaleString()}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={4}>
+                          <Typography variant="caption" color="text.secondary">
+                            {p.transaction_reference || p.notes || ''}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={3} sx={{ textAlign: 'right' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+                            {formatCurrency(parseFloat(p.total_amount || '0'))}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+
+              {/* Refund records */}
+              {payments.filter((p: any) => p.payment_status === 'refunded').length > 0 && (
+                <Box sx={{ p: 0 }}>
+                  {payments.filter((p: any) => p.payment_status === 'refunded').map((p: any, idx: number) => (
+                    <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid #eee', bgcolor: '#f1f8e9' }}>
+                      <Grid container alignItems="center">
+                        <Grid item xs={5}>
+                          <Typography variant="body2" sx={{ color: '#2e7d32' }}>
+                            Deposit Refund ({p.payment_method?.replace('_', ' ')})
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(p.created_at).toLocaleString()}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={4}>
+                          <Chip label="Refunded" size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
+                        </Grid>
+                        <Grid item xs={3} sx={{ textAlign: 'right' }}>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+                            -{formatCurrency(parseFloat(p.total_amount || '0'))}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </Box>
+                  ))}
+                </Box>
+              )}
+
+              {payments.length === 0 && (
+                <Box sx={{ p: 2, textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">No payments recorded yet</Typography>
+                </Box>
+              )}
+
+              {/* Record Payment Form */}
+              <Collapse in={showPaymentForm}>
+                <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderTop: '1px solid #ddd' }}>
+                  <Grid container spacing={2}>
+                    <Grid item xs={6}>
+                      <TextField
+                        label="Amount"
+                        type="number"
+                        size="small"
+                        fullWidth
+                        value={paymentAmount || ''}
+                        onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
+                        InputProps={{
+                          startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Method</InputLabel>
+                        <Select
+                          value={paymentMethod}
+                          label="Method"
+                          onChange={(e) => setPaymentMethod(e.target.value)}
+                        >
+                          <MenuItem value="cash">Cash</MenuItem>
+                          <MenuItem value="card">Card</MenuItem>
+                          <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
+                          <MenuItem value="duitnow">DuitNow</MenuItem>
+                          <MenuItem value="online_banking">Online Banking</MenuItem>
+                          <MenuItem value="cheque">Cheque</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        label="Reference (Optional)"
+                        size="small"
+                        fullWidth
+                        value={paymentReference}
+                        onChange={(e) => setPaymentReference(e.target.value)}
+                      />
+                    </Grid>
+                    <Grid item xs={6}>
+                      <TextField
+                        label="Notes (Optional)"
+                        size="small"
+                        fullWidth
+                        value={paymentNotes}
+                        onChange={(e) => setPaymentNotes(e.target.value)}
+                      />
+                    </Grid>
+                    <Grid item xs={12} sx={{ textAlign: 'right' }}>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        onClick={handleRecordPayment}
+                        disabled={recordingPayment || paymentAmount <= 0}
+                        startIcon={recordingPayment ? <CircularProgress size={14} /> : <PaymentIcon />}
+                      >
+                        {recordingPayment ? 'Recording...' : 'Record Payment'}
+                      </Button>
+                    </Grid>
+                  </Grid>
+                </Box>
+              </Collapse>
+
+              {/* Balance Due */}
+              <Box sx={{ p: 1.5, bgcolor: balanceDue > 0 ? '#fff3e0' : '#e8f5e9', borderTop: '2px solid #ddd' }}>
+                <Grid container>
+                  <Grid item xs={8}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: balanceDue > 0 ? '#e65100' : '#2e7d32' }}>
+                      {balanceDue > 0 ? 'Balance Due' : balanceDue < 0 ? 'Overpayment' : 'Fully Paid'}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: balanceDue > 0 ? '#e65100' : '#2e7d32' }}>
+                      {formatCurrency(Math.abs(balanceDue))}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+            </Box>
+
             {/* Notes */}
             {charges.lateCheckoutPenalty > 0 && (
               <Alert severity="warning" sx={{ mb: 2 }}>
@@ -863,10 +1156,21 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Alert>
             )}
 
-            {charges.depositRefund > 0 && (
+            {charges.depositRefund > 0 && !depositRefunded && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                <Typography variant="body2" fontWeight={600}>
+                  Deposit refund required
+                </Typography>
+                <Typography variant="caption">
+                  Please refund the room card deposit of {formatCurrency(charges.depositRefund)} above before printing or proceeding to checkout.
+                </Typography>
+              </Alert>
+            )}
+
+            {depositRefunded && (
               <Alert severity="success" sx={{ mb: 2 }}>
                 <Typography variant="body2">
-                  Room card deposit of {formatCurrency(charges.depositRefund)} will be refunded to the guest.
+                  Room card deposit of {formatCurrency(charges.depositRefund)} has been refunded.
                 </Typography>
               </Alert>
             )}
@@ -991,13 +1295,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 {charges.roomCardDeposit > 0 ? (
                   <>
                     <Grid item xs={8}>
-                      <Typography variant="body2" sx={{ color: 'success.main' }}>
-                        Room Card Deposit Refund
+                      <Typography variant="body2" sx={{ color: depositRefunded ? 'success.main' : 'text.secondary' }}>
+                        Room Card Deposit
                       </Typography>
                     </Grid>
                     <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                      <Typography variant="body2" sx={{ color: 'success.main' }}>
-                        -{formatCurrency(charges.roomCardDeposit)}
+                      <Typography variant="body2" sx={{ color: depositRefunded ? 'success.main' : 'text.secondary' }}>
+                        {depositRefunded ? 'Refunded' : 'Pending Refund'}
                       </Typography>
                     </Grid>
                   </>
@@ -1031,7 +1335,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
             <Alert severity="info">
               <Typography variant="body2">
-                The late checkout penalty will be added to the final bill. Room card deposit will still be refunded.
+                The late checkout penalty will be added to the final bill. Room card deposit is refunded separately.
               </Typography>
             </Alert>
           </Box>
@@ -1101,7 +1405,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Typography>
               </Grid>
               <Grid item xs={6}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                <Typography variant="body2" component="div" sx={{ fontWeight: 600 }}>
                   {getActualCheckoutDate().toLocaleString()}
                   {isEarlyCheckout() && (
                     <Chip label="Early" size="small" color="info" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
@@ -1219,18 +1523,16 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Typography>
               </Grid>
 
-              {/* Deposit Refund */}
+              {/* Deposit Refund Status */}
               {charges.depositRefund > 0 && (
                 <>
                   <Grid item xs={8}>
                     <Typography variant="body2" sx={{ color: 'success.main' }}>
-                      Room Card Deposit Refund
+                      Room Card Deposit
                     </Typography>
                   </Grid>
                   <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                    <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 600 }}>
-                      -{formatCurrency(charges.depositRefund)}
-                    </Typography>
+                    <Chip label="Refunded" size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
                   </Grid>
                 </>
               )}
@@ -1273,7 +1575,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
           {charges.depositRefund > 0 && (
             <Alert severity="success">
               <Typography variant="body2">
-                Room card deposit of {formatCurrency(charges.depositRefund)} will be refunded to the guest.
+                Room card deposit of {formatCurrency(charges.depositRefund)} has been refunded to the guest.
               </Typography>
             </Alert>
           )}
@@ -1291,6 +1593,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               variant="outlined"
               onClick={handlePrint}
               startIcon={<PrintIcon />}
+              disabled={charges.depositRefund > 0 && !depositRefunded}
             >
               Print Preview
             </Button>
@@ -1299,6 +1602,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               onClick={handleProceedToConfirm}
               startIcon={isLateCheckout ? <WarningIcon /> : <CheckIcon />}
               color={isLateCheckout ? 'warning' : 'primary'}
+              disabled={charges.depositRefund > 0 && !depositRefunded}
             >
               {isLateCheckout ? 'Proceed (Late Checkout)' : 'Proceed to Checkout'}
             </Button>
@@ -1453,8 +1757,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
             {charges.depositRefund > 0 ? (
               <tr className="refund-row">
-                <td>Room Card Deposit Refund</td>
-                <td className="amount">-{formatCurrency(charges.depositRefund)}</td>
+                <td>Room Card Deposit</td>
+                <td className="amount">{depositRefunded ? 'Refunded' : 'Pending Refund'}</td>
               </tr>
             ) : (
               <tr style={{ color: '#1565c0' }}>
@@ -1479,8 +1783,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
         {charges.depositRefund > 0 ? (
           <div className="notes success-note">
-            <strong>Deposit Refund</strong>
-            Room card deposit of {formatCurrency(charges.depositRefund)} will be refunded to the guest.
+            <strong>Room Card Deposit</strong>
+            Deposit of {formatCurrency(charges.depositRefund)} has been refunded separately to the guest.
           </div>
         ) : (
           <div className="notes" style={{ backgroundColor: '#e3f2fd', borderLeftColor: '#1565c0' }}>

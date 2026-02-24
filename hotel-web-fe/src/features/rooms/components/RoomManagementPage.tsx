@@ -74,6 +74,7 @@ import {
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
 import EnhancedCheckInModal from '../../bookings/components/EnhancedCheckInModal';
 import UnifiedBookingModal, { BookingType } from './UnifiedBookingModal';
+import UpdateCheckoutDateDialog from './UpdateCheckoutDateDialog';
 
 interface RoomAction {
   id: string;
@@ -118,6 +119,8 @@ const RoomManagementPage: React.FC = () => {
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [roomDetailsDialogOpen, setRoomDetailsDialogOpen] = useState(false);
   const [changeRoomDialogOpen, setChangeRoomDialogOpen] = useState(false);
+  const [updateCheckoutDialogOpen, setUpdateCheckoutDialogOpen] = useState(false);
+  const [updateCheckoutBooking, setUpdateCheckoutBooking] = useState<BookingWithDetails | null>(null);
   const [complimentaryDialogOpen, setComplimentaryDialogOpen] = useState(false);
   const [complimentaryReason, setComplimentaryReason] = useState('');
   const [markingComplimentary, setMarkingComplimentary] = useState(false);
@@ -1415,6 +1418,15 @@ const RoomManagementPage: React.FC = () => {
     handleMenuClose();
   };
 
+  const handleUpdateCheckoutDate = (room: Room) => {
+    const booking = roomBookings.get(room.id);
+    if (booking) {
+      setUpdateCheckoutBooking(booking);
+      setUpdateCheckoutDialogOpen(true);
+    }
+    handleMenuClose();
+  };
+
   const handleConfirmRoomChange = async () => {
     if (!selectedRoom || !newSelectedRoom || !selectedBooking) {
       showSnackbar('Please select a new room', 'error');
@@ -1616,6 +1628,9 @@ const RoomManagementPage: React.FC = () => {
     if (isOccupied && booking) {
       actions.push(
         { id: 'change-room', label: 'Change Room', icon: <HotelIcon />, color: 'warning', onClick: handleChangeRoom }
+      );
+      actions.push(
+        { id: 'update-checkout', label: 'Update Checkout Date', icon: <CalendarIcon />, color: 'info', onClick: handleUpdateCheckoutDate }
       );
     }
 
@@ -3316,6 +3331,17 @@ const RoomManagementPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Update Checkout Date Dialog */}
+      <UpdateCheckoutDateDialog
+        open={updateCheckoutDialogOpen}
+        onClose={() => setUpdateCheckoutDialogOpen(false)}
+        booking={updateCheckoutBooking}
+        onSuccess={() => {
+          showSnackbar('Checkout date updated successfully', 'success');
+          loadData();
+        }}
+      />
 
       {/* Change Room Dialog */}
       <Dialog

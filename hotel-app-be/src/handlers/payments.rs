@@ -150,6 +150,163 @@ pub async fn create_payment_handler(
     Ok(Json(payment))
 }
 
+/// Record an explicit payment for a booking
+pub async fn record_payment_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Json(request): Json<RecordPaymentRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_auth(&headers).await?;
+
+    let amount = Decimal::from_f64_retain(request.amount)
+        .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
+
+    let payment_type = request.payment_type.as_deref().unwrap_or("booking");
+
+    let row = sqlx::query(
+        r#"
+        INSERT INTO payments (
+            booking_id, amount, payment_method, payment_type,
+            status, transaction_id, notes, created_by
+        )
+        VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7)
+        RETURNING id, booking_id, amount::text, payment_method, payment_type, status,
+                  transaction_id, notes, created_at
+        "#,
+    )
+    .bind(request.booking_id)
+    .bind(amount)
+    .bind(&request.payment_method)
+    .bind(payment_type)
+    .bind(&request.transaction_reference)
+    .bind(&request.notes)
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let payment = serde_json::json!({
+        "id": row.get::<i64, _>("id"),
+        "booking_id": row.get::<i64, _>("booking_id"),
+        "total_amount": row.get::<String, _>("amount"),
+        "payment_method": row.get::<String, _>("payment_method"),
+        "payment_type": row.get::<Option<String>, _>("payment_type"),
+        "payment_status": row.get::<Option<String>, _>("status"),
+        "transaction_reference": row.get::<Option<String>, _>("transaction_id"),
+        "notes": row.get::<Option<String>, _>("notes"),
+        "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+    });
+
+    Ok(Json(payment))
+}
+
+/// Get all payments for a booking
+pub async fn get_all_payments_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path(booking_id): Path<i64>,
+) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    let _user_id = require_auth(&headers).await?;
+
+    let rows = sqlx::query(
+        r#"SELECT id, booking_id, amount::text, payment_method, payment_type, status,
+                  transaction_id, notes, created_at
+           FROM payments WHERE booking_id = $1 ORDER BY created_at ASC"#,
+    )
+    .bind(booking_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let payments: Vec<serde_json::Value> = rows.iter().map(|row| {
+        serde_json::json!({
+            "id": row.get::<i64, _>("id"),
+            "booking_id": row.get::<i64, _>("booking_id"),
+            "total_amount": row.get::<String, _>("amount"),
+            "payment_method": row.get::<String, _>("payment_method"),
+            "payment_type": row.get::<Option<String>, _>("payment_type"),
+            "payment_status": row.get::<Option<String>, _>("status"),
+            "transaction_reference": row.get::<Option<String>, _>("transaction_id"),
+            "notes": row.get::<Option<String>, _>("notes"),
+            "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+        })
+    }).collect();
+
+    Ok(Json(payments))
+}
+
+/// Refund keycard deposit for a booking
+pub async fn refund_deposit_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path(booking_id): Path<i64>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_id = require_auth(&headers).await?;
+
+    let payment_method = body.get("payment_method")
+        .and_then(|v| v.as_str())
+        .unwrap_or("cash")
+        .to_string();
+
+    // Check if already refunded
+    let existing_refund: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND notes = 'Keycard deposit refund' LIMIT 1"
+    )
+    .bind(booking_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if existing_refund.is_some() {
+        return Err(ApiError::BadRequest("Deposit already refunded".to_string()));
+    }
+
+    // Get deposit amount from request body (frontend passes it from hotel settings)
+    let deposit_amount_f64 = body.get("amount")
+        .and_then(|v| v.as_f64())
+        .unwrap_or(0.0);
+
+    let deposit_amount = Decimal::from_f64_retain(deposit_amount_f64)
+        .unwrap_or(Decimal::ZERO);
+
+    if deposit_amount <= Decimal::ZERO {
+        return Err(ApiError::BadRequest("No deposit amount provided".to_string()));
+    }
+
+    // Create a refund payment record
+    let row = sqlx::query(
+        r#"
+        INSERT INTO payments (
+            booking_id, amount, payment_method, payment_type,
+            status, notes, created_by
+        )
+        VALUES ($1, $2, $3, 'refund', 'refunded', 'Keycard deposit refund', $4)
+        RETURNING id, booking_id, amount::text, payment_method, payment_type, status, notes, created_at
+        "#,
+    )
+    .bind(booking_id)
+    .bind(deposit_amount)
+    .bind(&payment_method)
+    .bind(user_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let refund = serde_json::json!({
+        "id": row.get::<i64, _>("id"),
+        "booking_id": row.get::<i64, _>("booking_id"),
+        "total_amount": row.get::<String, _>("amount"),
+        "payment_method": row.get::<String, _>("payment_method"),
+        "payment_type": row.get::<Option<String>, _>("payment_type"),
+        "payment_status": row.get::<Option<String>, _>("status"),
+        "notes": row.get::<Option<String>, _>("notes"),
+        "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+    });
+
+    Ok(Json(refund))
+}
+
 /// Get payment for a booking
 pub async fn get_payment_handler(
     State(pool): State<DbPool>,

@@ -452,13 +452,20 @@ pub async fn update_booking_handler(
     let deposit_paid = input.deposit_paid;
     let deposit_amount_f64 = input.deposit_amount;
 
-    // Handle room rate override - recalculate totals if provided
+    // Handle room rate override or date change - recalculate totals
     let (new_room_rate, new_subtotal, new_total_amount) = if let Some(rate_override) = input.room_rate_override {
         let nights = std::cmp::max((check_out - check_in).num_days() as i32, 1);
         let room_rate = Decimal::from_f64_retain(rate_override).unwrap_or(existing_booking.room_rate);
         let subtotal = room_rate * Decimal::from(nights);
         let total_amount = subtotal; // Tax is calculated on frontend using hotel settings rate
         (Some(room_rate), Some(subtotal), Some(total_amount))
+    } else if input.check_out_date.is_some() || input.check_in_date.is_some() {
+        // Dates changed without explicit rate override - recalculate using existing room rate
+        let nights = std::cmp::max((check_out - check_in).num_days() as i32, 1);
+        let room_rate = existing_booking.room_rate;
+        let subtotal = room_rate * Decimal::from(nights);
+        let total_amount = subtotal;
+        (None, Some(subtotal), Some(total_amount))
     } else {
         (None, None, None)
     };
