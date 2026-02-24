@@ -230,9 +230,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     console.log('Tourism tax debug:', { guest_tourism_type: booking.guest_tourism_type, is_tourist: booking.is_tourist, isForeignTourist, tourism_tax_amount: booking.tourism_tax_amount, tourism_tax_rate: hotelSettings.tourism_tax_rate, nights });
     let tourismTax = 0;
     if (isForeignTourist) {
-      tourismTax = booking.tourism_tax_amount
+      const storedTourismTax = booking.tourism_tax_amount
         ? (typeof booking.tourism_tax_amount === 'string' ? parseFloat(booking.tourism_tax_amount) : booking.tourism_tax_amount)
-        : nights * hotelSettings.tourism_tax_rate;
+        : 0;
+      // Use stored amount if > 0, otherwise calculate from settings
+      tourismTax = storedTourismTax > 0 ? storedTourismTax : nights * hotelSettings.tourism_tax_rate;
     }
 
     // Get extra bed charge from booking
