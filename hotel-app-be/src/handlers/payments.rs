@@ -166,10 +166,10 @@ pub async fn record_payment_handler(
     let row = sqlx::query(
         r#"
         INSERT INTO payments (
-            booking_id, amount, payment_method, payment_type,
+            uuid, booking_id, amount, payment_method, payment_type,
             status, transaction_id, notes, created_by
         )
-        VALUES ($1, $2, $3, $4, 'completed', $5, $6, $7)
+        VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6, $7)
         RETURNING id, booking_id, amount::text, payment_method, payment_type, status,
                   transaction_id, notes, created_at
         "#,
@@ -278,10 +278,10 @@ pub async fn refund_deposit_handler(
     let row = sqlx::query(
         r#"
         INSERT INTO payments (
-            booking_id, amount, payment_method, payment_type,
+            uuid, booking_id, amount, payment_method, payment_type,
             status, notes, created_by
         )
-        VALUES ($1, $2, $3, 'refund', 'refunded', 'Keycard deposit refund', $4)
+        VALUES (gen_random_uuid(), $1, $2, $3, 'refund', 'refunded', 'Keycard deposit refund', $4)
         RETURNING id, booking_id, amount::text, payment_method, payment_type, status, notes, created_at
         "#,
     )
