@@ -267,10 +267,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     // Service Tax is the difference
     const serviceTax = roomSubtotal - roomCharges;
 
-    // Get deposit based on guest membership status
+    // Get deposit based on guest membership status and payment method
     // Members get deposit waived (0), non-members always pay the configured deposit
+    // City Ledger bookings do not require deposit
     const isMember = booking.guest_type === 'member';
-    const roomCardDeposit = isMember ? 0 : hotelSettings.room_card_deposit;
+    const isCityLedger = !!(booking.company_id);
+    const roomCardDeposit = (isMember || isCityLedger) ? 0 : hotelSettings.room_card_deposit;
 
     // Get tourism tax - foreign tourists are charged, local tourists are not
     // Use guest_tourism_type (current guest setting) or fall back to is_tourist (booking-time setting)
@@ -971,7 +973,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       </Typography>
                     </Grid>
                     <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                      <Chip label="Waived" size="small" color="info" />
+                      <Chip
+                        label={booking?.company_id ? 'City Ledger - N/A' : 'Waived'}
+                        size="small"
+                        color="info"
+                      />
                     </Grid>
                   </Grid>
                 </Box>
