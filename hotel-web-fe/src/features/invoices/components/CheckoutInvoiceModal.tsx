@@ -271,7 +271,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     // Members get deposit waived (0), non-members always pay the configured deposit
     // City Ledger bookings do not require deposit
     const isMember = booking.guest_type === 'member';
-    const isCityLedger = booking.payment_method === 'City Ledger (Company Master)';
+    const isCityLedger = !!(booking.company_id);
     const roomCardDeposit = (isMember || isCityLedger) ? 0 : hotelSettings.room_card_deposit;
 
     // Get tourism tax - foreign tourists are charged, local tourists are not
@@ -974,7 +974,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     </Grid>
                     <Grid item xs={4} sx={{ textAlign: 'right' }}>
                       <Chip
-                        label={booking?.payment_method === 'City Ledger (Company Master)' ? 'City Ledger - N/A' : 'Waived'}
+                        label={booking?.company_id ? 'City Ledger - N/A' : 'Waived'}
                         size="small"
                         color="info"
                       />
