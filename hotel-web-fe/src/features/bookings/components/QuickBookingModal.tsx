@@ -616,32 +616,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <TextField
-                  select
-                  fullWidth
-                  label="Post Type"
-                  value={postType}
-                  onChange={(e) => setPostType(e.target.value as 'normal_stay' | 'same_day')}
-                  SelectProps={{ native: true }}
-                >
-                  <option value="normal_stay">Normal Stay</option>
-                  <option value="same_day">Same Day</option>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  select
-                  fullWidth
-                  label="Rate Code"
-                  value={rateCode}
-                  onChange={(e) => setRateCode(e.target.value)}
-                  SelectProps={{ native: true }}
-                >
-                  <option value="RACK">RACK (Standard Rate)</option>
-                  <option value="OVR">OVR (Override Rate)</option>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={6}>
                 <FormControlLabel
                   control={
                     <Checkbox

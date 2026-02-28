@@ -887,10 +887,7 @@ const BookingsPage: React.FC = () => {
                   <strong>Check-out</strong>
                 </TableSortLabel>
               </TableCell>
-              <TableCell><strong>Post Type</strong></TableCell>
-              <TableCell><strong>Rate</strong></TableCell>
               <TableCell><strong>Room Rate</strong></TableCell>
-              <TableCell><strong>Complimentary</strong></TableCell>
               <TableCell><strong>Channel</strong></TableCell>
               <TableCell><strong>Payment Method</strong></TableCell>
               <TableCell><strong>Payment Status</strong></TableCell>
@@ -951,47 +948,7 @@ const BookingsPage: React.FC = () => {
                     return scheduledCheckout;
                   })()}
                 </TableCell>
-                <TableCell>
-                  {booking.post_type === 'same_day' ? (
-                    <Chip label="Same Day" size="small" color="warning" />
-                  ) : (
-                    <Chip label="Normal Stay" size="small" color="default" />
-                  )}
-                </TableCell>
-                <TableCell>{booking.rate_code || 'RACK'}</TableCell>
                 <TableCell>{formatCurrency(Number(booking.price_per_night) || 0)}</TableCell>
-                <TableCell>
-                  {booking.is_complimentary ? (
-                    <Tooltip
-                      title={
-                        <Box>
-                          <Typography variant="caption" display="block">
-                            <strong>Reason:</strong> {booking.complimentary_reason || 'N/A'}
-                          </Typography>
-                          {booking.complimentary_start_date && booking.complimentary_end_date && (
-                            <Typography variant="caption" display="block">
-                              <strong>Dates:</strong> {booking.complimentary_start_date.split('T')[0]} to {booking.complimentary_end_date.split('T')[0]}
-                            </Typography>
-                          )}
-                          {booking.original_total_amount && (
-                            <Typography variant="caption" display="block">
-                              <strong>Original:</strong> {formatCurrency(Number(booking.original_total_amount))}
-                            </Typography>
-                          )}
-                        </Box>
-                      }
-                    >
-                      <Chip
-                        icon={<ComplimentaryIcon />}
-                        label={`${booking.complimentary_nights || 0} nights`}
-                        color="secondary"
-                        size="small"
-                      />
-                    </Tooltip>
-                  ) : (
-                    <Typography variant="caption" color="text.secondary">-</Typography>
-                  )}
-                </TableCell>
                 <TableCell>
                   <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
                     {booking.source?.replace(/_/g, ' ') || '-'}
@@ -1096,17 +1053,6 @@ const BookingsPage: React.FC = () => {
                             color="error"
                           >
                             <CancelIcon />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {canMarkComplimentary(booking) && !booking.is_posted && (
-                        <Tooltip title="Mark as Complimentary">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleMarkComplimentary(booking)}
-                            color="secondary"
-                          >
-                            <ComplimentaryIcon />
                           </IconButton>
                         </Tooltip>
                       )}
@@ -1234,18 +1180,6 @@ const BookingsPage: React.FC = () => {
               <TextField
                 select
                 fullWidth
-                label="Post Type"
-                value={editFormData.post_type || 'normal_stay'}
-                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, post_type: e.target.value }))}
-              >
-                <MenuItem value="normal_stay">Normal Stay</MenuItem>
-                <MenuItem value="same_day">Same Day</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                select
-                fullWidth
                 label="Channel"
                 value={editFormData.source || 'walk_in'}
                 onChange={(e) => setEditFormData((prev: any) => ({ ...prev, source: e.target.value }))}
@@ -1295,14 +1229,6 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="refunded">Refunded</MenuItem>
                 <MenuItem value="cancelled">Cancelled</MenuItem>
               </TextField>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Rate Code"
-                value={editFormData.rate_code || 'RACK'}
-                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, rate_code: e.target.value }))}
-              />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
@@ -1437,89 +1363,6 @@ const BookingsPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Mark as Complimentary Dialog */}
-      <Dialog open={complimentaryDialogOpen} onClose={() => setComplimentaryDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Mark Booking as Complimentary</DialogTitle>
-        <DialogContent>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Specify the date range for complimentary nights. The guest will not be charged for these dates.
-          </Alert>
-
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body2"><strong>Guest:</strong> {complimentaryBooking?.guest_name}</Typography>
-            <Typography variant="body2"><strong>Room:</strong> {complimentaryBooking?.room_type} - Room {complimentaryBooking?.room_number}</Typography>
-            <Typography variant="body2"><strong>Booking Period:</strong> {complimentaryBooking?.check_in_date?.split('T')[0]} to {complimentaryBooking?.check_out_date?.split('T')[0]}</Typography>
-            <Typography variant="body2"><strong>Original Total:</strong> {formatCurrency(Number(complimentaryBooking?.total_amount || 0))}</Typography>
-          </Box>
-
-          <Grid container spacing={2} sx={{ mb: 2 }}>
-            <Grid item xs={6}>
-              <TextField
-                fullWidth
-                label="Complimentary Start Date"
-                type="date"
-                value={complimentaryStartDate}
-                onChange={(e) => setComplimentaryStartDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{
-                  min: complimentaryBooking?.check_in_date?.split('T')[0],
-                  max: complimentaryBooking?.check_out_date?.split('T')[0]
-                }}
-              />
-            </Grid>
-            <Grid item xs={6}>
-              <TextField
-                fullWidth
-                label="Complimentary End Date"
-                type="date"
-                value={complimentaryEndDate}
-                onChange={(e) => setComplimentaryEndDate(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{
-                  min: complimentaryStartDate || complimentaryBooking?.check_in_date?.split('T')[0],
-                  max: complimentaryBooking?.check_out_date?.split('T')[0]
-                }}
-              />
-            </Grid>
-          </Grid>
-
-          {/* Preview calculation */}
-          {complimentaryStartDate && complimentaryEndDate && complimentaryBooking && calculateComplimentaryNights() > 0 && (
-            <Alert severity="success" sx={{ mb: 2 }}>
-              <Typography variant="body2">
-                <strong>Preview:</strong> {calculateComplimentaryNights()} of {calculateTotalNights()} nights will be complimentary.
-                {calculatePaidNights() > 0 ? (
-                  <> New total will be approximately {formatCurrency(Number(calculateNewTotal()))}.</>
-                ) : (
-                  <> This will be fully complimentary (no charge).</>
-                )}
-              </Typography>
-            </Alert>
-          )}
-
-          <TextField
-            fullWidth
-            multiline
-            rows={3}
-            label="Reason for Complimentary Stay"
-            value={complimentaryReason}
-            onChange={(e) => setComplimentaryReason(e.target.value)}
-            placeholder="e.g., VIP guest, service recovery, management approval..."
-            required
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setComplimentaryDialogOpen(false)} disabled={markingComplimentary}>Cancel</Button>
-          <Button
-            onClick={handleConfirmComplimentary}
-            variant="contained"
-            color="primary"
-            disabled={!complimentaryReason.trim() || !complimentaryStartDate || !complimentaryEndDate || calculateComplimentaryNights() <= 0 || markingComplimentary}
-          >
-            {markingComplimentary ? 'Processing...' : 'Mark as Complimentary'}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Collect Deposit Dialog */}
       <Dialog
