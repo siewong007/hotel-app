@@ -155,7 +155,7 @@ pub async fn update_guest_handler(
     Json(input): Json<GuestUpdateInput>,
 ) -> Result<Json<Guest>, ApiError> {
     // Get basic existing guest data (limited tuple to avoid FromRow size limit)
-    let existing_basic: Option<(i64, String, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
+    let existing_basic: Option<(i64, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
         "SELECT id, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, title, alt_phone FROM guests WHERE id = $1 AND deleted_at IS NULL"
     )
     .bind(guest_id)
@@ -180,7 +180,7 @@ pub async fn update_guest_handler(
     // Apply updates, falling back to existing values
     let first_name = input.first_name.unwrap_or(existing_first_name);
     let last_name = input.last_name.unwrap_or(existing_last_name);
-    let email = input.email.unwrap_or(existing_email);
+    let email = input.email.or(existing_email);
     let phone = input.phone.or(existing_phone);
     let ic_number = input.ic_number.or(existing_ic_number);
     let nationality = input.nationality.or(existing_nationality);
