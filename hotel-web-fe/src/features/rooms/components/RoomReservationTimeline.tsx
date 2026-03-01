@@ -294,8 +294,14 @@ const RoomReservationTimeline: React.FC = () => {
       if (isCheckedIn) {
         // For checked-in guests: show from check-in date up to today (even if past checkout date)
         // This handles late checkouts where guest is still in the room
-        const effectiveCheckOut = checkOut >= todayStr ? checkOut : todayStr;
-        return dateStr >= checkIn && dateStr <= effectiveCheckOut;
+        // Exclude checkout day from the colored bar - use < instead of <=
+        if (checkOut > todayStr) {
+          // Future checkout: exclude checkout day
+          return dateStr >= checkIn && dateStr < checkOut;
+        }
+        // Late checkout (past checkout date) or checkout today: show up to and including today
+        const tomorrow = new Date(new Date().getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        return dateStr >= checkIn && dateStr < tomorrow;
       }
 
       // Standard: exclude checkout day for completed/upcoming bookings
