@@ -97,6 +97,7 @@ const BookingsPage: React.FC = () => {
   const [editingBooking, setEditingBooking] = useState<BookingWithDetails | null>(null);
   const [editFormData, setEditFormData] = useState<any>({});
   const [editRoomTypeConfig, setEditRoomTypeConfig] = useState<RoomType | null>(null);
+  const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [updating, setUpdating] = useState(false);
 
   // Delete booking dialog
@@ -310,6 +311,7 @@ const BookingsPage: React.FC = () => {
       has_override: bookingRate > 0,
       extra_bed_count: extraBedCount,
       extra_bed_charge: extraBedCharge,
+      room_id: booking.room_id,
     };
     console.log('Opening edit with payment_method:', formData.payment_method, 'rate:', bookingRate);
     setEditFormData(formData);
@@ -319,6 +321,25 @@ const BookingsPage: React.FC = () => {
       const matched = roomTypes.find(rt => rt.name === booking.room_type);
       setEditRoomTypeConfig(matched || null);
     }).catch(() => setEditRoomTypeConfig(null));
+
+    // Fetch available rooms for the booking dates (for room change dropdown)
+    const isNotCheckedIn = !['checked_in', 'auto_checked_in', 'checked_out', 'completed'].includes(booking.status);
+    if (isNotCheckedIn) {
+      const checkIn = booking.check_in_date.split('T')[0];
+      const checkOut = booking.check_out_date.split('T')[0];
+      HotelAPIService.getAvailableRoomsForDates(checkIn, checkOut).then(available => {
+        // Include the currently assigned room since it won't show as "available"
+        const currentRoom = rooms.find(r => r.id === booking.room_id);
+        if (currentRoom && !available.find(r => r.id === currentRoom.id)) {
+          setAvailableRooms([currentRoom, ...available]);
+        } else {
+          setAvailableRooms(available);
+        }
+      }).catch(() => {
+        // Fallback: show all rooms
+        setAvailableRooms(rooms);
+      });
+    }
 
     setEditDialogOpen(true);
   };
@@ -337,6 +358,9 @@ const BookingsPage: React.FC = () => {
       const newPrice = editFormData.price_per_night || 0;
       const priceChanged = Math.abs(newPrice - originalPrice) > 0.01;
 
+      // Include room_id only if it changed (compare as strings to avoid type mismatch)
+      const roomChanged = editFormData.room_id && String(editFormData.room_id) !== String(editingBooking.room_id);
+
       const updateData = {
         ...editFormData,
         payment_method: editFormData.payment_method || null,
@@ -348,6 +372,12 @@ const BookingsPage: React.FC = () => {
       // Remove fields that are not valid backend fields
       delete updateData.price_per_night;
       delete updateData.has_override;
+      // Only include room_id if room was changed, and send as string for backend compatibility
+      if (roomChanged) {
+        updateData.room_id = String(editFormData.room_id);
+      } else {
+        delete updateData.room_id;
+      }
 
       await HotelAPIService.updateBooking(editingBooking.id, updateData);
       setSnackbarMessage('Booking updated successfully!');
@@ -1316,12 +1346,48 @@ const BookingsPage: React.FC = () => {
                 placeholder="Enter any special requests..."
               />
             </Grid>
-            <Grid item xs={12}>
-              <Alert severity="info">
-                Guest: <strong>{editingBooking?.guest_name}</strong><br />
-                Room: <strong>{editingBooking?.room_type} - Room {editingBooking?.room_number}</strong>
-              </Alert>
-            </Grid>
+            {editingBooking && !['checked_in', 'auto_checked_in', 'checked_out', 'completed'].includes(editingBooking.status) ? (
+              <>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    select
+                    fullWidth
+                    label="Assigned Room"
+                    value={editFormData.room_id || ''}
+                    onChange={(e) => {
+                      const selectedRoom = availableRooms.find(r => r.id === e.target.value);
+                      const newRate = selectedRoom
+                        ? (typeof selectedRoom.price_per_night === 'string' ? parseFloat(selectedRoom.price_per_night) : selectedRoom.price_per_night) || 0
+                        : editFormData.price_per_night;
+                      setEditFormData((prev: any) => ({
+                        ...prev,
+                        room_id: e.target.value,
+                        price_per_night: newRate,
+                      }));
+                    }}
+                  >
+                    {availableRooms.map((room) => (
+                      <MenuItem key={room.id} value={room.id}>
+                        Room {room.room_number} - {room.room_type} ({formatCurrency(typeof room.price_per_night === 'string' ? parseFloat(room.price_per_night) : room.price_per_night)}/night)
+                        {room.id === editingBooking.room_id ? ' (current)' : ''}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <Alert severity="info" sx={{ height: '100%', display: 'flex', alignItems: 'center' }}>
+                    Guest: <strong>{editingBooking?.guest_name}</strong>
+                  </Alert>
+                </Grid>
+              </>
+            ) : (
+              <Grid item xs={12}>
+                <Alert severity="info">
+                  Guest: <strong>{editingBooking?.guest_name}</strong><br />
+                  Room: <strong>{editingBooking?.room_type} - Room {editingBooking?.room_number}</strong>
+                </Alert>
+              </Grid>
+            )}
           </Grid>
         </DialogContent>
         <DialogActions>
