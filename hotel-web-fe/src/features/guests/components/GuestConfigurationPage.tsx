@@ -113,6 +113,7 @@ const GuestConfigurationPage: React.FC = () => {
   const [viewingGuest, setViewingGuest] = useState<Guest | null>(null);
   const [guestBookings, setGuestBookings] = useState<any[]>([]);
   const [formLoading, setFormLoading] = useState(false);
+  const [dialogError, setDialogError] = useState<string | null>(null);
 
   // Snackbar
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -183,11 +184,12 @@ const GuestConfigurationPage: React.FC = () => {
 
   const handleEditClick = (guest: Guest) => {
     setEditingGuest(guest);
+    setDialogError(null);
     const [firstName, ...lastNameParts] = guest.full_name.split(' ');
     setFormData({
       first_name: firstName || '',
       last_name: lastNameParts.join(' ') || '',
-      email: guest.email,
+      email: guest.email || '',
       phone: guest.phone || '',
       ic_number: guest.ic_number || '',
       nationality: guest.nationality || '',
@@ -266,17 +268,25 @@ const GuestConfigurationPage: React.FC = () => {
   const handleUpdateGuest = async () => {
     if (!editingGuest) return;
 
+    // Validate required fields
+    if (!formData.first_name || !formData.last_name) {
+      setDialogError('First name and last name are required');
+      return;
+    }
+
     try {
       setFormLoading(true);
+      setDialogError(null);
       await HotelAPIService.updateGuest(editingGuest.id, formData);
       setSnackbarMessage('Guest updated successfully');
       setSnackbarOpen(true);
       setEditDialogOpen(false);
       setEditingGuest(null);
+      setDialogError(null);
       resetForm();
       await loadData();
     } catch (err: any) {
-      setError(err.message || 'Failed to update guest');
+      setDialogError(err.message || 'Failed to update guest');
     } finally {
       setFormLoading(false);
     }
@@ -812,10 +822,15 @@ const GuestConfigurationPage: React.FC = () => {
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="md" fullWidth>
+      <Dialog open={editDialogOpen} onClose={() => { setEditDialogOpen(false); setDialogError(null); }} maxWidth="md" fullWidth>
         <DialogTitle>Edit Guest: {editingGuest?.full_name}</DialogTitle>
         <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
+          {dialogError && (
+            <Alert severity="error" sx={{ mb: 2, mt: 1 }} onClose={() => setDialogError(null)}>
+              {dialogError}
+            </Alert>
+          )}
+          <Grid container spacing={2} sx={{ mt: dialogError ? 0 : 1 }}>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
@@ -1017,7 +1032,7 @@ const GuestConfigurationPage: React.FC = () => {
           </Grid>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)} startIcon={<CancelIcon />}>
+          <Button onClick={() => { setEditDialogOpen(false); setDialogError(null); }} startIcon={<CancelIcon />}>
             Cancel
           </Button>
           <Button
