@@ -974,7 +974,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     </Grid>
                     <Grid item xs={4} sx={{ textAlign: 'right' }}>
                       <Chip
-                        label={booking?.company_id ? 'City Ledger - N/A' : 'Waived'}
+                        label={booking?.company_id ? 'City Ledger - N/A' : 'Member - Waived'}
                         size="small"
                         color="info"
                       />
