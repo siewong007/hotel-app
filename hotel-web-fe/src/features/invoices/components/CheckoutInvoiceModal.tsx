@@ -642,6 +642,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         {checkoutStep === 'preview' ? (
           // STEP 1: Invoice Preview (Default View)
           <Box sx={{ fontFamily: 'Arial, sans-serif', color: '#333' }}>
+            {error && (
+              <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 3 }}>
+                {error}
+              </Alert>
+            )}
             <Alert severity="info" sx={{ mb: 3 }}>
               <Typography variant="body2" fontWeight={600}>Please review the invoice carefully before proceeding with checkout.</Typography>
               <Typography variant="caption">Verify all charges, taxes, and refunds are correct.</Typography>

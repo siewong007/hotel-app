@@ -43,7 +43,14 @@ export class InvoicesService {
     notes?: string;
   }): Promise<any> {
     try {
-      return await api.post('payments/record-payment', { json: data }).json<any>();
+      // Ensure amount is a valid number
+      const payload = {
+        ...data,
+        booking_id: Number(data.booking_id),
+        amount: typeof data.amount === 'string' ? parseFloat(data.amount) : data.amount
+      };
+      console.log('Record payment request:', payload);
+      return await api.post('payments/record-payment', { json: payload }).json<any>();
     } catch (error) {
       if (error instanceof HTTPError) {
         const errorData = await error.response.json().catch(() => ({}));
@@ -75,8 +82,11 @@ export class InvoicesService {
 
   static async refundDeposit(bookingId: string | number, paymentMethod: string = 'cash', amount?: number): Promise<any> {
     try {
+      // Ensure amount is a valid number
+      const numericAmount = typeof amount === 'string' ? parseFloat(amount) : (amount || 0);
+      console.log('Refund deposit request:', { bookingId, paymentMethod, amount, numericAmount });
       return await api.post(`payments/refund-deposit/${bookingId}`, {
-        json: { payment_method: paymentMethod, amount: amount || 0 }
+        json: { payment_method: paymentMethod, amount: numericAmount }
       }).json<any>();
     } catch (error) {
       if (error instanceof HTTPError) {

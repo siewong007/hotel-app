@@ -59,6 +59,8 @@ import {
   Update as ExtendIcon,
   SwapHoriz as SwapIcon,
   Phone as PhoneIcon,
+  Edit as EditIcon,
+  Save as SaveIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, Booking } from '../../../types';
@@ -193,6 +195,21 @@ const RoomManagementPage: React.FC = () => {
 
   // Guest details tab state
   const [guestDetailsTab, setGuestDetailsTab] = useState(0);
+  const [isEditingGuest, setIsEditingGuest] = useState(false);
+  const [guestEditForm, setGuestEditForm] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    ic_number: '',
+    nationality: '',
+    address_line1: '',
+    city: '',
+    state_province: '',
+    postal_code: '',
+    country: '',
+  });
+  const [savingGuestEdit, setSavingGuestEdit] = useState(false);
   const [guestCredits, setGuestCredits] = useState<{
     guest_id: number;
     guest_name: string;
@@ -1228,6 +1245,61 @@ const RoomManagementPage: React.FC = () => {
       // Don't show error - credits may not be available for all guests
     } finally {
       setLoadingCredits(false);
+    }
+  };
+
+  const handleStartEditGuest = () => {
+    if (!selectedGuestDetails) return;
+    const nameParts = selectedGuestDetails.full_name.split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    setGuestEditForm({
+      first_name: firstName,
+      last_name: lastName,
+      email: selectedGuestDetails.email || '',
+      phone: selectedGuestDetails.phone || '',
+      ic_number: selectedGuestDetails.ic_number || '',
+      nationality: selectedGuestDetails.nationality || '',
+      address_line1: selectedGuestDetails.address_line1 || '',
+      city: selectedGuestDetails.city || '',
+      state_province: selectedGuestDetails.state_province || '',
+      postal_code: selectedGuestDetails.postal_code || '',
+      country: selectedGuestDetails.country || '',
+    });
+    setIsEditingGuest(true);
+  };
+
+  const handleCancelEditGuest = () => {
+    setIsEditingGuest(false);
+  };
+
+  const handleSaveGuestEdit = async () => {
+    if (!selectedGuestDetails) return;
+    try {
+      setSavingGuestEdit(true);
+      await HotelAPIService.updateGuest(selectedGuestDetails.id, guestEditForm);
+      // Update the guest in local state
+      const updatedGuest = {
+        ...selectedGuestDetails,
+        full_name: `${guestEditForm.first_name} ${guestEditForm.last_name}`.trim(),
+        email: guestEditForm.email,
+        phone: guestEditForm.phone,
+        ic_number: guestEditForm.ic_number,
+        nationality: guestEditForm.nationality,
+        address_line1: guestEditForm.address_line1,
+        city: guestEditForm.city,
+        state_province: guestEditForm.state_province,
+        postal_code: guestEditForm.postal_code,
+        country: guestEditForm.country,
+      };
+      setSelectedGuestDetails(updatedGuest);
+      setGuests(prev => prev.map(g => g.id === selectedGuestDetails.id ? updatedGuest : g));
+      setIsEditingGuest(false);
+      showSnackbar('Guest updated successfully', 'success');
+    } catch (error: any) {
+      showSnackbar(error.message || 'Failed to update guest', 'error');
+    } finally {
+      setSavingGuestEdit(false);
     }
   };
 

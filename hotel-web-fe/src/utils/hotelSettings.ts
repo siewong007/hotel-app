@@ -64,7 +64,15 @@ export const getHotelSettings = (): HotelSettings => {
     if (stored) {
       const parsed = JSON.parse(stored);
       // Merge with defaults to ensure all fields exist
-      return { ...DEFAULT_SETTINGS, ...parsed };
+      const merged = { ...DEFAULT_SETTINGS, ...parsed };
+      // Ensure numeric fields are properly typed (localStorage may store them as strings)
+      return {
+        ...merged,
+        room_card_deposit: Number(merged.room_card_deposit) || DEFAULT_SETTINGS.room_card_deposit,
+        late_checkout_penalty: Number(merged.late_checkout_penalty) || DEFAULT_SETTINGS.late_checkout_penalty,
+        service_tax_rate: Number(merged.service_tax_rate) || DEFAULT_SETTINGS.service_tax_rate,
+        tourism_tax_rate: Number(merged.tourism_tax_rate) || DEFAULT_SETTINGS.tourism_tax_rate,
+      };
     }
   } catch (error) {
     console.error('Failed to load hotel settings:', error);
