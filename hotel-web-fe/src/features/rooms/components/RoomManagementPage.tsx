@@ -741,6 +741,8 @@ const RoomManagementPage: React.FC = () => {
 
   // Handle reserved room check-in (streamlined - booking details already exist)
   const handleReservedCheckIn = async (collectDeposit: boolean = false) => {
+    console.log('handleReservedCheckIn called, booking:', reservedCheckInBooking);
+
     if (!reservedCheckInBooking) {
       showSnackbar('No booking selected', 'error');
       return;
@@ -754,6 +756,7 @@ const RoomManagementPage: React.FC = () => {
 
     try {
       setProcessingReservedCheckIn(true);
+      console.log('Processing check-in for booking ID:', reservedCheckInBooking.id);
 
       // If collecting deposit, update booking with deposit info first
       if (collectDeposit) {
@@ -766,7 +769,9 @@ const RoomManagementPage: React.FC = () => {
       }
 
       // Perform check-in
-      await HotelAPIService.checkInGuest(reservedCheckInBooking.id, {});
+      console.log('Calling checkInGuest API with ID:', reservedCheckInBooking.id);
+      const result = await HotelAPIService.checkInGuest(String(reservedCheckInBooking.id));
+      console.log('Check-in result:', result);
 
       showSnackbar(`Guest ${reservedCheckInBooking.guest_name} checked in successfully to Room ${reservedCheckInBooking.room_number}`, 'success');
 
@@ -779,6 +784,7 @@ const RoomManagementPage: React.FC = () => {
       // Reload data
       await loadData();
     } catch (error: any) {
+      console.error('Check-in error:', error);
       showSnackbar(error.message || 'Failed to check in guest', 'error');
     } finally {
       setProcessingReservedCheckIn(false);
@@ -3946,11 +3952,11 @@ const RoomManagementPage: React.FC = () => {
                                 startIcon={<LoginIcon />}
                                 onClick={() => {
                                   setUpcomingBookingsDialogOpen(false);
-                                  // Find the room and trigger check-in
-                                  const room = rooms.find(r => String(r.id) === String(booking.room_id));
-                                  if (room) {
-                                    handleCheckIn(room);
-                                  }
+                                  // Directly open the check-in dialog with this booking
+                                  setReservedCheckInBooking(booking);
+                                  setDepositPaymentMethod('');
+                                  setCollectingDeposit(false);
+                                  setReservedCheckInDialogOpen(true);
                                 }}
                                 sx={{ fontWeight: 600 }}
                               >
@@ -4186,7 +4192,7 @@ const RoomManagementPage: React.FC = () => {
             variant="contained"
             color="success"
             onClick={() => handleReservedCheckIn(false)}
-            disabled={processingReservedCheckIn || (reservedCheckInBooking?.payment_status !== 'paid' && reservedCheckInBooking?.guest_type !== 'member')}
+            disabled={processingReservedCheckIn}
             startIcon={processingReservedCheckIn ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}
           >
             {processingReservedCheckIn ? 'Processing...' : 'Check-In Now'}

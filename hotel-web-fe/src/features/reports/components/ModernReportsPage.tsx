@@ -19,7 +19,12 @@ import {
   Alert,
   Divider,
   Chip,
+  Dialog,
+  DialogContent,
+  DialogActions,
+  IconButton,
 } from '@mui/material';
+import { Close as CloseIcon } from '@mui/icons-material';
 import {
   Assessment as ReportIcon,
   Print as PrintIcon,
@@ -176,32 +181,81 @@ const ModernReportsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [reportData, setReportData] = useState<any>(null);
+  const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+
+  const handlePrintPreview = () => {
+    setPrintPreviewOpen(true);
+  };
 
   const handlePrint = () => {
-    if (printRef.current) {
-      const printContent = printRef.current.innerHTML;
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(`
+    const printContent = document.getElementById('print-preview-content');
+    if (!printContent) return;
+
+    const printWindow = window.open('', '', 'width=800,height=600');
+    if (!printWindow) {
+      // Fallback: if popup blocked, use window.print() with iframe
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'absolute';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (iframeDoc) {
+        iframeDoc.open();
+        iframeDoc.write(`
           <html>
             <head>
               <title>Report - ${selectedReport}</title>
               <style>
-                body { font-family: Arial, sans-serif; padding: 20px; }
+                body { font-family: Arial, sans-serif; padding: 20px; margin: 0; }
                 table { border-collapse: collapse; width: 100%; margin: 10px 0; }
                 th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
                 th { background-color: #f5f5f5; }
                 h1, h2, h3, h4, h5, h6 { margin: 10px 0; }
                 .header { text-align: center; margin-bottom: 20px; }
+                .MuiChip-root { display: inline-block; padding: 2px 8px; border-radius: 16px; font-size: 12px; }
+                .MuiPaper-root { box-shadow: none !important; }
               </style>
             </head>
-            <body>${printContent}</body>
+            <body>${printContent.innerHTML}</body>
           </html>
         `);
-        printWindow.document.close();
-        printWindow.print();
+        iframeDoc.close();
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => document.body.removeChild(iframe), 1000);
       }
+      return;
     }
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Report - ${selectedReport}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; margin: 0; }
+            table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f5f5f5; }
+            h1, h2, h3, h4, h5, h6 { margin: 10px 0; }
+            .header { text-align: center; margin-bottom: 20px; }
+            .MuiChip-root { display: inline-block; padding: 2px 8px; border-radius: 16px; font-size: 12px; }
+            .MuiPaper-root { box-shadow: none !important; }
+          </style>
+        </head>
+        <body>${printContent.innerHTML}</body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
+  const handleClosePrintPreview = () => {
+    setPrintPreviewOpen(false);
   };
 
   const loadCompanyList = async () => {
@@ -1531,7 +1585,7 @@ const ModernReportsPage: React.FC = () => {
                     {loading ? 'Generating...' : 'Generate Report'}
                   </Button>
                   {reportData && (
-                    <Button variant="outlined" size="large" startIcon={<PrintIcon />} onClick={handlePrint}>
+                    <Button variant="outlined" size="large" startIcon={<PrintIcon />} onClick={handlePrintPreview}>
                       Print Report
                     </Button>
                   )}
@@ -1556,6 +1610,51 @@ const ModernReportsPage: React.FC = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* Print Preview Dialog */}
+      <Dialog
+        open={printPreviewOpen}
+        onClose={handleClosePrintPreview}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            height: '90vh',
+            maxHeight: '90vh',
+          }
+        }}
+      >
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, borderBottom: 1, borderColor: 'divider' }}>
+          <Typography variant="h6">Print Preview</Typography>
+          <IconButton onClick={handleClosePrintPreview} size="small">
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        <DialogContent sx={{ p: 0 }}>
+          <Box
+            id="print-preview-content"
+            sx={{
+              p: 3,
+              bgcolor: 'white',
+              minHeight: '100%',
+              '@media print': {
+                p: 2,
+                '& .MuiPaper-root': {
+                  boxShadow: 'none',
+                },
+              },
+            }}
+          >
+            {renderReport()}
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Button onClick={handleClosePrintPreview}>Cancel</Button>
+          <Button variant="contained" startIcon={<PrintIcon />} onClick={handlePrint}>
+            Print
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

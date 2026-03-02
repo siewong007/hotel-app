@@ -864,7 +864,8 @@ pub async fn manual_checkin_handler(
         return Err(ApiError::BadRequest(format!("Cannot check in booking with status: {}", booking.status)));
     }
 
-    // Check if room is ready for check-in (not dirty or cleaning)
+    // Check if room is ready for check-in (only block maintenance/out_of_order)
+    // Note: Dirty/cleaning rooms are allowed for check-in - room will be set to occupied
     let room_status: Option<String> = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
         .bind(booking.room_id)
         .fetch_optional(&pool)
@@ -872,12 +873,6 @@ pub async fn manual_checkin_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if let Some(status) = room_status {
-        if status == "dirty" || status == "cleaning" {
-            return Err(ApiError::BadRequest(format!(
-                "Cannot check in - room is currently {}. Please clean the room first.",
-                status
-            )));
-        }
         if status == "maintenance" || status == "out_of_order" {
             return Err(ApiError::BadRequest(format!(
                 "Cannot check in - room is currently under {}.",
