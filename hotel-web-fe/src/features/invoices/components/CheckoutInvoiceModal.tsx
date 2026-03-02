@@ -91,6 +91,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [refundingDeposit, setRefundingDeposit] = useState(false);
   const [refundPaymentMethod, setRefundPaymentMethod] = useState('cash');
 
+  // Deposit waive state
+  const [depositWaived, setDepositWaived] = useState(false);
+  const [depositWaiveReason, setDepositWaiveReason] = useState('');
+
   const [charges, setCharges] = useState<ChargesBreakdown>({
     roomCharges: 0,
     roomCardDeposit: 50,
@@ -176,6 +180,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setPaymentReference('');
       setPaymentNotes('');
       setDepositRefunded(false);
+      setDepositWaived(false);
+      setDepositWaiveReason('');
 
       // Load existing payments
       const loadPayments = async () => {
@@ -270,9 +276,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     // Get deposit based on guest membership status and payment method
     // Members get deposit waived (0), non-members always pay the configured deposit
     // City Ledger bookings do not require deposit
+    // Manually waived deposits also show as 0
     const isMember = booking.guest_type === 'member';
     const isCityLedger = !!(booking.company_id);
-    const roomCardDeposit = (isMember || isCityLedger) ? 0 : hotelSettings.room_card_deposit;
+    const roomCardDeposit = (isMember || isCityLedger || depositWaived) ? 0 : hotelSettings.room_card_deposit;
 
     // Get tourism tax - foreign tourists are charged, local tourists are not
     // Use guest_tourism_type (current guest setting) or fall back to is_tourist (booking-time setting)
@@ -916,7 +923,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             </Box>
 
             {/* Room Card Deposit Refund Section */}
-            {charges.depositRefund > 0 ? (
+            {charges.depositRefund > 0 && !depositWaived ? (
               <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ p: 1.5, bgcolor: depositRefunded ? '#e8f5e9' : '#fff3e0' }}>
                   <Grid container alignItems="center">
@@ -925,7 +932,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         Room Card Deposit Refund
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        {depositRefunded ? 'Refunded separately to guest' : 'Must be refunded before checkout'}
+                        {depositRefunded ? 'Refunded separately to guest' : 'Must be refunded or waived before checkout'}
                       </Typography>
                     </Grid>
                     <Grid item xs={7} sx={{ textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
@@ -964,6 +971,77 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           </Button>
                         </>
                       )}
+                    </Grid>
+                  </Grid>
+                </Box>
+                {/* Waive Deposit Option */}
+                {!depositRefunded && (
+                  <Box sx={{ p: 1.5, borderTop: '1px solid #ddd', bgcolor: '#fafafa' }}>
+                    <Grid container alignItems="center" spacing={1}>
+                      <Grid item xs={12}>
+                        <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                          Or waive the deposit (e.g., lost keycard, special arrangement):
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={8}>
+                        <TextField
+                          size="small"
+                          fullWidth
+                          placeholder="Reason for waiving deposit (e.g., lost keycard)"
+                          value={depositWaiveReason}
+                          onChange={(e) => setDepositWaiveReason(e.target.value)}
+                          sx={{ fontSize: '0.8rem' }}
+                        />
+                      </Grid>
+                      <Grid item xs={4}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="warning"
+                          fullWidth
+                          onClick={() => {
+                            if (depositWaiveReason.trim()) {
+                              setDepositWaived(true);
+                              calculateCharges(lateCheckoutPenalty);
+                            }
+                          }}
+                          disabled={!depositWaiveReason.trim()}
+                          sx={{ fontSize: '0.75rem', py: 0.5 }}
+                        >
+                          Waive Deposit
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+              </Box>
+            ) : depositWaived ? (
+              <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
+                <Box sx={{ p: 1.5, bgcolor: '#fff3e0' }}>
+                  <Grid container alignItems="center">
+                    <Grid item xs={8}>
+                      <Typography variant="body2" sx={{ color: '#e65100', fontWeight: 600 }}>
+                        Room Card Deposit
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Waived: {depositWaiveReason}
+                      </Typography>
+                    </Grid>
+                    <Grid item xs={4} sx={{ textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                      <Chip label="Waived" size="small" color="warning" />
+                      <Button
+                        size="small"
+                        variant="text"
+                        color="primary"
+                        onClick={() => {
+                          setDepositWaived(false);
+                          setDepositWaiveReason('');
+                          calculateCharges(lateCheckoutPenalty);
+                        }}
+                        sx={{ fontSize: '0.7rem', minWidth: 'auto' }}
+                      >
+                        Undo
+                      </Button>
                     </Grid>
                   </Grid>
                 </Box>
@@ -1167,13 +1245,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Alert>
             )}
 
-            {charges.depositRefund > 0 && !depositRefunded && (
+            {charges.depositRefund > 0 && !depositRefunded && !depositWaived && (
               <Alert severity="warning" sx={{ mb: 2 }}>
                 <Typography variant="body2" fontWeight={600}>
                   Deposit refund required
                 </Typography>
                 <Typography variant="caption">
-                  Please refund the room card deposit of {formatCurrency(charges.depositRefund)} above before printing or proceeding to checkout.
+                  Please refund or waive the room card deposit of {formatCurrency(charges.depositRefund)} above before printing or proceeding to checkout.
                 </Typography>
               </Alert>
             )}
@@ -1535,7 +1613,21 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Grid>
 
               {/* Deposit Refund Status */}
-              {charges.depositRefund > 0 && (
+              {depositWaived ? (
+                <>
+                  <Grid item xs={8}>
+                    <Typography variant="body2" sx={{ color: 'warning.main' }}>
+                      Room Card Deposit
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {depositWaiveReason}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                    <Chip label="Waived" size="small" color="warning" sx={{ height: 20, fontSize: '0.7rem' }} />
+                  </Grid>
+                </>
+              ) : charges.depositRefund > 0 && (
                 <>
                   <Grid item xs={8}>
                     <Typography variant="body2" sx={{ color: 'success.main' }}>
@@ -1583,7 +1675,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             </Alert>
           )}
 
-          {charges.depositRefund > 0 && (
+          {depositWaived ? (
+            <Alert severity="warning">
+              <Typography variant="body2">
+                Room card deposit has been waived. Reason: {depositWaiveReason}
+              </Typography>
+            </Alert>
+          ) : charges.depositRefund > 0 && (
             <Alert severity="success">
               <Typography variant="body2">
                 Room card deposit of {formatCurrency(charges.depositRefund)} has been refunded to the guest.
@@ -1604,7 +1702,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               variant="outlined"
               onClick={handlePrint}
               startIcon={<PrintIcon />}
-              disabled={charges.depositRefund > 0 && !depositRefunded}
+              disabled={charges.depositRefund > 0 && !depositRefunded && !depositWaived}
             >
               Print Preview
             </Button>
@@ -1613,7 +1711,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               onClick={handleProceedToConfirm}
               startIcon={isLateCheckout ? <WarningIcon /> : <CheckIcon />}
               color={isLateCheckout ? 'warning' : 'primary'}
-              disabled={charges.depositRefund > 0 && !depositRefunded}
+              disabled={charges.depositRefund > 0 && !depositRefunded && !depositWaived}
             >
               {isLateCheckout ? 'Proceed (Late Checkout)' : 'Proceed to Checkout'}
             </Button>
@@ -1766,7 +1864,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <td className="amount">{formatCurrency(charges.subtotal)}</td>
             </tr>
 
-            {charges.depositRefund > 0 ? (
+            {depositWaived ? (
+              <tr style={{ color: '#e65100' }}>
+                <td>Room Card Deposit</td>
+                <td className="amount">Waived ({depositWaiveReason})</td>
+              </tr>
+            ) : charges.depositRefund > 0 ? (
               <tr className="refund-row">
                 <td>Room Card Deposit</td>
                 <td className="amount">{depositRefunded ? 'Refunded' : 'Pending Refund'}</td>
@@ -1774,7 +1877,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             ) : (
               <tr style={{ color: '#1565c0' }}>
                 <td>Room Card Deposit</td>
-                <td className="amount">Waived</td>
+                <td className="amount">Waived (Member)</td>
               </tr>
             )}
 
@@ -1792,7 +1895,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
           </div>
         )}
 
-        {charges.depositRefund > 0 ? (
+        {depositWaived ? (
+          <div className="notes" style={{ backgroundColor: '#fff3e0', borderLeftColor: '#e65100' }}>
+            <strong style={{ color: '#e65100' }}>Room Card Deposit - Waived</strong>
+            Reason: {depositWaiveReason}
+          </div>
+        ) : charges.depositRefund > 0 ? (
           <div className="notes success-note">
             <strong>Room Card Deposit</strong>
             Deposit of {formatCurrency(charges.depositRefund)} has been refunded separately to the guest.
