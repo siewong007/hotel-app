@@ -48,6 +48,7 @@ import {
   CardGiftcard as ComplimentaryIcon,
   Payment as PaymentIcon,
   Lock as LockIcon,
+  Receipt as ReceiptIcon,
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
 import { HotelAPIService } from '../../../api';
@@ -77,6 +78,8 @@ const BookingsPage: React.FC = () => {
   const [checkinBooking, setCheckinBooking] = useState<BookingWithDetails | null>(null);
   const [checkinGuest, setCheckinGuest] = useState<Guest | null>(null);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
+  const [invoiceBooking, setInvoiceBooking] = useState<BookingWithDetails | null>(null);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -162,7 +165,7 @@ const BookingsPage: React.FC = () => {
         booking.room_number.toLowerCase().includes(query) ||
         booking.booking_number?.toLowerCase().includes(query) ||
         booking.folio_number?.toLowerCase().includes(query) ||
-        booking.id.toLowerCase().includes(query)
+        String(booking.id).toLowerCase().includes(query)
       );
     }
 
@@ -555,17 +558,27 @@ const BookingsPage: React.FC = () => {
     }
   };
 
+  // View invoice for checked-out bookings
+  const handleViewInvoice = (booking: BookingWithDetails) => {
+    setInvoiceBooking(booking);
+    setShowInvoiceModal(true);
+  };
+
   // Check-out functions
   const handleCheckOut = (booking: BookingWithDetails) => {
     setCheckoutBooking(booking);
     setShowCheckoutModal(true);
   };
 
-  const handleConfirmCheckout = async () => {
+  const handleConfirmCheckout = async (_lateCheckoutData?: any, checkoutPaymentMethod?: string) => {
     if (!checkoutBooking) return;
 
     try {
-      await HotelAPIService.updateBooking(checkoutBooking.id, { status: 'checked_out' });
+      const updatePayload: any = { status: 'checked_out' };
+      if (checkoutPaymentMethod) {
+        updatePayload.payment_method = checkoutPaymentMethod;
+      }
+      await HotelAPIService.updateBooking(checkoutBooking.id, updatePayload);
       setSnackbarMessage('Guest checked out successfully!');
       setSnackbarOpen(true);
       setShowCheckoutModal(false);
@@ -1086,6 +1099,17 @@ const BookingsPage: React.FC = () => {
                           </IconButton>
                         </Tooltip>
                       )}
+                      {booking.status === 'checked_out' && (
+                        <Tooltip title="View Invoice">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleViewInvoice(booking)}
+                            color="primary"
+                          >
+                            <ReceiptIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </Box>
                   </TableCell>
                 )}
@@ -1541,6 +1565,17 @@ const BookingsPage: React.FC = () => {
         }}
         booking={checkoutBooking}
         onConfirmCheckout={handleConfirmCheckout}
+      />
+
+      {/* Read-Only Invoice Modal */}
+      <CheckoutInvoiceModal
+        open={showInvoiceModal}
+        onClose={() => {
+          setShowInvoiceModal(false);
+          setInvoiceBooking(null);
+        }}
+        booking={invoiceBooking}
+        readOnly
       />
 
       {/* Enhanced Check-In Modal */}

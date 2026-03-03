@@ -694,8 +694,14 @@ async fn generate_general_journal(
             b.check_in_date as date,
             b.booking_number as folio,
             b.total_amount,
+            b.room_rate,
+            COALESCE(b.tax_amount, 0) as tax_amount,
+            COALESCE(b.tourism_tax_amount, 0) as tourism_tax_amount,
             b.payment_status,
             b.payment_method,
+            COALESCE(b.room_card_deposit, 0) as room_card_deposit,
+            COALESCE(b.deposit_amount, 0) as deposit_amount,
+            b.deposit_paid,
             r.room_number,
             g.full_name as guest_name
         FROM bookings b
@@ -730,21 +736,29 @@ async fn generate_general_journal(
     let mut sales_tax_debit = Decimal::ZERO;
     let mut sales_tax_credit = Decimal::ZERO;
 
-    let tax_rate = Decimal::new(8, 2); // 8% service tax
-
     for row in rows {
         let date: NaiveDate = row.get("date");
         let total_amount: Decimal = row.get("total_amount");
+        let room_rate: Decimal = row.get("room_rate");
+        let tax_amount: Decimal = row.get("tax_amount");
+        let tourism_tax_amount: Decimal = row.get("tourism_tax_amount");
         let payment_status: Option<String> = row.get("payment_status");
         let payment_method: Option<String> = row.get("payment_method");
+        let room_card_deposit: Decimal = row.get("room_card_deposit");
+        let deposit_amount_db: Decimal = row.get("deposit_amount");
+        let room_number: String = row.get("room_number");
         let date_str = date.format("%d/%m/%Y").to_string();
 
-        // Calculate amounts
-        let service_tax = total_amount * tax_rate;
-        let room_charge = total_amount - service_tax;
+        // Use actual values from booking instead of hardcoded calculations
+        let service_tax = tax_amount;
+        let tourism_tax = tourism_tax_amount;
+        let room_charge = room_rate;
 
-        // Estimate deposit (20% of total)
-        let deposit_amount = total_amount * Decimal::new(20, 2);
+        // Use actual room card deposit from booking
+        let deposit_amount = room_card_deposit;
+
+        // Actual deposit amount paid by guest
+        let paid_amount = deposit_amount_db;
 
         // Guest Ledger entries (Debits)
         // Room Charge
@@ -754,7 +768,8 @@ async fn generate_general_journal(
             "debit": room_charge,
             "credit": 0,
             "contra_account": "Room Revenue",
-            "contra_amount": room_charge
+            "contra_amount": room_charge,
+            "room_number": room_number
         }));
         guest_ledger_debit += room_charge;
 
@@ -765,65 +780,74 @@ async fn generate_general_journal(
             "debit": service_tax,
             "credit": 0,
             "contra_account": "Sales Tax Payable",
-            "contra_amount": service_tax
+            "contra_amount": service_tax,
+            "room_number": room_number
         }));
         guest_ledger_debit += service_tax;
 
-        // Payment entries based on payment method
-        if let Some(ref method) = payment_method {
-            let method_upper = method.to_uppercase();
-            let account_name = match method_upper.as_str() {
-                "CASH" => "Cash",
-                "VISA" | "CREDIT_CARD" | "CREDIT" => "Visa",
-                "DEBIT" | "DEBIT_CARD" | "DEBITCARD" => "Debitcard",
-                "AGODA" | "OTA" => "Agoda.Com",
-                _ => method.as_str(),
-            };
+        // Tourism Tax (if applicable)
+        if tourism_tax > Decimal::ZERO {
+            guest_ledger_entries.push(serde_json::json!({
+                "date": date_str,
+                "account": "Tourism Tax",
+                "debit": tourism_tax,
+                "credit": 0,
+                "contra_account": "Tourism Tax Payable",
+                "contra_amount": tourism_tax,
+                "room_number": room_number
+            }));
+            guest_ledger_debit += tourism_tax;
+        }
 
-            // If paid, add payment entry
-            if payment_status.as_deref() == Some("paid") || payment_status.as_deref() == Some("partial") {
+        // Payment entries based on payment method (use actual amount paid)
+        if let Some(ref method) = payment_method {
+            let account_name = method.as_str();
+
+            // If paid, add payment entry with actual amount paid
+            if (payment_status.as_deref() == Some("paid") || payment_status.as_deref() == Some("partial")) && paid_amount > Decimal::ZERO {
                 guest_ledger_entries.push(serde_json::json!({
                     "date": date_str,
                     "account": account_name,
                     "debit": 0,
-                    "credit": 0,
+                    "credit": paid_amount,
                     "contra_account": "Deposits Pending",
-                    "contra_amount": total_amount
+                    "contra_amount": paid_amount,
+                    "room_number": room_number
                 }));
+                guest_ledger_credit += paid_amount;
             }
         }
 
-        // Add deposit entry
-        guest_ledger_entries.push(serde_json::json!({
-            "date": date_str,
-            "account": "Deposit",
-            "debit": deposit_amount,
-            "credit": 0,
-            "contra_account": "Deposits Pending",
-            "contra_amount": deposit_amount
-        }));
-        guest_ledger_debit += deposit_amount;
+        // Room card deposit entry (only if deposit exists)
+        if deposit_amount > Decimal::ZERO {
+            guest_ledger_entries.push(serde_json::json!({
+                "date": date_str,
+                "account": "Room Card Deposit",
+                "debit": deposit_amount,
+                "credit": 0,
+                "contra_account": "Deposits Pending",
+                "contra_amount": deposit_amount,
+                "room_number": room_number
+            }));
+            guest_ledger_debit += deposit_amount;
+        }
 
         // Deposits Pending (Credits)
         if let Some(ref method) = payment_method {
-            let method_upper = method.to_uppercase();
-            let account_name = match method_upper.as_str() {
-                "CASH" => "Cash",
-                "VISA" | "CREDIT_CARD" | "CREDIT" => "Visa",
-                "DEBIT" | "DEBIT_CARD" | "DEBITCARD" => "Debitcard",
-                "AGODA" | "OTA" => "Agoda.Com",
-                _ => method.as_str(),
-            };
+            let account_name = method.as_str();
 
-            deposits_pending_entries.push(serde_json::json!({
-                "date": date_str,
-                "account": account_name,
-                "debit": deposit_amount,
-                "credit": 0,
-                "contra_account": "Guest Ledger",
-                "contra_amount": 0
-            }));
-            deposits_pending_debit += deposit_amount;
+            if deposit_amount > Decimal::ZERO {
+                deposits_pending_entries.push(serde_json::json!({
+                    "date": date_str,
+                    "account": account_name,
+                    "debit": deposit_amount,
+                    "credit": 0,
+                    "contra_account": "Guest Ledger",
+                    "contra_amount": 0,
+                    "room_number": room_number
+                }));
+                deposits_pending_debit += deposit_amount;
+            }
         }
 
         // Room Revenue (Credits)
@@ -833,20 +857,38 @@ async fn generate_general_journal(
             "debit": 0,
             "credit": room_charge,
             "contra_account": "Guest Ledger",
-            "contra_amount": room_charge
+            "contra_amount": room_charge,
+            "room_number": room_number
         }));
         room_revenue_credit += room_charge;
 
         // Sales Tax Payable (Credits)
-        sales_tax_entries.push(serde_json::json!({
-            "date": date_str,
-            "account": "Service Tax",
-            "debit": 0,
-            "credit": service_tax,
-            "contra_account": "Guest Ledger",
-            "contra_amount": service_tax
-        }));
-        sales_tax_credit += service_tax;
+        if service_tax > Decimal::ZERO {
+            sales_tax_entries.push(serde_json::json!({
+                "date": date_str,
+                "account": "Service Tax",
+                "debit": 0,
+                "credit": service_tax,
+                "contra_account": "Guest Ledger",
+                "contra_amount": service_tax,
+                "room_number": room_number
+            }));
+            sales_tax_credit += service_tax;
+        }
+
+        // Tourism Tax Payable (Credits)
+        if tourism_tax > Decimal::ZERO {
+            sales_tax_entries.push(serde_json::json!({
+                "date": date_str,
+                "account": "Tourism Tax",
+                "debit": 0,
+                "credit": tourism_tax,
+                "contra_account": "Guest Ledger",
+                "contra_amount": tourism_tax,
+                "room_number": room_number
+            }));
+            sales_tax_credit += tourism_tax;
+        }
     }
 
     // Build sections array

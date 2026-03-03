@@ -46,7 +46,8 @@ interface CheckoutInvoiceModalProps {
   open: boolean;
   onClose: () => void;
   booking: BookingWithDetails | null;
-  onConfirmCheckout: (lateCheckoutData?: LateCheckoutData) => Promise<void>;
+  onConfirmCheckout?: (lateCheckoutData?: LateCheckoutData, paymentMethod?: string) => Promise<void>;
+  readOnly?: boolean;
 }
 
 interface ChargesBreakdown {
@@ -66,6 +67,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   onClose,
   booking,
   onConfirmCheckout,
+  readOnly = false,
 }) => {
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const [loading, setLoading] = useState(false);
@@ -81,7 +83,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [payments, setPayments] = useState<any[]>([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
-  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [recordingPayment, setRecordingPayment] = useState(false);
@@ -174,9 +176,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setCheckoutStep('preview');
 
       // Reset payment form state
-      setShowPaymentForm(false);
+      // Auto-open payment form for all guests with outstanding balance
+      setShowPaymentForm(true);
       setPaymentAmount(0);
-      setPaymentMethod('cash');
+      // Pre-fill payment method from booking (use title case to match hotel settings)
+      const bookingPaymentMethod = booking.payment_method
+        ? booking.payment_method.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+        : 'Cash';
+      setPaymentMethod(bookingPaymentMethod);
       setPaymentReference('');
       setPaymentNotes('');
       setDepositRefunded(false);
@@ -208,6 +215,18 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     }
   }, [roomPrice]);
 
+  // Pre-fill payment amount for members when charges are ready
+  useEffect(() => {
+    if (open && booking && charges.grandTotal > 0) {
+      const balance = charges.grandTotal - payments
+        .filter((p: any) => p.payment_status === 'completed')
+        .reduce((sum: number, p: any) => sum + parseFloat(p.total_amount || '0'), 0);
+      if (balance > 0) {
+        setPaymentAmount(parseFloat(balance.toFixed(2)));
+      }
+    }
+  }, [open, booking, charges.grandTotal, payments]);
+
   // Listen for hotel settings changes
   useEffect(() => {
     const handleSettingsChange = (event: CustomEvent) => {
@@ -226,7 +245,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     // Calculate nights first
     const checkIn = new Date(booking.check_in_date);
     const checkOut = new Date(booking.check_out_date);
-    const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+    const rawNights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+    // For hourly bookings (same-day), use 1 for billing
+    const isHourly = booking.post_type === 'hourly' || rawNights === 0;
+    const nights = isHourly ? 1 : rawNights;
 
     // Debug: log booking price info
     console.log('Checkout calculation - booking:', {
@@ -382,7 +404,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         ? { penalty: lateCheckoutPenalty, notes: lateCheckoutNotes }
         : undefined;
 
-      await onConfirmCheckout(lateCheckoutData);
+      await onConfirmCheckout?.(lateCheckoutData, paymentMethod);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to process checkout');
@@ -598,7 +620,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
   if (!booking) return null;
 
+  const isHourlyBooking = booking.post_type === 'hourly' || booking.check_in_date === booking.check_out_date;
+
   const calculateNights = () => {
+    if (isHourlyBooking) return 0;
     const checkIn = new Date(booking.check_in_date);
     const checkOut = new Date(booking.check_out_date);
     return Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
@@ -629,11 +654,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <ReceiptIcon sx={{ mr: 1, color: 'primary.main' }} />
             )}
             <Typography variant="h6">
-              {checkoutStep === 'preview'
-                ? 'Invoice Preview - Review Before Checkout'
-                : checkoutStep === 'lateCheckout'
-                  ? 'Late Checkout - Enter Penalty Details'
-                  : 'Confirm Checkout'}
+              {readOnly
+                ? 'Invoice'
+                : checkoutStep === 'preview'
+                  ? 'Invoice Preview - Review Before Checkout'
+                  : checkoutStep === 'lateCheckout'
+                    ? 'Late Checkout - Enter Penalty Details'
+                    : 'Confirm Checkout'}
             </Typography>
           </Box>
           <Chip
@@ -646,7 +673,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       </DialogTitle>
 
       <DialogContent dividers>
-        {checkoutStep === 'preview' ? (
+        {(readOnly || checkoutStep === 'preview') ? (
           // STEP 1: Invoice Preview (Default View)
           <Box sx={{ fontFamily: 'Arial, sans-serif', color: '#333' }}>
             {error && (
@@ -654,10 +681,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 {error}
               </Alert>
             )}
-            <Alert severity="info" sx={{ mb: 3 }}>
-              <Typography variant="body2" fontWeight={600}>Please review the invoice carefully before proceeding with checkout.</Typography>
-              <Typography variant="caption">Verify all charges, taxes, and refunds are correct.</Typography>
-            </Alert>
+            {!readOnly && (
+              <Alert severity="info" sx={{ mb: 3 }}>
+                <Typography variant="body2" fontWeight={600}>Please review the invoice carefully before proceeding with checkout.</Typography>
+                <Typography variant="caption">Verify all charges, taxes, and refunds are correct.</Typography>
+              </Alert>
+            )}
 
             {/* Company Billing Indicator */}
             {booking.company_id && booking.company_name && (
@@ -780,7 +809,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     Duration:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
-                    {calculateNights()} night(s)
+                    {isHourlyBooking ? 'Hourly Stay' : `${calculateNights()} night(s)`}
                   </Box>
                 </Typography>
               </Grid>
@@ -809,7 +838,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <Grid container>
                     <Grid item xs={8}>
                       <Typography variant="body2">
-                        Room Charges ({calculateNights()} nights)
+                        {isHourlyBooking ? 'Room Charges (Hourly Stay)' : `Room Charges (${calculateNights()} nights)`}
                       </Typography>
                     </Grid>
                     <Grid item xs={4} sx={{ textAlign: 'right' }}>
@@ -923,7 +952,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             </Box>
 
             {/* Room Card Deposit Refund Section */}
-            {charges.depositRefund > 0 && !depositWaived ? (
+            {charges.depositRefund > 0 && !depositWaived && !readOnly ? (
               <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ p: 1.5, bgcolor: depositRefunded ? '#e8f5e9' : '#fff3e0' }}>
                   <Grid container alignItems="center">
@@ -1067,6 +1096,15 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Box>
             )}
 
+            {/* Member Payment Required Alert */}
+            {booking?.guest_type === 'member' && balanceDue > 0 && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  Member Payment Required — Please settle the full balance before proceeding to checkout.
+                </Typography>
+              </Alert>
+            )}
+
             {/* Payments Section */}
             <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
               <Box sx={{ bgcolor: '#2e7d32', color: 'white', p: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1074,15 +1112,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <PaymentIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
                   Payments
                 </Typography>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => setShowPaymentForm(!showPaymentForm)}
-                  startIcon={showPaymentForm ? <CloseIcon /> : <AddIcon />}
-                  sx={{ color: 'white', borderColor: 'white', fontSize: '0.75rem', py: 0.25, '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
-                >
-                  {showPaymentForm ? 'Cancel' : 'Record Payment'}
-                </Button>
+                {balanceDue > 0 && !readOnly && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setShowPaymentForm(!showPaymentForm)}
+                    startIcon={showPaymentForm ? <CloseIcon /> : <AddIcon />}
+                    sx={{ color: 'white', borderColor: 'white', fontSize: '0.75rem', py: 0.25, '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}
+                  >
+                    {showPaymentForm ? 'Cancel' : 'Record Payment'}
+                  </Button>
+                )}
               </Box>
 
               {/* Existing Payments List */}
@@ -1174,12 +1214,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           label="Method"
                           onChange={(e) => setPaymentMethod(e.target.value)}
                         >
-                          <MenuItem value="cash">Cash</MenuItem>
-                          <MenuItem value="card">Card</MenuItem>
-                          <MenuItem value="bank_transfer">Bank Transfer</MenuItem>
-                          <MenuItem value="duitnow">DuitNow</MenuItem>
-                          <MenuItem value="online_banking">Online Banking</MenuItem>
-                          <MenuItem value="cheque">Cheque</MenuItem>
+                          {hotelSettings.payment_methods.map((method) => (
+                            <MenuItem key={method} value={method}>{method}</MenuItem>
+                          ))}
                         </Select>
                       </FormControl>
                     </Grid>
@@ -1245,7 +1282,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Alert>
             )}
 
-            {charges.depositRefund > 0 && !depositRefunded && !depositWaived && (
+            {charges.depositRefund > 0 && !depositRefunded && !depositWaived && !readOnly && (
               <Alert severity="warning" sx={{ mb: 2 }}>
                 <Typography variant="body2" fontWeight={600}>
                   Deposit refund required
@@ -1693,7 +1730,20 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2 }}>
-        {checkoutStep === 'preview' ? (
+        {readOnly ? (
+          <>
+            <Button onClick={onClose}>
+              Close
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={handlePrint}
+              startIcon={<PrintIcon />}
+            >
+              Print Invoice
+            </Button>
+          </>
+        ) : checkoutStep === 'preview' ? (
           <>
             <Button onClick={onClose}>
               Cancel
@@ -1702,7 +1752,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               variant="outlined"
               onClick={handlePrint}
               startIcon={<PrintIcon />}
-              disabled={charges.depositRefund > 0 && !depositRefunded && !depositWaived}
+              disabled={(charges.depositRefund > 0 && !depositRefunded && !depositWaived) || (booking?.guest_type === 'member' && balanceDue > 0)}
             >
               Print Preview
             </Button>
@@ -1711,7 +1761,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               onClick={handleProceedToConfirm}
               startIcon={isLateCheckout ? <WarningIcon /> : <CheckIcon />}
               color={isLateCheckout ? 'warning' : 'primary'}
-              disabled={charges.depositRefund > 0 && !depositRefunded && !depositWaived}
+              disabled={(charges.depositRefund > 0 && !depositRefunded && !depositWaived) || (booking?.guest_type === 'member' && balanceDue > 0)}
             >
               {isLateCheckout ? 'Proceed (Late Checkout)' : 'Proceed to Checkout'}
             </Button>
@@ -1813,7 +1863,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             )}
             <p>
               <span className="label">Duration:</span>
-              <span className="value">{calculateNights()} night(s)</span>
+              <span className="value">{isHourlyBooking ? 'Hourly Stay' : `${calculateNights()} night(s)`}</span>
             </p>
           </div>
         </div>
@@ -1827,7 +1877,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
           </thead>
           <tbody>
             <tr>
-              <td>Room Charges ({calculateNights()} nights)</td>
+              <td>{isHourlyBooking ? 'Room Charges (Hourly Stay)' : `Room Charges (${calculateNights()} nights)`}</td>
               <td className="amount">{formatCurrency(charges.roomCharges)}</td>
             </tr>
 
@@ -1887,6 +1937,46 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             </tr>
           </tbody>
         </table>
+
+        {/* Payments */}
+        {payments.filter((p: any) => p.payment_status === 'completed').length > 0 && (
+          <table style={{ marginTop: '15px' }}>
+            <thead>
+              <tr>
+                <th>Payment Method</th>
+                <th className="amount">Amount Paid</th>
+              </tr>
+            </thead>
+            <tbody>
+              {payments.filter((p: any) => p.payment_status === 'completed').map((p: any, idx: number) => (
+                <tr key={p.id || idx}>
+                  <td>
+                    {p.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                    {p.transaction_reference ? ` (Ref: ${p.transaction_reference})` : ''}
+                    {p.notes ? ` - ${p.notes}` : ''}
+                  </td>
+                  <td className="amount">{formatCurrency(parseFloat(p.total_amount || '0'))}</td>
+                </tr>
+              ))}
+              <tr className="subtotal-row">
+                <td>Total Paid</td>
+                <td className="amount">{formatCurrency(totalPayments)}</td>
+              </tr>
+              {balanceDue > 0 && (
+                <tr style={{ color: '#e65100', fontWeight: 700 }}>
+                  <td>Balance Due</td>
+                  <td className="amount">{formatCurrency(balanceDue)}</td>
+                </tr>
+              )}
+              {balanceDue <= 0 && (
+                <tr style={{ color: '#2e7d32', fontWeight: 700 }}>
+                  <td>{balanceDue < 0 ? 'Overpayment' : 'Fully Paid'}</td>
+                  <td className="amount">{balanceDue < 0 ? formatCurrency(Math.abs(balanceDue)) : '-'}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
 
         {charges.lateCheckoutPenalty > 0 && (
           <div className="notes">

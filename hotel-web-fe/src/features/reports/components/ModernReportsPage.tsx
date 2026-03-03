@@ -342,6 +342,7 @@ const ModernReportsPage: React.FC = () => {
                 <TableHead>
                   <TableRow>
                     <TableCell><strong>Date</strong></TableCell>
+                    <TableCell><strong>Room</strong></TableCell>
                     <TableCell><strong>Account</strong></TableCell>
                     <TableCell align="right"><strong>Debit</strong></TableCell>
                     <TableCell align="right"><strong>Credit</strong></TableCell>
@@ -351,6 +352,7 @@ const ModernReportsPage: React.FC = () => {
                   {section.entries?.map((entry: any, i: number) => (
                     <TableRow key={i}>
                       <TableCell>{entry.date}</TableCell>
+                      <TableCell>{entry.room_number || '-'}</TableCell>
                       <TableCell>{entry.account}</TableCell>
                       <TableCell align="right">
                         {Number(entry.debit) > 0 ? `${currencySymbol}${Number(entry.debit).toFixed(2)}` : '-'}
@@ -363,7 +365,7 @@ const ModernReportsPage: React.FC = () => {
                     </TableRow>
                   ))}
                   <TableRow sx={{ bgcolor: 'grey.100' }}>
-                    <TableCell colSpan={2}><strong>Total</strong></TableCell>
+                    <TableCell colSpan={3}><strong>Total</strong></TableCell>
                     <TableCell align="right"><strong>{currencySymbol}{Number(section.total_debit || 0).toFixed(2)}</strong></TableCell>
                     <TableCell align="right"><strong>{currencySymbol}{Number(section.total_credit || 0).toFixed(2)}</strong></TableCell>
                   </TableRow>

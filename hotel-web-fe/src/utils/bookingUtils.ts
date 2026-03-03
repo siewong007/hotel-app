@@ -38,9 +38,9 @@ export const validateBookingDates = (
     errors.push('Check-in date cannot be in the past');
   }
 
-  // Check-out must be after check-in
-  if (checkOutDate <= checkInDate) {
-    errors.push('Check-out date must be after check-in date');
+  // Check-out must be on or after check-in (same day allowed for hourly bookings)
+  if (checkOutDate < checkInDate) {
+    errors.push('Check-out date must be on or after check-in date');
   }
 
   // Maximum stay validation (e.g., 30 days)
@@ -52,8 +52,8 @@ export const validateBookingDates = (
     errors.push('Maximum stay duration is 30 days');
   }
 
-  if (daysDiff < 1) {
-    errors.push('Minimum stay duration is 1 day');
+  if (daysDiff < 0) {
+    errors.push('Check-out date cannot be before check-in date');
   }
 
   return {

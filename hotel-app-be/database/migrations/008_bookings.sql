@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_by BIGINT REFERENCES users(id),
 
-    CONSTRAINT valid_dates CHECK (check_out_date > check_in_date),
+    CONSTRAINT valid_dates CHECK (check_out_date >= check_in_date),
     CONSTRAINT valid_occupancy CHECK (adults + children + infants > 0),
     CONSTRAINT valid_complimentary_dates CHECK (
         (complimentary_start_date IS NULL AND complimentary_end_date IS NULL) OR

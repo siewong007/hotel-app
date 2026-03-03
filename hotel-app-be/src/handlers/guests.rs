@@ -93,6 +93,11 @@ pub async fn create_guest_handler(
         }
     }
 
+    // Normalize empty email to None so DB NULL constraint is satisfied
+    let email = input.email.as_deref()
+        .filter(|e| !e.trim().is_empty())
+        .map(|e| e.trim().to_string());
+
     // Compute full_name from first_name and last_name
     let full_name = format!("{} {}", input.first_name.trim(), input.last_name.trim()).trim().to_string();
 
@@ -117,7 +122,7 @@ pub async fn create_guest_handler(
     .bind(&full_name)
     .bind(&input.first_name)
     .bind(&input.last_name)
-    .bind(&input.email)
+    .bind(&email)
     .bind(&input.phone)
     .bind(&input.ic_number)
     .bind(&input.nationality)
@@ -180,7 +185,12 @@ pub async fn update_guest_handler(
     // Apply updates, falling back to existing values
     let first_name = input.first_name.unwrap_or(existing_first_name);
     let last_name = input.last_name.unwrap_or(existing_last_name);
-    let email = input.email.or(existing_email);
+    // Normalize empty email to None so DB check constraint is satisfied
+    let email = match input.email {
+        Some(ref e) if e.trim().is_empty() => None,
+        Some(e) => Some(e.trim().to_string()),
+        None => existing_email,
+    };
     let phone = input.phone.or(existing_phone);
     let ic_number = input.ic_number.or(existing_ic_number);
     let nationality = input.nationality.or(existing_nationality);

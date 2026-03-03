@@ -29,7 +29,7 @@ export interface Booking {
   status: BookingStatus | string;
   payment_status?: PaymentStatus | string;
   folio_number?: string;
-  post_type?: 'normal_stay' | 'same_day';
+  post_type?: 'normal_stay' | 'same_day' | 'hourly';
   rate_code?: string;
   is_tourist?: boolean;
   tourism_tax_amount?: number | string;
@@ -121,7 +121,7 @@ export interface BookingCreateRequest {
   room_id: string;
   check_in_date: string;
   check_out_date: string;
-  post_type?: 'normal_stay' | 'same_day';
+  post_type?: 'normal_stay' | 'same_day' | 'hourly';
   rate_code?: string;
   booking_remarks?: string;
   special_requests?: string;
