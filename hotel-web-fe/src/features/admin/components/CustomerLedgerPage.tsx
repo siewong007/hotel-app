@@ -574,12 +574,17 @@ const CustomerLedgerPage: React.FC = () => {
   };
 
   // Handle confirming checkout
-  const handleConfirmCompanyCheckout = async (lateCheckoutData?: { penalty: number; notes: string }) => {
+  const handleConfirmCompanyCheckout = async (lateCheckoutData?: { penalty: number; notes: string }, checkoutPaymentMethod?: string) => {
     if (!checkoutBooking) return;
 
     try {
       // Build update payload
       const updatePayload: any = { status: 'checked_out' };
+
+      // Save payment method from checkout invoice to booking
+      if (checkoutPaymentMethod) {
+        updatePayload.payment_method = checkoutPaymentMethod;
+      }
 
       // Add late checkout data if provided
       if (lateCheckoutData) {

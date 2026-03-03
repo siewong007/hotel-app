@@ -150,7 +150,7 @@ const RoomManagementPage: React.FC = () => {
   });
   // Walk-in payment/deposit state
   const [walkInDeposit, setWalkInDeposit] = useState<number>(0);
-  const [walkInPaymentMethod, setWalkInPaymentMethod] = useState<string>('cash');
+  const [walkInPaymentMethod, setWalkInPaymentMethod] = useState<string>('Cash');
   const [walkInRoomCardDeposit, setWalkInRoomCardDeposit] = useState<number>(0);
 
   // Payment method options
@@ -659,7 +659,7 @@ const RoomManagementPage: React.FC = () => {
         folio_number: createdBooking.folio_number || `WALKIN-${createdBooking.id}`,
         market_code: 'Walk-In',
         rate_code: 'RACK',
-        payment_method: walkInPaymentMethod === 'cash' ? 'Cash' : walkInPaymentMethod === 'card' ? 'Card' : walkInPaymentMethod === 'bank_transfer' ? 'Bank Transfer' : 'E-Wallet',
+        payment_method: walkInPaymentMethod,
         post_type: createdBooking.post_type,
         created_at: createdBooking.created_at,
         updated_at: createdBooking.updated_at,
@@ -1047,12 +1047,17 @@ const RoomManagementPage: React.FC = () => {
     handleMenuClose();
   };
 
-  const handleConfirmCheckout = async (lateCheckoutData?: { penalty: number; notes: string }) => {
+  const handleConfirmCheckout = async (lateCheckoutData?: { penalty: number; notes: string }, checkoutPaymentMethod?: string) => {
     if (!selectedBooking) return;
 
     try {
       // Build update payload
       const updatePayload: any = { status: 'checked_out' };
+
+      // Save payment method from checkout invoice to booking
+      if (checkoutPaymentMethod) {
+        updatePayload.payment_method = checkoutPaymentMethod;
+      }
 
       // Add late checkout data if provided
       if (lateCheckoutData) {
@@ -2805,9 +2810,9 @@ const RoomManagementPage: React.FC = () => {
                       value={walkInPaymentMethod}
                       onChange={(e) => setWalkInPaymentMethod(e.target.value)}
                     >
-                      {paymentMethods.map((method) => (
-                        <MenuItem key={method.value} value={method.value}>
-                          {method.label}
+                      {PAYMENT_METHODS.map((method) => (
+                        <MenuItem key={method} value={method}>
+                          {method}
                         </MenuItem>
                       ))}
                     </TextField>

@@ -137,6 +137,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const [checkInDate, setCheckInDate] = useState('');
   const [checkOutDate, setCheckOutDate] = useState('');
   const [numberOfNights, setNumberOfNights] = useState(1);
+  const [isHourlyBooking, setIsHourlyBooking] = useState(false);
   const [bookingChannel, setBookingChannel] = useState('');
   const [bookingReference, setBookingReference] = useState('');
 
@@ -163,6 +164,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const [roomTypeConfig, setRoomTypeConfig] = useState<RoomType | null>(null);
   const [extraBedCount, setExtraBedCount] = useState(0);
   const [extraBedCharge, setExtraBedCharge] = useState(0);
+
+  // Member payment choice: 'now' or 'later' (members only)
+  const [memberPaymentChoice, setMemberPaymentChoice] = useState<'now' | 'later' | null>(null);
 
   // Processing state
   const [processing, setProcessing] = useState(false);
@@ -233,6 +237,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setCheckInDate(today);
       setCheckOutDate(tomorrow);
       setNumberOfNights(1);
+      setIsHourlyBooking(false);
       setBookingChannel('');
       setBookingReference('');
       setDeposit(0);
@@ -242,6 +247,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setCustomRate(0);
       setExtraBedCount(0);
       setExtraBedCharge(0);
+      setMemberPaymentChoice(null);
       setRoomTypeConfig(null);
       setSelectedRoom(null);
       setAvailableRooms([]);
@@ -265,6 +271,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setCheckInDate('');
       setCheckOutDate('');
       setNumberOfNights(1);
+      setIsHourlyBooking(false);
       setBookingChannel('');
       setBookingReference('');
       setDeposit(0);
@@ -274,6 +281,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setCustomRate(0);
       setExtraBedCount(0);
       setExtraBedCharge(0);
+      setMemberPaymentChoice(null);
       setRoomTypeConfig(null);
       setSelectedRoom(null);
       setAvailableRooms([]);
@@ -335,7 +343,10 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const handleDateChange = (field: 'checkIn' | 'checkOut', value: string) => {
     if (field === 'checkIn') {
       setCheckInDate(value);
-      if (checkOutDate) {
+      if (isHourlyBooking) {
+        setCheckOutDate(value);
+        setNumberOfNights(1);
+      } else if (checkOutDate) {
         const nights = Math.max(1, Math.ceil((new Date(checkOutDate).getTime() - new Date(value).getTime()) / (1000 * 60 * 60 * 24)));
         setNumberOfNights(nights);
       }
@@ -344,6 +355,25 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       if (checkInDate) {
         const nights = Math.max(1, Math.ceil((new Date(value).getTime() - new Date(checkInDate).getTime()) / (1000 * 60 * 60 * 24)));
         setNumberOfNights(nights);
+      }
+    }
+  };
+
+  // Handle hourly booking toggle
+  const handleHourlyToggle = (checked: boolean) => {
+    setIsHourlyBooking(checked);
+    if (checked) {
+      // Set checkout to same day as check-in
+      setCheckOutDate(checkInDate);
+      setNumberOfNights(1);
+    } else {
+      // Reset to next day
+      if (checkInDate) {
+        const nextDay = new Date(checkInDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        const nextDayStr = nextDay.toISOString().split('T')[0];
+        setCheckOutDate(nextDayStr);
+        setNumberOfNights(1);
       }
     }
   };
@@ -409,7 +439,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       case 'Room':
         // Room selection step - need dates and room selected
         if (!checkInDate || !checkOutDate) return false;
-        if (new Date(checkOutDate) <= new Date(checkInDate)) return false;
+        if (!isHourlyBooking && new Date(checkOutDate) <= new Date(checkInDate)) return false;
+        if (isHourlyBooking && checkOutDate !== checkInDate) return false;
         return !!selectedRoom;
 
       case 'Guest':
@@ -424,7 +455,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       case 'Dates & Payment':
         // For direct booking with room pre-selected
         if (!checkInDate || !checkOutDate) return false;
-        if (new Date(checkOutDate) <= new Date(checkInDate)) return false;
+        if (!isHourlyBooking && new Date(checkOutDate) <= new Date(checkInDate)) return false;
         return true;
 
       case 'Details':
@@ -432,13 +463,28 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         if (!needsRoomSelection) {
           // Dates validation needed only when room is pre-selected
           if (!checkInDate || !checkOutDate) return false;
-          if (new Date(checkOutDate) <= new Date(checkInDate)) return false;
+          if (!isHourlyBooking && new Date(checkOutDate) <= new Date(checkInDate)) return false;
         }
         if (reservationType === 'online' && !bookingChannel) return false;
         return true;
 
-      case 'Confirm':
+      case 'Confirm': {
+        // For walk-in bookings, validate payment choice
+        const effType = getEffectiveBookingType();
+        if (effType === 'walk_in') {
+          const guestType = isCreatingNewGuest ? 'non_member' : (selectedGuest?.guest_type || 'non_member');
+          if (guestType === 'member') {
+            // Members must choose pay now or pay later
+            if (!memberPaymentChoice) return false;
+            // If pay now, deposit must be > 0
+            if (memberPaymentChoice === 'now' && deposit <= 0) return false;
+          } else {
+            // Non-members must pay (deposit > 0)
+            if (deposit <= 0) return false;
+          }
+        }
         return true;
+      }
 
       default:
         return false;
@@ -522,19 +568,26 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
       const isMember = guestToUse.guest_type === 'member';
       const effectiveRoomCardDeposit = isMember ? 0 : roomCardDeposit;
+      const isPayLater = isMember && memberPaymentChoice === 'later';
+      const effectiveDeposit = isPayLater ? 0 : deposit;
 
       const bookingData = {
         guest_id: guestToUse.id,
         room_id: String(room.id),
         check_in_date: checkInDate,
-        check_out_date: checkOutDate,
+        check_out_date: isHourlyBooking ? checkInDate : checkOutDate,
         number_of_guests: 1,
-        post_type: 'normal_stay' as const,
-        booking_remarks: isMember ? 'Walk-In Guest (Member - Card Deposit Waived)' : 'Walk-In Guest',
+        post_type: (isHourlyBooking ? 'hourly' : 'normal_stay') as 'normal_stay' | 'same_day' | 'hourly',
+        booking_remarks: isMember
+          ? isPayLater
+            ? `Walk-In Guest (Member - Card Deposit Waived, Payment Deferred to Checkout)${isHourlyBooking ? ' [Hourly Stay]' : ''}`
+            : `Walk-In Guest (Member - Card Deposit Waived)${isHourlyBooking ? ' [Hourly Stay]' : ''}`
+          : `Walk-In Guest${isHourlyBooking ? ' [Hourly Stay]' : ''}`,
         source: 'walk_in' as const,
         room_card_deposit: effectiveRoomCardDeposit,
-        payment_method: paymentMethod,
-        amount_paid: deposit,
+        payment_method: isPayLater ? undefined : paymentMethod,
+        amount_paid: effectiveDeposit,
+        payment_status: isPayLater ? 'unpaid' as const : undefined,
         room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
         is_tourist: isTourist,
         tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
@@ -557,14 +610,14 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         folio_number: createdBookingResult.folio_number || `WALKIN-${createdBookingResult.id}`,
         market_code: 'Walk-In',
         rate_code: 'RACK',
-        payment_method: paymentMethod === 'cash' ? 'Cash' : paymentMethod === 'card' ? 'Card' : paymentMethod === 'bank_transfer' ? 'Bank Transfer' : 'E-Wallet',
+        payment_method: isPayLater ? undefined : (paymentMethod === 'cash' ? 'Cash' : paymentMethod === 'card' ? 'Card' : paymentMethod === 'bank_transfer' ? 'Bank Transfer' : 'E-Wallet'),
         post_type: createdBookingResult.post_type,
         created_at: createdBookingResult.created_at,
         updated_at: createdBookingResult.updated_at,
         is_tourist: isTourist,
         tourism_tax_amount: createdBookingResult.tourism_tax_amount || (tourismTaxAmount > 0 ? tourismTaxAmount : undefined),
         room_card_deposit: effectiveRoomCardDeposit,
-        deposit_amount: deposit,
+        deposit_amount: effectiveDeposit,
         source: 'walk_in',
       };
 
@@ -723,19 +776,26 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           // For reservation mode walk-in (direct booking handled via Check-In step now)
           const isMember = guestToUse!.guest_type === 'member';
           const effectiveRoomCardDeposit = isMember ? 0 : roomCardDeposit;
+          const isPayLater = isMember && memberPaymentChoice === 'later';
+          const effectiveDeposit = isPayLater ? 0 : deposit;
 
           const bookingData = {
             guest_id: guestToUse!.id,
             room_id: String(room.id),
             check_in_date: checkInDate,
-            check_out_date: checkOutDate,
+            check_out_date: isHourlyBooking ? checkInDate : checkOutDate,
             number_of_guests: 1,
-            post_type: 'normal_stay' as const,
-            booking_remarks: isMember ? 'Walk-In Guest (Member - Card Deposit Waived)' : 'Walk-In Guest',
+            post_type: (isHourlyBooking ? 'hourly' : 'normal_stay') as 'normal_stay' | 'same_day' | 'hourly',
+            booking_remarks: isMember
+              ? isPayLater
+                ? `Walk-In Guest (Member - Card Deposit Waived, Payment Deferred to Checkout)${isHourlyBooking ? ' [Hourly Stay]' : ''}`
+                : `Walk-In Guest (Member - Card Deposit Waived)${isHourlyBooking ? ' [Hourly Stay]' : ''}`
+              : `Walk-In Guest${isHourlyBooking ? ' [Hourly Stay]' : ''}`,
             source: 'walk_in' as const,
             room_card_deposit: effectiveRoomCardDeposit,
-            payment_method: paymentMethod,
-            amount_paid: deposit,
+            payment_method: isPayLater ? undefined : paymentMethod,
+            amount_paid: effectiveDeposit,
+            payment_status: isPayLater ? 'unpaid' as const : undefined,
             room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
             is_tourist: isTourist,
             tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
@@ -756,9 +816,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             guest_id: guestToUse!.id,
             room_id: String(room.id),
             check_in_date: checkInDate,
-            check_out_date: checkOutDate,
+            check_out_date: isHourlyBooking ? checkInDate : checkOutDate,
             number_of_guests: 1,
-            post_type: 'normal_stay' as const,
+            post_type: (isHourlyBooking ? 'hourly' : 'normal_stay') as 'normal_stay' | 'same_day' | 'hourly',
             source: 'online' as const,
             booking_remarks: bookingReference
               ? `${bookingChannel} - Ref: ${bookingReference}`
@@ -814,18 +874,21 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     }
   };
 
+  // For hourly bookings, billable nights is always 1
+  const billableNights = isHourlyBooking ? 1 : numberOfNights;
+
   // Calculate tourism tax amount
-  const tourismTaxAmount = isTourist ? numberOfNights * hotelSettings.tourism_tax_rate : 0;
+  const tourismTaxAmount = isTourist ? billableNights * hotelSettings.tourism_tax_rate : 0;
 
   // Calculate total amount
   const calculateTotal = () => {
     let total: number;
     if (useCustomRate && customRate > 0) {
-      total = customRate * numberOfNights;
+      total = customRate * billableNights;
     } else {
       const price = room?.price_per_night || 0;
       const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-      total = numPrice * numberOfNights;
+      total = numPrice * billableNights;
     }
     return total + tourismTaxAmount + extraBedCharge;
   };
@@ -965,6 +1028,28 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             Select Dates & Room
           </Typography>
           <Grid container spacing={2}>
+            {/* Hourly toggle */}
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={isHourlyBooking}
+                    onChange={(e) => handleHourlyToggle(e.target.checked)}
+                    color="warning"
+                  />
+                }
+                label={
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      Hourly Check-In
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Guest checks in and out on the same day
+                    </Typography>
+                  </Box>
+                }
+              />
+            </Grid>
             {/* Dates */}
             <Grid item xs={12} md={6}>
               <TextField
@@ -977,17 +1062,28 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
-              <TextField
-                fullWidth
-                required
-                type="date"
-                label="Check-out Date"
-                value={checkOutDate}
-                onChange={(e) => handleDateChange('checkOut', e.target.value)}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
+            {!isHourlyBooking && (
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  required
+                  type="date"
+                  label="Check-out Date"
+                  value={checkOutDate}
+                  onChange={(e) => handleDateChange('checkOut', e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+            )}
+            {isHourlyBooking && (
+              <Grid item xs={12} md={6}>
+                <Alert severity="info" sx={{ py: 0.5 }}>
+                  <Typography variant="body2">
+                    Guest will check out at {hotelSettings.check_out_time || '12:00 PM'} on the same day
+                  </Typography>
+                </Alert>
+              </Grid>
+            )}
             {/* Room selection */}
             <Grid item xs={12}>
               <Autocomplete
@@ -1045,8 +1141,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                       <Typography variant="body1">{formatCurrency(Number(selectedRoom.price_per_night))}</Typography>
                     </Grid>
                     <Grid item xs={6}>
-                      <Typography variant="body2" color="text.secondary">Total ({numberOfNights} night{numberOfNights > 1 ? 's' : ''})</Typography>
-                      <Typography variant="body1" fontWeight={600}>{formatCurrency(Number(selectedRoom.price_per_night) * numberOfNights)}</Typography>
+                      <Typography variant="body2" color="text.secondary">Total ({isHourlyBooking ? 'Hourly Stay' : `${numberOfNights} night${numberOfNights > 1 ? 's' : ''}`})</Typography>
+                      <Typography variant="body1" fontWeight={600}>{formatCurrency(Number(selectedRoom.price_per_night) * billableNights)}</Typography>
                     </Grid>
                   </Grid>
                 </Paper>
@@ -1094,10 +1190,34 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       return (
         <Box>
           <Typography variant="subtitle1" gutterBottom sx={{ mb: 2, fontWeight: 600 }}>
-            {showPayment ? 'Dates & Payment' : isOnline ? 'Booking Details' : showDates ? 'Select Dates' : 'Additional Details'}
+            {showPayment ? 'Booking Details' : isOnline ? 'Booking Details' : showDates ? 'Select Dates' : 'Additional Details'}
           </Typography>
 
           <Grid container spacing={2}>
+            {/* Hourly toggle - show when dates are shown */}
+            {showDates && (
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={isHourlyBooking}
+                      onChange={(e) => handleHourlyToggle(e.target.checked)}
+                      color="warning"
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        Hourly Check-In
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Guest checks in and out on the same day
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Grid>
+            )}
             {/* Dates - only show if room was pre-selected */}
             {showDates && (
               <>
@@ -1112,17 +1232,28 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    required
-                    type="date"
-                    label="Check-out Date"
-                    value={checkOutDate}
-                    onChange={(e) => handleDateChange('checkOut', e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
+                {!isHourlyBooking && (
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      fullWidth
+                      required
+                      type="date"
+                      label="Check-out Date"
+                      value={checkOutDate}
+                      onChange={(e) => handleDateChange('checkOut', e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                )}
+                {isHourlyBooking && (
+                  <Grid item xs={12} md={6}>
+                    <Alert severity="info" sx={{ py: 0.5 }}>
+                      <Typography variant="body2">
+                        Guest will check out at {hotelSettings.check_out_time || '12:00 PM'} on the same day
+                      </Typography>
+                    </Alert>
+                  </Grid>
+                )}
               </>
             )}
 
@@ -1229,7 +1360,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                         Foreign Tourist - Tourism Tax Applies
                       </Typography>
                       <Typography variant="body2">
-                        Tourism Tax: {formatCurrency(hotelSettings.tourism_tax_rate)} x {numberOfNights} night(s) = {formatCurrency(tourismTaxAmount)}
+                        Tourism Tax: {formatCurrency(hotelSettings.tourism_tax_rate)} x {isHourlyBooking ? '1 (hourly stay)' : `${numberOfNights} night(s)`} = {formatCurrency(tourismTaxAmount)}
                       </Typography>
                     </Alert>
                   ) : (
@@ -1285,57 +1416,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               </>
             )}
 
-            {/* Walk-in payment fields (only for direct booking) */}
-            {showPayment && (
-              <>
-                <Grid item xs={12}>
-                  <Divider sx={{ my: 1 }} />
-                  <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
-                    Payment Details
-                  </Typography>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <FormControl fullWidth>
-                    <InputLabel>Payment Method</InputLabel>
-                    <Select
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      label="Payment Method"
-                    >
-                      {getHotelSettings().payment_methods.map((method) => (
-                        <MenuItem key={method} value={method}>{method}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    type="number"
-                    label="Deposit Amount"
-                    value={deposit}
-                    onChange={(e) => setDeposit(parseFloat(e.target.value) || 0)}
-                    InputProps={{
-                      startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
-                    }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    type="number"
-                    label="Room Card Deposit"
-                    value={roomCardDeposit}
-                    onChange={(e) => setRoomCardDeposit(parseFloat(e.target.value) || 0)}
-                    disabled={selectedGuest?.guest_type === 'member'}
-                    InputProps={{
-                      startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
-                    }}
-                    helperText={selectedGuest?.guest_type === 'member' ? 'Waived for members' : ''}
-                  />
-                </Grid>
-              </>
-            )}
+            {/* Payment moved to Confirm step */}
           </Grid>
         </Box>
       );
@@ -1429,10 +1510,16 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               <Typography variant="body2">{checkOutDate}</Typography>
             </Grid>
             <Grid item xs={6}>
-              <Typography variant="body2" color="text.secondary">Nights</Typography>
+              <Typography variant="body2" color="text.secondary">Duration</Typography>
             </Grid>
             <Grid item xs={6}>
-              <Typography variant="body2">{numberOfNights}</Typography>
+              <Typography variant="body2">
+                {isHourlyBooking ? (
+                  <Chip label="Hourly Stay" size="small" color="warning" sx={{ height: 20, fontSize: '0.75rem' }} />
+                ) : (
+                  `${numberOfNights} night(s)`
+                )}
+              </Typography>
             </Grid>
 
             {/* Online booking info */}
@@ -1471,17 +1558,17 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               <Typography variant="body2">
                 {effectiveType === 'complimentary' ? (
                   <Box component="span" sx={{ textDecoration: 'line-through', color: 'text.disabled' }}>
-                    {currencySymbol}{room?.price_per_night}/night
+                    {currencySymbol}{room?.price_per_night}/{isHourlyBooking ? 'stay' : 'night'}
                   </Box>
                 ) : useCustomRate && customRate > 0 ? (
                   <>
-                    {formatCurrency(customRate)}/night
+                    {formatCurrency(customRate)}/{isHourlyBooking ? 'stay' : 'night'}
                     <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
                       (was {formatCurrency(Number(room?.price_per_night || 0))})
                     </Typography>
                   </>
                 ) : (
-                  `${currencySymbol}${room?.price_per_night}/night`
+                  `${currencySymbol}${room?.price_per_night}/${isHourlyBooking ? 'stay' : 'night'}`
                 )}
               </Typography>
             </Grid>
@@ -1490,7 +1577,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               <>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">
-                    Tourism Tax ({formatCurrency(hotelSettings.tourism_tax_rate)}/night)
+                    Tourism Tax ({formatCurrency(hotelSettings.tourism_tax_rate)}/{isHourlyBooking ? 'stay' : 'night'})
                   </Typography>
                 </Grid>
                 <Grid item xs={6}>
@@ -1526,27 +1613,112 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               </Typography>
             </Grid>
 
-            {/* Walk-in payment summary (only for direct booking) */}
-            {effectiveType === 'walk_in' && bookingMode === 'direct' && (
-              <>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">Deposit</Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="success.main">
-                    {currencySymbol}{deposit.toFixed(2)}
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">Room Card Deposit</Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2">
-                    {roomCardDeposit > 0 ? `${currencySymbol}${roomCardDeposit.toFixed(2)}` : 'Waived'}
-                  </Typography>
-                </Grid>
-              </>
-            )}
+            {/* Payment prompt for walk-in bookings */}
+            {effectiveType === 'walk_in' && (() => {
+              const guestType = isCreatingNewGuest ? 'non_member' : (selectedGuest?.guest_type || 'non_member');
+              const isMemberGuest = guestType === 'member';
+
+              return (
+                <>
+                  <Grid item xs={12}>
+                    <Divider />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                      Payment
+                    </Typography>
+                    {isMemberGuest ? (
+                      <Box sx={{ display: 'flex', gap: 2 }}>
+                        <Button
+                          variant={memberPaymentChoice === 'now' ? 'contained' : 'outlined'}
+                          color="primary"
+                          onClick={() => setMemberPaymentChoice('now')}
+                          sx={{ flex: 1, py: 1.5 }}
+                        >
+                          Make Payment Now
+                        </Button>
+                        <Button
+                          variant={memberPaymentChoice === 'later' ? 'contained' : 'outlined'}
+                          color="warning"
+                          onClick={() => {
+                            setMemberPaymentChoice('later');
+                            setDeposit(0);
+                          }}
+                          sx={{ flex: 1, py: 1.5 }}
+                        >
+                          Pay Later (Before Checkout)
+                        </Button>
+                      </Box>
+                    ) : (
+                      <Alert severity="info" sx={{ mb: 1 }}>
+                        <Typography variant="body2">
+                          Payment is required before check-in for non-member guests.
+                        </Typography>
+                      </Alert>
+                    )}
+                  </Grid>
+
+                  {/* Show payment fields for non-members (always) or members who chose 'now' */}
+                  {(!isMemberGuest || memberPaymentChoice === 'now') && (
+                    <>
+                      <Grid item xs={12} md={6}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>Payment Method</InputLabel>
+                          <Select
+                            value={paymentMethod}
+                            onChange={(e) => setPaymentMethod(e.target.value)}
+                            label="Payment Method"
+                          >
+                            {getHotelSettings().payment_methods.map((method) => (
+                              <MenuItem key={method} value={method}>{method}</MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          label="Deposit Amount"
+                          value={deposit}
+                          onChange={(e) => setDeposit(parseFloat(e.target.value) || 0)}
+                          InputProps={{
+                            startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
+                          }}
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          label="Room Card Deposit"
+                          value={roomCardDeposit}
+                          onChange={(e) => setRoomCardDeposit(parseFloat(e.target.value) || 0)}
+                          disabled={isMemberGuest}
+                          InputProps={{
+                            startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
+                          }}
+                          helperText={isMemberGuest ? 'Waived for members' : ''}
+                        />
+                      </Grid>
+                    </>
+                  )}
+
+                  {/* Member chose pay later */}
+                  {isMemberGuest && memberPaymentChoice === 'later' && (
+                    <Grid item xs={12}>
+                      <Alert severity="warning">
+                        <Typography variant="body2">
+                          Payment will be required before checkout. Room card deposit is waived for members.
+                        </Typography>
+                      </Alert>
+                    </Grid>
+                  )}
+                </>
+              );
+            })()}
 
             {/* Credits info for complimentary */}
             {effectiveType === 'complimentary' && selectedGuestWithCredits && (
