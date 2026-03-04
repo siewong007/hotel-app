@@ -252,7 +252,20 @@ const GuestConfigurationPage: React.FC = () => {
 
     try {
       setFormLoading(true);
-      await HotelAPIService.createGuest(formData);
+      // Sanitize form data - convert empty strings to undefined
+      const sanitizedData = {
+        ...formData,
+        email: formData.email?.trim() || undefined,
+        phone: formData.phone?.trim() || undefined,
+        ic_number: formData.ic_number?.trim() || undefined,
+        nationality: formData.nationality?.trim() || undefined,
+        address_line1: formData.address_line1?.trim() || undefined,
+        city: formData.city?.trim() || undefined,
+        state_province: formData.state_province?.trim() || undefined,
+        postal_code: formData.postal_code?.trim() || undefined,
+        country: formData.country?.trim() || undefined,
+      };
+      await HotelAPIService.createGuest(sanitizedData);
       setSnackbarMessage('Guest created successfully');
       setSnackbarOpen(true);
       setCreateDialogOpen(false);

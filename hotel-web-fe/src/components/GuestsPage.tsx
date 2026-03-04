@@ -73,7 +73,7 @@ const GuestsPage: React.FC = () => {
       const newGuest = await HotelAPIService.createGuest({
         first_name: firstName,
         last_name: lastName,
-        email: newGuestEmail
+        email: newGuestEmail || undefined
       });
 
       setGuests(prev => [...prev, newGuest]);

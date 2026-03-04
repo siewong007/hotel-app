@@ -726,7 +726,7 @@ const RoomsPage: React.FC = () => {
       const guest = await HotelAPIService.createGuest({
         first_name,
         last_name,
-        email: guestEmail
+        email: guestEmail || undefined
       });
 
       // Create booking with selected dates and new fields

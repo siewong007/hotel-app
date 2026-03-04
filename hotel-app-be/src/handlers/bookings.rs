@@ -913,7 +913,21 @@ pub async fn manual_checkin_handler(
 
             if let Some(ref v) = guest_update.first_name { updates.push(format!("first_name = ${}", params.len() + 1)); params.push(v.clone()); }
             if let Some(ref v) = guest_update.last_name { updates.push(format!("last_name = ${}", params.len() + 1)); params.push(v.clone()); }
-            if let Some(ref v) = guest_update.email { updates.push(format!("email = ${}", params.len() + 1)); params.push(v.clone()); }
+            if let Some(ref v) = guest_update.email {
+                let trimmed = v.trim();
+                if trimmed.is_empty() {
+                    // Set to NULL for empty email
+                    updates.push("email = NULL".to_string());
+                } else {
+                    // Validate email format before updating
+                    let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+                    if email_regex.is_match(trimmed) {
+                        updates.push(format!("email = ${}", params.len() + 1));
+                        params.push(trimmed.to_string());
+                    }
+                    // Invalid email format - skip the update silently
+                }
+            }
             if let Some(ref v) = guest_update.phone { updates.push(format!("phone = ${}", params.len() + 1)); params.push(v.clone()); }
             if let Some(ref v) = guest_update.ic_number { updates.push(format!("ic_number = ${}", params.len() + 1)); params.push(v.clone()); }
             if let Some(ref v) = guest_update.nationality { updates.push(format!("nationality = ${}", params.len() + 1)); params.push(v.clone()); }
@@ -1010,6 +1024,21 @@ pub async fn pre_checkin_update_handler(
     let first_name = update_data.guest_update.first_name.as_deref().unwrap_or("");
     let last_name = update_data.guest_update.last_name.as_deref().unwrap_or("");
 
+    // Normalize email: empty string becomes None, validate format if present
+    let email: Option<String> = match &update_data.guest_update.email {
+        Some(e) if e.trim().is_empty() => None,
+        Some(e) => {
+            let trimmed = e.trim();
+            let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+            if email_regex.is_match(trimmed) {
+                Some(trimmed.to_string())
+            } else {
+                None // Invalid format, set to NULL
+            }
+        },
+        None => None,
+    };
+
     sqlx::query(
         r#"
         UPDATE guests
@@ -1021,7 +1050,7 @@ pub async fn pre_checkin_update_handler(
     )
     .bind(first_name)
     .bind(last_name)
-    .bind(&update_data.guest_update.email)
+    .bind(&email)
     .bind(&update_data.guest_update.phone)
     .bind(&update_data.guest_update.ic_number)
     .bind(&update_data.guest_update.nationality)
