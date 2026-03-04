@@ -938,20 +938,25 @@ pub async fn update_room_status_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    // Insert room history record
-    let history_start = reserved_start.or(maintenance_start).or(cleaning_start);
-    let history_end = reserved_end.or(maintenance_end).or(cleaning_end);
+    // Only record room history for guest actions (check-in / check-out)
+    let is_checkin = target_status == "occupied";
+    let is_checkout = current_status.as_deref() == Some("occupied") && target_status != "occupied";
 
-    let _ = sqlx::query(INSERT_ROOM_HISTORY)
-        .bind(room_id)
-        .bind(&current_status)
-        .bind(&target_status)
-        .bind(&history_start)
-        .bind(&history_end)
-        .bind(user_id)
-        .bind(&input.notes)
-        .execute(&pool)
-        .await;
+    if is_checkin || is_checkout {
+        let history_start = reserved_start.or(maintenance_start).or(cleaning_start);
+        let history_end = reserved_end.or(maintenance_end).or(cleaning_end);
+
+        let _ = sqlx::query(INSERT_ROOM_HISTORY)
+            .bind(room_id)
+            .bind(&current_status)
+            .bind(&target_status)
+            .bind(&history_start)
+            .bind(&history_end)
+            .bind(user_id)
+            .bind(&input.notes)
+            .execute(&pool)
+            .await;
+    }
 
     // Create event log
     let _ = sqlx::query(INSERT_ROOM_EVENT)
@@ -1076,13 +1081,6 @@ pub async fn end_maintenance_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let status_label = current_status.as_ref().unwrap_or(&"unknown".to_string()).clone();
-    let _ = sqlx::query(INSERT_ROOM_HISTORY_SIMPLE)
-        .bind(room_id)
-        .bind(&current_status)
-        .bind(user_id)
-        .bind(format!("{} completed and room returned to available", status_label))
-        .execute(&pool)
-        .await;
 
     let _ = sqlx::query(INSERT_ROOM_EVENT)
         .bind(room_id)
@@ -1173,13 +1171,6 @@ pub async fn end_cleaning_handler(
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let _ = sqlx::query(INSERT_ROOM_HISTORY_CLEANING)
-        .bind(room_id)
-        .bind(&next_status)
-        .bind(user_id)
-        .execute(&pool)
-        .await;
 
     let _ = sqlx::query(INSERT_ROOM_EVENT)
         .bind(room_id)

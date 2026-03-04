@@ -549,17 +549,16 @@ BEGIN
     VALUES (p_audit_date, p_user_id, 'in_progress')
     RETURNING id INTO v_audit_run_id;
 
-    -- Post all unposted bookings for this date
+    -- Post checked_in bookings active on this date,
+    -- plus checked_out bookings that checked in on this date (same-day checkout)
     FOR v_booking IN
         SELECT b.id, b.status, b.total_amount, b.check_in_date, b.check_out_date
         FROM bookings b
         WHERE b.is_posted = FALSE
         AND (
-            (b.check_in_date <= p_audit_date AND b.check_out_date > p_audit_date)
-            OR (b.check_out_date = p_audit_date AND b.status = 'checked_out')
-            OR (DATE(b.created_at) = p_audit_date)
+            (b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= p_audit_date AND b.check_out_date > p_audit_date)
+            OR (b.status = 'checked_out' AND b.check_in_date = p_audit_date)
         )
-        AND b.status NOT IN ('cancelled', 'no_show')
     LOOP
         -- Update booking as posted
         UPDATE bookings

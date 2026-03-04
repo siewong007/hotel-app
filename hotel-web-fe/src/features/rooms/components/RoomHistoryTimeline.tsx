@@ -37,11 +37,16 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
+  // Only show guest actions: check-in (→ occupied) and check-out (occupied →)
+  const isGuestAction = (from: string | null, to: string) => {
+    return to === 'occupied' || from === 'occupied';
+  };
+
   const loadHistory = async () => {
     try {
       setLoading(true);
       const data = await HotelAPIService.getRoomHistory(roomId);
-      setHistory(data);
+      setHistory(data.filter((r: RoomHistory) => isGuestAction(r.from_status, r.to_status)));
       setError(null);
     } catch (err: any) {
       console.error('Failed to load room history:', err);
