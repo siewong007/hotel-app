@@ -153,7 +153,8 @@ pub async fn get_night_audit_preview(
 
     log::info!("Already run: {}, fetching unposted bookings", already_run);
 
-    // Get unposted bookings
+    // Get unposted bookings - checked_in bookings active on the audit date,
+    // plus checked_out bookings that checked in on the audit date (same-day checkout)
     let rows = sqlx::query(
         r#"
         SELECT
@@ -172,11 +173,9 @@ pub async fn get_night_audit_preview(
         JOIN rooms r ON b.room_id = r.id
         WHERE (b.is_posted = FALSE OR b.is_posted IS NULL)
         AND (
-            (b.check_in_date <= $1 AND b.check_out_date > $1)
-            OR (b.check_out_date = $1 AND b.status = 'checked_out')
-            OR (DATE(b.created_at) = $1)
+            (b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1)
+            OR (b.status = 'checked_out' AND b.check_in_date = $1)
         )
-        AND b.status NOT IN ('cancelled', 'no_show')
         ORDER BY b.check_in_date
         "#
     )
@@ -208,20 +207,18 @@ pub async fn get_night_audit_preview(
         let total_amount: Decimal = row.get("total_amount");
         let status: String = row.get("status");
 
-        // Only count revenue for checked_in or checked_out bookings
-        if status == "checked_in" || status == "checked_out" {
-            // Aggregate by payment method
-            let pm_key = payment_method.clone().unwrap_or_else(|| "Unknown".to_string());
-            let pm_entry = payment_method_map.entry(pm_key).or_insert((0, Decimal::ZERO));
-            pm_entry.0 += 1;
-            pm_entry.1 += total_amount;
+        // All bookings in the preview are checked_in, count them for revenue
+        // Aggregate by payment method
+        let pm_key = payment_method.clone().unwrap_or_else(|| "Unknown".to_string());
+        let pm_entry = payment_method_map.entry(pm_key).or_insert((0, Decimal::ZERO));
+        pm_entry.0 += 1;
+        pm_entry.1 += total_amount;
 
-            // Aggregate by booking channel
-            let bc_key = source.clone().unwrap_or_else(|| "Unknown".to_string());
-            let bc_entry = booking_channel_map.entry(bc_key).or_insert((0, Decimal::ZERO));
-            bc_entry.0 += 1;
-            bc_entry.1 += total_amount;
-        }
+        // Aggregate by booking channel
+        let bc_key = source.clone().unwrap_or_else(|| "Unknown".to_string());
+        let bc_entry = booking_channel_map.entry(bc_key).or_insert((0, Decimal::ZERO));
+        bc_entry.0 += 1;
+        bc_entry.1 += total_amount;
 
         unposted_bookings.push(UnpostedBooking {
             booking_id: row.get("booking_id"),
@@ -252,7 +249,6 @@ pub async fn get_night_audit_preview(
 
     let total_unposted = unposted_bookings.len() as i32;
     let estimated_revenue: Decimal = unposted_bookings.iter()
-        .filter(|b| b.status == "checked_in" || b.status == "checked_out")
         .map(|b| b.total_amount)
         .sum();
 
