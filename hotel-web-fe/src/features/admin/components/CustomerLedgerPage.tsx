@@ -475,9 +475,9 @@ const CustomerLedgerPage: React.FC = () => {
         const newGuest = await HotelAPIService.createGuest({
           first_name: newCheckInGuestForm.first_name,
           last_name: newCheckInGuestForm.last_name,
-          email: newCheckInGuestForm.email,
-          phone: newCheckInGuestForm.phone,
-          ic_number: newCheckInGuestForm.ic_number,
+          email: newCheckInGuestForm.email || undefined,
+          phone: newCheckInGuestForm.phone || undefined,
+          ic_number: newCheckInGuestForm.ic_number || undefined,
           nationality: newCheckInGuestForm.nationality || undefined,
           address_line1: newCheckInGuestForm.address_line1 || undefined,
           city: newCheckInGuestForm.city || undefined,

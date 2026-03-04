@@ -215,6 +215,12 @@ pub async fn register_handler(
     AuthService::validate_password(&req.password)
         .map_err(|e| ApiError::BadRequest(e))?;
 
+    // Validate email format
+    let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+    if !email_regex.is_match(&req.email) {
+        return Err(ApiError::BadRequest("Invalid email format".to_string()));
+    }
+
     // Check if username or email already exists
     let existing_user: Option<(i64,)> = sqlx::query_as(
         "SELECT id FROM users WHERE username = $1 OR email = $2 LIMIT 1"

@@ -188,7 +188,15 @@ pub async fn update_guest_handler(
     // Normalize empty email to None so DB check constraint is satisfied
     let email = match input.email {
         Some(ref e) if e.trim().is_empty() => None,
-        Some(e) => Some(e.trim().to_string()),
+        Some(e) => {
+            let trimmed = e.trim().to_string();
+            // Validate email format
+            let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+            if !email_regex.is_match(&trimmed) {
+                return Err(ApiError::BadRequest("Invalid email format".to_string()));
+            }
+            Some(trimmed)
+        },
         None => existing_email,
     };
     let phone = input.phone.or(existing_phone);

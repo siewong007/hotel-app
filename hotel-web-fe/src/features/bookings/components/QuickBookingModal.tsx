@@ -261,7 +261,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
       const newGuest = await HotelAPIService.createGuest({
         first_name: newGuestFirstName,
         last_name: newGuestLastName,
-        email: newGuestEmail,
+        email: newGuestEmail || undefined,
         phone: newGuestPhone || undefined,
       });
 

@@ -202,8 +202,19 @@ pub async fn submit_precheckin_update(
         values.push(last_name.clone());
     }
     if let Some(ref email) = guest_update.email {
-        query_parts.push(format!("email = ${}", values.len() + 1));
-        values.push(email.clone());
+        let trimmed = email.trim();
+        if trimmed.is_empty() {
+            // Set to NULL for empty email
+            query_parts.push("email = NULL".to_string());
+        } else {
+            // Validate email format before updating
+            let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+            if email_regex.is_match(trimmed) {
+                query_parts.push(format!("email = ${}", values.len() + 1));
+                values.push(trimmed.to_string());
+            }
+            // Invalid email format - skip the update silently
+        }
     }
     if let Some(ref phone) = guest_update.phone {
         query_parts.push(format!("phone = ${}", values.len() + 1));
