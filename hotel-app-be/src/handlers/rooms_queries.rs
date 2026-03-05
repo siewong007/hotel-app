@@ -55,7 +55,8 @@ SELECT
     r.cleaning_start_date,
     r.cleaning_end_date,
     r.reserved_start_date,
-    r.reserved_end_date
+    r.reserved_end_date,
+    r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN current_bookings cb ON cb.room_id = r.id
@@ -120,7 +121,8 @@ SELECT
     r.cleaning_start_date,
     r.cleaning_end_date,
     r.reserved_start_date,
-    r.reserved_end_date
+    r.reserved_end_date,
+    r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN current_bookings cb ON cb.room_id = r.id
@@ -158,7 +160,8 @@ SELECT
     r.cleaning_start_date,
     r.cleaning_end_date,
     r.reserved_start_date,
-    r.reserved_end_date
+    r.reserved_end_date,
+    r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
@@ -195,7 +198,8 @@ SELECT
     r.cleaning_start_date,
     r.cleaning_end_date,
     r.reserved_start_date,
-    r.reserved_end_date
+    r.reserved_end_date,
+    r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
@@ -245,7 +249,8 @@ SELECT
     r.cleaning_start_date,
     r.cleaning_end_date,
     r.reserved_start_date,
-    r.reserved_end_date
+    r.reserved_end_date,
+    r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN current_bookings cb ON cb.room_id = r.id
@@ -302,7 +307,8 @@ SELECT
     r.cleaning_start_date,
     r.cleaning_end_date,
     r.reserved_start_date,
-    r.reserved_end_date
+    r.reserved_end_date,
+    r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN current_bookings cb ON cb.room_id = r.id
@@ -352,8 +358,9 @@ UPDATE rooms
 SET room_number = $1,
     custom_price = $2,
     status = $3,
+    notes = $4,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $4
+WHERE id = $5
 "#;
 
 /// Update room - SQLite version
@@ -363,8 +370,9 @@ UPDATE rooms
 SET room_number = ?1,
     custom_price = ?2,
     status = ?3,
+    notes = ?4,
     updated_at = datetime('now')
-WHERE id = ?4
+WHERE id = ?5
 "#;
 
 /// Update room without status - PostgreSQL version
@@ -376,8 +384,9 @@ pub const UPDATE_ROOM_NO_STATUS_QUERY: &str = r#"
 UPDATE rooms
 SET room_number = $1,
     custom_price = $2,
+    notes = $3,
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $3
+WHERE id = $4
 "#;
 
 /// Update room without status - SQLite version
@@ -386,8 +395,9 @@ pub const UPDATE_ROOM_NO_STATUS_QUERY: &str = r#"
 UPDATE rooms
 SET room_number = ?1,
     custom_price = ?2,
+    notes = ?3,
     updated_at = datetime('now')
-WHERE id = ?3
+WHERE id = ?4
 "#;
 
 /// Check room exists - PostgreSQL version
@@ -555,7 +565,7 @@ pub const GET_EXISTING_ROOM_FOR_UPDATE: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type,
        COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
        CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
-       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.custom_price::text
+       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.custom_price::text, r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 WHERE r.id = $1
@@ -567,7 +577,7 @@ pub const GET_EXISTING_ROOM_FOR_UPDATE: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type,
        CAST(COALESCE(r.custom_price, rt.base_price) AS TEXT) as price_per_night,
        CASE WHEN r.status IN ('available', 'cleaning') THEN 1 ELSE 0 END as available,
-       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, CAST(r.custom_price AS TEXT)
+       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, CAST(r.custom_price AS TEXT), r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 WHERE r.id = ?1

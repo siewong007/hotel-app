@@ -58,6 +58,7 @@ pub struct RoomUpdateInput {
     pub available: Option<bool>,
     pub description: Option<String>,
     pub max_occupancy: Option<i32>,
+    pub notes: Option<String>,
 }
 
 /// Input for updating room status
@@ -148,6 +149,7 @@ pub struct RoomWithRating {
     pub updated_at: DateTime<Utc>,
     pub average_rating: Option<f64>,
     pub review_count: Option<i64>,
+    pub notes: Option<String>,
 }
 
 /// Guest review for a room

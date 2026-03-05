@@ -514,7 +514,7 @@ BEGIN
         -- Bookings that were created/modified on the audit date
         (DATE(b.created_at) = p_audit_date OR DATE(b.updated_at) = p_audit_date)
     )
-    AND b.status NOT IN ('cancelled', 'no_show')
+    AND b.status NOT IN ('cancelled', 'no_show', 'confirmed', 'pending')
     ORDER BY b.check_in_date;
 END;
 $$ LANGUAGE plpgsql;
