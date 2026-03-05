@@ -61,6 +61,7 @@ import {
   Phone as PhoneIcon,
   Edit as EditIcon,
   Save as SaveIcon,
+  Notes as NotesIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, Booking } from '../../../types';
@@ -131,6 +132,12 @@ const RoomManagementPage: React.FC = () => {
   const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [editingNotes, setEditingNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+
+  // Booking notes editing state
+  const [bookingNotesDialogOpen, setBookingNotesDialogOpen] = useState(false);
+  const [bookingNotesEditBooking, setBookingNotesEditBooking] = useState<BookingWithDetails | null>(null);
+  const [editedBookingNotes, setEditedBookingNotes] = useState('');
+  const [savingBookingNotes, setSavingBookingNotes] = useState(false);
 
   // Room change state
   const [newSelectedRoom, setNewSelectedRoom] = useState<Room | null>(null);
@@ -351,8 +358,19 @@ const RoomManagementPage: React.FC = () => {
           bookingsMap.set(booking.room_id, booking);
         }
         // Track confirmed/pending bookings (reserved)
+        // Prioritize bookings with earlier check-in dates (today's booking over future bookings)
         if (booking.status === 'confirmed' || booking.status === 'pending') {
-          reservedMap.set(booking.room_id, booking);
+          const existingBooking = reservedMap.get(booking.room_id);
+          if (!existingBooking) {
+            reservedMap.set(booking.room_id, booking);
+          } else {
+            // Keep the booking with the earlier check-in date
+            const existingCheckIn = new Date(existingBooking.check_in_date);
+            const newCheckIn = new Date(booking.check_in_date);
+            if (newCheckIn < existingCheckIn) {
+              reservedMap.set(booking.room_id, booking);
+            }
+          }
         }
         // Track comp_cancelled bookings (complimentary booking cancelled, credits preserved)
         if (booking.status === 'comp_cancelled') {
@@ -1051,6 +1069,37 @@ const RoomManagementPage: React.FC = () => {
       showSnackbar('No active booking found for this room', 'error');
     }
     handleMenuClose();
+  };
+
+  // Handle opening booking notes edit dialog
+  const handleEditBookingNotes = (booking: BookingWithDetails, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setBookingNotesEditBooking(booking);
+    setEditedBookingNotes(booking.remarks || booking.special_requests || '');
+    setBookingNotesDialogOpen(true);
+  };
+
+  // Handle saving booking notes
+  const handleSaveBookingNotes = async () => {
+    if (!bookingNotesEditBooking) return;
+
+    setSavingBookingNotes(true);
+    try {
+      await HotelAPIService.updateBooking(bookingNotesEditBooking.id, {
+        remarks: editedBookingNotes,
+      });
+      showSnackbar('Notes updated successfully', 'success');
+      setBookingNotesDialogOpen(false);
+      setBookingNotesEditBooking(null);
+      setEditedBookingNotes('');
+      await loadData();
+    } catch (error: any) {
+      showSnackbar(error.message || 'Failed to update notes', 'error');
+    } finally {
+      setSavingBookingNotes(false);
+    }
   };
 
   const handleConfirmCheckout = async (lateCheckoutData?: { penalty: number; notes: string }, checkoutPaymentMethod?: string) => {
@@ -2205,6 +2254,46 @@ const RoomManagementPage: React.FC = () => {
                           </Box>
                         )}
                       </Box>
+
+                      {/* Booking Notes - Clickable to edit */}
+                      <Tooltip title={booking.remarks || booking.special_requests ? "Click to edit notes" : "Click to add notes"} arrow>
+                        <Box
+                          onClick={(e) => handleEditBookingNotes(booking, e)}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: 0.5,
+                            mt: 0.5,
+                            p: 0.5,
+                            bgcolor: 'rgba(255,255,255,0.1)',
+                            borderRadius: 0.5,
+                            cursor: 'pointer',
+                            '&:hover': {
+                              bgcolor: 'rgba(255,255,255,0.2)',
+                            },
+                            minHeight: 24,
+                          }}
+                        >
+                          <NotesIcon sx={{ fontSize: 12, opacity: 0.8, mt: 0.25 }} />
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              fontSize: '0.6rem',
+                              opacity: 0.9,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              flex: 1,
+                              fontStyle: (booking.remarks || booking.special_requests) ? 'normal' : 'italic',
+                            }}
+                          >
+                            {booking.remarks || booking.special_requests || 'Add notes...'}
+                          </Typography>
+                          <EditIcon sx={{ fontSize: 10, opacity: 0.6 }} />
+                        </Box>
+                      </Tooltip>
 
                       {/* Quick Action Buttons for Occupied Rooms */}
                       <Box
@@ -3943,6 +4032,71 @@ const RoomManagementPage: React.FC = () => {
           <Button onClick={() => setNotesDialogOpen(false)} variant="outlined">Cancel</Button>
           <Button onClick={handleSaveNotes} variant="contained" disabled={savingNotes}>
             {savingNotes ? 'Saving...' : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Booking Notes Edit Dialog */}
+      <Dialog
+        open={bookingNotesDialogOpen}
+        onClose={() => {
+          setBookingNotesDialogOpen(false);
+          setBookingNotesEditBooking(null);
+          setEditedBookingNotes('');
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <NotesIcon sx={{ fontSize: 24 }} />
+            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+              Edit Booking Notes
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          {bookingNotesEditBooking && (
+            <Box>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  <strong>Guest:</strong> {bookingNotesEditBooking.guest_name}<br />
+                  <strong>Room:</strong> {bookingNotesEditBooking.room_number}<br />
+                  <strong>Stay:</strong> {new Date(bookingNotesEditBooking.check_in_date).toLocaleDateString()} - {new Date(bookingNotesEditBooking.check_out_date).toLocaleDateString()}
+                </Typography>
+              </Alert>
+              <TextField
+                fullWidth
+                multiline
+                rows={4}
+                label="Notes"
+                placeholder="Enter booking notes, special requests, or remarks..."
+                value={editedBookingNotes}
+                onChange={(e) => setEditedBookingNotes(e.target.value)}
+                variant="outlined"
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
+          <Button
+            onClick={() => {
+              setBookingNotesDialogOpen(false);
+              setBookingNotesEditBooking(null);
+              setEditedBookingNotes('');
+            }}
+            variant="outlined"
+            disabled={savingBookingNotes}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveBookingNotes}
+            variant="contained"
+            disabled={savingBookingNotes}
+            startIcon={savingBookingNotes ? <CircularProgress size={16} /> : <SaveIcon />}
+          >
+            {savingBookingNotes ? 'Saving...' : 'Save Notes'}
           </Button>
         </DialogActions>
       </Dialog>

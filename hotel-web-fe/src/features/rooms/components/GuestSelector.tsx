@@ -17,8 +17,9 @@ import {
 } from '@mui/material';
 import {
   CardGiftcard as GiftIcon,
+  Star as MemberIcon,
 } from '@mui/icons-material';
-import { Guest, TourismType, TOURISM_TYPE_CONFIG } from '../../../types';
+import { Guest, GuestType, TourismType, TOURISM_TYPE_CONFIG, GUEST_TYPE_CONFIG } from '../../../types';
 
 export interface NewGuestForm {
   first_name: string;
@@ -28,6 +29,7 @@ export interface NewGuestForm {
   nationality: string;
   ic_number: string;
   tourism_type?: TourismType;
+  guest_type?: GuestType;
   address_line1: string;
   city: string;
   state_province: string;
@@ -79,6 +81,7 @@ export const emptyNewGuestForm: NewGuestForm = {
   nationality: '',
   ic_number: '',
   tourism_type: undefined,
+  guest_type: 'non_member',
   address_line1: '',
   city: '',
   state_province: '',
@@ -332,6 +335,46 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               </Select>
             </FormControl>
           </Grid>
+          <Grid item xs={12} md={6}>
+            <FormControl fullWidth>
+              <InputLabel>Guest Type</InputLabel>
+              <Select
+                value={newGuestForm.guest_type || 'non_member'}
+                label="Guest Type"
+                onChange={(e) => {
+                  const guestType = e.target.value as GuestType;
+                  onNewGuestFormChange({ ...newGuestForm, guest_type: guestType });
+                  if (onMemberSelected) {
+                    onMemberSelected(guestType === 'member');
+                  }
+                }}
+              >
+                <MenuItem value="non_member">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Chip label={GUEST_TYPE_CONFIG.non_member.label} size="small" sx={{ bgcolor: GUEST_TYPE_CONFIG.non_member.color, color: 'white' }} />
+                    <Typography variant="body2" color="text.secondary">{GUEST_TYPE_CONFIG.non_member.discountLabel}</Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem value="member">
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <MemberIcon sx={{ color: GUEST_TYPE_CONFIG.member.color, fontSize: 18 }} />
+                    <Chip label={GUEST_TYPE_CONFIG.member.label} size="small" sx={{ bgcolor: GUEST_TYPE_CONFIG.member.color, color: 'white' }} />
+                    <Typography variant="body2" color="text.secondary">{GUEST_TYPE_CONFIG.member.discountLabel}</Typography>
+                  </Box>
+                </MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          {/* Member benefits alert */}
+          {newGuestForm.guest_type === 'member' && (
+            <Grid item xs={12}>
+              <Alert severity="success" icon={<MemberIcon />}>
+                <Typography variant="body2">
+                  Registering as <strong>Member</strong> — Room card deposit will be <strong>waived</strong>
+                </Typography>
+              </Alert>
+            </Grid>
+          )}
           <Grid item xs={12}>
             <TextField
               fullWidth

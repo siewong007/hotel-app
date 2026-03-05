@@ -472,7 +472,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         // For walk-in bookings, validate payment choice
         const effType = getEffectiveBookingType();
         if (effType === 'walk_in') {
-          const guestType = isCreatingNewGuest ? 'non_member' : (selectedGuest?.guest_type || 'non_member');
+          const guestType = isCreatingNewGuest ? (newGuestForm.guest_type || 'non_member') : (selectedGuest?.guest_type || 'non_member');
           if (guestType === 'member') {
             // Members must choose pay now or pay later
             if (!memberPaymentChoice) return false;
@@ -548,6 +548,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           ic_number: newGuestForm.ic_number,
           nationality: newGuestForm.nationality,
           tourism_type: newGuestForm.tourism_type,
+          guest_type: newGuestForm.guest_type || 'non_member',
           address_line1: newGuestForm.address_line1 || undefined,
           city: newGuestForm.city || undefined,
           state_province: newGuestForm.state_province || undefined,
@@ -684,10 +685,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   // Handle toggle between existing guest and new guest mode
   const handleToggleGuestMode = (isNew: boolean) => {
     setIsCreatingNewGuest(isNew);
-    // Reset deposit to default when switching to new guest mode
-    // since new guests are always non-members
+    // Reset deposit based on guest type when switching modes
     if (isNew) {
-      setRoomCardDeposit(roomCardDepositDefault);
+      // Use form's guest_type (defaults to non_member)
+      const isMember = newGuestForm.guest_type === 'member';
+      setRoomCardDeposit(isMember ? 0 : roomCardDepositDefault);
     }
   };
 
@@ -756,6 +758,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             ic_number: newGuestForm.ic_number,
             nationality: newGuestForm.nationality,
             tourism_type: newGuestForm.tourism_type,
+            guest_type: newGuestForm.guest_type || 'non_member',
           });
 
           guestToUse = newGuest;
@@ -1615,7 +1618,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
             {/* Payment prompt for walk-in bookings */}
             {effectiveType === 'walk_in' && (() => {
-              const guestType = isCreatingNewGuest ? 'non_member' : (selectedGuest?.guest_type || 'non_member');
+              const guestType = isCreatingNewGuest ? (newGuestForm.guest_type || 'non_member') : (selectedGuest?.guest_type || 'non_member');
               const isMemberGuest = guestType === 'member';
 
               return (
@@ -1680,7 +1683,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                           fullWidth
                           size="small"
                           type="number"
-                          label="Deposit Amount"
+                          label="Room Rate"
                           value={deposit}
                           onChange={(e) => setDeposit(parseFloat(e.target.value) || 0)}
                           InputProps={{

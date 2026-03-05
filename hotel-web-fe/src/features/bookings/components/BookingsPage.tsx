@@ -47,7 +47,6 @@ import {
   Clear as ClearIcon,
   CardGiftcard as ComplimentaryIcon,
   Payment as PaymentIcon,
-  Lock as LockIcon,
   Receipt as ReceiptIcon,
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
@@ -1021,24 +1020,11 @@ const BookingsPage: React.FC = () => {
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                    <Chip
-                      label={getBookingStatusText(booking.status)}
-                      color={getBookingStatusColor(booking.status)}
-                      size="small"
-                    />
-                    {booking.is_posted && (
-                      <Tooltip title="Booking is locked - included in night audit">
-                        <Chip
-                          icon={<LockIcon sx={{ fontSize: 14 }} />}
-                          label={booking.posted_date ? new Date(booking.posted_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Posted'}
-                          size="small"
-                          color="default"
-                          sx={{ bgcolor: 'grey.200', fontWeight: 500 }}
-                        />
-                      </Tooltip>
-                    )}
-                  </Box>
+                  <Chip
+                    label={getBookingStatusText(booking.status)}
+                    color={getBookingStatusColor(booking.status)}
+                    size="small"
+                  />
                 </TableCell>
                 {isAdmin && (
                   <TableCell>
@@ -1065,17 +1051,14 @@ const BookingsPage: React.FC = () => {
                           </IconButton>
                         </Tooltip>
                       )}
-                      <Tooltip title={booking.is_posted ? "Cannot edit - Booking is posted" : "Edit Booking"}>
-                        <span>
-                          <IconButton
-                            size="small"
-                            onClick={() => handleEditBooking(booking)}
-                            color="primary"
-                            disabled={booking.is_posted}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                        </span>
+                      <Tooltip title="Edit Booking">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleEditBooking(booking)}
+                          color="primary"
+                        >
+                          <EditIcon />
+                        </IconButton>
                       </Tooltip>
                       {!booking.is_complimentary && (
                         <Tooltip title="Collect Room Payment">
@@ -1088,7 +1071,7 @@ const BookingsPage: React.FC = () => {
                           </IconButton>
                         </Tooltip>
                       )}
-                      {canDelete(booking) && !booking.is_posted && (
+                      {canDelete(booking) && (
                         <Tooltip title="Cancel Booking">
                           <IconButton
                             size="small"
