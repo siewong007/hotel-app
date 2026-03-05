@@ -124,6 +124,7 @@ pub async fn get_rooms_handler(
             cleaning_end_date,
             reserved_start_date,
             reserved_end_date,
+            notes: row.try_get::<String, _>(18).ok(),
         });
     }
 
@@ -194,6 +195,7 @@ pub async fn search_rooms_handler(
             cleaning_end_date,
             reserved_start_date,
             reserved_end_date,
+            notes: row.try_get::<String, _>(18).ok(),
         });
     }
 
@@ -229,11 +231,13 @@ pub async fn update_room_handler(
     let current_description: Option<String> = existing_row.get(5);
     let current_max_occupancy: i32 = existing_row.get(6);
     let current_status: Option<String> = existing_row.get(7);
+    let current_notes: Option<String> = existing_row.try_get(11).ok();
 
     // Check if anything actually changed
     if input.room_number.is_none()
         && input.price_per_night.is_none()
-        && input.available.is_none() {
+        && input.available.is_none()
+        && input.notes.is_none() {
         return Ok(Json(Room {
             id: existing_row.get(0),
             room_number: current_room_number,
@@ -251,6 +255,7 @@ pub async fn update_room_handler(
     let room_number = input.room_number.as_ref().unwrap_or(&current_room_number);
     let custom_price = input.price_per_night
         .map(|p| rust_decimal::Decimal::from_f64_retain(p).unwrap_or_default());
+    let notes = if input.notes.is_some() { input.notes.clone() } else { current_notes };
 
     let new_status = if let Some(avail) = input.available {
         if avail { Some("available") } else { Some("out_of_order") }
@@ -278,6 +283,7 @@ pub async fn update_room_handler(
             .bind(room_number)
             .bind(opt_decimal_to_db(custom_price))
             .bind(status)
+            .bind(&notes)
             .bind(room_id)
             .execute(&pool)
             .await
@@ -286,6 +292,7 @@ pub async fn update_room_handler(
         sqlx::query(UPDATE_ROOM_NO_STATUS_QUERY)
             .bind(room_number)
             .bind(opt_decimal_to_db(custom_price))
+            .bind(&notes)
             .bind(room_id)
             .execute(&pool)
             .await

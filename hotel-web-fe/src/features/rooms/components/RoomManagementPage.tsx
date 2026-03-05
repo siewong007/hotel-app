@@ -127,9 +127,15 @@ const RoomManagementPage: React.FC = () => {
   const [complimentaryReason, setComplimentaryReason] = useState('');
   const [markingComplimentary, setMarkingComplimentary] = useState(false);
 
+  // Room notes state
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+  const [editingNotes, setEditingNotes] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
+
   // Room change state
   const [newSelectedRoom, setNewSelectedRoom] = useState<Room | null>(null);
   const [changingRoom, setChangingRoom] = useState(false);
+  const [changeRoomCustomRate, setChangeRoomCustomRate] = useState<string>('');
 
   // Walk-in form state
   const [walkInGuest, setWalkInGuest] = useState<Guest | null>(null);
@@ -1491,9 +1497,32 @@ const RoomManagementPage: React.FC = () => {
     handleMenuClose();
   };
 
+  const handleEditNotes = (room: Room) => {
+    setSelectedRoom(room);
+    setEditingNotes(room.notes || '');
+    setNotesDialogOpen(true);
+    handleMenuClose();
+  };
+
+  const handleSaveNotes = async () => {
+    if (!selectedRoom) return;
+    setSavingNotes(true);
+    try {
+      await HotelAPIService.updateRoom(selectedRoom.id, { notes: editingNotes || '' } as Partial<Room>);
+      showSnackbar('Room notes updated', 'success');
+      setNotesDialogOpen(false);
+      loadData();
+    } catch (error: any) {
+      showSnackbar(error.message || 'Failed to update notes', 'error');
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
   const handleChangeRoom = (room: Room) => {
     setSelectedRoom(room);
     setNewSelectedRoom(null);
+    setChangeRoomCustomRate('');
     // Get the active booking for this room
     const booking = roomBookings.get(room.id);
     setSelectedBooking(booking || null);
@@ -1519,18 +1548,21 @@ const RoomManagementPage: React.FC = () => {
     try {
       setChangingRoom(true);
 
-      // Calculate price difference
+      // Determine the effective rate
+      const customRate = changeRoomCustomRate ? parseFloat(changeRoomCustomRate) : null;
+      const effectiveRate = customRate && !isNaN(customRate) ? customRate
+        : typeof newSelectedRoom.price_per_night === 'string'
+          ? parseFloat(newSelectedRoom.price_per_night)
+          : newSelectedRoom.price_per_night;
       const oldPrice = typeof selectedRoom.price_per_night === 'string'
         ? parseFloat(selectedRoom.price_per_night)
         : selectedRoom.price_per_night;
-      const newPrice = typeof newSelectedRoom.price_per_night === 'string'
-        ? parseFloat(newSelectedRoom.price_per_night)
-        : newSelectedRoom.price_per_night;
-      const priceDifference = newPrice - oldPrice;
+      const priceDifference = effectiveRate - oldPrice;
 
-      // Update booking with new room
+      // Update booking with new room and rate
       await HotelAPIService.updateBooking(selectedBooking.id, {
         room_id: String(newSelectedRoom.id),
+        room_rate_override: effectiveRate,
       });
 
       // Update old room status to cleaning
@@ -1746,6 +1778,7 @@ const RoomManagementPage: React.FC = () => {
       { id: 'maintenance', label: 'Set Maintenance', icon: <MaintenanceIcon />, color: 'warning', onClick: handleMaintenance },
       { id: 'divider2', label: '-', icon: <></>, onClick: () => {} },
       { id: 'history', label: 'Show Room History', icon: <HistoryIcon />, onClick: handleShowHistory },
+      { id: 'edit-notes', label: 'Edit Room Notes', icon: <EditIcon />, onClick: handleEditNotes },
       { id: 'properties', label: 'Room Properties...', icon: <SettingsIcon />, onClick: handleRoomProperties }
     );
 
@@ -2076,24 +2109,29 @@ const RoomManagementPage: React.FC = () => {
                     {compCancelledBooking && ' • 🔓 COMP CANCELLED'}
                   </Typography>
 
-                  {/* Future Reservation Indicator - NO guest details per requirements */}
-                  {hasFutureReservation && futureCheckInDate && reservedBooking && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                      <BookingIcon sx={{ fontSize: 12 }} />
-                      <Typography
-                        variant="caption"
-                        display="block"
-                        sx={{
-                          fontSize: '0.6rem',
-                          fontWeight: 500,
-                          bgcolor: 'rgba(0,0,0,0.2)',
-                          px: 0.5,
-                          borderRadius: 0.5,
-                        }}
-                      >
-                        📅 Upcoming: {new Date(reservedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </Typography>
-                    </Box>
+                  {/* Room Notes */}
+                  {!isOccupied && !isReservedToday && (
+                    <Typography
+                      variant="caption"
+                      display="block"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditNotes(room);
+                      }}
+                      sx={{
+                        fontSize: '0.6rem',
+                        fontStyle: 'italic',
+                        opacity: (room.notes || room.status_notes) ? 0.8 : 0.4,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        mb: 0.5,
+                        cursor: 'pointer',
+                        '&:hover': { opacity: 1 },
+                      }}
+                    >
+                      {room.notes || room.status_notes || '+ Add notes'}
+                    </Typography>
                   )}
 
                   {/* Comp Cancelled Booking Indicator - Complimentary booking cancelled, credits preserved */}
@@ -2258,20 +2296,25 @@ const RoomManagementPage: React.FC = () => {
                           </Box>
                         </Tooltip>
                       </Box>
+                      {/* Booking remarks for occupied rooms */}
+                      {(booking.remarks || booking.booking_remarks) && (
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          sx={{
+                            fontSize: '0.6rem',
+                            fontStyle: 'italic',
+                            opacity: 0.8,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            mt: 0.5,
+                          }}
+                        >
+                          {booking.remarks || booking.booking_remarks}
+                        </Typography>
+                      )}
                     </Box>
-                  ) : room.status_notes ? (
-                    <Typography
-                      variant="caption"
-                      display="block"
-                      sx={{
-                        fontSize: '0.65rem',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {room.status_notes}
-                    </Typography>
                   ) : null}
 
                   {/* Reserved Room Guest Details - styled like Occupied room */}
@@ -2367,43 +2410,29 @@ const RoomManagementPage: React.FC = () => {
                           </Box>
                         )}
                       </Box>
+                      {/* Booking remarks for reserved rooms */}
+                      {(reservedBooking.remarks || reservedBooking.booking_remarks) && (
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          sx={{
+                            fontSize: '0.6rem',
+                            fontStyle: 'italic',
+                            opacity: 0.8,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            mt: 0.5,
+                          }}
+                        >
+                          {reservedBooking.remarks || reservedBooking.booking_remarks}
+                        </Typography>
+                      )}
                     </>
                   )}
 
-                  {/* Upcoming Bookings Button - only show for non-occupied rooms with future reservation */}
-                  {hasFutureReservation && reservedBooking && !isOccupied && (
-                    <Box
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleViewUpcomingBookings(room);
-                      }}
-                      sx={{
-                        position: 'absolute',
-                        bottom: 12,
-                        left: 12,
-                        right: 12,
-                        bgcolor: '#2196f3',
-                        borderRadius: 1,
-                        p: 0.75,
-                        cursor: 'pointer',
-                        '&:hover': {
-                          bgcolor: '#1976d2',
-                        },
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 0.5,
-                      }}
-                    >
-                      <CalendarIcon sx={{ fontSize: 16 }} />
-                      <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
-                        View Upcoming Booking
-                      </Typography>
-                    </Box>
-                  )}
-
                   {/* Quick Action Button for Available Rooms */}
-                  {computedStatus === 'available' && !hasFutureReservation && (
+                  {computedStatus === 'available' && (
                     <Box
                       sx={{
                         position: 'absolute',
@@ -3508,63 +3537,89 @@ const RoomManagementPage: React.FC = () => {
               </FormControl>
             </Grid>
 
-            {/* Price Difference Display */}
+            {/* Custom Rate */}
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Custom Rate (per night)"
+                type="number"
+                value={changeRoomCustomRate}
+                onChange={(e) => setChangeRoomCustomRate(e.target.value)}
+                placeholder={newSelectedRoom ? String(newSelectedRoom.price_per_night) : ''}
+                helperText={newSelectedRoom ? `Default room rate: ${currencySymbol}${newSelectedRoom.price_per_night}/night. Leave empty to use default.` : 'Select a room first, or enter a custom rate.'}
+                InputProps={{
+                  startAdornment: <Typography sx={{ mr: 0.5, color: 'text.secondary' }}>{currencySymbol}</Typography>,
+                }}
+                inputProps={{ min: 0, step: '0.01' }}
+              />
+            </Grid>
+
+            {/* Price Difference */}
             {newSelectedRoom && selectedRoom && (
-              <Grid item xs={12}>
-                <Paper sx={{ p: 2, bgcolor: 'info.lighter' }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Price Difference
-                  </Typography>
-                  <Grid container spacing={1}>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" color="text.secondary">
-                        New Room Rate:
-                      </Typography>
+              <>
+                <Grid item xs={12}>
+                  <Paper sx={{ p: 2, bgcolor: 'info.lighter' }}>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Price Summary
+                    </Typography>
+                    <Grid container spacing={1}>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          New Rate:
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" fontWeight="bold">
+                          {currencySymbol}{changeRoomCustomRate && !isNaN(parseFloat(changeRoomCustomRate)) ? parseFloat(changeRoomCustomRate).toFixed(2) : newSelectedRoom.price_per_night} / night
+                          {changeRoomCustomRate && !isNaN(parseFloat(changeRoomCustomRate)) && (
+                            <Typography component="span" variant="caption" color="text.secondary"> (custom)</Typography>
+                          )}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">
+                          Difference per Night:
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography
+                          variant="body2"
+                          fontWeight="bold"
+                          color={(() => {
+                            const oldPrice = typeof selectedRoom.price_per_night === 'string'
+                              ? parseFloat(selectedRoom.price_per_night)
+                              : selectedRoom.price_per_night;
+                            const effectiveRate = changeRoomCustomRate && !isNaN(parseFloat(changeRoomCustomRate))
+                              ? parseFloat(changeRoomCustomRate)
+                              : typeof newSelectedRoom.price_per_night === 'string'
+                                ? parseFloat(newSelectedRoom.price_per_night)
+                                : newSelectedRoom.price_per_night;
+                            const diff = effectiveRate - oldPrice;
+                            return diff > 0 ? 'error.main' : diff < 0 ? 'success.main' : 'text.primary';
+                          })()}
+                        >
+                          {(() => {
+                            const oldPrice = typeof selectedRoom.price_per_night === 'string'
+                              ? parseFloat(selectedRoom.price_per_night)
+                              : selectedRoom.price_per_night;
+                            const effectiveRate = changeRoomCustomRate && !isNaN(parseFloat(changeRoomCustomRate))
+                              ? parseFloat(changeRoomCustomRate)
+                              : typeof newSelectedRoom.price_per_night === 'string'
+                                ? parseFloat(newSelectedRoom.price_per_night)
+                                : newSelectedRoom.price_per_night;
+                            const diff = effectiveRate - oldPrice;
+                            return diff > 0
+                              ? `+${currencySymbol}${diff.toFixed(2)} (Additional Charge)`
+                              : diff < 0
+                              ? `-${currencySymbol}${Math.abs(diff).toFixed(2)} (Credit)`
+                              : `${currencySymbol}0.00 (No Change)`;
+                          })()}
+                        </Typography>
+                      </Grid>
                     </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" fontWeight="bold">
-                        {currencySymbol}{newSelectedRoom.price_per_night} / night
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" color="text.secondary">
-                        Difference per Night:
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Typography
-                        variant="body2"
-                        fontWeight="bold"
-                        color={(() => {
-                          const oldPrice = typeof selectedRoom.price_per_night === 'string'
-                            ? parseFloat(selectedRoom.price_per_night)
-                            : selectedRoom.price_per_night;
-                          const newPrice = typeof newSelectedRoom.price_per_night === 'string'
-                            ? parseFloat(newSelectedRoom.price_per_night)
-                            : newSelectedRoom.price_per_night;
-                          const diff = newPrice - oldPrice;
-                          return diff > 0 ? 'error.main' : diff < 0 ? 'success.main' : 'text.primary';
-                        })()}
-                      >
-                        {(() => {
-                          const oldPrice = typeof selectedRoom.price_per_night === 'string'
-                            ? parseFloat(selectedRoom.price_per_night)
-                            : selectedRoom.price_per_night;
-                          const newPrice = typeof newSelectedRoom.price_per_night === 'string'
-                            ? parseFloat(newSelectedRoom.price_per_night)
-                            : newSelectedRoom.price_per_night;
-                          const diff = newPrice - oldPrice;
-                          return diff > 0
-                            ? `+${currencySymbol}${diff.toFixed(2)} (Additional Charge)`
-                            : diff < 0
-                            ? `-${currencySymbol}${Math.abs(diff).toFixed(2)} (Credit)`
-                            : `${currencySymbol}0.00 (No Change)`;
-                        })()}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                </Paper>
-              </Grid>
+                  </Paper>
+                </Grid>
+              </>
             )}
           </Grid>
         </DialogContent>
@@ -3857,6 +3912,38 @@ const RoomManagementPage: React.FC = () => {
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
           <Button onClick={() => setRoomDetailsDialogOpen(false)} variant="outlined">Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Room Notes Dialog */}
+      <Dialog open={notesDialogOpen} onClose={() => setNotesDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <EditIcon sx={{ fontSize: 24 }} />
+            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+              Room Notes - {selectedRoom?.room_number}
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <TextField
+            autoFocus
+            fullWidth
+            multiline
+            minRows={3}
+            maxRows={6}
+            label="Notes"
+            value={editingNotes}
+            onChange={(e) => setEditingNotes(e.target.value)}
+            sx={{ mt: 2 }}
+            placeholder="Enter room notes..."
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
+          <Button onClick={() => setNotesDialogOpen(false)} variant="outlined">Cancel</Button>
+          <Button onClick={handleSaveNotes} variant="contained" disabled={savingNotes}>
+            {savingNotes ? 'Saving...' : 'Save'}
+          </Button>
         </DialogActions>
       </Dialog>
 

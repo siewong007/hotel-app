@@ -79,6 +79,7 @@ export interface Room {
   cleaning_end_date?: string;
   target_room_id?: string;
   status_notes?: string;
+  notes?: string;
 }
 
 export interface RoomWithDisplay extends Room {
