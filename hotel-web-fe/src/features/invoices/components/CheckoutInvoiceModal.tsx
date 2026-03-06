@@ -108,6 +108,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [depositWaived, setDepositWaived] = useState(false);
   const [depositWaiveReason, setDepositWaiveReason] = useState('');
 
+  // Guest company name
+  const [guestCompanyName, setGuestCompanyName] = useState<string>('');
+
   const [charges, setCharges] = useState<ChargesBreakdown>({
     roomCharges: 0,
     roomCardDeposit: 50,
@@ -182,6 +185,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         }
       };
       fetchRoomPrice();
+
+      // Fetch guest company name
+      const fetchGuestCompany = async () => {
+        try {
+          const guest = await HotelAPIService.getGuest(booking.guest_id);
+          setGuestCompanyName(guest.company_name || '');
+        } catch {
+          setGuestCompanyName('');
+        }
+      };
+      fetchGuestCompany();
 
       // Reset to preview step when modal opens
       setCheckoutStep('preview');
@@ -828,6 +842,16 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     {booking?.room_number} - {booking?.room_type}
                   </Box>
                 </Typography>
+                {guestCompanyName && (
+                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                    <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
+                      Company:
+                    </Box>
+                    <Box component="span" sx={{ fontWeight: 600 }}>
+                      {guestCompanyName}
+                    </Box>
+                  </Typography>
+                )}
               </Grid>
 
               <Grid item xs={12} md={4}>
@@ -892,21 +916,48 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Box>
 
               <Box sx={{ p: 0 }}>
-                {/* Room Charges */}
-                <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
-                  <Grid container>
-                    <Grid item xs={8}>
-                      <Typography variant="body2">
-                        {isHourlyBooking ? 'Room Charges (Hourly Stay)' : `Room Charges (${calculateNights()} nights)`}
-                      </Typography>
+                {/* Room Charges - Day by Day */}
+                {isHourlyBooking ? (
+                  <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
+                    <Grid container>
+                      <Grid item xs={8}>
+                        <Typography variant="body2">Room Charges (Hourly Stay)</Typography>
+                      </Grid>
+                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {formatCurrency(charges.roomCharges)}
+                        </Typography>
+                      </Grid>
                     </Grid>
-                    <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {formatCurrency(charges.roomCharges)}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                </Box>
+                  </Box>
+                ) : (
+                  (() => {
+                    const nights = calculateNights();
+                    const perNightCharge = nights > 0 ? charges.roomCharges / nights : 0;
+                    const checkIn = new Date(booking.check_in_date);
+                    return Array.from({ length: nights }, (_, i) => {
+                      const date = new Date(checkIn);
+                      date.setDate(date.getDate() + i);
+                      const dateStr = date.toLocaleDateString();
+                      return (
+                        <Box key={i} sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
+                          <Grid container>
+                            <Grid item xs={8}>
+                              <Typography variant="body2">
+                                Room Charge — {dateStr}
+                              </Typography>
+                            </Grid>
+                            <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                {formatCurrency(perNightCharge)}
+                              </Typography>
+                            </Grid>
+                          </Grid>
+                        </Box>
+                      );
+                    });
+                  })()
+                )}
 
                 {/* Service Tax */}
                 {charges.serviceTax > 0 && (
@@ -1997,6 +2048,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <span className="label">Room:</span>
               <span className="value">{booking?.room_number} - {booking?.room_type}</span>
             </p>
+            {guestCompanyName && (
+              <p>
+                <span className="label">Company:</span>
+                <span className="value">{guestCompanyName}</span>
+              </p>
+            )}
           </div>
 
           <div>
@@ -2033,10 +2090,28 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td>{isHourlyBooking ? 'Room Charges (Hourly Stay)' : `Room Charges (${calculateNights()} nights)`}</td>
-              <td className="amount">{formatCurrency(charges.roomCharges)}</td>
-            </tr>
+            {isHourlyBooking ? (
+              <tr>
+                <td>Room Charges (Hourly Stay)</td>
+                <td className="amount">{formatCurrency(charges.roomCharges)}</td>
+              </tr>
+            ) : (
+              (() => {
+                const nights = calculateNights();
+                const perNightCharge = nights > 0 ? charges.roomCharges / nights : 0;
+                const checkIn = new Date(booking.check_in_date);
+                return Array.from({ length: nights }, (_, i) => {
+                  const date = new Date(checkIn);
+                  date.setDate(date.getDate() + i);
+                  return (
+                    <tr key={i}>
+                      <td>Room Charge — {date.toLocaleDateString()}</td>
+                      <td className="amount">{formatCurrency(perNightCharge)}</td>
+                    </tr>
+                  );
+                });
+              })()
+            )}
 
             {charges.serviceTax > 0 && (
               <tr>

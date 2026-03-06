@@ -48,6 +48,7 @@ pub struct Guest {
     pub guest_type: GuestType,
     pub tourism_type: Option<TourismType>,
     pub discount_percentage: i32,
+    pub company_name: Option<String>,
     pub complimentary_nights_credit: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -70,6 +71,7 @@ pub struct GuestInput {
     pub guest_type: Option<GuestType>,
     pub tourism_type: Option<TourismType>,
     pub discount_percentage: Option<i32>,
+    pub company_name: Option<String>,
 }
 
 /// Input for updating a guest
@@ -92,6 +94,7 @@ pub struct GuestUpdateInput {
     pub guest_type: Option<GuestType>,
     pub tourism_type: Option<TourismType>,
     pub discount_percentage: Option<i32>,
+    pub company_name: Option<String>,
 }
 
 /// Input for linking a guest to a user

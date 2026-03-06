@@ -51,6 +51,7 @@ pub async fn get_guests_handler(
                 guest_type,
                 tourism_type,
                 COALESCE(discount_percentage, 0) as discount_percentage,
+                company_name,
                 COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
                 created_at,
                 updated_at
@@ -107,14 +108,15 @@ pub async fn create_guest_handler(
 
     let guest = sqlx::query_as::<_, Guest>(
         r#"
-        INSERT INTO guests (full_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, guest_type, tourism_type, discount_percentage, created_by)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        INSERT INTO guests (full_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, guest_type, tourism_type, discount_percentage, company_name, created_by)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country,
                   NULL::TEXT as title, NULL::TEXT as alt_phone,
                   true as is_active,
                   guest_type,
                   tourism_type,
                   COALESCE(discount_percentage, 0) as discount_percentage,
+                  company_name,
                   COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
                   created_at, updated_at
         "#
@@ -134,6 +136,7 @@ pub async fn create_guest_handler(
     .bind(&guest_type)
     .bind(&input.tourism_type)
     .bind(discount_percentage)
+    .bind(&input.company_name)
     .bind(user_id)
     .fetch_one(&pool)
     .await
@@ -160,8 +163,8 @@ pub async fn update_guest_handler(
     Json(input): Json<GuestUpdateInput>,
 ) -> Result<Json<Guest>, ApiError> {
     // Get basic existing guest data (limited tuple to avoid FromRow size limit)
-    let existing_basic: Option<(i64, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT id, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, title, alt_phone FROM guests WHERE id = $1 AND deleted_at IS NULL"
+    let existing_basic: Option<(i64, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT id, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, title, alt_phone, company_name FROM guests WHERE id = $1 AND deleted_at IS NULL"
     )
     .bind(guest_id)
     .fetch_optional(&pool)
@@ -180,7 +183,7 @@ pub async fn update_guest_handler(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Extract existing values
-    let (_, existing_first_name, existing_last_name, existing_email, existing_phone, existing_ic_number, existing_nationality, existing_address_line1, existing_city, existing_state_province, existing_postal_code, existing_country, existing_title, existing_alt_phone) = existing_basic;
+    let (_, existing_first_name, existing_last_name, existing_email, existing_phone, existing_ic_number, existing_nationality, existing_address_line1, existing_city, existing_state_province, existing_postal_code, existing_country, existing_title, existing_alt_phone, existing_company_name) = existing_basic;
 
     // Apply updates, falling back to existing values
     let first_name = input.first_name.unwrap_or(existing_first_name);
@@ -213,6 +216,11 @@ pub async fn update_guest_handler(
     let guest_type = input.guest_type.unwrap_or(existing_guest_type);
     let tourism_type = input.tourism_type.or(existing_tourism_type);
     let discount_percentage = input.discount_percentage.unwrap_or(existing_discount_percentage);
+    let company_name = match input.company_name {
+        Some(ref c) if c.trim().is_empty() => None,
+        Some(c) => Some(c),
+        None => existing_company_name,
+    };
 
     // Compute full_name from first_name and last_name
     let full_name = format!("{} {}", first_name.trim(), last_name.trim()).trim().to_string();
@@ -237,9 +245,10 @@ pub async fn update_guest_handler(
             guest_type = $15,
             tourism_type = $16,
             discount_percentage = $17,
+            company_name = $18,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $18
-        RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, guest_type, tourism_type, COALESCE(discount_percentage, 0) as discount_percentage, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at
+        WHERE id = $19
+        RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country, title, alt_phone, true as is_active, guest_type, tourism_type, COALESCE(discount_percentage, 0) as discount_percentage, company_name, COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit, created_at, updated_at
         "#
     )
     .bind(&full_name)
@@ -259,6 +268,7 @@ pub async fn update_guest_handler(
     .bind(&guest_type)
     .bind(&tourism_type)
     .bind(discount_percentage)
+    .bind(&company_name)
     .bind(guest_id)
     .fetch_one(&pool)
     .await

@@ -103,6 +103,7 @@ const GuestConfigurationPage: React.FC = () => {
     state_province: '',
     postal_code: '',
     country: '',
+    company_name: '',
     guest_type: 'non_member',
     tourism_type: undefined,
     discount_percentage: 0,
@@ -171,6 +172,7 @@ const GuestConfigurationPage: React.FC = () => {
       state_province: '',
       postal_code: '',
       country: '',
+      company_name: '',
       guest_type: 'non_member',
       tourism_type: undefined,
       discount_percentage: 0,
@@ -198,6 +200,7 @@ const GuestConfigurationPage: React.FC = () => {
       state_province: guest.state_province || '',
       postal_code: guest.postal_code || '',
       country: guest.country || '',
+      company_name: guest.company_name || '',
       guest_type: guest.guest_type || 'non_member',
       tourism_type: guest.tourism_type,
       discount_percentage: guest.discount_percentage || 0,
@@ -264,6 +267,7 @@ const GuestConfigurationPage: React.FC = () => {
         state_province: formData.state_province?.trim() || undefined,
         postal_code: formData.postal_code?.trim() || undefined,
         country: formData.country?.trim() || undefined,
+        company_name: formData.company_name?.trim() || undefined,
       };
       await HotelAPIService.createGuest(sanitizedData);
       setSnackbarMessage('Guest created successfully');
@@ -502,6 +506,7 @@ const GuestConfigurationPage: React.FC = () => {
                 <TableCell>Email</TableCell>
                 <TableCell>Phone</TableCell>
                 <TableCell>IC Number</TableCell>
+                <TableCell>Company</TableCell>
                 <TableCell>Discount</TableCell>
                 <TableCell>Free Gift Credits</TableCell>
                 <TableCell align="right">Actions</TableCell>
@@ -552,6 +557,7 @@ const GuestConfigurationPage: React.FC = () => {
                   <TableCell>{guest.email || '-'}</TableCell>
                   <TableCell>{guest.phone || '-'}</TableCell>
                   <TableCell>{guest.ic_number || '-'}</TableCell>
+                  <TableCell>{guest.company_name || '-'}</TableCell>
                   <TableCell>
                     {guest.discount_percentage && guest.discount_percentage > 0 ? (
                       <Chip
@@ -666,6 +672,14 @@ const GuestConfigurationPage: React.FC = () => {
                 label="Nationality"
                 value={formData.nationality}
                 onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Company Name"
+                value={formData.company_name}
+                onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
               />
             </Grid>
             <Grid item xs={12}>
@@ -891,6 +905,14 @@ const GuestConfigurationPage: React.FC = () => {
                 label="Nationality"
                 value={formData.nationality}
                 onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Company Name"
+                value={formData.company_name}
+                onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
               />
             </Grid>
             <Grid item xs={12}>
