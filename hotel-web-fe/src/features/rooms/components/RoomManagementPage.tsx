@@ -1547,6 +1547,7 @@ const RoomManagementPage: React.FC = () => {
   };
 
   const handleEditNotes = (room: Room) => {
+    console.log('Opening notes dialog for room:', { roomId: room.id, roomNumber: room.room_number, existingNotes: room.notes });
     setSelectedRoom(room);
     setEditingNotes(room.notes || '');
     setNotesDialogOpen(true);
@@ -1557,11 +1558,14 @@ const RoomManagementPage: React.FC = () => {
     if (!selectedRoom) return;
     setSavingNotes(true);
     try {
-      await HotelAPIService.updateRoom(selectedRoom.id, { notes: editingNotes || '' } as Partial<Room>);
+      console.log('Saving notes:', { roomId: selectedRoom.id, notes: editingNotes });
+      const updatedRoom = await HotelAPIService.updateRoom(selectedRoom.id, { notes: editingNotes || '' } as Partial<Room>);
+      console.log('Updated room response:', updatedRoom);
       showSnackbar('Room notes updated', 'success');
       setNotesDialogOpen(false);
       loadData();
     } catch (error: any) {
+      console.error('Failed to save notes:', error);
       showSnackbar(error.message || 'Failed to update notes', 'error');
     } finally {
       setSavingNotes(false);
@@ -3617,6 +3621,14 @@ const RoomManagementPage: React.FC = () => {
                 >
                   {rooms
                     .filter(r => r.status === 'available' && r.id !== selectedRoom?.id)
+                    .sort((a, b) => {
+                      const numA = parseInt(a.room_number, 10);
+                      const numB = parseInt(b.room_number, 10);
+                      if (!isNaN(numA) && !isNaN(numB)) {
+                        return numA - numB;
+                      }
+                      return a.room_number.localeCompare(b.room_number);
+                    })
                     .map((room) => (
                       <MenuItem key={room.id} value={room.id}>
                         Room {room.room_number} - {room.room_type} ({currencySymbol}{room.price_per_night}/night)
@@ -4802,11 +4814,20 @@ const RoomManagementPage: React.FC = () => {
                             }}
                             label="Select Room"
                           >
-                            {availableRoomsForCredits.map((room) => (
-                              <MenuItem key={room.id} value={room.id.toString()}>
-                                Room {room.room_number} - {room.room_type}
-                              </MenuItem>
-                            ))}
+                            {[...availableRoomsForCredits]
+                              .sort((a, b) => {
+                                const numA = parseInt(a.room_number, 10);
+                                const numB = parseInt(b.room_number, 10);
+                                if (!isNaN(numA) && !isNaN(numB)) {
+                                  return numA - numB;
+                                }
+                                return a.room_number.localeCompare(b.room_number);
+                              })
+                              .map((room) => (
+                                <MenuItem key={room.id} value={room.id.toString()}>
+                                  Room {room.room_number} - {room.room_type}
+                                </MenuItem>
+                              ))}
                           </Select>
                         </FormControl>
                       </Grid>

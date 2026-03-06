@@ -30,6 +30,23 @@ export interface UnpostedBooking {
   source: string | null;
 }
 
+export interface JournalEntry {
+  booking_number: string;
+  room_number: string;
+  entry_type: string;
+  debit: number;
+  credit: number;
+  description: string | null;
+}
+
+export interface JournalSection {
+  entry_type: string;
+  display_name: string;
+  entries: JournalEntry[];
+  total_debit: number;
+  total_credit: number;
+}
+
 export interface NightAuditPreview {
   audit_date: string;
   can_run: boolean;
@@ -40,6 +57,7 @@ export interface NightAuditPreview {
   room_snapshot: RoomSnapshot;
   payment_method_breakdown: RevenueBreakdownItem[];
   booking_channel_breakdown: RevenueBreakdownItem[];
+  journal_sections: JournalSection[];
 }
 
 export interface NightAuditRun {
@@ -73,6 +91,7 @@ export interface NightAuditResponse {
 export interface RunNightAuditRequest {
   audit_date: string;
   notes?: string;
+  force?: boolean;
 }
 
 export interface BookingPostedStatus {
@@ -100,6 +119,7 @@ export interface PostedBookingDetail {
 export interface AuditDetailsResponse {
   audit_run: NightAuditRun;
   posted_bookings: PostedBookingDetail[];
+  journal_sections: JournalSection[];
 }
 
 export class NightAuditService {

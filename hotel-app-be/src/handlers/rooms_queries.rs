@@ -330,7 +330,7 @@ pub const GET_ROOM_BY_ID_QUERY: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type,
        COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
        CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
-       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at
+       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 WHERE r.id = $1
@@ -342,7 +342,7 @@ pub const GET_ROOM_BY_ID_QUERY: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type,
        CAST(COALESCE(r.custom_price, rt.base_price) AS TEXT) as price_per_night,
        CASE WHEN r.status IN ('available', 'cleaning') THEN 1 ELSE 0 END as available,
-       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at
+       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 WHERE r.id = ?1

@@ -113,6 +113,7 @@ pub async fn create_booking_handler(
         status: row.get(7),
         created_at: row.get(8),
         updated_at: row.get(9),
+        notes: None,
     };
 
     // Only block rooms that are under maintenance or out of order
@@ -709,10 +710,10 @@ pub async fn update_booking_handler(
             }
             "checked_out" | "completed" => {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let _ = sqlx::query("UPDATE rooms SET status = 'cleaning' WHERE id = ?1")
+                let _ = sqlx::query("UPDATE rooms SET status = 'dirty' WHERE id = ?1")
                     .bind(new_room_id).execute(&pool).await;
                 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-                let _ = sqlx::query("UPDATE rooms SET status = 'cleaning' WHERE id = $1")
+                let _ = sqlx::query("UPDATE rooms SET status = 'dirty' WHERE id = $1")
                     .bind(new_room_id).execute(&pool).await;
             }
             "checked_in" | "auto_checked_in" => {

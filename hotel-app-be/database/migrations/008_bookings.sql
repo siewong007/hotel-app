@@ -539,10 +539,8 @@ DECLARE
     v_occupancy_rate DECIMAL(5, 2) := 0;
     v_booking RECORD;
 BEGIN
-    -- Check if audit already run for this date
-    IF EXISTS (SELECT 1 FROM night_audit_runs WHERE audit_date = p_audit_date AND status = 'completed') THEN
-        RAISE EXCEPTION 'Night audit already completed for date %', p_audit_date;
-    END IF;
+    -- Note: The handler now checks for already-run audits and handles force rerun
+    -- This function assumes the caller has already handled the "already completed" check
 
     -- Create audit run record
     INSERT INTO night_audit_runs (audit_date, run_by, status)
@@ -551,10 +549,12 @@ BEGIN
 
     -- Post checked_in bookings active on this date,
     -- plus checked_out bookings that checked in on this date (same-day checkout)
+    -- Explicitly exclude pending, confirmed, cancelled, no_show statuses
     FOR v_booking IN
         SELECT b.id, b.status, b.total_amount, b.check_in_date, b.check_out_date
         FROM bookings b
         WHERE b.is_posted = FALSE
+        AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show')
         AND (
             (b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= p_audit_date AND b.check_out_date > p_audit_date)
             OR (b.status = 'checked_out' AND b.check_in_date = p_audit_date)

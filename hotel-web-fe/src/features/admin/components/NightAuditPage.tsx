@@ -45,7 +45,7 @@ import {
   PictureAsPdf as PdfIcon,
   TableChart as CsvIcon,
 } from '@mui/icons-material';
-import { NightAuditService, NightAuditPreview, NightAuditRun, UnpostedBooking } from '../../../api';
+import { NightAuditService, NightAuditPreview, NightAuditRun, UnpostedBooking, JournalSection, AuditDetailsResponse } from '../../../api';
 import { formatCurrency } from '../../../utils/currency';
 
 interface TabPanelProps {
@@ -60,6 +60,138 @@ function TabPanel(props: TabPanelProps) {
     <div hidden={value !== index} {...other}>
       {value === index && <Box sx={{ pt: 2 }}>{children}</Box>}
     </div>
+  );
+}
+
+// Journal Sections Display Component
+interface JournalSectionsDisplayProps {
+  sections: JournalSection[];
+}
+
+function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps) {
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+
+  const toggleSection = (entryType: string) => {
+    setExpandedSections(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(entryType)) {
+        newSet.delete(entryType);
+      } else {
+        newSet.add(entryType);
+      }
+      return newSet;
+    });
+  };
+
+  if (!sections || sections.length === 0) {
+    return null;
+  }
+
+  // Calculate grand totals
+  const grandTotalDebit = sections.reduce((sum, s) => sum + Number(s.total_debit), 0);
+  const grandTotalCredit = sections.reduce((sum, s) => sum + Number(s.total_credit), 0);
+
+  return (
+    <Box sx={{ mt: 3 }}>
+      <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 'bold' }}>
+        Journal Entries
+      </Typography>
+
+      {sections.map((section) => (
+        <Paper key={section.entry_type} variant="outlined" sx={{ mb: 2 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              p: 1.5,
+              cursor: 'pointer',
+              bgcolor: 'grey.50',
+              '&:hover': { bgcolor: 'grey.100' },
+            }}
+            onClick={() => toggleSection(section.entry_type)}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <IconButton size="small">
+                {expandedSections.has(section.entry_type) ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              </IconButton>
+              <Typography variant="subtitle2" fontWeight="bold">
+                {section.display_name}
+              </Typography>
+              <Chip label={`${section.entries.length} entries`} size="small" variant="outlined" />
+            </Box>
+            <Box sx={{ display: 'flex', gap: 3 }}>
+              {Number(section.total_debit) > 0 && (
+                <Typography variant="body2" color="error.main">
+                  <strong>Debit:</strong> {formatCurrency(Number(section.total_debit))}
+                </Typography>
+              )}
+              {Number(section.total_credit) > 0 && (
+                <Typography variant="body2" color="success.main">
+                  <strong>Credit:</strong> {formatCurrency(Number(section.total_credit))}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+
+          <Collapse in={expandedSections.has(section.entry_type)}>
+            <Divider />
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                    <TableCell><strong>Booking #</strong></TableCell>
+                    <TableCell><strong>Room</strong></TableCell>
+                    <TableCell><strong>Description</strong></TableCell>
+                    <TableCell align="right"><strong>Debit</strong></TableCell>
+                    <TableCell align="right"><strong>Credit</strong></TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {section.entries.map((entry, idx) => (
+                    <TableRow key={`${entry.booking_number}-${idx}`} hover>
+                      <TableCell>{entry.booking_number}</TableCell>
+                      <TableCell>{entry.room_number}</TableCell>
+                      <TableCell>{entry.description || '-'}</TableCell>
+                      <TableCell align="right">
+                        {Number(entry.debit) > 0 ? formatCurrency(Number(entry.debit)) : '-'}
+                      </TableCell>
+                      <TableCell align="right">
+                        {Number(entry.credit) > 0 ? formatCurrency(Number(entry.credit)) : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow sx={{ bgcolor: 'grey.100' }}>
+                    <TableCell colSpan={3}><strong>Total</strong></TableCell>
+                    <TableCell align="right">
+                      <strong>{Number(section.total_debit) > 0 ? formatCurrency(Number(section.total_debit)) : '-'}</strong>
+                    </TableCell>
+                    <TableCell align="right">
+                      <strong>{Number(section.total_credit) > 0 ? formatCurrency(Number(section.total_credit)) : '-'}</strong>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Collapse>
+        </Paper>
+      ))}
+
+      {/* Grand Total */}
+      <Paper variant="outlined" sx={{ p: 2, bgcolor: 'primary.light' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="subtitle1" fontWeight="bold">Grand Total</Typography>
+          <Box sx={{ display: 'flex', gap: 4 }}>
+            <Typography variant="body1">
+              <strong>Total Debit:</strong> {formatCurrency(grandTotalDebit)}
+            </Typography>
+            <Typography variant="body1">
+              <strong>Total Credit:</strong> {formatCurrency(grandTotalCredit)}
+            </Typography>
+          </Box>
+        </Box>
+      </Paper>
+    </Box>
   );
 }
 
@@ -85,7 +217,13 @@ const NightAuditPage: React.FC = () => {
   // Expanded rows in history
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
-  const toggleRowExpansion = (auditId: number) => {
+  // Audit details for journal sections (fetched when needed)
+  const [auditDetails, setAuditDetails] = useState<Record<number, AuditDetailsResponse>>({});
+  const [detailsLoading, setDetailsLoading] = useState<Set<number>>(new Set());
+
+  const toggleRowExpansion = async (auditId: number) => {
+    const isExpanding = !expandedRows.has(auditId);
+
     setExpandedRows(prev => {
       const newSet = new Set(prev);
       if (newSet.has(auditId)) {
@@ -95,6 +233,23 @@ const NightAuditPage: React.FC = () => {
       }
       return newSet;
     });
+
+    // Fetch audit details if expanding and not already loaded
+    if (isExpanding && !auditDetails[auditId] && !detailsLoading.has(auditId)) {
+      setDetailsLoading(prev => new Set(prev).add(auditId));
+      try {
+        const details = await NightAuditService.getAuditDetails(auditId);
+        setAuditDetails(prev => ({ ...prev, [auditId]: details }));
+      } catch (err) {
+        console.error('Failed to fetch audit details:', err);
+      } finally {
+        setDetailsLoading(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(auditId);
+          return newSet;
+        });
+      }
+    }
   };
 
   // Export single audit to CSV with booking details
@@ -120,7 +275,6 @@ const NightAuditPage: React.FC = () => {
       lines.push(`Bookings Posted,${audit.total_bookings_posted}`);
       lines.push(`Check-ins,${audit.total_checkins}`);
       lines.push(`Check-outs,${audit.total_checkouts}`);
-      lines.push(`Total Revenue,${formatCurrency(audit.total_revenue)}`);
       lines.push(`Occupancy Rate,${Number(audit.occupancy_rate).toFixed(1)}%`);
       if (audit.notes) {
         lines.push(`Notes,"${audit.notes.replace(/"/g, '""')}"`);
@@ -129,7 +283,7 @@ const NightAuditPage: React.FC = () => {
 
       // Booking details
       lines.push('POSTED BOOKINGS');
-      lines.push('Booking #,Guest Name,Room,Room Type,Check-in,Check-out,Nights,Status,Amount,Payment Method,Payment Status,Channel');
+      lines.push('Booking #,Guest Name,Room,Room Type,Check-in,Check-out,Nights,Status,Payment Method,Payment Status,Channel');
 
       bookings.forEach(booking => {
         lines.push([
@@ -141,7 +295,6 @@ const NightAuditPage: React.FC = () => {
           new Date(booking.check_out_date + 'T00:00:00').toLocaleDateString(),
           booking.nights,
           booking.status,
-          formatCurrency(booking.total_amount),
           booking.payment_method || 'N/A',
           booking.payment_status || 'N/A',
           booking.source || 'N/A'
@@ -150,7 +303,36 @@ const NightAuditPage: React.FC = () => {
 
       lines.push('');
       lines.push(`Total Bookings,${bookings.length}`);
-      lines.push(`Total Revenue,${formatCurrency(bookings.reduce((sum, b) => sum + Number(b.total_amount), 0))}`);
+
+      // Journal Sections
+      if (details.journal_sections && details.journal_sections.length > 0) {
+        lines.push('');
+        lines.push('JOURNAL ENTRIES');
+
+        details.journal_sections.forEach(section => {
+          lines.push('');
+          lines.push(`${section.display_name.toUpperCase()}`);
+          lines.push('Booking #,Room,Description,Debit,Credit');
+
+          section.entries.forEach(entry => {
+            lines.push([
+              entry.booking_number,
+              entry.room_number,
+              `"${(entry.description || '').replace(/"/g, '""')}"`,
+              Number(entry.debit) > 0 ? Number(entry.debit).toFixed(2) : '',
+              Number(entry.credit) > 0 ? Number(entry.credit).toFixed(2) : ''
+            ].join(','));
+          });
+
+          lines.push(`Total,,, ${Number(section.total_debit) > 0 ? Number(section.total_debit).toFixed(2) : ''}, ${Number(section.total_credit) > 0 ? Number(section.total_credit).toFixed(2) : ''}`);
+        });
+
+        // Grand totals
+        const grandDebit = details.journal_sections.reduce((sum, s) => sum + Number(s.total_debit), 0);
+        const grandCredit = details.journal_sections.reduce((sum, s) => sum + Number(s.total_credit), 0);
+        lines.push('');
+        lines.push(`GRAND TOTAL,,, ${grandDebit.toFixed(2)}, ${grandCredit.toFixed(2)}`);
+      }
 
       const csvContent = lines.join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -208,7 +390,6 @@ const NightAuditPage: React.FC = () => {
         `Bookings Posted: ${audit.total_bookings_posted}`,
         `Check-ins: ${audit.total_checkins}`,
         `Check-outs: ${audit.total_checkouts}`,
-        `Total Revenue: ${formatCurrency(audit.total_revenue)}`,
         `Occupancy Rate: ${Number(audit.occupancy_rate).toFixed(1)}%`,
       ];
       doc.text(stats.join('    |    '), 14, 52);
@@ -239,28 +420,17 @@ const NightAuditPage: React.FC = () => {
         new Date(booking.check_out_date + 'T00:00:00').toLocaleDateString(),
         booking.nights.toString(),
         booking.status.replace(/_/g, ' '),
-        formatCurrency(booking.total_amount),
         booking.payment_method?.replace(/_/g, ' ') || '-',
         booking.payment_status || '-',
         booking.source || '-',
       ]);
 
-      // Add total row
-      const totalAmount = bookings.reduce((sum, b) => sum + Number(b.total_amount), 0);
-      tableData.push(['', '', '', '', '', '', '', 'TOTAL:', formatCurrency(totalAmount), '', '', '']);
-
       autoTable(doc, {
         startY: 88,
-        head: [['Booking #', 'Guest', 'Room', 'Type', 'Check-in', 'Check-out', 'Nights', 'Status', 'Amount', 'Payment', 'Pay Status', 'Channel']],
+        head: [['Booking #', 'Guest', 'Room', 'Type', 'Check-in', 'Check-out', 'Nights', 'Status', 'Payment', 'Pay Status', 'Channel']],
         body: tableData,
         styles: { fontSize: 7, cellPadding: 2 },
         headStyles: { fillColor: [66, 66, 66], textColor: [255, 255, 255] },
-        didParseCell: (data: any) => {
-          if (data.row.index === tableData.length - 1) {
-            data.cell.styles.fontStyle = 'bold';
-            data.cell.styles.fillColor = [240, 240, 240];
-          }
-        },
       });
 
       let currentY = (doc as any).lastAutoTable.finalY + 10;
@@ -278,6 +448,69 @@ const NightAuditPage: React.FC = () => {
         doc.setTextColor(80, 80, 80);
         const splitNotes = doc.splitTextToSize(audit.notes, pageWidth - 28);
         doc.text(splitNotes, 14, currentY + 6);
+        currentY += splitNotes.length * 5 + 10;
+      }
+
+      // Journal Sections
+      if (details.journal_sections && details.journal_sections.length > 0) {
+        if (currentY > pageHeight - 60) {
+          doc.addPage();
+          currentY = 20;
+        }
+
+        doc.setFontSize(14);
+        doc.setTextColor(25, 118, 210);
+        doc.text('Journal Entries', 14, currentY);
+        currentY += 10;
+
+        for (const section of details.journal_sections) {
+          if (currentY > pageHeight - 50) {
+            doc.addPage();
+            currentY = 20;
+          }
+
+          doc.setFontSize(11);
+          doc.setTextColor(0, 0, 0);
+          doc.text(section.display_name, 14, currentY);
+          currentY += 4;
+
+          const journalData = section.entries.map(entry => [
+            entry.booking_number,
+            entry.room_number,
+            entry.description || '-',
+            Number(entry.debit) > 0 ? Number(entry.debit).toFixed(2) : '-',
+            Number(entry.credit) > 0 ? Number(entry.credit).toFixed(2) : '-',
+          ]);
+
+          // Add total row
+          journalData.push([
+            'Total', '', '',
+            Number(section.total_debit) > 0 ? Number(section.total_debit).toFixed(2) : '-',
+            Number(section.total_credit) > 0 ? Number(section.total_credit).toFixed(2) : '-',
+          ]);
+
+          autoTable(doc, {
+            startY: currentY,
+            head: [['Booking #', 'Room', 'Description', 'Debit', 'Credit']],
+            body: journalData,
+            styles: { fontSize: 7, cellPadding: 2 },
+            headStyles: { fillColor: [100, 100, 100], textColor: [255, 255, 255] },
+            columnStyles: {
+              3: { halign: 'right' },
+              4: { halign: 'right' },
+            },
+          });
+
+          currentY = (doc as any).lastAutoTable.finalY + 8;
+        }
+
+        // Grand totals
+        const grandDebit = details.journal_sections.reduce((sum, s) => sum + Number(s.total_debit), 0);
+        const grandCredit = details.journal_sections.reduce((sum, s) => sum + Number(s.total_credit), 0);
+
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Grand Total - Debit: ${grandDebit.toFixed(2)}   |   Credit: ${grandCredit.toFixed(2)}`, 14, currentY);
       }
 
       // Footer on all pages
@@ -338,7 +571,7 @@ const NightAuditPage: React.FC = () => {
   }, [fetchHistory]);
 
   // Run night audit
-  const handleRunAudit = async () => {
+  const handleRunAudit = async (force: boolean = false) => {
     try {
       setRunning(true);
       setError(null);
@@ -347,9 +580,10 @@ const NightAuditPage: React.FC = () => {
       const response = await NightAuditService.runNightAudit({
         audit_date: auditDate,
         notes: auditNotes || undefined,
+        force,
       });
 
-      setSuccess(response.message);
+      setSuccess(force ? 'Night audit rerun successfully' : response.message);
       setAuditNotes('');
 
       // Refresh data
@@ -359,6 +593,14 @@ const NightAuditPage: React.FC = () => {
     } finally {
       setRunning(false);
     }
+  };
+
+  // Rerun night audit (for already completed audits)
+  const handleRerunAudit = async () => {
+    if (!window.confirm('Are you sure you want to rerun the night audit? This will reset the previous audit data for this date.')) {
+      return;
+    }
+    await handleRunAudit(true);
   };
 
   const getStatusChip = (status: string) => {
@@ -502,31 +744,25 @@ const NightAuditPage: React.FC = () => {
 
                         {/* Summary Row */}
                         <Grid container spacing={2} sx={{ mb: 3 }}>
-                          <Grid item xs={6} sm={2.4}>
+                          <Grid item xs={6} sm={3}>
                             <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
                               <Typography variant="h4" fontWeight="bold">{completedAudit.total_bookings_posted}</Typography>
                               <Typography variant="body2">Bookings Posted</Typography>
                             </Box>
                           </Grid>
-                          <Grid item xs={6} sm={2.4}>
-                            <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'success.light', borderRadius: 1 }}>
-                              <Typography variant="h4" fontWeight="bold">{formatCurrency(completedAudit.total_revenue)}</Typography>
-                              <Typography variant="body2">Total Revenue</Typography>
-                            </Box>
-                          </Grid>
-                          <Grid item xs={6} sm={2.4}>
+                          <Grid item xs={6} sm={3}>
                             <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
                               <Typography variant="h4" fontWeight="bold">{completedAudit.total_checkins}</Typography>
                               <Typography variant="body2">Check-ins</Typography>
                             </Box>
                           </Grid>
-                          <Grid item xs={6} sm={2.4}>
+                          <Grid item xs={6} sm={3}>
                             <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
                               <Typography variant="h4" fontWeight="bold">{completedAudit.total_checkouts}</Typography>
                               <Typography variant="body2">Check-outs</Typography>
                             </Box>
                           </Grid>
-                          <Grid item xs={6} sm={2.4}>
+                          <Grid item xs={6} sm={3}>
                             <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.200', borderRadius: 1 }}>
                               <Typography variant="h4" fontWeight="bold">{Number(completedAudit.occupancy_rate).toFixed(0)}%</Typography>
                               <Typography variant="body2">Occupancy</Typography>
@@ -544,8 +780,40 @@ const NightAuditPage: React.FC = () => {
                           <Chip label={`${completedAudit.rooms_dirty} Dirty`} variant="outlined" />
                         </Box>
 
-                        {/* Export Buttons */}
-                        <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+                        {/* Journal Sections for completed audit */}
+                        {detailsLoading.has(completedAudit.id) ? (
+                          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                            <CircularProgress size={24} />
+                            <Typography variant="body2" sx={{ ml: 1 }}>Loading journal entries...</Typography>
+                          </Box>
+                        ) : auditDetails[completedAudit.id]?.journal_sections && auditDetails[completedAudit.id].journal_sections.length > 0 ? (
+                          <JournalSectionsDisplay sections={auditDetails[completedAudit.id].journal_sections} />
+                        ) : !auditDetails[completedAudit.id] ? (
+                          <Button
+                            variant="text"
+                            size="small"
+                            onClick={async () => {
+                              setDetailsLoading(prev => new Set(prev).add(completedAudit.id));
+                              try {
+                                const details = await NightAuditService.getAuditDetails(completedAudit.id);
+                                setAuditDetails(prev => ({ ...prev, [completedAudit.id]: details }));
+                              } catch (err) {
+                                console.error('Failed to fetch audit details:', err);
+                              } finally {
+                                setDetailsLoading(prev => {
+                                  const newSet = new Set(prev);
+                                  newSet.delete(completedAudit.id);
+                                  return newSet;
+                                });
+                              }
+                            }}
+                          >
+                            Load Journal Entries
+                          </Button>
+                        ) : null}
+
+                        {/* Export and Rerun Buttons */}
+                        <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
                           <Button
                             size="small"
                             variant="outlined"
@@ -562,6 +830,16 @@ const NightAuditPage: React.FC = () => {
                           >
                             Export CSV
                           </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="warning"
+                            startIcon={<RefreshIcon />}
+                            onClick={handleRerunAudit}
+                            disabled={running}
+                          >
+                            {running ? 'Rerunning...' : 'Rerun Audit'}
+                          </Button>
                         </Box>
                       </>
                     );
@@ -573,31 +851,25 @@ const NightAuditPage: React.FC = () => {
                 <>
                   {/* Summary Row */}
                   <Grid container spacing={2} sx={{ mb: 3 }}>
-                    <Grid item xs={6} sm={2.4}>
+                    <Grid item xs={6} sm={3}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
                         <Typography variant="h4" fontWeight="bold">{preview.total_unposted}</Typography>
                         <Typography variant="body2">Bookings to Post</Typography>
                       </Box>
                     </Grid>
-                    <Grid item xs={6} sm={2.4}>
-                      <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'success.light', borderRadius: 1 }}>
-                        <Typography variant="h4" fontWeight="bold">{formatCurrency(preview.estimated_revenue)}</Typography>
-                        <Typography variant="body2">Estimated Revenue</Typography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={6} sm={2.4}>
+                    <Grid item xs={6} sm={3}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
                         <Typography variant="h4" fontWeight="bold">{preview.room_snapshot.occupied}</Typography>
                         <Typography variant="body2">Occupied Rooms</Typography>
                       </Box>
                     </Grid>
-                    <Grid item xs={6} sm={2.4}>
+                    <Grid item xs={6} sm={3}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
                         <Typography variant="h4" fontWeight="bold">{preview.room_snapshot.available}</Typography>
                         <Typography variant="body2">Available Rooms</Typography>
                       </Box>
                     </Grid>
-                    <Grid item xs={6} sm={2.4}>
+                    <Grid item xs={6} sm={3}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.200', borderRadius: 1 }}>
                         <Typography variant="h4" fontWeight="bold">
                           {preview.room_snapshot.total > 0
@@ -614,45 +886,43 @@ const NightAuditPage: React.FC = () => {
                     Bookings to be Posted ({preview.unposted_bookings.length})
                   </Typography>
                   {preview.unposted_bookings.length > 0 ? (
-                    <TableContainer component={Paper} variant="outlined">
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow sx={{ bgcolor: 'grey.100' }}>
-                            <TableCell><strong>Booking #</strong></TableCell>
-                            <TableCell><strong>Guest</strong></TableCell>
-                            <TableCell><strong>Room</strong></TableCell>
-                            <TableCell><strong>Check-in</strong></TableCell>
-                            <TableCell><strong>Check-out</strong></TableCell>
-                            <TableCell><strong>Status</strong></TableCell>
-                            <TableCell><strong>Channel</strong></TableCell>
-                            <TableCell align="right"><strong>Amount</strong></TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {preview.unposted_bookings.map((booking: UnpostedBooking) => (
-                            <TableRow key={booking.booking_id} hover>
-                              <TableCell>{booking.booking_number}</TableCell>
-                              <TableCell>{booking.guest_name}</TableCell>
-                              <TableCell>{booking.room_number}</TableCell>
-                              <TableCell>{new Date(booking.check_in_date).toLocaleDateString()}</TableCell>
-                              <TableCell>{new Date(booking.check_out_date).toLocaleDateString()}</TableCell>
-                              <TableCell>{getBookingStatusChip(booking.status)}</TableCell>
-                              <TableCell sx={{ textTransform: 'capitalize' }}>
-                                {booking.source?.replace(/_/g, ' ') || '-'}
-                              </TableCell>
-                              <TableCell align="right">{formatCurrency(booking.total_amount)}</TableCell>
+                    <>
+                      <TableContainer component={Paper} variant="outlined">
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow sx={{ bgcolor: 'grey.100' }}>
+                              <TableCell><strong>Booking #</strong></TableCell>
+                              <TableCell><strong>Guest</strong></TableCell>
+                              <TableCell><strong>Room</strong></TableCell>
+                              <TableCell><strong>Check-in</strong></TableCell>
+                              <TableCell><strong>Check-out</strong></TableCell>
+                              <TableCell><strong>Status</strong></TableCell>
+                              <TableCell><strong>Channel</strong></TableCell>
                             </TableRow>
-                          ))}
-                          {/* Total Row */}
-                          <TableRow sx={{ bgcolor: 'grey.50' }}>
-                            <TableCell colSpan={7} align="right"><strong>Total Revenue:</strong></TableCell>
-                            <TableCell align="right">
-                              <strong>{formatCurrency(preview.estimated_revenue)}</strong>
-                            </TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
+                          </TableHead>
+                          <TableBody>
+                            {preview.unposted_bookings.map((booking: UnpostedBooking) => (
+                              <TableRow key={booking.booking_id} hover>
+                                <TableCell>{booking.booking_number}</TableCell>
+                                <TableCell>{booking.guest_name}</TableCell>
+                                <TableCell>{booking.room_number}</TableCell>
+                                <TableCell>{new Date(booking.check_in_date).toLocaleDateString()}</TableCell>
+                                <TableCell>{new Date(booking.check_out_date).toLocaleDateString()}</TableCell>
+                                <TableCell>{getBookingStatusChip(booking.status)}</TableCell>
+                                <TableCell sx={{ textTransform: 'capitalize' }}>
+                                  {booking.source?.replace(/_/g, ' ') || '-'}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+
+                      {/* Journal Sections */}
+                      {preview.journal_sections && preview.journal_sections.length > 0 && (
+                        <JournalSectionsDisplay sections={preview.journal_sections} />
+                      )}
+                    </>
                   ) : (
                     <Alert severity="info">No bookings to post for this date.</Alert>
                   )}
@@ -717,10 +987,6 @@ const NightAuditPage: React.FC = () => {
                       <Typography variant="caption" color="text.secondary">Bookings</Typography>
                     </Box>
                     <Box sx={{ textAlign: 'center' }}>
-                      <Typography variant="h5" color="success.main">{formatCurrency(audit.total_revenue)}</Typography>
-                      <Typography variant="caption" color="text.secondary">Revenue</Typography>
-                    </Box>
-                    <Box sx={{ textAlign: 'center' }}>
                       <Typography variant="h5" color="info.main">{Number(audit.occupancy_rate).toFixed(0)}%</Typography>
                       <Typography variant="caption" color="text.secondary">Occupancy</Typography>
                     </Box>
@@ -740,7 +1006,7 @@ const NightAuditPage: React.FC = () => {
                       Booking Statistics
                     </Typography>
                     <Grid container spacing={2} sx={{ mb: 3 }}>
-                      <Grid item xs={6} sm={3}>
+                      <Grid item xs={6} sm={4}>
                         <Card variant="outlined">
                           <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
                             <Typography variant="h4" color="primary">{audit.total_bookings_posted}</Typography>
@@ -748,7 +1014,7 @@ const NightAuditPage: React.FC = () => {
                           </CardContent>
                         </Card>
                       </Grid>
-                      <Grid item xs={6} sm={3}>
+                      <Grid item xs={6} sm={4}>
                         <Card variant="outlined">
                           <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
                             <Typography variant="h4" color="success.main">{audit.total_checkins}</Typography>
@@ -756,19 +1022,11 @@ const NightAuditPage: React.FC = () => {
                           </CardContent>
                         </Card>
                       </Grid>
-                      <Grid item xs={6} sm={3}>
+                      <Grid item xs={6} sm={4}>
                         <Card variant="outlined">
                           <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
                             <Typography variant="h4" color="warning.main">{audit.total_checkouts}</Typography>
                             <Typography variant="body2" color="text.secondary">Check-outs</Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      <Grid item xs={6} sm={3}>
-                        <Card variant="outlined">
-                          <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
-                            <Typography variant="h4" color="info.main">{formatCurrency(audit.total_revenue)}</Typography>
-                            <Typography variant="body2" color="text.secondary">Total Revenue</Typography>
                           </CardContent>
                         </Card>
                       </Grid>
@@ -840,6 +1098,16 @@ const NightAuditPage: React.FC = () => {
                         </Paper>
                       </Box>
                     )}
+
+                    {/* Journal Sections */}
+                    {detailsLoading.has(audit.id) ? (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                        <CircularProgress size={24} />
+                        <Typography variant="body2" sx={{ ml: 1 }}>Loading journal entries...</Typography>
+                      </Box>
+                    ) : auditDetails[audit.id]?.journal_sections && auditDetails[audit.id].journal_sections.length > 0 ? (
+                      <JournalSectionsDisplay sections={auditDetails[audit.id].journal_sections} />
+                    ) : null}
 
                     {/* Audit Info & Export Buttons */}
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
@@ -917,7 +1185,7 @@ const NightAuditPage: React.FC = () => {
           <Button
             variant="contained"
             color="primary"
-            onClick={handleRunAudit}
+            onClick={() => handleRunAudit(false)}
             disabled={running}
             startIcon={running ? <CircularProgress size={16} color="inherit" /> : <RunIcon />}
           >

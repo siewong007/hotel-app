@@ -168,6 +168,15 @@ pub struct RecordPaymentRequest {
     pub notes: Option<String>,
 }
 
+/// Update payment request
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdatePaymentRequest {
+    pub amount: Option<f64>,
+    pub payment_method: Option<String>,
+    pub transaction_reference: Option<String>,
+    pub notes: Option<String>,
+}
+
 /// Keycard deposit record
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct KeycardDeposit {

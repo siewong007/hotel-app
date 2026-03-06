@@ -115,7 +115,17 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
         return currentStatus === 'available';
       });
 
-      setAvailableRooms(filtered);
+      // Sort rooms by room number ascending
+      const sorted = [...filtered].sort((a: any, b: any) => {
+        const numA = parseInt(a.room_number, 10);
+        const numB = parseInt(b.room_number, 10);
+        if (!isNaN(numA) && !isNaN(numB)) {
+          return numA - numB;
+        }
+        return a.room_number.localeCompare(b.room_number);
+      });
+
+      setAvailableRooms(sorted);
     } catch (err: any) {
       console.error('Failed to load available rooms:', err);
     }

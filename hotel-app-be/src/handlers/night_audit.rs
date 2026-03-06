@@ -65,11 +65,34 @@ pub struct UnpostedBooking {
     pub source: Option<String>,
 }
 
+/// Journal entry for night audit
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JournalEntry {
+    pub booking_number: String,
+    pub room_number: String,
+    pub entry_type: String,  // room_charge, service_tax, cash, deposit, deposit_refund, other
+    pub debit: Decimal,
+    pub credit: Decimal,
+    pub description: Option<String>,
+}
+
+/// Journal section grouped by type
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JournalSection {
+    pub entry_type: String,
+    pub display_name: String,
+    pub entries: Vec<JournalEntry>,
+    pub total_debit: Decimal,
+    pub total_credit: Decimal,
+}
+
 /// Request to run night audit
 #[derive(Debug, Deserialize)]
 pub struct RunNightAuditRequest {
     pub audit_date: String,  // YYYY-MM-DD format
     pub notes: Option<String>,
+    #[serde(default)]
+    pub force: bool,  // If true, allow rerunning even if already completed
 }
 
 /// Query params for listing audits
@@ -99,6 +122,7 @@ pub struct NightAuditPreview {
     pub room_snapshot: RoomSnapshot,
     pub payment_method_breakdown: Vec<RevenueBreakdownItem>,
     pub booking_channel_breakdown: Vec<RevenueBreakdownItem>,
+    pub journal_sections: Vec<JournalSection>,
 }
 
 #[derive(Debug, Serialize)]
@@ -109,6 +133,181 @@ pub struct RoomSnapshot {
     pub reserved: i32,
     pub maintenance: i32,
     pub dirty: i32,
+}
+
+/// Generate journal sections from bookings and payments for a given date
+async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_posted: bool) -> Vec<JournalSection> {
+    let mut entries: Vec<JournalEntry> = Vec::new();
+
+    // Get bookings with room charges for the audit date
+    let booking_condition = if is_posted {
+        "b.posted_date = $1"
+    } else {
+        "(b.is_posted = FALSE OR b.is_posted IS NULL) AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show') AND ((b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1) OR (b.status = 'checked_out' AND b.check_in_date = $1))"
+    };
+
+    let query = format!(r#"
+        SELECT
+            b.booking_number,
+            r.room_number,
+            b.subtotal as room_charge,
+            COALESCE(b.tax_amount, 0) as service_tax,
+            b.room_card_deposit as deposit,
+            b.total_amount
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.id
+        WHERE {}
+        ORDER BY r.room_number
+    "#, booking_condition);
+
+    if let Ok(rows) = sqlx::query(&query)
+        .bind(audit_date)
+        .fetch_all(pool)
+        .await
+    {
+        for row in rows.iter() {
+            let booking_number: String = row.get("booking_number");
+            let room_number: String = row.get("room_number");
+            let room_charge: Decimal = row.get("room_charge");
+            let service_tax: Decimal = row.get("service_tax");
+            let deposit: Option<Decimal> = row.get("deposit");
+
+            // Room charge entry (debit to guest, credit to room revenue)
+            if room_charge > Decimal::ZERO {
+                entries.push(JournalEntry {
+                    booking_number: booking_number.clone(),
+                    room_number: room_number.clone(),
+                    entry_type: "room_charge".to_string(),
+                    debit: room_charge,
+                    credit: Decimal::ZERO,
+                    description: Some("Room charge".to_string()),
+                });
+            }
+
+            // Service tax entry
+            if service_tax > Decimal::ZERO {
+                entries.push(JournalEntry {
+                    booking_number: booking_number.clone(),
+                    room_number: room_number.clone(),
+                    entry_type: "service_tax".to_string(),
+                    debit: service_tax,
+                    credit: Decimal::ZERO,
+                    description: Some("Service tax".to_string()),
+                });
+            }
+
+            // Deposit entry
+            if let Some(dep) = deposit {
+                if dep > Decimal::ZERO {
+                    entries.push(JournalEntry {
+                        booking_number: booking_number.clone(),
+                        room_number: room_number.clone(),
+                        entry_type: "deposit".to_string(),
+                        debit: dep,
+                        credit: Decimal::ZERO,
+                        description: Some("Room card deposit".to_string()),
+                    });
+                }
+            }
+        }
+    }
+
+    // Get payments for bookings on the audit date
+    let payment_query = format!(r#"
+        SELECT
+            b.booking_number,
+            r.room_number,
+            p.amount,
+            p.payment_method,
+            p.payment_type,
+            p.status
+        FROM payments p
+        JOIN bookings b ON p.booking_id = b.id
+        JOIN rooms r ON b.room_id = r.id
+        WHERE {}
+        AND p.status = 'completed'
+        ORDER BY r.room_number
+    "#, booking_condition);
+
+    if let Ok(payment_rows) = sqlx::query(&payment_query)
+        .bind(audit_date)
+        .fetch_all(pool)
+        .await
+    {
+        for row in payment_rows.iter() {
+            let booking_number: String = row.get("booking_number");
+            let room_number: String = row.get("room_number");
+            let amount: Decimal = row.get("amount");
+            let payment_method: Option<String> = row.get("payment_method");
+            let payment_type: Option<String> = row.get("payment_type");
+
+            let entry_type = match payment_type.as_deref() {
+                Some("refund") => "deposit_refund",
+                Some("deposit") => "deposit",
+                _ => {
+                    match payment_method.as_deref() {
+                        Some(m) if m.to_lowercase().contains("cash") => "cash",
+                        _ => "other_payment"
+                    }
+                }
+            };
+
+            if entry_type == "deposit_refund" {
+                entries.push(JournalEntry {
+                    booking_number: booking_number.clone(),
+                    room_number: room_number.clone(),
+                    entry_type: entry_type.to_string(),
+                    debit: Decimal::ZERO,
+                    credit: amount,
+                    description: Some(format!("Deposit refund - {}", payment_method.unwrap_or_default())),
+                });
+            } else {
+                entries.push(JournalEntry {
+                    booking_number: booking_number.clone(),
+                    room_number: room_number.clone(),
+                    entry_type: entry_type.to_string(),
+                    debit: Decimal::ZERO,
+                    credit: amount,
+                    description: Some(format!("Payment - {}", payment_method.unwrap_or_default())),
+                });
+            }
+        }
+    }
+
+    // Group entries by type
+    let entry_types = vec![
+        ("room_charge", "Room Charges"),
+        ("service_tax", "Service Tax"),
+        ("deposit", "Deposits"),
+        ("cash", "Cash Payments"),
+        ("deposit_refund", "Deposit Refunds"),
+        ("other_payment", "Other Payments"),
+    ];
+
+    let mut sections: Vec<JournalSection> = Vec::new();
+
+    for (type_key, display_name) in entry_types {
+        let type_entries: Vec<JournalEntry> = entries
+            .iter()
+            .filter(|e| e.entry_type == type_key)
+            .cloned()
+            .collect();
+
+        if !type_entries.is_empty() {
+            let total_debit: Decimal = type_entries.iter().map(|e| e.debit).sum();
+            let total_credit: Decimal = type_entries.iter().map(|e| e.credit).sum();
+
+            sections.push(JournalSection {
+                entry_type: type_key.to_string(),
+                display_name: display_name.to_string(),
+                entries: type_entries,
+                total_debit,
+                total_credit,
+            });
+        }
+    }
+
+    sections
 }
 
 /// Get preview of what will be posted for a given date
@@ -172,6 +371,7 @@ pub async fn get_night_audit_preview(
         JOIN guests g ON b.guest_id = g.id
         JOIN rooms r ON b.room_id = r.id
         WHERE (b.is_posted = FALSE OR b.is_posted IS NULL)
+        AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show')
         AND (
             (b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1)
             OR (b.status = 'checked_out' AND b.check_in_date = $1)
@@ -304,6 +504,9 @@ pub async fn get_night_audit_preview(
 
     log::info!("Occupied from bookings: {}", occupied_from_bookings);
 
+    // Generate journal sections for preview
+    let journal_sections = generate_journal_sections(&pool, audit_date, false).await;
+
     Ok(Json(NightAuditPreview {
         audit_date: audit_date.to_string(),
         can_run: !already_run,
@@ -321,6 +524,7 @@ pub async fn get_night_audit_preview(
         },
         payment_method_breakdown,
         booking_channel_breakdown,
+        journal_sections,
     }))
 }
 
@@ -330,12 +534,15 @@ pub async fn run_night_audit(
     headers: HeaderMap,
     Json(input): Json<RunNightAuditRequest>,
 ) -> Result<Json<NightAuditResponse>, ApiError> {
-    log::info!("Run night audit called for date: {}", input.audit_date);
+    log::info!("Run night audit called for date: {}, force: {}", input.audit_date, input.force);
     let user_id = require_permission_helper(&pool, &headers, "night_audit:execute").await?;
     log::info!("User {} authorized for night audit", user_id);
 
     let audit_date = NaiveDate::parse_from_str(&input.audit_date, "%Y-%m-%d")
-        .map_err(|_| ApiError::BadRequest("Invalid date format. Use YYYY-MM-DD".to_string()))?;
+        .map_err(|e| {
+            log::error!("Invalid date format: {} - error: {}", input.audit_date, e);
+            ApiError::BadRequest(format!("Invalid date format '{}'. Use YYYY-MM-DD", input.audit_date))
+        })?;
 
     // Check if already run
     let already_run: bool = sqlx::query_scalar::<_, Option<bool>>(
@@ -347,11 +554,45 @@ pub async fn run_night_audit(
     .unwrap_or(Some(false))
     .unwrap_or(false);
 
+    log::info!("Checking if audit already run for {}: {}", audit_date, already_run);
+
     if already_run {
-        return Err(ApiError::BadRequest(format!(
-            "Night audit already completed for {}. Cannot run again.",
-            audit_date
-        )));
+        if input.force {
+            // Reset the previous audit: delete audit run and reset bookings
+            log::info!("Force rerun requested for {}. Resetting previous audit.", audit_date);
+
+            // Reset is_posted flag for bookings that were posted on this date
+            sqlx::query(
+                "UPDATE bookings SET is_posted = FALSE, posted_date = NULL, posted_at = NULL, posted_by = NULL WHERE posted_date = $1"
+            )
+            .bind(audit_date)
+            .execute(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+            // Delete audit details for this date
+            sqlx::query(
+                "DELETE FROM night_audit_details WHERE audit_run_id IN (SELECT id FROM night_audit_runs WHERE audit_date = $1)"
+            )
+            .bind(audit_date)
+            .execute(&pool)
+            .await
+            .ok();
+
+            // Delete the audit run record
+            sqlx::query("DELETE FROM night_audit_runs WHERE audit_date = $1")
+                .bind(audit_date)
+                .execute(&pool)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+
+            log::info!("Previous audit for {} has been reset", audit_date);
+        } else {
+            return Err(ApiError::BadRequest(format!(
+                "Night audit already completed for {}. Use force=true to rerun.",
+                audit_date
+            )));
+        }
     }
 
     // Run the night audit using the database function
@@ -752,6 +993,7 @@ pub struct PostedBookingDetail {
 pub struct AuditDetailsResponse {
     pub audit_run: NightAuditRunWithUser,
     pub posted_bookings: Vec<PostedBookingDetail>,
+    pub journal_sections: Vec<JournalSection>,
 }
 
 /// Get audit details including all posted bookings
@@ -871,6 +1113,9 @@ pub async fn get_night_audit_details(
         .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
         .collect();
 
+    // Generate journal sections for posted bookings
+    let journal_sections = generate_journal_sections(&pool, audit_date, true).await;
+
     Ok(Json(AuditDetailsResponse {
         audit_run: NightAuditRunWithUser {
             id: audit_row.get("id"),
@@ -894,6 +1139,7 @@ pub async fn get_night_audit_details(
             booking_channel_breakdown,
         },
         posted_bookings,
+        journal_sections,
     }))
 }
 
