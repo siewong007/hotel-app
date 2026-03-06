@@ -555,6 +555,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           nationality: newGuestForm.nationality,
           tourism_type: newGuestForm.tourism_type,
           guest_type: newGuestForm.guest_type || 'non_member',
+          company_name: newGuestForm.company_name || undefined,
           address_line1: newGuestForm.address_line1 || undefined,
           city: newGuestForm.city || undefined,
           state_province: newGuestForm.state_province || undefined,
@@ -775,6 +776,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             nationality: newGuestForm.nationality,
             tourism_type: newGuestForm.tourism_type,
             guest_type: newGuestForm.guest_type || 'non_member',
+            company_name: newGuestForm.company_name || undefined,
           });
 
           guestToUse = newGuest;

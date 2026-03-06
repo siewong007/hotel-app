@@ -26,6 +26,7 @@ export interface Guest {
   guest_type: GuestType; // Member or non-member for pricing differentiation
   tourism_type?: TourismType; // Local or foreign tourism for tax calculation
   discount_percentage?: number; // Member discount percentage (e.g., 10 for 10% off)
+  company_name?: string; // Company the guest is tied to
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +47,7 @@ export interface GuestCreateRequest {
   guest_type?: GuestType;
   tourism_type?: TourismType;
   discount_percentage?: number;
+  company_name?: string;
 }
 
 export interface GuestUpdateRequest {
@@ -66,6 +68,7 @@ export interface GuestUpdateRequest {
   guest_type?: GuestType;
   tourism_type?: TourismType;
   discount_percentage?: number;
+  company_name?: string;
 }
 
 // Guest type display configuration

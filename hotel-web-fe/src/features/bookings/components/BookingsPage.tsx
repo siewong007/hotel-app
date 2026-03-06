@@ -62,7 +62,7 @@ import { getHotelSettings } from '../../../utils/hotelSettings';
 
 type SortField = 'check_in_date' | 'check_out_date' | 'guest_name' | 'room_number' | 'status' | 'folio_number';
 type SortOrder = 'asc' | 'desc';
-type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom';
+type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom' | 'date_search';
 
 const BookingsPage: React.FC = () => {
   const { hasRole, hasPermission } = useAuth();
@@ -90,6 +90,7 @@ const BookingsPage: React.FC = () => {
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [searchDate, setSearchDate] = useState('');
 
   // Create booking dialog (using UnifiedBookingModal)
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -221,6 +222,13 @@ const BookingsPage: React.FC = () => {
         const checkIn = new Date(booking.check_in_date);
         return checkIn >= start && checkIn <= end;
       });
+    } else if (dateFilter === 'date_search' && searchDate) {
+      const target = searchDate; // YYYY-MM-DD
+      filtered = filtered.filter(booking => {
+        const checkIn = booking.check_in_date.split('T')[0];
+        const checkOut = booking.check_out_date.split('T')[0];
+        return checkIn === target || checkOut === target;
+      });
     }
 
     // Sorting - cancelled bookings always go to the bottom
@@ -272,7 +280,7 @@ const BookingsPage: React.FC = () => {
     });
 
     return filtered;
-  }, [bookings, searchQuery, statusFilter, dateFilter, customStartDate, customEndDate, sortField, sortOrder]);
+  }, [bookings, searchQuery, statusFilter, dateFilter, customStartDate, customEndDate, searchDate, sortField, sortOrder]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -289,6 +297,7 @@ const BookingsPage: React.FC = () => {
     setDateFilter('all');
     setCustomStartDate('');
     setCustomEndDate('');
+    setSearchDate('');
     setSortField('check_in_date');
     setSortOrder('desc');
   };
@@ -763,7 +772,7 @@ const BookingsPage: React.FC = () => {
 
         <Grid container spacing={2}>
           {/* Search */}
-          <Grid item xs={12} md={4}>
+          <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
               size="small"
@@ -777,6 +786,26 @@ const BookingsPage: React.FC = () => {
                   </InputAdornment>
                 ),
               }}
+            />
+          </Grid>
+
+          {/* Date Search */}
+          <Grid item xs={12} sm={6} md={2}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Search Date"
+              type="date"
+              value={searchDate}
+              onChange={(e) => {
+                setSearchDate(e.target.value);
+                if (e.target.value) {
+                  setDateFilter('date_search');
+                } else {
+                  setDateFilter('all');
+                }
+              }}
+              InputLabelProps={{ shrink: true }}
             />
           </Grid>
 
@@ -802,11 +831,16 @@ const BookingsPage: React.FC = () => {
           </Grid>
 
           {/* Date Filter Buttons */}
-          <Grid item xs={12} sm={6} md={4}>
+          <Grid item xs={12} sm={6} md={3}>
             <ToggleButtonGroup
-              value={dateFilter}
+              value={dateFilter === 'date_search' ? null : dateFilter}
               exclusive
-              onChange={(e, newValue) => newValue && setDateFilter(newValue)}
+              onChange={(e, newValue) => {
+                if (newValue) {
+                  setDateFilter(newValue);
+                  setSearchDate('');
+                }
+              }}
               size="small"
               fullWidth
             >

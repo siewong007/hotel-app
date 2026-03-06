@@ -30,6 +30,7 @@ export interface NewGuestForm {
   ic_number: string;
   tourism_type?: TourismType;
   guest_type?: GuestType;
+  company_name: string;
   address_line1: string;
   city: string;
   state_province: string;
@@ -82,6 +83,7 @@ export const emptyNewGuestForm: NewGuestForm = {
   ic_number: '',
   tourism_type: undefined,
   guest_type: 'non_member',
+  company_name: '',
   address_line1: '',
   city: '',
   state_province: '',
@@ -214,15 +216,25 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
             value={selectedGuest}
             onChange={(_, newValue) => handleGuestSelect(newValue)}
             options={guests}
-            getOptionLabel={(option) =>
-              option.email ? `${option.full_name} - ${option.email}` : option.full_name
-            }
+            getOptionLabel={(option) => {
+              const parts = [option.full_name];
+              if (option.company_name) parts.push(`(${option.company_name})`);
+              if (option.email) parts.push(`- ${option.email}`);
+              return parts.join(' ');
+            }}
             renderOption={(props, option) => {
               const { key, ...otherProps } = props;
               return (
                 <Box component="li" key={key} {...otherProps} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Box sx={{ flex: 1 }}>
-                    <Typography variant="body2">{option.full_name}</Typography>
+                    <Typography variant="body2">
+                      {option.full_name}
+                      {option.company_name && (
+                        <Typography component="span" variant="caption" color="primary.main" sx={{ ml: 0.5 }}>
+                          ({option.company_name})
+                        </Typography>
+                      )}
+                    </Typography>
                     {option.email && <Typography variant="caption" color="text.secondary">{option.email}</Typography>}
                   </Box>
                   {option.guest_type === 'member' && (
@@ -307,6 +319,15 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               label="Nationality"
               value={newGuestForm.nationality}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, nationality: e.target.value })}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField
+              fullWidth
+              label="Company Name"
+              value={newGuestForm.company_name}
+              onChange={(e) => onNewGuestFormChange({ ...newGuestForm, company_name: e.target.value })}
+              placeholder="e.g. Acme Corporation"
             />
           </Grid>
           <Grid item xs={12} md={6}>

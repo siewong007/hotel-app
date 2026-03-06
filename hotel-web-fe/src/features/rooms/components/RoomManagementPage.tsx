@@ -216,6 +216,7 @@ const RoomManagementPage: React.FC = () => {
     phone: '',
     ic_number: '',
     nationality: '',
+    company_name: '',
     address_line1: '',
     city: '',
     state_province: '',
@@ -1326,6 +1327,7 @@ const RoomManagementPage: React.FC = () => {
       phone: selectedGuestDetails.phone || '',
       ic_number: selectedGuestDetails.ic_number || '',
       nationality: selectedGuestDetails.nationality || '',
+      company_name: selectedGuestDetails.company_name || '',
       address_line1: selectedGuestDetails.address_line1 || '',
       city: selectedGuestDetails.city || '',
       state_province: selectedGuestDetails.state_province || '',
@@ -1352,6 +1354,7 @@ const RoomManagementPage: React.FC = () => {
         phone: guestEditForm.phone,
         ic_number: guestEditForm.ic_number,
         nationality: guestEditForm.nationality,
+        company_name: guestEditForm.company_name || undefined,
         address_line1: guestEditForm.address_line1,
         city: guestEditForm.city,
         state_province: guestEditForm.state_province,
@@ -4681,6 +4684,12 @@ const RoomManagementPage: React.FC = () => {
                 <Grid item xs={6}>
                   <Typography variant="caption" color="text.secondary">IC Number</Typography>
                   <Typography variant="body2">{selectedGuestDetails.ic_number}</Typography>
+                </Grid>
+              )}
+              {selectedGuestDetails.company_name && (
+                <Grid item xs={6}>
+                  <Typography variant="caption" color="text.secondary">Company</Typography>
+                  <Typography variant="body2">{selectedGuestDetails.company_name}</Typography>
                 </Grid>
               )}
               <Grid item xs={12}>

@@ -139,6 +139,20 @@ pub struct RoomSnapshot {
 async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_posted: bool) -> Vec<JournalSection> {
     let mut entries: Vec<JournalEntry> = Vec::new();
 
+    // Get service tax rate from system_settings, default to 8%
+    let tax_rate_percent: Decimal = sqlx::query_scalar::<_, Option<String>>(
+        "SELECT value FROM system_settings WHERE key = 'service_tax_rate'"
+    )
+    .fetch_one(pool)
+    .await
+    .ok()
+    .flatten()
+    .and_then(|v| v.parse::<Decimal>().ok())
+    .unwrap_or_else(|| Decimal::new(8, 0)); // Default 8%
+
+    let tax_rate = tax_rate_percent / Decimal::new(100, 0); // e.g. 0.08
+    let tax_divisor = Decimal::ONE + tax_rate; // e.g. 1.08
+
     // Get bookings with room charges for the audit date
     let booking_condition = if is_posted {
         "b.posted_date = $1"
@@ -150,10 +164,8 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         SELECT
             b.booking_number,
             r.room_number,
-            b.subtotal as room_charge,
-            COALESCE(b.tax_amount, 0) as service_tax,
-            b.room_card_deposit as deposit,
-            b.total_amount
+            b.total_amount,
+            b.room_card_deposit as deposit
         FROM bookings b
         JOIN rooms r ON b.room_id = r.id
         WHERE {}
@@ -168,9 +180,15 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         for row in rows.iter() {
             let booking_number: String = row.get("booking_number");
             let room_number: String = row.get("room_number");
-            let room_charge: Decimal = row.get("room_charge");
-            let service_tax: Decimal = row.get("service_tax");
+            let total_amount: Decimal = row.get("total_amount");
             let deposit: Option<Decimal> = row.get("deposit");
+
+            // Back-calculate room charge (before tax) and service tax from tax-inclusive total
+            // total_amount = room_charge_before_tax * (1 + tax_rate)
+            // room_charge_before_tax = total_amount / (1 + tax_rate)
+            // service_tax = total_amount - room_charge_before_tax
+            let room_charge = (total_amount / tax_divisor).round_dp(2);
+            let service_tax = total_amount - room_charge;
 
             // Room charge entry (debit to guest, credit to room revenue)
             if room_charge > Decimal::ZERO {
