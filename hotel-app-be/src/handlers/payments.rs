@@ -609,3 +609,135 @@ pub async fn get_user_invoices_handler(
 
     Ok(Json(invoices))
 }
+
+/// Update a payment record
+pub async fn update_payment_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path(payment_id): Path<i64>,
+    Json(request): Json<UpdatePaymentRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let _user_id = require_auth(&headers).await?;
+
+    // Check if payment exists
+    let existing: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM payments WHERE id = $1"
+    )
+    .bind(payment_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if existing.is_none() {
+        return Err(ApiError::NotFound("Payment not found".to_string()));
+    }
+
+    // Build dynamic update query
+    let mut updates = Vec::new();
+    let mut param_index = 1;
+
+    if request.amount.is_some() {
+        param_index += 1;
+        updates.push(format!("amount = ${}", param_index));
+    }
+    if request.payment_method.is_some() {
+        param_index += 1;
+        updates.push(format!("payment_method = ${}", param_index));
+    }
+    if request.transaction_reference.is_some() {
+        param_index += 1;
+        updates.push(format!("transaction_id = ${}", param_index));
+    }
+    if request.notes.is_some() {
+        param_index += 1;
+        updates.push(format!("notes = ${}", param_index));
+    }
+
+    if updates.is_empty() {
+        return Err(ApiError::BadRequest("No fields to update".to_string()));
+    }
+
+    let query = format!(
+        "UPDATE payments SET {} WHERE id = $1 RETURNING id, booking_id, amount::text, payment_method, payment_type, status, transaction_id, notes, created_at",
+        updates.join(", ")
+    );
+
+    let mut query_builder = sqlx::query(&query).bind(payment_id);
+
+    if let Some(amount) = request.amount {
+        let amount_decimal = Decimal::from_f64_retain(amount)
+            .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
+        query_builder = query_builder.bind(amount_decimal);
+    }
+    if let Some(ref method) = request.payment_method {
+        query_builder = query_builder.bind(method);
+    }
+    if let Some(ref reference) = request.transaction_reference {
+        query_builder = query_builder.bind(reference);
+    }
+    if let Some(ref notes) = request.notes {
+        query_builder = query_builder.bind(notes);
+    }
+
+    let row = query_builder
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let payment = serde_json::json!({
+        "id": row.get::<i64, _>("id"),
+        "booking_id": row.get::<i64, _>("booking_id"),
+        "total_amount": row.get::<String, _>("amount"),
+        "payment_method": row.get::<String, _>("payment_method"),
+        "payment_type": row.get::<Option<String>, _>("payment_type"),
+        "payment_status": row.get::<Option<String>, _>("status"),
+        "transaction_reference": row.get::<Option<String>, _>("transaction_id"),
+        "notes": row.get::<Option<String>, _>("notes"),
+        "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
+    });
+
+    Ok(Json(payment))
+}
+
+/// Delete a payment record
+pub async fn delete_payment_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path(payment_id): Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let _user_id = require_auth(&headers).await?;
+
+    // Check if payment exists and get its type
+    let payment_row = sqlx::query(
+        "SELECT id, payment_type FROM payments WHERE id = $1"
+    )
+    .bind(payment_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let payment_row = match payment_row {
+        Some(row) => row,
+        None => return Err(ApiError::NotFound("Payment not found".to_string())),
+    };
+
+    let payment_type: Option<String> = payment_row.get("payment_type");
+
+    // Prevent deletion of refund records (maintain audit trail for refunds)
+    if payment_type.as_deref() == Some("refund") {
+        return Err(ApiError::BadRequest("Cannot delete refund records".to_string()));
+    }
+
+    // Delete the payment
+    sqlx::query("DELETE FROM payments WHERE id = $1")
+        .bind(payment_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Payment deleted successfully",
+        "deleted_id": payment_id
+    })))
+}

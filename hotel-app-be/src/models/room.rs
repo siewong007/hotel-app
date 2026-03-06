@@ -21,6 +21,7 @@ pub struct Room {
     pub max_occupancy: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub notes: Option<String>,
 }
 
 /// Input for creating a room (simple)

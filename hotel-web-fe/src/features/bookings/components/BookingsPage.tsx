@@ -127,6 +127,18 @@ const BookingsPage: React.FC = () => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
+  // Sort rooms by room number ascending
+  const sortRoomsByNumber = (roomList: Room[]) => {
+    return [...roomList].sort((a, b) => {
+      const numA = parseInt(a.room_number, 10);
+      const numB = parseInt(b.room_number, 10);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return a.room_number.localeCompare(b.room_number);
+    });
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -333,13 +345,13 @@ const BookingsPage: React.FC = () => {
         // Include the currently assigned room since it won't show as "available"
         const currentRoom = rooms.find(r => r.id === booking.room_id);
         if (currentRoom && !available.find(r => r.id === currentRoom.id)) {
-          setAvailableRooms([currentRoom, ...available]);
+          setAvailableRooms(sortRoomsByNumber([currentRoom, ...available]));
         } else {
-          setAvailableRooms(available);
+          setAvailableRooms(sortRoomsByNumber(available));
         }
       }).catch(() => {
         // Fallback: show all rooms
-        setAvailableRooms(rooms);
+        setAvailableRooms(sortRoomsByNumber(rooms));
       });
     }
 

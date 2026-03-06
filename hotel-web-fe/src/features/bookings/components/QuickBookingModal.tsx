@@ -244,17 +244,19 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   };
 
   const handleCreateNewGuest = async () => {
-    if (!newGuestFirstName || !newGuestEmail) {
-      setError('First name and email are required for new guest');
+    if (!newGuestFirstName) {
+      setError('First name is required for new guest');
       return null;
     }
 
-    // Validate email
-    const emailValidation = validateEmail(newGuestEmail);
-    if (emailValidation) {
-      setEmailError(emailValidation);
-      setError(emailValidation);
-      return null;
+    // Validate email format only if provided
+    if (newGuestEmail && newGuestEmail.trim()) {
+      const emailValidation = validateEmail(newGuestEmail);
+      if (emailValidation) {
+        setEmailError(emailValidation);
+        setError(emailValidation);
+        return null;
+      }
     }
 
     try {
@@ -522,17 +524,22 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
-                    label="Email"
+                    label="Email (Optional)"
                     type="email"
                     value={newGuestEmail}
                     onChange={(e) => {
                       setNewGuestEmail(e.target.value);
                       setEmailError('');
                     }}
-                    onBlur={() => setEmailError(validateEmail(newGuestEmail))}
+                    onBlur={() => {
+                      if (newGuestEmail && newGuestEmail.trim()) {
+                        setEmailError(validateEmail(newGuestEmail));
+                      } else {
+                        setEmailError('');
+                      }
+                    }}
                     error={!!emailError}
                     helperText={emailError}
-                    required
                     size="small"
                   />
                 </Grid>

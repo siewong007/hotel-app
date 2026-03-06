@@ -408,11 +408,23 @@ const CustomerLedgerPage: React.FC = () => {
     }
   };
 
+  // Sort rooms by room number ascending
+  const sortRoomsByNumber = (roomList: Room[]) => {
+    return [...roomList].sort((a, b) => {
+      const numA = parseInt(a.room_number, 10);
+      const numB = parseInt(b.room_number, 10);
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      return a.room_number.localeCompare(b.room_number);
+    });
+  };
+
   // Load available rooms for given dates
   const loadAvailableRooms = async (checkIn: string, checkOut: string) => {
     try {
       const rooms = await HotelAPIService.getAvailableRoomsForDates(checkIn, checkOut);
-      setAvailableRooms(rooms);
+      setAvailableRooms(sortRoomsByNumber(rooms));
     } catch (err) {
       console.error('Failed to load available rooms:', err);
       setAvailableRooms([]);
@@ -463,9 +475,9 @@ const CustomerLedgerPage: React.FC = () => {
           return;
         }
 
-        // Validate email is provided and valid
+        // Validate email format only if provided
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!newCheckInGuestForm.email || !emailRegex.test(newCheckInGuestForm.email)) {
+        if (newCheckInGuestForm.email && newCheckInGuestForm.email.trim() && !emailRegex.test(newCheckInGuestForm.email)) {
           setSnackbarMessage('Please enter a valid email address for the guest');
           setSnackbarOpen(true);
           setProcessingCheckIn(false);
@@ -2912,12 +2924,11 @@ const CustomerLedgerPage: React.FC = () => {
                   <Grid item xs={12} sm={6}>
                     <TextField
                       fullWidth
-                      required
-                      label="Email"
+                      label="Email (Optional)"
                       type="email"
                       value={newCheckInGuestForm.email}
                       onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, email: e.target.value })}
-                      helperText="Required for sending booking confirmations and invoices"
+                      helperText="Used for sending booking confirmations and invoices"
                       error={newCheckInGuestForm.email !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email)}
                     />
                   </Grid>
@@ -3113,8 +3124,7 @@ const CustomerLedgerPage: React.FC = () => {
               (isCreatingNewCheckInGuest && (
                 !newCheckInGuestForm.first_name ||
                 !newCheckInGuestForm.last_name ||
-                !newCheckInGuestForm.email ||
-                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email)
+                (newCheckInGuestForm.email && newCheckInGuestForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email))
               ))
             }
             startIcon={processingCheckIn ? <CircularProgress size={20} /> : <CheckInIcon />}

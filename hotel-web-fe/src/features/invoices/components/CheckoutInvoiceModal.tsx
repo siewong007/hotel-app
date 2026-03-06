@@ -30,6 +30,8 @@ import {
   Payment as PaymentIcon,
   Add as AddIcon,
   Close as CloseIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { BookingWithDetails } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
@@ -87,6 +89,15 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [recordingPayment, setRecordingPayment] = useState(false);
+
+  // Payment editing state
+  const [editingPayment, setEditingPayment] = useState<any | null>(null);
+  const [editAmount, setEditAmount] = useState<number>(0);
+  const [editMethod, setEditMethod] = useState('Cash');
+  const [editReference, setEditReference] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [updatingPayment, setUpdatingPayment] = useState(false);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<number | null>(null);
 
   // Deposit refund state
   const [depositRefunded, setDepositRefunded] = useState(false);
@@ -377,6 +388,54 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setError(err.message || 'Failed to record payment');
     } finally {
       setRecordingPayment(false);
+    }
+  };
+
+  const handleStartEdit = (payment: any) => {
+    setEditingPayment(payment);
+    setEditAmount(parseFloat(payment.total_amount || '0'));
+    setEditMethod(payment.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Cash');
+    setEditReference(payment.transaction_reference || '');
+    setEditNotes(payment.notes || '');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPayment(null);
+    setEditAmount(0);
+    setEditMethod('Cash');
+    setEditReference('');
+    setEditNotes('');
+  };
+
+  const handleUpdatePayment = async () => {
+    if (!editingPayment || editAmount <= 0) return;
+    try {
+      setUpdatingPayment(true);
+      const updatedPayment = await InvoicesService.updatePayment(editingPayment.id, {
+        amount: editAmount,
+        payment_method: editMethod,
+        transaction_reference: editReference || undefined,
+        notes: editNotes || undefined,
+      });
+      setPayments(prev => prev.map(p => p.id === editingPayment.id ? updatedPayment : p));
+      handleCancelEdit();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update payment');
+    } finally {
+      setUpdatingPayment(false);
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: number) => {
+    if (!window.confirm('Are you sure you want to delete this payment record?')) return;
+    try {
+      setDeletingPaymentId(paymentId);
+      await InvoicesService.deletePayment(paymentId);
+      setPayments(prev => prev.filter(p => p.id !== paymentId));
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete payment');
+    } finally {
+      setDeletingPaymentId(null);
     }
   };
 
@@ -1130,26 +1189,124 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 <Box sx={{ p: 0 }}>
                   {payments.filter((p: any) => p.payment_status === 'completed').map((p: any, idx: number) => (
                     <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid #eee' }}>
-                      <Grid container alignItems="center">
-                        <Grid item xs={5}>
-                          <Typography variant="body2">
-                            {p.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {new Date(p.created_at).toLocaleString()}
-                          </Typography>
+                      {editingPayment?.id === p.id ? (
+                        // Edit form inline
+                        <Box>
+                          <Grid container spacing={1} sx={{ mb: 1 }}>
+                            <Grid item xs={6}>
+                              <TextField
+                                label="Amount"
+                                type="number"
+                                size="small"
+                                fullWidth
+                                value={editAmount || ''}
+                                onChange={(e) => setEditAmount(parseFloat(e.target.value) || 0)}
+                                InputProps={{
+                                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                                }}
+                              />
+                            </Grid>
+                            <Grid item xs={6}>
+                              <FormControl fullWidth size="small">
+                                <InputLabel>Method</InputLabel>
+                                <Select
+                                  value={editMethod}
+                                  label="Method"
+                                  onChange={(e) => setEditMethod(e.target.value)}
+                                >
+                                  {hotelSettings.payment_methods.map((method) => (
+                                    <MenuItem key={method} value={method}>{method}</MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
+                            </Grid>
+                            <Grid item xs={6}>
+                              <TextField
+                                label="Reference"
+                                size="small"
+                                fullWidth
+                                value={editReference}
+                                onChange={(e) => setEditReference(e.target.value)}
+                              />
+                            </Grid>
+                            <Grid item xs={6}>
+                              <TextField
+                                label="Notes"
+                                size="small"
+                                fullWidth
+                                value={editNotes}
+                                onChange={(e) => setEditNotes(e.target.value)}
+                              />
+                            </Grid>
+                          </Grid>
+                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                            <Button
+                              size="small"
+                              onClick={handleCancelEdit}
+                              disabled={updatingPayment}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              onClick={handleUpdatePayment}
+                              disabled={updatingPayment || editAmount <= 0}
+                            >
+                              {updatingPayment ? 'Saving...' : 'Save'}
+                            </Button>
+                          </Box>
+                        </Box>
+                      ) : (
+                        // Normal display
+                        <Grid container alignItems="center">
+                          <Grid item xs={4}>
+                            <Typography variant="body2">
+                              {p.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(p.created_at).toLocaleString()}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={3}>
+                            <Typography variant="caption" color="text.secondary">
+                              {p.transaction_reference || p.notes || ''}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={3} sx={{ textAlign: 'right' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+                              {formatCurrency(parseFloat(p.total_amount || '0'))}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={2} sx={{ textAlign: 'right' }}>
+                            {!readOnly && (
+                              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                                <Button
+                                  size="small"
+                                  sx={{ minWidth: 'auto', p: 0.5 }}
+                                  onClick={() => handleStartEdit(p)}
+                                  disabled={deletingPaymentId === p.id}
+                                >
+                                  <EditIcon fontSize="small" />
+                                </Button>
+                                <Button
+                                  size="small"
+                                  color="error"
+                                  sx={{ minWidth: 'auto', p: 0.5 }}
+                                  onClick={() => handleDeletePayment(p.id)}
+                                  disabled={deletingPaymentId === p.id}
+                                >
+                                  {deletingPaymentId === p.id ? (
+                                    <CircularProgress size={16} />
+                                  ) : (
+                                    <DeleteIcon fontSize="small" />
+                                  )}
+                                </Button>
+                              </Box>
+                            )}
+                          </Grid>
                         </Grid>
-                        <Grid item xs={4}>
-                          <Typography variant="caption" color="text.secondary">
-                            {p.transaction_reference || p.notes || ''}
-                          </Typography>
-                        </Grid>
-                        <Grid item xs={3} sx={{ textAlign: 'right' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
-                            {formatCurrency(parseFloat(p.total_amount || '0'))}
-                          </Typography>
-                        </Grid>
-                      </Grid>
+                      )}
                     </Box>
                   ))}
                 </Box>

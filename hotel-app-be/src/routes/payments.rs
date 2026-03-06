@@ -3,7 +3,7 @@
 //! Routes for payments and invoices.
 
 use axum::{
-    routing::{get, post},
+    routing::{get, post, patch, delete},
     Router,
     extract::{State, Path},
     http::HeaderMap,
@@ -23,6 +23,8 @@ pub fn routes() -> Router<DbPool> {
         .route("/payments/all-payments/:booking_id", get(get_all_payments))
         .route("/payments/refund-deposit/:booking_id", post(refund_deposit))
         .route("/payments/booking/:booking_id", get(get_payment))
+        .route("/payments/:payment_id", patch(update_payment))
+        .route("/payments/:payment_id", delete(delete_payment))
         .route("/payments", post(create_payment))
         // Invoice routes
         .route("/invoices/preview/:booking_id", get(get_invoice_preview))
@@ -100,4 +102,21 @@ async fn get_user_invoices(
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::Invoice>>, ApiError> {
     handlers::payments::get_user_invoices_handler(State(pool), headers).await
+}
+
+async fn update_payment(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    Json(input): Json<models::UpdatePaymentRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    handlers::payments::update_payment_handler(State(pool), headers, path, Json(input)).await
+}
+
+async fn delete_payment(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    handlers::payments::delete_payment_handler(State(pool), headers, path).await
 }

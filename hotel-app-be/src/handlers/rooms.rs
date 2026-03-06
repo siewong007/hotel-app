@@ -249,6 +249,7 @@ pub async fn update_room_handler(
             status: current_status,
             created_at: existing_row.get(8),
             updated_at: existing_row.get(9),
+            notes: current_notes,
         }));
     }
 
@@ -325,6 +326,7 @@ pub async fn update_room_handler(
         status: row.get(7),
         created_at: row.get(8),
         updated_at: row.get(9),
+        notes: row.get(10),
     }))
 }
 
@@ -416,6 +418,7 @@ pub async fn create_room_handler(
         status: row.get(7),
         created_at: row.get(8),
         updated_at: row.get(9),
+        notes: row.get(10),
     }))
 }
 
@@ -1018,6 +1021,7 @@ pub async fn update_room_status_handler(
         status: row.get(7),
         created_at: row.get(8),
         updated_at: row.get(9),
+        notes: row.get(10),
     }))
 }
 
@@ -1072,6 +1076,7 @@ pub async fn end_maintenance_handler(
             status: row.get(7),
             created_at: row.get(8),
             updated_at: row.get(9),
+            notes: row.get(10),
         }));
     }
 
@@ -1140,6 +1145,7 @@ pub async fn end_maintenance_handler(
         status: row.get(7),
         created_at: row.get(8),
         updated_at: row.get(9),
+        notes: row.get(10),
     }))
 }
 
@@ -1950,6 +1956,7 @@ pub async fn get_rooms_with_occupancy_handler(
             status: row.get(7),
             created_at: row.get(8),
             updated_at: row.get(9),
+            notes: None,
         };
 
         rooms_with_occupancy.push(RoomWithOccupancy {
