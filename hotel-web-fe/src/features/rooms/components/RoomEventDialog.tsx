@@ -57,7 +57,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
   const [currentTab, setCurrentTab] = useState(0);
 
   // Status form state - only change status functionality
-  const [newStatus, setNewStatus] = useState<'available' | 'occupied' | 'cleaning' | 'maintenance' | 'reserved'>('maintenance');
+  const [newStatus, setNewStatus] = useState<'available' | 'occupied' | 'maintenance' | 'reserved'>('maintenance');
   const [statusNotes, setStatusNotes] = useState('');
   // Enhanced status metadata fields
   const [reservedStartDate, setReservedStartDate] = useState('');
@@ -233,17 +233,6 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       }
     }
 
-    if (newStatus === 'cleaning') {
-      if (!cleaningStartDate || cleaningStartDate.trim() === '' || !cleaningEndDate || cleaningEndDate.trim() === '') {
-        setError('Cleaning status requires both start date and end date.');
-        return;
-      }
-      if (new Date(cleaningEndDate) < new Date(cleaningStartDate)) {
-        setError('End date must be after start date.');
-        return;
-      }
-    }
-
     try {
       setLoading(true);
       setError(null);
@@ -255,8 +244,6 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
         reserved_end_date: (newStatus === 'reserved' || newStatus === 'occupied') ? reservedEndDate : undefined,
         maintenance_start_date: newStatus === 'maintenance' ? maintenanceStartDate : undefined,
         maintenance_end_date: newStatus === 'maintenance' ? maintenanceEndDate : undefined,
-        cleaning_start_date: newStatus === 'cleaning' ? cleaningStartDate : undefined,
-        cleaning_end_date: newStatus === 'cleaning' ? cleaningEndDate : undefined,
       };
 
       await HotelAPIService.updateRoomStatus(roomId, statusInput);
@@ -271,7 +258,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
   const canChangeStatus = currentStatus === 'available';
   const isOccupied = currentStatus === 'occupied';
-  const canEndMaintenance = currentStatus === 'maintenance' || currentStatus === 'cleaning' || currentStatus === 'reserved';
+  const canEndMaintenance = currentStatus === 'maintenance' || currentStatus === 'reserved';
 
   // Check if we can check in a guest (reserved room with confirmed/pending booking for today or past)
   const canCheckInGuest = currentStatus === 'reserved' &&
@@ -559,8 +546,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
           {!canChangeStatus && !isOccupied && !canCheckInGuest && canEndMaintenance && (
             <Alert severity="success" icon={<InfoIcon />}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                {currentStatus === 'maintenance' ? 'Maintenance' :
-                 currentStatus === 'cleaning' ? 'Cleaning' : 'Reserved'} In Progress
+                {currentStatus === 'maintenance' ? 'Maintenance' : 'Reserved'} In Progress
               </Typography>
               <Typography variant="body2">
                 This room is currently under {currentStatus}. Use the button below to complete the {currentStatus} and return the room to available status.
@@ -587,8 +573,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                 }}
               >
                 {loading ? 'Ending...' : `End ${
-                  currentStatus === 'maintenance' ? 'Maintenance' :
-                  currentStatus === 'cleaning' ? 'Cleaning' : 'Reserved Status'
+                  currentStatus === 'maintenance' ? 'Maintenance' : 'Reserved Status'
                 }`}
               </Button>
             </Alert>
@@ -687,7 +672,6 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                         onChange={(e) => setNewStatus(e.target.value as any)}
                         label="New Status"
                       >
-                        <MenuItem value="cleaning">Cleaning</MenuItem>
                         <MenuItem value="maintenance">Maintenance</MenuItem>
                         <MenuItem value="occupied">Occupied</MenuItem>
                       </Select>
@@ -779,36 +763,6 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                           required
                           error={!maintenanceEndDate && error !== null}
                           helperText={!maintenanceEndDate && error ? "Required" : "When will maintenance be completed?"}
-                        />
-                      </Grid>
-                    </>
-                  )}
-
-                  {/* Cleaning status - show date range */}
-                  {newStatus === 'cleaning' && (
-                    <>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          type="datetime-local"
-                          label="Cleaning Start Date & Time"
-                          value={cleaningStartDate}
-                          onChange={(e) => setCleaningStartDate(e.target.value)}
-                          InputLabelProps={{ shrink: true }}
-                          required
-                          helperText="When will the cleaning start?"
-                        />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <TextField
-                          fullWidth
-                          type="datetime-local"
-                          label="Cleaning End Date & Time"
-                          value={cleaningEndDate}
-                          onChange={(e) => setCleaningEndDate(e.target.value)}
-                          InputLabelProps={{ shrink: true }}
-                          required
-                          helperText="When will the cleaning be completed?"
                         />
                       </Grid>
                     </>

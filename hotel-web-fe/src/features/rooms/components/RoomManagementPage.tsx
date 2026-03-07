@@ -315,25 +315,6 @@ const RoomManagementPage: React.FC = () => {
       // Use getAllRooms() instead of searchRooms() to get ALL rooms including dirty ones
       const roomsData = await HotelAPIService.getAllRooms();
 
-      // Fix rooms that are marked as 'cleaning' but have available=false (only on initial load)
-      if (fixHiddenOnLoad) {
-        const hiddenCleaningRooms = roomsData.filter(
-          (room) => room.status === 'cleaning' && !room.available
-        );
-
-        if (hiddenCleaningRooms.length > 0) {
-          // Fix each hidden cleaning room
-          for (const room of hiddenCleaningRooms) {
-            await HotelAPIService.updateRoom(room.id, { available: true });
-          }
-          console.log(`Fixed ${hiddenCleaningRooms.length} hidden cleaning rooms`);
-          // Reload rooms after fixing
-          const updatedRooms = await HotelAPIService.getAllRooms();
-          setRooms(updatedRooms);
-          return;
-        }
-      }
-
       setRooms(roomsData);
     } catch (error: any) {
       showSnackbar(error.message || 'Failed to load rooms', 'error');
@@ -1714,10 +1695,10 @@ const RoomManagementPage: React.FC = () => {
 
     const computedStatus = hasCheckedInBooking
       ? 'occupied'
-      : hasReservationForToday
-        ? 'reserved'
-        : ['maintenance', 'dirty', 'cleaning'].includes(room.status || '')
-          ? room.status
+      : ['maintenance', 'dirty'].includes(room.status || '')
+        ? room.status
+        : hasReservationForToday
+          ? 'reserved'
           : 'available';
 
     const isOccupied = computedStatus === 'occupied';
@@ -1856,17 +1837,16 @@ const RoomManagementPage: React.FC = () => {
 
     return hasCheckedInBooking
       ? 'occupied'
-      : hasReservationForToday
-        ? 'reserved'
-        : ['maintenance', 'dirty', 'cleaning'].includes(room.status || '')
-          ? room.status!
+      : ['maintenance', 'dirty'].includes(room.status || '')
+        ? room.status!
+        : hasReservationForToday
+          ? 'reserved'
           : 'available';
   };
 
   const availableCount = rooms.filter(r => getComputedStatus(r) === 'available').length;
   const occupiedCount = rooms.filter(r => getComputedStatus(r) === 'occupied').length;
   const reservedCount = rooms.filter(r => getComputedStatus(r) === 'reserved').length;
-  const cleaningCount = rooms.filter(r => getComputedStatus(r) === 'cleaning').length;
   const dirtyCount = rooms.filter(r => getComputedStatus(r) === 'dirty').length;
   const maintenanceCount = rooms.filter(r => getComputedStatus(r) === 'maintenance').length;
   const occupancyRate = rooms.length > 0 ? Math.round((occupiedCount / rooms.length) * 100) : 0;
@@ -1947,21 +1927,21 @@ const RoomManagementPage: React.FC = () => {
               <Typography variant="h5" fontWeight={700}>{reservedCount}</Typography>
               <Typography variant="caption">Reserved</Typography>
             </Paper>
-            {(cleaningCount > 0 || dirtyCount > 0) && (
+            {dirtyCount > 0 && (
               <Paper
                 elevation={0}
                 sx={{
                   px: 2,
                   py: 1,
-                  bgcolor: cleaningCount > 0 ? '#2196f3' : '#ff6f00',
+                  bgcolor: '#ff6f00',
                   color: 'white',
                   borderRadius: 1.5,
                   textAlign: 'center',
                   minWidth: 80,
                 }}
               >
-                <Typography variant="h5" fontWeight={700}>{cleaningCount + dirtyCount}</Typography>
-                <Typography variant="caption">{cleaningCount > 0 ? 'Cleaning' : 'Dirty'}</Typography>
+                <Typography variant="h5" fontWeight={700}>{dirtyCount}</Typography>
+                <Typography variant="caption">Dirty</Typography>
               </Paper>
             )}
             {maintenanceCount > 0 && (
@@ -1995,7 +1975,6 @@ const RoomManagementPage: React.FC = () => {
             { label: 'Occupied', color: '#FFA726' },
             { label: 'Reserved', color: '#42A5F5' },
             { label: 'Dirty', color: '#ff6f00' },
-            { label: 'Cleaning', color: '#2196f3' },
             { label: 'Maintenance', color: '#757575' },
           ].map((item) => (
             <Chip
@@ -2043,12 +2022,13 @@ const RoomManagementPage: React.FC = () => {
           const futureCheckInDate = hasFutureReservation ? new Date(reservedBooking.check_in_date) : null;
 
           // Compute the effective status - matches timeline status mapping
+          // Dirty/maintenance rooms must be cleaned first before showing as reserved
           const computedStatus = hasCheckedInBooking
             ? 'occupied'
-            : hasReservationForToday
-              ? 'reserved'
-              : ['maintenance', 'dirty', 'cleaning'].includes(room.status || '')
-                ? room.status
+            : ['maintenance', 'dirty'].includes(room.status || '')
+              ? room.status
+              : hasReservationForToday
+                ? 'reserved'
                 : 'available';
 
           // Create a room object with computed status for display
@@ -2064,15 +2044,13 @@ const RoomManagementPage: React.FC = () => {
 
           // Get colors based on status
           const statusColor = getRoomStatusColor(displayRoom);
-          const isLightStatus = computedStatus === 'cleaning';
-
           return (
             <Grid item xs={6} sm={4} md={3} lg={2} key={room.id}>
               <Card
                 elevation={2}
                 sx={{
                   bgcolor: statusColor,
-                  color: isLightStatus ? '#333' : 'white',
+                  color: 'white',
                   cursor: 'pointer',
                   '&:hover': {
                     boxShadow: 4,
@@ -3883,7 +3861,7 @@ const RoomManagementPage: React.FC = () => {
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              color: entry.to_status === 'cleaning' ? '#333' : 'white',
+                              color: 'white',
                             }}
                           >
                             {statusIcon}

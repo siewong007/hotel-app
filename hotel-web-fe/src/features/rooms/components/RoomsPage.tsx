@@ -67,7 +67,7 @@ import { getHotelSettings } from '../../../utils/hotelSettings';
 import { useCurrency } from '../../../hooks/useCurrency';
 
 // Room status type
-type RoomStatusType = 'available' | 'occupied' | 'reserved' | 'cleaning' | 'maintenance' | 'dirty';
+type RoomStatusType = 'available' | 'occupied' | 'reserved' | 'maintenance' | 'dirty';
 
 interface EnhancedRoom extends Room {
   computedStatus: RoomStatusType;
@@ -401,9 +401,9 @@ const RoomsPage: React.FC = () => {
         checkOutDate = futureReservation.check_out_date;
         bookingId = String(futureReservation.id);
       }
-      // Priority 4: Check explicit maintenance, cleaning, or dirty status from backend
+      // Priority 4: Check explicit maintenance or dirty status from backend
       // Only trust backend status if there's no active booking
-      else if (room.status && ['maintenance', 'cleaning', 'dirty'].includes(room.status)) {
+      else if (room.status && ['maintenance', 'dirty'].includes(room.status)) {
         computedStatus = room.status as RoomStatusType;
       }
       // Priority 5: Default to available
@@ -428,8 +428,7 @@ const RoomsPage: React.FC = () => {
       case 'available': return 'success';
       case 'occupied': return 'error';
       case 'reserved': return 'warning';
-      case 'cleaning': return 'info';
-      case 'dirty': return 'error'; // Red color for dirty rooms
+      case 'dirty': return 'error';
       case 'maintenance': return 'default';
       default: return 'default';
     }
@@ -441,7 +440,6 @@ const RoomsPage: React.FC = () => {
       case 'available': return 'Available';
       case 'occupied': return 'Occupied';
       case 'reserved': return 'Reserved';
-      case 'cleaning': return 'Cleaning';
       case 'dirty': return 'Dirty';
       case 'maintenance': return 'Maintenance';
       default: return status;
@@ -455,7 +453,6 @@ const RoomsPage: React.FC = () => {
       case 'available': return <AvailableIcon {...iconProps} />;
       case 'occupied': return <OccupiedIcon {...iconProps} />;
       case 'reserved': return <ReservedIcon {...iconProps} />;
-      case 'cleaning': return <CleaningIcon {...iconProps} />;
       case 'dirty': return <DirtyIcon {...iconProps} />;
       case 'maintenance': return <MaintenanceIcon {...iconProps} />;
       default: return null;
@@ -806,7 +803,6 @@ const RoomsPage: React.FC = () => {
       available: 0,
       occupied: 0,
       reserved: 0,
-      cleaning: 0,
       dirty: 0,
       maintenance: 0,
       total: enhancedRooms.length
@@ -899,19 +895,6 @@ const RoomsPage: React.FC = () => {
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>{statusSummary.reserved}</Typography>
                   </Box>
                   <ReservedIcon sx={{ fontSize: 40, opacity: 0.7 }} />
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <Card sx={{ bgcolor: 'info.light', color: 'info.contrastText' }}>
-              <CardContent sx={{ py: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Box>
-                    <Typography variant="caption" sx={{ opacity: 0.9 }}>Cleaning</Typography>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>{statusSummary.cleaning}</Typography>
-                  </Box>
-                  <CleaningIcon sx={{ fontSize: 40, opacity: 0.7 }} />
                 </Box>
               </CardContent>
             </Card>
@@ -1019,16 +1002,6 @@ const RoomsPage: React.FC = () => {
                             <InfoIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
                             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                               {formatDateShort(room.maintenance_start_date)}
-                            </Typography>
-                          </Box>
-                        </Tooltip>
-                      )}
-                      {room.computedStatus === 'cleaning' && room.cleaning_start_date && (
-                        <Tooltip title={`Cleaning: ${formatDateShort(room.cleaning_start_date)} - ${room.cleaning_end_date ? formatDateShort(room.cleaning_end_date) : 'TBD'}`}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <InfoIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                              {formatDateShort(room.cleaning_start_date)}
                             </Typography>
                           </Box>
                         </Tooltip>

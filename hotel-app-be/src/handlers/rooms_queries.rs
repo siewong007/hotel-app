@@ -46,8 +46,8 @@ SELECT
     NULL::BIGINT as review_count,
     CASE
         WHEN cb.booking_status IN ('checked_in', 'auto_checked_in') THEN 'occupied'
+        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty') THEN r.status
         WHEN cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= CURRENT_DATE THEN 'reserved'
-        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning') THEN r.status
         ELSE 'available'
     END as status,
     r.maintenance_start_date,
@@ -112,8 +112,8 @@ SELECT
     NULL as review_count,
     CASE
         WHEN cb.booking_status IN ('checked_in', 'auto_checked_in') THEN 'occupied'
+        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty') THEN r.status
         WHEN cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= date('now') THEN 'reserved'
-        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning') THEN r.status
         ELSE 'available'
     END as status,
     r.maintenance_start_date,
@@ -329,7 +329,7 @@ ORDER BY COALESCE(r.custom_price, rt.base_price)
 pub const GET_ROOM_BY_ID_QUERY: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type,
        COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-       CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
+       CASE WHEN r.status = 'available' THEN true ELSE false END as available,
        rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
@@ -341,7 +341,7 @@ WHERE r.id = $1
 pub const GET_ROOM_BY_ID_QUERY: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type,
        CAST(COALESCE(r.custom_price, rt.base_price) AS TEXT) as price_per_night,
-       CASE WHEN r.status IN ('available', 'cleaning') THEN 1 ELSE 0 END as available,
+       CASE WHEN r.status = 'available' THEN 1 ELSE 0 END as available,
        rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
@@ -564,7 +564,7 @@ pub const GET_ROOM_NUMBER: &str = "SELECT room_number FROM rooms WHERE id = ?1";
 pub const GET_EXISTING_ROOM_FOR_UPDATE: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type,
        COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-       CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
+       CASE WHEN r.status = 'available' THEN true ELSE false END as available,
        rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.custom_price::text, r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
@@ -576,7 +576,7 @@ WHERE r.id = $1
 pub const GET_EXISTING_ROOM_FOR_UPDATE: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type,
        CAST(COALESCE(r.custom_price, rt.base_price) AS TEXT) as price_per_night,
-       CASE WHEN r.status IN ('available', 'cleaning') THEN 1 ELSE 0 END as available,
+       CASE WHEN r.status = 'available' THEN 1 ELSE 0 END as available,
        rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, CAST(r.custom_price AS TEXT), r.notes
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
@@ -1016,7 +1016,7 @@ pub const UPDATE_ROOM_STATUS_SIMPLE: &str = "UPDATE rooms SET status = ?1 WHERE 
 ))]
 pub const GET_ROOM_DETAILED_STATUS: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type, r.status,
-       CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
+       CASE WHEN r.status = 'available' THEN true ELSE false END as available,
        r.notes, r.last_cleaned_at, r.last_inspected_at,
        r.reserved_start_date, r.reserved_end_date,
        r.maintenance_start_date, r.maintenance_end_date,
@@ -1031,7 +1031,7 @@ WHERE r.id = $1
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 pub const GET_ROOM_DETAILED_STATUS: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type, r.status,
-       CASE WHEN r.status IN ('available', 'cleaning') THEN 1 ELSE 0 END as available,
+       CASE WHEN r.status = 'available' THEN 1 ELSE 0 END as available,
        r.notes, r.last_cleaned_at, r.last_inspected_at,
        r.reserved_start_date, r.reserved_end_date,
        r.maintenance_start_date, r.maintenance_end_date,
@@ -1266,7 +1266,7 @@ SELECT
     r.room_number,
     rt.name as room_type,
     COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
-    CASE WHEN r.status IN ('available', 'cleaning') THEN true ELSE false END as available,
+    CASE WHEN r.status = 'available' THEN true ELSE false END as available,
     rt.description,
     rt.max_occupancy,
     r.status,
@@ -1294,7 +1294,7 @@ SELECT
     r.room_number,
     rt.name as room_type,
     CAST(COALESCE(r.custom_price, rt.base_price) AS TEXT) as price_per_night,
-    CASE WHEN r.status IN ('available', 'cleaning') THEN 1 ELSE 0 END as available,
+    CASE WHEN r.status = 'available' THEN 1 ELSE 0 END as available,
     rt.description,
     rt.max_occupancy,
     r.status,
@@ -1359,6 +1359,7 @@ SELECT
             AND status = 'checked_in'
             AND check_out_date >= CURRENT_DATE
         ) THEN 'occupied'
+        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty') THEN r.status
         WHEN EXISTS (
             SELECT 1 FROM bookings
             WHERE room_id = r.id
@@ -1366,7 +1367,6 @@ SELECT
             AND check_in_date <= CURRENT_DATE
             AND check_out_date >= CURRENT_DATE
         ) THEN 'reserved'
-        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning') THEN r.status
         ELSE 'available'
     END as computed_status,
     r.is_active,
@@ -1386,6 +1386,7 @@ SELECT
             AND status = 'checked_in'
             AND check_out_date >= date('now')
         ) THEN 'occupied'
+        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty') THEN r.status
         WHEN EXISTS (
             SELECT 1 FROM bookings
             WHERE room_id = r.id
@@ -1393,7 +1394,6 @@ SELECT
             AND check_in_date <= date('now')
             AND check_out_date >= date('now')
         ) THEN 'reserved'
-        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning') THEN r.status
         ELSE 'available'
     END as computed_status,
     r.is_active,

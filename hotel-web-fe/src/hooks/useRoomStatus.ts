@@ -106,7 +106,7 @@ export const useRoomStatus = (
             bookingId = String(futureReservation.id);
           }
           // Priority 4: Use room table status for operational states
-          else if (room.status && ['dirty', 'cleaning', 'maintenance', 'out_of_order'].includes(room.status)) {
+          else if (room.status && ['dirty', 'maintenance', 'out_of_order'].includes(room.status)) {
             computedStatus = room.status as RoomStatusType;
           }
           // Priority 5: Default to available
