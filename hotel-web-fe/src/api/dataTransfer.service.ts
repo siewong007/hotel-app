@@ -29,7 +29,7 @@ export interface ImportResult {
 export class DataTransferService {
   static async exportData(): Promise<BookingDataExport> {
     try {
-      return await api.get('data-transfer/export', { timeout: 120000 }).json<BookingDataExport>();
+      return await api.get('data-transfer/export', { timeout: false }).json<BookingDataExport>();
     } catch (error) {
       if (error instanceof HTTPError) {
         const errorData = await error.response.json().catch(() => ({}));
@@ -47,7 +47,7 @@ export class DataTransferService {
     try {
       return await api.post('data-transfer/import', {
         json: { mode, data },
-        timeout: 300000, // 5 minutes for large imports
+        timeout: false, // no timeout for potentially large imports
       }).json<ImportResult>();
     } catch (error) {
       if (error instanceof HTTPError) {
