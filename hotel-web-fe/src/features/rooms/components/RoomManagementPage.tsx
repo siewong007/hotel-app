@@ -1703,7 +1703,7 @@ const RoomManagementPage: React.FC = () => {
     // Compute dynamic status - same logic as in the render
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const hasCheckedInBooking = booking?.status === 'checked_in';
+    const hasCheckedInBooking = booking?.status === 'checked_in' || booking?.status === 'auto_checked_in';
     const hasReservationForToday = reservedBooking && (() => {
       const checkInDate = new Date(reservedBooking.check_in_date);
       checkInDate.setHours(0, 0, 0, 0);
@@ -1845,7 +1845,7 @@ const RoomManagementPage: React.FC = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const hasCheckedInBooking = booking?.status === 'checked_in';
+    const hasCheckedInBooking = booking?.status === 'checked_in' || booking?.status === 'auto_checked_in';
     const hasReservationForToday = reservedBooking && (() => {
       const checkInDate = new Date(reservedBooking.check_in_date);
       checkInDate.setHours(0, 0, 0, 0);
@@ -4156,7 +4156,7 @@ const RoomManagementPage: React.FC = () => {
                           const isToday = checkInDate.getTime() === today.getTime();
                           const canCheckIn = isToday && (booking.status === 'confirmed' || booking.status === 'pending');
 
-                          if (booking.status === 'checked_in') {
+                          if (booking.status === 'checked_in' || booking.status === 'auto_checked_in') {
                             return (
                               <Chip
                                 label="Currently Occupied"

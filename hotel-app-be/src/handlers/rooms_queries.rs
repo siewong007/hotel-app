@@ -517,7 +517,7 @@ pub const DELETE_ROOM_QUERY: &str = "DELETE FROM rooms WHERE id = ?1";
 pub const CHECK_ACTIVE_BOOKING: &str = r#"
 SELECT id FROM bookings
 WHERE room_id = $1
-AND status = 'checked_in'
+AND status IN ('checked_in', 'auto_checked_in')
 AND check_in_date <= CURRENT_DATE
 AND check_out_date >= CURRENT_DATE
 LIMIT 1
@@ -528,7 +528,7 @@ LIMIT 1
 pub const CHECK_ACTIVE_BOOKING: &str = r#"
 SELECT id FROM bookings
 WHERE room_id = ?1
-AND status = 'checked_in'
+AND status IN ('checked_in', 'auto_checked_in')
 AND check_in_date <= date('now')
 AND check_out_date >= date('now')
 LIMIT 1

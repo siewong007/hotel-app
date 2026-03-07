@@ -597,8 +597,13 @@ const BookingsPage: React.FC = () => {
         return;
       }
 
-      // Load guest data
-      const guest = await HotelAPIService.getGuest(booking.guest_id);
+      // Load guest data (GET /guests/:id doesn't exist, fetch all and find)
+      const allGuests = await HotelAPIService.getAllGuests();
+      const guest = allGuests.find((g: any) => String(g.id) === String(booking.guest_id));
+      if (!guest) {
+        setError('Guest not found');
+        return;
+      }
 
       // Convert BookingWithDetails to Booking format
       const bookingData: any = {
