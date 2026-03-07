@@ -297,7 +297,6 @@ const RoomsPageEnhanced: React.FC = () => {
             </Typography>
             <Typography variant="caption">
               {statistics.dirty > 0 && `${statistics.dirty} dirty, `}
-              {statistics.cleaning > 0 && `${statistics.cleaning} cleaning, `}
               {statistics.maintenance > 0 && `${statistics.maintenance} maintenance`}
             </Typography>
           </Alert>
@@ -429,14 +428,6 @@ const RoomsPageEnhanced: React.FC = () => {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <CleaningIcon sx={{ fontSize: 14, color: config.bgColor }} />
                             <Typography variant="caption" sx={{ color: config.bgColor, fontWeight: 600 }}>
-                              {config.detailMessage}
-                            </Typography>
-                          </Box>
-                        )}
-                        {room.computedStatus === 'cleaning' && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <CleaningIcon sx={{ fontSize: 14, color: 'info.main' }} />
-                            <Typography variant="caption" sx={{ color: 'info.main' }}>
                               {config.detailMessage}
                             </Typography>
                           </Box>
