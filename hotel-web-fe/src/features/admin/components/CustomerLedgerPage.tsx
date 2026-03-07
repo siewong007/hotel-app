@@ -402,7 +402,16 @@ const CustomerLedgerPage: React.FC = () => {
   const loadGuests = async () => {
     try {
       const guestsData = await HotelAPIService.getAllGuests();
-      setGuests(guestsData);
+      // Deduplicate: for guests with the same full_name, keep the one with the most complete info
+      const nameMap = new Map<string, (typeof guestsData)[0]>();
+      for (const g of guestsData) {
+        const key = g.full_name.toLowerCase().trim();
+        const existing = nameMap.get(key);
+        if (!existing || (!existing.phone && g.phone) || (!existing.email && g.email)) {
+          nameMap.set(key, g);
+        }
+      }
+      setGuests(Array.from(nameMap.values()).sort((a, b) => a.full_name.localeCompare(b.full_name)));
     } catch (err) {
       console.error('Failed to load guests:', err);
     }
