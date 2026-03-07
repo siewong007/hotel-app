@@ -90,7 +90,7 @@ export interface RoomWithDisplay extends Room {
 export interface RoomEvent {
   id: string;
   room_id: string;
-  event_type: 'reserve' | 'booking' | 'cleaning' | 'maintenance' | 'inspection' | 'repair' | 'status_change';
+  event_type: 'reserve' | 'booking' | 'maintenance' | 'inspection' | 'repair' | 'status_change';
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   notes?: string;
@@ -101,7 +101,7 @@ export interface RoomEvent {
 }
 
 export interface RoomEventInput {
-  event_type: 'reserved' | 'cleaning' | 'maintenance';
+  event_type: 'reserved' | 'maintenance';
   status: 'pending' | 'in_progress' | 'completed';
   priority?: 'low' | 'normal' | 'high' | 'urgent';
   notes?: string;
@@ -109,7 +109,7 @@ export interface RoomEventInput {
 }
 
 export interface RoomStatusUpdateInput {
-  status: 'available' | 'occupied' | 'cleaning' | 'maintenance' | 'reserved' | 'dirty';
+  status: 'available' | 'occupied' | 'maintenance' | 'reserved' | 'dirty';
   notes?: string;
   reserved_start_date?: string;
   reserved_end_date?: string;

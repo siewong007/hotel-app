@@ -835,7 +835,7 @@ pub async fn update_room_status_handler(
 ) -> Result<Json<Room>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
 
-    let valid_statuses = vec!["available", "occupied", "cleaning", "maintenance", "reserved", "dirty", "clean"];
+    let valid_statuses = vec!["available", "occupied", "maintenance", "reserved", "dirty", "clean"];
     if !valid_statuses.contains(&input.status.as_str()) {
         return Err(ApiError::BadRequest(format!("Invalid status. Must be one of: {:?}", valid_statuses)));
     }
@@ -854,7 +854,7 @@ pub async fn update_room_status_handler(
     // the magic marker in status_notes to bypass the database trigger protection
     let needs_bypass_marker = current_status_check
         .as_ref()
-        .map(|s| ["dirty", "cleaning", "maintenance", "out_of_order"].contains(&s.as_str()))
+        .map(|s| ["dirty", "maintenance", "out_of_order"].contains(&s.as_str()))
         .unwrap_or(false)
         && target_status == "available";
 
@@ -1488,7 +1488,7 @@ pub async fn create_room_event_handler(
 ) -> Result<Json<RoomEvent>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
 
-    let valid_types = vec!["reserved", "cleaning", "maintenance"];
+    let valid_types = vec!["reserved", "maintenance"];
     if !valid_types.contains(&input.event_type.as_str()) {
         return Err(ApiError::BadRequest(format!("Invalid event type. Must be one of: {:?}", valid_types)));
     }

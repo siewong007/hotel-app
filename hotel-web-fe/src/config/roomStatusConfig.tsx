@@ -19,14 +19,12 @@ import { OverridableStringUnion } from '@mui/types';
  * - occupied: Guest checked in, shows guest details on room card
  * - reserved: Has upcoming booking, can check-in directly (details already entered)
  * - dirty: Needs cleaning, can still check-in with booking details
- * - cleaning: Being cleaned, can still check-in with booking details
  * - maintenance: Under repair, NO check-in, NO upcoming bookings
  */
 export type RoomStatusType =
   | 'available'
   | 'occupied'
   | 'reserved'
-  | 'cleaning'
   | 'dirty'
   | 'maintenance';
 
@@ -51,7 +49,6 @@ export type DisplayStatusType =
   | 'available'
   | 'occupied'
   | 'reserved'
-  | 'cleaning'
   | 'dirty'
   | 'maintenance'
   | 'pending'
@@ -118,7 +115,7 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
 
     // Classification
     category: 'operational',
-    allowedTransitions: ['reserved', 'occupied', 'cleaning', 'dirty', 'maintenance'],
+    allowedTransitions: ['reserved', 'occupied', 'dirty', 'maintenance'],
   },
 
   occupied: {
@@ -142,7 +139,7 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
 
     // Classification
     category: 'booking',
-    allowedTransitions: ['dirty', 'cleaning', 'available', 'maintenance'],
+    allowedTransitions: ['dirty', 'available', 'maintenance'],
   },
 
   reserved: {
@@ -191,32 +188,7 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
 
     // Classification
     category: 'operational',
-    allowedTransitions: ['cleaning', 'available', 'maintenance'],
-  },
-
-  cleaning: {
-    // Visual
-    color: 'info',
-    bgColor: '#2196f3',
-    textColor: '#fff',
-    borderColor: '#1976d2',
-
-    // Content
-    label: 'Cleaning',
-    shortLabel: 'Clng',
-    description: 'Housekeeping is actively cleaning',
-    detailMessage: 'Being cleaned',
-    icon: CleaningIcon,
-
-    // Behavior
-    isAvailableForBooking: false,
-    requiresAction: true,
-    actionLabel: 'Mark as Clean',
-    priority: 5,
-
-    // Classification
-    category: 'operational',
-    allowedTransitions: ['available', 'dirty', 'maintenance'],
+    allowedTransitions: ['available', 'maintenance'],
   },
 
   maintenance: {
@@ -241,7 +213,7 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
 
     // Classification
     category: 'maintenance',
-    allowedTransitions: ['available', 'cleaning', 'dirty'],
+    allowedTransitions: ['available', 'dirty'],
   },
 };
 
@@ -300,7 +272,6 @@ export interface StatusStatistics {
   occupied: number;
   reserved: number;
   dirty: number;
-  cleaning: number;
   maintenance: number;
   availablePercentage: number;
   occupancyRate: number;
@@ -315,7 +286,6 @@ export const calculateStatusStatistics = (
     occupied: 0,
     reserved: 0,
     dirty: 0,
-    cleaning: 0,
     maintenance: 0,
     availablePercentage: 0,
     occupancyRate: 0,
