@@ -20,6 +20,7 @@ pub mod rates;
 pub mod rbac;
 pub mod rooms;
 pub mod settings;
+pub mod data_transfer;
 
 use axum::{http::Method, routing::get, Router};
 use crate::core::db::DbPool;
@@ -115,6 +116,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(companies::routes())
         .merge(audit::routes())
         .merge(night_audit::routes())
+        .merge(data_transfer::routes())
         .with_state(pool);
 
     // Add middleware layers

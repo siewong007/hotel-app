@@ -18,6 +18,7 @@ import { ReportsService } from './reports.service';
 import { CompaniesService } from './companies.service';
 import { AuditService } from './audit.service';
 import { NightAuditService } from './nightAudit.service';
+import { DataTransferService } from './dataTransfer.service';
 
 // Core
 export { api, APIError, API_BASE_URL, parseAPIError } from './client';
@@ -39,6 +40,8 @@ export { ReportsService } from './reports.service';
 export { CompaniesService, type Company, type CompanyCreateRequest, type CompanyUpdateRequest } from './companies.service';
 export { AuditService } from './audit.service';
 export { NightAuditService } from './nightAudit.service';
+export { DataTransferService } from './dataTransfer.service';
+export type { BookingDataExport, ImportResult } from './dataTransfer.service';
 export type {
   NightAuditPreview,
   NightAuditRun,
