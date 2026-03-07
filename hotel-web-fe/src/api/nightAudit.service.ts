@@ -106,6 +106,7 @@ export interface PostedBookingDetail {
   guest_name: string;
   room_number: string;
   room_type: string;
+  room_type_code: string | null;
   check_in_date: string;
   check_out_date: string;
   nights: number;

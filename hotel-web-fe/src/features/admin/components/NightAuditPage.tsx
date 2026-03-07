@@ -346,172 +346,208 @@ const NightAuditPage: React.FC = () => {
     }
   };
 
-  // Export single audit to PDF with booking details using jsPDF
+  // Export single audit to PDF matching the night audit report format
   const exportAuditToPDF = async (audit: NightAuditRun) => {
     try {
-      // Fetch full audit details including bookings
       const details = await NightAuditService.getAuditDetails(audit.id);
       const bookings = details.posted_bookings;
+      const sections = details.journal_sections || [];
 
-      // Dynamic import of jspdf and jspdf-autotable
       const jspdfModule = await import('jspdf');
       const jsPDF = jspdfModule.jsPDF || jspdfModule.default;
       const autoTableModule = await import('jspdf-autotable');
       const autoTable = autoTableModule.default;
 
-      // Create PDF in landscape for better table fit
-      const doc = new jsPDF({ orientation: 'landscape' });
+      // Portrait orientation to match the printed format
+      const doc = new jsPDF({ orientation: 'portrait' });
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 14;
 
-      // Header
-      doc.setFontSize(20);
-      doc.setTextColor(25, 118, 210);
-      doc.text('Night Audit Report', 14, 18);
+      // Format audit date as DD.MM.YYYY
+      const dateParts = audit.audit_date.split('-');
+      const auditDateFormatted = `${dateParts[2]}.${dateParts[1]}.${dateParts[0]}`;
 
-      // Audit info
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      const auditDateFormatted = new Date(audit.audit_date + 'T00:00:00').toLocaleDateString('en-US', {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-      });
-      doc.text(`Audit Date: ${auditDateFormatted}`, 14, 26);
-      doc.text(`Status: ${audit.status.toUpperCase()}`, 14, 32);
-      doc.text(`Run At: ${new Date(audit.run_at).toLocaleString()}`, pageWidth / 2, 26);
-      doc.text(`Run By: ${audit.run_by_username || 'System'}`, pageWidth / 2, 32);
-
-      // Summary Statistics - simple text format
-      doc.setFontSize(12);
+      // Title
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 0, 0);
-      doc.text('Summary Statistics', 14, 44);
+      doc.text('Night Audit', pageWidth / 2, 20, { align: 'center' });
 
-      doc.setFontSize(10);
-      const stats = [
-        `Bookings Posted: ${audit.total_bookings_posted}`,
-        `Check-ins: ${audit.total_checkins}`,
-        `Check-outs: ${audit.total_checkouts}`,
-        `Occupancy Rate: ${Number(audit.occupancy_rate).toFixed(1)}%`,
-      ];
-      doc.text(stats.join('    |    '), 14, 52);
+      doc.setFontSize(11);
+      doc.text(`Audit Date : ${auditDateFormatted}`, pageWidth / 2, 28, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
 
-      // Room Snapshot
-      doc.setFontSize(12);
-      doc.text('Room Status Snapshot', 14, 64);
-      doc.setFontSize(10);
-      const roomStats = [
-        `Available: ${audit.rooms_available}`,
-        `Occupied: ${audit.rooms_occupied}`,
-        `Reserved: ${audit.rooms_reserved}`,
-        `Maintenance: ${audit.rooms_maintenance}`,
-        `Dirty: ${audit.rooms_dirty}`,
-      ];
-      doc.text(roomStats.join('    |    '), 14, 72);
+      let currentY = 36;
 
-      // Posted Bookings Table
-      doc.setFontSize(12);
-      doc.text(`Posted Bookings (${bookings.length})`, 14, 84);
+      // Helper: render a journal section as a bordered table
+      const renderSection = (section: JournalSection) => {
+        const isRoomCharge = section.entry_type === 'room_charge';
+        const isServiceTax = section.entry_type === 'service_tax';
+        const isDepositRefund = section.entry_type === 'deposit_refund';
 
-      const tableData = bookings.map(booking => [
-        booking.booking_number,
-        booking.guest_name,
-        booking.room_number,
-        booking.room_type,
-        new Date(booking.check_in_date + 'T00:00:00').toLocaleDateString(),
-        new Date(booking.check_out_date + 'T00:00:00').toLocaleDateString(),
-        booking.nights.toString(),
-        booking.status.replace(/_/g, ' '),
-        booking.payment_method?.replace(/_/g, ' ') || '-',
-        booking.payment_status || '-',
-        booking.source || '-',
-      ]);
+        // Room Charges: special table with Description, Debit, Service Tax, Room
+        if (isRoomCharge) {
+          // Find service tax section to merge
+          const taxSection = sections.find(s => s.entry_type === 'service_tax');
 
-      autoTable(doc, {
-        startY: 88,
-        head: [['Booking #', 'Guest', 'Room', 'Type', 'Check-in', 'Check-out', 'Nights', 'Status', 'Payment', 'Pay Status', 'Channel']],
-        body: tableData,
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [66, 66, 66], textColor: [255, 255, 255] },
-      });
+          // Build merged data: match room_charge entries with service_tax entries by room
+          const rows: string[][] = [];
+          for (const entry of section.entries) {
+            const taxEntry = taxSection?.entries.find(e => e.room_number === entry.room_number);
+            rows.push([
+              'Room Charge',
+              Number(entry.debit).toFixed(2),
+              taxEntry ? Number(taxEntry.debit).toFixed(2) : '',
+              entry.room_number,
+            ]);
+          }
+          // Totals row
+          const totalDebit = Number(section.total_debit).toFixed(2);
+          const totalTax = taxSection ? Number(taxSection.total_debit).toFixed(2) : '';
+          rows.push([
+            '',
+            `Totals : ${totalDebit}`,
+            `Totals : ${totalTax}`,
+            '',
+          ]);
 
-      let currentY = (doc as any).lastAutoTable.finalY + 10;
-
-      // Notes
-      if (audit.notes) {
-        if (currentY > pageHeight - 40) {
-          doc.addPage();
-          currentY = 20;
-        }
-        doc.setFontSize(12);
-        doc.setTextColor(0, 0, 0);
-        doc.text('Notes', 14, currentY);
-        doc.setFontSize(9);
-        doc.setTextColor(80, 80, 80);
-        const splitNotes = doc.splitTextToSize(audit.notes, pageWidth - 28);
-        doc.text(splitNotes, 14, currentY + 6);
-        currentY += splitNotes.length * 5 + 10;
-      }
-
-      // Journal Sections
-      if (details.journal_sections && details.journal_sections.length > 0) {
-        if (currentY > pageHeight - 60) {
-          doc.addPage();
-          currentY = 20;
-        }
-
-        doc.setFontSize(14);
-        doc.setTextColor(25, 118, 210);
-        doc.text('Journal Entries', 14, currentY);
-        currentY += 10;
-
-        for (const section of details.journal_sections) {
-          if (currentY > pageHeight - 50) {
+          if (currentY + rows.length * 7 + 15 > pageHeight - 20) {
             doc.addPage();
             currentY = 20;
           }
 
-          doc.setFontSize(11);
-          doc.setTextColor(0, 0, 0);
-          doc.text(section.display_name, 14, currentY);
-          currentY += 4;
-
-          const journalData = section.entries.map(entry => [
-            entry.booking_number,
-            entry.room_number,
-            entry.description || '-',
-            Number(entry.debit) > 0 ? Number(entry.debit).toFixed(2) : '-',
-            Number(entry.credit) > 0 ? Number(entry.credit).toFixed(2) : '-',
-          ]);
-
-          // Add total row
-          journalData.push([
-            'Total', '', '',
-            Number(section.total_debit) > 0 ? Number(section.total_debit).toFixed(2) : '-',
-            Number(section.total_credit) > 0 ? Number(section.total_credit).toFixed(2) : '-',
-          ]);
-
           autoTable(doc, {
             startY: currentY,
-            head: [['Booking #', 'Room', 'Description', 'Debit', 'Credit']],
-            body: journalData,
-            styles: { fontSize: 7, cellPadding: 2 },
-            headStyles: { fillColor: [100, 100, 100], textColor: [255, 255, 255] },
+            head: [['Description', 'Debit', 'Service Tax', 'Room']],
+            body: rows,
+            styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.3 },
+            headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'italic', lineColor: [0, 0, 0], lineWidth: 0.3 },
             columnStyles: {
-              3: { halign: 'right' },
-              4: { halign: 'right' },
+              0: { fontStyle: 'italic', cellWidth: 50 },
+              1: { halign: 'right', cellWidth: 40 },
+              2: { halign: 'right', cellWidth: 40 },
+              3: { halign: 'right', fontStyle: 'bold', cellWidth: 30 },
             },
+            theme: 'grid',
           });
-
-          currentY = (doc as any).lastAutoTable.finalY + 8;
+          currentY = (doc as any).lastAutoTable.finalY + 6;
+          return;
         }
 
-        // Grand totals
-        const grandDebit = details.journal_sections.reduce((sum, s) => sum + Number(s.total_debit), 0);
-        const grandCredit = details.journal_sections.reduce((sum, s) => sum + Number(s.total_credit), 0);
+        // Skip service_tax - already merged into room_charge
+        if (isServiceTax) return;
 
-        doc.setFontSize(11);
-        doc.setTextColor(0, 0, 0);
-        doc.text(`Grand Total - Debit: ${grandDebit.toFixed(2)}   |   Credit: ${grandCredit.toFixed(2)}`, 14, currentY);
+        // All other sections: Description, Amount, Room
+        const displayName = section.display_name;
+        const rows: string[][] = [];
+        for (const entry of section.entries) {
+          const amount = isDepositRefund ? Number(entry.credit) : Number(entry.debit);
+          rows.push([
+            displayName,
+            amount > 0 ? amount.toFixed(2) : '',
+            entry.room_number,
+          ]);
+        }
+        const total = isDepositRefund ? Number(section.total_credit) : Number(section.total_debit);
+        rows.push(['', `Totals : ${total.toFixed(2)}`, '']);
+
+        if (currentY + rows.length * 7 + 15 > pageHeight - 20) {
+          doc.addPage();
+          currentY = 20;
+        }
+
+        autoTable(doc, {
+          startY: currentY,
+          head: [['', '', '']],
+          body: rows,
+          showHead: false,
+          styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.3 },
+          columnStyles: {
+            0: { fontStyle: 'italic', cellWidth: 50 },
+            1: { halign: 'right', fontStyle: 'bold', cellWidth: 50 },
+            2: { halign: 'right', fontStyle: 'bold', cellWidth: 30 },
+          },
+          theme: 'grid',
+        });
+        currentY = (doc as any).lastAutoTable.finalY + 6;
+      };
+
+      // Render each journal section
+      for (const section of sections) {
+        renderSection(section);
       }
+
+      // === Page 2: General Journal + Room Sold Detail ===
+      doc.addPage();
+      currentY = 20;
+
+      // General Journal title
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text('General Journal', margin, currentY);
+      doc.setFont('helvetica', 'normal');
+      currentY += 8;
+
+      // Build General Journal summary rows
+      const journalRows: string[][] = [];
+      for (const section of sections) {
+        if (section.entry_type === 'service_tax') continue; // service tax merged into room charges row... actually show separately
+        const debitTotal = Number(section.total_debit);
+        const creditTotal = Number(section.total_credit);
+        journalRows.push([
+          section.display_name,
+          debitTotal > 0 ? debitTotal.toFixed(2) : '',
+          creditTotal > 0 ? creditTotal.toFixed(2) : '',
+        ]);
+      }
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Account', 'Debits', 'Credits']],
+        body: journalRows,
+        styles: { fontSize: 9, cellPadding: 3, lineColor: [0, 0, 0], lineWidth: 0.3 },
+        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.3 },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 60 },
+          1: { halign: 'right', fontStyle: 'bold', cellWidth: 40 },
+          2: { halign: 'right', fontStyle: 'bold', cellWidth: 40 },
+        },
+        theme: 'grid',
+      });
+      currentY = (doc as any).lastAutoTable.finalY + 16;
+
+      // Room Sold Detail by Date
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Room Sold Detail by Date', margin, currentY);
+      doc.setFont('helvetica', 'normal');
+      currentY += 8;
+
+      const roomSoldRows: string[][] = bookings.map(b => [
+        b.room_number,
+        b.room_type_code || b.room_type || '',
+        b.guest_name,
+      ]);
+      roomSoldRows.push([
+        'Total Room Sold',
+        bookings.length.toString(),
+        '',
+      ]);
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Room', 'Type', 'Guest Name']],
+        body: roomSoldRows,
+        styles: { fontSize: 9, cellPadding: 3, lineColor: [0, 0, 0], lineWidth: 0.3 },
+        headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.3 },
+        columnStyles: {
+          0: { fontStyle: 'bold', halign: 'center', cellWidth: 35 },
+          1: { halign: 'center', cellWidth: 35 },
+          2: { fontStyle: 'italic' },
+        },
+        theme: 'grid',
+      });
 
       // Footer on all pages
       const totalPages = doc.getNumberOfPages();
@@ -520,13 +556,12 @@ const NightAuditPage: React.FC = () => {
         doc.setFontSize(8);
         doc.setTextColor(150, 150, 150);
         doc.text(
-          `Audit ID: #${audit.id} | Generated: ${new Date().toLocaleString()} | Page ${i} of ${totalPages}`,
-          14,
+          `Generated: ${new Date().toLocaleString()} | Page ${i} of ${totalPages}`,
+          margin,
           pageHeight - 10
         );
       }
 
-      // Save the PDF
       doc.save(`night_audit_${audit.audit_date}.pdf`);
     } catch (err: any) {
       console.error('Failed to export audit to PDF:', err);
