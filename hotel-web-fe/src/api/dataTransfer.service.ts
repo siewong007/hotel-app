@@ -18,6 +18,7 @@ export interface BookingDataExport {
   customer_ledgers: any[];
   customer_ledger_payments: any[];
   room_changes: any[];
+  user_guests: any[];
 }
 
 export interface ImportResult {

@@ -28,6 +28,8 @@ pub struct BookingDataExport {
     pub customer_ledgers: Vec<Value>,
     pub customer_ledger_payments: Vec<Value>,
     pub room_changes: Vec<Value>,
+    #[serde(default)]
+    pub user_guests: Vec<Value>,
 }
 
 /// Import mode
@@ -75,6 +77,7 @@ pub async fn export_booking_data_handler(
     let customer_ledgers = query_table(&pool, "SELECT * FROM customer_ledgers ORDER BY id").await?;
     let customer_ledger_payments = query_table(&pool, "SELECT * FROM customer_ledger_payments ORDER BY id").await?;
     let room_changes = query_table(&pool, "SELECT * FROM room_changes ORDER BY id").await?;
+    let user_guests = query_table(&pool, "SELECT * FROM user_guests ORDER BY id").await?;
 
     Ok(Json(BookingDataExport {
         version: "1.0".to_string(),
@@ -93,6 +96,7 @@ pub async fn export_booking_data_handler(
         customer_ledgers,
         customer_ledger_payments,
         room_changes,
+        user_guests,
     }))
 }
 
@@ -145,9 +149,19 @@ pub async fn import_booking_data_handler(
 
     let mut counts = serde_json::Map::new();
 
+    // Columns that are GENERATED ALWAYS AS in PostgreSQL and cannot be inserted
+    let generated_columns: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::from([
+        ("bookings", vec!["nights", "total_guests"]),
+    ]);
+
     // Helper macro for inserting JSON rows into a table
     // For each row, we dynamically build INSERT from the JSON keys
-    async fn insert_rows(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, table: &str, rows: &[Value]) -> Result<usize, ApiError> {
+    async fn insert_rows(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        table: &str,
+        rows: &[Value],
+        skip_columns: &[&str],
+    ) -> Result<usize, ApiError> {
         let mut inserted = 0;
         for row in rows {
             let obj = match row.as_object() {
@@ -155,7 +169,10 @@ pub async fn import_booking_data_handler(
                 None => continue,
             };
 
-            let columns: Vec<&str> = obj.keys().map(|k| k.as_str()).collect();
+            let columns: Vec<&str> = obj.keys()
+                .map(|k| k.as_str())
+                .filter(|k| !skip_columns.contains(k))
+                .collect();
             let placeholders: Vec<String> = (1..=columns.len()).map(|i| format!("${}", i)).collect();
 
             let sql = format!(
@@ -188,14 +205,22 @@ pub async fn import_booking_data_handler(
                 value_strs.join(", ")
             );
 
+            // Use savepoint so a single row failure doesn't abort the whole transaction
+            sqlx::query("SAVEPOINT row_insert").execute(&mut **tx).await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+
             match sqlx::query(&insert_sql).execute(&mut **tx).await {
                 Ok(result) => {
+                    sqlx::query("RELEASE SAVEPOINT row_insert").execute(&mut **tx).await
+                        .map_err(|e| ApiError::Database(e.to_string()))?;
                     if result.rows_affected() > 0 {
                         inserted += 1;
                     }
                 }
                 Err(e) => {
                     log::warn!("Failed to insert row into {}: {} - SQL: {}", table, e, insert_sql);
+                    sqlx::query("ROLLBACK TO SAVEPOINT row_insert").execute(&mut **tx).await
+                        .map_err(|e| ApiError::Database(e.to_string()))?;
                     // Continue with other rows
                 }
             }
@@ -204,51 +229,34 @@ pub async fn import_booking_data_handler(
     }
 
     // Insert in dependency order
-    let n = insert_rows(&mut tx, "guests", &data.guests).await?;
-    counts.insert("guests".into(), Value::Number(n.into()));
+    let empty_skip: Vec<&str> = vec![];
+    let tables_and_data: Vec<(&str, &[Value])> = vec![
+        ("guests", &data.guests),
+        ("user_guests", &data.user_guests),
+        ("guest_complimentary_credits", &data.guest_complimentary_credits),
+        ("companies", &data.companies),
+        ("bookings", &data.bookings),
+        ("payments", &data.payments),
+        ("invoices", &data.invoices),
+        ("booking_guests", &data.booking_guests),
+        ("booking_modifications", &data.booking_modifications),
+        ("booking_history", &data.booking_history),
+        ("night_audit_runs", &data.night_audit_runs),
+        ("night_audit_details", &data.night_audit_details),
+        ("customer_ledgers", &data.customer_ledgers),
+        ("customer_ledger_payments", &data.customer_ledger_payments),
+        ("room_changes", &data.room_changes),
+    ];
 
-    let n = insert_rows(&mut tx, "guest_complimentary_credits", &data.guest_complimentary_credits).await?;
-    counts.insert("guest_complimentary_credits".into(), Value::Number(n.into()));
-
-    let n = insert_rows(&mut tx, "companies", &data.companies).await?;
-    counts.insert("companies".into(), Value::Number(n.into()));
-
-    let n = insert_rows(&mut tx, "bookings", &data.bookings).await?;
-    counts.insert("bookings".into(), Value::Number(n.into()));
-
-    let n = insert_rows(&mut tx, "payments", &data.payments).await?;
-    counts.insert("payments".into(), Value::Number(n.into()));
-
-    let n = insert_rows(&mut tx, "invoices", &data.invoices).await?;
-    counts.insert("invoices".into(), Value::Number(n.into()));
-
-    let n = insert_rows(&mut tx, "booking_guests", &data.booking_guests).await?;
-    counts.insert("booking_guests".into(), Value::Number(n.into()));
-
-    let n = insert_rows(&mut tx, "booking_modifications", &data.booking_modifications).await?;
-    counts.insert("booking_modifications".into(), Value::Number(n.into()));
-
-    let n = insert_rows(&mut tx, "booking_history", &data.booking_history).await?;
-    counts.insert("booking_history".into(), Value::Number(n.into()));
-
-    let n = insert_rows(&mut tx, "night_audit_runs", &data.night_audit_runs).await?;
-    counts.insert("night_audit_runs".into(), Value::Number(n.into()));
-
-    let n = insert_rows(&mut tx, "night_audit_details", &data.night_audit_details).await?;
-    counts.insert("night_audit_details".into(), Value::Number(n.into()));
-
-    let n = insert_rows(&mut tx, "customer_ledgers", &data.customer_ledgers).await?;
-    counts.insert("customer_ledgers".into(), Value::Number(n.into()));
-
-    let n = insert_rows(&mut tx, "customer_ledger_payments", &data.customer_ledger_payments).await?;
-    counts.insert("customer_ledger_payments".into(), Value::Number(n.into()));
-
-    let n = insert_rows(&mut tx, "room_changes", &data.room_changes).await?;
-    counts.insert("room_changes".into(), Value::Number(n.into()));
+    for (table, rows) in &tables_and_data {
+        let skip = generated_columns.get(table).unwrap_or(&empty_skip);
+        let n = insert_rows(&mut tx, table, rows, skip).await?;
+        counts.insert((*table).into(), Value::Number(n.into()));
+    }
 
     // Reset sequences to max id + 1 for each table
     let tables_with_sequences = [
-        "guests", "guest_complimentary_credits", "companies", "bookings",
+        "guests", "user_guests", "guest_complimentary_credits", "companies", "bookings",
         "payments", "invoices", "booking_guests", "booking_modifications",
         "booking_history", "night_audit_runs", "night_audit_details",
         "customer_ledgers", "customer_ledger_payments", "room_changes",
