@@ -171,6 +171,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   // Payment choice: 'now' or 'later' (for both member and non-member guests)
   const [paymentChoice, setPaymentChoice] = useState<'now' | 'later' | null>(null);
 
+  // Deposit choice for reservation bookings (online, walk-in reservation)
+  const [depositChoice, setDepositChoice] = useState<'receive' | 'waive' | null>(null);
+  const [depositAmount, setDepositAmount] = useState(0);
+  const [depositPaymentMethod, setDepositPaymentMethod] = useState('cash');
+
   // Processing state
   const [processing, setProcessing] = useState(false);
 
@@ -251,6 +256,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setExtraBedCount(0);
       setExtraBedCharge(0);
       setPaymentChoice(null);
+      setDepositChoice(null);
+      setDepositAmount(0);
+      setDepositPaymentMethod('cash');
       setBookingNotes('');
       setRoomTypeConfig(null);
       setSelectedRoom(null);
@@ -286,6 +294,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setExtraBedCount(0);
       setExtraBedCharge(0);
       setPaymentChoice(null);
+      setDepositChoice(null);
+      setDepositAmount(0);
+      setDepositPaymentMethod('cash');
       setBookingNotes('');
       setRoomTypeConfig(null);
       setSelectedRoom(null);
@@ -486,13 +497,14 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         return true;
 
       case 'Confirm': {
-        // For walk-in bookings, validate payment choice
         const effType = getEffectiveBookingType();
-        if (effType === 'walk_in') {
-          // Both members and non-members must choose pay now or pay later
+        if (effType !== 'complimentary') {
+          // Payment choice required
           if (!paymentChoice) return false;
-          // If pay now, deposit must be > 0
           if (paymentChoice === 'now' && deposit <= 0) return false;
+          // Deposit choice required
+          if (!depositChoice) return false;
+          if (depositChoice === 'receive' && depositAmount <= 0) return false;
         }
         return true;
       }
@@ -618,6 +630,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
         extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
         extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
+        deposit_paid: depositChoice === 'receive' && depositAmount > 0,
+        deposit_amount: depositChoice === 'receive' && depositAmount > 0 ? depositAmount : undefined,
       };
 
       const createdBookingResult = await HotelAPIService.createBooking(bookingData);
@@ -841,6 +855,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
             extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
             extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
+            deposit_paid: depositChoice === 'receive' && depositAmount > 0,
+            deposit_amount: depositChoice === 'receive' && depositAmount > 0 ? depositAmount : undefined,
           };
 
           await HotelAPIService.createBooking(bookingData);
@@ -856,6 +872,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             bookingReference ? `${bookingChannel} - Ref: ${bookingReference}` : `${bookingChannel} Booking`,
             bookingNotes.trim(),
           ].filter(Boolean).join(' | ');
+          const hasDeposit = depositChoice === 'receive' && depositAmount > 0;
+          const isOnlinePayLater = paymentChoice === 'later';
+          const onlinePayAmount = isOnlinePayLater ? 0 : deposit;
           const bookingData = {
             guest_id: guestToUse!.id,
             room_id: String(room.id),
@@ -871,6 +890,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
             extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
             extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
+            payment_method: isOnlinePayLater ? undefined : paymentMethod,
+            amount_paid: onlinePayAmount,
+            payment_status: isOnlinePayLater ? 'unpaid' as const : undefined,
+            deposit_paid: hasDeposit,
+            deposit_amount: hasDeposit ? depositAmount : undefined,
           };
 
           await HotelAPIService.createBooking(bookingData);
@@ -1686,13 +1710,14 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               </Typography>
             </Grid>
 
-            {/* Payment prompt for walk-in bookings */}
-            {effectiveType === 'walk_in' && (() => {
+            {/* Payment & Deposit for all non-complimentary bookings */}
+            {effectiveType !== 'complimentary' && (() => {
               const guestType = isCreatingNewGuest ? (newGuestForm.guest_type || 'non_member') : (selectedGuest?.guest_type || 'non_member');
               const isMemberGuest = guestType === 'member';
 
               return (
                 <>
+                  {/* Payment section */}
                   <Grid item xs={12}>
                     <Divider />
                   </Grid>
@@ -1723,7 +1748,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                     </Box>
                   </Grid>
 
-                  {/* Show payment fields when 'pay now' is chosen */}
                   {paymentChoice === 'now' && (
                     <>
                       <Grid item xs={12} md={6}>
@@ -1771,12 +1795,84 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                     </>
                   )}
 
-                  {/* Pay later chosen */}
                   {paymentChoice === 'later' && (
                     <Grid item xs={12}>
                       <Alert severity="warning">
                         <Typography variant="body2">
                           Payment will be required before checkout.{isMemberGuest ? ' Room card deposit is waived for members.' : ''}
+                        </Typography>
+                      </Alert>
+                    </Grid>
+                  )}
+
+                  {/* Deposit section */}
+                  <Grid item xs={12}>
+                    <Divider />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                      Deposit
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <Button
+                        variant={depositChoice === 'receive' ? 'contained' : 'outlined'}
+                        color="primary"
+                        onClick={() => setDepositChoice('receive')}
+                        sx={{ flex: 1, py: 1.5 }}
+                      >
+                        Receive Deposit
+                      </Button>
+                      <Button
+                        variant={depositChoice === 'waive' ? 'contained' : 'outlined'}
+                        color="warning"
+                        onClick={() => {
+                          setDepositChoice('waive');
+                          setDepositAmount(0);
+                        }}
+                        sx={{ flex: 1, py: 1.5 }}
+                      >
+                        Waive Deposit
+                      </Button>
+                    </Box>
+                  </Grid>
+
+                  {depositChoice === 'receive' && (
+                    <>
+                      <Grid item xs={12} md={6}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>Deposit Payment Method</InputLabel>
+                          <Select
+                            value={depositPaymentMethod}
+                            onChange={(e) => setDepositPaymentMethod(e.target.value)}
+                            label="Deposit Payment Method"
+                          >
+                            {getHotelSettings().payment_methods.map((method) => (
+                              <MenuItem key={method} value={method}>{method}</MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          label="Deposit Amount"
+                          value={depositAmount}
+                          onChange={(e) => setDepositAmount(parseFloat(e.target.value) || 0)}
+                          InputProps={{
+                            startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
+                          }}
+                        />
+                      </Grid>
+                    </>
+                  )}
+
+                  {depositChoice === 'waive' && (
+                    <Grid item xs={12}>
+                      <Alert severity="info">
+                        <Typography variant="body2">
+                          No deposit will be collected for this booking.
                         </Typography>
                       </Alert>
                     </Grid>
