@@ -304,6 +304,23 @@ pub async fn update_guest_handler(
     // Compute full_name from first_name and last_name
     let full_name = format!("{} {}", first_name.trim(), last_name.trim()).trim().to_string();
 
+    // Check if another guest already has this full_name (case-insensitive)
+    let name_conflict: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER($1) AND deleted_at IS NULL AND id != $2 LIMIT 1"
+    )
+    .bind(&full_name)
+    .bind(guest_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if name_conflict.is_some() {
+        return Err(ApiError::BadRequest(format!(
+            "A guest with the name '{}' already exists. Guest names must be unique.",
+            full_name
+        )));
+    }
+
     let updated_guest: Guest = sqlx::query_as(
         r#"
         UPDATE guests
