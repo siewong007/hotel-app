@@ -1129,12 +1129,13 @@ const RoomManagementPage: React.FC = () => {
         ? `Room requires cleaning after late checkout. Late checkout penalty: ${lateCheckoutData.penalty}. Notes: ${lateCheckoutData.notes || 'None'}`
         : 'Room requires cleaning after checkout';
 
-      const hasUpcomingReservation = Array.from(reservedBookings.values()).some(
+      const upcomingReservation = Array.from(reservedBookings.values()).find(
         b => String(b.room_id) === String(selectedBooking.room_id)
       );
       await HotelAPIService.updateRoomStatus(selectedBooking.room_id, {
-        status: hasUpcomingReservation ? 'reserved' : 'dirty',
+        status: upcomingReservation ? 'reserved' : 'dirty',
         notes: checkoutNotes,
+        ...(upcomingReservation ? { booking_id: upcomingReservation.id } : {}),
       });
 
       // Auto-post room charges to company ledger if booking has company billing
@@ -1210,12 +1211,13 @@ const RoomManagementPage: React.FC = () => {
   const handleMakeClean = async (room: Room) => {
     try {
       // Set to 'reserved' if upcoming booking exists, else 'available'
-      const hasUpcomingReservation = Array.from(reservedBookings.values()).some(
+      const upcomingBooking = Array.from(reservedBookings.values()).find(
         b => String(b.room_id) === String(room.id)
       );
       await HotelAPIService.updateRoomStatus(room.id, {
-        status: hasUpcomingReservation ? 'reserved' : 'available',
+        status: upcomingBooking ? 'reserved' : 'available',
         notes: 'Room cleaned and ready for guests',
+        ...(upcomingBooking ? { booking_id: upcomingBooking.id } : {}),
       });
 
       // Ensure room is available

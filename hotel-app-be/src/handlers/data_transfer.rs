@@ -126,6 +126,12 @@ pub async fn import_booking_data_handler(
         "user_guests", "guests",
     ];
     if !data.rooms.is_empty() {
+        // Delete room-dependent tables before rooms
+        managed_tables.push("room_status_change_log");
+        managed_tables.push("room_history");
+        managed_tables.push("room_rates");
+        managed_tables.push("room_type_amenities");
+        managed_tables.push("room_status_transitions");
         managed_tables.push("rooms");
         managed_tables.push("room_types");
     }
