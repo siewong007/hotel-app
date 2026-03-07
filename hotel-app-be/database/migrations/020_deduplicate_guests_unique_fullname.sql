@@ -46,9 +46,6 @@ BEGIN
                 WHERE bg2.booking_id = booking_guests.booking_id AND bg2.guest_id = keep_id
               );
 
-            -- Reassign booking_modifications
-            UPDATE booking_modifications SET guest_id = keep_id WHERE guest_id = dup_id;
-
             -- Reassign invoices
             UPDATE invoices SET bill_to_guest_id = keep_id WHERE bill_to_guest_id = dup_id;
 
