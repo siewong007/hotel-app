@@ -49,6 +49,8 @@ const TABLE_LABELS: Record<string, string> = {
   customer_ledger_payments: 'Ledger Payments',
   room_changes: 'Room Changes',
   user_guests: 'User-Guest Links',
+  room_types: 'Room Types',
+  rooms: 'Rooms',
 };
 
 const DataTransferPage: React.FC = () => {
