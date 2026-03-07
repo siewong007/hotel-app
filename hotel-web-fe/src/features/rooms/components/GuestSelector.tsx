@@ -225,7 +225,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
             renderOption={(props, option) => {
               const { key, ...otherProps } = props;
               return (
-                <Box component="li" key={key} {...otherProps} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box component="li" key={option.id || key} {...otherProps} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Box sx={{ flex: 1 }}>
                     <Typography variant="body2">
                       {option.full_name}
