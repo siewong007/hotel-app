@@ -24,6 +24,7 @@ pub mod guest_portal;
 pub mod companies;
 pub mod audit;
 pub mod night_audit;
+pub mod data_transfer;
 
 // Re-export all handlers for convenience
 pub use auth::*;
