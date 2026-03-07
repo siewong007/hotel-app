@@ -167,7 +167,11 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             b.booking_number,
             r.room_number,
             b.total_amount,
-            b.room_card_deposit as deposit
+            COALESCE(b.room_card_deposit, 0) as room_card_deposit,
+            COALESCE(b.deposit_amount, 0) as deposit_amount,
+            COALESCE(b.source, 'walk_in') as source,
+            COALESCE(b.remarks, '') as remarks,
+            b.status
         FROM bookings b
         JOIN rooms r ON b.room_id = r.id
         WHERE {}
@@ -183,16 +187,14 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             let booking_number: String = row.get("booking_number");
             let room_number: String = row.get("room_number");
             let total_amount: Decimal = row.get("total_amount");
-            let deposit: Option<Decimal> = row.get("deposit");
+            let room_card_deposit: Decimal = row.get("room_card_deposit");
+            let deposit_amount: Decimal = row.get("deposit_amount");
 
             // Back-calculate room charge (before tax) and service tax from tax-inclusive total
-            // total_amount = room_charge_before_tax * (1 + tax_rate)
-            // room_charge_before_tax = total_amount / (1 + tax_rate)
-            // service_tax = total_amount - room_charge_before_tax
             let room_charge = (total_amount / divisor).round_dp(2);
             let service_tax = total_amount - room_charge;
 
-            // Room charge entry (debit to guest, credit to room revenue)
+            // Room charge entry
             if room_charge > Decimal::ZERO {
                 entries.push(JournalEntry {
                     booking_number: booking_number.clone(),
@@ -200,7 +202,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                     entry_type: "room_charge".to_string(),
                     debit: room_charge,
                     credit: Decimal::ZERO,
-                    description: Some("Room charge".to_string()),
+                    description: Some("Room Charge".to_string()),
                 });
             }
 
@@ -212,35 +214,46 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                     entry_type: "service_tax".to_string(),
                     debit: service_tax,
                     credit: Decimal::ZERO,
-                    description: Some("Service tax".to_string()),
+                    description: Some("Service Tax".to_string()),
                 });
             }
 
-            // Deposit entry
-            if let Some(dep) = deposit {
-                if dep > Decimal::ZERO {
-                    entries.push(JournalEntry {
-                        booking_number: booking_number.clone(),
-                        room_number: room_number.clone(),
-                        entry_type: "deposit_refund".to_string(),
-                        debit: dep,
-                        credit: Decimal::ZERO,
-                        description: Some("Room card deposit".to_string()),
-                    });
-                }
+            // Room card deposit entry (deposit received)
+            if room_card_deposit > Decimal::ZERO {
+                entries.push(JournalEntry {
+                    booking_number: booking_number.clone(),
+                    room_number: room_number.clone(),
+                    entry_type: "deposit".to_string(),
+                    debit: room_card_deposit,
+                    credit: Decimal::ZERO,
+                    description: Some("Deposit".to_string()),
+                });
+            }
+
+            // Booking deposit (deposit_amount) entry if different from room_card_deposit
+            if deposit_amount > Decimal::ZERO && deposit_amount != room_card_deposit {
+                entries.push(JournalEntry {
+                    booking_number: booking_number.clone(),
+                    room_number: room_number.clone(),
+                    entry_type: "deposit".to_string(),
+                    debit: deposit_amount,
+                    credit: Decimal::ZERO,
+                    description: Some("Deposit".to_string()),
+                });
             }
         }
     }
 
-    // Get payments for bookings on the audit date
+    // Get payments for bookings on the audit date - group by method/channel
     let payment_query = format!(r#"
         SELECT
             b.booking_number,
             r.room_number,
             p.amount,
-            p.payment_method,
-            p.payment_type,
-            p.status
+            COALESCE(p.payment_method, '') as payment_method,
+            COALESCE(p.payment_type, '') as payment_type,
+            COALESCE(b.source, 'walk_in') as source,
+            COALESCE(b.remarks, '') as remarks
         FROM payments p
         JOIN bookings b ON p.booking_id = b.id
         JOIN rooms r ON b.room_id = r.id
@@ -258,56 +271,163 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             let booking_number: String = row.get("booking_number");
             let room_number: String = row.get("room_number");
             let amount: Decimal = row.get("amount");
-            let payment_method: Option<String> = row.get("payment_method");
-            let payment_type: Option<String> = row.get("payment_type");
+            let payment_method: String = row.get("payment_method");
+            let payment_type: String = row.get("payment_type");
+            let source: String = row.get("source");
+            let remarks: String = row.get("remarks");
 
-            let entry_type = match payment_type.as_deref() {
-                Some("refund") | Some("deposit") => "deposit_refund",
-                _ => {
-                    match payment_method.as_deref() {
-                        Some(m) if m.to_lowercase().contains("cash") => "cash",
-                        _ => "other_payment"
-                    }
+            // Skip refund/deposit type payments (handled separately)
+            if payment_type == "refund" {
+                continue;
+            }
+
+            // Determine entry type based on source and payment method
+            let entry_type = if source == "online" {
+                // Extract channel name from remarks (e.g. "Booking.Com - Ref: 123")
+                let channel = remarks.split(" - ").next().unwrap_or("Online").trim().to_string();
+                if channel.is_empty() { "Online".to_string() } else { channel }
+            } else {
+                // Use payment method as entry type - normalize to display name
+                let pm = payment_method.to_lowercase().replace(' ', "_");
+                match pm.as_str() {
+                    "cash" => "Cash".to_string(),
+                    "debit_card" | "debit" => "Debit Card".to_string(),
+                    "credit_card" | "credit" => "Credit Card".to_string(),
+                    "e_wallet" | "e-wallet" | "ewallet" => "E-Wallet".to_string(),
+                    "bank_transfer" | "bank" => "Bank Transfer".to_string(),
+                    "" => "Cash".to_string(),
+                    _ => payment_method.clone(), // preserve original casing
                 }
             };
 
-            if entry_type == "deposit_refund" {
+            entries.push(JournalEntry {
+                booking_number: booking_number.clone(),
+                room_number: room_number.clone(),
+                entry_type: format!("payment_{}", entry_type),
+                debit: amount,
+                credit: Decimal::ZERO,
+                description: Some(entry_type.clone()),
+            });
+        }
+    }
+
+    // Get deposit refunds: bookings checked out on the audit date with room_card_deposit
+    let refund_condition = if is_posted {
+        "b.posted_date = $1 AND b.status = 'checked_out' AND COALESCE(b.room_card_deposit, 0) > 0"
+    } else {
+        "b.status = 'checked_out' AND b.check_out_date = $1 AND COALESCE(b.room_card_deposit, 0) > 0"
+    };
+
+    let refund_query = format!(r#"
+        SELECT
+            b.booking_number,
+            r.room_number,
+            b.room_card_deposit
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.id
+        WHERE {}
+        ORDER BY r.room_number
+    "#, refund_condition);
+
+    if let Ok(refund_rows) = sqlx::query(&refund_query)
+        .bind(audit_date)
+        .fetch_all(pool)
+        .await
+    {
+        for row in refund_rows.iter() {
+            let booking_number: String = row.get("booking_number");
+            let room_number: String = row.get("room_number");
+            let deposit: Decimal = row.get("room_card_deposit");
+
+            if deposit > Decimal::ZERO {
                 entries.push(JournalEntry {
                     booking_number: booking_number.clone(),
                     room_number: room_number.clone(),
-                    entry_type: entry_type.to_string(),
+                    entry_type: "deposit_refund".to_string(),
                     debit: Decimal::ZERO,
-                    credit: amount,
-                    description: Some(format!("Deposit refund - {}", payment_method.unwrap_or_default())),
-                });
-            } else {
-                entries.push(JournalEntry {
-                    booking_number: booking_number.clone(),
-                    room_number: room_number.clone(),
-                    entry_type: entry_type.to_string(),
-                    debit: Decimal::ZERO,
-                    credit: amount,
-                    description: Some(format!("Payment - {}", payment_method.unwrap_or_default())),
+                    credit: deposit,
+                    description: Some("Deposit Refund".to_string()),
                 });
             }
         }
     }
 
-    // Group entries by type
-    let entry_types = vec![
+    // Group entries by type - fixed order, then dynamic payment types
+    let fixed_types = vec![
         ("room_charge", "Room Charges"),
         ("service_tax", "Service Tax"),
-        ("deposit_refund", "Deposit Refunds"),
-        ("cash", "Cash Payments"),
-        ("other_payment", "Other Payments"),
     ];
 
     let mut sections: Vec<JournalSection> = Vec::new();
 
-    for (type_key, display_name) in entry_types {
+    // Add fixed sections first
+    for (type_key, display_name) in &fixed_types {
         let type_entries: Vec<JournalEntry> = entries
             .iter()
-            .filter(|e| e.entry_type == type_key)
+            .filter(|e| e.entry_type == *type_key)
+            .cloned()
+            .collect();
+
+        if !type_entries.is_empty() {
+            let total_debit: Decimal = type_entries.iter().map(|e| e.debit).sum();
+            let total_credit: Decimal = type_entries.iter().map(|e| e.credit).sum();
+
+            sections.push(JournalSection {
+                entry_type: type_key.to_string(),
+                display_name: display_name.to_string(),
+                entries: type_entries,
+                total_debit,
+                total_credit,
+            });
+        }
+    }
+
+    // Collect unique payment entry types (payment_cash, payment_debit_card, payment_Booking.Com, etc.)
+    let mut payment_types: Vec<String> = entries
+        .iter()
+        .filter(|e| e.entry_type.starts_with("payment_"))
+        .map(|e| e.entry_type.clone())
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    payment_types.sort();
+
+    for pt in &payment_types {
+        let type_entries: Vec<JournalEntry> = entries
+            .iter()
+            .filter(|e| e.entry_type == *pt)
+            .cloned()
+            .collect();
+
+        if !type_entries.is_empty() {
+            let total_debit: Decimal = type_entries.iter().map(|e| e.debit).sum();
+            let total_credit: Decimal = type_entries.iter().map(|e| e.credit).sum();
+
+            // Derive display name from the entry description
+            let display_name = type_entries.first()
+                .and_then(|e| e.description.clone())
+                .unwrap_or_else(|| pt.replace("payment_", ""));
+
+            sections.push(JournalSection {
+                entry_type: pt.clone(),
+                display_name,
+                entries: type_entries,
+                total_debit,
+                total_credit,
+            });
+        }
+    }
+
+    // Add deposit and deposit_refund sections
+    let trailing_types = vec![
+        ("deposit", "Deposit"),
+        ("deposit_refund", "Deposit Refund"),
+    ];
+
+    for (type_key, display_name) in &trailing_types {
+        let type_entries: Vec<JournalEntry> = entries
+            .iter()
+            .filter(|e| e.entry_type == *type_key)
             .cloned()
             .collect();
 
@@ -996,6 +1116,7 @@ pub struct PostedBookingDetail {
     pub guest_name: String,
     pub room_number: String,
     pub room_type: String,
+    pub room_type_code: Option<String>,
     pub check_in_date: NaiveDate,
     pub check_out_date: NaiveDate,
     pub nights: i32,
@@ -1065,6 +1186,7 @@ pub async fn get_night_audit_details(
             COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '') as guest_name,
             r.room_number,
             COALESCE(rt.name, 'Unknown') as room_type,
+            rt.code as room_type_code,
             b.check_in_date,
             b.check_out_date,
             (b.check_out_date - b.check_in_date)::integer as nights,
@@ -1110,6 +1232,7 @@ pub async fn get_night_audit_details(
             guest_name: row.get("guest_name"),
             room_number: row.get("room_number"),
             room_type: row.get("room_type"),
+            room_type_code: row.get("room_type_code"),
             check_in_date: row.get("check_in_date"),
             check_out_date: row.get("check_out_date"),
             nights: row.get("nights"),
