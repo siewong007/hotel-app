@@ -192,19 +192,21 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       // Fetch guest details (company, address, phone, ID)
       const fetchGuestInfo = async () => {
         try {
-          const guest = await HotelAPIService.getGuest(booking.guest_id);
-          setGuestCompanyName(guest.company_name || '');
-          setGuestPhone(guest.phone || '');
-          setGuestIcNumber(guest.ic_number || '');
-          // Build address string
-          const parts = [
-            guest.address_line1,
-            guest.city,
-            guest.state_province,
-            guest.postal_code,
-            guest.country,
-          ].filter(Boolean);
-          setGuestAddress(parts.join(', '));
+          const guests = await HotelAPIService.getAllGuests();
+          const guest = guests.find(g => String(g.id) === String(booking.guest_id));
+          if (guest) {
+            setGuestCompanyName(guest.company_name || '');
+            setGuestPhone(guest.phone || '');
+            setGuestIcNumber(guest.ic_number || '');
+            const parts = [
+              guest.address_line1,
+              guest.city,
+              guest.state_province,
+              guest.postal_code,
+              guest.country,
+            ].filter(Boolean);
+            setGuestAddress(parts.join(', '));
+          }
         } catch {
           setGuestCompanyName('');
           setGuestAddress('');
