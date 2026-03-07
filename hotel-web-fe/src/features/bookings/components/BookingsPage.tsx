@@ -48,6 +48,7 @@ import {
   CardGiftcard as ComplimentaryIcon,
   Payment as PaymentIcon,
   Receipt as ReceiptIcon,
+  Block as VoidIcon,
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
 import { HotelAPIService } from '../../../api';
@@ -108,6 +109,12 @@ const BookingsPage: React.FC = () => {
   const [deletingBooking, setDeletingBooking] = useState<BookingWithDetails | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
   const [deleting, setDeleting] = useState(false);
+
+  // Void booking dialog
+  const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+  const [voidingBooking, setVoidingBooking] = useState<BookingWithDetails | null>(null);
+  const [voidReason, setVoidReason] = useState('');
+  const [voiding, setVoiding] = useState(false);
 
   // Complimentary dialog
   const [complimentaryDialogOpen, setComplimentaryDialogOpen] = useState(false);
@@ -181,14 +188,16 @@ const BookingsPage: React.FC = () => {
       );
     }
 
-    // Status filter - hide cancelled by default unless explicitly selected
+    // Status filter - hide cancelled/voided by default unless explicitly selected
     if (statusFilter === 'cancelled') {
       filtered = filtered.filter(booking => booking.status === 'cancelled');
+    } else if (statusFilter === 'voided') {
+      filtered = filtered.filter(booking => booking.status === 'voided');
     } else if (statusFilter !== 'all') {
       filtered = filtered.filter(booking => booking.status === statusFilter);
     } else {
-      // 'all' filter still excludes cancelled bookings
-      filtered = filtered.filter(booking => booking.status !== 'cancelled');
+      // 'all' filter still excludes cancelled and voided bookings
+      filtered = filtered.filter(booking => booking.status !== 'cancelled' && booking.status !== 'voided');
     }
 
     // Date filter
@@ -231,11 +240,11 @@ const BookingsPage: React.FC = () => {
       });
     }
 
-    // Sorting - cancelled bookings always go to the bottom
+    // Sorting - cancelled/voided bookings always go to the bottom
     filtered.sort((a, b) => {
-      // First, push cancelled bookings to the bottom
-      const aCancelled = a.status === 'cancelled';
-      const bCancelled = b.status === 'cancelled';
+      // First, push cancelled/voided bookings to the bottom
+      const aCancelled = a.status === 'cancelled' || a.status === 'voided';
+      const bCancelled = b.status === 'cancelled' || b.status === 'voided';
       if (aCancelled !== bCancelled) {
         return aCancelled ? 1 : -1;
       }
@@ -442,6 +451,33 @@ const BookingsPage: React.FC = () => {
     }
   };
 
+  const handleVoidBooking = (booking: BookingWithDetails) => {
+    setVoidingBooking(booking);
+    setVoidReason('');
+    setVoidDialogOpen(true);
+  };
+
+  const handleConfirmVoid = async () => {
+    if (!voidingBooking) return;
+    try {
+      setVoiding(true);
+      await HotelAPIService.updateBooking(voidingBooking.id, {
+        status: 'voided',
+        remarks: voidReason || 'Voided by admin',
+      });
+      setSnackbarMessage('Booking voided successfully');
+      setSnackbarOpen(true);
+      setVoidDialogOpen(false);
+      setVoidingBooking(null);
+      setVoidReason('');
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to void booking');
+    } finally {
+      setVoiding(false);
+    }
+  };
+
   // Complimentary handlers
   const handleMarkComplimentary = (booking: BookingWithDetails) => {
     setComplimentaryBooking(booking);
@@ -626,9 +662,14 @@ const BookingsPage: React.FC = () => {
     return status === 'checked_in';
   };
 
-  // Can delete/cancel booking in any state except already cancelled
+  // Can delete/cancel booking in any state except already cancelled or voided
   const canDelete = (booking: BookingWithDetails) => {
-    return booking.status !== 'cancelled';
+    return booking.status !== 'cancelled' && booking.status !== 'voided';
+  };
+
+  // Can void booking only if not already voided or checked_out/completed
+  const canVoid = (booking: BookingWithDetails) => {
+    return !['voided', 'checked_out', 'completed'].includes(booking.status);
   };
 
   // Can mark as complimentary only if confirmed/pending (not checked in yet)
@@ -826,6 +867,7 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="cancelled">Cancelled</MenuItem>
                 <MenuItem value="no_show">No Show</MenuItem>
                 <MenuItem value="comp_cancelled">Comp Cancelled</MenuItem>
+                <MenuItem value="voided">Voided</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -998,11 +1040,11 @@ const BookingsPage: React.FC = () => {
                 key={booking.id}
                 hover
                 sx={{
-                  opacity: booking.status === 'cancelled' ? 0.6 : 1,
-                  bgcolor: booking.status === 'cancelled' ? 'action.hover' : 'inherit',
-                  textDecoration: booking.status === 'cancelled' ? 'line-through' : 'none',
+                  opacity: (booking.status === 'cancelled' || booking.status === 'voided') ? 0.6 : 1,
+                  bgcolor: booking.status === 'voided' ? 'grey.100' : booking.status === 'cancelled' ? 'action.hover' : 'inherit',
+                  textDecoration: (booking.status === 'cancelled' || booking.status === 'voided') ? 'line-through' : 'none',
                   '& td': {
-                    textDecoration: booking.status === 'cancelled' ? 'line-through' : 'none',
+                    textDecoration: (booking.status === 'cancelled' || booking.status === 'voided') ? 'line-through' : 'none',
                   }
                 }}
               >
@@ -1125,6 +1167,17 @@ const BookingsPage: React.FC = () => {
                             color="error"
                           >
                             <CancelIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {canVoid(booking) && (
+                        <Tooltip title="Void Booking">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleVoidBooking(booking)}
+                            color="default"
+                          >
+                            <VoidIcon />
                           </IconButton>
                         </Tooltip>
                       )}
@@ -1482,6 +1535,37 @@ const BookingsPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
+
+      {/* Void Booking Dialog */}
+      <Dialog open={voidDialogOpen} onClose={() => setVoidDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Void Booking</DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Voiding a booking will permanently remove it from all reports including night audit. This cannot be undone.
+          </Alert>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2"><strong>Guest:</strong> {voidingBooking?.guest_name}</Typography>
+            <Typography variant="body2"><strong>Room:</strong> {voidingBooking?.room_type} - Room {voidingBooking?.room_number}</Typography>
+            <Typography variant="body2"><strong>Check-in:</strong> {voidingBooking?.formatted_check_in || voidingBooking?.check_in_date}</Typography>
+            <Typography variant="body2"><strong>Check-out:</strong> {voidingBooking?.formatted_check_out || voidingBooking?.check_out_date}</Typography>
+          </Box>
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            label="Void Reason (Optional)"
+            value={voidReason}
+            onChange={(e) => setVoidReason(e.target.value)}
+            placeholder="Enter reason for voiding..."
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setVoidDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleConfirmVoid} variant="contained" color="error" disabled={voiding}>
+            {voiding ? 'Voiding...' : 'Void Booking'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Collect Deposit Dialog */}
       <Dialog

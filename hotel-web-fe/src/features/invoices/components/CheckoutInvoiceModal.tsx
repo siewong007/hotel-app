@@ -108,8 +108,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [depositWaived, setDepositWaived] = useState(false);
   const [depositWaiveReason, setDepositWaiveReason] = useState('');
 
-  // Guest company name
+  // Guest details
   const [guestCompanyName, setGuestCompanyName] = useState<string>('');
+  const [guestAddress, setGuestAddress] = useState<string>('');
+  const [guestPhone, setGuestPhone] = useState<string>('');
+  const [guestIcNumber, setGuestIcNumber] = useState<string>('');
 
   const [charges, setCharges] = useState<ChargesBreakdown>({
     roomCharges: 0,
@@ -186,16 +189,30 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       };
       fetchRoomPrice();
 
-      // Fetch guest company name
-      const fetchGuestCompany = async () => {
+      // Fetch guest details (company, address, phone, ID)
+      const fetchGuestInfo = async () => {
         try {
           const guest = await HotelAPIService.getGuest(booking.guest_id);
           setGuestCompanyName(guest.company_name || '');
+          setGuestPhone(guest.phone || '');
+          setGuestIcNumber(guest.ic_number || '');
+          // Build address string
+          const parts = [
+            guest.address_line1,
+            guest.city,
+            guest.state_province,
+            guest.postal_code,
+            guest.country,
+          ].filter(Boolean);
+          setGuestAddress(parts.join(', '));
         } catch {
           setGuestCompanyName('');
+          setGuestAddress('');
+          setGuestPhone('');
+          setGuestIcNumber('');
         }
       };
-      fetchGuestCompany();
+      fetchGuestInfo();
 
       // Reset to preview step when modal opens
       setCheckoutStep('preview');
@@ -823,35 +840,26 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Grid>
 
               <Grid item xs={12} md={4}>
-                <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1, textTransform: 'uppercase' }}>
+                <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1.5, textTransform: 'uppercase' }}>
                   Guest Information
                 </Typography>
-                <Typography variant="body2" sx={{ mb: 0.5 }}>
-                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
-                    Name:
+                {[
+                  { label: 'Name', value: booking?.guest_name },
+                  { label: 'Room', value: `${booking?.room_number} - ${booking?.room_type}` },
+                  guestCompanyName ? { label: 'Company', value: guestCompanyName } : null,
+                  guestPhone ? { label: 'Phone', value: guestPhone } : null,
+                  guestIcNumber ? { label: 'ID / IC', value: guestIcNumber } : null,
+                  guestAddress ? { label: 'Address', value: guestAddress } : null,
+                ].filter(Boolean).map((item: any) => (
+                  <Box key={item.label} sx={{ display: 'flex', gap: 1, mb: 0.75 }}>
+                    <Typography variant="body2" sx={{ color: '#666', minWidth: '72px', flexShrink: 0 }}>
+                      {item.label}:
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                      {item.value}
+                    </Typography>
                   </Box>
-                  <Box component="span" sx={{ fontWeight: 600 }}>
-                    {booking?.guest_name}
-                  </Box>
-                </Typography>
-                <Typography variant="body2">
-                  <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
-                    Room:
-                  </Box>
-                  <Box component="span" sx={{ fontWeight: 600 }}>
-                    {booking?.room_number} - {booking?.room_type}
-                  </Box>
-                </Typography>
-                {guestCompanyName && (
-                  <Typography variant="body2" sx={{ mt: 0.5 }}>
-                    <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
-                      Company:
-                    </Box>
-                    <Box component="span" sx={{ fontWeight: 600 }}>
-                      {guestCompanyName}
-                    </Box>
-                  </Typography>
-                )}
+                ))}
               </Grid>
 
               <Grid item xs={12} md={4}>
@@ -934,47 +942,48 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   (() => {
                     const nights = calculateNights();
                     const perNightCharge = nights > 0 ? charges.roomCharges / nights : 0;
+                    const perNightTax = nights > 0 ? charges.serviceTax / nights : 0;
                     const checkIn = new Date(booking.check_in_date);
                     return Array.from({ length: nights }, (_, i) => {
                       const date = new Date(checkIn);
                       date.setDate(date.getDate() + i);
                       const dateStr = date.toLocaleDateString();
                       return (
-                        <Box key={i} sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
-                          <Grid container>
-                            <Grid item xs={8}>
-                              <Typography variant="body2">
-                                Room Charge — {dateStr}
-                              </Typography>
+                        <React.Fragment key={i}>
+                          <Box sx={{ p: 1.5, borderBottom: perNightTax > 0 ? 'none' : '1px solid #ddd' }}>
+                            <Grid container>
+                              <Grid item xs={8}>
+                                <Typography variant="body2">
+                                  Room Charge — {dateStr}
+                                </Typography>
+                              </Grid>
+                              <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                  {formatCurrency(perNightCharge)}
+                                </Typography>
+                              </Grid>
                             </Grid>
-                            <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                {formatCurrency(perNightCharge)}
-                              </Typography>
-                            </Grid>
-                          </Grid>
-                        </Box>
+                          </Box>
+                          {perNightTax > 0 && (
+                            <Box sx={{ p: 1.5, pl: 3, borderBottom: '1px solid #ddd', bgcolor: '#fafafa' }}>
+                              <Grid container>
+                                <Grid item xs={8}>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Service Tax ({hotelSettings.service_tax_rate}%)
+                                  </Typography>
+                                </Grid>
+                                <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                                  <Typography variant="body2" sx={{ fontWeight: 600 }} color="text.secondary">
+                                    {formatCurrency(perNightTax)}
+                                  </Typography>
+                                </Grid>
+                              </Grid>
+                            </Box>
+                          )}
+                        </React.Fragment>
                       );
                     });
                   })()
-                )}
-
-                {/* Service Tax */}
-                {charges.serviceTax > 0 && (
-                  <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
-                    <Grid container>
-                      <Grid item xs={8}>
-                        <Typography variant="body2">
-                          Service Tax ({hotelSettings.service_tax_rate}%)
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {formatCurrency(charges.serviceTax)}
-                        </Typography>
-                      </Grid>
-                    </Grid>
-                  </Box>
                 )}
 
                 {/* Tourism Tax */}
@@ -1196,7 +1205,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     </Grid>
                     <Grid item xs={4} sx={{ textAlign: 'right' }}>
                       <Chip
-                        label={booking?.company_id ? 'City Ledger - N/A' : 'Member - Waived'}
+                        label={booking?.company_id ? 'City Ledger - N/A' : 'Member - No Deposit'}
                         size="small"
                         color="info"
                       />
@@ -2054,6 +2063,24 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 <span className="value">{guestCompanyName}</span>
               </p>
             )}
+            {guestPhone && (
+              <p>
+                <span className="label">Phone:</span>
+                <span className="value">{guestPhone}</span>
+              </p>
+            )}
+            {guestIcNumber && (
+              <p>
+                <span className="label">ID / IC:</span>
+                <span className="value">{guestIcNumber}</span>
+              </p>
+            )}
+            {guestAddress && (
+              <p>
+                <span className="label">Address:</span>
+                <span className="value">{guestAddress}</span>
+              </p>
+            )}
           </div>
 
           <div>
@@ -2099,25 +2126,27 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               (() => {
                 const nights = calculateNights();
                 const perNightCharge = nights > 0 ? charges.roomCharges / nights : 0;
+                const perNightTax = nights > 0 ? charges.serviceTax / nights : 0;
                 const checkIn = new Date(booking.check_in_date);
                 return Array.from({ length: nights }, (_, i) => {
                   const date = new Date(checkIn);
                   date.setDate(date.getDate() + i);
                   return (
-                    <tr key={i}>
-                      <td>Room Charge — {date.toLocaleDateString()}</td>
-                      <td className="amount">{formatCurrency(perNightCharge)}</td>
-                    </tr>
+                    <React.Fragment key={i}>
+                      <tr>
+                        <td>Room Charge — {date.toLocaleDateString()}</td>
+                        <td className="amount">{formatCurrency(perNightCharge)}</td>
+                      </tr>
+                      {perNightTax > 0 && (
+                        <tr style={{ color: '#666' }}>
+                          <td style={{ paddingLeft: '24px' }}>Service Tax ({hotelSettings.service_tax_rate}%)</td>
+                          <td className="amount">{formatCurrency(perNightTax)}</td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 });
               })()
-            )}
-
-            {charges.serviceTax > 0 && (
-              <tr>
-                <td>Service Tax ({hotelSettings.service_tax_rate}%)</td>
-                <td className="amount">{formatCurrency(charges.serviceTax)}</td>
-              </tr>
             )}
 
             {charges.tourismTax > 0 && (
@@ -2148,20 +2177,15 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
             {depositWaived ? (
               <tr style={{ color: '#e65100' }}>
-                <td>Room Card Deposit</td>
-                <td className="amount">Waived ({depositWaiveReason})</td>
+                <td>Room Card Deposit ({depositWaiveReason})</td>
+                <td className="amount">{formatCurrency(hotelSettings.room_card_deposit)}</td>
               </tr>
             ) : charges.depositRefund > 0 ? (
               <tr className="refund-row">
-                <td>Room Card Deposit</td>
-                <td className="amount">{depositRefunded ? 'Refunded' : 'Pending Refund'}</td>
+                <td>Room Card Deposit {depositRefunded ? '(Refunded)' : '(Pending Refund)'}</td>
+                <td className="amount">{formatCurrency(charges.depositRefund)}</td>
               </tr>
-            ) : (
-              <tr style={{ color: '#1565c0' }}>
-                <td>Room Card Deposit</td>
-                <td className="amount">Waived (Member)</td>
-              </tr>
-            )}
+            ) : null}
 
             <tr className="total-row">
               <td>{charges.grandTotal >= 0 ? 'Total Amount Due' : 'Total Refund'}</td>

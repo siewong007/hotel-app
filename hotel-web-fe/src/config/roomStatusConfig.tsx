@@ -170,11 +170,11 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
   },
 
   dirty: {
-    // Visual - ORANGE COLOR as requested!
+    // Visual - Yellow color
     color: 'warning',
-    bgColor: '#ff6f00', // Deep orange
-    textColor: '#fff',
-    borderColor: '#e65100',
+    bgColor: '#FDD835', // Yellow
+    textColor: '#333',
+    borderColor: '#F9A825',
 
     // Content
     label: 'Dirty',

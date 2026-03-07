@@ -1522,8 +1522,7 @@ SELECT
             SELECT 1 FROM bookings
             WHERE room_id = ?1
             AND status IN ('confirmed', 'pending')
-            AND check_in_date <= date('now')
-            AND check_out_date >= date('now')
+            AND check_in_date >= date('now')
         ) THEN 'reserved'
         ELSE 'available'
     END

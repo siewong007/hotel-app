@@ -12,7 +12,8 @@ export enum BookingStatus {
   LATE_CHECKOUT = 'late_checkout',
   COMP_CANCELLED = 'comp_cancelled',
   PARTIAL_COMPLIMENTARY = 'partial_complimentary',
-  FULLY_COMPLIMENTARY = 'fully_complimentary'
+  FULLY_COMPLIMENTARY = 'fully_complimentary',
+  VOIDED = 'voided'
 }
 
 export type PaymentStatus = 'unpaid' | 'unpaid_deposit' | 'paid_rate' | 'paid' | 'partial' | 'refunded' | 'cancelled';

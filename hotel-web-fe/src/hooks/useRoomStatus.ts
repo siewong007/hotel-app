@@ -51,8 +51,7 @@ export const useRoomStatus = (
         checkOut.setHours(0, 0, 0, 0);
 
         return (
-          booking.status === 'checked_in' &&
-          checkIn <= today &&
+          (booking.status === 'checked_in' || booking.status === 'auto_checked_in') &&
           checkOut >= today
         );
       });

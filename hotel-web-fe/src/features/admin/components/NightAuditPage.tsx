@@ -588,6 +588,15 @@ const NightAuditPage: React.FC = () => {
 
       // Refresh data
       await Promise.all([fetchPreview(), fetchHistory()]);
+
+      // Auto-load journal details for the newly run audit so journal sections are immediately visible
+      const newAuditId = response.audit_run.id;
+      try {
+        const details = await NightAuditService.getAuditDetails(newAuditId);
+        setAuditDetails(prev => ({ ...prev, [newAuditId]: details }));
+      } catch (detailErr) {
+        console.error('Failed to auto-load audit details:', detailErr);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to run night audit');
     } finally {
