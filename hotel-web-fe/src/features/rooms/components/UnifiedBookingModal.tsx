@@ -141,6 +141,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const [bookingChannel, setBookingChannel] = useState('');
   const [bookingReference, setBookingReference] = useState('');
 
+  // Booking notes
+  const [bookingNotes, setBookingNotes] = useState('');
+
   // Payment state (for walk-in)
   const [deposit, setDeposit] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -248,6 +251,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setExtraBedCount(0);
       setExtraBedCharge(0);
       setPaymentChoice(null);
+      setBookingNotes('');
       setRoomTypeConfig(null);
       setSelectedRoom(null);
       setAvailableRooms([]);
@@ -282,6 +286,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setExtraBedCount(0);
       setExtraBedCharge(0);
       setPaymentChoice(null);
+      setBookingNotes('');
       setRoomTypeConfig(null);
       setSelectedRoom(null);
       setAvailableRooms([]);
@@ -593,6 +598,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         }
       };
 
+      const remarks = [getBookingRemarks(), bookingNotes.trim()].filter(Boolean).join(' | ');
       const bookingData = {
         guest_id: guestToUse.id,
         room_id: String(room.id),
@@ -600,7 +606,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         check_out_date: isHourlyBooking ? checkInDate : checkOutDate,
         number_of_guests: 1,
         post_type: (isHourlyBooking ? 'hourly' : 'normal_stay') as 'normal_stay' | 'same_day' | 'hourly',
-        booking_remarks: getBookingRemarks(),
+        booking_remarks: remarks,
+        special_requests: bookingNotes.trim() || undefined,
         source: 'walk_in' as const,
         room_card_deposit: effectiveRoomCardDeposit,
         payment_method: isPayLater ? undefined : paymentMethod,
@@ -814,6 +821,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             }
           };
 
+          const remarksStr = [getRemarks(), bookingNotes.trim()].filter(Boolean).join(' | ');
           const bookingData = {
             guest_id: guestToUse!.id,
             room_id: String(room.id),
@@ -821,7 +829,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             check_out_date: isHourlyBooking ? checkInDate : checkOutDate,
             number_of_guests: 1,
             post_type: (isHourlyBooking ? 'hourly' : 'normal_stay') as 'normal_stay' | 'same_day' | 'hourly',
-            booking_remarks: getRemarks(),
+            booking_remarks: remarksStr,
+            special_requests: bookingNotes.trim() || undefined,
             source: 'walk_in' as const,
             room_card_deposit: effectiveRoomCardDeposit,
             payment_method: isPayLater ? undefined : paymentMethod,
@@ -843,6 +852,10 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         }
 
         case 'online': {
+          const onlineRemarks = [
+            bookingReference ? `${bookingChannel} - Ref: ${bookingReference}` : `${bookingChannel} Booking`,
+            bookingNotes.trim(),
+          ].filter(Boolean).join(' | ');
           const bookingData = {
             guest_id: guestToUse!.id,
             room_id: String(room.id),
@@ -851,9 +864,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             number_of_guests: 1,
             post_type: (isHourlyBooking ? 'hourly' : 'normal_stay') as 'normal_stay' | 'same_day' | 'hourly',
             source: 'online' as const,
-            booking_remarks: bookingReference
-              ? `${bookingChannel} - Ref: ${bookingReference}`
-              : `${bookingChannel} Booking`,
+            booking_remarks: onlineRemarks,
+            special_requests: bookingNotes.trim() || undefined,
             room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
             is_tourist: isTourist,
             tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
@@ -890,6 +902,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             check_in_date: checkInDate,
             check_out_date: checkOutDate,
             complimentary_dates: complimentaryDates,
+            special_requests: bookingNotes.trim() || undefined,
           });
 
           onSuccess(`Complimentary reservation created for ${selectedGuestWithCredits.full_name} in Room ${room.room_number} (${bookingResult.complimentary_nights} nights used)`);
@@ -1447,7 +1460,24 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               </>
             )}
 
-            {/* Payment moved to Confirm step */}
+            {/* Booking Notes */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 1 }} />
+              <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
+                Booking Notes
+              </Typography>
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                label="Notes"
+                value={bookingNotes}
+                onChange={(e) => setBookingNotes(e.target.value)}
+                placeholder="Add any special requests, remarks, or instructions..."
+              />
+            </Grid>
           </Grid>
         </Box>
       );
@@ -1572,6 +1602,18 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                     </Grid>
                   </>
                 )}
+              </>
+            )}
+
+            {/* Booking Notes */}
+            {bookingNotes.trim() && (
+              <>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Notes</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{bookingNotes.trim()}</Typography>
+                </Grid>
               </>
             )}
 
