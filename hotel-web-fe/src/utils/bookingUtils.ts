@@ -190,6 +190,9 @@ export const getBookingStatusColor = (
     case BookingStatus.FULLY_COMPLIMENTARY:
     case 'fully_complimentary':
       return 'secondary';
+    case BookingStatus.VOIDED:
+    case 'voided':
+      return 'default';
     default:
       return 'default';
   }
@@ -225,6 +228,9 @@ export const getBookingStatusText = (status: BookingStatus | string): string => 
     case BookingStatus.FULLY_COMPLIMENTARY:
     case 'fully_complimentary':
       return 'Fully Complimentary';
+    case BookingStatus.VOIDED:
+    case 'voided':
+      return 'Voided';
     default:
       return status;
   }

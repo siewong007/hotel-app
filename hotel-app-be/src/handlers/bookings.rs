@@ -129,7 +129,7 @@ pub async fn create_booking_handler(
     let conflict_query = r#"
         SELECT EXISTS(
             SELECT 1 FROM bookings
-            WHERE room_id = ?1 AND status IN ('reserved', 'confirmed', 'checked_in', 'pending')
+            WHERE room_id = ?1 AND status IN ('reserved', 'confirmed', 'checked_in', 'pending') AND status != 'voided'
             AND ((check_in_date <= ?2 AND check_out_date > ?2)
                 OR (check_in_date < ?3 AND check_out_date >= ?3)
                 OR (check_in_date >= ?2 AND check_out_date <= ?3))
@@ -140,7 +140,7 @@ pub async fn create_booking_handler(
     let conflict_query = r#"
         SELECT EXISTS(
             SELECT 1 FROM bookings
-            WHERE room_id = $1 AND status IN ('reserved', 'confirmed', 'checked_in', 'pending')
+            WHERE room_id = $1 AND status IN ('reserved', 'confirmed', 'checked_in', 'pending') AND status != 'voided'
             AND ((check_in_date <= $2 AND check_out_date > $2)
                 OR (check_in_date < $3 AND check_out_date >= $3)
                 OR (check_in_date >= $2 AND check_out_date <= $3))
@@ -676,7 +676,7 @@ pub async fn update_booking_handler(
 
     if old_status != updated_status {
         match updated_status {
-            "cancelled" | "no_show" => {
+            "cancelled" | "no_show" | "voided" => {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
                 let has_other_query2 = r#"SELECT EXISTS(SELECT 1 FROM bookings WHERE room_id = ?1 AND id != ?2 AND status IN ('confirmed', 'checked_in', 'auto_checked_in') AND check_out_date > date('now'))"#;
                 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
@@ -709,12 +709,23 @@ pub async fn update_booking_handler(
                 }
             }
             "checked_out" | "completed" => {
+                // Set to 'reserved' if an upcoming booking exists for this room, else 'dirty'
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let _ = sqlx::query("UPDATE rooms SET status = 'dirty' WHERE id = ?1")
-                    .bind(new_room_id).execute(&pool).await;
+                let has_upcoming: bool = sqlx::query_scalar::<_, i32>(
+                    "SELECT EXISTS(SELECT 1 FROM bookings WHERE room_id = ?1 AND id != ?2 AND status IN ('confirmed','pending') AND check_in_date >= date('now'))"
+                ).bind(new_room_id).bind(booking_id).fetch_one(&pool).await.map(|v| v != 0).unwrap_or(false);
                 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-                let _ = sqlx::query("UPDATE rooms SET status = 'dirty' WHERE id = $1")
-                    .bind(new_room_id).execute(&pool).await;
+                let has_upcoming: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM bookings WHERE room_id = $1 AND id != $2 AND status IN ('confirmed','pending') AND check_in_date >= CURRENT_DATE)"
+                ).bind(new_room_id).bind(booking_id).fetch_one(&pool).await.unwrap_or(false);
+
+                let post_checkout_status = if has_upcoming { "reserved" } else { "dirty" };
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let _ = sqlx::query("UPDATE rooms SET status = ?1 WHERE id = ?2")
+                    .bind(post_checkout_status).bind(new_room_id).execute(&pool).await;
+                #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+                let _ = sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
+                    .bind(post_checkout_status).bind(new_room_id).execute(&pool).await;
             }
             "checked_in" | "auto_checked_in" => {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]

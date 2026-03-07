@@ -139,25 +139,27 @@ pub struct RoomSnapshot {
 async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_posted: bool) -> Vec<JournalSection> {
     let mut entries: Vec<JournalEntry> = Vec::new();
 
-    // Get service tax rate from system_settings, default to 8%
-    let tax_rate_percent: Decimal = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT value FROM system_settings WHERE key = 'service_tax_rate'"
-    )
-    .fetch_one(pool)
-    .await
-    .ok()
-    .flatten()
-    .and_then(|v| v.parse::<Decimal>().ok())
-    .unwrap_or_else(|| Decimal::new(8, 0)); // Default 8%
+    // Service tax rate: read from system_settings, must be > 0, default 8%
+    let tax_rate_pct: Decimal = {
+        let raw = sqlx::query_scalar::<_, String>(
+            "SELECT value FROM system_settings WHERE key = 'service_tax_rate'"
+        )
+        .fetch_optional(pool)
+        .await
+        .unwrap_or(None)
+        .and_then(|v| v.parse::<Decimal>().ok())
+        .unwrap_or(Decimal::ZERO);
 
-    let tax_rate = tax_rate_percent / Decimal::new(100, 0); // e.g. 0.08
-    let tax_divisor = Decimal::ONE + tax_rate; // e.g. 1.08
+        if raw > Decimal::ZERO { raw } else { Decimal::new(8, 0) }
+    };
+    // e.g. tax_rate_pct = 8  =>  divisor = 1.08
+    let divisor = Decimal::ONE + tax_rate_pct / Decimal::new(100, 0);
 
     // Get bookings with room charges for the audit date
     let booking_condition = if is_posted {
-        "b.posted_date = $1"
+        "b.posted_date = $1 AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided')"
     } else {
-        "(b.is_posted = FALSE OR b.is_posted IS NULL) AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show') AND ((b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1) OR (b.status = 'checked_out' AND b.check_in_date = $1))"
+        "(b.is_posted = FALSE OR b.is_posted IS NULL) AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided') AND ((b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1) OR (b.status = 'checked_out' AND b.check_in_date = $1))"
     };
 
     let query = format!(r#"
@@ -187,7 +189,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             // total_amount = room_charge_before_tax * (1 + tax_rate)
             // room_charge_before_tax = total_amount / (1 + tax_rate)
             // service_tax = total_amount - room_charge_before_tax
-            let room_charge = (total_amount / tax_divisor).round_dp(2);
+            let room_charge = (total_amount / divisor).round_dp(2);
             let service_tax = total_amount - room_charge;
 
             // Room charge entry (debit to guest, credit to room revenue)
@@ -220,7 +222,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                     entries.push(JournalEntry {
                         booking_number: booking_number.clone(),
                         room_number: room_number.clone(),
-                        entry_type: "deposit".to_string(),
+                        entry_type: "deposit_refund".to_string(),
                         debit: dep,
                         credit: Decimal::ZERO,
                         description: Some("Room card deposit".to_string()),
@@ -260,8 +262,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             let payment_type: Option<String> = row.get("payment_type");
 
             let entry_type = match payment_type.as_deref() {
-                Some("refund") => "deposit_refund",
-                Some("deposit") => "deposit",
+                Some("refund") | Some("deposit") => "deposit_refund",
                 _ => {
                     match payment_method.as_deref() {
                         Some(m) if m.to_lowercase().contains("cash") => "cash",
@@ -296,9 +297,8 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
     let entry_types = vec![
         ("room_charge", "Room Charges"),
         ("service_tax", "Service Tax"),
-        ("deposit", "Deposits"),
-        ("cash", "Cash Payments"),
         ("deposit_refund", "Deposit Refunds"),
+        ("cash", "Cash Payments"),
         ("other_payment", "Other Payments"),
     ];
 
@@ -389,7 +389,7 @@ pub async fn get_night_audit_preview(
         JOIN guests g ON b.guest_id = g.id
         JOIN rooms r ON b.room_id = r.id
         WHERE (b.is_posted = FALSE OR b.is_posted IS NULL)
-        AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show')
+        AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided')
         AND (
             (b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1)
             OR (b.status = 'checked_out' AND b.check_in_date = $1)

@@ -1124,14 +1124,17 @@ const RoomManagementPage: React.FC = () => {
       // Update booking status to checked_out with optional late checkout info
       await HotelAPIService.updateBooking(selectedBooking.id, updatePayload);
 
-      // Mark room as dirty (needs cleaning after checkout)
-      const dirtyNotes = lateCheckoutData
+      // After checkout: set to 'reserved' if upcoming booking exists, else 'dirty'
+      const checkoutNotes = lateCheckoutData
         ? `Room requires cleaning after late checkout. Late checkout penalty: ${lateCheckoutData.penalty}. Notes: ${lateCheckoutData.notes || 'None'}`
         : 'Room requires cleaning after checkout';
 
+      const hasUpcomingReservation = Array.from(reservedBookings.values()).some(
+        b => String(b.room_id) === String(selectedBooking.room_id)
+      );
       await HotelAPIService.updateRoomStatus(selectedBooking.room_id, {
-        status: 'dirty',
-        notes: dirtyNotes,
+        status: hasUpcomingReservation ? 'reserved' : 'dirty',
+        notes: checkoutNotes,
       });
 
       // Auto-post room charges to company ledger if booking has company billing
@@ -1190,9 +1193,9 @@ const RoomManagementPage: React.FC = () => {
 
   const handleMakeDirty = async (room: Room) => {
     try {
-      // Update room status to cleaning (dirty)
+      // Update room status to dirty (needs cleaning)
       await HotelAPIService.updateRoomStatus(room.id, {
-        status: 'cleaning',
+        status: 'dirty',
         notes: 'Room marked as dirty - requires cleaning',
       });
 
@@ -1206,9 +1209,12 @@ const RoomManagementPage: React.FC = () => {
 
   const handleMakeClean = async (room: Room) => {
     try {
-      // Update room status to available
+      // Set to 'reserved' if upcoming booking exists, else 'available'
+      const hasUpcomingReservation = Array.from(reservedBookings.values()).some(
+        b => String(b.room_id) === String(room.id)
+      );
       await HotelAPIService.updateRoomStatus(room.id, {
-        status: 'available',
+        status: hasUpcomingReservation ? 'reserved' : 'available',
         notes: 'Room cleaned and ready for guests',
       });
 
@@ -1621,9 +1627,9 @@ const RoomManagementPage: React.FC = () => {
         room_rate_override: effectiveRate,
       });
 
-      // Update old room status to cleaning
+      // Update old room status to dirty (needs cleaning after guest moved)
       await HotelAPIService.updateRoomStatus(selectedRoom.id, {
-        status: 'cleaning',
+        status: 'dirty',
         notes: `Guest moved to room ${newSelectedRoom.room_number}`,
       });
 
@@ -1748,32 +1754,15 @@ const RoomManagementPage: React.FC = () => {
 
     // Check-in options (only if room is not occupied and not in maintenance)
     if (!isOccupied && !isMaintenance) {
-      // For reserved rooms - check payment status first
+      // For reserved rooms - always allow check-in
       if (isReserved && reservedBooking) {
-        // Members don't need to pay deposit - allow direct check-in
-        const isMember = reservedBooking.guest_type === 'member';
-        // Only show Check-in if fully paid OR if guest is a member (no deposit required)
-        if (reservedBooking.payment_status === 'paid' || isMember) {
-          actions.push(
-            { id: 'reserved-checkin', label: 'Check-in Guest', icon: <LoginIcon />, color: 'primary', onClick: handleCheckIn }
-          );
-        } else {
-          // Show Collect Deposit option if not paid (non-members only)
-          actions.push(
-            {
-              id: 'collect-deposit',
-              label: 'Collect Deposit (Required)',
-              icon: <ReceiptIcon />,
-              color: 'warning',
-              onClick: (room: Room) => {
-                setSelectedRoom(room);
-                setPaymentBooking(reservedBooking);
-                setPaymentDialogOpen(true);
-                handleMenuClose();
-              }
-            }
-          );
-        }
+        actions.push(
+          { id: 'reserved-checkin', label: 'Check-in Guest', icon: <LoginIcon />, color: 'primary', onClick: handleCheckIn }
+        );
+        // Allow marking as dirty for cleaning (e.g. after checkout with upcoming reservation)
+        actions.push(
+          { id: 'dirty', label: 'Mark as Dirty', icon: <CleaningIcon />, color: 'warning', onClick: handleMakeDirty }
+        );
         // Mark as Complimentary option for reserved bookings
         if (!reservedBooking.is_complimentary) {
           actions.push(
@@ -2450,61 +2439,32 @@ const RoomManagementPage: React.FC = () => {
                         </Box>
                       )}
 
-                      {/* Check-in / Payment Button */}
+                      {/* Check-in Button */}
                       <Box sx={{ mt: 1 }}>
-                        {reservedBooking.payment_status === 'paid' || reservedBooking.guest_type === 'member' || reservedBooking.is_complimentary ? (
-                          <Box
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCheckIn(room);
-                            }}
-                            sx={{
-                              bgcolor: 'rgba(255,255,255,0.2)',
-                              borderRadius: 1,
-                              p: 0.5,
-                              cursor: 'pointer',
-                              '&:hover': {
-                                bgcolor: 'rgba(255,255,255,0.35)',
-                              },
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 0.5,
-                            }}
-                          >
-                            <LoginIcon sx={{ fontSize: 16 }} />
-                            <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
-                              Check-in
-                            </Typography>
-                          </Box>
-                        ) : (
-                          <Box
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedRoom(room);
-                              setPaymentBooking(reservedBooking);
-                              setPaymentDialogOpen(true);
-                            }}
-                            sx={{
-                              bgcolor: 'rgba(255,255,255,0.2)',
-                              borderRadius: 1,
-                              p: 0.5,
-                              cursor: 'pointer',
-                              '&:hover': {
-                                bgcolor: 'rgba(255,255,255,0.35)',
-                              },
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 0.5,
-                            }}
-                          >
-                            <ReceiptIcon sx={{ fontSize: 16 }} />
-                            <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
-                              Collect Payment
-                            </Typography>
-                          </Box>
-                        )}
+                        <Box
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCheckIn(room);
+                          }}
+                          sx={{
+                            bgcolor: 'rgba(255,255,255,0.2)',
+                            borderRadius: 1,
+                            p: 0.5,
+                            cursor: 'pointer',
+                            '&:hover': {
+                              bgcolor: 'rgba(255,255,255,0.35)',
+                            },
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 0.5,
+                          }}
+                        >
+                          <LoginIcon sx={{ fontSize: 16 }} />
+                          <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
+                            Check-in
+                          </Typography>
+                        </Box>
                       </Box>
                       {/* Booking remarks for reserved rooms */}
                       {(reservedBooking.remarks || reservedBooking.booking_remarks) && (
@@ -4397,25 +4357,6 @@ const RoomManagementPage: React.FC = () => {
                   )}
                 </Stack>
 
-                {/* Collect Deposit Button - only show if not paid AND not a member (members don't pay deposit) */}
-                {reservedCheckInBooking.payment_status !== 'paid' && reservedCheckInBooking.guest_type !== 'member' && (
-                  <Box sx={{ mt: 2 }}>
-                    <Button
-                      variant="contained"
-                      color="error"
-                      fullWidth
-                      startIcon={<ReceiptIcon />}
-                      onClick={() => {
-                        // Open deposit collection dialog with this booking
-                        setPaymentBooking(reservedCheckInBooking);
-                        setPaymentDialogOpen(true);
-                        setReservedCheckInDialogOpen(false);
-                      }}
-                    >
-                      Collect Deposit Now
-                    </Button>
-                  </Box>
-                )}
               </Paper>
 
               {/* Complimentary Badge if applicable */}
