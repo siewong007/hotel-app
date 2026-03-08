@@ -155,97 +155,185 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
     // e.g. tax_rate_pct = 8  =>  divisor = 1.08
     let divisor = Decimal::ONE + tax_rate_pct / Decimal::new(100, 0);
 
-    // Get bookings with room charges for the audit date
-    let booking_condition = if is_posted {
-        "b.posted_date = $1 AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided')"
+    // Get per-night room charges for the audit date
+    // For posted audits: read from night_audit_posted_nights
+    // For unposted (preview): find active bookings whose night hasn't been posted yet
+    if is_posted {
+        // Already-posted nights: read from the posted_nights table
+        let query = r#"
+            SELECT
+                b.booking_number,
+                r.room_number,
+                napn.room_charge,
+                napn.service_tax,
+                COALESCE(b.room_card_deposit, 0) as room_card_deposit,
+                COALESCE(b.deposit_amount, 0) as deposit_amount,
+                b.check_in_date,
+                b.status
+            FROM night_audit_posted_nights napn
+            JOIN bookings b ON napn.booking_id = b.id
+            JOIN rooms r ON b.room_id = r.id
+            WHERE napn.audit_date = $1
+            ORDER BY r.room_number
+        "#;
+
+        if let Ok(rows) = sqlx::query(query)
+            .bind(audit_date)
+            .fetch_all(pool)
+            .await
+        {
+            for row in rows.iter() {
+                let booking_number: String = row.get("booking_number");
+                let room_number: String = row.get("room_number");
+                let room_charge: Decimal = row.get("room_charge");
+                let service_tax: Decimal = row.get("service_tax");
+                let room_card_deposit: Decimal = row.get("room_card_deposit");
+                let deposit_amount: Decimal = row.get("deposit_amount");
+                let check_in_date: NaiveDate = row.get("check_in_date");
+
+                if room_charge > Decimal::ZERO {
+                    entries.push(JournalEntry {
+                        booking_number: booking_number.clone(),
+                        room_number: room_number.clone(),
+                        entry_type: "room_charge".to_string(),
+                        debit: room_charge,
+                        credit: Decimal::ZERO,
+                        description: Some("Room Charge".to_string()),
+                    });
+                }
+
+                if service_tax > Decimal::ZERO {
+                    entries.push(JournalEntry {
+                        booking_number: booking_number.clone(),
+                        room_number: room_number.clone(),
+                        entry_type: "service_tax".to_string(),
+                        debit: service_tax,
+                        credit: Decimal::ZERO,
+                        description: Some("Service Tax".to_string()),
+                    });
+                }
+
+                // Deposits only post on the check-in night
+                if check_in_date == audit_date {
+                    if room_card_deposit > Decimal::ZERO {
+                        entries.push(JournalEntry {
+                            booking_number: booking_number.clone(),
+                            room_number: room_number.clone(),
+                            entry_type: "deposit".to_string(),
+                            debit: room_card_deposit,
+                            credit: Decimal::ZERO,
+                            description: Some("Deposit".to_string()),
+                        });
+                    }
+                    if deposit_amount > Decimal::ZERO && deposit_amount != room_card_deposit {
+                        entries.push(JournalEntry {
+                            booking_number: booking_number.clone(),
+                            room_number: room_number.clone(),
+                            entry_type: "deposit".to_string(),
+                            debit: deposit_amount,
+                            credit: Decimal::ZERO,
+                            description: Some("Deposit".to_string()),
+                        });
+                    }
+                }
+            }
+        }
     } else {
-        "(b.is_posted = FALSE OR b.is_posted IS NULL) AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided') AND ((b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1) OR (b.status = 'checked_out' AND b.check_in_date <= $1 AND b.check_out_date >= $1))"
-    };
+        // Preview (unposted): find active bookings on the audit date that haven't been posted for this night
+        let query = r#"
+            SELECT
+                b.booking_number,
+                r.room_number,
+                b.room_rate,
+                COALESCE(b.room_card_deposit, 0) as room_card_deposit,
+                COALESCE(b.deposit_amount, 0) as deposit_amount,
+                COALESCE(b.source, 'walk_in') as source,
+                COALESCE(b.remarks, '') as remarks,
+                b.check_in_date,
+                b.status
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.id
+            WHERE b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided')
+            AND (
+                (b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1)
+                OR (b.status = 'checked_out' AND b.check_in_date <= $1 AND b.check_out_date >= $1)
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM night_audit_posted_nights napn
+                WHERE napn.booking_id = b.id AND napn.audit_date = $1
+            )
+            ORDER BY r.room_number
+        "#;
 
-    let query = format!(r#"
-        SELECT
-            b.booking_number,
-            r.room_number,
-            b.total_amount,
-            COALESCE(b.room_card_deposit, 0) as room_card_deposit,
-            COALESCE(b.deposit_amount, 0) as deposit_amount,
-            COALESCE(b.source, 'walk_in') as source,
-            COALESCE(b.remarks, '') as remarks,
-            b.status
-        FROM bookings b
-        JOIN rooms r ON b.room_id = r.id
-        WHERE {}
-        ORDER BY r.room_number
-    "#, booking_condition);
+        if let Ok(rows) = sqlx::query(query)
+            .bind(audit_date)
+            .fetch_all(pool)
+            .await
+        {
+            for row in rows.iter() {
+                let booking_number: String = row.get("booking_number");
+                let room_number: String = row.get("room_number");
+                let nightly_rate: Decimal = row.get("room_rate");
+                let room_card_deposit: Decimal = row.get("room_card_deposit");
+                let deposit_amount: Decimal = row.get("deposit_amount");
+                let check_in_date: NaiveDate = row.get("check_in_date");
 
-    if let Ok(rows) = sqlx::query(&query)
-        .bind(audit_date)
-        .fetch_all(pool)
-        .await
-    {
-        for row in rows.iter() {
-            let booking_number: String = row.get("booking_number");
-            let room_number: String = row.get("room_number");
-            let total_amount: Decimal = row.get("total_amount");
-            let room_card_deposit: Decimal = row.get("room_card_deposit");
-            let deposit_amount: Decimal = row.get("deposit_amount");
+                // Per-night charge: back-calculate room charge and tax from tax-inclusive nightly rate
+                let room_charge = (nightly_rate / divisor).round_dp(2);
+                let service_tax = nightly_rate - room_charge;
 
-            // Back-calculate room charge (before tax) and service tax from tax-inclusive total
-            let room_charge = (total_amount / divisor).round_dp(2);
-            let service_tax = total_amount - room_charge;
+                if room_charge > Decimal::ZERO {
+                    entries.push(JournalEntry {
+                        booking_number: booking_number.clone(),
+                        room_number: room_number.clone(),
+                        entry_type: "room_charge".to_string(),
+                        debit: room_charge,
+                        credit: Decimal::ZERO,
+                        description: Some("Room Charge".to_string()),
+                    });
+                }
 
-            // Room charge entry
-            if room_charge > Decimal::ZERO {
-                entries.push(JournalEntry {
-                    booking_number: booking_number.clone(),
-                    room_number: room_number.clone(),
-                    entry_type: "room_charge".to_string(),
-                    debit: room_charge,
-                    credit: Decimal::ZERO,
-                    description: Some("Room Charge".to_string()),
-                });
-            }
+                if service_tax > Decimal::ZERO {
+                    entries.push(JournalEntry {
+                        booking_number: booking_number.clone(),
+                        room_number: room_number.clone(),
+                        entry_type: "service_tax".to_string(),
+                        debit: service_tax,
+                        credit: Decimal::ZERO,
+                        description: Some("Service Tax".to_string()),
+                    });
+                }
 
-            // Service tax entry
-            if service_tax > Decimal::ZERO {
-                entries.push(JournalEntry {
-                    booking_number: booking_number.clone(),
-                    room_number: room_number.clone(),
-                    entry_type: "service_tax".to_string(),
-                    debit: service_tax,
-                    credit: Decimal::ZERO,
-                    description: Some("Service Tax".to_string()),
-                });
-            }
-
-            // Room card deposit entry (deposit received)
-            if room_card_deposit > Decimal::ZERO {
-                entries.push(JournalEntry {
-                    booking_number: booking_number.clone(),
-                    room_number: room_number.clone(),
-                    entry_type: "deposit".to_string(),
-                    debit: room_card_deposit,
-                    credit: Decimal::ZERO,
-                    description: Some("Deposit".to_string()),
-                });
-            }
-
-            // Booking deposit (deposit_amount) entry if different from room_card_deposit
-            if deposit_amount > Decimal::ZERO && deposit_amount != room_card_deposit {
-                entries.push(JournalEntry {
-                    booking_number: booking_number.clone(),
-                    room_number: room_number.clone(),
-                    entry_type: "deposit".to_string(),
-                    debit: deposit_amount,
-                    credit: Decimal::ZERO,
-                    description: Some("Deposit".to_string()),
-                });
+                // Deposits only post on the check-in night
+                if check_in_date == audit_date {
+                    if room_card_deposit > Decimal::ZERO {
+                        entries.push(JournalEntry {
+                            booking_number: booking_number.clone(),
+                            room_number: room_number.clone(),
+                            entry_type: "deposit".to_string(),
+                            debit: room_card_deposit,
+                            credit: Decimal::ZERO,
+                            description: Some("Deposit".to_string()),
+                        });
+                    }
+                    if deposit_amount > Decimal::ZERO && deposit_amount != room_card_deposit {
+                        entries.push(JournalEntry {
+                            booking_number: booking_number.clone(),
+                            room_number: room_number.clone(),
+                            entry_type: "deposit".to_string(),
+                            debit: deposit_amount,
+                            credit: Decimal::ZERO,
+                            description: Some("Deposit".to_string()),
+                        });
+                    }
+                }
             }
         }
     }
 
-    // Get payments for bookings on the audit date - group by method/channel
-    let payment_query = format!(r#"
+    // Get ALL payments made on the audit date, regardless of booking status/dates.
+    // A payment received today (e.g. bank transfer for a future booking) should appear in today's audit.
+    let payment_query = r#"
         SELECT
             b.booking_number,
             r.room_number,
@@ -253,16 +341,20 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             COALESCE(p.payment_method, '') as payment_method,
             COALESCE(p.payment_type, '') as payment_type,
             COALESCE(b.source, 'walk_in') as source,
-            COALESCE(b.remarks, '') as remarks
+            COALESCE(b.remarks, '') as remarks,
+            COALESCE(p.notes, '') as payment_notes,
+            b.check_in_date,
+            b.check_out_date
         FROM payments p
         JOIN bookings b ON p.booking_id = b.id
         JOIN rooms r ON b.room_id = r.id
-        WHERE {}
-        AND p.status = 'completed'
+        WHERE p.status = 'completed'
+        AND p.payment_type != 'refund'
+        AND p.created_at::date = $1
         ORDER BY r.room_number
-    "#, booking_condition);
+    "#;
 
-    if let Ok(payment_rows) = sqlx::query(&payment_query)
+    if let Ok(payment_rows) = sqlx::query(payment_query)
         .bind(audit_date)
         .fetch_all(pool)
         .await
@@ -275,6 +367,9 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             let payment_type: String = row.get("payment_type");
             let source: String = row.get("source");
             let remarks: String = row.get("remarks");
+            let payment_notes: String = row.get("payment_notes");
+            let check_in_date: NaiveDate = row.get("check_in_date");
+            let check_out_date: NaiveDate = row.get("check_out_date");
 
             // Skip refund/deposit type payments (handled separately)
             if payment_type == "refund" {
@@ -288,11 +383,9 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 if channel.is_empty() { "Online".to_string() } else { channel }
             } else {
                 // Normalize payment method to display name dynamically
-                // Handles both display names ("Visa Card") and snake_case ("visa_card")
                 if payment_method.is_empty() {
                     "Cash".to_string()
                 } else if payment_method.contains('_') {
-                    // Convert snake_case to Title Case: "bank_transfer" -> "Bank Transfer"
                     payment_method.replace('_', " ")
                         .split_whitespace()
                         .map(|w| {
@@ -305,9 +398,22 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                         .collect::<Vec<_>>()
                         .join(" ")
                 } else {
-                    // Already a display name ("Cash", "Visa Card", "Boost") — use as-is
                     payment_method.clone()
                 }
+            };
+
+            // For advance payments (check-in is after audit date), add booking info to description
+            let description = if check_in_date > audit_date {
+                // Format: "Book FR on 21.03.2026" or "Book FR on 20/3-21/3"
+                let room_desc = if !payment_notes.is_empty() {
+                    payment_notes.clone()
+                } else {
+                    format!("Book {} on {}", room_number,
+                        check_in_date.format("%d.%m.%Y"))
+                };
+                Some(room_desc)
+            } else {
+                None
             };
 
             entries.push(JournalEntry {
@@ -316,17 +422,14 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 entry_type: format!("payment_{}", entry_type),
                 debit: amount,
                 credit: Decimal::ZERO,
-                description: Some(entry_type.clone()),
+                description: description.or_else(|| Some(entry_type.clone())),
             });
         }
     }
 
     // Get deposit refunds: bookings checked out on the audit date with room_card_deposit
-    let refund_condition = if is_posted {
-        "b.posted_date = $1 AND b.status = 'checked_out' AND COALESCE(b.room_card_deposit, 0) > 0"
-    } else {
-        "b.status = 'checked_out' AND b.check_out_date = $1 AND COALESCE(b.room_card_deposit, 0) > 0"
-    };
+    // Deposit refunds happen on checkout day regardless of posted status
+    let refund_condition = "b.status = 'checked_out' AND b.check_out_date = $1 AND COALESCE(b.room_card_deposit, 0) > 0";
 
     let refund_query = format!(r#"
         SELECT
@@ -500,31 +603,34 @@ pub async fn get_night_audit_preview(
 
     log::info!("Already run: {}, fetching unposted bookings", already_run);
 
-    // Get unposted bookings - checked_in bookings active on the audit date,
-    // plus checked_out bookings that checked in on the audit date (same-day checkout)
+    // Get bookings active on the audit date whose night hasn't been posted yet
     let rows = sqlx::query(
         r#"
         SELECT
             b.id as booking_id,
             b.booking_number,
-            COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '') as guest_name,
+            COALESCE(g.full_name, COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '')) as guest_name,
             r.room_number,
             b.check_in_date::text as check_in_date,
             b.check_out_date::text as check_out_date,
             COALESCE(b.status, 'unknown') as status,
+            b.room_rate,
             b.total_amount,
             b.payment_method,
             b.source
         FROM bookings b
         JOIN guests g ON b.guest_id = g.id
         JOIN rooms r ON b.room_id = r.id
-        WHERE (b.is_posted = FALSE OR b.is_posted IS NULL)
-        AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided')
+        WHERE b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided')
         AND (
             (b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1)
             OR (b.status = 'checked_out' AND b.check_in_date <= $1 AND b.check_out_date >= $1)
         )
-        ORDER BY b.check_in_date
+        AND NOT EXISTS (
+            SELECT 1 FROM night_audit_posted_nights napn
+            WHERE napn.booking_id = b.id AND napn.audit_date = $1
+        )
+        ORDER BY r.room_number
         "#
     )
     .bind(audit_date)
@@ -552,21 +658,20 @@ pub async fn get_night_audit_preview(
 
         let payment_method: Option<String> = row.get("payment_method");
         let source: Option<String> = row.get("source");
+        let room_rate: Decimal = row.get("room_rate");
         let total_amount: Decimal = row.get("total_amount");
         let status: String = row.get("status");
 
-        // All bookings in the preview are checked_in, count them for revenue
-        // Aggregate by payment method
+        // Use per-night room_rate for revenue aggregation
         let pm_key = payment_method.clone().unwrap_or_else(|| "Unknown".to_string());
         let pm_entry = payment_method_map.entry(pm_key).or_insert((0, Decimal::ZERO));
         pm_entry.0 += 1;
-        pm_entry.1 += total_amount;
+        pm_entry.1 += room_rate;
 
-        // Aggregate by booking channel
         let bc_key = source.clone().unwrap_or_else(|| "Unknown".to_string());
         let bc_entry = booking_channel_map.entry(bc_key).or_insert((0, Decimal::ZERO));
         bc_entry.0 += 1;
-        bc_entry.1 += total_amount;
+        bc_entry.1 += room_rate;
 
         unposted_bookings.push(UnpostedBooking {
             booking_id: row.get("booking_id"),
@@ -576,7 +681,7 @@ pub async fn get_night_audit_preview(
             check_in_date: check_in,
             check_out_date: check_out,
             status,
-            total_amount,
+            total_amount: room_rate, // Show per-night rate in preview
             payment_method,
             source,
         });
@@ -709,7 +814,16 @@ pub async fn run_night_audit(
             // Reset the previous audit: delete audit run and reset bookings
             log::info!("Force rerun requested for {}. Resetting previous audit.", audit_date);
 
-            // Reset is_posted flag for bookings that were posted on this date
+            // Delete per-night posting records for this date
+            sqlx::query(
+                "DELETE FROM night_audit_posted_nights WHERE audit_date = $1"
+            )
+            .bind(audit_date)
+            .execute(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+            // Reset legacy is_posted flag for bookings that were posted on this date
             sqlx::query(
                 "UPDATE bookings SET is_posted = FALSE, posted_date = NULL, posted_at = NULL, posted_by = NULL WHERE posted_date = $1"
             )
@@ -814,15 +928,16 @@ pub async fn run_night_audit(
         None,
     ).await;
 
-    // Compute breakdown from posted bookings for this audit date
+    // Compute breakdown from per-night posted records for this audit date
     let breakdown_rows = sqlx::query(
         r#"
         SELECT
             COALESCE(b.payment_method, 'Unknown') as payment_method,
             COALESCE(b.source, 'Unknown') as source,
-            b.total_amount
-        FROM bookings b
-        WHERE b.posted_date = $1
+            napn.total_posted as room_rate
+        FROM night_audit_posted_nights napn
+        JOIN bookings b ON napn.booking_id = b.id
+        WHERE napn.audit_date = $1
         "#
     )
     .bind(audit_date)
@@ -836,7 +951,7 @@ pub async fn run_night_audit(
     for br in breakdown_rows.iter() {
         let pm: String = br.get("payment_method");
         let src: String = br.get("source");
-        let amt: Decimal = br.get("total_amount");
+        let amt: Decimal = br.get("room_rate");
 
         let pm_entry = payment_method_map.entry(pm).or_insert((0, Decimal::ZERO));
         pm_entry.0 += 1;
@@ -941,15 +1056,16 @@ pub async fn list_night_audits(
     for row in rows.iter() {
         let audit_date: NaiveDate = row.get("audit_date");
 
-        // Compute breakdown from posted bookings for this audit date
+        // Compute breakdown from per-night posted records for this audit date
         let breakdown_rows = sqlx::query(
             r#"
             SELECT
                 COALESCE(b.payment_method, 'Unknown') as payment_method,
                 COALESCE(b.source, 'Unknown') as source,
-                b.total_amount
-            FROM bookings b
-            WHERE b.posted_date = $1
+                napn.total_posted as room_rate
+            FROM night_audit_posted_nights napn
+            JOIN bookings b ON napn.booking_id = b.id
+            WHERE napn.audit_date = $1
             "#
         )
         .bind(audit_date)
@@ -963,7 +1079,7 @@ pub async fn list_night_audits(
         for br in breakdown_rows.iter() {
             let pm: String = br.get("payment_method");
             let src: String = br.get("source");
-            let amt: Decimal = br.get("total_amount");
+            let amt: Decimal = br.get("room_rate");
 
             let pm_entry = payment_method_map.entry(pm).or_insert((0, Decimal::ZERO));
             pm_entry.0 += 1;
@@ -1052,15 +1168,16 @@ pub async fn get_night_audit(
 
     let audit_date: NaiveDate = row.get("audit_date");
 
-    // Compute breakdown from posted bookings for this audit date
+    // Compute breakdown from per-night posted records for this audit date
     let breakdown_rows = sqlx::query(
         r#"
         SELECT
             COALESCE(b.payment_method, 'Unknown') as payment_method,
             COALESCE(b.source, 'Unknown') as source,
-            b.total_amount
-        FROM bookings b
-        WHERE b.posted_date = $1
+            napn.total_posted as room_rate
+        FROM night_audit_posted_nights napn
+        JOIN bookings b ON napn.booking_id = b.id
+        WHERE napn.audit_date = $1
         "#
     )
     .bind(audit_date)
@@ -1074,7 +1191,7 @@ pub async fn get_night_audit(
     for br in breakdown_rows.iter() {
         let pm: String = br.get("payment_method");
         let src: String = br.get("source");
-        let amt: Decimal = br.get("total_amount");
+        let amt: Decimal = br.get("room_rate");
 
         let pm_entry = payment_method_map.entry(pm).or_insert((0, Decimal::ZERO));
         pm_entry.0 += 1;
@@ -1187,13 +1304,13 @@ pub async fn get_night_audit_details(
 
     let audit_date: NaiveDate = audit_row.get("audit_date");
 
-    // Get all bookings that were posted in this audit
+    // Get all bookings that were posted for this audit date (per-night)
     let booking_rows = sqlx::query(
         r#"
         SELECT
             b.id as booking_id,
             b.booking_number,
-            COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '') as guest_name,
+            COALESCE(g.full_name, COALESCE(g.first_name, '') || ' ' || COALESCE(g.last_name, '')) as guest_name,
             r.room_number,
             COALESCE(rt.name, 'Unknown') as room_type,
             rt.code as room_type_code,
@@ -1201,15 +1318,16 @@ pub async fn get_night_audit_details(
             b.check_out_date,
             (b.check_out_date - b.check_in_date)::integer as nights,
             COALESCE(b.status, 'unknown') as status,
-            b.total_amount,
+            napn.total_posted as total_amount,
             b.payment_status,
             b.source,
             COALESCE(b.payment_method, 'Unknown') as payment_method
-        FROM bookings b
+        FROM night_audit_posted_nights napn
+        JOIN bookings b ON napn.booking_id = b.id
         JOIN guests g ON b.guest_id = g.id
         JOIN rooms r ON b.room_id = r.id
         LEFT JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE b.posted_date = $1
+        WHERE napn.audit_date = $1
         ORDER BY r.room_number, b.check_in_date
         "#
     )
