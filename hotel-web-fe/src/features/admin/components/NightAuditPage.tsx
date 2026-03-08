@@ -386,20 +386,26 @@ const NightAuditPage: React.FC = () => {
         const isServiceTax = section.entry_type === 'service_tax';
         const isDepositRefund = section.entry_type === 'deposit_refund';
 
-        // Room Charges: special table with Description, Debit, Service Tax, Room
+        // Room Charges: special table with Description, Debit, Service Tax, Room, Check-in, Check-out
         if (isRoomCharge) {
           // Find service tax section to merge
           const taxSection = sections.find(s => s.entry_type === 'service_tax');
+
+          // Helper to format date as DD.MM.YYYY
+          const fmtDate = (d: string) => { const p = d.split('-'); return `${p[2]}.${p[1]}.${p[0]}`; };
 
           // Build merged data: match room_charge entries with service_tax entries by room
           const rows: string[][] = [];
           for (const entry of section.entries) {
             const taxEntry = taxSection?.entries.find(e => e.room_number === entry.room_number);
+            const booking = bookings.find(b => b.room_number === entry.room_number);
             rows.push([
               'Room Charge',
+              entry.room_number,
+              booking ? fmtDate(booking.check_in_date) : '',
+              booking ? fmtDate(booking.check_out_date) : '',
               Number(entry.debit).toFixed(2),
               taxEntry ? Number(taxEntry.debit).toFixed(2) : '',
-              entry.room_number,
             ]);
           }
           // Totals row
@@ -407,9 +413,11 @@ const NightAuditPage: React.FC = () => {
           const totalTax = taxSection ? Number(taxSection.total_debit).toFixed(2) : '';
           rows.push([
             '',
+            '',
+            '',
+            '',
             `Totals : ${totalDebit}`,
             `Totals : ${totalTax}`,
-            '',
           ]);
 
           if (currentY + rows.length * 7 + 15 > pageHeight - 20) {
@@ -419,15 +427,17 @@ const NightAuditPage: React.FC = () => {
 
           autoTable(doc, {
             startY: currentY,
-            head: [['Description', 'Debit', 'Service Tax', 'Room']],
+            head: [['Description', 'Room', 'Check-in', 'Check-out', 'Debit', 'Service Tax']],
             body: rows,
             styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.3 },
             headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'italic', lineColor: [0, 0, 0], lineWidth: 0.3 },
             columnStyles: {
-              0: { fontStyle: 'italic', cellWidth: 50 },
-              1: { halign: 'right', cellWidth: 40 },
-              2: { halign: 'right', cellWidth: 40 },
-              3: { halign: 'right', fontStyle: 'bold', cellWidth: 30 },
+              0: { fontStyle: 'italic', cellWidth: 35 },
+              1: { fontStyle: 'bold', halign: 'center', cellWidth: 20 },
+              2: { halign: 'center', cellWidth: 28 },
+              3: { halign: 'center', cellWidth: 28 },
+              4: { halign: 'right', cellWidth: 30 },
+              5: { halign: 'right', cellWidth: 30 },
             },
             theme: 'grid',
           });
