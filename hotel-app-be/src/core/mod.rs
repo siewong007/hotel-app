@@ -8,24 +8,19 @@
 //! - `sql_compat`: SQL compatibility helpers for PostgreSQL/SQLite
 
 pub mod auth;
+#[allow(dead_code)]
 pub mod db;
 pub mod error;
 pub mod middleware;
 pub mod rate_limiter;
+#[allow(dead_code)]
 pub mod sql_compat;
 
 // Re-export commonly used types
+#[allow(unused_imports)]
 pub use auth::{AuthService, Claims};
-pub use db::{create_pool, DbPool, DbRow};
+pub use db::create_pool;
+#[allow(unused_imports)]
 pub use error::ApiError;
-pub use sql_compat::adapt_query;
-pub use middleware::{
-    require_auth,
-    require_permission_helper,
-    require_admin_helper,
-    require_super_admin_helper,
-    extract_claims,
-    extract_user_id,
-    check_permission,
-    check_admin_role,
-};
+#[allow(unused_imports)]
+pub use middleware::{require_auth, require_permission_helper, require_admin_helper, require_super_admin_helper};

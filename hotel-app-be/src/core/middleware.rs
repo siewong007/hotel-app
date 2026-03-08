@@ -100,6 +100,7 @@ pub async fn require_admin_helper(
 }
 
 // Helper function to require super admin status
+#[allow(dead_code)]
 pub async fn require_super_admin_helper(
     pool: &DbPool,
     headers: &HeaderMap,

@@ -9,7 +9,6 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use serde::Deserialize;
-use sqlx::Row;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -166,7 +165,7 @@ pub async fn create_company_handler(
     }
 
     // Convert credit_limit to f64 for database binding (works for both SQLite and PostgreSQL)
-    let credit_limit_f64 = input.credit_limit;
+    let _credit_limit_f64 = input.credit_limit;
 
     // SQLite version: no RETURNING clause, use separate SELECT
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]

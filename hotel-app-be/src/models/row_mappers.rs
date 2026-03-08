@@ -3,7 +3,7 @@
 //! SQLite doesn't natively support Decimal types, so we need manual row mapping
 //! for models that contain Decimal fields when using `sqlx::query()` instead of `query_as`.
 
-use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+use chrono::{NaiveDate, NaiveDateTime, Utc};
 use rust_decimal::Decimal;
 use sqlx::Row;
 

@@ -1413,7 +1413,7 @@ pub async fn mark_complimentary_handler(
 
 pub async fn convert_complimentary_to_credits_handler(
     State(pool): State<DbPool>,
-    Extension(user_id): Extension<i64>,
+    Extension(_user_id): Extension<i64>,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Get booking details with room info
@@ -1627,7 +1627,7 @@ pub async fn book_with_credits_handler(
         .iter()
         .map(|d| d.format("%Y-%m-%d").to_string())
         .collect();
-    let complimentary_dates_json = serde_json::to_string(&complimentary_dates_str).unwrap_or_default();
+    let _complimentary_dates_json = serde_json::to_string(&complimentary_dates_str).unwrap_or_default();
 
     // Determine if booking is fully or partially complimentary
     let is_fully_complimentary = complimentary_nights == total_nights;
@@ -1960,7 +1960,7 @@ pub async fn remove_complimentary_handler(
     .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
 
-    let guest_id: i64 = booking_row.get(1);
+    let _guest_id: i64 = booking_row.get(1);
     let is_complimentary: Option<bool> = booking_row.get(2);
     let original_total: Option<Decimal> = booking_row.get(3);
     let complimentary_nights: Option<i32> = booking_row.get(4);

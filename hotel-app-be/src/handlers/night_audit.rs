@@ -369,7 +369,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             let remarks: String = row.get("remarks");
             let payment_notes: String = row.get("payment_notes");
             let check_in_date: NaiveDate = row.get("check_in_date");
-            let check_out_date: NaiveDate = row.get("check_out_date");
+            let _check_out_date: NaiveDate = row.get("check_out_date");
 
             // Skip refund/deposit type payments (handled separately)
             if payment_type == "refund" {
@@ -659,7 +659,7 @@ pub async fn get_night_audit_preview(
         let payment_method: Option<String> = row.get("payment_method");
         let source: Option<String> = row.get("source");
         let room_rate: Decimal = row.get("room_rate");
-        let total_amount: Decimal = row.get("total_amount");
+        let _total_amount: Decimal = row.get("total_amount");
         let status: String = row.get("status");
 
         // Use per-night room_rate for revenue aggregation

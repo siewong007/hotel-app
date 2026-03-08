@@ -9,10 +9,9 @@ use axum::{
 };
 use chrono::NaiveDateTime;
 use rust_decimal::Decimal;
-use rust_decimal::prelude::ToPrimitive;
 use sqlx::Row;
 
-use crate::core::db::{DbPool, DbRow, decimal_to_db};
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::*;

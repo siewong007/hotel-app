@@ -7,11 +7,14 @@ pub mod auth;
 pub mod two_factor;
 pub mod passkey;
 pub mod rooms;
+#[allow(dead_code)]
 pub mod rooms_queries;
 pub mod guests;
 pub mod bookings;
+#[allow(dead_code)]
 pub mod bookings_queries;
 pub mod rbac;
+#[allow(dead_code)]
 pub mod loyalty;
 pub mod profile;
 pub mod analytics;
@@ -22,23 +25,11 @@ pub mod rates;
 pub mod ledgers;
 pub mod guest_portal;
 pub mod companies;
+#[allow(dead_code)]
 pub mod audit;
 pub mod night_audit;
 pub mod data_transfer;
 
 // Re-export all handlers for convenience
-pub use auth::*;
-pub use two_factor::*;
-pub use passkey::*;
-pub use rooms::*;
-pub use guests::*;
-pub use bookings::*;
-pub use rbac::*;
-pub use loyalty::*;
-pub use profile::*;
-pub use analytics::*;
-pub use settings::*;
-pub use companies::*;
 
 // Also re-export the ApiError for handlers
-pub use crate::core::error::ApiError;

@@ -10,7 +10,6 @@ use axum::{
     extract::{Extension, Path, Query, State},
     response::Json,
 };
-use rust_decimal::Decimal;
 use sqlx::Row;
 use std::collections::HashMap;
 
