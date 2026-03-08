@@ -26,6 +26,23 @@ pub async fn create_payment_handler(
 ) -> Result<Json<Payment>, ApiError> {
     let user_id = require_auth(&headers).await?;
 
+    // Start a transaction to prevent double-charging and ensure atomicity
+    let mut tx = pool.begin().await.map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Idempotency check: prevent duplicate completed payments for the same booking
+    let existing_payment: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM payments WHERE booking_id = $1 AND payment_status = $2 LIMIT 1"
+    )
+    .bind(request.booking_id)
+    .bind(PaymentStatus::Completed.to_string())
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if existing_payment.is_some() {
+        return Err(ApiError::BadRequest("A completed payment already exists for this booking".to_string()));
+    }
+
     // Get booking details to calculate amounts
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let booking_query = r#"
@@ -44,7 +61,7 @@ pub async fn create_payment_handler(
 
     let booking_row = sqlx::query(booking_query)
         .bind(request.booking_id)
-        .fetch_one(&pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -72,7 +89,7 @@ pub async fn create_payment_handler(
 
     let room_type_row = sqlx::query(room_type_query)
         .bind(room_id)
-        .fetch_one(&pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -127,7 +144,7 @@ pub async fn create_payment_handler(
     .bind(&request.bank_name)
     .bind(&request.account_reference)
     .bind(&request.notes)
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -142,10 +159,13 @@ pub async fn create_payment_handler(
         .bind(booking_id)
         .bind(payment.id)
         .bind(keycard_deposit)
-        .execute(&pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
     }
+
+    // Commit the transaction - all inserts succeed or none do
+    tx.commit().await.map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(Json(payment))
 }
@@ -162,6 +182,26 @@ pub async fn record_payment_handler(
         .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
 
     let payment_type = request.payment_type.as_deref().unwrap_or("booking");
+
+    // Start a transaction for atomicity and idempotency
+    let mut tx = pool.begin().await.map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Idempotency check: if a transaction_reference is provided, check for duplicates
+    if let Some(ref txn_ref) = request.transaction_reference {
+        if !txn_ref.is_empty() {
+            let duplicate: Option<i64> = sqlx::query_scalar(
+                "SELECT id FROM payments WHERE transaction_id = $1 LIMIT 1"
+            )
+            .bind(txn_ref)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+            if duplicate.is_some() {
+                return Err(ApiError::BadRequest("A payment with this transaction reference already exists".to_string()));
+            }
+        }
+    }
 
     let row = sqlx::query(
         r#"
@@ -181,9 +221,12 @@ pub async fn record_payment_handler(
     .bind(&request.transaction_reference)
     .bind(&request.notes)
     .bind(user_id)
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Commit the transaction
+    tx.commit().await.map_err(|e| ApiError::Database(e.to_string()))?;
 
     let payment = serde_json::json!({
         "id": row.get::<i64, _>("id"),
@@ -249,19 +292,6 @@ pub async fn refund_deposit_handler(
         .unwrap_or("cash")
         .to_string();
 
-    // Check if already refunded
-    let existing_refund: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND notes = 'Keycard deposit refund' LIMIT 1"
-    )
-    .bind(booking_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if existing_refund.is_some() {
-        return Err(ApiError::BadRequest("Deposit already refunded".to_string()));
-    }
-
     // Get deposit amount from request body (frontend passes it from hotel settings)
     let deposit_amount_f64 = body.get("amount")
         .and_then(|v| v.as_f64())
@@ -272,6 +302,22 @@ pub async fn refund_deposit_handler(
 
     if deposit_amount <= Decimal::ZERO {
         return Err(ApiError::BadRequest("No deposit amount provided".to_string()));
+    }
+
+    // Start a transaction to prevent double-refunding (check + insert must be atomic)
+    let mut tx = pool.begin().await.map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Check if already refunded (within the transaction to prevent race conditions)
+    let existing_refund: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND notes = 'Keycard deposit refund' LIMIT 1"
+    )
+    .bind(booking_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if existing_refund.is_some() {
+        return Err(ApiError::BadRequest("Deposit already refunded".to_string()));
     }
 
     // Create a refund payment record
@@ -289,9 +335,12 @@ pub async fn refund_deposit_handler(
     .bind(deposit_amount)
     .bind(&payment_method)
     .bind(user_id)
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Commit the transaction
+    tx.commit().await.map_err(|e| ApiError::Database(e.to_string()))?;
 
     let refund = serde_json::json!({
         "id": row.get::<i64, _>("id"),
@@ -385,11 +434,14 @@ pub async fn generate_invoice_handler(
 ) -> Result<Json<Invoice>, ApiError> {
     let user_id = require_auth(&headers).await?;
 
-    // Check if invoice already exists
+    // Start a transaction to prevent duplicate invoice generation
+    let mut tx = pool.begin().await.map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Check if invoice already exists (within the transaction to prevent race conditions)
     if let Some(existing) =
         sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE booking_id = $1")
             .bind(booking_id)
-            .fetch_optional(&pool)
+            .fetch_optional(&mut *tx)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?
     {
@@ -421,7 +473,7 @@ pub async fn generate_invoice_handler(
         "#,
     )
     .bind(booking_id)
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -443,7 +495,7 @@ pub async fn generate_invoice_handler(
         "SELECT * FROM payments WHERE booking_id = $1 ORDER BY created_at DESC LIMIT 1",
     )
     .bind(booking_id)
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -458,7 +510,7 @@ pub async fn generate_invoice_handler(
         "#,
         )
         .bind(room_id)
-        .fetch_one(&pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -490,9 +542,9 @@ pub async fn generate_invoice_handler(
         }
     ]);
 
-    // Generate invoice number
+    // Generate invoice number (within the transaction to ensure unique numbering)
     let invoice_number: String = sqlx::query_scalar("SELECT generate_invoice_number()")
-        .fetch_one(&pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -532,9 +584,12 @@ pub async fn generate_invoice_handler(
     .bind(check_out)
     .bind(nights)
     .bind(if payment.is_some() { "paid" } else { "draft" })
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Commit the transaction
+    tx.commit().await.map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(Json(invoice))
 }
@@ -619,12 +674,15 @@ pub async fn update_payment_handler(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let _user_id = require_auth(&headers).await?;
 
-    // Check if payment exists
+    // Start a transaction to ensure check + update is atomic
+    let mut tx = pool.begin().await.map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Check if payment exists (within the transaction)
     let existing: Option<i64> = sqlx::query_scalar(
         "SELECT id FROM payments WHERE id = $1"
     )
     .bind(payment_id)
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -680,9 +738,12 @@ pub async fn update_payment_handler(
     }
 
     let row = query_builder
-        .fetch_one(&pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Commit the transaction
+    tx.commit().await.map_err(|e| ApiError::Database(e.to_string()))?;
 
     let payment = serde_json::json!({
         "id": row.get::<i64, _>("id"),
@@ -707,12 +768,15 @@ pub async fn delete_payment_handler(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let _user_id = require_auth(&headers).await?;
 
-    // Check if payment exists and get its type
+    // Start a transaction to ensure check + delete is atomic
+    let mut tx = pool.begin().await.map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Check if payment exists and get its type (within the transaction)
     let payment_row = sqlx::query(
         "SELECT id, payment_type FROM payments WHERE id = $1"
     )
     .bind(payment_id)
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -731,9 +795,12 @@ pub async fn delete_payment_handler(
     // Delete the payment
     sqlx::query("DELETE FROM payments WHERE id = $1")
         .bind(payment_id)
-        .execute(&pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Commit the transaction
+    tx.commit().await.map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(Json(serde_json::json!({
         "success": true,
