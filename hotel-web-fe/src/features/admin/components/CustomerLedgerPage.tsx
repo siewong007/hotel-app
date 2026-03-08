@@ -351,7 +351,6 @@ const CustomerLedgerPage: React.FC = () => {
   useEffect(() => {
     loadData();
     loadCompanies();
-    loadCompaniesForCheckIn();
     loadGuests();
     loadAllCompanyBookings();
   }, []);
@@ -370,11 +369,12 @@ const CustomerLedgerPage: React.FC = () => {
     }
   };
 
-  // Load companies from database
+  // Load companies from database (single call for both dropdown options and check-in data)
   const loadCompanies = async () => {
     try {
-      const companies = await HotelAPIService.getCompanies({ is_active: true });
-      const options: CompanyOption[] = companies.map((company: any) => ({
+      const companiesData = await HotelAPIService.getCompanies({ is_active: true });
+      setCompanies(companiesData);
+      const options: CompanyOption[] = companiesData.map((company: any) => ({
         company_name: company.company_name,
         company_registration_number: company.registration_number,
         contact_person: company.contact_person,
@@ -385,16 +385,6 @@ const CustomerLedgerPage: React.FC = () => {
       setCompanyOptions(options);
     } catch (err) {
       console.error('Failed to load companies:', err);
-    }
-  };
-
-  // Load full company data for check-in
-  const loadCompaniesForCheckIn = async () => {
-    try {
-      const companiesData = await HotelAPIService.getCompanies({ is_active: true });
-      setCompanies(companiesData);
-    } catch (err) {
-      console.error('Failed to load companies for check-in:', err);
     }
   };
 
@@ -552,7 +542,7 @@ const CustomerLedgerPage: React.FC = () => {
       setCheckInDialogOpen(false);
       resetCheckInForm();
       await loadData();
-      await loadCompaniesForCheckIn();
+      await loadCompanies();
     } catch (err: any) {
       console.error('Failed to perform company check-in:', err);
       setSnackbarMessage(err.message || 'Failed to perform company check-in');
@@ -737,7 +727,6 @@ const CustomerLedgerPage: React.FC = () => {
 
       // Reload companies
       await loadCompanies();
-      await loadCompaniesForCheckIn();
     } catch (error: any) {
       console.error('Failed to register company:', error);
       setSnackbarMessage(error.message || 'Failed to register company');
@@ -819,7 +808,6 @@ const CustomerLedgerPage: React.FC = () => {
 
       // Reload companies
       await loadCompanies();
-      await loadCompaniesForCheckIn();
     } catch (error: any) {
       console.error('Failed to update company:', error);
       setSnackbarMessage(error.message || 'Failed to update company');
@@ -851,7 +839,6 @@ const CustomerLedgerPage: React.FC = () => {
 
       // Reload companies
       await loadCompanies();
-      await loadCompaniesForCheckIn();
     } catch (error: any) {
       console.error('Failed to delete company:', error);
       setSnackbarMessage(error.message || 'Failed to delete company');
