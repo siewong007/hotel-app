@@ -34,10 +34,10 @@ BEGIN
         SELECT b.id, b.status, b.total_amount, b.check_in_date, b.check_out_date
         FROM bookings b
         WHERE b.is_posted = FALSE
-        AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show')
+        AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided')
         AND (
             (b.check_in_date <= p_audit_date AND b.check_out_date > p_audit_date)
-            OR (b.check_out_date = p_audit_date AND b.status = 'checked_out')
+            OR (b.status = 'checked_out' AND b.check_in_date <= p_audit_date AND b.check_out_date >= p_audit_date)
         )
     LOOP
         -- Update booking as posted
