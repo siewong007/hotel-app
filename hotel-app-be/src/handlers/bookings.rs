@@ -1102,12 +1102,16 @@ pub async fn manual_checkin_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    if let Err(e) = sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
-        .bind(booking.room_id)
-        .execute(&pool)
-        .await
-    {
-        log::warn!("Failed to update room {} to occupied during check-in: {}", booking.room_id, e);
+    // Only update room status for current/future bookings (skip back-dated)
+    let today = chrono::Local::now().date_naive();
+    if booking.check_out_date >= today {
+        if let Err(e) = sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
+            .bind(booking.room_id)
+            .execute(&pool)
+            .await
+        {
+            log::warn!("Failed to update room {} to occupied during check-in: {}", booking.room_id, e);
+        }
     }
 
     // Log check-in

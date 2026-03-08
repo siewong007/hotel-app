@@ -63,6 +63,7 @@ import {
   Description as InvoiceIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
+import { api } from '../../../api/client';
 import {
   CustomerLedger,
   CustomerLedgerCreateRequest,
@@ -515,16 +516,19 @@ const CustomerLedgerPage: React.FC = () => {
         return;
       }
 
-      // Create booking with company billing
-      const booking = await HotelAPIService.createBooking({
-        guest_id: typeof guestToUse.id === 'string' ? parseInt(guestToUse.id, 10) : guestToUse.id,
-        room_id: String(roomId),
-        check_in_date: checkInDate,
-        check_out_date: checkOutDate,
-        post_type: 'normal_stay',
-        payment_status: 'unpaid',
-        booking_remarks: `Company Billing: ${checkInCompany.company_name}`,
-      });
+      // Create booking with company billing (bypass frontend date validation for back-dated entries)
+      const guestId = typeof guestToUse.id === 'string' ? parseInt(guestToUse.id, 10) : guestToUse.id;
+      const booking = await api.post('bookings', {
+        json: {
+          guest_id: guestId,
+          room_id: roomId,
+          check_in_date: checkInDate,
+          check_out_date: checkOutDate,
+          post_type: 'normal_stay',
+          payment_status: 'unpaid',
+          booking_remarks: `Company Billing: ${checkInCompany.company_name}`,
+        },
+      }).json<any>();
 
       // Update booking with company info
       await HotelAPIService.updateBooking(booking.id, {
@@ -534,6 +538,12 @@ const CustomerLedgerPage: React.FC = () => {
 
       // Check in the guest
       await HotelAPIService.checkInGuest(booking.id, {});
+
+      // For back-dated bookings: auto-checkout if check-out date is today or in the past
+      const today = new Date().toISOString().split('T')[0];
+      if (checkOutDate <= today) {
+        await HotelAPIService.updateBooking(booking.id, { status: 'checked_out' });
+      }
 
       setSnackbarMessage(`Guest ${guestToUse.full_name} checked in to Room ${checkInRoom.room_number} (Company: ${checkInCompany.company_name})`);
       setSnackbarOpen(true);

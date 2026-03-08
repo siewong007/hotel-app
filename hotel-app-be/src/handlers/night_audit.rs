@@ -398,7 +398,12 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                         .collect::<Vec<_>>()
                         .join(" ")
                 } else {
-                    payment_method.clone()
+                    // Normalize to title case (e.g. "cash" -> "Cash")
+                    let mut chars = payment_method.chars();
+                    match chars.next() {
+                        Some(c) => c.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
+                        None => "Cash".to_string(),
+                    }
                 }
             };
 
