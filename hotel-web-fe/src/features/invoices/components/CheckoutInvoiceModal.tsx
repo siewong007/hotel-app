@@ -1038,22 +1038,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   </Box>
                 )}
 
-                {/* Subtotal */}
-                <Box sx={{ p: 1.5, borderBottom: '2px solid #ddd', borderTop: '2px solid #ddd' }}>
-                  <Grid container>
-                    <Grid item xs={8}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        Subtotal
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={4} sx={{ textAlign: 'right' }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {formatCurrency(charges.subtotal)}
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                </Box>
-
                 {/* Grand Total */}
                 <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderTop: '3px double #1976d2' }}>
                   <Grid container>
@@ -2172,11 +2156,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </tr>
             )}
 
-            <tr className="subtotal-row">
-              <td>Subtotal</td>
-              <td className="amount">{formatCurrency(charges.subtotal)}</td>
-            </tr>
-
             {depositWaived ? (
               <tr style={{ color: '#e65100' }}>
                 <td>Room Card Deposit ({depositWaiveReason})</td>
@@ -2210,16 +2189,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 <tr key={p.id || idx}>
                   <td>
                     {p.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                    {p.transaction_reference ? ` (Ref: ${p.transaction_reference})` : ''}
-                    {p.notes ? ` - ${p.notes}` : ''}
                   </td>
                   <td className="amount">{formatCurrency(parseFloat(p.total_amount || '0'))}</td>
                 </tr>
               ))}
-              <tr className="subtotal-row">
-                <td>Total Paid</td>
-                <td className="amount">{formatCurrency(totalPayments)}</td>
-              </tr>
               {balanceDue > 0 && (
                 <tr style={{ color: '#e65100', fontWeight: 700 }}>
                   <td>Balance Due</td>
