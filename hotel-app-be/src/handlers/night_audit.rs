@@ -287,19 +287,26 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 let channel = remarks.split(" - ").next().unwrap_or("Online").trim().to_string();
                 if channel.is_empty() { "Online".to_string() } else { channel }
             } else {
-                // Use payment method as entry type - normalize to display name
-                let pm = payment_method.to_lowercase().replace(' ', "_");
-                match pm.as_str() {
-                    "cash" => "Cash".to_string(),
-                    "debit_card" | "debit" => "Debit Card".to_string(),
-                    "credit_card" | "credit" => "Credit Card".to_string(),
-                    "visa_card" | "visa" => "Visa Card".to_string(),
-                    "e_wallet" | "e-wallet" | "ewallet" => "E-Wallet".to_string(),
-                    "boost" => "Boost".to_string(),
-                    "bank_transfer" | "bank" => "Bank Transfer".to_string(),
-                    "duitnow" => "DuitNow".to_string(),
-                    "" => "Cash".to_string(),
-                    _ => payment_method.clone(), // preserve original casing
+                // Normalize payment method to display name dynamically
+                // Handles both display names ("Visa Card") and snake_case ("visa_card")
+                if payment_method.is_empty() {
+                    "Cash".to_string()
+                } else if payment_method.contains('_') {
+                    // Convert snake_case to Title Case: "bank_transfer" -> "Bank Transfer"
+                    payment_method.replace('_', " ")
+                        .split_whitespace()
+                        .map(|w| {
+                            let mut chars = w.chars();
+                            match chars.next() {
+                                Some(c) => c.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
+                                None => String::new(),
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                } else {
+                    // Already a display name ("Cash", "Visa Card", "Boost") — use as-is
+                    payment_method.clone()
                 }
             };
 
