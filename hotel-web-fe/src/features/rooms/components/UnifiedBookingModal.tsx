@@ -502,9 +502,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           // Payment choice required
           if (!paymentChoice) return false;
           if (paymentChoice === 'now' && deposit <= 0) return false;
-          // Deposit choice required
-          if (!depositChoice) return false;
-          if (depositChoice === 'receive' && depositAmount <= 0) return false;
+          // Deposit choice required (only for direct/walk-in, not reservation)
+          if (bookingMode === 'direct') {
+            if (!depositChoice) return false;
+            if (depositChoice === 'receive' && depositAmount <= 0) return false;
+          }
         }
         return true;
       }
@@ -1805,77 +1807,81 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                     </Grid>
                   )}
 
-                  {/* Deposit section */}
-                  <Grid item xs={12}>
-                    <Divider />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                      Deposit
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                      <Button
-                        variant={depositChoice === 'receive' ? 'contained' : 'outlined'}
-                        color="primary"
-                        onClick={() => setDepositChoice('receive')}
-                        sx={{ flex: 1, py: 1.5 }}
-                      >
-                        Receive Deposit
-                      </Button>
-                      <Button
-                        variant={depositChoice === 'waive' ? 'contained' : 'outlined'}
-                        color="warning"
-                        onClick={() => {
-                          setDepositChoice('waive');
-                          setDepositAmount(0);
-                        }}
-                        sx={{ flex: 1, py: 1.5 }}
-                      >
-                        Waive Deposit
-                      </Button>
-                    </Box>
-                  </Grid>
-
-                  {depositChoice === 'receive' && (
+                  {/* Deposit section - only for direct/walk-in bookings, not reservations */}
+                  {bookingMode === 'direct' && (
                     <>
-                      <Grid item xs={12} md={6}>
-                        <FormControl fullWidth size="small">
-                          <InputLabel>Deposit Payment Method</InputLabel>
-                          <Select
-                            value={depositPaymentMethod}
-                            onChange={(e) => setDepositPaymentMethod(e.target.value)}
-                            label="Deposit Payment Method"
-                          >
-                            {getHotelSettings().payment_methods.map((method) => (
-                              <MenuItem key={method} value={method}>{method}</MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
+                      <Grid item xs={12}>
+                        <Divider />
                       </Grid>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          label="Deposit Amount"
-                          value={depositAmount}
-                          onChange={(e) => setDepositAmount(parseFloat(e.target.value) || 0)}
-                          InputProps={{
-                            startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
-                          }}
-                        />
-                      </Grid>
-                    </>
-                  )}
-
-                  {depositChoice === 'waive' && (
-                    <Grid item xs={12}>
-                      <Alert severity="info">
-                        <Typography variant="body2">
-                          No deposit will be collected for this booking.
+                      <Grid item xs={12}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                          Deposit
                         </Typography>
-                      </Alert>
-                    </Grid>
+                        <Box sx={{ display: 'flex', gap: 2 }}>
+                          <Button
+                            variant={depositChoice === 'receive' ? 'contained' : 'outlined'}
+                            color="primary"
+                            onClick={() => setDepositChoice('receive')}
+                            sx={{ flex: 1, py: 1.5 }}
+                          >
+                            Receive Deposit
+                          </Button>
+                          <Button
+                            variant={depositChoice === 'waive' ? 'contained' : 'outlined'}
+                            color="warning"
+                            onClick={() => {
+                              setDepositChoice('waive');
+                              setDepositAmount(0);
+                            }}
+                            sx={{ flex: 1, py: 1.5 }}
+                          >
+                            Waive Deposit
+                          </Button>
+                        </Box>
+                      </Grid>
+
+                      {depositChoice === 'receive' && (
+                        <>
+                          <Grid item xs={12} md={6}>
+                            <FormControl fullWidth size="small">
+                              <InputLabel>Deposit Payment Method</InputLabel>
+                              <Select
+                                value={depositPaymentMethod}
+                                onChange={(e) => setDepositPaymentMethod(e.target.value)}
+                                label="Deposit Payment Method"
+                              >
+                                {getHotelSettings().payment_methods.map((method) => (
+                                  <MenuItem key={method} value={method}>{method}</MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              size="small"
+                              type="number"
+                              label="Deposit Amount"
+                              value={depositAmount}
+                              onChange={(e) => setDepositAmount(parseFloat(e.target.value) || 0)}
+                              InputProps={{
+                                startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
+                              }}
+                            />
+                          </Grid>
+                        </>
+                      )}
+
+                      {depositChoice === 'waive' && (
+                        <Grid item xs={12}>
+                          <Alert severity="info">
+                            <Typography variant="body2">
+                              No deposit will be collected for this booking.
+                            </Typography>
+                          </Alert>
+                        </Grid>
+                      )}
+                    </>
                   )}
                 </>
               );
