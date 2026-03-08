@@ -543,6 +543,31 @@ const CustomerLedgerPage: React.FC = () => {
       const today = new Date().toISOString().split('T')[0];
       if (checkOutDate <= today) {
         await HotelAPIService.updateBooking(booking.id, { status: 'checked_out' });
+
+        // Post room charges to company ledger for auto-checked-out backdated bookings
+        try {
+          const roomAmount = typeof booking.total_amount === 'string'
+            ? parseFloat(booking.total_amount)
+            : (booking.total_amount || 0);
+          const checkInDateObj = new Date(checkInDate);
+          const checkOutDateObj = new Date(checkOutDate);
+          const nights = Math.max(1, Math.ceil((checkOutDateObj.getTime() - checkInDateObj.getTime()) / (1000 * 60 * 60 * 24)));
+          let description = `Room ${checkInRoom.room_number} - ${guestToUse.full_name}`;
+          description += ` (${nights} night${nights > 1 ? 's' : ''}: ${checkInDate} to ${checkOutDate})`;
+          await HotelAPIService.createCustomerLedger({
+            company_name: checkInCompany.company_name,
+            description: description,
+            expense_type: 'accommodation',
+            amount: roomAmount,
+            booking_id: parseInt(String(booking.id)),
+            room_number: checkInRoom.room_number,
+            posting_date: today,
+            transaction_date: today,
+            post_type: 'room_charge',
+          });
+        } catch (ledgerError) {
+          console.error('Failed to post room charges to company ledger:', ledgerError);
+        }
       }
 
       setSnackbarMessage(`Guest ${guestToUse.full_name} checked in to Room ${checkInRoom.room_number} (Company: ${checkInCompany.company_name})`);
@@ -553,6 +578,7 @@ const CustomerLedgerPage: React.FC = () => {
       resetCheckInForm();
       await loadData();
       await loadCompanies();
+      await loadAllCompanyBookings();
     } catch (err: any) {
       console.error('Failed to perform company check-in:', err);
       setSnackbarMessage(err.message || 'Failed to perform company check-in');
