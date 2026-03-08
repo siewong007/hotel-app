@@ -5,7 +5,7 @@
 use axum::{
     routing::{get, post, patch, delete},
     Router,
-    extract::{State, Path, Extension},
+    extract::{State, Path, Extension, Query},
     http::HeaderMap,
     response::Json,
 };
@@ -34,9 +34,10 @@ pub fn routes() -> Router<DbPool> {
 async fn get_guests(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-) -> Result<Json<Vec<models::Guest>>, ApiError> {
+    query: Query<handlers::guests::GuestPaginationParams>,
+) -> Result<Json<handlers::guests::GuestPaginatedResponse>, ApiError> {
     // Allow all authenticated users to access guests (filtering happens in handler)
-    handlers::guests::get_guests_handler(State(pool), headers).await
+    handlers::guests::get_guests_handler(State(pool), headers, query).await
 }
 
 async fn create_guest(

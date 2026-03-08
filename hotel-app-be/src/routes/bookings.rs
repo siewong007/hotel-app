@@ -5,7 +5,7 @@
 use axum::{
     routing::{get, post, patch, put, delete},
     Router,
-    extract::{State, Path, Extension},
+    extract::{State, Path, Extension, Query},
     http::HeaderMap,
     response::Json,
 };
@@ -48,9 +48,10 @@ pub fn routes() -> Router<DbPool> {
 async fn get_bookings(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-) -> Result<Json<Vec<models::BookingWithDetails>>, ApiError> {
+    query: Query<handlers::bookings::PaginationParams>,
+) -> Result<Json<handlers::bookings::PaginatedResponse<Vec<models::BookingWithDetails>>>, ApiError> {
     require_permission_helper(&pool, &headers, "bookings:read").await?;
-    handlers::bookings::get_bookings_handler(State(pool)).await
+    handlers::bookings::get_bookings_handler(State(pool), query).await
 }
 
 async fn create_booking(
