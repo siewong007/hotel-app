@@ -159,7 +159,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
     let booking_condition = if is_posted {
         "b.posted_date = $1 AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided')"
     } else {
-        "(b.is_posted = FALSE OR b.is_posted IS NULL) AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided') AND ((b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1) OR (b.status = 'checked_out' AND b.check_out_date = $1))"
+        "(b.is_posted = FALSE OR b.is_posted IS NULL) AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided') AND ((b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1) OR (b.status = 'checked_out' AND b.check_in_date <= $1 AND b.check_out_date >= $1))"
     };
 
     let query = format!(r#"
@@ -522,7 +522,7 @@ pub async fn get_night_audit_preview(
         AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided')
         AND (
             (b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1)
-            OR (b.status = 'checked_out' AND b.check_out_date = $1)
+            OR (b.status = 'checked_out' AND b.check_in_date <= $1 AND b.check_out_date >= $1)
         )
         ORDER BY b.check_in_date
         "#
