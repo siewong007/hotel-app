@@ -12,11 +12,11 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use sqlx::Row;
 
-use crate::core::db::{DbPool, decimal_to_db, opt_decimal_to_db};
+use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::row_mappers::{
-    self, row_to_customer_ledger, row_to_customer_ledger_payment, row_to_pat_transaction_code,
+    row_to_customer_ledger, row_to_customer_ledger_payment, row_to_pat_transaction_code,
     get_decimal,
 };
 use crate::models::*;
@@ -246,6 +246,7 @@ const GET_PAT_DEPARTMENT_CODES_QUERY: &str = r#"
 const CHECK_LEDGER_VOIDED_QUERY: &str = "SELECT void_at IS NOT NULL FROM customer_ledgers WHERE id = ?1";
 
 // PostgreSQL query for checking if ledger is voided
+#[allow(dead_code)]
 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 const CHECK_LEDGER_VOIDED_QUERY: &str = "SELECT void_at IS NOT NULL FROM customer_ledgers WHERE id = $1";
 

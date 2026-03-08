@@ -4,10 +4,12 @@
 
 pub mod core;
 pub mod handlers;
+#[allow(dead_code)]
 pub mod models;
 pub mod repositories;
 pub mod routes;
 pub mod services;
+#[allow(dead_code)]
 pub mod utils;
 
 // Re-export commonly used types from core

@@ -9,7 +9,6 @@ use axum::{
 };
 use chrono::{Datelike, NaiveDate};
 use rust_decimal::Decimal;
-use rust_decimal::prelude::ToPrimitive;
 use serde_json::json;
 
 use crate::core::db::{DbPool, DbRow};

@@ -6,7 +6,6 @@ use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_auth, require_permission_helper};
-use crate::models::row_mappers;
 use axum::{
     extract::{Query, State},
     http::HeaderMap,
@@ -16,6 +15,7 @@ use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::Row;
 
+#[allow(dead_code)]
 pub async fn websocket_status_handler() -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(serde_json::json!({
         "status": "available",
@@ -745,26 +745,26 @@ async fn generate_general_journal(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Initialize section data
-    let mut deposit_ledger_entries: Vec<serde_json::Value> = Vec::new();
+    let deposit_ledger_entries: Vec<serde_json::Value> = Vec::new();
     let mut guest_ledger_entries: Vec<serde_json::Value> = Vec::new();
     let mut deposits_pending_entries: Vec<serde_json::Value> = Vec::new();
     let mut room_revenue_entries: Vec<serde_json::Value> = Vec::new();
     let mut sales_tax_entries: Vec<serde_json::Value> = Vec::new();
 
-    let mut deposit_ledger_debit = Decimal::ZERO;
-    let mut deposit_ledger_credit = Decimal::ZERO;
+    let deposit_ledger_debit = Decimal::ZERO;
+    let deposit_ledger_credit = Decimal::ZERO;
     let mut guest_ledger_debit = Decimal::ZERO;
     let mut guest_ledger_credit = Decimal::ZERO;
     let mut deposits_pending_debit = Decimal::ZERO;
-    let mut deposits_pending_credit = Decimal::ZERO;
-    let mut room_revenue_debit = Decimal::ZERO;
+    let deposits_pending_credit = Decimal::ZERO;
+    let room_revenue_debit = Decimal::ZERO;
     let mut room_revenue_credit = Decimal::ZERO;
-    let mut sales_tax_debit = Decimal::ZERO;
+    let sales_tax_debit = Decimal::ZERO;
     let mut sales_tax_credit = Decimal::ZERO;
 
     for row in rows {
         let date: NaiveDate = row.get("date");
-        let total_amount: Decimal = row.get("total_amount");
+        let _total_amount: Decimal = row.get("total_amount");
         let room_rate: Decimal = row.get("room_rate");
         let tax_amount: Decimal = row.get("tax_amount");
         let tourism_tax_amount: Decimal = row.get("tourism_tax_amount");
@@ -1877,7 +1877,7 @@ async fn generate_room_performance_report(
 // Company Ledger Statement Report - Per-company account statement
 async fn generate_company_ledger_statement(
     pool: &DbPool,
-    start_date: NaiveDate,
+    _start_date: NaiveDate,
     end_date: NaiveDate,
     company_name: Option<&str>,
 ) -> Result<serde_json::Value, ApiError> {
