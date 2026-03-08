@@ -11,6 +11,7 @@ pub mod auth;
 pub mod db;
 pub mod error;
 pub mod middleware;
+pub mod rate_limiter;
 pub mod sql_compat;
 
 // Re-export commonly used types

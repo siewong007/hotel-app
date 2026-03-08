@@ -792,6 +792,52 @@ pub async fn update_booking_handler(
     });
     let _ = AuditLog::log_booking_updated(&pool, user_id, booking.id, changes).await;
 
+    // Record in booking_modifications audit trail
+    let modification_type = if old_status != updated_status {
+        "status_change"
+    } else if new_room_rate.is_some() {
+        "rate_change"
+    } else if input.check_in_date.is_some() || input.check_out_date.is_some() {
+        "date_change"
+    } else if new_room_id != existing_booking.room_id {
+        "room_change"
+    } else {
+        "general_update"
+    };
+    let old_value = serde_json::json!({
+        "status": &existing_booking.status,
+        "room_id": existing_booking.room_id,
+        "room_rate": existing_booking.room_rate.to_string(),
+        "check_in_date": existing_booking.check_in_date.to_string(),
+        "check_out_date": existing_booking.check_out_date.to_string(),
+        "payment_status": &existing_booking.payment_status,
+        "total_amount": existing_booking.total_amount.to_string(),
+    });
+    let new_value = serde_json::json!({
+        "status": &booking.status,
+        "room_id": booking.room_id,
+        "room_rate": booking.room_rate.to_string(),
+        "check_in_date": booking.check_in_date.to_string(),
+        "check_out_date": booking.check_out_date.to_string(),
+        "payment_status": &booking.payment_status,
+        "total_amount": booking.total_amount.to_string(),
+    });
+    let price_adj = new_total_amount
+        .map(|t| t - existing_booking.total_amount)
+        .unwrap_or(rust_decimal::Decimal::ZERO);
+    sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, price_adjustment, modified_by) VALUES ($1, $2, $3, $4, $5, $6)"
+    )
+    .bind(booking_id)
+    .bind(modification_type)
+    .bind(&old_value)
+    .bind(&new_value)
+    .bind(price_adj)
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    .ok();
+
     Ok(Json(booking))
 }
 
@@ -861,11 +907,13 @@ pub async fn delete_booking_handler(
         return Err(ApiError::BadRequest("Booking cannot be cancelled".to_string()));
     }
 
-    sqlx::query("UPDATE rooms SET status = 'available' WHERE id = $1")
+    if let Err(e) = sqlx::query("UPDATE rooms SET status = 'available' WHERE id = $1")
         .bind(room_id)
         .execute(&pool)
         .await
-        .ok();
+    {
+        log::warn!("Failed to update room {} status after cancellation: {}", room_id, e);
+    }
 
     // If the booking was complimentary, convert the nights to room-type specific credits
     let mut nights_credited = 0;
@@ -879,6 +927,7 @@ pub async fn delete_booking_handler(
         .bind(room_id)
         .fetch_optional(&pool)
         .await
+        .map_err(|e| { log::warn!("Failed to fetch room_type_id for room {}: {}", room_id, e); e })
         .ok()
         .flatten();
 
@@ -904,6 +953,19 @@ pub async fn delete_booking_handler(
 
     // Log booking cancellation
     let _ = AuditLog::log_booking_cancelled(&pool, user_id, booking_id).await;
+
+    // Record in booking_modifications audit trail
+    sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
+    )
+    .bind(booking_id)
+    .bind("cancellation")
+    .bind(serde_json::json!({"status": &status, "check_in_date": check_in_date.to_string(), "check_out_date": check_out_date.to_string()}))
+    .bind(serde_json::json!({"status": "cancelled"}))
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    .ok();
 
     Ok(Json(serde_json::json!({
         "message": "Booking cancelled successfully",
@@ -997,7 +1059,9 @@ pub async fn manual_checkin_handler(
                 let mut q = sqlx::query(&query);
                 for p in &params { q = q.bind(p); }
                 q = q.bind(booking.guest_id);
-                q.execute(&pool).await.ok();
+                if let Err(e) = q.execute(&pool).await {
+                    log::warn!("Failed to update guest {} during check-in: {}", booking.guest_id, e);
+                }
             }
         }
     }
@@ -1020,7 +1084,9 @@ pub async fn manual_checkin_handler(
                 let mut q = sqlx::query(&query);
                 for p in &params { q = q.bind(p); }
                 q = q.bind(booking_id);
-                q.execute(&pool).await.ok();
+                if let Err(e) = q.execute(&pool).await {
+                    log::warn!("Failed to update booking {} fields during check-in: {}", booking_id, e);
+                }
             }
         }
     }
@@ -1036,11 +1102,13 @@ pub async fn manual_checkin_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
+    if let Err(e) = sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
         .bind(booking.room_id)
         .execute(&pool)
         .await
-        .ok();
+    {
+        log::warn!("Failed to update room {} to occupied during check-in: {}", booking.room_id, e);
+    }
 
     // Log check-in
     let _ = AuditLog::log_event(
@@ -1053,6 +1121,21 @@ pub async fn manual_checkin_handler(
         None,
         None,
     ).await;
+
+    // Record in booking_modifications audit trail
+    if let Err(e) = sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
+    )
+    .bind(booking_id)
+    .bind("check_in")
+    .bind(serde_json::json!({"status": &booking.status, "guest_id": booking.guest_id, "room_id": booking.room_id}))
+    .bind(serde_json::json!({"status": "checked_in", "guest_id": booking.guest_id, "room_id": booking.room_id}))
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    {
+        log::warn!("Failed to record check-in audit trail for booking {}: {}", booking_id, e);
+    }
 
     Ok(Json(updated_booking))
 }
@@ -1294,6 +1377,20 @@ pub async fn mark_complimentary_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
     }
+
+    // Record in booking_modifications audit trail
+    sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, price_adjustment, modified_by) VALUES ($1, $2, $3, $4, $5, $6)"
+    )
+    .bind(booking_id)
+    .bind("mark_complimentary")
+    .bind(serde_json::json!({"status": &status, "total_amount": original_total.to_string(), "is_complimentary": false}))
+    .bind(serde_json::json!({"status": new_status, "total_amount": new_total.to_string(), "is_complimentary": true, "complimentary_nights": complimentary_nights, "reason": &input.reason}))
+    .bind(new_total - original_total)
+    .bind(_user_id)
+    .execute(&pool)
+    .await
+    .ok();
 
     let status_display = new_status.replace("_", " ");
     Ok(Json(serde_json::json!({
@@ -1794,6 +1891,20 @@ pub async fn update_complimentary_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
+        // Record in booking_modifications audit trail
+        sqlx::query(
+            "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, price_adjustment, modified_by) VALUES ($1, $2, $3, $4, $5, $6)"
+        )
+        .bind(booking_id)
+        .bind("update_complimentary")
+        .bind(serde_json::json!({"total_amount": original_total.to_string()}))
+        .bind(serde_json::json!({"total_amount": new_total.to_string(), "complimentary_nights": complimentary_nights, "status": new_status}))
+        .bind(new_total - original_total)
+        .bind(_user_id)
+        .execute(&pool)
+        .await
+        .ok();
+
         return Ok(Json(serde_json::json!({
             "success": true,
             "message": "Complimentary dates updated",
@@ -1811,6 +1922,19 @@ pub async fn update_complimentary_handler(
             .execute(&pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        // Record in booking_modifications audit trail
+        sqlx::query(
+            "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
+        )
+        .bind(booking_id)
+        .bind("update_complimentary")
+        .bind(serde_json::json!({}))
+        .bind(serde_json::json!({"complimentary_reason": reason}))
+        .bind(_user_id)
+        .execute(&pool)
+        .await
+        .ok();
     }
 
     Ok(Json(serde_json::json!({
@@ -1877,6 +2001,19 @@ pub async fn remove_complimentary_handler(
 
     // Remove any credits that were added (if applicable)
     // Note: This is a simplification - in production you might want more sophisticated tracking
+
+    // Record in booking_modifications audit trail
+    sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
+    )
+    .bind(booking_id)
+    .bind("remove_complimentary")
+    .bind(serde_json::json!({"status": &status, "is_complimentary": true, "complimentary_nights": complimentary_nights}))
+    .bind(serde_json::json!({"status": "confirmed", "is_complimentary": false, "total_amount": original_total.map(|d| d.to_string())}))
+    .bind(_user_id)
+    .execute(&pool)
+    .await
+    .ok();
 
     Ok(Json(serde_json::json!({
         "success": true,

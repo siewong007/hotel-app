@@ -95,7 +95,7 @@ pub async fn process_auto_checkin_checkout_handler(
     let mut checked_in = 0;
     let mut marked_late = 0;
 
-    // Auto check-in
+    // Auto check-in: update booking status and mark rooms as occupied
     if auto_checkin_enabled == "true" {
         let result = sqlx::query(
             r#"
@@ -114,6 +114,23 @@ pub async fn process_auto_checkin_checkout_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
         checked_in = result.rows_affected() as i32;
+
+        // Update rooms to occupied for auto-checked-in bookings
+        if checked_in > 0 {
+            let _ = sqlx::query(
+                r#"
+                UPDATE rooms
+                SET status = 'occupied'
+                WHERE id IN (
+                    SELECT room_id FROM bookings
+                    WHERE status = 'auto_checked_in'
+                      AND check_in_date = CURRENT_DATE
+                )
+                "#
+            )
+            .execute(&pool)
+            .await;
+        }
     }
 
     // Mark late checkouts

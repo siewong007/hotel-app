@@ -24,6 +24,8 @@ pub enum ApiError {
     Conflict(String),
     /// Internal server error
     Internal(String),
+    /// Rate limit exceeded
+    TooManyRequests(String),
 }
 
 impl std::fmt::Display for ApiError {
@@ -36,6 +38,7 @@ impl std::fmt::Display for ApiError {
             ApiError::NotFound(msg) => write!(f, "Not found: {}", msg),
             ApiError::Conflict(msg) => write!(f, "Conflict: {}", msg),
             ApiError::Internal(msg) => write!(f, "Internal error: {}", msg),
+            ApiError::TooManyRequests(msg) => write!(f, "Too many requests: {}", msg),
         }
     }
 }
@@ -52,6 +55,7 @@ impl IntoResponse for ApiError {
             ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             ApiError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
             ApiError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
+            ApiError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg.clone()),
         };
 
         let body = Json(serde_json::json!({
