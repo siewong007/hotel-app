@@ -5,10 +5,12 @@ import { withRetry } from '../utils/retry';
 
 export class GuestsService {
   static async getAllGuests(): Promise<Guest[]> {
-    return await withRetry(
-      () => api.get('guests').json<Guest[]>(),
+    const response = await withRetry(
+      () => api.get('guests', { searchParams: { page: 1, page_size: 500 } }).json<any>(),
       { maxAttempts: 3, initialDelay: 1000 }
     );
+    // Handle both paginated response { data: [...] } and legacy array response
+    return Array.isArray(response) ? response : (response.data || []);
   }
 
   static async getGuest(guestId: number | string): Promise<Guest> {

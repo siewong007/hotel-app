@@ -15,10 +15,12 @@ import { validateBookingRequest, enhanceBookingDetails } from '../utils/bookingU
 export class BookingsService {
   static async getAllBookings(): Promise<Booking[]> {
     try {
-      return await withRetry(
-        () => api.get('bookings').json<Booking[]>(),
+      const response = await withRetry(
+        () => api.get('bookings', { searchParams: { page: 1, page_size: 500 } }).json<any>(),
         { maxAttempts: 3, initialDelay: 1000 }
       );
+      // Handle both paginated response { data: [...] } and legacy array response
+      return Array.isArray(response) ? response : (response.data || []);
     } catch (error) {
       if (error instanceof HTTPError) {
         const errorData = await error.response.json().catch(() => ({}));

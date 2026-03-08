@@ -9,17 +9,33 @@ use crate::core::middleware::require_auth;
 use crate::models::*;
 use crate::services::audit::AuditLog;
 use axum::{
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::HeaderMap,
     response::Json,
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize)]
+pub struct GuestPaginationParams {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GuestPaginatedResponse {
+    pub data: Vec<Guest>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+}
 
 pub async fn get_guests_handler(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-) -> Result<Json<Vec<Guest>>, ApiError> {
+    Query(params): Query<GuestPaginationParams>,
+) -> Result<Json<GuestPaginatedResponse>, ApiError> {
     let user_id = require_auth(&headers).await?;
 
     // Check if user has guests:read or guests:manage permission
@@ -30,44 +46,68 @@ pub async fn get_guests_handler(
             .await
             .unwrap_or(false);
 
-    let guests = if has_guest_access {
-        sqlx::query_as::<_, Guest>(
-            r#"
-            SELECT
-                id,
-                full_name,
-                email,
-                phone,
-                ic_number,
-                nationality,
-                address_line_1 as address_line1,
-                city,
-                state as state_province,
-                postal_code,
-                country,
-                title,
-                alt_phone,
-                true as is_active,
-                guest_type,
-                tourism_type,
-                COALESCE(discount_percentage, 0) as discount_percentage,
-                company_name,
-                COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
-                created_at,
-                updated_at
-            FROM guests
-            WHERE deleted_at IS NULL
-            ORDER BY full_name
-            "#
-        )
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?
-    } else {
-        vec![]
-    };
+    if !has_guest_access {
+        return Ok(Json(GuestPaginatedResponse {
+            data: vec![],
+            total: 0,
+            page: 1,
+            page_size: 100,
+        }));
+    }
 
-    Ok(Json(guests))
+    let page = params.page.unwrap_or(1).max(1);
+    let page_size = params.page_size.unwrap_or(100).min(500);
+    let offset = (page - 1) * page_size;
+
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM guests WHERE deleted_at IS NULL"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
+
+    let guests = sqlx::query_as::<_, Guest>(
+        r#"
+        SELECT
+            id,
+            full_name,
+            email,
+            phone,
+            ic_number,
+            nationality,
+            address_line_1 as address_line1,
+            city,
+            state as state_province,
+            postal_code,
+            country,
+            title,
+            alt_phone,
+            true as is_active,
+            guest_type,
+            tourism_type,
+            COALESCE(discount_percentage, 0) as discount_percentage,
+            company_name,
+            COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
+            created_at,
+            updated_at
+        FROM guests
+        WHERE deleted_at IS NULL
+        ORDER BY full_name
+        LIMIT $1 OFFSET $2
+        "#
+    )
+    .bind(page_size)
+    .bind(offset)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(Json(GuestPaginatedResponse {
+        data: guests,
+        total,
+        page,
+        page_size,
+    }))
 }
 
 pub async fn create_guest_handler(

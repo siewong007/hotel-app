@@ -10,14 +10,30 @@ use crate::handlers::bookings_queries::*;
 use crate::models::*;
 use crate::services::audit::AuditLog;
 use axum::{
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::HeaderMap,
     response::Json,
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::Row;
+
+/// Pagination query parameters
+#[derive(Debug, Deserialize)]
+pub struct PaginationParams {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
+/// Paginated response wrapper
+#[derive(Debug, Serialize)]
+pub struct PaginatedResponse<T: Serialize> {
+    pub data: T,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+}
 
 fn parse_date_flexible(date_str: &str) -> Result<NaiveDate, String> {
     if date_str.contains('T') {
@@ -32,8 +48,21 @@ fn parse_date_flexible(date_str: &str) -> Result<NaiveDate, String> {
 
 pub async fn get_bookings_handler(
     State(pool): State<DbPool>,
-) -> Result<Json<Vec<BookingWithDetails>>, ApiError> {
-    let rows = sqlx::query(GET_BOOKINGS_QUERY)
+    Query(params): Query<PaginationParams>,
+) -> Result<Json<PaginatedResponse<Vec<BookingWithDetails>>>, ApiError> {
+    let page = params.page.unwrap_or(1).max(1);
+    let page_size = params.page_size.unwrap_or(100).min(500);
+    let offset = (page - 1) * page_size;
+
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bookings b WHERE b.status NOT IN ('voided')"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
+
+    let paginated_query = format!("{} LIMIT {} OFFSET {}", GET_BOOKINGS_QUERY, page_size, offset);
+    let rows = sqlx::query(&paginated_query)
         .fetch_all(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -42,7 +71,12 @@ pub async fn get_bookings_handler(
         .map(|row| row_mappers::row_to_booking_with_details(row))
         .collect();
 
-    Ok(Json(bookings))
+    Ok(Json(PaginatedResponse {
+        data: bookings,
+        total,
+        page,
+        page_size,
+    }))
 }
 
 pub async fn get_my_bookings_handler(
