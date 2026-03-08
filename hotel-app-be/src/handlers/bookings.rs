@@ -84,6 +84,11 @@ pub async fn create_booking_handler(
         return Err(ApiError::BadRequest("Check-out date must be on or after check-in date".to_string()));
     }
 
+    // Start a transaction to prevent race conditions:
+    // The FOR UPDATE lock on the room row + conflict check + insert must be atomic
+    let mut tx = pool.begin().await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
     let row = sqlx::query(
         r#"
         SELECT r.id, r.room_number, rt.name as room_type,
@@ -97,7 +102,7 @@ pub async fn create_booking_handler(
         "#
     )
     .bind(input.room_id)
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?
     .ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
@@ -152,7 +157,7 @@ pub async fn create_booking_handler(
         .bind(input.room_id)
         .bind(check_in)
         .bind(check_out)
-        .fetch_one(&pool)
+        .fetch_one(&mut *tx)
         .await
         .map(|v| v != 0)
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -162,7 +167,7 @@ pub async fn create_booking_handler(
         .bind(input.room_id)
         .bind(check_in)
         .bind(check_out)
-        .fetch_one(&pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -237,7 +242,7 @@ pub async fn create_booking_handler(
         .bind(rate_override_value)
         .bind(input.special_requests.as_deref())
         .bind(if is_hourly { Some("hourly") } else { None::<&str> })
-        .execute(&pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -246,7 +251,7 @@ pub async fn create_booking_handler(
             r#"SELECT * FROM bookings WHERE booking_number = ?1"#
         )
         .bind(&booking_number)
-        .fetch_one(&pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -295,7 +300,7 @@ pub async fn create_booking_handler(
         .bind(input.extra_bed_charge.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
         .bind(input.room_card_deposit.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
         .bind(if is_hourly { Some("hourly") } else { None::<&str> })
-        .fetch_one(&pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
     };
@@ -318,7 +323,7 @@ pub async fn create_booking_handler(
         .bind(room_status)
         .bind(format!("Booking #{} - {}", booking.booking_number, if check_in == today { "Guest arriving today" } else { "Future reservation" }))
         .bind(input.room_id)
-        .execute(&pool)
+        .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -337,12 +342,16 @@ pub async fn create_booking_handler(
             .bind(payment_amount)
             .bind(payment_method_str)
             .bind(user_id)
-            .execute(&pool)
+            .execute(&mut *tx)
             .await;
         }
     }
 
-    // Log booking creation
+    // Commit the transaction - all conflict check + insert + room update are now atomic
+    tx.commit().await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Log booking creation (outside transaction - non-critical)
     let _ = AuditLog::log_booking_created(&pool, user_id, booking.id, input.guest_id, input.room_id).await;
 
     Ok(Json(booking))
