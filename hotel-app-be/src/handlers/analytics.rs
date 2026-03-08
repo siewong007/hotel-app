@@ -393,8 +393,20 @@ async fn generate_balance_sheet(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    // Calculate service tax (8% of room revenue)
-    let service_tax = room_revenue * Decimal::new(8, 2);
+    // Read service tax rate from system_settings (default 8%)
+    let tax_rate_pct: Decimal = {
+        let raw = sqlx::query_scalar::<_, String>(
+            "SELECT value FROM system_settings WHERE key = 'service_tax_rate'"
+        )
+        .fetch_optional(pool)
+        .await
+        .unwrap_or(None)
+        .and_then(|v| v.parse::<Decimal>().ok())
+        .unwrap_or(Decimal::ZERO);
+        if raw > Decimal::ZERO { raw } else { Decimal::new(8, 0) }
+    };
+    let tax_rate = tax_rate_pct / Decimal::new(100, 0);
+    let service_tax = room_revenue * tax_rate;
 
     let accounts = vec![
         serde_json::json!({
@@ -441,6 +453,20 @@ async fn generate_journal_by_type(
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
+    // Read service tax rate from system_settings (default 8%)
+    let tax_rate_pct: Decimal = {
+        let raw = sqlx::query_scalar::<_, String>(
+            "SELECT value FROM system_settings WHERE key = 'service_tax_rate'"
+        )
+        .fetch_optional(pool)
+        .await
+        .unwrap_or(None)
+        .and_then(|v| v.parse::<Decimal>().ok())
+        .unwrap_or(Decimal::ZERO);
+        if raw > Decimal::ZERO { raw } else { Decimal::new(8, 0) }
+    };
+    let tax_rate = tax_rate_pct / Decimal::new(100, 0);
+
     let rows = sqlx::query(
         "SELECT
             b.id,
@@ -484,8 +510,8 @@ async fn generate_journal_by_type(
         }));
         total_debit += amount;
 
-        // Credit entry (Guest Ledger)
-        let service_tax = amount * Decimal::new(8, 2);
+        // Credit entry (Service Tax)
+        let service_tax = amount * tax_rate;
         transactions.push(serde_json::json!({
             "date": date.and_hms_opt(8, 0, 0).unwrap().and_utc().to_rfc3339(),
             "folio": folio.unwrap_or_else(|| "".to_string()),
@@ -1884,7 +1910,7 @@ async fn generate_company_ledger_statement(
         }));
     }
 
-    let company = company_name.unwrap();
+    let company = company_name.ok_or_else(|| ApiError::BadRequest("Company name is required".to_string()))?;
 
     // Get company details from the most recent ledger entry
     let company_info: Option<(
@@ -1906,14 +1932,10 @@ async fn generate_company_ledger_statement(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    if company_info.is_none() {
-        return Err(ApiError::NotFound(format!("No ledger entries found for company: {}", company)));
-    }
-
     let (
         comp_name, reg_number, contact_person, contact_email, contact_phone,
         address_line1, city, state, postal_code, country
-    ) = company_info.unwrap();
+    ) = company_info.ok_or_else(|| ApiError::NotFound(format!("No ledger entries found for company: {}", company)))?;
 
     // Get all ledger entries for this company
     let ledger_entries: Vec<(

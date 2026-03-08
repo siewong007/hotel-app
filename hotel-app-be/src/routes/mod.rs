@@ -24,6 +24,7 @@ pub mod data_transfer;
 
 use axum::{http::Method, routing::get, Router};
 use crate::core::db::DbPool;
+use crate::core::rate_limiter::RateLimiters;
 use tower::ServiceBuilder;
 use tower_http::{
     cors::CorsLayer,
@@ -91,6 +92,9 @@ pub fn create_router(pool: DbPool) -> Router {
             .allow_credentials(true)
     };
 
+    // Initialize rate limiters
+    let rate_limiters = RateLimiters::new();
+
     // Build all routes
     let app = Router::new()
         // Public routes
@@ -117,7 +121,8 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(audit::routes())
         .merge(night_audit::routes())
         .merge(data_transfer::routes())
-        .with_state(pool);
+        .with_state(pool)
+        .layer(axum::Extension(rate_limiters));
 
     // Add middleware layers
     app.layer(

@@ -5,11 +5,12 @@
 use axum::{
     routing::{get, post},
     Router,
-    extract::State,
+    extract::{Extension, State},
     http::HeaderMap,
     response::Json,
 };
 use crate::core::db::DbPool;
+use crate::core::rate_limiter::RateLimiters;
 use crate::handlers;
 use crate::models;
 use crate::core::error::ApiError;
@@ -42,8 +43,16 @@ pub fn routes() -> Router<DbPool> {
 
 async fn login(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
     Json(req): Json<models::LoginRequest>,
 ) -> Result<Json<models::AuthResponse>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    if !limiters.auth.check(ip).await {
+        return Err(ApiError::TooManyRequests(
+            "Too many login attempts. Please try again later.".to_string(),
+        ));
+    }
     handlers::auth::login_handler(State(pool), Json(req)).await
 }
 
@@ -63,8 +72,16 @@ async fn logout(
 
 async fn register(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
     Json(req): Json<models::RegisterRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    if !limiters.register.check(ip).await {
+        return Err(ApiError::TooManyRequests(
+            "Too many registration attempts. Please try again later.".to_string(),
+        ));
+    }
     handlers::auth::register_handler(State(pool), Json(req)).await
 }
 
@@ -158,4 +175,20 @@ async fn passkey_login_finish(
     Json(req): Json<models::PasskeyLoginFinish>,
 ) -> Result<Json<models::AuthResponse>, ApiError> {
     handlers::passkey::passkey_login_finish_handler(State(pool), Json(req)).await
+}
+
+/// Extract client IP from X-Forwarded-For header or fall back to 127.0.0.1
+fn extract_client_ip(headers: &HeaderMap) -> std::net::IpAddr {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .and_then(|s| s.trim().parse().ok())
+        .or_else(|| {
+            headers
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.trim().parse().ok())
+        })
+        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
 }

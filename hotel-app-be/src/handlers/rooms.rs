@@ -1038,11 +1038,8 @@ pub async fn end_maintenance_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    if current_status.is_none() {
-        return Err(ApiError::NotFound("Room not found".to_string()));
-    }
-
-    let status = current_status.as_ref().unwrap();
+    let current_status = current_status.ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
+    let status = &current_status;
     if status == "available" {
         sqlx::query(CLEAR_MAINTENANCE_DATES)
             .bind(room_id)
@@ -1092,7 +1089,7 @@ pub async fn end_maintenance_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let status_label = current_status.as_ref().unwrap_or(&"unknown".to_string()).clone();
+    let status_label = current_status.clone();
 
     let _ = sqlx::query(INSERT_ROOM_EVENT)
         .bind(room_id)

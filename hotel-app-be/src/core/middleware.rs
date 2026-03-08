@@ -125,11 +125,3 @@ pub async fn require_super_admin_helper(
     Ok(user_id)
 }
 
-// Rate limiting configuration
-// Note: Rate limiting implementation requires tower_governor 0.8+
-// Current version (0.4) has API incompatibilities
-// TODO: Upgrade to tower_governor 0.8 or implement custom rate limiting
-pub mod rate_limit {
-    // Placeholder for rate limiting
-    // When implementing, use tower_governor 0.8+ with correct API
-}
