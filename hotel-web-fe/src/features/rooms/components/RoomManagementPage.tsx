@@ -695,11 +695,12 @@ const RoomManagementPage: React.FC = () => {
         post_type: createdBooking.post_type,
         created_at: createdBooking.created_at,
         updated_at: createdBooking.updated_at,
-        guest_name: guestToUse.full_name || `${guestToUse.first_name || ''} ${guestToUse.last_name || ''}`.trim(),
+        guest_name: guestToUse.full_name || '',
         guest_email: guestToUse.email || '',
         guest_phone: guestToUse.phone || '',
         room_number: selectedRoom.room_number,
         booking_number: createdBooking.folio_number || `WALKIN-${createdBooking.id}`,
+        price_per_night: selectedRoom.price_per_night || 0,
       };
       const settingsDepositWI = getHotelSettings().deposit_amount;
       setReservedCheckInBooking(bwd);
