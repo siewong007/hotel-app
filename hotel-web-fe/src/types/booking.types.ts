@@ -182,10 +182,18 @@ export interface BookingCancellationRequest {
   reason?: string;
 }
 
+export interface CheckInPaymentRecord {
+  amount: number;
+  payment_method: string;
+  payment_type?: string;
+  notes?: string;
+}
+
 export interface CheckInRequest {
   guest_update?: GuestUpdateRequest;
   booking_update?: BookingUpdateRequest;
   checkin_notes?: string;
+  payment_record?: CheckInPaymentRecord;
 }
 
 export interface PreCheckInUpdateRequest {

@@ -27,6 +27,8 @@ import {
   Autocomplete,
   Snackbar,
   Chip,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import {
   Visibility as VisibilityIcon,
@@ -35,9 +37,12 @@ import {
   PersonAdd as PersonAddIcon,
   Business as BusinessIcon,
   Hotel as HotelIcon,
+  Payment as PaymentIcon,
+  MoneyOff as MoneyOffIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { HotelAPIService, LedgerService } from '../../../api';
+import { InvoicesService } from '../../../api/invoices.service';
 import {
   Booking,
   Guest,
@@ -201,13 +206,21 @@ export default function EnhancedCheckInModal({
   const [nextPosting, setNextPosting] = useState('');
 
   // Payment information
+  const [paymentChoice, setPaymentChoice] = useState<'pay_now' | 'pay_later'>('pay_later');
   const [paymentType, setPaymentType] = useState('Cash');
+  const [amountPaid, setAmountPaid] = useState(0);
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardName, setCardName] = useState('');
   const [showCardNumber, setShowCardNumber] = useState(false);
   const [directBillCompany, setDirectBillCompany] = useState('');
   const [driversInfo, setDriversInfo] = useState('');
+
+  // Deposit information
+  const [depositChoice, setDepositChoice] = useState<'receive' | 'waive'>('receive');
+  const [depositAmount, setDepositAmount] = useState(0);
+  const [depositMethod, setDepositMethod] = useState('Cash');
+  const [waiveReason, setWaiveReason] = useState('');
   const [groupCode, setGroupCode] = useState('');
   const [language, setLanguage] = useState('Default Language (English)');
   const [travelAgent1, setTravelAgent1] = useState('');
@@ -421,6 +434,23 @@ export default function EnhancedCheckInModal({
 
     setSpecialRequests(booking.special_requests || '');
 
+    // Initialize payment and deposit from booking
+    const totalAmt = typeof booking.total_amount === 'string' ? parseFloat(booking.total_amount) || 0 : booking.total_amount || 0;
+    const settingsDeposit = getHotelSettings().deposit_amount;
+    setAmountPaid(totalAmt);
+    if (booking.payment_status === 'paid') {
+      setPaymentChoice('pay_now');
+    } else {
+      setPaymentChoice('pay_later');
+    }
+    if (booking.deposit_paid) {
+      setDepositChoice('receive');
+      setDepositAmount(typeof booking.deposit_amount === 'string' ? parseFloat(booking.deposit_amount) || settingsDeposit : booking.deposit_amount || settingsDeposit);
+    } else {
+      setDepositChoice('receive');
+      setDepositAmount(settingsDeposit);
+    }
+
     // Initialize extra bed from booking
     setExtraBedCount(booking.extra_bed_count || 0);
     const ebCharge = typeof booking.extra_bed_charge === 'string'
@@ -479,7 +509,7 @@ export default function EnhancedCheckInModal({
     if (icError) errors.ic_number = icError;
 
     // Card validation if payment type is card
-    if (paymentType === 'Credit Card' || paymentType === 'Debit Card') {
+    if (paymentChoice === 'pay_now' && (paymentType === 'Credit Card' || paymentType === 'Debit Card' || paymentType === 'Visa Card' || paymentType === 'Master Card' || paymentType === 'American Express')) {
       const cardNumError = validateField('cardNumber', cardNumber);
       if (cardNumError) errors.cardNumber = cardNumError;
 
@@ -550,9 +580,29 @@ export default function EnhancedCheckInModal({
     setError(null);
 
     try {
+      // Build payment/deposit fields
+      const paymentFields: Record<string, any> = {};
+      if (paymentChoice === 'pay_now') {
+        paymentFields.payment_status = 'paid';
+        paymentFields.amount_paid = amountPaid;
+        paymentFields.payment_method = paymentType;
+      } else {
+        paymentFields.payment_status = 'unpaid';
+      }
+      if (depositChoice === 'receive') {
+        paymentFields.deposit_paid = true;
+        paymentFields.deposit_amount = depositAmount;
+        paymentFields.payment_note = `Deposit received (${depositMethod})`;
+      } else {
+        paymentFields.deposit_paid = false;
+        paymentFields.deposit_amount = 0;
+        paymentFields.payment_note = `Deposit waived: ${waiveReason || 'No reason provided'}`;
+      }
+
       // Include company info if Direct Billing is selected
       const bookingUpdateWithCompany = {
         ...bookingData,
+        ...paymentFields,
         special_requests: specialRequests || undefined,
         extra_bed_count: extraBedCount,
         extra_bed_charge: extraBedCharge,
@@ -568,6 +618,21 @@ export default function EnhancedCheckInModal({
       };
 
       await HotelAPIService.checkInGuest(booking.id, checkinRequest);
+
+      // Record payment if paying now
+      if (paymentChoice === 'pay_now' && amountPaid > 0) {
+        try {
+          await InvoicesService.recordPayment({
+            booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
+            amount: amountPaid,
+            payment_method: paymentType,
+            payment_type: 'room_charge',
+            notes: 'Payment collected at check-in',
+          });
+        } catch (payErr) {
+          console.error('Failed to record check-in payment:', payErr);
+        }
+      }
 
       // Automatically create company ledger if Direct Billing with a company selected
       if (paymentType === 'Direct Billing' && selectedCompany) {
@@ -1167,248 +1232,429 @@ export default function EnhancedCheckInModal({
         {/* Tab 3: Payment Information */}
         <TabPanel value={activeTab} index={2}>
           <Grid container spacing={2}>
+            {/* Payment Section */}
             <Grid item xs={12}>
               <Typography variant="subtitle2" color="primary" gutterBottom>
-                Payment Method
+                Payment
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>Payment Type</InputLabel>
-                <Select
-                  value={paymentType}
-                  onChange={(e) => {
-                    setPaymentType(e.target.value);
-                    handleBookingChange('payment_method', e.target.value);
-                  }}
-                  label="Payment Type"
-                >
-                  {paymentMethods.map(method => (
-                    <MenuItem key={method} value={method}>{method}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+            <Grid item xs={12}>
+              <ToggleButtonGroup
+                value={paymentChoice}
+                exclusive
+                onChange={(_, val) => { if (val) setPaymentChoice(val); }}
+                fullWidth
+                size="large"
+                sx={{ mb: 1 }}
+              >
+                <ToggleButton value="pay_now" color="success" sx={{ py: 1.5, fontWeight: 600 }}>
+                  <PaymentIcon sx={{ mr: 1 }} />
+                  Make Payment Now
+                </ToggleButton>
+                <ToggleButton value="pay_later" color="warning" sx={{ py: 1.5, fontWeight: 600 }}>
+                  <MoneyOffIcon sx={{ mr: 1 }} />
+                  Pay Later
+                </ToggleButton>
+              </ToggleButtonGroup>
             </Grid>
 
-            {(paymentType === 'Credit Card' || paymentType === 'Debit Card') && (
+            {paymentChoice === 'pay_now' && (
               <>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
-                    Card Information
-                  </Typography>
-                  <Divider sx={{ mb: 2 }} />
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Payment Method</InputLabel>
+                    <Select
+                      value={paymentType}
+                      onChange={(e) => {
+                        setPaymentType(e.target.value);
+                        handleBookingChange('payment_method', e.target.value);
+                      }}
+                      label="Payment Method"
+                    >
+                      {paymentMethods.map(method => (
+                        <MenuItem key={method} value={method}>{method}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                 </Grid>
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
-                    label="Card Number"
-                    type={showCardNumber ? 'text' : 'password'}
-                    value={cardNumber}
-                    onChange={(e) => {
-                      setCardNumber(e.target.value);
-                      if (touched.cardNumber) {
-                        const error = validateField('cardNumber', e.target.value);
-                        setValidationErrors(prev => ({ ...prev, cardNumber: error }));
-                      }
-                    }}
-                    onBlur={(e) => handleBlur('cardNumber', e.target.value)}
-                    error={touched.cardNumber && !!validationErrors.cardNumber}
-                    helperText={touched.cardNumber && validationErrors.cardNumber}
-                    placeholder="•••••"
+                    label="Amount Paid"
+                    type="number"
+                    value={amountPaid}
+                    onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
                     InputProps={{
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton
-                            onClick={() => setShowCardNumber(!showCardNumber)}
-                            edge="end"
-                          >
-                            {showCardNumber ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                          </IconButton>
-                        </InputAdornment>
-                      ),
+                      startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                      inputProps: { min: 0, step: 0.01 },
                     }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Expire Date"
-                    placeholder="MM/YY"
-                    value={cardExpiry}
-                    onChange={(e) => {
-                      setCardExpiry(e.target.value);
-                      if (touched.cardExpiry) {
-                        const error = validateField('cardExpiry', e.target.value);
-                        setValidationErrors(prev => ({ ...prev, cardExpiry: error }));
-                      }
-                    }}
-                    onBlur={(e) => handleBlur('cardExpiry', e.target.value)}
-                    error={touched.cardExpiry && !!validationErrors.cardExpiry}
-                    helperText={(touched.cardExpiry && validationErrors.cardExpiry) || 'Format: MM/YY'}
-                  />
-                </Grid>
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Name on Card"
-                    value={cardName}
-                    onChange={(e) => setCardName(e.target.value)}
-                  />
-                </Grid>
-              </>
-            )}
 
-            {paymentType === 'Direct Billing' && (
-              <>
-                <Grid item xs={12}>
-                  <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
-                    Direct Billing Information
-                  </Typography>
-                  <Divider sx={{ mb: 2 }} />
-                </Grid>
-                <Grid item xs={12}>
-                  <Autocomplete
-                    value={selectedCompany}
-                    onChange={(event, newValue) => {
-                      if (newValue) {
-                        if (newValue.isNew) {
-                          // User selected "Add new company" option
-                          setNewCompanyData({ ...newCompanyData, company_name: newValue.inputValue || '' });
-                          setNewCompanyDialogOpen(true);
-                        } else {
-                          // User selected an existing company
-                          setSelectedCompany(newValue);
-                          setDirectBillCompany(newValue.company_name);
-                        }
-                      } else {
-                        setSelectedCompany(null);
-                        setDirectBillCompany('');
-                      }
-                    }}
-                    filterOptions={(options, state) => {
-                      const inputValue = state.inputValue.toLowerCase();
-                      const filtered = options.filter(option =>
-                        option.company_name.toLowerCase().includes(inputValue)
-                      );
-                      // Suggest creating a new company if no exact match
-                      const isExisting = options.some(option =>
-                        option.company_name.toLowerCase() === inputValue
-                      );
-                      if (inputValue !== '' && !isExisting) {
-                        filtered.push({
-                          inputValue: state.inputValue,
-                          company_name: `Add "${state.inputValue}" as new company`,
-                          isNew: true,
-                        });
-                      }
-                      return filtered;
-                    }}
-                    selectOnFocus
-                    clearOnBlur
-                    handleHomeEndKeys
-                    options={companyOptions}
-                    loading={loadingCompanies}
-                    getOptionLabel={(option) => option.isNew ? option.inputValue || '' : option.company_name}
-                    isOptionEqualToValue={(option, value) => option.company_name === value.company_name}
-                    renderOption={(props, option) => {
-                      const { key, ...otherProps } = props;
-                      return (
-                        <li key={key} {...otherProps}>
-                          {option.isNew ? (
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <PersonAddIcon color="primary" fontSize="small" />
-                              <Typography color="primary">{option.company_name}</Typography>
-                            </Box>
-                          ) : (
-                            <Box>
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <BusinessIcon color="action" fontSize="small" />
-                                <Typography>{option.company_name}</Typography>
-                              </Box>
-                              {option.contact_person && (
-                                <Typography variant="caption" color="text.secondary" sx={{ ml: 3.5 }}>
-                                  Contact: {option.contact_person}
-                                </Typography>
-                              )}
-                            </Box>
-                          )}
-                        </li>
-                      );
-                    }}
-                    renderInput={(params) => (
+                {(paymentType === 'Visa Card' || paymentType === 'Master Card' || paymentType === 'Debit Card' || paymentType === 'American Express' || paymentType === 'Credit Card') && (
+                  <>
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 1 }}>
+                        Card Information
+                      </Typography>
+                      <Divider sx={{ mb: 2 }} />
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
                       <TextField
-                        {...params}
-                        label="Company"
-                        placeholder="Type to search or add new company"
-                        helperText="Select existing company or type new name to register"
+                        fullWidth
+                        label="Card Number"
+                        type={showCardNumber ? 'text' : 'password'}
+                        value={cardNumber}
+                        onChange={(e) => {
+                          setCardNumber(e.target.value);
+                          if (touched.cardNumber) {
+                            const error = validateField('cardNumber', e.target.value);
+                            setValidationErrors(prev => ({ ...prev, cardNumber: error }));
+                          }
+                        }}
+                        onBlur={(e) => handleBlur('cardNumber', e.target.value)}
+                        error={touched.cardNumber && !!validationErrors.cardNumber}
+                        helperText={touched.cardNumber && validationErrors.cardNumber}
+                        placeholder="•••••"
                         InputProps={{
-                          ...params.InputProps,
                           endAdornment: (
-                            <>
-                              {loadingCompanies ? <CircularProgress color="inherit" size={20} /> : null}
-                              {params.InputProps.endAdornment}
-                            </>
+                            <InputAdornment position="end">
+                              <IconButton
+                                onClick={() => setShowCardNumber(!showCardNumber)}
+                                edge="end"
+                              >
+                                {showCardNumber ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                              </IconButton>
+                            </InputAdornment>
                           ),
                         }}
                       />
-                    )}
-                  />
-                </Grid>
-                {selectedCompany && !selectedCompany.isNew && (
-                  <Grid item xs={12}>
-                    <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
-                      <Typography variant="subtitle2" gutterBottom>
-                        Company Details
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Expire Date"
+                        placeholder="MM/YY"
+                        value={cardExpiry}
+                        onChange={(e) => {
+                          setCardExpiry(e.target.value);
+                          if (touched.cardExpiry) {
+                            const error = validateField('cardExpiry', e.target.value);
+                            setValidationErrors(prev => ({ ...prev, cardExpiry: error }));
+                          }
+                        }}
+                        onBlur={(e) => handleBlur('cardExpiry', e.target.value)}
+                        error={touched.cardExpiry && !!validationErrors.cardExpiry}
+                        helperText={(touched.cardExpiry && validationErrors.cardExpiry) || 'Format: MM/YY'}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Name on Card"
+                        value={cardName}
+                        onChange={(e) => setCardName(e.target.value)}
+                      />
+                    </Grid>
+                  </>
+                )}
+
+                {paymentType === 'Direct Billing' && (
+                  <>
+                    <Grid item xs={12}>
+                      <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 1 }}>
+                        Direct Billing Information
                       </Typography>
-                      <Grid container spacing={1}>
-                        {selectedCompany.company_registration_number && (
-                          <>
-                            <Grid item xs={4}>
-                              <Typography variant="caption" color="text.secondary">Reg. No:</Typography>
-                            </Grid>
-                            <Grid item xs={8}>
-                              <Typography variant="body2">{selectedCompany.company_registration_number}</Typography>
-                            </Grid>
-                          </>
+                      <Divider sx={{ mb: 2 }} />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Autocomplete
+                        value={selectedCompany}
+                        onChange={(event, newValue) => {
+                          if (newValue) {
+                            if (newValue.isNew) {
+                              setNewCompanyData({ ...newCompanyData, company_name: newValue.inputValue || '' });
+                              setNewCompanyDialogOpen(true);
+                            } else {
+                              setSelectedCompany(newValue);
+                              setDirectBillCompany(newValue.company_name);
+                            }
+                          } else {
+                            setSelectedCompany(null);
+                            setDirectBillCompany('');
+                          }
+                        }}
+                        filterOptions={(options, state) => {
+                          const inputValue = state.inputValue.toLowerCase();
+                          const filtered = options.filter(option =>
+                            option.company_name.toLowerCase().includes(inputValue)
+                          );
+                          const isExisting = options.some(option =>
+                            option.company_name.toLowerCase() === inputValue
+                          );
+                          if (inputValue !== '' && !isExisting) {
+                            filtered.push({
+                              inputValue: state.inputValue,
+                              company_name: `Add "${state.inputValue}" as new company`,
+                              isNew: true,
+                            });
+                          }
+                          return filtered;
+                        }}
+                        selectOnFocus
+                        clearOnBlur
+                        handleHomeEndKeys
+                        options={companyOptions}
+                        loading={loadingCompanies}
+                        getOptionLabel={(option) => option.isNew ? option.inputValue || '' : option.company_name}
+                        isOptionEqualToValue={(option, value) => option.company_name === value.company_name}
+                        renderOption={(props, option) => {
+                          const { key, ...otherProps } = props;
+                          return (
+                            <li key={key} {...otherProps}>
+                              {option.isNew ? (
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                  <PersonAddIcon color="primary" fontSize="small" />
+                                  <Typography color="primary">{option.company_name}</Typography>
+                                </Box>
+                              ) : (
+                                <Box>
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <BusinessIcon color="action" fontSize="small" />
+                                    <Typography>{option.company_name}</Typography>
+                                  </Box>
+                                  {option.contact_person && (
+                                    <Typography variant="caption" color="text.secondary" sx={{ ml: 3.5 }}>
+                                      Contact: {option.contact_person}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              )}
+                            </li>
+                          );
+                        }}
+                        renderInput={(params) => (
+                          <TextField
+                            {...params}
+                            label="Company"
+                            placeholder="Type to search or add new company"
+                            helperText="Select existing company or type new name to register"
+                            InputProps={{
+                              ...params.InputProps,
+                              endAdornment: (
+                                <>
+                                  {loadingCompanies ? <CircularProgress color="inherit" size={20} /> : null}
+                                  {params.InputProps.endAdornment}
+                                </>
+                              ),
+                            }}
+                          />
                         )}
-                        {selectedCompany.contact_person && (
-                          <>
-                            <Grid item xs={4}>
-                              <Typography variant="caption" color="text.secondary">Contact:</Typography>
-                            </Grid>
-                            <Grid item xs={8}>
-                              <Typography variant="body2">{selectedCompany.contact_person}</Typography>
-                            </Grid>
-                          </>
-                        )}
-                        {selectedCompany.contact_email && (
-                          <>
-                            <Grid item xs={4}>
-                              <Typography variant="caption" color="text.secondary">Email:</Typography>
-                            </Grid>
-                            <Grid item xs={8}>
-                              <Typography variant="body2">{selectedCompany.contact_email}</Typography>
-                            </Grid>
-                          </>
-                        )}
-                        {selectedCompany.contact_phone && (
-                          <>
-                            <Grid item xs={4}>
-                              <Typography variant="caption" color="text.secondary">Phone:</Typography>
-                            </Grid>
-                            <Grid item xs={8}>
-                              <Typography variant="body2">{selectedCompany.contact_phone}</Typography>
-                            </Grid>
-                          </>
-                        )}
+                      />
+                    </Grid>
+                    {selectedCompany && !selectedCompany.isNew && (
+                      <Grid item xs={12}>
+                        <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
+                          <Typography variant="subtitle2" gutterBottom>
+                            Company Details
+                          </Typography>
+                          <Grid container spacing={1}>
+                            {selectedCompany.company_registration_number && (
+                              <>
+                                <Grid item xs={4}>
+                                  <Typography variant="caption" color="text.secondary">Reg. No:</Typography>
+                                </Grid>
+                                <Grid item xs={8}>
+                                  <Typography variant="body2">{selectedCompany.company_registration_number}</Typography>
+                                </Grid>
+                              </>
+                            )}
+                            {selectedCompany.contact_person && (
+                              <>
+                                <Grid item xs={4}>
+                                  <Typography variant="caption" color="text.secondary">Contact:</Typography>
+                                </Grid>
+                                <Grid item xs={8}>
+                                  <Typography variant="body2">{selectedCompany.contact_person}</Typography>
+                                </Grid>
+                              </>
+                            )}
+                            {selectedCompany.contact_email && (
+                              <>
+                                <Grid item xs={4}>
+                                  <Typography variant="caption" color="text.secondary">Email:</Typography>
+                                </Grid>
+                                <Grid item xs={8}>
+                                  <Typography variant="body2">{selectedCompany.contact_email}</Typography>
+                                </Grid>
+                              </>
+                            )}
+                            {selectedCompany.contact_phone && (
+                              <>
+                                <Grid item xs={4}>
+                                  <Typography variant="caption" color="text.secondary">Phone:</Typography>
+                                </Grid>
+                                <Grid item xs={8}>
+                                  <Typography variant="body2">{selectedCompany.contact_phone}</Typography>
+                                </Grid>
+                              </>
+                            )}
+                          </Grid>
+                        </Paper>
                       </Grid>
-                    </Paper>
-                  </Grid>
+                    )}
+                  </>
                 )}
               </>
             )}
 
+            {paymentChoice === 'pay_later' && (
+              <Grid item xs={12}>
+                <Alert severity="info">
+                  Payment will be collected later. Guest will check in with unpaid status.
+                </Alert>
+              </Grid>
+            )}
+
+            {/* Deposit Section */}
+            <Grid item xs={12} sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" color="primary" gutterBottom>
+                Deposit
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+            </Grid>
+            <Grid item xs={12}>
+              <ToggleButtonGroup
+                value={depositChoice}
+                exclusive
+                onChange={(_, val) => { if (val) setDepositChoice(val); }}
+                fullWidth
+                size="large"
+                sx={{ mb: 1 }}
+              >
+                <ToggleButton value="receive" color="success" sx={{ py: 1.5, fontWeight: 600 }}>
+                  <PaymentIcon sx={{ mr: 1 }} />
+                  Receive Deposit
+                </ToggleButton>
+                <ToggleButton value="waive" color="error" sx={{ py: 1.5, fontWeight: 600 }}>
+                  <MoneyOffIcon sx={{ mr: 1 }} />
+                  Waive Deposit
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Grid>
+
+            {depositChoice === 'receive' && (
+              <>
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>Deposit Method</InputLabel>
+                    <Select
+                      value={depositMethod}
+                      onChange={(e) => setDepositMethod(e.target.value)}
+                      label="Deposit Method"
+                    >
+                      {paymentMethods.map(method => (
+                        <MenuItem key={method} value={method}>{method}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Deposit Amount"
+                    type="number"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(parseFloat(e.target.value) || 0)}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                      inputProps: { min: 0, step: 0.01 },
+                    }}
+                  />
+                </Grid>
+              </>
+            )}
+
+            {depositChoice === 'waive' && (
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Reason for Waiving Deposit"
+                  value={waiveReason}
+                  onChange={(e) => setWaiveReason(e.target.value)}
+                  multiline
+                  rows={2}
+                  placeholder="e.g., Returning guest, Company account, Manager approval..."
+                  helperText="Optional: provide a reason for waiving the deposit"
+                />
+              </Grid>
+            )}
+
+            {/* Payment Summary */}
+            <Grid item xs={12} sx={{ mt: 1 }}>
+              <Paper sx={{ p: 2, bgcolor: 'grey.50', border: 1, borderColor: 'divider' }}>
+                <Typography variant="subtitle2" gutterBottom>Payment Summary</Typography>
+                <Grid container spacing={1}>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">Total Amount:</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" fontWeight={600}>{formatCurrency(Number(booking.total_amount))}</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">Payment Status:</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Chip
+                      label={paymentChoice === 'pay_now' ? 'Paid' : 'Unpaid'}
+                      size="small"
+                      color={paymentChoice === 'pay_now' ? 'success' : 'warning'}
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </Grid>
+                  {paymentChoice === 'pay_now' && (
+                    <>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Amount Paid:</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="success.main" fontWeight={600}>{formatCurrency(amountPaid)}</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Payment Method:</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2">{paymentType}</Typography>
+                      </Grid>
+                    </>
+                  )}
+                  <Grid item xs={12}><Divider sx={{ my: 0.5 }} /></Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="body2" color="text.secondary">Deposit:</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    {depositChoice === 'receive' ? (
+                      <Typography variant="body2" color="success.main" fontWeight={600}>
+                        {formatCurrency(depositAmount)} ({depositMethod})
+                      </Typography>
+                    ) : (
+                      <Chip label="Waived" size="small" color="error" variant="outlined" sx={{ fontWeight: 600 }} />
+                    )}
+                  </Grid>
+                  {depositChoice === 'waive' && waiveReason && (
+                    <>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary">Waive Reason:</Typography>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="body2" color="text.secondary" fontStyle="italic">{waiveReason}</Typography>
+                      </Grid>
+                    </>
+                  )}
+                </Grid>
+              </Paper>
+            </Grid>
           </Grid>
         </TabPanel>
 

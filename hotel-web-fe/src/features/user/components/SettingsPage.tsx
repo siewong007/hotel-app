@@ -71,7 +71,7 @@ const SettingsPage: React.FC = () => {
   const [timezone, setTimezone] = useState('Asia/Kuala_Lumpur');
 
   // Charges Settings
-  const [roomCardDeposit, setRoomCardDeposit] = useState(50);
+  const [depositAmount, setDepositAmount] = useState(50);
   const [serviceTaxRate, setServiceTaxRate] = useState(8);
   const [tourismTaxRate, setTourismTaxRate] = useState(10);
 
@@ -102,7 +102,7 @@ const SettingsPage: React.FC = () => {
       setNightShiftTime(settings.night_shift_time || '23:00');
       setCurrency(settings.currency);
       setTimezone(settings.timezone);
-      setRoomCardDeposit(settings.room_card_deposit);
+      setDepositAmount(settings.deposit_amount);
       setServiceTaxRate(settings.service_tax_rate);
       setTourismTaxRate(settings.tourism_tax_rate);
       setBookingChannels(settings.booking_channels);
@@ -132,7 +132,7 @@ const SettingsPage: React.FC = () => {
         night_shift_time: nightShiftTime,
         currency,
         timezone,
-        room_card_deposit: roomCardDeposit,
+        deposit_amount: depositAmount,
         late_checkout_penalty: 0, // Deprecated - penalty is now entered manually at checkout
         service_tax_rate: serviceTaxRate,
         tourism_tax_rate: tourismTaxRate,
@@ -431,6 +431,23 @@ const SettingsPage: React.FC = () => {
                 value={tourismTaxRate}
                 onChange={(e) => setTourismTaxRate(parseFloat(e.target.value) || 0)}
                 helperText="Per night charge for tourist guests"
+                InputProps={{
+                  startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>
+                }}
+                inputProps={{
+                  min: 0,
+                  step: 1
+                }}
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField
+                fullWidth
+                label="Default Deposit Amount"
+                type="number"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(parseFloat(e.target.value) || 0)}
+                helperText="Default deposit amount collected at check-in"
                 InputProps={{
                   startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>
                 }}
