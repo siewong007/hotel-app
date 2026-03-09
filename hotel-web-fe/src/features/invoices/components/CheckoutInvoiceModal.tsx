@@ -340,12 +340,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     const serviceTax = roomSubtotal - roomCharges;
 
     // Get deposit based on guest membership status and payment method
-    // Members get deposit waived (0), non-members always pay the configured deposit
-    // City Ledger bookings do not require deposit
-    // Manually waived deposits also show as 0
     const isMember = booking.guest_type === 'member';
     const isCityLedger = !!(booking.company_id);
-    const roomCardDeposit = (isMember || isCityLedger || depositWaived) ? 0 : hotelSettings.room_card_deposit;
+    const roomCardDeposit = 0; // room_card_deposit removed - deposit handled via deposit_amount
 
     // Get tourism tax - foreign tourists are charged, local tourists are not
     // Use guest_tourism_type (current guest setting) or fall back to is_tourist (booking-time setting)
@@ -2156,14 +2153,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </tr>
             )}
 
-            {depositWaived ? (
-              <tr style={{ color: '#e65100' }}>
-                <td>Room Card Deposit ({depositWaiveReason})</td>
-                <td className="amount">{formatCurrency(hotelSettings.room_card_deposit)}</td>
-              </tr>
-            ) : charges.depositRefund > 0 ? (
+            {charges.depositRefund > 0 ? (
               <tr className="refund-row">
-                <td>Room Card Deposit {depositRefunded ? '(Refunded)' : '(Pending Refund)'}</td>
+                <td>Deposit {depositRefunded ? '(Refunded)' : '(Pending Refund)'}</td>
                 <td className="amount">{formatCurrency(charges.depositRefund)}</td>
               </tr>
             ) : null}

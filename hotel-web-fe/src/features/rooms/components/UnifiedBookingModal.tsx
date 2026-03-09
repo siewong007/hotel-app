@@ -115,7 +115,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   // Memoize hotel settings to prevent unnecessary re-renders
   const hotelSettings = useMemo(() => getHotelSettings(), []);
   const BOOKING_CHANNELS = hotelSettings.booking_channels;
-  const roomCardDepositDefault = hotelSettings.room_card_deposit;
 
   // Determine if we need room selection (when room is not pre-selected)
   const needsRoomSelection = !roomProp;
@@ -144,11 +143,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   // Booking notes
   const [bookingNotes, setBookingNotes] = useState('');
 
-  // Payment state (for walk-in)
-  const [deposit, setDeposit] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [roomCardDeposit, setRoomCardDeposit] = useState(roomCardDepositDefault);
-
   // Custom rate override state
   const [useCustomRate, setUseCustomRate] = useState(false);
   const [customRate, setCustomRate] = useState<number>(0);
@@ -168,14 +162,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const [extraBedCount, setExtraBedCount] = useState(0);
   const [extraBedCharge, setExtraBedCharge] = useState(0);
 
-  // Payment choice: 'now' or 'later' (for both member and non-member guests)
-  const [paymentChoice, setPaymentChoice] = useState<'now' | 'later' | null>(null);
-
-  // Deposit choice for reservation bookings (online, walk-in reservation)
-  const [depositChoice, setDepositChoice] = useState<'receive' | 'waive' | null>(null);
-  const [depositAmount, setDepositAmount] = useState(0);
-  const [depositPaymentMethod, setDepositPaymentMethod] = useState('cash');
-
   // Processing state
   const [processing, setProcessing] = useState(false);
 
@@ -192,11 +178,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   // Track if modal is currently initializing to prevent race conditions
   const isInitializingRef = useRef(false);
 
-  // Store roomCardDepositDefault in a ref to avoid dependency issues
-  const roomCardDepositDefaultRef = useRef(roomCardDepositDefault);
-  useEffect(() => {
-    roomCardDepositDefaultRef.current = roomCardDepositDefault;
-  }, [roomCardDepositDefault]);
 
   // Derived extra bed config from room type
   const allowsExtraBed = roomTypeConfig?.allows_extra_bed ?? false;
@@ -248,17 +229,10 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setIsHourlyBooking(false);
       setBookingChannel('');
       setBookingReference('');
-      setDeposit(0);
-      setPaymentMethod('cash');
-      setRoomCardDeposit(roomCardDepositDefaultRef.current);
       setUseCustomRate(false);
       setCustomRate(0);
       setExtraBedCount(0);
       setExtraBedCharge(0);
-      setPaymentChoice(null);
-      setDepositChoice(null);
-      setDepositAmount(0);
-      setDepositPaymentMethod('cash');
       setBookingNotes('');
       setRoomTypeConfig(null);
       setSelectedRoom(null);
@@ -286,17 +260,10 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setIsHourlyBooking(false);
       setBookingChannel('');
       setBookingReference('');
-      setDeposit(0);
-      setPaymentMethod('cash');
-      setRoomCardDeposit(roomCardDepositDefaultRef.current);
       setUseCustomRate(false);
       setCustomRate(0);
       setExtraBedCount(0);
       setExtraBedCharge(0);
-      setPaymentChoice(null);
-      setDepositChoice(null);
-      setDepositAmount(0);
-      setDepositPaymentMethod('cash');
       setBookingNotes('');
       setRoomTypeConfig(null);
       setSelectedRoom(null);
@@ -406,15 +373,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     }
   };
 
-  // Handle member selection - reset room card deposit
-  const handleMemberSelected = (isMember: boolean) => {
-    if (isMember) {
-      setRoomCardDeposit(0);
-    } else {
-      setRoomCardDeposit(roomCardDepositDefault);
-    }
-  };
-
   // Get steps based on booking mode and room selection need
   // Memoized to prevent unnecessary recalculations
   const getSteps = useCallback((): string[] => {
@@ -496,20 +454,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         if (reservationType === 'online' && !bookingChannel) return false;
         return true;
 
-      case 'Confirm': {
-        const effType = getEffectiveBookingType();
-        if (effType !== 'complimentary') {
-          // Payment choice required
-          if (!paymentChoice) return false;
-          if (paymentChoice === 'now' && deposit <= 0) return false;
-          // Deposit choice required (only for direct/walk-in, not reservation)
-          if (bookingMode === 'direct') {
-            if (!depositChoice) return false;
-            if (depositChoice === 'receive' && depositAmount <= 0) return false;
-          }
-        }
+      case 'Confirm':
         return true;
-      }
 
       default:
         return false;
@@ -594,21 +540,14 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       }
 
       const isMember = guestToUse.guest_type === 'member';
-      const effectiveRoomCardDeposit = isMember ? 0 : roomCardDeposit;
-      const isPayLater = paymentChoice === 'later';
-      const effectiveDeposit = isPayLater ? 0 : deposit;
 
-      // Build booking remarks based on guest type and payment choice
+      // Build booking remarks based on guest type
       const getBookingRemarks = () => {
         const hourlyTag = isHourlyBooking ? ' [Hourly Stay]' : '';
         if (isMember) {
-          return isPayLater
-            ? `Walk-In Guest (Member - Card Deposit Waived, Payment Deferred to Checkout)${hourlyTag}`
-            : `Walk-In Guest (Member - Card Deposit Waived)${hourlyTag}`;
+          return `Walk-In Guest (Member)${hourlyTag}`;
         } else {
-          return isPayLater
-            ? `Walk-In Guest (Payment Deferred to Checkout)${hourlyTag}`
-            : `Walk-In Guest${hourlyTag}`;
+          return `Walk-In Guest${hourlyTag}`;
         }
       };
 
@@ -623,17 +562,12 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         booking_remarks: remarks,
         special_requests: bookingNotes.trim() || undefined,
         source: 'walk_in' as const,
-        room_card_deposit: effectiveRoomCardDeposit,
-        payment_method: isPayLater ? undefined : paymentMethod,
-        amount_paid: effectiveDeposit,
-        payment_status: isPayLater ? 'unpaid' as const : undefined,
+        payment_status: 'unpaid' as const,
         room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
         is_tourist: isTourist,
         tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
         extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
         extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
-        deposit_paid: depositChoice === 'receive' && depositAmount > 0,
-        deposit_amount: depositChoice === 'receive' && depositAmount > 0 ? depositAmount : undefined,
       };
 
       const createdBookingResult = await HotelAPIService.createBooking(bookingData);
@@ -651,14 +585,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         folio_number: createdBookingResult.folio_number || `WALKIN-${createdBookingResult.id}`,
         market_code: 'Walk-In',
         rate_code: 'RACK',
-        payment_method: isPayLater ? undefined : (paymentMethod === 'cash' ? 'Cash' : paymentMethod === 'card' ? 'Card' : paymentMethod === 'bank_transfer' ? 'Bank Transfer' : 'E-Wallet'),
         post_type: createdBookingResult.post_type,
         created_at: createdBookingResult.created_at,
         updated_at: createdBookingResult.updated_at,
         is_tourist: isTourist,
         tourism_tax_amount: createdBookingResult.tourism_tax_amount || (tourismTaxAmount > 0 ? tourismTaxAmount : undefined),
-        room_card_deposit: effectiveRoomCardDeposit,
-        deposit_amount: effectiveDeposit,
         source: 'walk_in',
       };
 
@@ -725,12 +656,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   // Handle toggle between existing guest and new guest mode
   const handleToggleGuestMode = (isNew: boolean) => {
     setIsCreatingNewGuest(isNew);
-    // Reset deposit based on guest type when switching modes
-    if (isNew) {
-      // Use form's guest_type (defaults to non_member)
-      const isMember = newGuestForm.guest_type === 'member';
-      setRoomCardDeposit(isMember ? 0 : roomCardDepositDefault);
-    }
   };
 
   // Get effective booking type for submission (combines mode + reservation type)
@@ -819,21 +744,14 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         case 'walk_in': {
           // For reservation mode walk-in (direct booking handled via Check-In step now)
           const isMember = guestToUse!.guest_type === 'member';
-          const effectiveRoomCardDeposit = isMember ? 0 : roomCardDeposit;
-          const isPayLater = paymentChoice === 'later';
-          const effectiveDeposit = isPayLater ? 0 : deposit;
 
-          // Build booking remarks based on guest type and payment choice
+          // Build booking remarks based on guest type
           const getRemarks = () => {
             const hourlyTag = isHourlyBooking ? ' [Hourly Stay]' : '';
             if (isMember) {
-              return isPayLater
-                ? `Walk-In Guest (Member - Card Deposit Waived, Payment Deferred to Checkout)${hourlyTag}`
-                : `Walk-In Guest (Member - Card Deposit Waived)${hourlyTag}`;
+              return `Walk-In Guest (Member)${hourlyTag}`;
             } else {
-              return isPayLater
-                ? `Walk-In Guest (Payment Deferred to Checkout)${hourlyTag}`
-                : `Walk-In Guest${hourlyTag}`;
+              return `Walk-In Guest${hourlyTag}`;
             }
           };
 
@@ -848,17 +766,12 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             booking_remarks: remarksStr,
             special_requests: bookingNotes.trim() || undefined,
             source: 'walk_in' as const,
-            room_card_deposit: effectiveRoomCardDeposit,
-            payment_method: isPayLater ? undefined : paymentMethod,
-            amount_paid: effectiveDeposit,
-            payment_status: isPayLater ? 'unpaid' as const : undefined,
+            payment_status: 'unpaid' as const,
             room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
             is_tourist: isTourist,
             tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
             extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
             extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
-            deposit_paid: depositChoice === 'receive' && depositAmount > 0,
-            deposit_amount: depositChoice === 'receive' && depositAmount > 0 ? depositAmount : undefined,
           };
 
           await HotelAPIService.createBooking(bookingData);
@@ -874,9 +787,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             bookingReference ? `${bookingChannel} - Ref: ${bookingReference}` : `${bookingChannel} Booking`,
             bookingNotes.trim(),
           ].filter(Boolean).join(' | ');
-          const hasDeposit = depositChoice === 'receive' && depositAmount > 0;
-          const isOnlinePayLater = paymentChoice === 'later';
-          const onlinePayAmount = isOnlinePayLater ? 0 : deposit;
           const bookingData = {
             guest_id: guestToUse!.id,
             room_id: String(room.id),
@@ -892,11 +802,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
             extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
             extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
-            payment_method: isOnlinePayLater ? undefined : paymentMethod,
-            amount_paid: onlinePayAmount,
-            payment_status: isOnlinePayLater ? 'unpaid' as const : undefined,
-            deposit_paid: hasDeposit,
-            deposit_amount: hasDeposit ? depositAmount : undefined,
+            payment_status: 'unpaid' as const,
           };
 
           await HotelAPIService.createBooking(bookingData);
@@ -1243,7 +1149,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             selectedGuestWithCredits={selectedGuestWithCredits}
             onGuestWithCreditsSelect={setSelectedGuestWithCredits}
             loadingGuestsWithCredits={loadingGuestsWithCredits}
-            onMemberSelected={handleMemberSelected}
           />
         </Box>
       );
@@ -1712,180 +1617,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               </Typography>
             </Grid>
 
-            {/* Payment & Deposit for all non-complimentary bookings */}
-            {effectiveType !== 'complimentary' && (() => {
-              const guestType = isCreatingNewGuest ? (newGuestForm.guest_type || 'non_member') : (selectedGuest?.guest_type || 'non_member');
-              const isMemberGuest = guestType === 'member';
-
-              return (
-                <>
-                  {/* Payment section */}
-                  <Grid item xs={12}>
-                    <Divider />
-                  </Grid>
-                  <Grid item xs={12}>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                      Payment
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                      <Button
-                        variant={paymentChoice === 'now' ? 'contained' : 'outlined'}
-                        color="primary"
-                        onClick={() => setPaymentChoice('now')}
-                        sx={{ flex: 1, py: 1.5 }}
-                      >
-                        Make Payment Now
-                      </Button>
-                      <Button
-                        variant={paymentChoice === 'later' ? 'contained' : 'outlined'}
-                        color="warning"
-                        onClick={() => {
-                          setPaymentChoice('later');
-                          setDeposit(0);
-                        }}
-                        sx={{ flex: 1, py: 1.5 }}
-                      >
-                        Pay Later (Before Checkout)
-                      </Button>
-                    </Box>
-                  </Grid>
-
-                  {paymentChoice === 'now' && (
-                    <>
-                      <Grid item xs={12} md={6}>
-                        <FormControl fullWidth size="small">
-                          <InputLabel>Payment Method</InputLabel>
-                          <Select
-                            value={paymentMethod}
-                            onChange={(e) => setPaymentMethod(e.target.value)}
-                            label="Payment Method"
-                          >
-                            {getHotelSettings().payment_methods.map((method) => (
-                              <MenuItem key={method} value={method}>{method}</MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          label="Room Rate"
-                          value={deposit}
-                          onChange={(e) => setDeposit(parseFloat(e.target.value) || 0)}
-                          InputProps={{
-                            startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
-                          }}
-                        />
-                      </Grid>
-                      <Grid item xs={12} md={6}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          label="Room Card Deposit"
-                          value={roomCardDeposit}
-                          onChange={(e) => setRoomCardDeposit(parseFloat(e.target.value) || 0)}
-                          disabled={isMemberGuest}
-                          InputProps={{
-                            startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
-                          }}
-                          helperText={isMemberGuest ? 'Waived for members' : ''}
-                        />
-                      </Grid>
-                    </>
-                  )}
-
-                  {paymentChoice === 'later' && (
-                    <Grid item xs={12}>
-                      <Alert severity="warning">
-                        <Typography variant="body2">
-                          Payment will be required before checkout.{isMemberGuest ? ' Room card deposit is waived for members.' : ''}
-                        </Typography>
-                      </Alert>
-                    </Grid>
-                  )}
-
-                  {/* Deposit section - only for direct/walk-in bookings, not reservations */}
-                  {bookingMode === 'direct' && (
-                    <>
-                      <Grid item xs={12}>
-                        <Divider />
-                      </Grid>
-                      <Grid item xs={12}>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                          Deposit
-                        </Typography>
-                        <Box sx={{ display: 'flex', gap: 2 }}>
-                          <Button
-                            variant={depositChoice === 'receive' ? 'contained' : 'outlined'}
-                            color="primary"
-                            onClick={() => setDepositChoice('receive')}
-                            sx={{ flex: 1, py: 1.5 }}
-                          >
-                            Receive Deposit
-                          </Button>
-                          <Button
-                            variant={depositChoice === 'waive' ? 'contained' : 'outlined'}
-                            color="warning"
-                            onClick={() => {
-                              setDepositChoice('waive');
-                              setDepositAmount(0);
-                            }}
-                            sx={{ flex: 1, py: 1.5 }}
-                          >
-                            Waive Deposit
-                          </Button>
-                        </Box>
-                      </Grid>
-
-                      {depositChoice === 'receive' && (
-                        <>
-                          <Grid item xs={12} md={6}>
-                            <FormControl fullWidth size="small">
-                              <InputLabel>Deposit Payment Method</InputLabel>
-                              <Select
-                                value={depositPaymentMethod}
-                                onChange={(e) => setDepositPaymentMethod(e.target.value)}
-                                label="Deposit Payment Method"
-                              >
-                                {getHotelSettings().payment_methods.map((method) => (
-                                  <MenuItem key={method} value={method}>{method}</MenuItem>
-                                ))}
-                              </Select>
-                            </FormControl>
-                          </Grid>
-                          <Grid item xs={12} md={6}>
-                            <TextField
-                              fullWidth
-                              size="small"
-                              type="number"
-                              label="Deposit Amount"
-                              value={depositAmount}
-                              onChange={(e) => setDepositAmount(parseFloat(e.target.value) || 0)}
-                              InputProps={{
-                                startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
-                              }}
-                            />
-                          </Grid>
-                        </>
-                      )}
-
-                      {depositChoice === 'waive' && (
-                        <Grid item xs={12}>
-                          <Alert severity="info">
-                            <Typography variant="body2">
-                              No deposit will be collected for this booking.
-                            </Typography>
-                          </Alert>
-                        </Grid>
-                      )}
-                    </>
-                  )}
-                </>
-              );
-            })()}
 
             {/* Credits info for complimentary */}
             {effectiveType === 'complimentary' && selectedGuestWithCredits && (
