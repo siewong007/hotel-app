@@ -553,7 +553,6 @@ async fn generate_shift_report(
             b.payment_status,
             b.deposit_amount,
             b.deposit_paid,
-            b.room_card_deposit,
             b.status as booking_status,
             b.source,
             b.created_at
@@ -587,7 +586,6 @@ async fn generate_shift_report(
         let payment_status: Option<String> = row.get("payment_status");
         let deposit_amount: Option<Decimal> = row.get("deposit_amount");
         let deposit_paid: Option<bool> = row.get("deposit_paid");
-        let room_card_deposit: Option<Decimal> = row.get("room_card_deposit");
         let booking_status: String = row.get("booking_status");
         let source: Option<String> = row.get("source");
 
@@ -612,7 +610,6 @@ async fn generate_shift_report(
             "payment_status": payment_status.unwrap_or_else(|| "unpaid".to_string()),
             "deposit_amount": deposit_amount.unwrap_or(Decimal::ZERO),
             "deposit_paid": deposit_paid.unwrap_or(false),
-            "room_card_deposit": room_card_deposit.unwrap_or(Decimal::ZERO),
             "booking_status": booking_status,
             "source": source.unwrap_or_else(|| "walk_in".to_string()),
         }));
@@ -725,7 +722,6 @@ async fn generate_general_journal(
             COALESCE(b.tourism_tax_amount, 0) as tourism_tax_amount,
             b.payment_status,
             b.payment_method,
-            COALESCE(b.room_card_deposit, 0) as room_card_deposit,
             COALESCE(b.deposit_amount, 0) as deposit_amount,
             b.deposit_paid,
             r.room_number,
@@ -770,8 +766,7 @@ async fn generate_general_journal(
         let tourism_tax_amount: Decimal = row.get("tourism_tax_amount");
         let payment_status: Option<String> = row.get("payment_status");
         let payment_method: Option<String> = row.get("payment_method");
-        let room_card_deposit: Decimal = row.get("room_card_deposit");
-        let deposit_amount_db: Decimal = row.get("deposit_amount");
+        let deposit_amount_val: Decimal = row.get("deposit_amount");
         let room_number: String = row.get("room_number");
         let date_str = date.format("%d/%m/%Y").to_string();
 
@@ -780,11 +775,11 @@ async fn generate_general_journal(
         let tourism_tax = tourism_tax_amount;
         let room_charge = room_rate;
 
-        // Use actual room card deposit from booking
-        let deposit_amount = room_card_deposit;
+        // Use actual deposit amount from booking
+        let deposit_amount = deposit_amount_val;
 
         // Actual deposit amount paid by guest
-        let paid_amount = deposit_amount_db;
+        let paid_amount = deposit_amount_val;
 
         // Guest Ledger entries (Debits)
         // Room Charge

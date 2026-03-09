@@ -166,7 +166,6 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 r.room_number,
                 napn.room_charge,
                 napn.service_tax,
-                COALESCE(b.room_card_deposit, 0) as room_card_deposit,
                 COALESCE(b.deposit_amount, 0) as deposit_amount,
                 b.check_in_date,
                 b.status
@@ -187,7 +186,6 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 let room_number: String = row.get("room_number");
                 let room_charge: Decimal = row.get("room_charge");
                 let service_tax: Decimal = row.get("service_tax");
-                let room_card_deposit: Decimal = row.get("room_card_deposit");
                 let deposit_amount: Decimal = row.get("deposit_amount");
                 let check_in_date: NaiveDate = row.get("check_in_date");
 
@@ -215,17 +213,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
 
                 // Deposits only post on the check-in night
                 if check_in_date == audit_date {
-                    if room_card_deposit > Decimal::ZERO {
-                        entries.push(JournalEntry {
-                            booking_number: booking_number.clone(),
-                            room_number: room_number.clone(),
-                            entry_type: "deposit".to_string(),
-                            debit: room_card_deposit,
-                            credit: Decimal::ZERO,
-                            description: Some("Deposit".to_string()),
-                        });
-                    }
-                    if deposit_amount > Decimal::ZERO && deposit_amount != room_card_deposit {
+                    if deposit_amount > Decimal::ZERO {
                         entries.push(JournalEntry {
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
@@ -245,7 +233,6 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 b.booking_number,
                 r.room_number,
                 b.room_rate,
-                COALESCE(b.room_card_deposit, 0) as room_card_deposit,
                 COALESCE(b.deposit_amount, 0) as deposit_amount,
                 COALESCE(b.source, 'walk_in') as source,
                 COALESCE(b.remarks, '') as remarks,
@@ -274,7 +261,6 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 let booking_number: String = row.get("booking_number");
                 let room_number: String = row.get("room_number");
                 let nightly_rate: Decimal = row.get("room_rate");
-                let room_card_deposit: Decimal = row.get("room_card_deposit");
                 let deposit_amount: Decimal = row.get("deposit_amount");
                 let check_in_date: NaiveDate = row.get("check_in_date");
 
@@ -306,17 +292,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
 
                 // Deposits only post on the check-in night
                 if check_in_date == audit_date {
-                    if room_card_deposit > Decimal::ZERO {
-                        entries.push(JournalEntry {
-                            booking_number: booking_number.clone(),
-                            room_number: room_number.clone(),
-                            entry_type: "deposit".to_string(),
-                            debit: room_card_deposit,
-                            credit: Decimal::ZERO,
-                            description: Some("Deposit".to_string()),
-                        });
-                    }
-                    if deposit_amount > Decimal::ZERO && deposit_amount != room_card_deposit {
+                    if deposit_amount > Decimal::ZERO {
                         entries.push(JournalEntry {
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
@@ -432,15 +408,15 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         }
     }
 
-    // Get deposit refunds: bookings checked out on the audit date with room_card_deposit
+    // Get deposit refunds: bookings checked out on the audit date with deposit_amount
     // Deposit refunds happen on checkout day regardless of posted status
-    let refund_condition = "b.status = 'checked_out' AND b.check_out_date = $1 AND COALESCE(b.room_card_deposit, 0) > 0";
+    let refund_condition = "b.status = 'checked_out' AND b.check_out_date = $1 AND COALESCE(b.deposit_amount, 0) > 0";
 
     let refund_query = format!(r#"
         SELECT
             b.booking_number,
             r.room_number,
-            b.room_card_deposit
+            b.deposit_amount
         FROM bookings b
         JOIN rooms r ON b.room_id = r.id
         WHERE {}
@@ -455,7 +431,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         for row in refund_rows.iter() {
             let booking_number: String = row.get("booking_number");
             let room_number: String = row.get("room_number");
-            let deposit: Decimal = row.get("room_card_deposit");
+            let deposit: Decimal = row.get("deposit_amount");
 
             if deposit > Decimal::ZERO {
                 entries.push(JournalEntry {

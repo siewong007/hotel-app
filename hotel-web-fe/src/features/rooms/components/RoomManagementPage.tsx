@@ -645,9 +645,7 @@ const RoomManagementPage: React.FC = () => {
         post_type: 'normal_stay' as const,
         booking_remarks: isMemberGuest ? 'Walk-In Guest (Member - Card Deposit Waived)' : 'Walk-In Guest',
         source: 'walk_in' as const,
-        room_card_deposit: effectiveRoomCardDeposit,
-        payment_method: walkInPaymentMethod,
-        amount_paid: walkInDeposit,
+        payment_status: 'unpaid',
       };
 
       const createdBooking = await HotelAPIService.createBooking(bookingData);
@@ -766,10 +764,9 @@ const RoomManagementPage: React.FC = () => {
 
       // If collecting deposit, update booking with deposit info first
       if (collectDeposit) {
-        const depositAmount = reservedCheckInBooking.room_card_deposit || 50;
         await HotelAPIService.updateBooking(reservedCheckInBooking.id, {
           deposit_paid: true,
-          deposit_amount: Number(depositAmount),
+          deposit_amount: Number(reservedCheckInBooking.deposit_amount || 50),
           payment_method: depositPaymentMethod,
         });
       }
@@ -812,13 +809,9 @@ const RoomManagementPage: React.FC = () => {
     try {
       setProcessingPayment(true);
 
-      // Update booking deposit status to paid with room card deposit from settings
-      const roomCardDeposit = getHotelSettings().room_card_deposit;
       await HotelAPIService.updateBooking(paymentBooking.id, {
         payment_status: 'paid',
         payment_method: paymentMethod,
-        deposit_paid: true,
-        deposit_amount: roomCardDeposit,
       });
 
       showSnackbar(`Deposit collected for booking ${paymentBooking.booking_number}. Room is now ready for check-in.`, 'success');
@@ -2814,183 +2807,6 @@ const RoomManagementPage: React.FC = () => {
               </Paper>
             </Grid>
 
-            {/* Deposit Collection Section */}
-            <Grid item xs={12}>
-              <Paper sx={{ p: 2, bgcolor: 'primary.50', border: 1, borderColor: 'primary.200' }}>
-                <Typography variant="subtitle2" gutterBottom sx={{ color: 'primary.main', fontWeight: 600 }}>
-                  Deposit Collection
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={4}>
-                    {/* Check if guest is member - waive room card deposit */}
-                    {(() => {
-                      const isMember = walkInGuest?.guest_type === 'member';
-                      return (
-                        <TextField
-                          fullWidth
-                          label="Room Card Deposit"
-                          type="number"
-                          value={isMember ? 0 : walkInRoomCardDeposit}
-                          onChange={(e) => !isMember && setWalkInRoomCardDeposit(parseFloat(e.target.value) || 0)}
-                          disabled={isMember}
-                          InputProps={{
-                            startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
-                            endAdornment: isMember ? (
-                              <Chip
-                                label="Waived"
-                                size="small"
-                                color="success"
-                                sx={{ fontSize: '0.65rem', height: 20 }}
-                              />
-                            ) : null,
-                          }}
-                          helperText={isMember ? "✓ Waived for members" : "Refundable deposit for room key"}
-                          sx={isMember ? {
-                            '& .MuiInputBase-root': { bgcolor: 'success.50' },
-                            '& .MuiFormHelperText-root': { color: 'success.main', fontWeight: 500 },
-                          } : {}}
-                        />
-                      );
-                    })()}
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      required
-                      label="Deposit Amount"
-                      type="number"
-                      value={walkInDeposit}
-                      onChange={(e) => setWalkInDeposit(parseFloat(e.target.value) || 0)}
-                      InputProps={{
-                        startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>,
-                      }}
-                      helperText="Amount collected now"
-                    />
-                  </Grid>
-                  <Grid item xs={12} md={4}>
-                    <TextField
-                      fullWidth
-                      select
-                      label="Payment Method"
-                      value={walkInPaymentMethod}
-                      onChange={(e) => setWalkInPaymentMethod(e.target.value)}
-                    >
-                      {PAYMENT_METHODS.map((method) => (
-                        <MenuItem key={method} value={method}>
-                          {method}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                  </Grid>
-                </Grid>
-              </Paper>
-            </Grid>
-
-            {/* Payment Summary */}
-            <Grid item xs={12}>
-              {(() => {
-                const isMember = walkInGuest?.guest_type === 'member';
-                const effectiveCardDeposit = isMember ? 0 : walkInRoomCardDeposit;
-                const price = selectedRoom?.price_per_night || 0;
-                const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-                const roomCharges = numPrice * walkInNumberOfNights;
-                const totalDue = roomCharges + effectiveCardDeposit;
-                const balanceDue = Math.max(0, totalDue - walkInDeposit);
-
-                return (
-                  <Paper sx={{ p: 2, bgcolor: 'success.50', border: 1, borderColor: 'success.200' }}>
-                    <Typography variant="subtitle2" gutterBottom sx={{ color: 'success.main', fontWeight: 600 }}>
-                      Payment Summary
-                    </Typography>
-                    <Grid container spacing={1}>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          Room Charges:
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2">
-                          {currencySymbol}{roomCharges.toFixed(2)}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          Room Card Deposit:
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {isMember ? (
-                            <>
-                              <Typography variant="body2" sx={{ textDecoration: 'line-through', color: 'text.disabled' }}>
-                                {currencySymbol}{walkInRoomCardDeposit.toFixed(2) || '50.00'}
-                              </Typography>
-                              <Chip
-                                label="Waived"
-                                size="small"
-                                color="success"
-                                sx={{ fontSize: '0.6rem', height: 18 }}
-                              />
-                            </>
-                          ) : (
-                            <Typography variant="body2">
-                              {currencySymbol}{walkInRoomCardDeposit.toFixed(2)}
-                            </Typography>
-                          )}
-                        </Box>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" color="text.secondary" fontWeight="bold">
-                          Total Due:
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" fontWeight="bold">
-                          {currencySymbol}{totalDue.toFixed(2)}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={12}>
-                        <Box sx={{ borderTop: 1, borderColor: 'divider', my: 1 }} />
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" color="success.main" fontWeight="bold">
-                          Deposit Collected:
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" color="success.main" fontWeight="bold">
-                          {currencySymbol}{walkInDeposit.toFixed(2)}
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" color="warning.main" fontWeight="bold">
-                          Balance Due at Check-out:
-                        </Typography>
-                      </Grid>
-                      <Grid item xs={6}>
-                        <Typography variant="body2" color="warning.main" fontWeight="bold">
-                          {currencySymbol}{balanceDue.toFixed(2)}
-                        </Typography>
-                      </Grid>
-                      {isMember && (
-                        <>
-                          <Grid item xs={12}>
-                            <Box sx={{ borderTop: 1, borderColor: 'divider', my: 1 }} />
-                          </Grid>
-                          <Grid item xs={12}>
-                            <Alert severity="info" sx={{ py: 0.5 }} icon={<GiftIcon sx={{ fontSize: 18 }} />}>
-                              <Typography variant="caption">
-                                Member benefit: Room card deposit waived and will not appear on invoice
-                              </Typography>
-                            </Alert>
-                          </Grid>
-                        </>
-                      )}
-                    </Grid>
-                  </Paper>
-                );
-              })()}
-            </Grid>
           </Grid>
         </DialogContent>
 
@@ -4442,29 +4258,6 @@ const RoomManagementPage: React.FC = () => {
               </Paper>
 
               {/* Deposit Amount */}
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 3,
-                  mb: 3,
-                  bgcolor: 'warning.light',
-                  borderRadius: 2,
-                  border: 1,
-                  borderColor: 'warning.main',
-                  textAlign: 'center'
-                }}
-              >
-                <Typography variant="caption" color="warning.dark" display="block" gutterBottom>
-                  Room Card Deposit
-                </Typography>
-                <Typography variant="h4" fontWeight={700} color="warning.dark">
-                  {formatCurrency(getHotelSettings().room_card_deposit)}
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Current Status: {paymentBooking.payment_status || 'unpaid'}
-                </Typography>
-              </Paper>
-
               {/* Payment Method Selection */}
               <FormControl fullWidth sx={{ mb: 2 }}>
                 <InputLabel>Payment Method *</InputLabel>

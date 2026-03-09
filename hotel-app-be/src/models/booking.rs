@@ -68,7 +68,6 @@ pub struct BookingInput {
     pub tourism_tax_amount: Option<f64>,
     pub extra_bed_count: Option<i32>,
     pub extra_bed_charge: Option<f64>,
-    pub room_card_deposit: Option<f64>,
     pub late_checkout_penalty: Option<f64>,
     pub payment_method: Option<String>,
     pub payment_status: Option<String>,  // unpaid, unpaid_deposit, paid
@@ -103,7 +102,6 @@ pub struct BookingUpdateInput {
     pub tourism_tax_amount: Option<f64>,
     pub extra_bed_count: Option<i32>,
     pub extra_bed_charge: Option<f64>,
-    pub room_card_deposit: Option<f64>,
     pub late_checkout_penalty: Option<f64>,
     pub payment_method: Option<String>,
     pub market_code: Option<String>,

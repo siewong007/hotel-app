@@ -79,10 +79,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   const [rateCode, setRateCode] = useState('RACK');
 
   // Payment and charges state
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [paymentStatus, setPaymentStatus] = useState<'unpaid' | 'unpaid_deposit' | 'paid'>('unpaid');
-  const [amountPaid, setAmountPaid] = useState(0);
-  const [roomCardDeposit, setRoomCardDeposit] = useState(50);
   const [isTourist, setIsTourist] = useState(false);
   const [tourismTax, setTourismTax] = useState(0);
   const [extraBedCount, setExtraBedCount] = useState(0);
@@ -99,25 +95,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
 
   // Track previous open state to detect true open/close transitions
   const wasOpenRef = useRef(false);
-
-  // Payment method options
-  const paymentMethods = [
-    'Cash',
-    'Agoda',
-    'Booking.com',
-    'Expedia',
-    'Traveloka',
-    'Visa Card',
-    'Debit Card',
-    'Master Card',
-    'Extra Bed',
-    'Tourism Tax',
-    'City Ledger (Company Master)',
-    'Qrpay',
-    'Bank Transfer',
-    'Sarawak Pay',
-    'Boost',
-  ];
 
   // Load guests when modal opens - use proper transition detection
   useEffect(() => {
@@ -143,10 +120,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
       // Set default times from props
       setCheckInTime(defaultCheckInTime);
       setCheckOutTime(defaultCheckOutTime);
-
-      // Load hotel settings for default values
-      const settings = getHotelSettings();
-      setRoomCardDeposit(settings.room_card_deposit);
 
       // Load room type config to get extra bed settings
       if (room) {
@@ -217,9 +190,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     setRemarks('');
     setPostType('normal_stay');
     setRateCode('RACK');
-    setPaymentMethod('Cash');
-    setPaymentStatus('unpaid');
-    setAmountPaid(0);
     setIsTourist(false);
     setTourismTax(0);
     setExtraBedCount(0);
@@ -343,13 +313,11 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
         tourism_tax_amount: tourismTax,
         extra_bed_count: extraBedCount,
         extra_bed_charge: extraBedCharge,
-        room_card_deposit: roomCardDeposit,
         late_checkout_penalty: lateCheckoutPenalty,
-        payment_method: paymentMethod,
-        payment_status: paymentStatus,
-        amount_paid: amountPaid,
-        deposit_paid: paymentStatus !== 'unpaid',
-        deposit_amount: paymentStatus === 'unpaid' ? 0 : amountPaid,
+        payment_status: 'unpaid',
+        amount_paid: 0,
+        deposit_paid: false,
+        deposit_amount: 0,
         room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
       });
 
@@ -386,7 +354,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
 
   const calculateTotal = () => {
     const roomTotal = calculateRoomTotal();
-    return roomTotal + roomCardDeposit + tourismTax + extraBedCharge + lateCheckoutPenalty;
+    return roomTotal + tourismTax + extraBedCharge + lateCheckoutPenalty;
   };
 
   return (
@@ -679,67 +647,12 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
             </Grid>
           </Box>
 
-          {/* Payment Method & Additional Charges */}
+          {/* Additional Charges */}
           <Box>
             <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-              Payment & Additional Charges
+              Additional Charges
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  select
-                  fullWidth
-                  label="Payment Method"
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  SelectProps={{ native: true }}
-                  required
-                >
-                  {paymentMethods.map((method) => (
-                    <option key={method} value={method}>
-                      {method}
-                    </option>
-                  ))}
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Room Card Deposit"
-                  type="number"
-                  value={roomCardDeposit}
-                  onChange={(e) => setRoomCardDeposit(parseFloat(e.target.value) || 0)}
-                  InputProps={{ startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography> }}
-                  helperText="Refundable deposit for room card"
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  select
-                  fullWidth
-                  label="Payment Status"
-                  value={paymentStatus}
-                  onChange={(e) => setPaymentStatus(e.target.value as 'unpaid' | 'unpaid_deposit' | 'paid')}
-                  SelectProps={{ native: true }}
-                  required
-                >
-                  <option value="unpaid">Unpaid</option>
-                  <option value="unpaid_deposit">Deposit Paid</option>
-                  <option value="paid">Fully Paid</option>
-                </TextField>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Amount Paid"
-                  type="number"
-                  value={amountPaid}
-                  onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
-                  InputProps={{ startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography> }}
-                  disabled={paymentStatus === 'unpaid'}
-                  helperText={paymentStatus === 'unpaid' ? 'Set payment status to enter amount' : 'Enter amount received from guest'}
-                />
-              </Grid>
               <Grid item xs={12} sm={6}>
                 <FormControlLabel
                   control={
@@ -862,20 +775,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                     )}
                   </Typography>
                 </Grid>
-                {roomCardDeposit > 0 && (
-                  <>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" color="text.secondary">
-                        Room Card Deposit:
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2">
-                        {formatCurrency(roomCardDeposit)}
-                      </Typography>
-                    </Grid>
-                  </>
-                )}
                 {tourismTax > 0 && (
                   <>
                     <Grid item xs={6}>
@@ -920,16 +819,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 )}
                 <Grid item xs={12}>
                   <Divider sx={{ my: 1 }} />
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">
-                    Payment Method:
-                  </Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {paymentMethod}
-                  </Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body1" sx={{ fontWeight: 700 }}>

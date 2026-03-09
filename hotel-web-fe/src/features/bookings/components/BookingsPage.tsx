@@ -565,12 +565,9 @@ const BookingsPage: React.FC = () => {
 
     try {
       setUpdatingPayment(true);
-      const roomCardDeposit = getHotelSettings().room_card_deposit;
       await HotelAPIService.updateBooking(paymentBooking.id, {
         payment_status: newPaymentStatus,
         payment_note: paymentNote.trim() || undefined,
-        deposit_paid: newPaymentStatus === 'paid',
-        deposit_amount: newPaymentStatus === 'paid' ? roomCardDeposit : undefined,
       });
 
       setSnackbarMessage(`Deposit collected. Status updated to "${getPaymentStatusText(newPaymentStatus)}"`);
@@ -1262,7 +1259,7 @@ const BookingsPage: React.FC = () => {
             is_complimentary: false,
             deposit_paid: false,
             deposit_amount: 0,
-            room_card_deposit: 0,
+            room_card_deposit: 0, // deprecated but kept for type compatibility
             created_at: booking.created_at,
             is_posted: false,
           };
@@ -1333,42 +1330,6 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="mobile">Mobile App</MenuItem>
                 <MenuItem value="agent">Travel Agent</MenuItem>
                 <MenuItem value="corporate">Corporate</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                select
-                fullWidth
-                label="Payment Method"
-                value={editFormData.payment_method || ''}
-                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, payment_method: e.target.value }))}
-              >
-                <MenuItem value="">Not Specified</MenuItem>
-                {(() => {
-                  const methods = getHotelSettings().payment_methods;
-                  const current = editFormData.payment_method;
-                  const allMethods = current && !methods.includes(current) ? [...methods, current] : methods;
-                  return allMethods.map((method) => (
-                    <MenuItem key={method} value={method}>{method}</MenuItem>
-                  ));
-                })()}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                select
-                fullWidth
-                label="Payment Status"
-                value={editFormData.payment_status || 'unpaid'}
-                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, payment_status: e.target.value }))}
-              >
-                <MenuItem value="unpaid">Unpaid</MenuItem>
-                <MenuItem value="unpaid_deposit">Unpaid Deposit</MenuItem>
-                <MenuItem value="paid_rate">Paid Rate</MenuItem>
-                <MenuItem value="partial">Partial</MenuItem>
-                <MenuItem value="paid">Paid</MenuItem>
-                <MenuItem value="refunded">Refunded</MenuItem>
-                <MenuItem value="cancelled">Cancelled</MenuItem>
               </TextField>
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -1596,9 +1557,6 @@ const BookingsPage: React.FC = () => {
               </Typography>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Room: {paymentBooking.room_number}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 'bold' }} gutterBottom>
-                Room Card Deposit: {formatCurrency(getHotelSettings().room_card_deposit)}
               </Typography>
               {paymentBooking.deposit_amount && Number(paymentBooking.deposit_amount) > 0 && (
                 <Typography variant="body2" color="success.main" gutterBottom>

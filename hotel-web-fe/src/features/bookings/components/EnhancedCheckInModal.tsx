@@ -774,21 +774,11 @@ export default function EnhancedCheckInModal({
                 {formatCurrency(Number(booking.total_amount))}
               </Typography>
             </Grid>
-            {(Number(booking.deposit_amount || 0) > 0 || Number(booking.room_card_deposit || 0) > 0) && (
-              <>
-                {Number(booking.deposit_amount || 0) > 0 && (
-                  <Grid item xs={4}>
-                    <Typography variant="caption" color="text.secondary">Deposit Paid</Typography>
-                    <Typography variant="body2" color="success.main">{formatCurrency(Number(booking.deposit_amount))}</Typography>
-                  </Grid>
-                )}
-                {Number(booking.room_card_deposit || 0) > 0 && (
-                  <Grid item xs={4}>
-                    <Typography variant="caption" color="text.secondary">Room Card Deposit</Typography>
-                    <Typography variant="body2">{formatCurrency(Number(booking.room_card_deposit))}</Typography>
-                  </Grid>
-                )}
-              </>
+            {Number(booking.deposit_amount || 0) > 0 && (
+              <Grid item xs={4}>
+                <Typography variant="caption" color="text.secondary">Deposit Paid</Typography>
+                <Typography variant="body2" color="success.main">{formatCurrency(Number(booking.deposit_amount))}</Typography>
+              </Grid>
             )}
           </Grid>
         </Paper>
@@ -1545,17 +1535,6 @@ export default function EnhancedCheckInModal({
                 fullWidth
                 label="Tourism Tax"
                 value={booking.tourism_tax_amount || 0}
-                disabled
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField
-                fullWidth
-                label="Room Card Deposit"
-                value={booking.room_card_deposit || 0}
                 disabled
                 InputProps={{
                   startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,

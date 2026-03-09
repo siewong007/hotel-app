@@ -10,7 +10,7 @@ export interface HotelSettings {
   night_shift_time: string; // Time when night audit runs and data gets posted for reporting
   currency: string;
   timezone: string;
-  room_card_deposit: number;
+  room_card_deposit: number; // deprecated - kept for backward compatibility
   late_checkout_penalty: number;
   service_tax_rate: number; // Percentage (e.g., 8 for 8%)
   tourism_tax_rate: number; // Per night tourism tax

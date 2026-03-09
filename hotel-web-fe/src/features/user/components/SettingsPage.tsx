@@ -408,19 +408,6 @@ const SettingsPage: React.FC = () => {
             <Grid item xs={12} md={4}>
               <TextField
                 fullWidth
-                label="Room Card Deposit"
-                type="number"
-                value={roomCardDeposit}
-                onChange={(e) => setRoomCardDeposit(parseFloat(e.target.value) || 0)}
-                helperText="Default refundable deposit for room card"
-                InputProps={{
-                  startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography>
-                }}
-              />
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <TextField
-                fullWidth
                 label="Service Tax Rate"
                 type="number"
                 value={serviceTaxRate}
