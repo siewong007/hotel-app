@@ -645,7 +645,7 @@ const RoomManagementPage: React.FC = () => {
         post_type: 'normal_stay' as const,
         booking_remarks: isMemberGuest ? 'Walk-In Guest (Member - Card Deposit Waived)' : 'Walk-In Guest',
         source: 'walk_in' as const,
-        payment_status: 'unpaid',
+        payment_status: 'unpaid' as const,
       };
 
       const createdBooking = await HotelAPIService.createBooking(bookingData);
