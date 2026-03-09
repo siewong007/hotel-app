@@ -1311,7 +1311,6 @@ const BookingsPage: React.FC = () => {
             is_posted: false,
           };
           setCheckinBooking(bookingWithDetails);
-          setCheckinGuest(guest);
           setShowCheckinModal(true);
         }}
       />
