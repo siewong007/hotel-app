@@ -34,6 +34,9 @@ import {
   FormControlLabel,
   Checkbox,
   Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
+  InputAdornment,
 } from '@mui/material';
 import {
   MoreVert as MoreVertIcon,
@@ -62,8 +65,11 @@ import {
   Edit as EditIcon,
   Save as SaveIcon,
   Notes as NotesIcon,
+  Payment as PaymentIcon,
+  MoneyOff as MoneyOffIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
+
 import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, Booking } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
@@ -75,7 +81,6 @@ import {
   RoomStatusType
 } from '../../../config/roomStatusConfig';
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
-import EnhancedCheckInModal from '../../bookings/components/EnhancedCheckInModal';
 import UnifiedBookingModal, { BookingType } from './UnifiedBookingModal';
 import UpdateCheckoutDateDialog from './UpdateCheckoutDateDialog';
 
@@ -256,9 +261,6 @@ const RoomManagementPage: React.FC = () => {
   const [roomBlockedDates, setRoomBlockedDates] = useState<{ start: string; end: string; status: string }[]>([]);
 
   // Enhanced check-in modal state
-  const [enhancedCheckInOpen, setEnhancedCheckInOpen] = useState(false);
-  const [checkInBooking, setCheckInBooking] = useState<Booking | null>(null);
-  const [checkInGuest, setCheckInGuest] = useState<Guest | null>(null);
 
   // Unified booking modal state
   const [unifiedBookingOpen, setUnifiedBookingOpen] = useState(false);
@@ -275,6 +277,15 @@ const RoomManagementPage: React.FC = () => {
   const [processingReservedCheckIn, setProcessingReservedCheckIn] = useState(false);
   const [collectingDeposit, setCollectingDeposit] = useState(false);
   const [depositPaymentMethod, setDepositPaymentMethod] = useState('');
+
+  // Reserved check-in payment/deposit options
+  const [rcPaymentChoice, setRcPaymentChoice] = useState<'pay_now' | 'pay_later'>('pay_later');
+  const [rcPaymentMethod, setRcPaymentMethod] = useState('Cash');
+  const [rcAmountPaid, setRcAmountPaid] = useState(0);
+  const [rcDepositChoice, setRcDepositChoice] = useState<'receive' | 'waive'>('receive');
+  const [rcDepositAmount, setRcDepositAmount] = useState(0);
+  const [rcDepositMethod, setRcDepositMethod] = useState('Cash');
+  const [rcWaiveReason, setRcWaiveReason] = useState('');
 
   // Payment collection dialog state
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -396,9 +407,26 @@ const RoomManagementPage: React.FC = () => {
   }, []);
 
   const handleUnifiedBookingCreated = useCallback((booking: any, guest: any) => {
-    setCheckInBooking(booking);
-    setCheckInGuest(guest);
-    setEnhancedCheckInOpen(true);
+    // Convert to BookingWithDetails for the reserved check-in dialog
+    const bwd: BookingWithDetails = {
+      ...booking,
+      guest_name: guest.full_name || `${guest.first_name || ''} ${guest.last_name || ''}`.trim(),
+      guest_email: guest.email || '',
+      guest_phone: guest.phone || '',
+      room_number: booking.room_number || String(booking.room_id),
+      room_type: booking.room_type || '',
+      booking_number: booking.folio_number || booking.booking_number || '',
+    };
+    const settingsDeposit = getHotelSettings().deposit_amount;
+    setReservedCheckInBooking(bwd);
+    setRcPaymentChoice('pay_later');
+    setRcPaymentMethod(booking.payment_method || 'Cash');
+    setRcAmountPaid(Number(booking.total_amount || 0));
+    setRcDepositChoice('receive');
+    setRcDepositAmount(settingsDeposit);
+    setRcDepositMethod('Cash');
+    setRcWaiveReason('');
+    setReservedCheckInDialogOpen(true);
   }, []);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, room: Room) => {
@@ -650,8 +678,8 @@ const RoomManagementPage: React.FC = () => {
 
       const createdBooking = await HotelAPIService.createBooking(bookingData);
 
-      // Convert created booking to Booking type for the enhanced modal
-      const bookingForModal: Booking = {
+      // Convert to BookingWithDetails for the reserved check-in dialog
+      const bwd: BookingWithDetails = {
         id: createdBooking.id,
         guest_id: guestToUse.id.toString(),
         room_id: selectedRoom.id,
@@ -667,12 +695,23 @@ const RoomManagementPage: React.FC = () => {
         post_type: createdBooking.post_type,
         created_at: createdBooking.created_at,
         updated_at: createdBooking.updated_at,
+        guest_name: guestToUse.full_name || `${guestToUse.first_name || ''} ${guestToUse.last_name || ''}`.trim(),
+        guest_email: guestToUse.email || '',
+        guest_phone: guestToUse.phone || '',
+        room_number: selectedRoom.room_number,
+        booking_number: createdBooking.folio_number || `WALKIN-${createdBooking.id}`,
       };
-
-      setCheckInBooking(bookingForModal);
-      setCheckInGuest(guestToUse);
+      const settingsDepositWI = getHotelSettings().deposit_amount;
+      setReservedCheckInBooking(bwd);
+      setRcPaymentChoice('pay_later');
+      setRcPaymentMethod(walkInPaymentMethod || 'Cash');
+      setRcAmountPaid(Number(createdBooking.total_amount || 0));
+      setRcDepositChoice('receive');
+      setRcDepositAmount(settingsDepositWI);
+      setRcDepositMethod('Cash');
+      setRcWaiveReason('');
       setWalkInDialogOpen(false);
-      setEnhancedCheckInOpen(true);
+      setReservedCheckInDialogOpen(true);
     } catch (error: any) {
       showSnackbar(error.message || 'Failed to create guest', 'error');
     } finally {
@@ -735,6 +774,15 @@ const RoomManagementPage: React.FC = () => {
       setReservedCheckInBooking(reservedBooking);
       setDepositPaymentMethod('');
       setCollectingDeposit(false);
+      const totalAmt = Number(reservedBooking.total_amount || 0);
+      const settingsDeposit = getHotelSettings().deposit_amount;
+      setRcPaymentChoice(reservedBooking.payment_status === 'paid' ? 'pay_now' : 'pay_later');
+      setRcPaymentMethod(reservedBooking.payment_method || 'Cash');
+      setRcAmountPaid(totalAmt);
+      setRcDepositChoice('receive');
+      setRcDepositAmount(settingsDeposit);
+      setRcDepositMethod('Cash');
+      setRcWaiveReason('');
       setReservedCheckInDialogOpen(true);
       return;
     }
@@ -752,29 +800,44 @@ const RoomManagementPage: React.FC = () => {
       return;
     }
 
-    // If collecting deposit and no payment method selected
-    if (collectDeposit && !depositPaymentMethod) {
-      showSnackbar('Please select a payment method for the deposit', 'error');
-      return;
-    }
-
     try {
       setProcessingReservedCheckIn(true);
       console.log('Processing check-in for booking ID:', reservedCheckInBooking.id);
 
-      // If collecting deposit, update booking with deposit info first
-      if (collectDeposit) {
-        await HotelAPIService.updateBooking(reservedCheckInBooking.id, {
-          deposit_paid: true,
-          deposit_amount: Number(reservedCheckInBooking.deposit_amount || 50),
-          payment_method: depositPaymentMethod,
-        });
+      // Build payment/deposit update
+      const updateData: any = {};
+      if (rcPaymentChoice === 'pay_now') {
+        updateData.payment_status = 'paid';
+        updateData.amount_paid = rcAmountPaid;
+        updateData.payment_method = rcPaymentMethod;
+      } else {
+        updateData.payment_status = 'unpaid';
+      }
+      if (rcDepositChoice === 'receive') {
+        updateData.deposit_paid = true;
+        updateData.deposit_amount = rcDepositAmount;
+        updateData.payment_note = `Deposit received (${rcDepositMethod})`;
+      } else {
+        updateData.deposit_paid = false;
+        updateData.deposit_amount = 0;
+        updateData.payment_note = `Deposit waived: ${rcWaiveReason}`;
       }
 
-      // Perform check-in
-      console.log('Calling checkInGuest API with ID:', reservedCheckInBooking.id);
-      const result = await HotelAPIService.checkInGuest(String(reservedCheckInBooking.id));
-      console.log('Check-in result:', result);
+      // Update booking with payment/deposit info
+      await HotelAPIService.updateBooking(reservedCheckInBooking.id, updateData);
+
+      // Perform check-in (with payment data if paying now)
+      const checkinPayload = (rcPaymentChoice === 'pay_now' && rcAmountPaid > 0)
+        ? {
+            payment_record: {
+              amount: rcAmountPaid,
+              payment_method: rcPaymentMethod,
+              payment_type: 'booking',
+              notes: 'Payment collected at check-in',
+            },
+          }
+        : undefined;
+      const result = await HotelAPIService.checkInGuest(String(reservedCheckInBooking.id), checkinPayload);
 
       showSnackbar(`Guest ${reservedCheckInBooking.guest_name} checked in successfully to Room ${reservedCheckInBooking.room_number}`, 'success');
 
@@ -990,47 +1053,6 @@ const RoomManagementPage: React.FC = () => {
     } finally {
       setCreatingBooking(false);
     }
-  };
-
-  const handleEnhancedCheckInSuccess = async () => {
-    showSnackbar(`Guest checked in successfully!`, 'success');
-    setEnhancedCheckInOpen(false);
-    setCheckInBooking(null);
-    setCheckInGuest(null);
-
-    // Reset walk-in form state
-    setWalkInGuest(null);
-    setWalkInCheckInDate('');
-    setWalkInCheckOutDate('');
-    setWalkInNumberOfNights(1);
-    setIsCreatingNewGuest(false);
-    setNewGuestForm({
-      first_name: '',
-      last_name: '',
-      email: '',
-      phone: '',
-      nationality: '',
-      ic_number: ''
-    });
-
-    // Reset online check-in form state
-    setOnlineCheckInGuest(null);
-    setOnlineCheckInBookingChannel('');
-    setOnlineReference('');
-    setOnlineCheckInDate('');
-    setOnlineCheckOutDate('');
-    setOnlineNumberOfNights(1);
-    setIsCreatingNewOnlineGuest(false);
-    setNewOnlineGuestForm({
-      first_name: '',
-      last_name: '',
-      email: '',
-      phone: '',
-      nationality: '',
-      ic_number: ''
-    });
-
-    await loadData();
   };
 
   const handleCheckOut = (room: Room) => {
@@ -3502,19 +3524,6 @@ const RoomManagementPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Enhanced Check-In Modal */}
-      <EnhancedCheckInModal
-        open={enhancedCheckInOpen}
-        onClose={() => {
-          setEnhancedCheckInOpen(false);
-          setCheckInBooking(null);
-          setCheckInGuest(null);
-        }}
-        booking={checkInBooking}
-        guest={checkInGuest}
-        onCheckInSuccess={handleEnhancedCheckInSuccess}
-      />
-
       {/* Unified Booking Modal */}
       <UnifiedBookingModal
         open={unifiedBookingOpen}
@@ -3973,6 +3982,15 @@ const RoomManagementPage: React.FC = () => {
                                   setReservedCheckInBooking(booking);
                                   setDepositPaymentMethod('');
                                   setCollectingDeposit(false);
+                                  const amt = Number(booking.total_amount || 0);
+                                  const sDeposit = getHotelSettings().deposit_amount;
+                                  setRcPaymentChoice(booking.payment_status === 'paid' ? 'pay_now' : 'pay_later');
+                                  setRcPaymentMethod(booking.payment_method || 'Cash');
+                                  setRcAmountPaid(amt);
+                                  setRcDepositChoice('receive');
+                                  setRcDepositAmount(sDeposit);
+                                  setRcDepositMethod('Cash');
+                                  setRcWaiveReason('');
                                   setReservedCheckInDialogOpen(true);
                                 }}
                                 sx={{ fontWeight: 600 }}
@@ -4106,54 +4124,132 @@ const RoomManagementPage: React.FC = () => {
                 </Grid>
               </Paper>
 
-              {/* Payment Status Section */}
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 2,
-                  mb: 2,
-                  bgcolor: reservedCheckInBooking.payment_status === 'paid' || reservedCheckInBooking.guest_type === 'member'
-                    ? 'success.light'
-                    : 'error.light',
-                  borderRadius: 2,
-                  border: 1,
-                  borderColor: reservedCheckInBooking.payment_status === 'paid' || reservedCheckInBooking.guest_type === 'member'
-                    ? 'success.main'
-                    : 'error.main'
-                }}
+              {/* Payment Section */}
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Payment</Typography>
+              <ToggleButtonGroup
+                value={rcPaymentChoice}
+                exclusive
+                onChange={(_, val) => { if (val) setRcPaymentChoice(val); }}
+                fullWidth
+                size="small"
+                sx={{ mb: 1.5 }}
               >
-                <Stack direction="row" alignItems="center" spacing={2}>
-                  {reservedCheckInBooking.payment_status === 'paid' || reservedCheckInBooking.guest_type === 'member' ? (
-                    <>
-                      <CheckCircleIcon color="success" sx={{ fontSize: 32 }} />
-                      <Box>
-                        <Typography variant="subtitle1" fontWeight={600} color="success.dark">
-                          {reservedCheckInBooking.guest_type === 'member' ? 'Member - No Deposit Required' : 'Fully Paid'}
-                        </Typography>
-                        <Typography variant="body2" color="success.dark">
-                          Ready for check-in
-                        </Typography>
-                      </Box>
-                    </>
-                  ) : (
-                    <>
-                      <CancelIcon color="error" sx={{ fontSize: 32 }} />
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="subtitle1" fontWeight={600} color="error.dark">
-                          Payment Required
-                        </Typography>
-                        <Typography variant="body2" color="error.dark">
-                          Amount Due: {formatCurrency(Number(reservedCheckInBooking.total_amount || 0))}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Status: {reservedCheckInBooking.payment_status || 'unpaid'}
-                        </Typography>
-                      </Box>
-                    </>
-                  )}
-                </Stack>
+                <ToggleButton value="pay_now" color="success" sx={{ py: 1, fontWeight: 600 }}>
+                  <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} />
+                  Make Payment Now
+                </ToggleButton>
+                <ToggleButton value="pay_later" color="warning" sx={{ py: 1, fontWeight: 600 }}>
+                  <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} />
+                  Pay Later
+                </ToggleButton>
+              </ToggleButtonGroup>
 
-              </Paper>
+              {rcPaymentChoice === 'pay_now' && (
+                <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+                  <Grid item xs={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Payment Method</InputLabel>
+                      <Select
+                        value={rcPaymentMethod}
+                        onChange={(e) => setRcPaymentMethod(e.target.value)}
+                        label="Payment Method"
+                      >
+                        {PAYMENT_METHODS.map(method => (
+                          <MenuItem key={method} value={method}>{method}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Amount Paid"
+                      type="number"
+                      value={rcAmountPaid}
+                      onChange={(e) => setRcAmountPaid(parseFloat(e.target.value) || 0)}
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                        inputProps: { min: 0, step: 0.01 },
+                      }}
+                    />
+                  </Grid>
+                </Grid>
+              )}
+
+              {rcPaymentChoice === 'pay_later' && (
+                <Alert severity="info" sx={{ mb: 1.5, py: 0 }}>
+                  Payment will be collected later. Guest checks in with unpaid status.
+                </Alert>
+              )}
+
+              {/* Deposit Section */}
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Deposit</Typography>
+              <ToggleButtonGroup
+                value={rcDepositChoice}
+                exclusive
+                onChange={(_, val) => { if (val) setRcDepositChoice(val); }}
+                fullWidth
+                size="small"
+                sx={{ mb: 1.5 }}
+              >
+                <ToggleButton value="receive" color="success" sx={{ py: 1, fontWeight: 600 }}>
+                  <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} />
+                  Receive Deposit
+                </ToggleButton>
+                <ToggleButton value="waive" color="error" sx={{ py: 1, fontWeight: 600 }}>
+                  <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} />
+                  Waive Deposit
+                </ToggleButton>
+              </ToggleButtonGroup>
+
+              {rcDepositChoice === 'receive' && (
+                <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+                  <Grid item xs={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Deposit Method</InputLabel>
+                      <Select
+                        value={rcDepositMethod}
+                        onChange={(e) => setRcDepositMethod(e.target.value)}
+                        label="Deposit Method"
+                      >
+                        {PAYMENT_METHODS.map(method => (
+                          <MenuItem key={method} value={method}>{method}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Deposit Amount"
+                      type="number"
+                      value={rcDepositAmount}
+                      onChange={(e) => setRcDepositAmount(parseFloat(e.target.value) || 0)}
+                      InputProps={{
+                        startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                        inputProps: { min: 0, step: 0.01 },
+                      }}
+                    />
+                  </Grid>
+                </Grid>
+              )}
+
+              {rcDepositChoice === 'waive' && (
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Reason for Waiving Deposit"
+                  value={rcWaiveReason}
+                  onChange={(e) => setRcWaiveReason(e.target.value)}
+                  multiline
+                  rows={2}
+                  placeholder="e.g., Returning guest, Company account, Manager approval..."
+                  helperText="Optional: provide a reason for waiving the deposit"
+                  sx={{ mb: 1.5 }}
+                />
+              )}
 
               {/* Complimentary Badge if applicable */}
               {reservedCheckInBooking.is_complimentary && (

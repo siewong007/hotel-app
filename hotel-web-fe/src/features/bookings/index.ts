@@ -6,4 +6,3 @@ export { default as GuestCheckInConfirmation } from './components/GuestCheckInCo
 export { default as GuestCheckInForm } from './components/GuestCheckInForm';
 export { default as BookingsPage } from './components/BookingsPage';
 export { default as MyBookingsPage } from './components/MyBookingsPage';
-export { default as EnhancedCheckInModal } from './components/EnhancedCheckInModal';

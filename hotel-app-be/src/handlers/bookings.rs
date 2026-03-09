@@ -1101,6 +1101,32 @@ pub async fn manual_checkin_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    // Record payment if provided during check-in
+    if let Some(ref checkin) = checkin_data {
+        if let Some(ref payment) = checkin.payment_record {
+            if payment.amount > 0.0 {
+                let pay_amount = Decimal::from_f64_retain(payment.amount)
+                    .unwrap_or(Decimal::ZERO);
+                let pay_type = payment.payment_type.as_deref().unwrap_or("booking");
+                if let Err(e) = sqlx::query(
+                    r#"INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
+                       VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6)"#
+                )
+                .bind(booking_id)
+                .bind(pay_amount)
+                .bind(&payment.payment_method)
+                .bind(pay_type)
+                .bind(&payment.notes)
+                .bind(user_id)
+                .execute(&pool)
+                .await
+                {
+                    log::warn!("Failed to record check-in payment for booking {}: {}", booking_id, e);
+                }
+            }
+        }
+    }
+
     // Only update room status for current/future bookings (skip back-dated)
     let today = chrono::Local::now().date_naive();
     if booking.check_out_date >= today {

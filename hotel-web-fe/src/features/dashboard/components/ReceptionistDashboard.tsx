@@ -13,6 +13,19 @@ import {
   IconButton,
   Divider,
   Badge,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
+  InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import {
   Hotel as HotelIcon,
@@ -26,12 +39,17 @@ import {
   Schedule as LateIcon,
   CalendarToday as CalendarIcon,
   Refresh as RefreshIcon,
+  Payment as PaymentIcon,
+  MoneyOff as MoneyOffIcon,
+  Login as LoginIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
+
 import { useAuth } from '../../../auth/AuthContext';
 import { BookingWithDetails, Guest, Booking } from '../../../types';
+import { useCurrency } from '../../../hooks/useCurrency';
+import { getHotelSettings } from '../../../utils/hotelSettings';
 import RoomEventDialog from '../../rooms/components/RoomEventDialog';
-import EnhancedCheckInModal from '../../bookings/components/EnhancedCheckInModal';
 
 interface RoomStatus {
   id: number;
@@ -97,8 +115,17 @@ const ReceptionistDashboard: React.FC = () => {
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<RoomStatus | null>(null);
   const [checkinModalOpen, setCheckinModalOpen] = useState(false);
-  const [checkinBooking, setCheckinBooking] = useState<Booking | null>(null);
-  const [checkinGuest, setCheckinGuest] = useState<Guest | null>(null);
+  const [checkinBooking, setCheckinBooking] = useState<any>(null);
+  const [processingCheckIn, setProcessingCheckIn] = useState(false);
+  const [ciPaymentChoice, setCiPaymentChoice] = useState<'pay_now' | 'pay_later'>('pay_later');
+  const [ciPaymentMethod, setCiPaymentMethod] = useState('Cash');
+  const [ciAmountPaid, setCiAmountPaid] = useState(0);
+  const [ciDepositChoice, setCiDepositChoice] = useState<'receive' | 'waive'>('receive');
+  const [ciDepositAmount, setCiDepositAmount] = useState(0);
+  const [ciDepositMethod, setCiDepositMethod] = useState('Cash');
+  const [ciWaiveReason, setCiWaiveReason] = useState('');
+  const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
+  const PAYMENT_METHODS = getHotelSettings().payment_methods;
 
   const loadDashboardData = async () => {
     try {
@@ -315,22 +342,65 @@ const ReceptionistDashboard: React.FC = () => {
     try {
       setLoading(true);
       const booking = await HotelAPIService.getBookingById(bookingId);
-      const guest = await HotelAPIService.getGuest(booking.guest_id);
-
-      // Convert to proper format for modal
-      const bookingData: any = {
-        ...booking,
-        room_type: booking.room_type || '',
-      };
-
-      setCheckinBooking(bookingData);
-      setCheckinGuest(guest);
+      const totalAmt = Number(booking.total_amount || 0);
+      const settingsDeposit = getHotelSettings().deposit_amount;
+      setCheckinBooking(booking);
+      setCiPaymentChoice(booking.payment_status === 'paid' ? 'pay_now' : 'pay_later');
+      setCiPaymentMethod(booking.payment_method || 'Cash');
+      setCiAmountPaid(totalAmt);
+      setCiDepositChoice('receive');
+      setCiDepositAmount(settingsDeposit);
+      setCiDepositMethod('Cash');
+      setCiWaiveReason('');
       setCheckinModalOpen(true);
       setLoading(false);
     } catch (err: any) {
       console.error('Failed to load check-in data:', err);
       setError(err.message || 'Failed to load check-in data');
       setLoading(false);
+    }
+  };
+
+  const handleConfirmCheckIn = async () => {
+    if (!checkinBooking) return;
+    try {
+      setProcessingCheckIn(true);
+      const updateData: any = {};
+      if (ciPaymentChoice === 'pay_now') {
+        updateData.payment_status = 'paid';
+        updateData.amount_paid = ciAmountPaid;
+        updateData.payment_method = ciPaymentMethod;
+      } else {
+        updateData.payment_status = 'unpaid';
+      }
+      if (ciDepositChoice === 'receive') {
+        updateData.deposit_paid = true;
+        updateData.deposit_amount = ciDepositAmount;
+        updateData.payment_note = `Deposit received (${ciDepositMethod})`;
+      } else {
+        updateData.deposit_paid = false;
+        updateData.deposit_amount = 0;
+        updateData.payment_note = `Deposit waived: ${ciWaiveReason}`;
+      }
+      await HotelAPIService.updateBooking(checkinBooking.id, updateData);
+      const checkinPayload = (ciPaymentChoice === 'pay_now' && ciAmountPaid > 0)
+        ? {
+            payment_record: {
+              amount: ciAmountPaid,
+              payment_method: ciPaymentMethod,
+              payment_type: 'booking',
+              notes: 'Payment collected at check-in',
+            },
+          }
+        : undefined;
+      await HotelAPIService.checkInGuest(String(checkinBooking.id), checkinPayload);
+      setCheckinModalOpen(false);
+      setCheckinBooking(null);
+      loadDashboardData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to check in guest');
+    } finally {
+      setProcessingCheckIn(false);
     }
   };
 
@@ -892,24 +962,119 @@ const ReceptionistDashboard: React.FC = () => {
         />
       )}
 
-      {/* Enhanced Check-In Modal */}
-      <EnhancedCheckInModal
-        open={checkinModalOpen}
-        onClose={() => {
-          setCheckinModalOpen(false);
-          setCheckinBooking(null);
-          setCheckinGuest(null);
-        }}
-        booking={checkinBooking}
-        guest={checkinGuest}
-        onCheckInSuccess={() => {
-          setCheckinModalOpen(false);
-          setCheckinBooking(null);
-          setCheckinGuest(null);
-          // Reload dashboard data to reflect the check-in
-          loadDashboardData();
-        }}
-      />
+      {/* Check-In Dialog */}
+      <Dialog open={checkinModalOpen} onClose={() => { if (!processingCheckIn) { setCheckinModalOpen(false); setCheckinBooking(null); } }} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ bgcolor: 'success.main', color: 'white', py: 2, px: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <LoginIcon sx={{ fontSize: 28 }} />
+            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+              Check-In - Room {checkinBooking?.room_number || checkinBooking?.room_id}
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          {checkinBooking && (
+            <Box>
+              <Paper elevation={0} sx={{ p: 2, mb: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                  Booking #{checkinBooking.booking_number || checkinBooking.folio_number}
+                </Typography>
+                <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid item xs={12}>
+                    <Typography variant="h6" fontWeight={600}>{checkinBooking.guest_name || 'Guest'}</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Check-in</Typography>
+                    <Typography variant="body2" fontWeight={500}>
+                      {new Date(checkinBooking.check_in_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Check-out</Typography>
+                    <Typography variant="body2" fontWeight={500}>
+                      {new Date(checkinBooking.check_out_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Room Type</Typography>
+                    <Typography variant="body2" fontWeight={500}>{checkinBooking.room_type || 'N/A'}</Typography>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <Typography variant="caption" color="text.secondary">Total Amount</Typography>
+                    <Typography variant="body2" fontWeight={500}>{formatCurrency(Number(checkinBooking.total_amount || 0))}</Typography>
+                  </Grid>
+                </Grid>
+              </Paper>
+
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Payment</Typography>
+              <ToggleButtonGroup value={ciPaymentChoice} exclusive onChange={(_, val) => { if (val) setCiPaymentChoice(val); }} fullWidth size="small" sx={{ mb: 1.5 }}>
+                <ToggleButton value="pay_now" color="success" sx={{ py: 1, fontWeight: 600 }}>
+                  <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} /> Make Payment Now
+                </ToggleButton>
+                <ToggleButton value="pay_later" color="warning" sx={{ py: 1, fontWeight: 600 }}>
+                  <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} /> Pay Later
+                </ToggleButton>
+              </ToggleButtonGroup>
+              {ciPaymentChoice === 'pay_now' && (
+                <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+                  <Grid item xs={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Payment Method</InputLabel>
+                      <Select value={ciPaymentMethod} onChange={(e) => setCiPaymentMethod(e.target.value as string)} label="Payment Method">
+                        {PAYMENT_METHODS.map((m: string) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField fullWidth size="small" label="Amount Paid" type="number" value={ciAmountPaid} onChange={(e) => setCiAmountPaid(parseFloat(e.target.value) || 0)}
+                      InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }} />
+                  </Grid>
+                </Grid>
+              )}
+              {ciPaymentChoice === 'pay_later' && (
+                <Alert severity="info" sx={{ mb: 1.5, py: 0 }}>Payment will be collected later.</Alert>
+              )}
+
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Deposit</Typography>
+              <ToggleButtonGroup value={ciDepositChoice} exclusive onChange={(_, val) => { if (val) setCiDepositChoice(val); }} fullWidth size="small" sx={{ mb: 1.5 }}>
+                <ToggleButton value="receive" color="success" sx={{ py: 1, fontWeight: 600 }}>
+                  <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} /> Receive Deposit
+                </ToggleButton>
+                <ToggleButton value="waive" color="error" sx={{ py: 1, fontWeight: 600 }}>
+                  <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} /> Waive Deposit
+                </ToggleButton>
+              </ToggleButtonGroup>
+              {ciDepositChoice === 'receive' && (
+                <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+                  <Grid item xs={6}>
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Deposit Method</InputLabel>
+                      <Select value={ciDepositMethod} onChange={(e) => setCiDepositMethod(e.target.value as string)} label="Deposit Method">
+                        {PAYMENT_METHODS.map((m: string) => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={6}>
+                    <TextField fullWidth size="small" label="Deposit Amount" type="number" value={ciDepositAmount} onChange={(e) => setCiDepositAmount(parseFloat(e.target.value) || 0)}
+                      InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }} />
+                  </Grid>
+                </Grid>
+              )}
+              {ciDepositChoice === 'waive' && (
+                <TextField fullWidth size="small" label="Reason for Waiving Deposit" value={ciWaiveReason} onChange={(e) => setCiWaiveReason(e.target.value)}
+                  multiline rows={2} placeholder="e.g., Returning guest, Company account..." helperText="Optional: provide a reason" sx={{ mb: 1.5 }} />
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
+          <Button onClick={() => { setCheckinModalOpen(false); setCheckinBooking(null); }} disabled={processingCheckIn}>Cancel</Button>
+          <Button variant="contained" color="success" onClick={handleConfirmCheckIn} disabled={processingCheckIn}
+            startIcon={processingCheckIn ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}>
+            {processingCheckIn ? 'Processing...' : 'Check-In Now'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

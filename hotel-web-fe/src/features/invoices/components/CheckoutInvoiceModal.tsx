@@ -339,10 +339,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     // Service Tax is the difference
     const serviceTax = roomSubtotal - roomCharges;
 
-    // Get deposit based on guest membership status and payment method
+    // Get deposit from booking's deposit_amount (set during check-in)
     const isMember = booking.guest_type === 'member';
     const isCityLedger = !!(booking.company_id);
-    const roomCardDeposit = 0; // room_card_deposit removed - deposit handled via deposit_amount
+    const roomCardDeposit = booking.deposit_paid
+      ? (typeof booking.deposit_amount === 'string' ? parseFloat(booking.deposit_amount) : booking.deposit_amount) || 0
+      : 0;
 
     // Get tourism tax - foreign tourists are charged, local tourists are not
     // Use guest_tourism_type (current guest setting) or fall back to is_tourist (booking-time setting)
@@ -1053,14 +1055,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Box>
             </Box>
 
-            {/* Room Card Deposit Refund Section */}
+            {/* Deposit Refund Section */}
             {charges.depositRefund > 0 && !depositWaived && !readOnly ? (
               <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ p: 1.5, bgcolor: depositRefunded ? '#e8f5e9' : '#fff3e0' }}>
                   <Grid container alignItems="center">
                     <Grid item xs={5}>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: depositRefunded ? '#2e7d32' : '#e65100' }}>
-                        Room Card Deposit Refund
+                        Deposit Refund
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         {depositRefunded ? 'Refunded separately to guest' : 'Must be refunded or waived before checkout'}
@@ -1152,7 +1154,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <Grid container alignItems="center">
                     <Grid item xs={8}>
                       <Typography variant="body2" sx={{ color: '#e65100', fontWeight: 600 }}>
-                        Room Card Deposit
+                        Deposit
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
                         Waived: {depositWaiveReason}
@@ -1183,14 +1185,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <Grid container alignItems="center">
                     <Grid item xs={8}>
                       <Typography variant="body2" sx={{ color: '#1565c0' }}>
-                        Room Card Deposit
+                        Deposit
                       </Typography>
                     </Grid>
                     <Grid item xs={4} sx={{ textAlign: 'right' }}>
                       <Chip
-                        label={booking?.company_id ? 'City Ledger - N/A' : 'Member - No Deposit'}
+                        label={booking?.company_id ? 'City Ledger - N/A' : booking?.payment_note?.includes('waived') ? 'Waived' : 'No Deposit Collected'}
                         size="small"
-                        color="info"
+                        color={booking?.payment_note?.includes('waived') ? 'warning' : 'info'}
                       />
                     </Grid>
                   </Grid>
@@ -1622,12 +1624,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <>
                     <Grid item xs={8}>
                       <Typography variant="body2" sx={{ color: depositRefunded ? 'success.main' : 'text.secondary' }}>
-                        Room Card Deposit
+                        Deposit ({formatCurrency(charges.roomCardDeposit)})
                       </Typography>
                     </Grid>
                     <Grid item xs={4} sx={{ textAlign: 'right' }}>
                       <Typography variant="body2" sx={{ color: depositRefunded ? 'success.main' : 'text.secondary' }}>
-                        {depositRefunded ? 'Refunded' : 'Pending Refund'}
+                        {depositRefunded ? 'Refunded' : depositWaived ? 'Waived' : 'Pending Refund'}
                       </Typography>
                     </Grid>
                   </>
@@ -1635,12 +1637,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <>
                     <Grid item xs={8}>
                       <Typography variant="body2" sx={{ color: 'info.main' }}>
-                        Room Card Deposit
+                        Deposit
                       </Typography>
                     </Grid>
                     <Grid item xs={4} sx={{ textAlign: 'right' }}>
                       <Typography variant="body2" sx={{ color: 'info.main' }}>
-                        Waived
+                        {booking?.payment_note?.includes('waived') ? 'Waived' : 'No Deposit'}
                       </Typography>
                     </Grid>
                   </>
@@ -1854,7 +1856,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 <>
                   <Grid item xs={8}>
                     <Typography variant="body2" sx={{ color: 'warning.main' }}>
-                      Room Card Deposit
+                      Deposit
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
                       {depositWaiveReason}
@@ -1868,7 +1870,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 <>
                   <Grid item xs={8}>
                     <Typography variant="body2" sx={{ color: 'success.main' }}>
-                      Room Card Deposit
+                      Deposit
                     </Typography>
                   </Grid>
                   <Grid item xs={4} sx={{ textAlign: 'right' }}>
@@ -2210,17 +2212,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
         {depositWaived ? (
           <div className="notes" style={{ backgroundColor: '#fff3e0', borderLeftColor: '#e65100' }}>
-            <strong style={{ color: '#e65100' }}>Room Card Deposit - Waived</strong>
+            <strong style={{ color: '#e65100' }}>Deposit - Waived</strong>
             Reason: {depositWaiveReason}
           </div>
         ) : charges.depositRefund > 0 ? (
           <div className="notes success-note">
-            <strong>Room Card Deposit</strong>
+            <strong>Deposit</strong>
             Deposit of {formatCurrency(charges.depositRefund)} has been refunded separately to the guest.
           </div>
         ) : (
           <div className="notes" style={{ backgroundColor: '#e3f2fd', borderLeftColor: '#1565c0' }}>
-            <strong style={{ color: '#1565c0' }}>Room Card Deposit</strong>
+            <strong style={{ color: '#1565c0' }}>Deposit</strong>
             Waived (Member benefit)
           </div>
         )}

@@ -121,11 +121,21 @@ pub struct BookingUpdateInput {
     pub room_rate_override: Option<f64>,
 }
 
+/// Payment to record during check-in
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CheckInPaymentRecord {
+    pub amount: f64,
+    pub payment_method: String,
+    pub payment_type: Option<String>,
+    pub notes: Option<String>,
+}
+
 /// Request for checking in a guest
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CheckInRequest {
     pub guest_update: Option<GuestUpdateInput>,
     pub booking_update: Option<BookingUpdateInput>,
+    pub payment_record: Option<CheckInPaymentRecord>,
 }
 
 /// Request for pre-check-in update

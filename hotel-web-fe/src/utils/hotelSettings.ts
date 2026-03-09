@@ -10,7 +10,7 @@ export interface HotelSettings {
   night_shift_time: string; // Time when night audit runs and data gets posted for reporting
   currency: string;
   timezone: string;
-  room_card_deposit: number; // deprecated - kept for backward compatibility
+  deposit_amount: number; // Default deposit amount for check-in
   late_checkout_penalty: number;
   service_tax_rate: number; // Percentage (e.g., 8 for 8%)
   tourism_tax_rate: number; // Per night tourism tax
@@ -28,7 +28,7 @@ const DEFAULT_SETTINGS: HotelSettings = {
   night_shift_time: '23:00', // Default night audit time at 11 PM
   currency: 'MYR',
   timezone: 'Asia/Kuala_Lumpur',
-  room_card_deposit: 50,
+  deposit_amount: 50,
   late_checkout_penalty: 50,
   service_tax_rate: 8, // 8% service tax
   tourism_tax_rate: 10, // RM 10 per night for tourists (Malaysia standard)
@@ -68,7 +68,7 @@ export const getHotelSettings = (): HotelSettings => {
       // Ensure numeric fields are properly typed (localStorage may store them as strings)
       return {
         ...merged,
-        room_card_deposit: Number(merged.room_card_deposit) || DEFAULT_SETTINGS.room_card_deposit,
+        deposit_amount: Number(merged.deposit_amount) || DEFAULT_SETTINGS.deposit_amount,
         late_checkout_penalty: Number(merged.late_checkout_penalty) || DEFAULT_SETTINGS.late_checkout_penalty,
         service_tax_rate: Number(merged.service_tax_rate) || DEFAULT_SETTINGS.service_tax_rate,
         tourism_tax_rate: Number(merged.tourism_tax_rate) || DEFAULT_SETTINGS.tourism_tax_rate,
