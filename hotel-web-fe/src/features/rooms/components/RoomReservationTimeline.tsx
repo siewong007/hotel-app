@@ -287,24 +287,16 @@ const RoomReservationTimeline: React.FC = () => {
       const checkIn = b.check_in_date.split('T')[0];
       const checkOut = b.check_out_date.split('T')[0];
 
-      // Include checkout day in display when booking is still checked_in
-      // This ensures guests who haven't checked out yet still show on the timeline
+      // Show colored box on check-in date, never on checkout date
       const isCheckedIn = b.status === 'checked_in' || b.status === 'auto_checked_in';
 
-      if (isCheckedIn) {
-        // For checked-in guests: show from check-in date up to today (even if past checkout date)
-        // This handles late checkouts where guest is still in the room
-        // Exclude checkout day from the colored bar - use < instead of <=
-        if (checkOut > todayStr) {
-          // Future checkout: exclude checkout day
-          return dateStr >= checkIn && dateStr < checkOut;
-        }
-        // Late checkout (past checkout date) or checkout today: show up to and including today
-        const tomorrow = new Date(new Date().getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        return dateStr >= checkIn && dateStr < tomorrow;
+      if (isCheckedIn && checkOut <= todayStr) {
+        // Guest still in room at or past checkout date (late checkout)
+        // Extend display to today but always exclude the original checkout date
+        return dateStr >= checkIn && dateStr <= todayStr && dateStr !== checkOut;
       }
 
-      // Standard: exclude checkout day for completed/upcoming bookings
+      // Standard: show from check-in date (inclusive) to checkout date (exclusive)
       return dateStr >= checkIn && dateStr < checkOut;
     });
 
