@@ -51,6 +51,7 @@ import {
   Block as VoidIcon,
   MoneyOff as MoneyOffIcon,
   Login as LoginIcon,
+  Restore as RestoreIcon,
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
 import { HotelAPIService } from '../../../api';
@@ -125,6 +126,11 @@ const BookingsPage: React.FC = () => {
   const [voidingBooking, setVoidingBooking] = useState<BookingWithDetails | null>(null);
   const [voidReason, setVoidReason] = useState('');
   const [voiding, setVoiding] = useState(false);
+
+  // Reactivate booking dialog
+  const [reactivateDialogOpen, setReactivateDialogOpen] = useState(false);
+  const [reactivatingBooking, setReactivatingBooking] = useState<BookingWithDetails | null>(null);
+  const [reactivating, setReactivating] = useState(false);
 
   // Complimentary dialog
   const [complimentaryDialogOpen, setComplimentaryDialogOpen] = useState(false);
@@ -488,6 +494,29 @@ const BookingsPage: React.FC = () => {
     }
   };
 
+  // Reactivate handlers
+  const handleReactivateBooking = (booking: BookingWithDetails) => {
+    setReactivatingBooking(booking);
+    setReactivateDialogOpen(true);
+  };
+
+  const handleConfirmReactivate = async () => {
+    if (!reactivatingBooking) return;
+    try {
+      setReactivating(true);
+      await HotelAPIService.reactivateBooking(reactivatingBooking.id);
+      setSnackbarMessage('Booking reactivated successfully!');
+      setSnackbarOpen(true);
+      setReactivateDialogOpen(false);
+      setReactivatingBooking(null);
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to reactivate booking');
+    } finally {
+      setReactivating(false);
+    }
+  };
+
   // Complimentary handlers
   const handleMarkComplimentary = (booking: BookingWithDetails) => {
     setComplimentaryBooking(booking);
@@ -725,6 +754,11 @@ const BookingsPage: React.FC = () => {
   const canMarkComplimentary = (booking: BookingWithDetails) => {
     const status = booking.status;
     return (status === 'confirmed' || status === 'pending') && !booking.is_complimentary;
+  };
+
+  // Can reactivate only voided bookings
+  const canReactivate = (booking: BookingWithDetails) => {
+    return booking.status === 'voided';
   };
 
   // Statistics
@@ -1230,6 +1264,17 @@ const BookingsPage: React.FC = () => {
                           </IconButton>
                         </Tooltip>
                       )}
+                      {canReactivate(booking) && (
+                        <Tooltip title="Reactivate Booking">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleReactivateBooking(booking)}
+                            color="success"
+                          >
+                            <RestoreIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       {booking.status === 'checked_out' && (
                         <Tooltip title="View Invoice">
                           <IconButton
@@ -1575,6 +1620,28 @@ const BookingsPage: React.FC = () => {
           <Button onClick={() => setVoidDialogOpen(false)}>Cancel</Button>
           <Button onClick={handleConfirmVoid} variant="contained" color="error" disabled={voiding}>
             {voiding ? 'Voiding...' : 'Void Booking'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reactivate Booking Dialog */}
+      <Dialog open={reactivateDialogOpen} onClose={() => setReactivateDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Reactivate Booking</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This will reactivate the voided booking and reserve the room. Make sure the room is available for the booking dates.
+          </Alert>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2"><strong>Guest:</strong> {reactivatingBooking?.guest_name}</Typography>
+            <Typography variant="body2"><strong>Room:</strong> {reactivatingBooking?.room_type} - Room {reactivatingBooking?.room_number}</Typography>
+            <Typography variant="body2"><strong>Check-in:</strong> {reactivatingBooking?.formatted_check_in || reactivatingBooking?.check_in_date}</Typography>
+            <Typography variant="body2"><strong>Check-out:</strong> {reactivatingBooking?.formatted_check_out || reactivatingBooking?.check_out_date}</Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReactivateDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleConfirmReactivate} variant="contained" color="success" disabled={reactivating}>
+            {reactivating ? 'Reactivating...' : 'Reactivate Booking'}
           </Button>
         </DialogActions>
       </Dialog>

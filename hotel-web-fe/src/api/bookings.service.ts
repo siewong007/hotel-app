@@ -502,4 +502,22 @@ export class BookingsService {
       throw new APIError('Failed to delete guest credits');
     }
   }
+
+  static async reactivateBooking(bookingId: string): Promise<Booking> {
+    try {
+      return await api
+        .post(`bookings/${bookingId}/reactivate`)
+        .json<Booking>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to reactivate booking',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to reactivate booking');
+    }
+  }
 }

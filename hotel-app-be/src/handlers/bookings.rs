@@ -2341,3 +2341,130 @@ pub async fn delete_guest_credits_handler(
         }
     })))
 }
+
+/// Reactivate a voided booking
+/// Changes status from 'voided' to 'confirmed' and reserves the room
+pub async fn reactivate_booking_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(booking_id): Path<i64>,
+) -> Result<Json<Booking>, ApiError> {
+    // Get the booking
+    let existing_row = sqlx::query(
+        "SELECT id, guest_id, room_id, status, check_in_date, check_out_date FROM bookings WHERE id = $1"
+    )
+    .bind(booking_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+
+    let guest_id: i64 = existing_row.get("guest_id");
+    let room_id: i64 = existing_row.get("room_id");
+    let status: String = existing_row.get("status");
+    let check_in: NaiveDate = existing_row.get("check_in_date");
+    let check_out: NaiveDate = existing_row.get("check_out_date");
+
+    // Only allow reactivation for voided bookings
+    if status != "voided" {
+        return Err(ApiError::BadRequest(format!(
+            "Cannot reactivate booking with status: {}. Only voided bookings can be reactivated.",
+            status
+        )));
+    }
+
+    // Check permissions
+    let has_booking_update = AuthService::check_permission(&pool, user_id, "bookings:update")
+        .await
+        .unwrap_or(false)
+        || AuthService::check_permission(&pool, user_id, "bookings:manage")
+            .await
+            .unwrap_or(false);
+
+    if !has_booking_update {
+        return Err(ApiError::Forbidden("You don't have permission to reactivate this booking".to_string()));
+    }
+
+    // Check for conflicting bookings (same logic as create_booking)
+    let conflict_query = r#"
+        SELECT EXISTS(
+            SELECT 1 FROM bookings
+            WHERE room_id = $1 
+              AND status IN ('reserved', 'confirmed', 'checked_in', 'pending') 
+              AND status != 'voided'
+              AND id != $4
+              AND ((check_in_date <= $2 AND check_out_date > $2)
+                  OR (check_in_date < $3 AND check_out_date >= $3)
+                  OR (check_in_date >= $2 AND check_out_date <= $3))
+        )
+    "#;
+
+    let conflict: bool = sqlx::query_scalar::<_, bool>(conflict_query)
+        .bind(room_id)
+        .bind(check_in)
+        .bind(check_out)
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if conflict {
+        return Err(ApiError::BadRequest(
+            "Cannot reactivate booking - room is already booked for these dates".to_string()
+        ));
+    }
+
+    // Reactivate the booking
+    let booking: Booking = sqlx::query_as(
+        r#"
+        UPDATE bookings 
+        SET status = 'confirmed', 
+            updated_at = CURRENT_TIMESTAMP,
+            remarks = COALESCE(remarks, '') || ' | Reactivated from voided status'
+        WHERE id = $1
+        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at, post_type
+        "#
+    )
+    .bind(booking_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Update room status based on check-in date
+    let today = chrono::Local::now().date_naive();
+    let room_status = if check_in == today { "occupied" } else { "reserved" };
+    
+    sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
+        .bind(room_status)
+        .bind(room_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Log the reactivation
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "booking_reactivated",
+        "booking",
+        Some(booking_id),
+        Some(serde_json::json!({"guest_id": guest_id, "room_id": room_id, "previous_status": "voided"})),
+        None,
+        None,
+    ).await;
+
+    // Record in booking_modifications audit trail
+    sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
+    )
+    .bind(booking_id)
+    .bind("reactivation")
+    .bind(serde_json::json!({"status": "voided"}))
+    .bind(serde_json::json!({"status": "confirmed"}))
+    .bind(user_id)
+    .execute(&pool)
+    .await
+    .ok();
+
+    Ok(Json(booking))
+}

@@ -543,7 +543,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   label="Check-in Date"
                   value={checkInDate}
                   onChange={setCheckInDate}
-                  minDate={new Date().toISOString().split('T')[0]}
                   required
                   margin="none"
                 />
@@ -569,7 +568,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   label="Check-out Date"
                   value={checkOutDate}
                   onChange={setCheckOutDate}
-                  minDate={checkInDate || new Date().toISOString().split('T')[0]}
                   required
                   margin="none"
                 />
