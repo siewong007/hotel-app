@@ -699,6 +699,7 @@ const RoomManagementPage: React.FC = () => {
         guest_email: guestToUse.email || '',
         guest_phone: guestToUse.phone || '',
         room_number: selectedRoom.room_number,
+        price_per_night: selectedRoom.price_per_night || 0,
         booking_number: createdBooking.folio_number || `WALKIN-${createdBooking.id}`,
         price_per_night: selectedRoom.price_per_night || 0,
       };

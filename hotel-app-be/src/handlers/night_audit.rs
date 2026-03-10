@@ -408,22 +408,23 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         }
     }
 
-    // Get deposit refunds: bookings checked out on the audit date with deposit_amount
+    // Get deposit refunds: bookings checked out on the audit date with any deposit
     // Deposit refunds happen on checkout day regardless of posted status
-    let refund_condition = "b.status = 'checked_out' AND b.check_out_date = $1 AND COALESCE(b.deposit_amount, 0) > 0";
-
-    let refund_query = format!(r#"
+    // Must check both room_card_deposit and deposit_amount (mirrors deposit collection logic)
+    let refund_query = r#"
         SELECT
             b.booking_number,
             r.room_number,
-            b.deposit_amount
+            COALESCE(b.room_card_deposit, 0) as room_card_deposit,
+            COALESCE(b.deposit_amount, 0) as deposit_amount
         FROM bookings b
         JOIN rooms r ON b.room_id = r.id
-        WHERE {}
+        WHERE b.status = 'checked_out' AND b.check_out_date = $1
+        AND (COALESCE(b.room_card_deposit, 0) > 0 OR COALESCE(b.deposit_amount, 0) > 0)
         ORDER BY r.room_number
-    "#, refund_condition);
+    "#;
 
-    if let Ok(refund_rows) = sqlx::query(&refund_query)
+    if let Ok(refund_rows) = sqlx::query(refund_query)
         .bind(audit_date)
         .fetch_all(pool)
         .await
@@ -431,15 +432,28 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         for row in refund_rows.iter() {
             let booking_number: String = row.get("booking_number");
             let room_number: String = row.get("room_number");
-            let deposit: Decimal = row.get("deposit_amount");
+            let room_card_deposit: Decimal = row.get("room_card_deposit");
+            let deposit_amount: Decimal = row.get("deposit_amount");
 
-            if deposit > Decimal::ZERO {
+            // Mirror the deposit collection logic: refund room_card_deposit first,
+            // then deposit_amount if it's different (avoids double-refunding)
+            if room_card_deposit > Decimal::ZERO {
                 entries.push(JournalEntry {
                     booking_number: booking_number.clone(),
                     room_number: room_number.clone(),
                     entry_type: "deposit_refund".to_string(),
                     debit: Decimal::ZERO,
-                    credit: deposit,
+                    credit: room_card_deposit,
+                    description: Some("Deposit Refund".to_string()),
+                });
+            }
+            if deposit_amount > Decimal::ZERO && deposit_amount != room_card_deposit {
+                entries.push(JournalEntry {
+                    booking_number: booking_number.clone(),
+                    room_number: room_number.clone(),
+                    entry_type: "deposit_refund".to_string(),
+                    debit: Decimal::ZERO,
+                    credit: deposit_amount,
                     description: Some("Deposit Refund".to_string()),
                 });
             }
