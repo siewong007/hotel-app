@@ -121,6 +121,7 @@ export class HotelAPIService {
   static addGuestCredits = BookingsService.addGuestCredits;
   static updateGuestCredits = BookingsService.updateGuestCredits;
   static deleteGuestCredits = BookingsService.deleteGuestCredits;
+  static reactivateBooking = BookingsService.reactivateBooking;
 
   // Rate operations
   static getRateCodes = RatesService.getRateCodes;

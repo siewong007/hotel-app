@@ -33,10 +33,8 @@ export const validateBookingDates = (
     errors.push('Check-out date is invalid');
   }
 
-  // Check-in cannot be in the past
-  if (checkInDate < today) {
-    errors.push('Check-in date cannot be in the past');
-  }
+  // Note: Backdated bookings are allowed for administrative purposes
+  // Previously: Check-in cannot be in the past
 
   // Check-out must be on or after check-in (same day allowed for hourly bookings)
   if (checkOutDate < checkInDate) {

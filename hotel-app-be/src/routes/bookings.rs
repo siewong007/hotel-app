@@ -32,17 +32,19 @@ pub fn routes() -> Router<DbPool> {
         // Code lookup routes
         .route("/rate-codes", get(get_rate_codes))
         .route("/market-codes", get(get_market_codes))
-        // Parameterized routes come AFTER static routes
-        .route("/bookings/:id", get(get_booking))
-        .route("/bookings/:id", patch(update_booking))
-        .route("/bookings/:id", put(update_booking))
-        .route("/bookings/:id", delete(delete_booking))
+        // Specific parameterized routes (MUST come before generic /bookings/:id routes)
+        .route("/bookings/:id/reactivate", post(reactivate_booking))
         .route("/bookings/:id/checkin", post(manual_checkin))
         .route("/bookings/:id/pre-checkin", patch(pre_checkin_update))
         .route("/bookings/:id/complimentary", post(mark_complimentary))
         .route("/bookings/:id/complimentary", patch(update_complimentary))
         .route("/bookings/:id/complimentary", delete(remove_complimentary))
         .route("/bookings/:id/convert-credits", post(convert_complimentary_to_credits))
+        // Generic parameterized routes come AFTER specific ones
+        .route("/bookings/:id", get(get_booking))
+        .route("/bookings/:id", patch(update_booking))
+        .route("/bookings/:id", put(update_booking))
+        .route("/bookings/:id", delete(delete_booking))
 }
 
 async fn get_bookings(
@@ -238,4 +240,13 @@ async fn delete_guest_credits(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "guests:manage").await?;
     handlers::bookings::delete_guest_credits_handler(State(pool), path).await
+}
+
+async fn reactivate_booking(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::Booking>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
+    handlers::bookings::reactivate_booking_handler(State(pool), Extension(user_id), path).await
 }
