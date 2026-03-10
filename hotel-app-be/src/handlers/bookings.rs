@@ -1625,7 +1625,7 @@ pub async fn book_with_credits_handler(
         SELECT NOT EXISTS(
             SELECT 1 FROM bookings
             WHERE room_id = $1
-              AND status NOT IN ('cancelled', 'checked_out', 'no_show')
+              AND status NOT IN ('cancelled', 'checked_out', 'no_show', 'voided')
               AND check_in_date < $3
               AND check_out_date > $2
         )
