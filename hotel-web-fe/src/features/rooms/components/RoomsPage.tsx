@@ -329,6 +329,13 @@ const RoomsPage: React.FC = () => {
   const enhanceRoomsWithStatus = (roomsData: Room[], bookingsData: BookingWithDetails[]): EnhancedRoom[] => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    
+    // Debug: log dirty rooms and their bookings
+    const dirtyRooms = roomsData.filter(r => r.status === 'dirty');
+    if (dirtyRooms.length > 0) {
+      console.log('Dirty rooms:', dirtyRooms.map(r => ({ id: r.id, number: r.room_number, status: r.status })));
+      console.log('Bookings for dirty rooms:', bookingsData.filter(b => dirtyRooms.some(r => String(r.id) === String(b.room_id))).map(b => ({ roomId: b.room_id, status: b.status, checkIn: b.check_in_date, guest: b.guest_name })));
+    }
 
     return roomsData.map((room) => {
       let computedStatus: RoomStatusType = 'available';
