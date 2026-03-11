@@ -1029,7 +1029,7 @@ const RoomsPage: React.FC = () => {
                             </Typography>
                           </Box>
                           {/* Upcoming reservation indicator - Blue (Reserved color) */}
-                          {room.upcomingReservation && (
+                          {room.upcomingReservation ? (
                             <Tooltip title={`Upcoming: ${room.upcomingReservation.guestName} - Check-in: ${formatDateShort(room.upcomingReservation.checkInDate)}`}>
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, px: 0.5, py: 0.25, bgcolor: 'rgba(66, 165, 245, 0.15)', borderRadius: 1 }}>
                                 <PersonIcon sx={{ fontSize: 14, color: '#42A5F5' }} />
@@ -1038,6 +1038,10 @@ const RoomsPage: React.FC = () => {
                                 </Typography>
                               </Box>
                             </Tooltip>
+                          ) : (
+                            <Typography variant="caption" sx={{ color: 'text.secondary', fontStyle: 'italic', mt: 0.5 }}>
+                              No upcoming bookings
+                            </Typography>
                           )}
                         </Box>
                       )}
