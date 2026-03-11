@@ -36,7 +36,6 @@ import { AnimatedRoute, HotelSpinner, ErrorBoundary, PageErrorBoundary, Componen
 // Lazy load page components for code splitting - using feature barrel exports
 const LandingPage = lazy(() => import('./components/layout/LandingPage'));
 const DashboardRouter = lazy(() => import('./features/dashboard/components/DashboardRouter'));
-const RoomsPage = lazy(() => import('./features/rooms/components/RoomsPage'));
 const BookingsPage = lazy(() => import('./features/bookings/components/BookingsPage'));
 const MyBookingsPage = lazy(() => import('./features/bookings/components/MyBookingsPage'));
 const ModernReportsPage = lazy(() => import('./features/reports/components/ModernReportsPage'));
@@ -887,7 +886,6 @@ const breadcrumbConfig: Record<string, { label: string; icon?: React.ReactElemen
   '/settings': { label: 'Settings', icon: <SettingsIcon sx={{ fontSize: 16 }} /> },
   '/profile': { label: 'My Profile', icon: <PersonIcon sx={{ fontSize: 16 }} /> },
   '/help': { label: 'Help & Support', icon: <HelpOutlineIcon sx={{ fontSize: 16 }} /> },
-  '/rooms': { label: 'Rooms', icon: <MeetingRoomIcon sx={{ fontSize: 16 }} /> },
 };
 
 const BreadcrumbNav = React.memo(function BreadcrumbNav() {
@@ -1201,18 +1199,6 @@ function AppContent() {
                   <AnimatedRoute animationType="fade">
                     <ComponentErrorBoundary>
                       <DashboardRouter />
-                    </ComponentErrorBoundary>
-                  </AnimatedRoute>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/rooms"
-              element={
-                <ProtectedRoute requiredPermission="rooms:read">
-                  <AnimatedRoute animationType="slide">
-                    <ComponentErrorBoundary>
-                      <RoomsPage />
                     </ComponentErrorBoundary>
                   </AnimatedRoute>
                 </ProtectedRoute>
