@@ -213,7 +213,7 @@ const ReceptionistDashboard: React.FC = () => {
 
         // First, check if room has an explicit status from the backend
         // The backend status is authoritative - trust it for all status types
-        if (room.status && ['maintenance', 'cleaning', 'reserved', 'occupied'].includes(room.status)) {
+        if (room.status && ['maintenance', 'cleaning', 'reserved', 'occupied', 'dirty'].includes(room.status)) {
           status = room.status as RoomStatus['status'];
           // If occupied, also get the guest details from current booking
           if (room.status === 'occupied' && currentOccupancy) {

@@ -17,6 +17,11 @@ export interface EnhancedRoom extends Room {
   checkInDate?: string;
   checkOutDate?: string;
   bookingId?: string;
+  upcomingReservation?: {
+    guestName: string;
+    checkInDate: string;
+    checkOutDate: string;
+  };
 }
 
 /**
@@ -56,6 +61,27 @@ export const useRoomStatus = (
         );
       });
 
+      // Find future reservation for dirty/maintenance rooms
+      const futureReservation = bookings.find((booking) => {
+        if (String(booking.room_id) !== String(room.id)) return false;
+
+        const checkIn = new Date(booking.check_in_date);
+        checkIn.setHours(0, 0, 0, 0);
+
+        return (
+          (booking.status === 'pending' || booking.status === 'confirmed') &&
+          checkIn > today
+        );
+      });
+
+      // Track upcoming reservation for dirty/maintenance rooms
+      const upcomingReservation = futureReservation ? {
+        guestName: futureReservation.guest_name,
+        checkInDate: futureReservation.check_in_date,
+        checkOutDate: futureReservation.check_out_date,
+      } : undefined;
+
+      // Priority 1: Check if guest is checked in (OCCUPIED)
       if (currentOccupancy) {
         computedStatus = 'occupied';
         currentGuest = currentOccupancy.guest_name;
@@ -63,7 +89,12 @@ export const useRoomStatus = (
         checkOutDate = currentOccupancy.check_out_date;
         bookingId = String(currentOccupancy.id);
       }
-      // Priority 2: Check for today's arrival (RESERVED)
+      // Priority 2: Check explicit room status (dirty, maintenance) - this takes precedence over reservations
+      else if (room.status && ['dirty', 'maintenance', 'out_of_order'].includes(room.status)) {
+        computedStatus = room.status as RoomStatusType;
+        // Note: upcomingReservation is already tracked above for display purposes
+      }
+      // Priority 3: Check for today's arrival (RESERVED)
       else {
         const todayArrival = bookings.find((booking) => {
           if (String(booking.room_id) !== String(room.id)) return false;
@@ -84,35 +115,17 @@ export const useRoomStatus = (
           checkOutDate = todayArrival.check_out_date;
           bookingId = String(todayArrival.id);
         }
-        // Priority 3: Check for future reservation (RESERVED)
+        // Priority 4: Check for future reservation (RESERVED)
+        else if (futureReservation) {
+          computedStatus = 'reserved';
+          currentGuest = futureReservation.guest_name;
+          checkInDate = futureReservation.check_in_date;
+          checkOutDate = futureReservation.check_out_date;
+          bookingId = String(futureReservation.id);
+        }
+        // Priority 5: Default to available
         else {
-          const futureReservation = bookings.find((booking) => {
-            if (String(booking.room_id) !== String(room.id)) return false;
-
-            const checkIn = new Date(booking.check_in_date);
-            checkIn.setHours(0, 0, 0, 0);
-
-            return (
-              (booking.status === 'pending' || booking.status === 'confirmed') &&
-              checkIn > today
-            );
-          });
-
-          if (futureReservation) {
-            computedStatus = 'reserved';
-            currentGuest = futureReservation.guest_name;
-            checkInDate = futureReservation.check_in_date;
-            checkOutDate = futureReservation.check_out_date;
-            bookingId = String(futureReservation.id);
-          }
-          // Priority 4: Use room table status for operational states
-          else if (room.status && ['dirty', 'maintenance', 'out_of_order'].includes(room.status)) {
-            computedStatus = room.status as RoomStatusType;
-          }
-          // Priority 5: Default to available
-          else {
-            computedStatus = 'available';
-          }
+          computedStatus = 'available';
         }
       }
 
@@ -123,6 +136,7 @@ export const useRoomStatus = (
         checkInDate,
         checkOutDate,
         bookingId,
+        upcomingReservation,
       };
     });
   }, [rooms, bookings]);
