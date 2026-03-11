@@ -1760,7 +1760,7 @@ const RoomManagementPage: React.FC = () => {
         );
         // Allow marking as dirty for cleaning (e.g. after checkout with upcoming reservation)
         actions.push(
-          { id: 'dirty', label: 'Mark as Dirty', icon: <CleaningIcon />, color: 'warning', onClick: handleMakeDirty }
+          { id: 'dirty-reserved', label: 'Mark as Dirty', icon: <CleaningIcon />, color: 'warning', onClick: handleMakeDirty }
         );
         // Mark as Complimentary option for reserved bookings
         if (!reservedBooking.is_complimentary) {
