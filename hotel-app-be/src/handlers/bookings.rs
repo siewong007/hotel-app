@@ -753,12 +753,17 @@ pub async fn update_booking_handler(
             "checked_out" | "completed" => {
                 // Always set room to 'dirty' on checkout - staff needs to clean before next guest
                 // The upcoming reservation will be shown on the dirty room card
+                log::info!("Setting room {} to dirty after checkout (booking {})", new_room_id, booking_id);
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let _ = sqlx::query("UPDATE rooms SET status = 'dirty' WHERE id = ?1")
+                let result = sqlx::query("UPDATE rooms SET status = 'dirty' WHERE id = ?1")
                     .bind(new_room_id).execute(&pool).await;
                 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-                let _ = sqlx::query("UPDATE rooms SET status = 'dirty' WHERE id = $1")
+                let result = sqlx::query("UPDATE rooms SET status = 'dirty' WHERE id = $1")
                     .bind(new_room_id).execute(&pool).await;
+                match result {
+                    Ok(r) => log::info!("Room {} set to dirty, rows affected: {}", new_room_id, r.rows_affected()),
+                    Err(e) => log::error!("Failed to set room {} to dirty: {}", new_room_id, e),
+                }
             }
             "checked_in" | "auto_checked_in" => {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
