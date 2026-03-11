@@ -751,23 +751,14 @@ pub async fn update_booking_handler(
                 }
             }
             "checked_out" | "completed" => {
-                // Set to 'reserved' if an upcoming booking exists for this room, else 'dirty'
+                // Always set room to 'dirty' on checkout - staff needs to clean before next guest
+                // The upcoming reservation will be shown on the dirty room card
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let has_upcoming: bool = sqlx::query_scalar::<_, i32>(
-                    "SELECT EXISTS(SELECT 1 FROM bookings WHERE room_id = ?1 AND id != ?2 AND status IN ('confirmed','pending') AND check_in_date >= date('now'))"
-                ).bind(new_room_id).bind(booking_id).fetch_one(&pool).await.map(|v| v != 0).unwrap_or(false);
+                let _ = sqlx::query("UPDATE rooms SET status = 'dirty' WHERE id = ?1")
+                    .bind(new_room_id).execute(&pool).await;
                 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-                let has_upcoming: bool = sqlx::query_scalar(
-                    "SELECT EXISTS(SELECT 1 FROM bookings WHERE room_id = $1 AND id != $2 AND status IN ('confirmed','pending') AND check_in_date >= CURRENT_DATE)"
-                ).bind(new_room_id).bind(booking_id).fetch_one(&pool).await.unwrap_or(false);
-
-                let post_checkout_status = if has_upcoming { "reserved" } else { "dirty" };
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let _ = sqlx::query("UPDATE rooms SET status = ?1 WHERE id = ?2")
-                    .bind(post_checkout_status).bind(new_room_id).execute(&pool).await;
-                #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-                let _ = sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
-                    .bind(post_checkout_status).bind(new_room_id).execute(&pool).await;
+                let _ = sqlx::query("UPDATE rooms SET status = 'dirty' WHERE id = $1")
+                    .bind(new_room_id).execute(&pool).await;
             }
             "checked_in" | "auto_checked_in" => {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]

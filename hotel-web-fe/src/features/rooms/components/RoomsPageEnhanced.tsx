@@ -425,11 +425,23 @@ const RoomsPageEnhanced: React.FC = () => {
                           </Tooltip>
                         )}
                         {room.computedStatus === 'dirty' && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <CleaningIcon sx={{ fontSize: 14, color: config.bgColor }} />
-                            <Typography variant="caption" sx={{ color: config.bgColor, fontWeight: 600 }}>
-                              {config.detailMessage}
-                            </Typography>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <CleaningIcon sx={{ fontSize: 14, color: config.bgColor }} />
+                              <Typography variant="caption" sx={{ color: config.bgColor, fontWeight: 600 }}>
+                                {config.detailMessage}
+                              </Typography>
+                            </Box>
+                            {room.upcomingReservation && (
+                              <Tooltip title={`Upcoming: ${room.upcomingReservation.guestName} - Check-in: ${formatDateShort(room.upcomingReservation.checkInDate)}`}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                                  <PersonIcon sx={{ fontSize: 14, color: 'warning.main' }} />
+                                  <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600 }}>
+                                    Reserved: {formatDateShort(room.upcomingReservation.checkInDate)}
+                                  </Typography>
+                                </Box>
+                              </Tooltip>
+                            )}
                           </Box>
                         )}
                         {room.computedStatus === 'available' && (

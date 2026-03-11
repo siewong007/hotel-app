@@ -75,6 +75,11 @@ interface EnhancedRoom extends Room {
   checkInDate?: string;
   checkOutDate?: string;
   bookingId?: string;
+  upcomingReservation?: {
+    guestName: string;
+    checkInDate: string;
+    checkOutDate: string;
+  };
 }
 
 interface GuestReview {
@@ -377,6 +382,13 @@ const RoomsPage: React.FC = () => {
         );
       });
 
+      // Track upcoming reservation for dirty/maintenance rooms
+      const upcomingReservation = futureReservation ? {
+        guestName: futureReservation.guest_name,
+        checkInDate: futureReservation.check_in_date,
+        checkOutDate: futureReservation.check_out_date,
+      } : undefined;
+
       // Priority 1: Check current occupancy (checked-in guest) - this is MOST important
       if (currentOccupancy) {
         computedStatus = 'occupied';
@@ -385,7 +397,12 @@ const RoomsPage: React.FC = () => {
         checkOutDate = currentOccupancy.check_out_date;
         bookingId = String(currentOccupancy.id);
       }
-      // Priority 2: Check today's arrival (awaiting check-in)
+      // Priority 2: Check explicit maintenance or dirty status from backend
+      // This takes precedence over reservations so staff can see dirty rooms that need cleaning
+      else if (room.status && ['maintenance', 'dirty'].includes(room.status)) {
+        computedStatus = room.status as RoomStatusType;
+      }
+      // Priority 3: Check today's arrival (awaiting check-in)
       else if (todayArrival) {
         computedStatus = 'reserved';
         currentGuest = todayArrival.guest_name;
@@ -393,18 +410,13 @@ const RoomsPage: React.FC = () => {
         checkOutDate = todayArrival.check_out_date;
         bookingId = String(todayArrival.id);
       }
-      // Priority 3: Check future reservation
+      // Priority 4: Check future reservation
       else if (futureReservation) {
         computedStatus = 'reserved';
         currentGuest = futureReservation.guest_name;
         checkInDate = futureReservation.check_in_date;
         checkOutDate = futureReservation.check_out_date;
         bookingId = String(futureReservation.id);
-      }
-      // Priority 4: Check explicit maintenance or dirty status from backend
-      // Only trust backend status if there's no active booking
-      else if (room.status && ['maintenance', 'dirty'].includes(room.status)) {
-        computedStatus = room.status as RoomStatusType;
       }
       // Priority 5: Default to available
       else {
@@ -418,6 +430,7 @@ const RoomsPage: React.FC = () => {
         checkInDate,
         checkOutDate,
         bookingId,
+        upcomingReservation,
       };
     });
   };
@@ -1007,11 +1020,23 @@ const RoomsPage: React.FC = () => {
                         </Tooltip>
                       )}
                       {room.computedStatus === 'dirty' && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                          <DirtyIcon sx={{ fontSize: 14, color: 'error.main' }} />
-                          <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 600 }}>
-                            Needs cleaning
-                          </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                            <DirtyIcon sx={{ fontSize: 14, color: 'error.main' }} />
+                            <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 600 }}>
+                              Needs cleaning
+                            </Typography>
+                          </Box>
+                          {room.upcomingReservation && (
+                            <Tooltip title={`Upcoming: ${room.upcomingReservation.guestName} - Check-in: ${formatDateShort(room.upcomingReservation.checkInDate)}`}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                                <PersonIcon sx={{ fontSize: 14, color: 'warning.main' }} />
+                                <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600 }}>
+                                  Reserved: {formatDateShort(room.upcomingReservation.checkInDate)}
+                                </Typography>
+                              </Box>
+                            </Tooltip>
+                          )}
                         </Box>
                       )}
                       {room.computedStatus === 'available' && (
