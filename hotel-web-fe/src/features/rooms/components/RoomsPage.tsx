@@ -1028,6 +1028,10 @@ const RoomsPage: React.FC = () => {
                               Needs cleaning
                             </Typography>
                           </Box>
+                          {/* Debug info */}
+                          <Typography variant="caption" sx={{ fontSize: '0.6rem', color: 'text.disabled' }}>
+                            Room: {room.room_number}, Status: {room.status}, Upcoming: {room.upcomingReservation ? 'YES' : 'NO'}
+                          </Typography>
                           {/* Upcoming reservation indicator - Blue (Reserved color) */}
                           {room.upcomingReservation ? (
                             <Tooltip title={`Upcoming: ${room.upcomingReservation.guestName} - Check-in: ${formatDateShort(room.upcomingReservation.checkInDate)}`}>
