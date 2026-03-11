@@ -426,17 +426,19 @@ const RoomsPageEnhanced: React.FC = () => {
                         )}
                         {room.computedStatus === 'dirty' && (
                           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                            {/* Dirty status - Yellow */}
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                               <CleaningIcon sx={{ fontSize: 14, color: config.bgColor }} />
                               <Typography variant="caption" sx={{ color: config.bgColor, fontWeight: 600 }}>
                                 {config.detailMessage}
                               </Typography>
                             </Box>
+                            {/* Upcoming reservation indicator - Blue (Reserved color) */}
                             {room.upcomingReservation && (
                               <Tooltip title={`Upcoming: ${room.upcomingReservation.guestName} - Check-in: ${formatDateShort(room.upcomingReservation.checkInDate)}`}>
-                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                                  <PersonIcon sx={{ fontSize: 14, color: 'warning.main' }} />
-                                  <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, px: 0.5, py: 0.25, bgcolor: 'rgba(66, 165, 245, 0.15)', borderRadius: 1 }}>
+                                  <PersonIcon sx={{ fontSize: 14, color: '#42A5F5' }} />
+                                  <Typography variant="caption" sx={{ color: '#42A5F5', fontWeight: 600 }}>
                                     Reserved: {formatDateShort(room.upcomingReservation.checkInDate)}
                                   </Typography>
                                 </Box>
