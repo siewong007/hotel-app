@@ -506,7 +506,6 @@ const NightAuditPage: React.FC = () => {
       // Build General Journal summary rows
       const journalRows: string[][] = [];
       for (const section of sections) {
-        if (section.entry_type === 'service_tax') continue; // service tax merged into room charges row... actually show separately
         const debitTotal = Number(section.total_debit);
         const creditTotal = Number(section.total_credit);
         journalRows.push([

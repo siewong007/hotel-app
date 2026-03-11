@@ -1121,18 +1121,14 @@ const RoomManagementPage: React.FC = () => {
       // Update booking status to checked_out with optional late checkout info
       await HotelAPIService.updateBooking(selectedBooking.id, updatePayload);
 
-      // After checkout: set to 'reserved' if upcoming booking exists, else 'dirty'
+      // After checkout: always set to 'dirty' - room must be cleaned before next guest
       const checkoutNotes = lateCheckoutData
         ? `Room requires cleaning after late checkout. Late checkout penalty: ${lateCheckoutData.penalty}. Notes: ${lateCheckoutData.notes || 'None'}`
         : 'Room requires cleaning after checkout';
 
-      const upcomingReservation = Array.from(reservedBookings.values()).find(
-        b => String(b.room_id) === String(selectedBooking.room_id)
-      );
       await HotelAPIService.updateRoomStatus(selectedBooking.room_id, {
-        status: upcomingReservation ? 'reserved' : 'dirty',
+        status: 'dirty',
         notes: checkoutNotes,
-        ...(upcomingReservation ? { booking_id: upcomingReservation.id } : {}),
       });
 
       // Auto-post room charges to company ledger if booking has company billing
@@ -1949,8 +1945,8 @@ const RoomManagementPage: React.FC = () => {
                 sx={{
                   px: 2,
                   py: 1,
-                  bgcolor: '#ff6f00',
-                  color: 'white',
+                  bgcolor: '#FDD835',
+                  color: '#333',
                   borderRadius: 1.5,
                   textAlign: 'center',
                   minWidth: 80,
@@ -1990,7 +1986,7 @@ const RoomManagementPage: React.FC = () => {
             { label: 'Available', color: '#66BB6A' },
             { label: 'Occupied', color: '#FFA726' },
             { label: 'Reserved', color: '#42A5F5' },
-            { label: 'Dirty', color: '#ff6f00' },
+            { label: 'Dirty', color: '#FDD835', textColor: '#333' },
             { label: 'Maintenance', color: '#757575' },
           ].map((item) => (
             <Chip
@@ -1999,7 +1995,7 @@ const RoomManagementPage: React.FC = () => {
               size="small"
               sx={{
                 bgcolor: item.color,
-                color: 'white',
+                color: ('textColor' in item) ? item.textColor : 'white',
                 fontWeight: 500,
                 fontSize: '0.7rem',
                 height: 22,
@@ -2066,7 +2062,7 @@ const RoomManagementPage: React.FC = () => {
                 elevation={2}
                 sx={{
                   bgcolor: statusColor,
-                  color: 'white',
+                  color: computedStatus === 'dirty' ? '#333' : 'white',
                   cursor: 'pointer',
                   '&:hover': {
                     boxShadow: 4,
@@ -2143,12 +2139,34 @@ const RoomManagementPage: React.FC = () => {
                     }}
                   />
 
-                  {/* Status Label */}
-                  <Typography variant="caption" display="block" sx={{ fontWeight: 600, mb: 0.5 }}>
-                    {getRoomStatusLabel(displayRoom)}
-                    {isComplimentary && ' • 🎁 FREE GIFT'}
-                    {compCancelledBooking && ' • 🔓 COMP CANCELLED'}
-                  </Typography>
+                  {/* Status Indicator */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                    <Chip
+                      label={getRoomStatusLabel(displayRoom)}
+                      size="small"
+                      icon={
+                        computedStatus === 'occupied' ? <BlockIcon sx={{ fontSize: '14px !important' }} /> :
+                        computedStatus === 'reserved' ? <BookingIcon sx={{ fontSize: '14px !important' }} /> :
+                        computedStatus === 'dirty' ? <CleaningIcon sx={{ fontSize: '14px !important' }} /> :
+                        computedStatus === 'maintenance' ? <MaintenanceIcon sx={{ fontSize: '14px !important' }} /> :
+                        <CheckCircleIcon sx={{ fontSize: '14px !important' }} />
+                      }
+                      sx={{
+                        height: 22,
+                        fontSize: '0.65rem',
+                        fontWeight: 700,
+                        bgcolor: computedStatus === 'dirty' ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.25)',
+                        color: 'inherit',
+                        '& .MuiChip-icon': { color: 'inherit' },
+                      }}
+                    />
+                    {isComplimentary && (
+                      <Chip label="FREE GIFT" size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 600, bgcolor: 'rgba(156, 39, 176, 0.8)', color: 'white' }} />
+                    )}
+                    {compCancelledBooking && (
+                      <Chip label="COMP CANCELLED" size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 600, bgcolor: 'rgba(0,0,0,0.2)', color: 'inherit' }} />
+                    )}
+                  </Box>
 
                   {/* Room Notes */}
                   {!isOccupied && !isReservedToday && (
@@ -2481,6 +2499,41 @@ const RoomManagementPage: React.FC = () => {
                         </Typography>
                       )}
                     </>
+                  )}
+
+                  {/* Upcoming Same-Day Reservation for Dirty Rooms */}
+                  {computedStatus === 'dirty' && reservedBooking && hasReservationForToday && (
+                    <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(0,0,0,0.15)' }}>
+                      <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        px: 0.5,
+                        py: 0.25,
+                        bgcolor: 'rgba(66, 165, 245, 0.2)',
+                        borderRadius: 1,
+                      }}>
+                        <CalendarIcon sx={{ fontSize: 14, color: '#1565C0' }} />
+                        <Typography variant="caption" sx={{ color: '#1565C0', fontWeight: 600, fontSize: '0.65rem' }}>
+                          Reserved: {new Date(reservedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </Typography>
+                      </Box>
+                      {reservedBooking.guest_name && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                          <PersonIcon sx={{ fontSize: 12, color: '#1565C0' }} />
+                          <Typography variant="caption" sx={{
+                            color: '#1565C0',
+                            fontWeight: 500,
+                            fontSize: '0.6rem',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {reservedBooking.guest_name}
+                          </Typography>
+                        </Box>
+                      )}
+                    </Box>
                   )}
 
                   {/* Quick Action Button for Available Rooms */}
