@@ -104,7 +104,7 @@ export class BookingsService {
   static async checkInGuest(bookingId: string, checkinData?: CheckInRequest): Promise<Booking> {
     try {
       return await api
-        .post(`bookings/${bookingId}/checkin`, { json: checkinData || null })
+        .post(`bookings/${bookingId}/checkin`, { json: checkinData || {} })
         .json<Booking>();
     } catch (error) {
       if (error instanceof HTTPError) {
