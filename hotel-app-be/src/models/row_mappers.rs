@@ -136,6 +136,7 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
         rate_override_weekday: get_opt_decimal(row, "rate_override_weekday"),
         rate_override_weekend: get_opt_decimal(row, "rate_override_weekend"),
         actual_check_out: row.try_get("actual_check_out").ok(),
+        daily_rates: row.try_get("daily_rates").ok().flatten(),
     }
 }
 
@@ -187,6 +188,7 @@ pub fn row_to_booking(row: &DbRow) -> Booking {
         company_id: row.try_get("company_id").ok(),
         company_name: row.try_get("company_name").ok(),
         payment_note: row.try_get("payment_note").ok(),
+        daily_rates: row.try_get("daily_rates").ok().flatten(),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
         updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
     }

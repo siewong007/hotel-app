@@ -218,9 +218,22 @@ pub async fn create_booking_handler(
     // The configured room price is tax-inclusive (final price)
     // Store total_amount as the configured price × nights without adding additional tax
     // For hourly bookings (same-day), charge 1 night at the standard rate
-    let subtotal = room_rate * Decimal::from(billable_nights);
+    // If daily_rates provided, sum them for subtotal; otherwise use room_rate * nights
+    let subtotal = if let Some(ref daily_rates) = input.daily_rates {
+        if let Some(obj) = daily_rates.as_object() {
+            let sum: f64 = obj.values()
+                .filter_map(|v| v.as_f64())
+                .sum();
+            Decimal::from_f64_retain(sum).unwrap_or(room_rate * Decimal::from(billable_nights))
+        } else {
+            room_rate * Decimal::from(billable_nights)
+        }
+    } else {
+        room_rate * Decimal::from(billable_nights)
+    };
     let tax_amount = Decimal::ZERO; // Tax is calculated on frontend using hotel settings rate
     let total_amount = subtotal; // Configured price is the final price
+    let daily_rates_json = input.daily_rates.clone();
 
     // Use provided booking_number for online bookings, or auto-generate for walk-ins
     let booking_number = match &input.booking_number {
@@ -252,9 +265,9 @@ pub async fn create_booking_handler(
             INSERT INTO bookings (
                 booking_number, guest_id, room_id, check_in_date, check_out_date,
                 room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
-                deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests, post_type
+                deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests, post_type, daily_rates
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'confirmed', ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16, CASE WHEN ?15 THEN datetime('now') ELSE NULL END, ?17, ?17, ?18, ?19)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'confirmed', ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16, CASE WHEN ?15 THEN datetime('now') ELSE NULL END, ?17, ?17, ?18, ?19, ?20)
             "#
         )
         .bind(&booking_number)
@@ -276,6 +289,7 @@ pub async fn create_booking_handler(
         .bind(rate_override_value)
         .bind(input.special_requests.as_deref())
         .bind(if is_hourly { Some("hourly") } else { None::<&str> })
+        .bind(daily_rates_json.as_ref().map(|v| v.to_string()))
         .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -303,11 +317,11 @@ pub async fn create_booking_handler(
                 booking_number, guest_id, room_id, check_in_date, check_out_date,
                 room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
                 deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests,
-                is_tourist, tourism_tax_amount, extra_bed_count, extra_bed_charge, post_type
+                is_tourist, tourism_tax_amount, extra_bed_count, extra_bed_charge, post_type, daily_rates
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, $12, $13, 1, $14, $15, $16, CASE WHEN $15 THEN CURRENT_TIMESTAMP ELSE NULL END, $17, $17, $18,
-                $19, $20, $21, $22, $23)
-            RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at, post_type
+                $19, $20, $21, $22, $23, $24)
+            RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type
             "#
         )
         .bind(&booking_number)
@@ -333,6 +347,7 @@ pub async fn create_booking_handler(
         .bind(input.extra_bed_count)
         .bind(input.extra_bed_charge.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
         .bind(if is_hourly { Some("hourly") } else { None::<&str> })
+        .bind(&daily_rates_json)
         .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
@@ -436,7 +451,7 @@ pub async fn update_booking_handler(
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let get_booking_query = "SELECT * FROM bookings WHERE id = ?1";
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let get_booking_query = "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at FROM bookings WHERE id = $1";
+    let get_booking_query = "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at FROM bookings WHERE id = $1";
 
     let existing_row = sqlx::query(get_booking_query)
         .bind(booking_id)
@@ -520,8 +535,23 @@ pub async fn update_booking_handler(
     let deposit_paid = input.deposit_paid;
     let deposit_amount_f64 = input.deposit_amount;
 
-    // Handle room rate override or date change - recalculate totals
-    let (new_room_rate, new_subtotal, new_total_amount) = if let Some(rate_override) = input.room_rate_override {
+    // Handle daily_rates, room rate override, or date change - recalculate totals
+    let daily_rates_json = input.daily_rates.clone();
+    let (new_room_rate, new_subtotal, new_total_amount) = if let Some(ref dr) = input.daily_rates {
+        // Daily rates provided - sum them for subtotal
+        if let Some(obj) = dr.as_object() {
+            let sum: f64 = obj.values().filter_map(|v| v.as_f64()).sum();
+            let subtotal = Decimal::from_f64_retain(sum).unwrap_or(Decimal::ZERO);
+            let room_rate = if let Some(rate_override) = input.room_rate_override {
+                Decimal::from_f64_retain(rate_override).unwrap_or(existing_booking.room_rate)
+            } else {
+                existing_booking.room_rate
+            };
+            (Some(room_rate), Some(subtotal), Some(subtotal))
+        } else {
+            (None, None, None)
+        }
+    } else if let Some(rate_override) = input.room_rate_override {
         let nights = std::cmp::max((check_out - check_in).num_days() as i32, 1);
         let room_rate = Decimal::from_f64_retain(rate_override).unwrap_or(existing_booking.room_rate);
         let subtotal = room_rate * Decimal::from(nights);
@@ -565,6 +595,7 @@ pub async fn update_booking_handler(
                 tourism_tax_amount = COALESCE(?22, tourism_tax_amount),
                 extra_bed_count = COALESCE(?23, extra_bed_count),
                 extra_bed_charge = COALESCE(?24, extra_bed_charge),
+                daily_rates = COALESCE(?25, daily_rates),
                 actual_check_out = CASE WHEN ?2 = 'checked_out' AND actual_check_out IS NULL THEN datetime('now') ELSE actual_check_out END,
                 updated_at = datetime('now')
             WHERE id = ?7"#
@@ -593,6 +624,7 @@ pub async fn update_booking_handler(
         .bind(input.tourism_tax_amount)
         .bind(input.extra_bed_count)
         .bind(input.extra_bed_charge)
+        .bind(daily_rates_json.as_ref().map(|v| v.to_string()))
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -634,10 +666,11 @@ pub async fn update_booking_handler(
                 tourism_tax_amount = COALESCE($22, tourism_tax_amount),
                 extra_bed_count = COALESCE($23, extra_bed_count),
                 extra_bed_charge = COALESCE($24, extra_bed_charge),
+                daily_rates = COALESCE($25, daily_rates),
                 actual_check_out = CASE WHEN $2 = 'checked_out' AND actual_check_out IS NULL THEN CURRENT_TIMESTAMP ELSE actual_check_out END,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $7
-            RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at, post_type"#
+            RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type"#
         )
         .bind(&new_room_id)
         .bind(&new_status)
@@ -663,6 +696,7 @@ pub async fn update_booking_handler(
         .bind(input.tourism_tax_amount.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
         .bind(input.extra_bed_count)
         .bind(input.extra_bed_charge.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
+        .bind(&daily_rates_json)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
@@ -1089,7 +1123,7 @@ pub async fn manual_checkin_handler(
     let updated_booking: Booking = sqlx::query_as(
         r#"
         UPDATE bookings SET status = 'checked_in', actual_check_in = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1
-        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at
+        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at
         "#
     )
     .bind(booking_id)
@@ -2418,7 +2452,7 @@ pub async fn reactivate_booking_handler(
             updated_at = CURRENT_TIMESTAMP,
             remarks = COALESCE(remarks, '') || ' | Reactivated from voided status'
         WHERE id = $1
-        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, created_at, updated_at, post_type
+        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type
         "#
     )
     .bind(booking_id)

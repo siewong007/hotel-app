@@ -621,7 +621,7 @@ const CustomerLedgerPage: React.FC = () => {
   };
 
   // Handle confirming checkout
-  const handleConfirmCompanyCheckout = async (lateCheckoutData?: { penalty: number; notes: string }, checkoutPaymentMethod?: string) => {
+  const handleConfirmCompanyCheckout = async (_lateCheckoutData?: { penalty: number; notes: string }, checkoutPaymentMethod?: string) => {
     if (!checkoutBooking) return;
 
     try {
@@ -633,19 +633,11 @@ const CustomerLedgerPage: React.FC = () => {
         updatePayload.payment_method = checkoutPaymentMethod;
       }
 
-      // Add late checkout data if provided
-      if (lateCheckoutData) {
-        updatePayload.late_checkout_penalty = lateCheckoutData.penalty;
-        updatePayload.late_checkout_notes = lateCheckoutData.notes;
-      }
-
       // Update booking status to checked_out
       await HotelAPIService.updateBooking(checkoutBooking.id, updatePayload);
 
       // Mark room as dirty
-      const dirtyNotes = lateCheckoutData
-        ? `Room requires cleaning after late checkout. Late checkout penalty: ${lateCheckoutData.penalty}. Notes: ${lateCheckoutData.notes || 'None'}`
-        : 'Room requires cleaning after checkout';
+      const dirtyNotes = 'Room requires cleaning after checkout';
 
       await HotelAPIService.updateRoomStatus(checkoutBooking.room_id, {
         status: 'dirty',
@@ -658,30 +650,23 @@ const CustomerLedgerPage: React.FC = () => {
           const roomAmount = typeof checkoutBooking.total_amount === 'string'
             ? parseFloat(checkoutBooking.total_amount)
             : (checkoutBooking.total_amount || 0);
-          const lateCheckoutPenalty = lateCheckoutData?.penalty || 0;
-          const totalAmount = roomAmount + lateCheckoutPenalty;
-
           const checkIn = new Date(checkoutBooking.check_in_date);
           const checkOut = new Date(checkoutBooking.check_out_date);
           const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
 
           let description = `Room ${checkoutBooking.room_number} - ${checkoutBooking.guest_name}`;
           description += ` (${nights} night${nights > 1 ? 's' : ''}: ${checkoutBooking.check_in_date} to ${checkoutBooking.check_out_date})`;
-          if (lateCheckoutPenalty > 0) {
-            description += ` + Late checkout penalty`;
-          }
 
           await HotelAPIService.createCustomerLedger({
             company_name: checkoutBooking.company_name,
             description: description,
             expense_type: 'accommodation',
-            amount: totalAmount,
+            amount: roomAmount,
             booking_id: parseInt(checkoutBooking.id),
             room_number: checkoutBooking.room_number,
             posting_date: new Date().toISOString().split('T')[0],
             transaction_date: new Date().toISOString().split('T')[0],
             post_type: 'room_charge',
-            notes: lateCheckoutData?.notes ? `Late checkout: ${lateCheckoutData.notes}` : undefined,
           });
         } catch (ledgerError) {
           console.error('Failed to post room charges to company ledger:', ledgerError);

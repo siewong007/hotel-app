@@ -20,11 +20,11 @@ SELECT lp.id, 'Bronze', 0, 999, 1.0, '{"benefits": ["Earn 10 points per dollar",
 FROM loyalty_programs lp WHERE lp.name = 'Grand Hotel Rewards';
 
 INSERT INTO loyalty_tiers (program_id, name, min_points, max_points, points_multiplier, benefits, color)
-SELECT lp.id, 'Silver', 1000, 4999, 1.5, '{"benefits": ["Earn 15 points per dollar", "Late checkout", "Room upgrade (subject to availability)"]}', '#C0C0C0'
+SELECT lp.id, 'Silver', 1000, 4999, 1.5, '{"benefits": ["Earn 15 points per dollar", "Room upgrade (subject to availability)"]}', '#C0C0C0'
 FROM loyalty_programs lp WHERE lp.name = 'Grand Hotel Rewards';
 
 INSERT INTO loyalty_tiers (program_id, name, min_points, max_points, points_multiplier, benefits, color)
-SELECT lp.id, 'Gold', 5000, 14999, 2.0, '{"benefits": ["Earn 20 points per dollar", "Guaranteed late checkout", "Complimentary breakfast", "Room upgrade"]}', '#FFD700'
+SELECT lp.id, 'Gold', 5000, 14999, 2.0, '{"benefits": ["Earn 20 points per dollar", "Complimentary breakfast", "Room upgrade"]}', '#FFD700'
 FROM loyalty_programs lp WHERE lp.name = 'Grand Hotel Rewards';
 
 INSERT INTO loyalty_tiers (program_id, name, min_points, max_points, points_multiplier, benefits, color)

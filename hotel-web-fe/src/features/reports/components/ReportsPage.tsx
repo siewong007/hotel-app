@@ -103,8 +103,7 @@ const ReportsPage: React.FC = () => {
       'Payment Status',
       'Room Amount',
       'Deposit Amount',
-      'Late Checkout Penalty',
-      'Late Checkout Notes',
+
       'Rate'
     ];
 
@@ -116,10 +115,6 @@ const ReportsPage: React.FC = () => {
       const depositAmount = typeof booking.deposit_amount === 'string'
         ? parseFloat(booking.deposit_amount)
         : (booking.deposit_amount || 0);
-      const lateCheckoutPenalty = typeof booking.late_checkout_penalty === 'string'
-        ? parseFloat(booking.late_checkout_penalty)
-        : (booking.late_checkout_penalty || 0);
-
       return [
         booking.created_at ? new Date(booking.created_at).toLocaleDateString() : '',
         booking.room_number,
@@ -133,8 +128,6 @@ const ReportsPage: React.FC = () => {
         booking.payment_status || 'unpaid',
         totalAmount.toFixed(2),
         depositAmount.toFixed(2),
-        lateCheckoutPenalty.toFixed(2),
-        booking.late_checkout_notes || '',
         booking.rate_code || 'RACK'
       ];
     });
@@ -348,7 +341,7 @@ const ReportsPage: React.FC = () => {
                 <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }}>Check-Out</TableCell>
                 <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }} align="right">Amount</TableCell>
                 <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }} align="right">Deposit</TableCell>
-                <TableCell sx={{ backgroundColor: '#f5f5f5', fontWeight: 600 }} align="right">Late Penalty</TableCell>
+
               </TableRow>
             </TableHead>
             <TableBody>
@@ -359,13 +352,9 @@ const ReportsPage: React.FC = () => {
                 const depositAmount = typeof booking.deposit_amount === 'string'
                   ? parseFloat(booking.deposit_amount)
                   : (booking.deposit_amount || 0);
-                const lateCheckoutPenalty = typeof booking.late_checkout_penalty === 'string'
-                  ? parseFloat(booking.late_checkout_penalty)
-                  : (booking.late_checkout_penalty || 0);
-                const hasLateCheckout = lateCheckoutPenalty > 0;
 
                 return (
-                  <TableRow key={booking.id} hover sx={hasLateCheckout ? { bgcolor: 'warning.50' } : {}}>
+                  <TableRow key={booking.id} hover>
                     <TableCell>{booking.created_at ? formatDate(booking.created_at) : '-'}</TableCell>
                     <TableCell>
                       <Typography variant="body2" fontWeight={500}>
@@ -411,18 +400,6 @@ const ReportsPage: React.FC = () => {
                         <Typography variant="body2" color="success.main">
                           {formatCurrency(depositAmount)}
                         </Typography>
-                      ) : '-'}
-                    </TableCell>
-                    <TableCell align="right">
-                      {hasLateCheckout ? (
-                        <Tooltip title={booking.late_checkout_notes || 'No notes'} arrow>
-                          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5 }}>
-                            <LateIcon sx={{ fontSize: 16, color: 'warning.main' }} />
-                            <Typography variant="body2" color="warning.main" fontWeight={600}>
-                              {formatCurrency(lateCheckoutPenalty)}
-                            </Typography>
-                          </Box>
-                        </Tooltip>
                       ) : '-'}
                     </TableCell>
                   </TableRow>

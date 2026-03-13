@@ -440,19 +440,7 @@ const Dashboard: React.FC = () => {
                   </Box>
                 </Card>
 
-                <Card variant="outlined" sx={{ p: 2, borderLeft: '4px solid', borderColor: 'warning.main' }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="start">
-                    <Box>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'warning.main' }}>
-                        Late Checkout
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                        Checkout up to 2pm
-                      </Typography>
-                    </Box>
-                    <Chip label="100 pts" size="small" sx={{ bgcolor: 'warning.light', color: 'warning.dark' }} />
-                  </Box>
-                </Card>
+
               </Box>
             </CardContent>
           </Card>

@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     extra_bed_count INTEGER DEFAULT 0,
     extra_bed_charge DECIMAL(10,2) DEFAULT 0,
     room_card_deposit DECIMAL(10,2) DEFAULT 0,
-    late_checkout_penalty DECIMAL(10,2) DEFAULT 0,
+
     is_complimentary BOOLEAN DEFAULT false,
     complimentary_reason TEXT,
     complimentary_start_date DATE,
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     actual_check_in TIMESTAMP WITH TIME ZONE,
     actual_check_out TIMESTAMP WITH TIME ZONE,
     early_check_in BOOLEAN DEFAULT false,
-    late_check_out BOOLEAN DEFAULT false,
+
 
     -- Pre-check-in (guest portal)
     pre_checkin_completed BOOLEAN DEFAULT FALSE,

@@ -1425,6 +1425,22 @@ const BookingsPage: React.FC = () => {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
+                select
+                fullWidth
+                label="Payment Status"
+                value={editFormData.payment_status || 'unpaid'}
+                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, payment_status: e.target.value }))}
+              >
+                <MenuItem value="unpaid">Unpaid</MenuItem>
+                <MenuItem value="paid">Paid</MenuItem>
+                <MenuItem value="partial">Partial</MenuItem>
+                <MenuItem value="unpaid_deposit">Unpaid (Deposit)</MenuItem>
+                <MenuItem value="paid_rate">Paid (Rate Only)</MenuItem>
+                <MenuItem value="refunded">Refunded</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
                 fullWidth
                 label="Room Rate (Before Tax)"
                 type="number"

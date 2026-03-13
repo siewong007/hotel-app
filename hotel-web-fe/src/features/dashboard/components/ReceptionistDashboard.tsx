@@ -36,7 +36,7 @@ import {
   Block as OccupiedIcon,
   EventAvailable as AvailableIcon,
   Warning as WarningIcon,
-  Schedule as LateIcon,
+
   CalendarToday as CalendarIcon,
   Refresh as RefreshIcon,
   Payment as PaymentIcon,
@@ -72,18 +72,9 @@ interface RoomStatus {
   status_notes?: string;
 }
 
-interface LateCheckout {
-  room_number: string;
-  guest_name: string;
-  scheduled_checkout: string;
-  current_time: string;
-  hours_late: number;
-}
-
 interface TodayActivity {
   check_ins: number;
   check_outs: number;
-  late_checkouts: number;
   arrivals: Array<{
     room_number: string;
     guest_name: string;
@@ -102,11 +93,9 @@ const ReceptionistDashboard: React.FC = () => {
   const hasLoadedRef = useRef(false);
 
   const [rooms, setRooms] = useState<RoomStatus[]>([]);
-  const [lateCheckouts, setLateCheckouts] = useState<LateCheckout[]>([]);
   const [todayActivity, setTodayActivity] = useState<TodayActivity>({
     check_ins: 0,
     check_outs: 0,
-    late_checkouts: 0,
     arrivals: [],
     departures: [],
   });
@@ -291,33 +280,10 @@ const ReceptionistDashboard: React.FC = () => {
         return checkOut.getTime() === today.getTime() && booking.status !== 'cancelled';
       });
 
-      // Detect late checkouts (checkout date was yesterday or earlier but still occupied)
-      const late = processedRooms
-        .filter(room => {
-          if (room.status !== 'occupied' || !room.check_out_date) return false;
-          const checkOut = new Date(room.check_out_date);
-          checkOut.setHours(0, 0, 0, 0);
-          return checkOut < today;
-        })
-        .map(room => {
-          const checkOut = new Date(room.check_out_date!);
-          const hoursLate = Math.floor((today.getTime() - checkOut.getTime()) / (1000 * 60 * 60));
-
-          return {
-            room_number: room.room_number,
-            guest_name: room.current_guest || 'Unknown',
-            scheduled_checkout: room.check_out_date!,
-            current_time: new Date().toISOString(),
-            hours_late: hoursLate,
-          };
-        });
-
       setRooms(processedRooms);
-      setLateCheckouts(late);
       setTodayActivity({
         check_ins: todayCheckIns.length,
         check_outs: todayCheckOuts.length,
-        late_checkouts: late.length,
         arrivals: todayCheckIns.slice(0, 5).map((b: BookingWithDetails) => ({
           room_number: processedRooms.find(r => String(r.id) === String(b.room_id))?.room_number || 'N/A',
           guest_name: b.guest_name,
@@ -518,20 +484,6 @@ const ReceptionistDashboard: React.FC = () => {
         </IconButton>
       </Box>
 
-      {/* Late Checkout Alerts */}
-      {lateCheckouts.length > 0 && (
-        <Alert severity="error" sx={{ mb: 3 }} icon={<LateIcon />}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-            ⚠️ Late Checkout Alert - {lateCheckouts.length} Room(s)
-          </Typography>
-          {lateCheckouts.map((late, index) => (
-            <Typography key={index} variant="body2">
-              • Room {late.room_number} - {late.guest_name} - {late.hours_late} hours overdue
-            </Typography>
-          ))}
-        </Alert>
-      )}
-
       {/* Summary Stats */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid item xs={12} sm={6} md={3}>
@@ -681,15 +633,6 @@ const ReceptionistDashboard: React.FC = () => {
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                 <Box>
                   <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                    Late Checkouts
-                  </Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: 'error.main' }}>
-                    {todayActivity.late_checkouts}
-                  </Typography>
-                </Box>
-                <Divider />
-                <Box>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                     Maintenance Rooms
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 600, color: 'warning.main' }}>
@@ -817,16 +760,6 @@ const ReceptionistDashboard: React.FC = () => {
                       position: 'relative',
                     }}
                   >
-                    {/* Late checkout badge */}
-                    {room.status === 'occupied' && room.check_out_date &&
-                     new Date(room.check_out_date) < new Date(new Date().setHours(0, 0, 0, 0)) && (
-                      <Badge
-                        badgeContent={<LateIcon sx={{ fontSize: 12 }} />}
-                        color="error"
-                        sx={{ position: 'absolute', top: 8, right: 8 }}
-                      />
-                    )}
-
                     <Box
                       sx={{
                         mb: 1,

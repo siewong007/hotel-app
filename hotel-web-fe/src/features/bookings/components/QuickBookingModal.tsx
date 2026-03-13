@@ -83,11 +83,11 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   const [tourismTax, setTourismTax] = useState(0);
   const [extraBedCount, setExtraBedCount] = useState(0);
   const [extraBedCharge, setExtraBedCharge] = useState(0);
-  const [lateCheckoutPenalty, setLateCheckoutPenalty] = useState(0);
 
   // Custom rate override state
   const [useCustomRate, setUseCustomRate] = useState(false);
   const [customRate, setCustomRate] = useState<number>(0);
+  const [dailyRates, setDailyRates] = useState<Record<string, number>>({});
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -132,6 +132,16 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
       resetForm();
     }
   }, [open, defaultCheckInTime, defaultCheckOutTime, guestMode, user]);
+
+  // Reinitialize daily rates when dates change while custom rate is active
+  useEffect(() => {
+    if (useCustomRate && checkInDate && checkOutDate && room) {
+      const price = typeof room.price_per_night === 'string'
+        ? parseFloat(room.price_per_night)
+        : room.price_per_night;
+      initializeDailyRates(customRate || price);
+    }
+  }, [checkInDate, checkOutDate]);
 
   // Auto-calculate tourism tax when tourist status or dates change
   useEffect(() => {
@@ -194,9 +204,10 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     setTourismTax(0);
     setExtraBedCount(0);
     setExtraBedCharge(0);
-    setLateCheckoutPenalty(0);
+
     setUseCustomRate(false);
     setCustomRate(0);
+    setDailyRates({});
     setRoomTypeConfig(null);
     setError(null);
   };
@@ -313,12 +324,13 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
         tourism_tax_amount: tourismTax,
         extra_bed_count: extraBedCount,
         extra_bed_charge: extraBedCharge,
-        late_checkout_penalty: lateCheckoutPenalty,
+
         payment_status: 'unpaid',
         amount_paid: 0,
         deposit_paid: false,
         deposit_amount: 0,
         room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
+        daily_rates: useCustomRate && Object.keys(dailyRates).length > 0 ? dailyRates : undefined,
       });
 
       // Note: Booking is created with status 'confirmed' which shows room as 'reserved'
@@ -340,9 +352,36 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     return Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
   };
 
+  // Generate array of date strings between check-in and check-out
+  const getStayDates = (): string[] => {
+    if (!checkInDate || !checkOutDate) return [];
+    const dates: string[] = [];
+    const start = new Date(checkInDate);
+    const end = new Date(checkOutDate);
+    const current = new Date(start);
+    while (current < end) {
+      dates.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+    return dates;
+  };
+
+  // Initialize daily rates when custom rate is toggled on or dates change
+  const initializeDailyRates = (baseRate: number) => {
+    const dates = getStayDates();
+    const newRates: Record<string, number> = {};
+    dates.forEach(date => {
+      newRates[date] = dailyRates[date] ?? baseRate;
+    });
+    setDailyRates(newRates);
+  };
+
   const calculateRoomTotal = () => {
     if (!room) return 0;
     const nights = calculateNights();
+    if (useCustomRate && Object.keys(dailyRates).length > 0) {
+      return Object.values(dailyRates).reduce((sum, rate) => sum + rate, 0);
+    }
     if (useCustomRate && customRate > 0) {
       return customRate * nights;
     }
@@ -354,7 +393,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
 
   const calculateTotal = () => {
     const roomTotal = calculateRoomTotal();
-    return roomTotal + tourismTax + extraBedCharge + lateCheckoutPenalty;
+    return roomTotal + tourismTax + extraBedCharge;
   };
 
   return (
@@ -588,7 +627,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   })}`}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12}>
                 <FormControlLabel
                   control={
                     <Checkbox
@@ -600,6 +639,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                             ? parseFloat(room.price_per_night)
                             : room.price_per_night;
                           setCustomRate(price);
+                          initializeDailyRates(price);
+                        } else {
+                          setDailyRates({});
                         }
                       }}
                       color="primary"
@@ -608,26 +650,52 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   label={
                     <Box>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        Use Custom Rate
+                        Custom Daily Rates
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        Override the default room rate
+                        Override the rate for each day of the stay
                       </Typography>
                     </Box>
                   }
                 />
               </Grid>
-              {useCustomRate && (
-                <Grid item xs={12} sm={6}>
-                  <TextField
-                    fullWidth
-                    label="Custom Rate per Night"
-                    type="number"
-                    value={customRate}
-                    onChange={(e) => setCustomRate(parseFloat(e.target.value) || 0)}
-                    InputProps={{ startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography> }}
-                    helperText={`Original rate: ${formatCurrency(typeof room?.price_per_night === 'string' ? parseFloat(room.price_per_night) : room?.price_per_night || 0)}/night`}
-                  />
+              {useCustomRate && getStayDates().length > 0 && (
+                <Grid item xs={12}>
+                  <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+                    <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                        Rate per Day
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Default: {formatCurrency(typeof room?.price_per_night === 'string' ? parseFloat(room.price_per_night) : room?.price_per_night || 0)}/night
+                      </Typography>
+                    </Box>
+                    <Grid container spacing={1}>
+                      {getStayDates().map((date) => {
+                        const dayName = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
+                        const displayDate = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                        return (
+                          <Grid item xs={6} sm={4} md={3} key={date}>
+                            <TextField
+                              fullWidth
+                              size="small"
+                              label={`${dayName}, ${displayDate}`}
+                              type="number"
+                              value={dailyRates[date] ?? customRate}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setDailyRates(prev => ({ ...prev, [date]: val }));
+                              }}
+                              InputProps={{
+                                startAdornment: <Typography sx={{ mr: 0.5, fontSize: '0.8rem' }}>{currencySymbol}</Typography>,
+                              }}
+                              inputProps={{ min: 0, step: 0.01 }}
+                            />
+                          </Grid>
+                        );
+                      })}
+                    </Grid>
+                  </Paper>
                 </Grid>
               )}
               <Grid item xs={12}>
@@ -717,17 +785,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   </Grid>
                 </>
               )}
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Late Checkout Penalty (If applicable)"
-                  type="number"
-                  value={lateCheckoutPenalty}
-                  onChange={(e) => setLateCheckoutPenalty(parseFloat(e.target.value) || 0)}
-                  InputProps={{ startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography> }}
-                  helperText="Applied if guest checks out after the designated time"
-                />
-              </Grid>
             </Grid>
           </Box>
 
@@ -766,9 +823,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 <Grid item xs={6}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {formatCurrency(calculateRoomTotal())}
-                    {useCustomRate && (
+                    {useCustomRate && Object.keys(dailyRates).length > 0 && (
                       <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                        ({formatCurrency(useCustomRate ? customRate : 0)}/night)
+                        (per-day rates)
                       </Typography>
                     )}
                   </Typography>
@@ -797,20 +854,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                     <Grid item xs={6}>
                       <Typography variant="body2">
                         {formatCurrency(extraBedCharge)}
-                      </Typography>
-                    </Grid>
-                  </>
-                )}
-                {lateCheckoutPenalty > 0 && (
-                  <>
-                    <Grid item xs={6}>
-                      <Typography variant="body2" color="text.secondary">
-                        Late Checkout Penalty:
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2">
-                        {formatCurrency(lateCheckoutPenalty)}
                       </Typography>
                     </Grid>
                   </>

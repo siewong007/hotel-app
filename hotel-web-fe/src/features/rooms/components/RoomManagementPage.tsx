@@ -1692,35 +1692,8 @@ const RoomManagementPage: React.FC = () => {
   const getMenuActions = (room: Room | null): RoomAction[] => {
     if (!room) return [];
 
-    const booking = roomBookings.get(room.id);
-    const reservedBooking = reservedBookings.get(room.id);
-
-    // Compute dynamic status - same logic as in the render
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const hasCheckedInBooking = booking?.status === 'checked_in' || booking?.status === 'auto_checked_in';
-    const hasReservationForToday = reservedBooking && (() => {
-      const checkInDate = new Date(reservedBooking.check_in_date);
-      checkInDate.setHours(0, 0, 0, 0);
-      return checkInDate <= today;
-    })();
-
-    const computedStatus = hasCheckedInBooking
-      ? 'occupied'
-      : ['maintenance', 'dirty'].includes(room.status || '')
-        ? room.status
-        : hasReservationForToday
-          ? 'reserved'
-          : 'available';
-
-    const isOccupied = computedStatus === 'occupied';
-    const isReserved = computedStatus === 'reserved';
+    const { computedStatus, booking, reservedBooking, hasFutureReservation, isOccupied, isReserved, isComplimentary } = getRoomStatusInfo(room);
     const isMaintenance = computedStatus === 'maintenance';
-    // Check for future reservation (not today)
-    const hasFutureReservation = reservedBooking && !hasReservationForToday;
-    // Only consider complimentary if explicitly true
-    const isComplimentary = (isOccupied && booking?.is_complimentary === true) ||
-                             (isReserved && reservedBooking?.is_complimentary === true);
     const actions: RoomAction[] = [];
 
     // View Upcoming Bookings button - available for ALL non-maintenance rooms
@@ -1833,8 +1806,8 @@ const RoomManagementPage: React.FC = () => {
     );
   }
 
-  // Calculate stats using the same computedStatus logic as the room cards
-  const getComputedStatus = (room: Room): string => {
+  // Single source of truth for computing room status from bookings
+  const getRoomStatusInfo = (room: Room) => {
     const booking = roomBookings.get(room.id);
     const reservedBooking = reservedBookings.get(room.id);
     const today = new Date();
@@ -1844,23 +1817,46 @@ const RoomManagementPage: React.FC = () => {
     const hasReservationForToday = reservedBooking && (() => {
       const checkInDate = new Date(reservedBooking.check_in_date);
       checkInDate.setHours(0, 0, 0, 0);
-      return checkInDate <= today;
+      const isConfirmed = reservedBooking.status === 'confirmed' || reservedBooking.status === 'pending';
+      return isConfirmed && checkInDate <= today;
     })();
+    const hasFutureReservation = reservedBooking && !hasReservationForToday;
+    const futureCheckInDate = hasFutureReservation ? new Date(reservedBooking.check_in_date) : null;
 
-    return hasCheckedInBooking
+    const computedStatus = hasCheckedInBooking
       ? 'occupied'
       : ['maintenance', 'dirty'].includes(room.status || '')
         ? room.status!
         : hasReservationForToday
           ? 'reserved'
           : 'available';
+
+    const isOccupied = computedStatus === 'occupied';
+    const isReserved = computedStatus === 'reserved';
+    const isReservedToday = isReserved && !!hasReservationForToday;
+    const isComplimentary = (isOccupied && booking?.is_complimentary === true) ||
+                             (isReserved && reservedBooking?.is_complimentary === true);
+
+    return {
+      computedStatus,
+      booking,
+      reservedBooking,
+      hasCheckedInBooking,
+      hasReservationForToday,
+      hasFutureReservation,
+      futureCheckInDate,
+      isOccupied,
+      isReserved,
+      isReservedToday,
+      isComplimentary,
+    };
   };
 
-  const availableCount = rooms.filter(r => getComputedStatus(r) === 'available').length;
-  const occupiedCount = rooms.filter(r => getComputedStatus(r) === 'occupied').length;
-  const reservedCount = rooms.filter(r => getComputedStatus(r) === 'reserved').length;
-  const dirtyCount = rooms.filter(r => getComputedStatus(r) === 'dirty').length;
-  const maintenanceCount = rooms.filter(r => getComputedStatus(r) === 'maintenance').length;
+  const availableCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'available').length;
+  const occupiedCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'occupied').length;
+  const reservedCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'reserved').length;
+  const dirtyCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'dirty').length;
+  const maintenanceCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'maintenance').length;
   const occupancyRate = rooms.length > 0 ? Math.round((occupiedCount / rooms.length) * 100) : 0;
 
   return (
@@ -2008,51 +2004,11 @@ const RoomManagementPage: React.FC = () => {
       {/* Room Grid */}
       <Grid container spacing={2}>
         {rooms.map((room) => {
-          const booking = roomBookings.get(room.id);
-          const reservedBooking = reservedBookings.get(room.id);
+          const { computedStatus, booking, reservedBooking, hasReservationForToday, hasFutureReservation, futureCheckInDate, isOccupied, isReserved, isReservedToday, isComplimentary } = getRoomStatusInfo(room);
           const compCancelledBooking = compCancelledBookings.get(room.id);
-
-          // Compute dynamic status based on bookings - ensures sync with reservation timeline
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-
-          // Check if there's a checked-in booking (occupied) - include auto_checked_in for sync with timeline
-          const hasCheckedInBooking = booking?.status === 'checked_in' || booking?.status === 'auto_checked_in';
-
-          // Check if there's a reservation for today or before (reserved)
-          // Include confirmed bookings that have check-in date today or earlier
-          const hasReservationForToday = reservedBooking && (() => {
-            const checkInDate = new Date(reservedBooking.check_in_date);
-            checkInDate.setHours(0, 0, 0, 0);
-            // Only show as reserved if booking is confirmed and check-in is today or earlier
-            const isConfirmed = reservedBooking.status === 'confirmed' || reservedBooking.status === 'pending';
-            return isConfirmed && checkInDate <= today;
-          })();
-
-          // Check if there's a future reservation (not today)
-          const hasFutureReservation = reservedBooking && !hasReservationForToday;
-          const futureCheckInDate = hasFutureReservation ? new Date(reservedBooking.check_in_date) : null;
-
-          // Compute the effective status - matches timeline status mapping
-          // Dirty/maintenance rooms must be cleaned first before showing as reserved
-          const computedStatus = hasCheckedInBooking
-            ? 'occupied'
-            : ['maintenance', 'dirty'].includes(room.status || '')
-              ? room.status
-              : hasReservationForToday
-                ? 'reserved'
-                : 'available';
 
           // Create a room object with computed status for display
           const displayRoom = { ...room, status: computedStatus };
-
-          // isOccupied is ONLY for 'occupied' status - guest details shown only for occupied
-          const isOccupied = computedStatus === 'occupied';
-          const isReserved = computedStatus === 'reserved';
-          const isReservedToday = isReserved && hasReservationForToday;
-          // Only show FREE GIFT if is_complimentary is explicitly true (not undefined/null)
-          const isComplimentary = (isOccupied && booking?.is_complimentary === true) ||
-                                   (isReserved && reservedBooking?.is_complimentary === true);
 
           // Get colors based on status
           const statusColor = getRoomStatusColor(displayRoom);

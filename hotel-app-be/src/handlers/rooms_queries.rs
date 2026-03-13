@@ -34,7 +34,7 @@ SELECT
     COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
     CASE
         WHEN cb.booking_status IN ('checked_in', 'auto_checked_in') THEN false
-        WHEN cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= CURRENT_DATE THEN false
+        WHEN cb.booking_status IN ('confirmed', 'pending') THEN false
         WHEN r.status IN ('maintenance', 'out_of_order', 'dirty') THEN false
         ELSE true
     END as available,
@@ -100,7 +100,7 @@ SELECT
     CAST(COALESCE(r.custom_price, rt.base_price) AS TEXT) as price_per_night,
     CASE
         WHEN cb.booking_status IN ('checked_in', 'auto_checked_in') THEN 0
-        WHEN cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= date('now') THEN 0
+        WHEN cb.booking_status IN ('confirmed', 'pending') THEN 0
         WHEN r.status IN ('maintenance', 'out_of_order', 'dirty') THEN 0
         ELSE 1
     END as available,
