@@ -232,7 +232,7 @@ const SettingsPage: React.FC = () => {
           </Grid>
 
           <Alert severity="info" sx={{ mt: 2 }}>
-            These times are used to automatically detect late checkouts and manage room availability
+            These times are used to manage room availability
           </Alert>
         </CardContent>
       </Card>

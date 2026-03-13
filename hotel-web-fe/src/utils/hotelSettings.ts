@@ -11,7 +11,6 @@ export interface HotelSettings {
   currency: string;
   timezone: string;
   deposit_amount: number; // Default deposit amount for check-in
-  late_checkout_penalty: number;
   service_tax_rate: number; // Percentage (e.g., 8 for 8%)
   tourism_tax_rate: number; // Per night tourism tax
   booking_channels: string[]; // Configurable online booking channels
@@ -29,7 +28,6 @@ const DEFAULT_SETTINGS: HotelSettings = {
   currency: 'MYR',
   timezone: 'Asia/Kuala_Lumpur',
   deposit_amount: 50,
-  late_checkout_penalty: 50,
   service_tax_rate: 8, // 8% service tax
   tourism_tax_rate: 10, // RM 10 per night for tourists (Malaysia standard)
   booking_channels: [
@@ -69,7 +67,6 @@ export const getHotelSettings = (): HotelSettings => {
       return {
         ...merged,
         deposit_amount: Number(merged.deposit_amount) || DEFAULT_SETTINGS.deposit_amount,
-        late_checkout_penalty: Number(merged.late_checkout_penalty) || DEFAULT_SETTINGS.late_checkout_penalty,
         service_tax_rate: Number(merged.service_tax_rate) || DEFAULT_SETTINGS.service_tax_rate,
         tourism_tax_rate: Number(merged.tourism_tax_rate) || DEFAULT_SETTINGS.tourism_tax_rate,
       };

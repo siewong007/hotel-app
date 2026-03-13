@@ -50,6 +50,7 @@ pub struct Booking {
     pub company_id: Option<i64>,
     pub company_name: Option<String>,
     pub payment_note: Option<String>,
+    pub daily_rates: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -78,6 +79,7 @@ pub struct BookingInput {
     pub deposit_amount: Option<f64>,
     pub room_rate_override: Option<f64>,
     pub special_requests: Option<String>,
+    pub daily_rates: Option<serde_json::Value>,
 }
 
 /// Input for cancelling a booking
@@ -119,6 +121,7 @@ pub struct BookingUpdateInput {
     pub special_requests: Option<String>,
     pub source: Option<String>,
     pub room_rate_override: Option<f64>,
+    pub daily_rates: Option<serde_json::Value>,
 }
 
 /// Payment to record during check-in
@@ -206,4 +209,6 @@ pub struct BookingWithDetails {
     pub rate_override_weekend: Option<Decimal>,
     // Actual checkout timestamp (for early checkout detection)
     pub actual_check_out: Option<DateTime<Utc>>,
+    // Per-day rate overrides
+    pub daily_rates: Option<serde_json::Value>,
 }

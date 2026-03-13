@@ -133,7 +133,6 @@ const SettingsPage: React.FC = () => {
         currency,
         timezone,
         deposit_amount: depositAmount,
-        late_checkout_penalty: 0, // Deprecated - penalty is now entered manually at checkout
         service_tax_rate: serviceTaxRate,
         tourism_tax_rate: tourismTaxRate,
         booking_channels: bookingChannels,
@@ -297,7 +296,7 @@ const SettingsPage: React.FC = () => {
           </Grid>
 
           <Alert severity="info" sx={{ mt: 2 }}>
-            Check-in/out times detect late checkouts. Night shift time determines when daily booking and room data is finalized for reports.
+            Night shift time determines when daily booking and room data is finalized for reports.
           </Alert>
         </CardContent>
       </Card>
@@ -380,8 +379,6 @@ const SettingsPage: React.FC = () => {
             </Typography>
             <Typography variant="caption">
               • Changing the currency will update all price displays throughout the system (bookings, invoices, reports)
-              <br />
-              • Timezone is used for check-in/check-out times and late checkout penalty calculations
               <br />
               • Malaysia uses Asia/Kuala_Lumpur timezone (GMT+8) and Malaysian Ringgit (MYR)
             </Typography>

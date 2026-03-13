@@ -291,7 +291,7 @@ const RoomReservationTimeline: React.FC = () => {
       const isCheckedIn = b.status === 'checked_in' || b.status === 'auto_checked_in';
 
       if (isCheckedIn && checkOut <= todayStr) {
-        // Guest still in room at or past checkout date (late checkout)
+        // Guest still in room at or past checkout date
         // Extend display to today but always exclude the original checkout date
         return dateStr >= checkIn && dateStr <= todayStr && dateStr !== checkOut;
       }

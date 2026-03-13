@@ -9,7 +9,6 @@ export enum BookingStatus {
   CANCELLED = 'cancelled',
   NO_SHOW = 'no_show',
   AUTO_CHECKED_IN = 'auto_checked_in',
-  LATE_CHECKOUT = 'late_checkout',
   COMP_CANCELLED = 'comp_cancelled',
   PARTIAL_COMPLIMENTARY = 'partial_complimentary',
   FULLY_COMPLIMENTARY = 'fully_complimentary',
@@ -37,8 +36,6 @@ export interface Booking {
   extra_bed_count?: number;
   extra_bed_charge?: number | string;
   room_card_deposit?: number | string;
-  late_checkout_penalty?: number | string;
-  late_checkout_notes?: string;
   payment_method?: string;
   market_code?: string;
   discount_percentage?: number;
@@ -68,6 +65,7 @@ export interface Booking {
   payment_note?: string;
   remarks?: string;
   source?: string;
+  daily_rates?: Record<string, number>;
   // Night audit posting fields
   is_posted?: boolean;
   posted_date?: string;
@@ -99,8 +97,6 @@ export interface BookingWithDetails extends Booking {
   extra_bed_count?: number;
   extra_bed_charge?: number | string;
   room_card_deposit?: number | string;
-  late_checkout_penalty?: number | string;
-  late_checkout_notes?: string;
   payment_method?: string;
   is_complimentary?: boolean;
   complimentary_reason?: string;
@@ -115,6 +111,7 @@ export interface BookingWithDetails extends Booking {
   deposit_paid?: boolean;
   remarks?: string;
   actual_check_out?: string;
+  daily_rates?: Record<string, number>;
 }
 
 export interface BookingCreateRequest {
@@ -132,7 +129,6 @@ export interface BookingCreateRequest {
   extra_bed_count?: number;
   extra_bed_charge?: number;
   room_card_deposit?: number;
-  late_checkout_penalty?: number;
   payment_method?: string;
   payment_status?: 'unpaid' | 'unpaid_deposit' | 'paid';
   amount_paid?: number;
@@ -141,6 +137,7 @@ export interface BookingCreateRequest {
   deposit_paid?: boolean;
   deposit_amount?: number;
   room_rate_override?: number;
+  daily_rates?: Record<string, number>;
 }
 
 export interface BookingUpdateRequest {
@@ -168,13 +165,12 @@ export interface BookingUpdateRequest {
   company_id?: number;
   company_name?: string;
   payment_note?: string;
-  late_checkout_penalty?: number;
-  late_checkout_notes?: string;
   remarks?: string;
   source?: string;
   room_rate_override?: number;
   extra_bed_count?: number;
   extra_bed_charge?: number;
+  daily_rates?: Record<string, number>;
 }
 
 export interface BookingCancellationRequest {
