@@ -448,6 +448,64 @@ const NightAuditPage: React.FC = () => {
         // Skip service_tax - already merged into room_charge
         if (isServiceTax) return;
 
+        const isCityLedger = section.entry_type === 'city_ledger';
+
+        // City Ledger: special table with Description, Debit, Credit, Net amount
+        if (isCityLedger) {
+          const fmtDate = (d: string) => { const p = d.split('-'); return `${p[2]}.${p[1]}.${p[0]}`; };
+          const today = fmtDate(audit.audit_date);
+
+          const rows: string[][] = [];
+          for (const entry of section.entries) {
+            const debit = Number(entry.debit);
+            const credit = Number(entry.credit);
+            rows.push([
+              today,
+              entry.description || 'Guest Ledger Transfer',
+              debit > 0 ? debit.toFixed(2) : '',
+              credit > 0 ? credit.toFixed(2) : '',
+            ]);
+          }
+          const totalDebit = Number(section.total_debit);
+          const totalCredit = Number(section.total_credit);
+          const netAmount = totalDebit - totalCredit;
+          rows.push([
+            '',
+            'Totals:',
+            totalDebit > 0 ? totalDebit.toFixed(2) : '',
+            `${totalCredit > 0 ? totalCredit.toFixed(2) : ''}    Net amount:    ${netAmount.toFixed(2)}`,
+          ]);
+
+          if (currentY + rows.length * 7 + 20 > pageHeight - 20) {
+            doc.addPage();
+            currentY = 20;
+          }
+
+          // Section header
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.text('City Ledger', margin, currentY);
+          doc.setFont('helvetica', 'normal');
+          currentY += 5;
+
+          autoTable(doc, {
+            startY: currentY,
+            head: [['', '', '', '']],
+            body: rows,
+            showHead: false,
+            styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.3 },
+            columnStyles: {
+              0: { cellWidth: 28 },
+              1: { fontStyle: 'italic', cellWidth: 50 },
+              2: { halign: 'right', fontStyle: 'bold', cellWidth: 25 },
+              3: { halign: 'right', fontStyle: 'bold', cellWidth: 55 },
+            },
+            theme: 'grid',
+          });
+          currentY = (doc as any).lastAutoTable.finalY + 6;
+          return;
+        }
+
         // All other sections: Description, Amount, Room/Notes
         const displayName = section.display_name;
         const rows: string[][] = [];
