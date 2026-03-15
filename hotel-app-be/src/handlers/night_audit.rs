@@ -155,6 +155,15 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
     // e.g. tax_rate_pct = 8  =>  divisor = 1.08
     let divisor = Decimal::ONE + tax_rate_pct / Decimal::new(100, 0);
 
+    // Hotel timezone: read from system_settings, default to UTC
+    let hotel_timezone: String = sqlx::query_scalar::<_, String>(
+        "SELECT value FROM system_settings WHERE key = 'timezone'"
+    )
+    .fetch_optional(pool)
+    .await
+    .unwrap_or(None)
+    .unwrap_or_else(|| "UTC".to_string());
+
     // Get per-night room charges for the audit date
     // For posted audits: read from night_audit_posted_nights
     // For unposted (preview): find active bookings whose night hasn't been posted yet
@@ -411,6 +420,8 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
     // Get deposit refunds: bookings checked out on the audit date with any deposit
     // Deposit refunds happen on checkout day regardless of posted status
     // Must check both room_card_deposit and deposit_amount (mirrors deposit collection logic)
+    // Use actual_check_out converted to hotel timezone for accurate date matching,
+    // falling back to check_out_date for legacy bookings without actual_check_out
     let refund_query = r#"
         SELECT
             b.booking_number,
@@ -419,13 +430,15 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             COALESCE(b.deposit_amount, 0) as deposit_amount
         FROM bookings b
         JOIN rooms r ON b.room_id = r.id
-        WHERE b.status = 'checked_out' AND b.check_out_date = $1
+        WHERE b.status = 'checked_out'
+        AND COALESCE((b.actual_check_out AT TIME ZONE $2)::date, b.check_out_date) = $1
         AND (COALESCE(b.room_card_deposit, 0) > 0 OR COALESCE(b.deposit_amount, 0) > 0)
         ORDER BY r.room_number
     "#;
 
     if let Ok(refund_rows) = sqlx::query(refund_query)
         .bind(audit_date)
+        .bind(&hotel_timezone)
         .fetch_all(pool)
         .await
     {
@@ -457,6 +470,85 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                     description: Some("Deposit Refund".to_string()),
                 });
             }
+        }
+    }
+
+    // Get city ledger entries: charges posted to company accounts on the audit date
+    let city_ledger_query = r#"
+        SELECT
+            cl.company_name,
+            COALESCE(cl.room_number, '') as room_number,
+            cl.amount,
+            COALESCE(cl.transaction_type, 'debit') as transaction_type,
+            COALESCE(cl.description, 'Guest Ledger Transfer') as description
+        FROM customer_ledgers cl
+        WHERE cl.void_at IS NULL
+        AND COALESCE(cl.posting_date, cl.created_at::date) = $1
+        ORDER BY cl.company_name, cl.room_number
+    "#;
+
+    if let Ok(cl_rows) = sqlx::query(city_ledger_query)
+        .bind(audit_date)
+        .fetch_all(pool)
+        .await
+    {
+        for row in cl_rows.iter() {
+            let company_name: String = row.get("company_name");
+            let room_number: String = row.get("room_number");
+            let amount: Decimal = row.get("amount");
+            let transaction_type: String = row.get("transaction_type");
+            let description: String = row.get("description");
+
+            let (debit, credit) = if transaction_type == "credit" {
+                (Decimal::ZERO, amount)
+            } else {
+                (amount, Decimal::ZERO)
+            };
+
+            entries.push(JournalEntry {
+                booking_number: company_name,
+                room_number,
+                entry_type: "city_ledger".to_string(),
+                debit,
+                credit,
+                description: Some(description),
+            });
+        }
+    }
+
+    // Get city ledger payments received on the audit date
+    let city_ledger_payments_query = r#"
+        SELECT
+            cl.company_name,
+            COALESCE(cl.room_number, '') as room_number,
+            clp.payment_amount,
+            COALESCE(clp.payment_method, 'Unknown') as payment_method
+        FROM customer_ledger_payments clp
+        JOIN customer_ledgers cl ON clp.ledger_id = cl.id
+        WHERE cl.void_at IS NULL
+        AND clp.payment_date::date = $1
+        ORDER BY cl.company_name
+    "#;
+
+    if let Ok(clp_rows) = sqlx::query(city_ledger_payments_query)
+        .bind(audit_date)
+        .fetch_all(pool)
+        .await
+    {
+        for row in clp_rows.iter() {
+            let company_name: String = row.get("company_name");
+            let room_number: String = row.get("room_number");
+            let payment_amount: Decimal = row.get("payment_amount");
+            let payment_method: String = row.get("payment_method");
+
+            entries.push(JournalEntry {
+                booking_number: company_name,
+                room_number,
+                entry_type: "city_ledger".to_string(),
+                debit: Decimal::ZERO,
+                credit: payment_amount,
+                description: Some(format!("City Ledger Payment ({})", payment_method)),
+            });
         }
     }
 
@@ -526,10 +618,11 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         }
     }
 
-    // Add deposit and deposit_refund sections
+    // Add deposit, deposit_refund, and city_ledger sections
     let trailing_types = vec![
         ("deposit", "Deposit"),
         ("deposit_refund", "Deposit Refund"),
+        ("city_ledger", "City Ledger"),
     ];
 
     for (type_key, display_name) in &trailing_types {

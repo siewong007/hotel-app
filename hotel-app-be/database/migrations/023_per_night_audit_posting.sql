@@ -150,7 +150,8 @@ BEGIN
     WHERE status IN ('checked_in', 'auto_checked_in') AND check_in_date = p_audit_date;
 
     SELECT COUNT(*) INTO v_checkouts FROM bookings
-    WHERE status = 'checked_out' AND check_out_date = p_audit_date;
+    WHERE status = 'checked_out'
+    AND COALESCE((actual_check_out AT TIME ZONE COALESCE((SELECT value FROM system_settings WHERE key = 'timezone'), 'UTC'))::date, check_out_date) = p_audit_date;
 
     -- Get room statistics
     SELECT COUNT(*) INTO v_total_rooms FROM rooms;
