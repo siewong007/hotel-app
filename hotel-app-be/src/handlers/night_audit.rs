@@ -325,8 +325,6 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             p.amount,
             COALESCE(p.payment_method, '') as payment_method,
             COALESCE(p.payment_type, '') as payment_type,
-            COALESCE(b.source, 'walk_in') as source,
-            COALESCE(b.remarks, '') as remarks,
             COALESCE(p.notes, '') as payment_notes,
             b.check_in_date,
             b.check_out_date
@@ -350,8 +348,6 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             let amount: Decimal = row.get("amount");
             let payment_method: String = row.get("payment_method");
             let payment_type: String = row.get("payment_type");
-            let source: String = row.get("source");
-            let remarks: String = row.get("remarks");
             let payment_notes: String = row.get("payment_notes");
             let check_in_date: NaiveDate = row.get("check_in_date");
             let _check_out_date: NaiveDate = row.get("check_out_date");
@@ -361,34 +357,27 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 continue;
             }
 
-            // Determine entry type based on source and payment method
-            let entry_type = if source == "online" {
-                // Extract channel name from remarks (e.g. "Booking.Com - Ref: 123")
-                let channel = remarks.split(" - ").next().unwrap_or("Online").trim().to_string();
-                if channel.is_empty() { "Online".to_string() } else { channel }
+            // Determine entry type from the individual payment's method
+            let entry_type = if payment_method.is_empty() {
+                "Cash".to_string()
+            } else if payment_method.contains('_') {
+                payment_method.replace('_', " ")
+                    .split_whitespace()
+                    .map(|w| {
+                        let mut chars = w.chars();
+                        match chars.next() {
+                            Some(c) => c.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
+                            None => String::new(),
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ")
             } else {
-                // Normalize payment method to display name dynamically
-                if payment_method.is_empty() {
-                    "Cash".to_string()
-                } else if payment_method.contains('_') {
-                    payment_method.replace('_', " ")
-                        .split_whitespace()
-                        .map(|w| {
-                            let mut chars = w.chars();
-                            match chars.next() {
-                                Some(c) => c.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
-                                None => String::new(),
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                } else {
-                    // Normalize to title case (e.g. "cash" -> "Cash")
-                    let mut chars = payment_method.chars();
-                    match chars.next() {
-                        Some(c) => c.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
-                        None => "Cash".to_string(),
-                    }
+                // Normalize to title case (e.g. "cash" -> "Cash")
+                let mut chars = payment_method.chars();
+                match chars.next() {
+                    Some(c) => c.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
+                    None => "Cash".to_string(),
                 }
             };
 
