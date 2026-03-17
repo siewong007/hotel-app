@@ -202,13 +202,16 @@ pub async fn record_payment_handler(
         }
     }
 
+    // Parse optional payment_date to override created_at
+    let created_at_override: Option<String> = request.payment_date.as_ref().map(|d| format!("{} 12:00:00", d));
+
     let row = sqlx::query(
         r#"
         INSERT INTO payments (
             uuid, booking_id, amount, payment_method, payment_type,
-            status, transaction_id, notes, created_by
+            status, transaction_id, notes, created_by, created_at
         )
-        VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6, $7)
+        VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6, $7, COALESCE($8::timestamptz, CURRENT_TIMESTAMP))
         RETURNING id, booking_id, amount::text, payment_method, payment_type, status,
                   transaction_id, notes, created_at
         "#,
@@ -220,6 +223,7 @@ pub async fn record_payment_handler(
     .bind(&request.transaction_reference)
     .bind(&request.notes)
     .bind(user_id)
+    .bind(&created_at_override)
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -709,6 +713,10 @@ pub async fn update_payment_handler(
         param_index += 1;
         updates.push(format!("notes = ${}", param_index));
     }
+    if request.payment_date.is_some() {
+        param_index += 1;
+        updates.push(format!("created_at = ${}::timestamptz", param_index));
+    }
 
     if updates.is_empty() {
         return Err(ApiError::BadRequest("No fields to update".to_string()));
@@ -734,6 +742,11 @@ pub async fn update_payment_handler(
     }
     if let Some(ref notes) = request.notes {
         query_builder = query_builder.bind(notes);
+    }
+    if let Some(ref payment_date) = request.payment_date {
+        // Combine the new date with noon in the hotel timezone to ensure correct date
+        let ts = format!("{} 12:00:00", payment_date);
+        query_builder = query_builder.bind(ts);
     }
 
     let row = query_builder
