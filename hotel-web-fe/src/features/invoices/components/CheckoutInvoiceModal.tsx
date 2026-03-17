@@ -79,6 +79,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [recordingPayment, setRecordingPayment] = useState(false);
 
   // Payment editing state
@@ -87,6 +88,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [editMethod, setEditMethod] = useState('Cash');
   const [editReference, setEditReference] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [editDate, setEditDate] = useState('');
   const [updatingPayment, setUpdatingPayment] = useState(false);
   const [deletingPaymentId, setDeletingPaymentId] = useState<number | null>(null);
 
@@ -400,12 +402,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         payment_method: paymentMethod,
         transaction_reference: paymentReference || undefined,
         notes: paymentNotes || undefined,
+        payment_date: paymentDate || undefined,
       });
       setPayments(prev => [...prev, newPayment]);
       setShowPaymentForm(false);
       setPaymentAmount(0);
       setPaymentReference('');
       setPaymentNotes('');
+      setPaymentDate(new Date().toISOString().split('T')[0]);
     } catch (err: any) {
       setError(err.message || 'Failed to record payment');
     } finally {
@@ -419,6 +423,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     setEditMethod(payment.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Cash');
     setEditReference(payment.transaction_reference || '');
     setEditNotes(payment.notes || '');
+    // Extract date from created_at (ISO string or timestamp)
+    const paymentDate = payment.created_at ? new Date(payment.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    setEditDate(paymentDate);
   };
 
   const handleCancelEdit = () => {
@@ -427,6 +434,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     setEditMethod('Cash');
     setEditReference('');
     setEditNotes('');
+    setEditDate('');
   };
 
   const handleUpdatePayment = async () => {
@@ -438,6 +446,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         payment_method: editMethod,
         transaction_reference: editReference || undefined,
         notes: editNotes || undefined,
+        payment_date: editDate || undefined,
       });
       setPayments(prev => prev.map(p => p.id === editingPayment.id ? updatedPayment : p));
       handleCancelEdit();
@@ -1077,7 +1086,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             </Box>
 
             {/* Deposit Refund Section */}
-            {charges.depositRefund > 0 && !depositWaived && !readOnly ? (
+            {charges.depositRefund > 0 && !depositWaived ? (
               <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ p: 1.5, bgcolor: depositRefunded ? '#e8f5e9' : '#fff3e0' }}>
                   <Grid container alignItems="center">
@@ -1237,7 +1246,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <PaymentIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
                   Payments
                 </Typography>
-                {balanceDue > 0 && !readOnly && (
+                {balanceDue > 0 && (
                   <Button
                     size="small"
                     variant="outlined"
@@ -1259,7 +1268,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         // Edit form inline
                         <Box>
                           <Grid container spacing={1} sx={{ mb: 1 }}>
-                            <Grid item xs={6}>
+                            <Grid item xs={4}>
                               <TextField
                                 label="Amount"
                                 type="number"
@@ -1272,7 +1281,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 }}
                               />
                             </Grid>
-                            <Grid item xs={6}>
+                            <Grid item xs={4}>
                               <FormControl fullWidth size="small">
                                 <InputLabel>Method</InputLabel>
                                 <Select
@@ -1285,6 +1294,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                   ))}
                                 </Select>
                               </FormControl>
+                            </Grid>
+                            <Grid item xs={4}>
+                              <TextField
+                                label="Payment Date"
+                                type="date"
+                                size="small"
+                                fullWidth
+                                value={editDate}
+                                onChange={(e) => setEditDate(e.target.value)}
+                                InputLabelProps={{ shrink: true }}
+                              />
                             </Grid>
                             <Grid item xs={6}>
                               <TextField
@@ -1345,31 +1365,29 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             </Typography>
                           </Grid>
                           <Grid item xs={2} sx={{ textAlign: 'right' }}>
-                            {!readOnly && (
-                              <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
-                                <Button
-                                  size="small"
-                                  sx={{ minWidth: 'auto', p: 0.5 }}
-                                  onClick={() => handleStartEdit(p)}
-                                  disabled={deletingPaymentId === p.id}
-                                >
-                                  <EditIcon fontSize="small" />
-                                </Button>
-                                <Button
-                                  size="small"
-                                  color="error"
-                                  sx={{ minWidth: 'auto', p: 0.5 }}
-                                  onClick={() => handleDeletePayment(p.id)}
-                                  disabled={deletingPaymentId === p.id}
-                                >
-                                  {deletingPaymentId === p.id ? (
-                                    <CircularProgress size={16} />
-                                  ) : (
-                                    <DeleteIcon fontSize="small" />
-                                  )}
-                                </Button>
-                              </Box>
-                            )}
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                              <Button
+                                size="small"
+                                sx={{ minWidth: 'auto', p: 0.5 }}
+                                onClick={() => handleStartEdit(p)}
+                                disabled={deletingPaymentId === p.id}
+                              >
+                                <EditIcon fontSize="small" />
+                              </Button>
+                              <Button
+                                size="small"
+                                color="error"
+                                sx={{ minWidth: 'auto', p: 0.5 }}
+                                onClick={() => handleDeletePayment(p.id)}
+                                disabled={deletingPaymentId === p.id}
+                              >
+                                {deletingPaymentId === p.id ? (
+                                  <CircularProgress size={16} />
+                                ) : (
+                                  <DeleteIcon fontSize="small" />
+                                )}
+                              </Button>
+                            </Box>
                           </Grid>
                         </Grid>
                       )}
@@ -1416,7 +1434,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <Collapse in={showPaymentForm}>
                 <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderTop: '1px solid #ddd' }}>
                   <Grid container spacing={2}>
-                    <Grid item xs={6}>
+                    <Grid item xs={4}>
                       <TextField
                         label="Amount"
                         type="number"
@@ -1429,7 +1447,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         }}
                       />
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid item xs={4}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Method</InputLabel>
                         <Select
@@ -1442,6 +1460,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           ))}
                         </Select>
                       </FormControl>
+                    </Grid>
+                    <Grid item xs={4}>
+                      <TextField
+                        label="Payment Date"
+                        type="date"
+                        size="small"
+                        fullWidth
+                        value={paymentDate}
+                        onChange={(e) => setPaymentDate(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                      />
                     </Grid>
                     <Grid item xs={6}>
                       <TextField

@@ -166,6 +166,8 @@ pub struct RecordPaymentRequest {
     pub payment_type: Option<String>,
     pub transaction_reference: Option<String>,
     pub notes: Option<String>,
+    /// Payment date override (YYYY-MM-DD). Sets created_at to this date.
+    pub payment_date: Option<String>,
 }
 
 /// Update payment request
@@ -175,6 +177,8 @@ pub struct UpdatePaymentRequest {
     pub payment_method: Option<String>,
     pub transaction_reference: Option<String>,
     pub notes: Option<String>,
+    /// Payment date override (YYYY-MM-DD). Updates created_at to this date.
+    pub payment_date: Option<String>,
 }
 
 /// Keycard deposit record

@@ -41,6 +41,7 @@ export class InvoicesService {
     payment_type?: string;
     transaction_reference?: string;
     notes?: string;
+    payment_date?: string;
   }): Promise<any> {
     try {
       // Ensure amount is a valid number
@@ -122,6 +123,7 @@ export class InvoicesService {
     payment_method?: string;
     transaction_reference?: string;
     notes?: string;
+    payment_date?: string;
   }): Promise<any> {
     try {
       const payload: Record<string, any> = {};
@@ -131,6 +133,7 @@ export class InvoicesService {
       if (data.payment_method !== undefined) payload.payment_method = data.payment_method;
       if (data.transaction_reference !== undefined) payload.transaction_reference = data.transaction_reference;
       if (data.notes !== undefined) payload.notes = data.notes;
+      if (data.payment_date !== undefined) payload.payment_date = data.payment_date;
 
       return await api.patch(`payments/${paymentId}`, { json: payload }).json<any>();
     } catch (error) {
