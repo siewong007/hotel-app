@@ -175,6 +175,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 r.room_number,
                 napn.room_charge,
                 napn.service_tax,
+                COALESCE(napn.tourism_tax, 0) as tourism_tax,
                 COALESCE(b.deposit_amount, 0) as deposit_amount,
                 b.check_in_date,
                 b.status
@@ -195,6 +196,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 let room_number: String = row.get("room_number");
                 let room_charge: Decimal = row.get("room_charge");
                 let service_tax: Decimal = row.get("service_tax");
+                let tourism_tax: Decimal = row.get("tourism_tax");
                 let deposit_amount: Decimal = row.get("deposit_amount");
                 let check_in_date: NaiveDate = row.get("check_in_date");
 
@@ -217,6 +219,17 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                         debit: service_tax,
                         credit: Decimal::ZERO,
                         description: Some("Service Tax".to_string()),
+                    });
+                }
+
+                if tourism_tax > Decimal::ZERO {
+                    entries.push(JournalEntry {
+                        booking_number: booking_number.clone(),
+                        room_number: room_number.clone(),
+                        entry_type: "tourism_tax".to_string(),
+                        debit: tourism_tax,
+                        credit: Decimal::ZERO,
+                        description: Some("Tourism Tax".to_string()),
                     });
                 }
 
@@ -246,7 +259,10 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 COALESCE(b.source, 'walk_in') as source,
                 COALESCE(b.remarks, '') as remarks,
                 b.check_in_date,
-                b.status
+                b.check_out_date,
+                b.status,
+                COALESCE(b.is_tourist, false) as is_tourist,
+                COALESCE(b.tourism_tax_amount, 0) as tourism_tax_amount
             FROM bookings b
             JOIN rooms r ON b.room_id = r.id
             WHERE b.status NOT IN ('pending', 'confirmed', 'no_show', 'voided')
@@ -272,6 +288,9 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 let nightly_rate: Decimal = row.get("room_rate");
                 let deposit_amount: Decimal = row.get("deposit_amount");
                 let check_in_date: NaiveDate = row.get("check_in_date");
+                let check_out_date: NaiveDate = row.get("check_out_date");
+                let is_tourist: bool = row.get("is_tourist");
+                let tourism_tax_amount: Decimal = row.get("tourism_tax_amount");
 
                 // Per-night charge: back-calculate room charge and tax from tax-inclusive nightly rate
                 let room_charge = (nightly_rate / divisor).round_dp(2);
@@ -297,6 +316,22 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                         credit: Decimal::ZERO,
                         description: Some("Service Tax".to_string()),
                     });
+                }
+
+                // Tourism tax: per-night amount for tourist bookings
+                if is_tourist && tourism_tax_amount > Decimal::ZERO {
+                    let nights = (check_out_date - check_in_date).num_days().max(1);
+                    let tourism_tax_per_night = (tourism_tax_amount / Decimal::from(nights)).round_dp(2);
+                    if tourism_tax_per_night > Decimal::ZERO {
+                        entries.push(JournalEntry {
+                            booking_number: booking_number.clone(),
+                            room_number: room_number.clone(),
+                            entry_type: "tourism_tax".to_string(),
+                            debit: tourism_tax_per_night,
+                            credit: Decimal::ZERO,
+                            description: Some("Tourism Tax".to_string()),
+                        });
+                    }
                 }
 
                 // Deposits only post on the check-in night
@@ -545,6 +580,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
     let fixed_types = vec![
         ("room_charge", "Room Charges"),
         ("service_tax", "Service Tax"),
+        ("tourism_tax", "Tourism Tax"),
     ];
 
     let mut sections: Vec<JournalSection> = Vec::new();
