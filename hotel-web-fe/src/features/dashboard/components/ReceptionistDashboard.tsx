@@ -271,13 +271,13 @@ const ReceptionistDashboard: React.FC = () => {
       const todayCheckIns = bookingsData.filter((booking: BookingWithDetails) => {
         const checkIn = new Date(booking.check_in_date);
         checkIn.setHours(0, 0, 0, 0);
-        return checkIn.getTime() === today.getTime() && booking.status !== 'cancelled';
+        return checkIn.getTime() === today.getTime() && booking.status !== 'voided';
       });
 
       const todayCheckOuts = bookingsData.filter((booking: BookingWithDetails) => {
         const checkOut = new Date(booking.check_out_date);
         checkOut.setHours(0, 0, 0, 0);
-        return checkOut.getTime() === today.getTime() && booking.status !== 'cancelled';
+        return checkOut.getTime() === today.getTime() && booking.status !== 'voided';
       });
 
       setRooms(processedRooms);

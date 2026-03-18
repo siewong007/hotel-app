@@ -204,16 +204,14 @@ const BookingsPage: React.FC = () => {
       );
     }
 
-    // Status filter - hide cancelled/voided by default unless explicitly selected
-    if (statusFilter === 'cancelled') {
-      filtered = filtered.filter(booking => booking.status === 'cancelled');
-    } else if (statusFilter === 'voided') {
+    // Status filter - hide voided by default unless explicitly selected
+    if (statusFilter === 'voided') {
       filtered = filtered.filter(booking => booking.status === 'voided');
     } else if (statusFilter !== 'all') {
       filtered = filtered.filter(booking => booking.status === statusFilter);
     } else {
-      // 'all' filter still excludes cancelled and voided bookings
-      filtered = filtered.filter(booking => booking.status !== 'cancelled' && booking.status !== 'voided');
+      // 'all' filter still excludes voided bookings
+      filtered = filtered.filter(booking => booking.status !== 'voided');
     }
 
     // Date filter
@@ -256,11 +254,11 @@ const BookingsPage: React.FC = () => {
       });
     }
 
-    // Sorting - cancelled/voided bookings always go to the bottom
+    // Sorting - voided bookings always go to the bottom
     filtered.sort((a, b) => {
-      // First, push cancelled/voided bookings to the bottom
-      const aCancelled = a.status === 'cancelled' || a.status === 'voided';
-      const bCancelled = b.status === 'cancelled' || b.status === 'voided';
+      // First, push voided bookings to the bottom
+      const aCancelled = a.status === 'voided';
+      const bCancelled = b.status === 'voided';
       if (aCancelled !== bCancelled) {
         return aCancelled ? 1 : -1;
       }
@@ -452,16 +450,16 @@ const BookingsPage: React.FC = () => {
       setDeleting(true);
       await HotelAPIService.cancelBooking({
         booking_id: deletingBooking.id,
-        reason: cancellationReason || 'Cancelled by admin'
+        reason: cancellationReason || 'Voided by admin'
       });
-      setSnackbarMessage('Booking cancelled successfully!');
+      setSnackbarMessage('Booking voided successfully!');
       setSnackbarOpen(true);
       setDeleteDialogOpen(false);
       setDeletingBooking(null);
       setCancellationReason('');
       await loadData();
     } catch (err: any) {
-      setError(err.message || 'Failed to cancel booking');
+      setError(err.message || 'Failed to void booking');
     } finally {
       setDeleting(false);
     }
@@ -740,9 +738,9 @@ const BookingsPage: React.FC = () => {
     return status === 'checked_in';
   };
 
-  // Can delete/cancel booking in any state except already cancelled or voided
+  // Can delete/void booking in any state except already voided
   const canDelete = (booking: BookingWithDetails) => {
-    return booking.status !== 'cancelled' && booking.status !== 'voided';
+    return booking.status !== 'voided';
   };
 
   // Can void booking only if not already voided or checked_out/completed
@@ -947,9 +945,7 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="confirmed">Confirmed</MenuItem>
                 <MenuItem value="checked_in">Checked In</MenuItem>
                 <MenuItem value="checked_out">Checked Out</MenuItem>
-                <MenuItem value="cancelled">Cancelled</MenuItem>
                 <MenuItem value="no_show">No Show</MenuItem>
-                <MenuItem value="comp_cancelled">Comp Cancelled</MenuItem>
                 <MenuItem value="voided">Voided</MenuItem>
               </Select>
             </FormControl>
@@ -1123,11 +1119,11 @@ const BookingsPage: React.FC = () => {
                 key={booking.id}
                 hover
                 sx={{
-                  opacity: (booking.status === 'cancelled' || booking.status === 'voided') ? 0.6 : 1,
-                  bgcolor: booking.status === 'voided' ? 'grey.100' : booking.status === 'cancelled' ? 'action.hover' : 'inherit',
-                  textDecoration: (booking.status === 'cancelled' || booking.status === 'voided') ? 'line-through' : 'none',
+                  opacity: booking.status === 'voided' ? 0.6 : 1,
+                  bgcolor: booking.status === 'voided' ? 'grey.100' : 'inherit',
+                  textDecoration: booking.status === 'voided' ? 'line-through' : 'none',
                   '& td': {
-                    textDecoration: (booking.status === 'cancelled' || booking.status === 'voided') ? 'line-through' : 'none',
+                    textDecoration: booking.status === 'voided' ? 'line-through' : 'none',
                   }
                 }}
               >
@@ -1400,9 +1396,8 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="auto_checked_in">Auto Checked In</MenuItem>
                 <MenuItem value="checked_out">Checked Out</MenuItem>
                 <MenuItem value="late_checkout">Late Checkout</MenuItem>
-                <MenuItem value="cancelled">Cancelled</MenuItem>
                 <MenuItem value="no_show">No Show</MenuItem>
-                <MenuItem value="comp_cancelled">Comp Cancelled</MenuItem>
+                <MenuItem value="voided">Voided</MenuItem>
               </TextField>
             </Grid>
             <Grid item xs={12} sm={6}>

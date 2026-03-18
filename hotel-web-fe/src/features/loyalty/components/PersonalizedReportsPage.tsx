@@ -285,7 +285,7 @@ const PersonalizedReportsPage: React.FC = () => {
                               color={
                                 booking.status === 'confirmed' ? 'success' :
                                 booking.status === 'checked_in' ? 'primary' :
-                                booking.status === 'cancelled' ? 'error' : 'default'
+                                booking.status === 'voided' ? 'error' : 'default'
                               }
                             />
                           </TableCell>

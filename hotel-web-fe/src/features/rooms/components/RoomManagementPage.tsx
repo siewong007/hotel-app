@@ -365,8 +365,8 @@ const RoomManagementPage: React.FC = () => {
             }
           }
         }
-        // Track comp_cancelled bookings (complimentary booking cancelled, credits preserved)
-        if (booking.status === 'comp_cancelled') {
+        // Track voided bookings (booking voided, credits preserved)
+        if (booking.status === 'voided') {
           compCancelledMap.set(booking.room_id, booking);
         }
       });
@@ -1382,7 +1382,7 @@ const RoomManagementPage: React.FC = () => {
     // Use allBookingsData from state instead of fetching again
     const roomBookingsFiltered = allBookingsData.filter(b =>
       b.room_id?.toString() === roomId &&
-      !['cancelled', 'no_show', 'checked_out'].includes(b.status)
+      !['no_show', 'checked_out', 'voided'].includes(b.status)
     );
 
     const blocked = roomBookingsFiltered.map(b => ({
@@ -2120,7 +2120,7 @@ const RoomManagementPage: React.FC = () => {
                       <Chip label="FREE GIFT" size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 600, bgcolor: 'rgba(156, 39, 176, 0.8)', color: 'white' }} />
                     )}
                     {compCancelledBooking && (
-                      <Chip label="COMP CANCELLED" size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 600, bgcolor: 'rgba(0,0,0,0.2)', color: 'inherit' }} />
+                      <Chip label="VOIDED" size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 600, bgcolor: 'rgba(0,0,0,0.2)', color: 'inherit' }} />
                     )}
                   </Box>
 
@@ -2149,7 +2149,7 @@ const RoomManagementPage: React.FC = () => {
                     </Typography>
                   )}
 
-                  {/* Comp Cancelled Booking Indicator - Complimentary booking cancelled, credits preserved */}
+                  {/* Voided Booking Indicator */}
                   {compCancelledBooking && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                       <Typography
@@ -2163,7 +2163,7 @@ const RoomManagementPage: React.FC = () => {
                           borderRadius: 0.5,
                         }}
                       >
-                        Comp Cancelled: {new Date(compCancelledBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(compCancelledBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        Voided: {new Date(compCancelledBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(compCancelledBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </Typography>
                     </Box>
                   )}

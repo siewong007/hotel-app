@@ -40,7 +40,7 @@ pub async fn get_occupancy_report_handler(
     let occupied_rooms: i64 = sqlx::query_scalar(
         r#"
         SELECT COUNT(DISTINCT room_id) FROM bookings
-        WHERE status NOT IN ('cancelled', 'voided')
+        WHERE status NOT IN ('voided')
         AND check_in_date <= date('now')
         AND check_out_date > date('now')
         "#
@@ -53,7 +53,7 @@ pub async fn get_occupancy_report_handler(
     let occupied_rooms: i64 = sqlx::query_scalar(
         r#"
         SELECT COUNT(DISTINCT room_id) FROM bookings
-        WHERE status NOT IN ('cancelled', 'voided')
+        WHERE status NOT IN ('voided')
         AND check_in_date <= CURRENT_DATE
         AND check_out_date > CURRENT_DATE
         "#
@@ -89,7 +89,7 @@ pub async fn get_occupancy_report_handler(
     let revenue_row = sqlx::query(
         r#"
         SELECT COALESCE(CAST(SUM(total_amount) AS TEXT), '0') as revenue FROM bookings
-        WHERE status NOT IN ('cancelled', 'voided')
+        WHERE status NOT IN ('voided')
         AND check_in_date <= date('now')
         AND check_out_date > date('now')
         "#
@@ -105,7 +105,7 @@ pub async fn get_occupancy_report_handler(
     let revenue: Decimal = sqlx::query_scalar(
         r#"
         SELECT COALESCE(SUM(total_amount), 0) FROM bookings
-        WHERE status NOT IN ('cancelled', 'voided')
+        WHERE status NOT IN ('voided')
         AND check_in_date <= CURRENT_DATE
         AND check_out_date > CURRENT_DATE
         "#
@@ -130,14 +130,14 @@ pub async fn get_booking_analytics_handler(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "analytics:read").await?;
 
-    let total_bookings: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bookings WHERE status NOT IN ('cancelled', 'voided')")
+    let total_bookings: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bookings WHERE status NOT IN ('voided')")
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let revenue_row = sqlx::query(
-        "SELECT CAST(SUM(total_amount) AS TEXT) as revenue FROM bookings WHERE status NOT IN ('cancelled', 'voided')"
+        "SELECT CAST(SUM(total_amount) AS TEXT) as revenue FROM bookings WHERE status NOT IN ('voided')"
     )
     .fetch_one(&pool)
     .await
@@ -148,7 +148,7 @@ pub async fn get_booking_analytics_handler(
 
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let revenue_result: Option<Decimal> = sqlx::query_scalar(
-        "SELECT SUM(total_amount) FROM bookings WHERE status NOT IN ('cancelled', 'voided')"
+        "SELECT SUM(total_amount) FROM bookings WHERE status NOT IN ('voided')"
     )
     .fetch_one(&pool)
     .await
@@ -170,7 +170,7 @@ pub async fn get_booking_analytics_handler(
         FROM bookings b
         INNER JOIN rooms r ON b.room_id = r.id
         INNER JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE b.status NOT IN ('cancelled', 'voided')
+        WHERE b.status NOT IN ('voided')
         GROUP BY rt.name
         "#
     )
@@ -238,20 +238,20 @@ pub async fn get_personalized_report_handler(
 
         // Get occupancy
         let occupied_rooms: i64 = sqlx::query_scalar(
-            "SELECT COUNT(DISTINCT room_id) FROM bookings WHERE status NOT IN ('cancelled', 'voided') AND check_in_date <= CURRENT_DATE AND check_out_date > CURRENT_DATE"
+            "SELECT COUNT(DISTINCT room_id) FROM bookings WHERE status NOT IN ('voided') AND check_in_date <= CURRENT_DATE AND check_out_date > CURRENT_DATE"
         )
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
         // Get total bookings and revenue
-        let total_bookings: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bookings WHERE status NOT IN ('cancelled', 'voided')")
+        let total_bookings: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bookings WHERE status NOT IN ('voided')")
             .fetch_one(&pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
         let revenue_result: Option<Decimal> = sqlx::query_scalar(
-            "SELECT SUM(total_amount) FROM bookings WHERE status NOT IN ('cancelled', 'voided')"
+            "SELECT SUM(total_amount) FROM bookings WHERE status NOT IN ('voided')"
         )
         .fetch_one(&pool)
         .await
@@ -263,7 +263,7 @@ pub async fn get_personalized_report_handler(
             SELECT b.id, g.full_name as guest_name, b.check_in_date, b.total_amount
             FROM bookings b
             INNER JOIN guests g ON b.guest_id = g.id
-            WHERE b.status NOT IN ('cancelled', 'voided')
+            WHERE b.status NOT IN ('voided')
             ORDER BY b.created_at DESC LIMIT 5
             "#
         )
@@ -1059,7 +1059,7 @@ async fn generate_daily_operations_report(
         r#"
         SELECT COUNT(DISTINCT room_id)::bigint FROM bookings
         WHERE check_in_date <= $1 AND check_out_date > $1
-        AND status NOT IN ('cancelled', 'no_show', 'voided')
+        AND status NOT IN ('no_show', 'voided')
         "#
     )
     .bind(date)
@@ -1149,7 +1149,7 @@ async fn generate_occupancy_report(
         SELECT COUNT(*)::bigint, SUM(total_amount)
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('cancelled', 'no_show', 'voided')
+        AND status NOT IN ('no_show', 'voided')
         "#
     )
     .bind(start_date)
@@ -1192,7 +1192,7 @@ async fn generate_occupancy_report(
         JOIN rooms r ON b.room_id = r.id
         JOIN room_types rt ON r.room_type_id = rt.id
         WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
-        AND b.status NOT IN ('cancelled', 'no_show', 'voided')
+        AND b.status NOT IN ('no_show', 'voided')
         GROUP BY rt.name
         ORDER BY COUNT(*) DESC
         "#
@@ -1219,7 +1219,7 @@ async fn generate_occupancy_report(
         SELECT check_in_date, COUNT(*), SUM(total_amount)
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('cancelled', 'no_show', 'voided')
+        AND status NOT IN ('no_show', 'voided')
         GROUP BY check_in_date
         ORDER BY check_in_date
         "#
@@ -1272,7 +1272,7 @@ async fn generate_revenue_report(
         r#"
         SELECT SUM(total_amount) FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('cancelled', 'no_show', 'voided')
+        AND status NOT IN ('no_show', 'voided')
         "#
     )
     .bind(start_date)
@@ -1291,7 +1291,7 @@ async fn generate_revenue_report(
         JOIN rooms r ON b.room_id = r.id
         JOIN room_types rt ON r.room_type_id = rt.id
         WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
-        AND b.status NOT IN ('cancelled', 'no_show', 'voided')
+        AND b.status NOT IN ('no_show', 'voided')
         GROUP BY rt.name
         ORDER BY SUM(b.total_amount) DESC
         "#
@@ -1308,7 +1308,7 @@ async fn generate_revenue_report(
         SELECT source, COUNT(*), SUM(total_amount)
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('cancelled', 'no_show', 'voided')
+        AND status NOT IN ('no_show', 'voided')
         GROUP BY source
         ORDER BY SUM(total_amount) DESC
         "#
@@ -1325,7 +1325,7 @@ async fn generate_revenue_report(
         SELECT payment_status, COUNT(*), SUM(total_amount)
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('cancelled', 'no_show', 'voided')
+        AND status NOT IN ('no_show', 'voided')
         GROUP BY payment_status
         ORDER BY SUM(total_amount) DESC
         "#
@@ -1342,7 +1342,7 @@ async fn generate_revenue_report(
         SELECT check_in_date, COUNT(*), SUM(total_amount)
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('cancelled', 'no_show', 'voided')
+        AND status NOT IN ('no_show', 'voided')
         GROUP BY check_in_date
         ORDER BY check_in_date
         "#
@@ -1418,7 +1418,7 @@ async fn generate_payment_status_report(
         SELECT payment_status, COUNT(*), SUM(total_amount)
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('cancelled')
+        AND status NOT IN ('voided')
         GROUP BY payment_status
         ORDER BY COUNT(*) DESC
         "#
@@ -1434,7 +1434,7 @@ async fn generate_payment_status_report(
         r#"
         SELECT SUM(total_amount) FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('cancelled')
+        AND status NOT IN ('voided')
         AND payment_status IN ('unpaid', 'unpaid_deposit', 'partial')
         "#
     )
@@ -1452,7 +1452,7 @@ async fn generate_payment_status_report(
         JOIN guests g ON b.guest_id = g.id
         JOIN rooms r ON b.room_id = r.id
         WHERE b.check_out_date < CURRENT_DATE
-        AND b.status NOT IN ('cancelled')
+        AND b.status NOT IN ('voided')
         AND b.payment_status IN ('unpaid', 'unpaid_deposit', 'partial')
         ORDER BY b.check_out_date DESC
         LIMIT 50
@@ -1608,7 +1608,7 @@ async fn generate_guest_statistics_report(
         r#"
         SELECT COUNT(DISTINCT guest_id)::bigint FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('cancelled')
+        AND status NOT IN ('voided')
         "#
     )
     .bind(start_date)
@@ -1624,12 +1624,12 @@ async fn generate_guest_statistics_report(
         SELECT COUNT(DISTINCT b.guest_id)::bigint
         FROM bookings b
         WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
-        AND b.status NOT IN ('cancelled')
+        AND b.status NOT IN ('voided')
         AND NOT EXISTS (
             SELECT 1 FROM bookings prev
             WHERE prev.guest_id = b.guest_id
             AND prev.check_in_date < $1
-            AND prev.status NOT IN ('cancelled')
+            AND prev.status NOT IN ('voided')
         )
         "#
     )
@@ -1648,7 +1648,7 @@ async fn generate_guest_statistics_report(
         SELECT b.is_tourist, COUNT(DISTINCT b.guest_id)::bigint
         FROM bookings b
         WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
-        AND b.status NOT IN ('cancelled')
+        AND b.status NOT IN ('voided')
         GROUP BY b.is_tourist
         "#
     )
@@ -1674,7 +1674,7 @@ async fn generate_guest_statistics_report(
         SELECT AVG(check_out_date - check_in_date)::float
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('cancelled')
+        AND status NOT IN ('voided')
         "#
     )
     .bind(start_date)
@@ -1690,7 +1690,7 @@ async fn generate_guest_statistics_report(
         FROM bookings b
         JOIN guests g ON b.guest_id = g.id
         WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
-        AND b.status NOT IN ('cancelled')
+        AND b.status NOT IN ('voided')
         AND g.nationality IS NOT NULL
         GROUP BY g.nationality
         ORDER BY COUNT(*) DESC
@@ -1719,7 +1719,7 @@ async fn generate_guest_statistics_report(
         FROM bookings b
         JOIN guests g ON b.guest_id = g.id
         WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
-        AND b.status NOT IN ('cancelled')
+        AND b.status NOT IN ('voided')
         GROUP BY g.id, g.full_name
         ORDER BY COUNT(*) DESC
         LIMIT 10
@@ -1774,7 +1774,7 @@ async fn generate_room_performance_report(
         JOIN rooms r ON b.room_id = r.id
         JOIN room_types rt ON r.room_type_id = rt.id
         WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
-        AND b.status NOT IN ('cancelled', 'no_show', 'voided')
+        AND b.status NOT IN ('no_show', 'voided')
         GROUP BY r.room_number, rt.name
         ORDER BY SUM(b.total_amount) DESC
         "#
@@ -1793,7 +1793,7 @@ async fn generate_room_performance_report(
         JOIN room_types rt ON r.room_type_id = rt.id
         LEFT JOIN bookings b ON b.room_id = r.id
             AND b.check_in_date >= $1 AND b.check_in_date <= $2
-            AND b.status NOT IN ('cancelled', 'no_show', 'voided')
+            AND b.status NOT IN ('no_show', 'voided')
         WHERE r.is_active = true
         GROUP BY rt.name
         ORDER BY SUM(b.total_amount) DESC NULLS LAST
@@ -1813,7 +1813,7 @@ async fn generate_room_performance_report(
         JOIN room_types rt ON r.room_type_id = rt.id
         LEFT JOIN bookings b ON b.room_id = r.id
             AND b.check_in_date >= $1 AND b.check_in_date <= $2
-            AND b.status NOT IN ('cancelled', 'no_show', 'voided')
+            AND b.status NOT IN ('no_show', 'voided')
         WHERE r.is_active = true
         GROUP BY r.room_number, rt.name
         HAVING COUNT(b.id) < 2
@@ -1882,7 +1882,7 @@ async fn generate_company_ledger_statement(
             r#"
             SELECT company_name, COUNT(*) as entry_count, COALESCE(SUM(balance_due), 0) as total_balance
             FROM customer_ledgers
-            WHERE status NOT IN ('cancelled', 'voided')
+            WHERE status NOT IN ('voided')
             GROUP BY company_name
             ORDER BY company_name
             "#
@@ -1942,7 +1942,7 @@ async fn generate_company_ledger_statement(
             id, description, expense_type, amount, paid_amount, balance_due, status,
             invoice_number, invoice_date, due_date, created_at
         FROM customer_ledgers
-        WHERE company_name = $1 AND status NOT IN ('cancelled', 'voided')
+        WHERE company_name = $1 AND status NOT IN ('voided')
         ORDER BY created_at DESC
         "#
     )

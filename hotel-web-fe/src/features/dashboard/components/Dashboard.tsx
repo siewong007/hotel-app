@@ -125,7 +125,7 @@ const Dashboard: React.FC = () => {
         checkInDate.setHours(0, 0, 0, 0);
         return (
           (checkInDate >= today || booking.status === 'checked_in') &&
-          booking.status !== 'cancelled' &&
+          booking.status !== 'voided' &&
           booking.status !== 'completed'
         );
       }).slice(0, 5).map((b: any) => ({

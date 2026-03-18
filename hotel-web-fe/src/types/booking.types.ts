@@ -6,16 +6,14 @@ export enum BookingStatus {
   CONFIRMED = 'confirmed',
   CHECKED_IN = 'checked_in',
   CHECKED_OUT = 'checked_out',
-  CANCELLED = 'cancelled',
   NO_SHOW = 'no_show',
   AUTO_CHECKED_IN = 'auto_checked_in',
-  COMP_CANCELLED = 'comp_cancelled',
   PARTIAL_COMPLIMENTARY = 'partial_complimentary',
   FULLY_COMPLIMENTARY = 'fully_complimentary',
   VOIDED = 'voided'
 }
 
-export type PaymentStatus = 'unpaid' | 'unpaid_deposit' | 'paid_rate' | 'paid' | 'partial' | 'refunded' | 'cancelled';
+export type PaymentStatus = 'unpaid' | 'unpaid_deposit' | 'paid_rate' | 'paid' | 'partial' | 'refunded';
 
 export interface Booking {
   id: string;
