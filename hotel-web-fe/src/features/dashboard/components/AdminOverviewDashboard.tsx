@@ -157,10 +157,10 @@ const AdminOverviewDashboard: React.FC = () => {
       weekStart.setDate(today.getDate() - 7);
 
       const monthlyBookings = bookings.filter((b: any) =>
-        new Date(b.created_at) >= monthStart && b.status !== 'cancelled'
+        new Date(b.created_at) >= monthStart && b.status !== 'voided'
       );
       const weeklyBookings = bookings.filter((b: any) =>
-        new Date(b.created_at) >= weekStart && b.status !== 'cancelled'
+        new Date(b.created_at) >= weekStart && b.status !== 'voided'
       );
 
       const monthlyRevenue = monthlyBookings.reduce((sum: number, b: any) =>
@@ -170,7 +170,7 @@ const AdminOverviewDashboard: React.FC = () => {
         sum + parseFloat(b.total_amount || 0), 0
       );
       const totalRevenue = bookings
-        .filter((b: any) => b.status !== 'cancelled')
+        .filter((b: any) => b.status !== 'voided')
         .reduce((sum: number, b: any) => sum + parseFloat(b.total_amount || 0), 0);
 
       const averageBookingValue = activeBookings > 0

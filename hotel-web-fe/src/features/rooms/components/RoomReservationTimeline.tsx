@@ -151,7 +151,7 @@ const RoomReservationTimeline: React.FC = () => {
       const relevantBookings: TimelineBooking[] = bookingsData
         .filter((b: BookingWithDetails) => {
           // Filter out inactive bookings
-          if (['cancelled', 'no_show', 'checked_out', 'voided'].includes(b.status as string)) {
+          if (['no_show', 'checked_out', 'voided'].includes(b.status as string)) {
             console.log(`  Filtering out ${b.guest_name} in room ${b.room_number}: ${b.status}`);
             return false;
           }

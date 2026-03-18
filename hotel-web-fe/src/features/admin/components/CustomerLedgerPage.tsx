@@ -150,8 +150,6 @@ const getStatusColor = (status: string): 'default' | 'primary' | 'secondary' | '
       return 'info';
     case 'overdue':
       return 'error';
-    case 'cancelled':
-      return 'default';
     default:
       return 'default';
   }
@@ -167,8 +165,6 @@ const getStatusText = (status: string): string => {
       return 'Pending';
     case 'overdue':
       return 'Overdue';
-    case 'cancelled':
-      return 'Cancelled';
     default:
       return status;
   }
@@ -1295,7 +1291,7 @@ const CustomerLedgerPage: React.FC = () => {
   };
 
   const canRecordPayment = (ledger: CustomerLedger) => {
-    return ledger.status !== 'paid' && ledger.status !== 'cancelled';
+    return ledger.status !== 'paid';
   };
 
   // Register new company
@@ -1843,7 +1839,6 @@ const CustomerLedgerPage: React.FC = () => {
                 <MenuItem value="partial">Partial</MenuItem>
                 <MenuItem value="paid">Paid</MenuItem>
                 <MenuItem value="overdue">Overdue</MenuItem>
-                <MenuItem value="cancelled">Cancelled</MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -2358,7 +2353,6 @@ const CustomerLedgerPage: React.FC = () => {
                   <MenuItem value="partial">Partial</MenuItem>
                   <MenuItem value="paid">Paid</MenuItem>
                   <MenuItem value="overdue">Overdue</MenuItem>
-                  <MenuItem value="cancelled">Cancelled</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

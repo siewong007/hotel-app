@@ -173,13 +173,8 @@ export const getBookingStatusColor = (
       return 'primary';
     case BookingStatus.CHECKED_OUT:
       return 'info';
-    case BookingStatus.CANCELLED:
-      return 'error';
     case BookingStatus.NO_SHOW:
       return 'error';
-    case BookingStatus.COMP_CANCELLED:
-    case 'comp_cancelled':
-      return 'secondary';
     case BookingStatus.PARTIAL_COMPLIMENTARY:
     case 'partial_complimentary':
       return 'secondary';
@@ -209,13 +204,8 @@ export const getBookingStatusText = (status: BookingStatus | string): string => 
       return 'Auto Checked In';
     case BookingStatus.CHECKED_OUT:
       return 'Checked Out';
-    case BookingStatus.CANCELLED:
-      return 'Cancelled';
     case BookingStatus.NO_SHOW:
       return 'No Show';
-    case BookingStatus.COMP_CANCELLED:
-    case 'comp_cancelled':
-      return 'Comp Cancelled';
     case BookingStatus.PARTIAL_COMPLIMENTARY:
     case 'partial_complimentary':
       return 'Partial Complimentary';
@@ -249,8 +239,6 @@ export const getPaymentStatusColor = (
       return 'error';
     case 'refunded':
       return 'secondary';
-    case 'cancelled':
-      return 'default';
     default:
       return 'default';
   }
@@ -273,8 +261,6 @@ export const getPaymentStatusText = (status: string | undefined): string => {
       return 'Unpaid';
     case 'refunded':
       return 'Refunded';
-    case 'cancelled':
-      return 'Cancelled';
     default:
       return status || 'Unknown';
   }
@@ -388,7 +374,6 @@ export interface BookingStats {
   active: number;
   upcoming: number;
   completed: number;
-  cancelled: number;
   totalRevenue: number;
 }
 
@@ -400,12 +385,9 @@ export const getBookingStatistics = (
   const completed = bookings.filter(
     (b) => b.status === BookingStatus.CHECKED_OUT || b.status === 'checked_out'
   ).length;
-  const cancelled = bookings.filter(
-    (b) => b.status === BookingStatus.CANCELLED || b.status === 'cancelled'
-  ).length;
 
   const totalRevenue = bookings
-    .filter((b) => b.status !== BookingStatus.CANCELLED && b.status !== 'cancelled')
+    .filter((b) => b.status !== BookingStatus.VOIDED && b.status !== 'voided')
     .reduce((sum, booking) => {
       const amount =
         typeof booking.total_amount === 'string'
@@ -419,7 +401,6 @@ export const getBookingStatistics = (
     active,
     upcoming,
     completed,
-    cancelled,
     totalRevenue,
   };
 };

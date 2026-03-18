@@ -38,8 +38,8 @@ export type BookingStatusType =
   | 'checked_in'
   | 'auto_checked_in'
   | 'checked_out'
-  | 'cancelled'
-  | 'no_show';
+  | 'no_show'
+  | 'voided';
 
 /**
  * Display Status Type - unified type for display purposes
@@ -53,7 +53,7 @@ export type DisplayStatusType =
   | 'maintenance'
   | 'pending'
   | 'checked_out'
-  | 'cancelled';
+  | 'voided';
 
 /**
  * Status Configuration Interface
@@ -348,7 +348,7 @@ export interface BookingStatusConfig {
   shortLabel: string;
   description: string;
   // Maps to equivalent room status for unified display
-  displayAs: RoomStatusType | 'pending' | 'checked_out' | 'cancelled';
+  displayAs: RoomStatusType | 'pending' | 'checked_out' | 'voided';
 }
 
 export const BOOKING_STATUS_CONFIG: Record<BookingStatusType, BookingStatusConfig> = {
@@ -387,19 +387,19 @@ export const BOOKING_STATUS_CONFIG: Record<BookingStatusType, BookingStatusConfi
     description: 'Guest has checked out',
     displayAs: 'checked_out',
   },
-  cancelled: {
-    color: '#BDBDBD', // Grey
-    label: 'Cancelled',
-    shortLabel: 'Can',
-    description: 'Booking was cancelled',
-    displayAs: 'cancelled',
-  },
   no_show: {
     color: '#EF5350', // Red
     label: 'No Show',
     shortLabel: 'N/S',
     description: 'Guest did not arrive',
-    displayAs: 'cancelled',
+    displayAs: 'voided',
+  },
+  voided: {
+    color: '#BDBDBD', // Grey
+    label: 'Voided',
+    shortLabel: 'Void',
+    description: 'Booking was voided',
+    displayAs: 'voided',
   },
 };
 

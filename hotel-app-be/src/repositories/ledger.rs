@@ -162,7 +162,7 @@ impl LedgerRepository {
                 COUNT(*) FILTER (WHERE status = 'partial') as partial_count,
                 COUNT(*) FILTER (WHERE status = 'overdue') as overdue_count
             FROM customer_ledgers
-            WHERE status NOT IN ('cancelled')
+            WHERE status NOT IN ('voided')
             "#
         )
         .fetch_one(pool)

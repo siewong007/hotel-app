@@ -163,7 +163,7 @@ pub async fn create_booking_handler(
 
     // Only check for ACTIVE bookings that would conflict
     // Active statuses: reserved, confirmed, checked_in, pending
-    // Inactive statuses (don't block): cancelled, no_show, checked_out, completed
+    // Inactive statuses (don't block): voided, no_show, checked_out, completed
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let conflict_query = r#"
         SELECT EXISTS(
@@ -752,7 +752,7 @@ pub async fn update_booking_handler(
 
     if old_status != updated_status {
         match updated_status {
-            "cancelled" | "no_show" | "voided" => {
+            "no_show" | "voided" => {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
                 let has_other_query2 = r#"SELECT EXISTS(SELECT 1 FROM bookings WHERE room_id = ?1 AND id != ?2 AND status IN ('confirmed', 'checked_in', 'auto_checked_in') AND check_out_date > date('now'))"#;
                 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
@@ -915,15 +915,15 @@ pub async fn delete_booking_handler(
         return Err(ApiError::Forbidden("You don't have permission to delete this booking".to_string()));
     }
 
-    if status == "cancelled" {
-        return Err(ApiError::BadRequest("Booking is already cancelled".to_string()));
+    if status == "voided" {
+        return Err(ApiError::BadRequest("Booking is already voided".to_string()));
     }
 
     let result = sqlx::query(
         r#"
         UPDATE bookings
-        SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP, cancelled_at = CURRENT_TIMESTAMP, cancelled_by = $2
-        WHERE id = $1 AND status != 'cancelled'
+        SET status = 'voided', updated_at = CURRENT_TIMESTAMP, cancelled_at = CURRENT_TIMESTAMP, cancelled_by = $2
+        WHERE id = $1 AND status != 'voided'
         "#
     )
     .bind(booking_id)
@@ -933,7 +933,7 @@ pub async fn delete_booking_handler(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if result.rows_affected() == 0 {
-        return Err(ApiError::BadRequest("Booking cannot be cancelled".to_string()));
+        return Err(ApiError::BadRequest("Booking cannot be voided".to_string()));
     }
 
     if let Err(e) = sqlx::query("UPDATE rooms SET status = 'available' WHERE id = $1")
@@ -941,7 +941,18 @@ pub async fn delete_booking_handler(
         .execute(&pool)
         .await
     {
-        log::warn!("Failed to update room {} status after cancellation: {}", room_id, e);
+        log::warn!("Failed to update room {} status after voiding: {}", room_id, e);
+    }
+
+    // Mark all linked payments as cancelled so they don't appear in night audit
+    if let Err(e) = sqlx::query(
+        "UPDATE payments SET status = 'cancelled' WHERE booking_id = $1 AND status != 'cancelled'"
+    )
+    .bind(booking_id)
+    .execute(&pool)
+    .await
+    {
+        log::warn!("Failed to cancel payments for voided booking {}: {}", booking_id, e);
     }
 
     // If the booking was complimentary, convert the nights to room-type specific credits
@@ -965,7 +976,7 @@ pub async fn delete_booking_handler(
             sqlx::query(
                 r#"
                 INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
-                VALUES ($1, $2, $3, 'Refunded from cancelled complimentary booking', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                VALUES ($1, $2, $3, 'Refunded from voided complimentary booking', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                 ON CONFLICT (guest_id, room_type_id)
                 DO UPDATE SET nights_available = guest_complimentary_credits.nights_available + $3, updated_at = CURRENT_TIMESTAMP
                 "#
@@ -988,16 +999,16 @@ pub async fn delete_booking_handler(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
     )
     .bind(booking_id)
-    .bind("cancellation")
+    .bind("voided")
     .bind(serde_json::json!({"status": &status, "check_in_date": check_in_date.to_string(), "check_out_date": check_out_date.to_string()}))
-    .bind(serde_json::json!({"status": "cancelled"}))
+    .bind(serde_json::json!({"status": "voided"}))
     .bind(user_id)
     .execute(&pool)
     .await
     .ok();
 
     Ok(Json(serde_json::json!({
-        "message": "Booking cancelled successfully",
+        "message": "Booking voided successfully",
         "booking_id": booking_id,
         "complimentary_nights_credited": nights_credited
     })))
@@ -1504,10 +1515,10 @@ pub async fn convert_complimentary_to_credits_handler(
         return Err(ApiError::BadRequest("Only complimentary bookings can be converted to credits".to_string()));
     }
 
-    // Only allow conversion for cancelled or no_show bookings
-    if status != "cancelled" && status != "no_show" {
+    // Only allow conversion for voided or no_show bookings
+    if status != "voided" && status != "no_show" {
         return Err(ApiError::BadRequest(format!(
-            "Can only convert complimentary bookings with status cancelled or no_show. Current status: {}",
+            "Can only convert complimentary bookings with status voided or no_show. Current status: {}",
             status
         )));
     }
@@ -1519,7 +1530,7 @@ pub async fn convert_complimentary_to_credits_handler(
     sqlx::query(
         r#"
         INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
-        VALUES ($1, $2, $3, 'Converted from cancelled complimentary booking', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1, $2, $3, 'Converted from voided complimentary booking', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT (guest_id, room_type_id)
         DO UPDATE SET nights_available = guest_complimentary_credits.nights_available + $3, updated_at = CURRENT_TIMESTAMP
         "#
@@ -1655,7 +1666,7 @@ pub async fn book_with_credits_handler(
         SELECT NOT EXISTS(
             SELECT 1 FROM bookings
             WHERE room_id = $1
-              AND status NOT IN ('cancelled', 'checked_out', 'no_show', 'voided')
+              AND status NOT IN ('checked_out', 'no_show', 'voided')
               AND check_in_date < $3
               AND check_out_date > $2
         )
@@ -1790,7 +1801,7 @@ pub async fn get_complimentary_bookings_handler(
         INNER JOIN rooms r ON b.room_id = r.id
         INNER JOIN room_types rt ON r.room_type_id = rt.id
         WHERE b.is_complimentary = true
-           OR b.status IN ('partial_complimentary', 'fully_complimentary', 'comp_cancelled')
+           OR b.status IN ('partial_complimentary', 'fully_complimentary')
         ORDER BY b.created_at DESC
         "#
     )
@@ -1807,7 +1818,7 @@ pub async fn get_complimentary_summary_handler(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Total complimentary bookings
     let total_bookings: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM bookings WHERE is_complimentary = true OR status IN ('partial_complimentary', 'fully_complimentary', 'comp_cancelled')"
+        "SELECT COUNT(*) FROM bookings WHERE is_complimentary = true OR status IN ('partial_complimentary', 'fully_complimentary')"
     )
     .fetch_one(&pool)
     .await

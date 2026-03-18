@@ -277,7 +277,7 @@ const MyBookingsPage: React.FC = () => {
         return 'success';
       case 'pending':
         return 'warning';
-      case 'cancelled':
+      case 'voided':
         return 'error';
       case 'completed':
         return 'info';

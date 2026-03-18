@@ -26,7 +26,7 @@ export interface CustomerLedger {
   expense_type: string;
   amount: number | string;
   currency?: string;
-  status: 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled';
+  status: 'pending' | 'partial' | 'paid' | 'overdue';
   paid_amount: number | string;
   balance_due: number | string;
   payment_method?: string;

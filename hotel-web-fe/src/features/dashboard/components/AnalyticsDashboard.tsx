@@ -262,7 +262,7 @@ const AnalyticsDashboard: React.FC = () => {
       const todayCheckIns = bookings.filter((b: any) => {
         const checkIn = new Date(b.check_in_date);
         checkIn.setHours(0, 0, 0, 0);
-        return checkIn.getTime() === today.getTime() && b.status !== 'cancelled';
+        return checkIn.getTime() === today.getTime() && b.status !== 'voided';
       }).length;
 
       const todayCheckOuts = bookings.filter((b: any) => {

@@ -139,7 +139,7 @@ pub const SEARCH_ROOMS_WITH_DATES_QUERY: &str = r#"
 WITH conflicting_bookings AS (
     SELECT DISTINCT room_id
     FROM bookings
-    WHERE status NOT IN ('cancelled', 'no_show', 'checked_out', 'voided')
+    WHERE status NOT IN ('no_show', 'checked_out', 'voided')
       AND (check_in_date < $2 AND check_out_date > $1)
 )
 SELECT
@@ -177,7 +177,7 @@ pub const SEARCH_ROOMS_WITH_DATES_QUERY: &str = r#"
 WITH conflicting_bookings AS (
     SELECT DISTINCT room_id
     FROM bookings
-    WHERE status NOT IN ('cancelled', 'no_show', 'checked_out', 'voided')
+    WHERE status NOT IN ('no_show', 'checked_out', 'voided')
       AND (check_in_date < ?2 AND check_out_date > ?1)
 )
 SELECT
@@ -1057,7 +1057,7 @@ JOIN guests g ON b.guest_id = g.id
 JOIN rooms r ON b.room_id = r.id
 JOIN room_types rt ON r.room_type_id = rt.id
 WHERE b.room_id = $1
-  AND b.status NOT IN ('cancelled', 'checked_out', 'voided')
+  AND b.status NOT IN ('checked_out', 'voided')
   AND b.check_in_date <= CURRENT_DATE
   AND b.check_out_date > CURRENT_DATE
 ORDER BY b.check_in_date DESC
@@ -1076,7 +1076,7 @@ JOIN guests g ON b.guest_id = g.id
 JOIN rooms r ON b.room_id = r.id
 JOIN room_types rt ON r.room_type_id = rt.id
 WHERE b.room_id = ?1
-  AND b.status NOT IN ('cancelled', 'checked_out', 'voided')
+  AND b.status NOT IN ('checked_out', 'voided')
   AND b.check_in_date <= date('now')
   AND b.check_out_date > date('now')
 ORDER BY b.check_in_date DESC

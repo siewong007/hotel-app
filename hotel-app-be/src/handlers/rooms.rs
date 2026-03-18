@@ -449,7 +449,7 @@ pub async fn delete_room_handler(
         ));
     }
 
-    // Delete all bookings associated with this room (past, pending, confirmed, cancelled)
+    // Delete all bookings associated with this room (past, pending, confirmed, voided)
     sqlx::query(DELETE_ROOM_BOOKINGS)
         .bind(room_id)
         .execute(&pool)
