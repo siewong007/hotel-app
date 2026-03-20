@@ -522,6 +522,60 @@ pub async fn update_booking_handler(
         }
     }
 
+    // Check for room conflicts when room or dates change
+    let room_changed = input.room_id.is_some() && new_room_id != existing_booking.room_id;
+    let dates_changed = input.check_in_date.is_some() || input.check_out_date.is_some();
+    if room_changed || dates_changed {
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let conflict_query = r#"
+            SELECT EXISTS(
+                SELECT 1 FROM bookings
+                WHERE room_id = ?1 AND id != ?4
+                AND status IN ('reserved', 'confirmed', 'checked_in', 'pending') AND status != 'voided'
+                AND ((check_in_date <= ?2 AND check_out_date > ?2)
+                    OR (check_in_date < ?3 AND check_out_date >= ?3)
+                    OR (check_in_date >= ?2 AND check_out_date <= ?3))
+            )
+        "#;
+
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        let conflict_query = r#"
+            SELECT EXISTS(
+                SELECT 1 FROM bookings
+                WHERE room_id = $1 AND id != $4
+                AND status IN ('reserved', 'confirmed', 'checked_in', 'pending') AND status != 'voided'
+                AND ((check_in_date <= $2 AND check_out_date > $2)
+                    OR (check_in_date < $3 AND check_out_date >= $3)
+                    OR (check_in_date >= $2 AND check_out_date <= $3))
+            )
+        "#;
+
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let conflict: bool = sqlx::query_scalar::<_, i32>(conflict_query)
+            .bind(new_room_id)
+            .bind(check_in)
+            .bind(check_out)
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .map(|v| v != 0)
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        let conflict: bool = sqlx::query_scalar::<_, bool>(conflict_query)
+            .bind(new_room_id)
+            .bind(check_in)
+            .bind(check_out)
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if conflict {
+            return Err(ApiError::BadRequest("Room is already booked for these dates".to_string()));
+        }
+    }
+
     // Determine post_type based on dates: hourly if check_in == check_out
     let post_type = if check_in == check_out {
         Some("hourly".to_string())

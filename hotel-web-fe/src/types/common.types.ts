@@ -5,6 +5,7 @@ export interface SearchQuery {
   max_price?: number;
   check_in_date?: string;
   check_out_date?: string;
+  exclude_booking_id?: number;
   [key: string]: string | number | undefined;
 }
 

@@ -373,14 +373,9 @@ const BookingsPage: React.FC = () => {
     if (isNotCheckedIn) {
       const checkIn = booking.check_in_date.split('T')[0];
       const checkOut = booking.check_out_date.split('T')[0];
-      HotelAPIService.getAvailableRoomsForDates(checkIn, checkOut).then(available => {
-        // Include the currently assigned room since it won't show as "available"
-        const currentRoom = rooms.find(r => r.id === booking.room_id);
-        if (currentRoom && !available.find(r => r.id === currentRoom.id)) {
-          setAvailableRooms(sortRoomsByNumber([currentRoom, ...available]));
-        } else {
-          setAvailableRooms(sortRoomsByNumber(available));
-        }
+      const bookingId = typeof booking.id === 'string' ? parseInt(booking.id, 10) : booking.id;
+      HotelAPIService.getAvailableRoomsForDates(checkIn, checkOut, bookingId).then(available => {
+        setAvailableRooms(sortRoomsByNumber(available));
       }).catch(() => {
         // Fallback: show all rooms
         setAvailableRooms(sortRoomsByNumber(rooms));
@@ -389,6 +384,21 @@ const BookingsPage: React.FC = () => {
 
     setEditDialogOpen(true);
   };
+
+  // Re-fetch available rooms when dates change in the edit dialog
+  useEffect(() => {
+    if (!editDialogOpen || !editingBooking) return;
+    if (!editFormData.check_in_date || !editFormData.check_out_date) return;
+    const isNotCheckedIn = !['checked_in', 'auto_checked_in', 'checked_out', 'completed'].includes(editingBooking.status);
+    if (!isNotCheckedIn) return;
+
+    const bookingId = typeof editingBooking.id === 'string' ? parseInt(editingBooking.id, 10) : editingBooking.id;
+    HotelAPIService.getAvailableRoomsForDates(editFormData.check_in_date, editFormData.check_out_date, bookingId).then(available => {
+      setAvailableRooms(sortRoomsByNumber(available));
+    }).catch(() => {
+      setAvailableRooms(sortRoomsByNumber(rooms));
+    });
+  }, [editFormData.check_in_date, editFormData.check_out_date]);
 
   const handleUpdateBooking = async () => {
     if (!editingBooking) return;

@@ -38,11 +38,14 @@ export class RoomsService {
     );
   }
 
-  static async getAvailableRoomsForDates(checkInDate: string, checkOutDate: string): Promise<Room[]> {
+  static async getAvailableRoomsForDates(checkInDate: string, checkOutDate: string, excludeBookingId?: number): Promise<Room[]> {
     const params: SearchQuery = {
       check_in_date: checkInDate,
       check_out_date: checkOutDate,
     };
+    if (excludeBookingId) {
+      params.exclude_booking_id = excludeBookingId;
+    }
 
     return await withRetry(
       () => api.get('rooms/available', { searchParams: params }).json<Room[]>(),
