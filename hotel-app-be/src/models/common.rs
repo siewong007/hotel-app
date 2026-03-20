@@ -9,6 +9,7 @@ pub struct SearchQuery {
     pub max_price: Option<f64>,
     pub check_in_date: Option<String>,
     pub check_out_date: Option<String>,
+    pub exclude_booking_id: Option<i64>,
 }
 
 /// Pagination parameters

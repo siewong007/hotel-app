@@ -146,6 +146,7 @@ pub async fn search_rooms_handler(
         sqlx::query(SEARCH_ROOMS_WITH_DATES_QUERY)
             .bind(ci)
             .bind(co)
+            .bind(query.exclude_booking_id)
             .fetch_all(&pool)
             .await
     } else {

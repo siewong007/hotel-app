@@ -141,6 +141,7 @@ WITH conflicting_bookings AS (
     FROM bookings
     WHERE status NOT IN ('no_show', 'checked_out', 'voided')
       AND (check_in_date < $2 AND check_out_date > $1)
+      AND ($3::BIGINT IS NULL OR id != $3)
 )
 SELECT
     r.id,
@@ -179,6 +180,7 @@ WITH conflicting_bookings AS (
     FROM bookings
     WHERE status NOT IN ('no_show', 'checked_out', 'voided')
       AND (check_in_date < ?2 AND check_out_date > ?1)
+      AND (?3 IS NULL OR id != ?3)
 )
 SELECT
     r.id,
