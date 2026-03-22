@@ -368,12 +368,13 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         JOIN rooms r ON b.room_id = r.id
         WHERE p.status = 'completed'
         AND p.payment_type != 'refund'
-        AND p.created_at::date = $1
+        AND (p.created_at AT TIME ZONE $2)::date = $1
         ORDER BY r.room_number
     "#;
 
     if let Ok(payment_rows) = sqlx::query(payment_query)
         .bind(audit_date)
+        .bind(&hotel_timezone)
         .fetch_all(pool)
         .await
     {
@@ -507,12 +508,13 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             COALESCE(cl.description, 'Guest Ledger Transfer') as description
         FROM customer_ledgers cl
         WHERE cl.void_at IS NULL
-        AND COALESCE(cl.posting_date, cl.created_at::date) = $1
+        AND COALESCE(cl.posting_date, (cl.created_at AT TIME ZONE $2)::date) = $1
         ORDER BY cl.company_name, cl.room_number
     "#;
 
     if let Ok(cl_rows) = sqlx::query(city_ledger_query)
         .bind(audit_date)
+        .bind(&hotel_timezone)
         .fetch_all(pool)
         .await
     {
@@ -550,12 +552,13 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         FROM customer_ledger_payments clp
         JOIN customer_ledgers cl ON clp.ledger_id = cl.id
         WHERE cl.void_at IS NULL
-        AND clp.payment_date::date = $1
+        AND (clp.payment_date AT TIME ZONE $2)::date = $1
         ORDER BY cl.company_name
     "#;
 
     if let Ok(clp_rows) = sqlx::query(city_ledger_payments_query)
         .bind(audit_date)
+        .bind(&hotel_timezone)
         .fetch_all(pool)
         .await
     {
