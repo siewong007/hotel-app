@@ -53,6 +53,7 @@ interface ChargesBreakdown {
   serviceTax: number;
   tourismTax: number;
   extraBedCharge: number;
+  extraBedServiceTax: number;
   subtotal: number;
   depositRefund: number;
   grandTotal: number;
@@ -118,6 +119,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     serviceTax: 0,
     tourismTax: 0,
     extraBedCharge: 0,
+    extraBedServiceTax: 0,
     subtotal: 0,
     depositRefund: 0,
     grandTotal: 0,
@@ -366,9 +368,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       ? (typeof booking.extra_bed_charge === 'string' ? parseFloat(booking.extra_bed_charge) : booking.extra_bed_charge)
       : 0;
 
+    // Apply service tax to extra bed charge
+    const extraBedServiceTax = extraBedCharge > 0 ? extraBedCharge * (hotelSettings.service_tax_rate / 100) : 0;
+
     // Subtotal = Room Charges + Service Tax + other charges
     // This equals configured_price × nights + other charges
-    const subtotal = roomCharges + serviceTax + tourismTax + extraBedCharge;
+    const subtotal = roomCharges + serviceTax + tourismTax + extraBedCharge + extraBedServiceTax;
 
     // Deposit is refunded separately - does not reduce the total amount due
     const depositRefund = roomCardDeposit;
@@ -381,6 +386,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       serviceTax,
       tourismTax,
       extraBedCharge,
+      extraBedServiceTax,
       subtotal,
       depositRefund,
       grandTotal,
@@ -1061,6 +1067,20 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           {formatCurrency(charges.extraBedCharge)}
                         </Typography>
                       </Grid>
+                      {charges.extraBedServiceTax > 0 && (
+                        <>
+                          <Grid item xs={8}>
+                            <Typography variant="body2" color="text.secondary" sx={{ pl: 2, fontSize: '0.8rem' }}>
+                              Service Tax ({hotelSettings.service_tax_rate}%)
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                            <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
+                              {formatCurrency(charges.extraBedServiceTax)}
+                            </Typography>
+                          </Grid>
+                        </>
+                      )}
                     </Grid>
                   </Box>
                 )}
@@ -1691,6 +1711,20 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       {formatCurrency(charges.extraBedCharge)}
                     </Typography>
                   </Grid>
+                  {charges.extraBedServiceTax > 0 && (
+                    <>
+                      <Grid item xs={8}>
+                        <Typography variant="body2" color="text.secondary" sx={{ pl: 2 }}>
+                          Service Tax ({hotelSettings.service_tax_rate}%)
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                        <Typography variant="body2">
+                          {formatCurrency(charges.extraBedServiceTax)}
+                        </Typography>
+                      </Grid>
+                    </>
+                  )}
                 </>
               )}
 
@@ -1976,10 +2010,18 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             )}
 
             {charges.extraBedCharge > 0 && (
-              <tr>
-                <td>Extra Bed Charge</td>
-                <td className="amount">{formatCurrency(charges.extraBedCharge)}</td>
-              </tr>
+              <>
+                <tr>
+                  <td>Extra Bed Charge</td>
+                  <td className="amount">{formatCurrency(charges.extraBedCharge)}</td>
+                </tr>
+                {charges.extraBedServiceTax > 0 && (
+                  <tr>
+                    <td style={{ paddingLeft: '24px' }}>Service Tax ({hotelSettings.service_tax_rate}%)</td>
+                    <td className="amount">{formatCurrency(charges.extraBedServiceTax)}</td>
+                  </tr>
+                )}
+              </>
             )}
 
             {charges.depositRefund > 0 ? (

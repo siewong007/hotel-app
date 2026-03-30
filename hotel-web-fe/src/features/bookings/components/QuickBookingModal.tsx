@@ -27,6 +27,7 @@ import { validateEmail, validatePhone } from '../../../utils/validation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { useRoomAvailabilityCheck } from '../../../hooks/useRoomAvailabilityCheck';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 
 interface QuickBookingModalProps {
@@ -92,6 +93,14 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Check availability when dates change for pre-selected room
+  const { isAvailable: roomIsAvailable, isChecking: checkingAvailability } = useRoomAvailabilityCheck(
+    room?.id ?? null,
+    checkInDate,
+    checkOutDate,
+    !!room
+  );
 
   // Track previous open state to detect true open/close transitions
   const wasOpenRef = useRef(false);
@@ -418,6 +427,17 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
             <Alert severity="error" onClose={() => setError(null)}>
               {error}
             </Alert>
+          )}
+          {roomIsAvailable === false && (
+            <Alert severity="warning">
+              Room {room?.room_number} is not available for these dates. It has an overlapping booking. Please choose different dates.
+            </Alert>
+          )}
+          {checkingAvailability && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CircularProgress size={16} />
+              <Typography variant="body2" color="text.secondary">Checking room availability...</Typography>
+            </Box>
           )}
 
           {/* Guest Selection - Only show in admin mode */}
@@ -891,7 +911,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
             !checkInDate ||
             !checkOutDate ||
             !checkInTime ||
-            !checkOutTime
+            !checkOutTime ||
+            roomIsAvailable === false ||
+            checkingAvailability
           }
           startIcon={loading ? <CircularProgress size={20} /> : <BookIcon />}
         >
