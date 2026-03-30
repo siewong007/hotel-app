@@ -40,6 +40,7 @@ import {
 import { Room, Guest, Booking, RoomType } from '../../../types';
 import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { useRoomAvailabilityCheck } from '../../../hooks/useRoomAvailabilityCheck';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { isValidEmail } from '../../../utils/validation';
 import GuestSelector, { NewGuestForm, GuestWithCredits, emptyNewGuestForm } from './GuestSelector';
@@ -172,6 +173,14 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Use selected room or prop room
   const room = roomProp || selectedRoom;
+
+  // Check availability when room is pre-selected and dates change
+  const { isAvailable: roomIsAvailable, isChecking: checkingAvailability } = useRoomAvailabilityCheck(
+    roomProp?.id ?? null,
+    checkInDate,
+    checkOutDate,
+    !!roomProp
+  );
 
   // Track previous open state to detect true open/close transitions
   const wasOpenRef = useRef(false);
@@ -442,6 +451,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         // For direct booking with room pre-selected
         if (!checkInDate || !checkOutDate) return false;
         if (!isHourlyBooking && new Date(checkOutDate) <= new Date(checkInDate)) return false;
+        if (roomIsAvailable === false) return false;
         return true;
 
       case 'Details':
@@ -450,6 +460,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           // Dates validation needed only when room is pre-selected
           if (!checkInDate || !checkOutDate) return false;
           if (!isHourlyBooking && new Date(checkOutDate) <= new Date(checkInDate)) return false;
+          if (roomIsAvailable === false) return false;
         }
         if (reservationType === 'online' && !bookingChannel) return false;
         return true;
@@ -1230,6 +1241,22 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                   </Grid>
                 )}
               </>
+            )}
+            {/* Room availability warning for pre-selected rooms */}
+            {showDates && roomIsAvailable === false && (
+              <Grid item xs={12}>
+                <Alert severity="warning">
+                  Room {room?.room_number} is not available for these dates. It has an overlapping booking. Please choose different dates.
+                </Alert>
+              </Grid>
+            )}
+            {showDates && checkingAvailability && (
+              <Grid item xs={12}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CircularProgress size={16} />
+                  <Typography variant="body2" color="text.secondary">Checking room availability...</Typography>
+                </Box>
+              </Grid>
             )}
 
             {/* Online booking specific fields */}
