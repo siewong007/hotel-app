@@ -363,13 +363,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       tourismTax = storedTourismTax > 0 ? storedTourismTax : nights * hotelSettings.tourism_tax_rate;
     }
 
-    // Get extra bed charge from booking
-    const extraBedCharge = booking.extra_bed_charge
+    // Get extra bed charge from booking (tax-inclusive)
+    const extraBedChargeInclTax = booking.extra_bed_charge
       ? (typeof booking.extra_bed_charge === 'string' ? parseFloat(booking.extra_bed_charge) : booking.extra_bed_charge)
       : 0;
 
-    // Apply service tax to extra bed charge
-    const extraBedServiceTax = extraBedCharge > 0 ? extraBedCharge * (hotelSettings.service_tax_rate / 100) : 0;
+    // Extra bed charge is tax-inclusive, so extract the base and tax components
+    const extraBedCharge = extraBedChargeInclTax > 0 ? extraBedChargeInclTax / (1 + hotelSettings.service_tax_rate / 100) : 0;
+    const extraBedServiceTax = extraBedChargeInclTax - extraBedCharge;
 
     // Subtotal = Room Charges + Service Tax + other charges
     // This equals configured_price × nights + other charges
