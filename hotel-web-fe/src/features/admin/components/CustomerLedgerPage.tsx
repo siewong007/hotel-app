@@ -1360,108 +1360,122 @@ const CustomerLedgerPage: React.FC = () => {
   };
 
   const handlePrint = () => {
-    const printContent = document.getElementById('print-statement-content');
-    if (printContent) {
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        const totalAmount = companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.amount)), 0);
-        const totalPaid = companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.paid_amount)), 0);
-        const totalBalance = companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.balance_due)), 0);
+    const totalAmount = companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.amount)), 0);
+    const totalPaid = companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.paid_amount)), 0);
+    const totalBalance = companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.balance_due)), 0);
 
-        printWindow.document.write(`
-          <html>
-            <head>
-              <title>Company Ledger Statement - ${printingCompany}</title>
-              <style>
-                body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-                .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-                .header h1 { margin: 0; color: #333; }
-                .header h2 { margin: 10px 0 0; color: #666; font-weight: normal; }
-                .company-info { margin-bottom: 20px; }
-                .summary { display: flex; justify-content: space-between; margin-bottom: 20px; background: #f5f5f5; padding: 15px; border-radius: 4px; }
-                .summary-item { text-align: center; }
-                .summary-item .label { font-size: 12px; color: #666; }
-                .summary-item .value { font-size: 18px; font-weight: bold; }
-                table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-                th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-                th { background-color: #26a69a; color: white; }
-                tr:nth-child(even) { background-color: #f9f9f9; }
-                .text-right { text-align: right; }
-                .status-paid { color: green; }
-                .status-pending { color: orange; }
-                .status-overdue { color: red; }
-                .footer { margin-top: 30px; text-align: center; color: #666; font-size: 12px; }
-                @media print {
-                  body { padding: 0; }
-                  .no-print { display: none; }
-                }
-              </style>
-            </head>
-            <body>
-              <div class="header">
-                <h1>Salim Inn</h1>
-                <h2>Company Ledger Statement</h2>
-              </div>
-              <div class="company-info">
-                <h3>${printingCompany}</h3>
-                <p>Statement Date: ${new Date().toLocaleDateString()}</p>
-              </div>
-              <div class="summary">
-                <div class="summary-item">
-                  <div class="label">Total Entries</div>
-                  <div class="value">${companyLedgerEntries.length}</div>
-                </div>
-                <div class="summary-item">
-                  <div class="label">Total Amount</div>
-                  <div class="value">${formatCurrency(totalAmount)}</div>
-                </div>
-                <div class="summary-item">
-                  <div class="label">Total Paid</div>
-                  <div class="value" style="color: green;">${formatCurrency(totalPaid)}</div>
-                </div>
-                <div class="summary-item">
-                  <div class="label">Balance Due</div>
-                  <div class="value" style="color: ${totalBalance > 0 ? 'red' : 'green'};">${formatCurrency(totalBalance)}</div>
-                </div>
-              </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Invoice #</th>
-                    <th>Date</th>
-                    <th>Description</th>
-                    <th>Type</th>
-                    <th class="text-right">Amount</th>
-                    <th class="text-right">Paid</th>
-                    <th class="text-right">Balance</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${companyLedgerEntries.map(entry => `
-                    <tr>
-                      <td>${entry.invoice_number || '-'}</td>
-                      <td>${new Date(entry.created_at).toLocaleDateString()}</td>
-                      <td>${entry.description}</td>
-                      <td>${entry.expense_type}</td>
-                      <td class="text-right">${formatCurrency(parseFloat(String(entry.amount)))}</td>
-                      <td class="text-right">${formatCurrency(parseFloat(String(entry.paid_amount)))}</td>
-                      <td class="text-right">${formatCurrency(parseFloat(String(entry.balance_due)))}</td>
-                      <td class="status-${entry.status}">${entry.status.toUpperCase()}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-              <div class="footer">
-                <p>Generated on ${new Date().toLocaleString()}</p>
-                <p>Salim Inn - Hotel Management System</p>
-              </div>
-            </body>
-          </html>
-        `);
-        printWindow.document.close();
-        printWindow.print();
-      }
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Company Ledger Statement - ${printingCompany}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+            .header h1 { margin: 0; color: #333; }
+            .header h2 { margin: 10px 0 0; color: #666; font-weight: normal; }
+            .company-info { margin-bottom: 20px; }
+            .summary { display: flex; justify-content: space-between; margin-bottom: 20px; background: #f5f5f5; padding: 15px; border-radius: 4px; }
+            .summary-item { text-align: center; }
+            .summary-item .label { font-size: 12px; color: #666; }
+            .summary-item .value { font-size: 18px; font-weight: bold; }
+            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+            th { background-color: #26a69a; color: white; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            .text-right { text-align: right; }
+            .status-paid { color: green; }
+            .status-pending { color: orange; }
+            .status-overdue { color: red; }
+            .footer { margin-top: 30px; text-align: center; color: #666; font-size: 12px; }
+            @media print {
+              body { padding: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Salim Inn</h1>
+            <h2>Company Ledger Statement</h2>
+          </div>
+          <div class="company-info">
+            <h3>${printingCompany}</h3>
+            <p>Statement Date: ${new Date().toLocaleDateString()}</p>
+          </div>
+          <div class="summary">
+            <div class="summary-item">
+              <div class="label">Total Entries</div>
+              <div class="value">${companyLedgerEntries.length}</div>
+            </div>
+            <div class="summary-item">
+              <div class="label">Total Amount</div>
+              <div class="value">${formatCurrency(totalAmount)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="label">Total Paid</div>
+              <div class="value" style="color: green;">${formatCurrency(totalPaid)}</div>
+            </div>
+            <div class="summary-item">
+              <div class="label">Balance Due</div>
+              <div class="value" style="color: ${totalBalance > 0 ? 'red' : 'green'};">${formatCurrency(totalBalance)}</div>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice #</th>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Type</th>
+                <th class="text-right">Amount</th>
+                <th class="text-right">Paid</th>
+                <th class="text-right">Balance</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${companyLedgerEntries.map(entry => `
+                <tr>
+                  <td>${entry.invoice_number || '-'}</td>
+                  <td>${new Date(entry.created_at).toLocaleDateString()}</td>
+                  <td>${entry.description}</td>
+                  <td>${entry.expense_type}</td>
+                  <td class="text-right">${formatCurrency(parseFloat(String(entry.amount)))}</td>
+                  <td class="text-right">${formatCurrency(parseFloat(String(entry.paid_amount)))}</td>
+                  <td class="text-right">${formatCurrency(parseFloat(String(entry.balance_due)))}</td>
+                  <td class="status-${entry.status}">${entry.status.toUpperCase()}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="footer">
+            <p>Generated on ${new Date().toLocaleString()}</p>
+            <p>Salim Inn - Hotel Management System</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Use iframe for printing (works in Tauri desktop apps)
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'absolute';
+    printFrame.style.top = '-10000px';
+    printFrame.style.left = '-10000px';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    document.body.appendChild(printFrame);
+
+    const frameDoc = printFrame.contentWindow?.document;
+    if (frameDoc) {
+      frameDoc.open();
+      frameDoc.write(htmlContent);
+      frameDoc.close();
+
+      setTimeout(() => {
+        printFrame.contentWindow?.print();
+        setTimeout(() => {
+          document.body.removeChild(printFrame);
+        }, 1000);
+      }, 250);
     }
   };
 

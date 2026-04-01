@@ -12,6 +12,6 @@ root.render(
 );
 
 // Monitor and log web vitals for performance tracking
-if (process.env.NODE_ENV === 'production') {
+if (import.meta.env.PROD) {
   logWebVitals();
 }
