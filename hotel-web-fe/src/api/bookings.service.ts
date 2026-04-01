@@ -15,12 +15,31 @@ import { validateBookingRequest, enhanceBookingDetails } from '../utils/bookingU
 export class BookingsService {
   static async getAllBookings(): Promise<Booking[]> {
     try {
-      const response = await withRetry(
-        () => api.get('bookings', { searchParams: { page: 1, page_size: 500 } }).json<any>(),
+      const pageSize = 500;
+      const firstPage = await withRetry(
+        () => api.get('bookings', { searchParams: { page: 1, page_size: pageSize } }).json<any>(),
         { maxAttempts: 3, initialDelay: 1000 }
       );
-      // Handle both paginated response { data: [...] } and legacy array response
-      return Array.isArray(response) ? response : (response.data || []);
+      const firstData: Booking[] = Array.isArray(firstPage) ? firstPage : (firstPage.data || []);
+      const total = firstPage.total || firstData.length;
+
+      if (total <= pageSize) return firstData;
+
+      // Fetch remaining pages in parallel
+      const totalPages = Math.ceil(total / pageSize);
+      const remainingPages = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, i) =>
+          withRetry(
+            () => api.get('bookings', { searchParams: { page: i + 2, page_size: pageSize } }).json<any>(),
+            { maxAttempts: 3, initialDelay: 1000 }
+          )
+        )
+      );
+
+      return remainingPages.reduce(
+        (acc, res) => acc.concat(Array.isArray(res) ? res : (res.data || [])),
+        firstData
+      );
     } catch (error) {
       if (error instanceof HTTPError) {
         const errorData = await error.response.json().catch(() => ({}));

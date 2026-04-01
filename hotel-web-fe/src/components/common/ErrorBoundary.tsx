@@ -10,7 +10,7 @@ interface ErrorFallbackProps extends FallbackProps {
 }
 
 function ErrorFallback({ error, resetErrorBoundary, title = 'Something went wrong' }: ErrorFallbackProps) {
-  const isDevelopment = process.env.NODE_ENV === 'development';
+  const isDevelopment = import.meta.env.DEV;
 
   return (
     <Box
@@ -96,7 +96,7 @@ interface ErrorBoundaryProps {
 export function ErrorBoundary({ children, title, onError, onReset }: ErrorBoundaryProps) {
   const handleError = (error: Error, errorInfo: React.ErrorInfo) => {
     // Log error to console in development
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.error('Error Boundary caught an error:', error, errorInfo);
     }
 

@@ -154,7 +154,7 @@ export class RoomsService {
   static async getRoomHistory(roomId: string | number): Promise<RoomHistory[]> {
     const url = `rooms/${roomId}/history`;
     const fullUrl = API_BASE_URL ? `${API_BASE_URL}/${url}` : `/${url}`;
-    console.log('[API] Fetching room history:', url, 'Full URL:', fullUrl, 'Env:', process.env.NODE_ENV);
+    console.log('[API] Fetching room history:', url, 'Full URL:', fullUrl, 'Env:', import.meta.env.MODE);
     try {
       const response = await api.get(url, {
         timeout: 60000,

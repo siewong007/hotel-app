@@ -16,7 +16,7 @@ export class APIError extends Error {
 
 // In development, use empty string to leverage the proxy in package.json
 // In production, use the full API URL
-export const API_BASE_URL = process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? 'http://localhost:3030' : '');
+export const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'http://localhost:3030' : '');
 
 // Create ky instance with hooks for auth and error handling
 export const api = ky.create({
