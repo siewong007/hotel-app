@@ -468,8 +468,14 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     if (!window.confirm('Are you sure you want to delete this payment record?')) return;
     try {
       setDeletingPaymentId(paymentId);
+      // Check if this is a refund payment before deleting
+      const deletedPayment = payments.find(p => p.id === paymentId);
       await InvoicesService.deletePayment(paymentId);
       setPayments(prev => prev.filter(p => p.id !== paymentId));
+      // Reset depositRefunded if a refund payment was deleted
+      if (deletedPayment?.payment_status === 'refunded') {
+        setDepositRefunded(false);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to delete payment');
     } finally {
@@ -1422,24 +1428,129 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 <Box sx={{ p: 0 }}>
                   {payments.filter((p: any) => p.payment_status === 'refunded').map((p: any, idx: number) => (
                     <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid #eee', bgcolor: '#f1f8e9' }}>
-                      <Grid container alignItems="center">
-                        <Grid item xs={5}>
-                          <Typography variant="body2" sx={{ color: '#2e7d32' }}>
-                            Deposit Refund ({p.payment_method?.replace('_', ' ')})
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {new Date(p.created_at).toLocaleString()}
-                          </Typography>
+                      {editingPayment?.id === p.id ? (
+                        <Box>
+                          <Grid container spacing={1} sx={{ mb: 1 }}>
+                            <Grid item xs={4}>
+                              <TextField
+                                label="Amount"
+                                type="number"
+                                size="small"
+                                fullWidth
+                                value={editAmount || ''}
+                                onChange={(e) => setEditAmount(parseFloat(e.target.value) || 0)}
+                                InputProps={{
+                                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+                                }}
+                              />
+                            </Grid>
+                            <Grid item xs={4}>
+                              <FormControl fullWidth size="small">
+                                <InputLabel>Method</InputLabel>
+                                <Select
+                                  value={editMethod}
+                                  label="Method"
+                                  onChange={(e) => setEditMethod(e.target.value)}
+                                >
+                                  {hotelSettings.payment_methods.map((method) => (
+                                    <MenuItem key={method} value={method}>{method}</MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
+                            </Grid>
+                            <Grid item xs={4}>
+                              <TextField
+                                label="Refund Date"
+                                type="date"
+                                size="small"
+                                fullWidth
+                                value={editDate}
+                                onChange={(e) => setEditDate(e.target.value)}
+                                InputLabelProps={{ shrink: true }}
+                              />
+                            </Grid>
+                            <Grid item xs={6}>
+                              <TextField
+                                label="Reference"
+                                size="small"
+                                fullWidth
+                                value={editReference}
+                                onChange={(e) => setEditReference(e.target.value)}
+                              />
+                            </Grid>
+                            <Grid item xs={6}>
+                              <TextField
+                                label="Notes"
+                                size="small"
+                                fullWidth
+                                value={editNotes}
+                                onChange={(e) => setEditNotes(e.target.value)}
+                              />
+                            </Grid>
+                          </Grid>
+                          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                            <Button
+                              size="small"
+                              onClick={handleCancelEdit}
+                              disabled={updatingPayment}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              onClick={handleUpdatePayment}
+                              disabled={updatingPayment || editAmount <= 0}
+                            >
+                              {updatingPayment ? 'Saving...' : 'Save'}
+                            </Button>
+                          </Box>
+                        </Box>
+                      ) : (
+                        <Grid container alignItems="center">
+                          <Grid item xs={5}>
+                            <Typography variant="body2" sx={{ color: '#2e7d32' }}>
+                              Deposit Refund ({p.payment_method?.replace('_', ' ')})
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(p.created_at).toLocaleString()}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={2}>
+                            <Chip label="Refunded" size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
+                          </Grid>
+                          <Grid item xs={3} sx={{ textAlign: 'right' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
+                              -{formatCurrency(parseFloat(p.total_amount || '0'))}
+                            </Typography>
+                          </Grid>
+                          <Grid item xs={2} sx={{ textAlign: 'right' }}>
+                            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                              <Button
+                                size="small"
+                                sx={{ minWidth: 'auto', p: 0.5 }}
+                                onClick={() => handleStartEdit(p)}
+                                disabled={deletingPaymentId === p.id}
+                              >
+                                <EditIcon fontSize="small" />
+                              </Button>
+                              <Button
+                                size="small"
+                                color="error"
+                                sx={{ minWidth: 'auto', p: 0.5 }}
+                                onClick={() => handleDeletePayment(p.id)}
+                                disabled={deletingPaymentId === p.id}
+                              >
+                                {deletingPaymentId === p.id ? (
+                                  <CircularProgress size={16} />
+                                ) : (
+                                  <DeleteIcon fontSize="small" />
+                                )}
+                              </Button>
+                            </Box>
+                          </Grid>
                         </Grid>
-                        <Grid item xs={4}>
-                          <Chip label="Refunded" size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
-                        </Grid>
-                        <Grid item xs={3} sx={{ textAlign: 'right' }}>
-                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
-                            -{formatCurrency(parseFloat(p.total_amount || '0'))}
-                          </Typography>
-                        </Grid>
-                      </Grid>
+                      )}
                     </Box>
                   ))}
                 </Box>

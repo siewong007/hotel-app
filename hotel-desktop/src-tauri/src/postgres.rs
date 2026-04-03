@@ -20,6 +20,16 @@ use crate::get_data_directory;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+#[cfg(windows)]
+const EXE_SUFFIX: &str = ".exe";
+#[cfg(not(windows))]
+const EXE_SUFFIX: &str = "";
+
+#[cfg(windows)]
+const PATH_SEP: &str = ";";
+#[cfg(not(windows))]
+const PATH_SEP: &str = ":";
+
 const POSTGRES_PORT: u16 = 5433; // Use non-standard port to avoid conflicts
 const POSTGRES_USER: &str = "hotel_admin";
 const POSTGRES_DB: &str = "hotel_management";
@@ -85,7 +95,7 @@ pub async fn init_postgres_data_dir(app_handle: &AppHandle) -> Result<(), Postgr
     log::info!("Initializing PostgreSQL data directory...");
 
     let pgsql_bin = get_pgsql_bin_dir(app_handle);
-    let initdb_path = pgsql_bin.join("initdb.exe");
+    let initdb_path = pgsql_bin.join(format!("initdb{}", EXE_SUFFIX));
 
     if !initdb_path.exists() {
         return Err(PostgresError::BinaryNotFound(
@@ -97,7 +107,7 @@ pub async fn init_postgres_data_dir(app_handle: &AppHandle) -> Result<(), Postgr
 
     // Get current PATH and prepend pgsql/bin so initdb can find postgres.exe
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{};{}", pgsql_bin.to_string_lossy(), current_path);
+    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
 
     let mut cmd = tokio::process::Command::new(&initdb_path);
     cmd.args([
@@ -174,7 +184,7 @@ pub async fn start_postgres(app_handle: &AppHandle) -> Result<(), PostgresError>
     log::info!("Starting PostgreSQL server...");
 
     let pgsql_bin = get_pgsql_bin_dir(app_handle);
-    let pg_ctl_path = pgsql_bin.join("pg_ctl.exe");
+    let pg_ctl_path = pgsql_bin.join(format!("pg_ctl{}", EXE_SUFFIX));
 
     if !pg_ctl_path.exists() {
         return Err(PostgresError::BinaryNotFound(
@@ -190,7 +200,7 @@ pub async fn start_postgres(app_handle: &AppHandle) -> Result<(), PostgresError>
 
     // Get current PATH and prepend pgsql/bin
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{};{}", pgsql_bin.to_string_lossy(), current_path);
+    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
 
     // Start PostgreSQL without waiting (-w flag causes issues with CREATE_NO_WINDOW on Windows)
     // Use Stdio::null() to prevent child process from blocking on pipe
@@ -234,7 +244,7 @@ pub async fn stop_postgres(app_handle: &AppHandle) -> Result<(), PostgresError> 
     log::info!("Stopping PostgreSQL server...");
 
     let pgsql_bin = get_pgsql_bin_dir(app_handle);
-    let pg_ctl_path = pgsql_bin.join("pg_ctl.exe");
+    let pg_ctl_path = pgsql_bin.join(format!("pg_ctl{}", EXE_SUFFIX));
 
     if !pg_ctl_path.exists() {
         log::warn!("pg_ctl not found, PostgreSQL may not be installed");
@@ -245,7 +255,7 @@ pub async fn stop_postgres(app_handle: &AppHandle) -> Result<(), PostgresError> 
 
     // Get current PATH and prepend pgsql/bin
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{};{}", pgsql_bin.to_string_lossy(), current_path);
+    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
 
     let mut cmd = tokio::process::Command::new(&pg_ctl_path);
     cmd.args([
@@ -278,7 +288,7 @@ pub async fn stop_postgres(app_handle: &AppHandle) -> Result<(), PostgresError> 
 /// Check if PostgreSQL is running and accepting connections
 pub async fn is_postgres_running(app_handle: &AppHandle) -> bool {
     let pgsql_bin = get_pgsql_bin_dir(app_handle);
-    let pg_isready_path = pgsql_bin.join("pg_isready.exe");
+    let pg_isready_path = pgsql_bin.join(format!("pg_isready{}", EXE_SUFFIX));
 
     if !pg_isready_path.exists() {
         return false;
@@ -286,7 +296,7 @@ pub async fn is_postgres_running(app_handle: &AppHandle) -> bool {
 
     // Get current PATH and prepend pgsql/bin
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{};{}", pgsql_bin.to_string_lossy(), current_path);
+    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
 
     let mut cmd = tokio::process::Command::new(&pg_isready_path);
     cmd.args(["-h", "localhost", "-p", &POSTGRES_PORT.to_string()])
@@ -321,7 +331,7 @@ pub async fn ensure_postgres_running(app_handle: &AppHandle) -> Result<(), Postg
 /// Create the hotel_management database if it doesn't exist
 pub async fn create_database_if_needed(app_handle: &AppHandle) -> Result<(), PostgresError> {
     let pgsql_bin = get_pgsql_bin_dir(app_handle);
-    let psql_path = pgsql_bin.join("psql.exe");
+    let psql_path = pgsql_bin.join(format!("psql{}", EXE_SUFFIX));
 
     if !psql_path.exists() {
         return Err(PostgresError::BinaryNotFound(
@@ -331,7 +341,7 @@ pub async fn create_database_if_needed(app_handle: &AppHandle) -> Result<(), Pos
 
     // Get current PATH and prepend pgsql/bin
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{};{}", pgsql_bin.to_string_lossy(), current_path);
+    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
 
     // Check if database exists
     let mut check_cmd = tokio::process::Command::new(&psql_path);
@@ -428,10 +438,10 @@ pub async fn run_migrations_if_needed(app_handle: &AppHandle) -> Result<(), Post
 /// Check if database has been initialized (check for users table)
 async fn is_database_initialized(app_handle: &AppHandle) -> Result<bool, PostgresError> {
     let pgsql_bin = get_pgsql_bin_dir(app_handle);
-    let psql_path = pgsql_bin.join("psql.exe");
+    let psql_path = pgsql_bin.join(format!("psql{}", EXE_SUFFIX));
 
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{};{}", pgsql_bin.to_string_lossy(), current_path);
+    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
 
     let mut cmd = tokio::process::Command::new(&psql_path);
     cmd.args([
@@ -486,9 +496,9 @@ async fn run_sql_files(app_handle: &AppHandle, dir_name: &str) -> Result<(), Pos
     sql_files.sort_by_key(|e| e.file_name());
 
     let pgsql_bin = get_pgsql_bin_dir(app_handle);
-    let psql_path = pgsql_bin.join("psql.exe");
+    let psql_path = pgsql_bin.join(format!("psql{}", EXE_SUFFIX));
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{};{}", pgsql_bin.to_string_lossy(), current_path);
+    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
 
     for entry in sql_files {
         let file_path = entry.path();
