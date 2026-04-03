@@ -178,6 +178,14 @@ pub async fn import_booking_data_handler(
         "response_by",
     ];
 
+    // Tables with triggers that interfere with bulk import (e.g. room status sync,
+    // occupancy validation). Disable them before inserting and re-enable after.
+    let tables_with_triggers = ["bookings", "rooms", "guests", "customer_ledgers", "payments"];
+    for table in &tables_with_triggers {
+        let _ = sqlx::query(&format!("ALTER TABLE {} DISABLE TRIGGER USER", table))
+            .execute(&pool).await;
+    }
+
     // Phase 2: Insert data directly on pool (auto-commit per statement)
     // Each INSERT uses ON CONFLICT DO NOTHING; FK violations are caught and skipped
     let empty_skip: Vec<&str> = vec![];
@@ -201,9 +209,13 @@ pub async fn import_booking_data_handler(
         ("room_changes", &data.room_changes),
     ];
 
+    let mut errors = serde_json::Map::new();
+
     for (table, rows) in &tables_and_data {
         let skip = generated_columns.get(table).unwrap_or(&empty_skip);
         let mut inserted = 0usize;
+        let mut failed = 0usize;
+        let mut last_error = String::new();
         for row in *rows {
             let obj = match row.as_object() {
                 Some(o) => o,
@@ -254,14 +266,29 @@ pub async fn import_booking_data_handler(
                     }
                 }
                 Err(e) => {
+                    failed += 1;
+                    last_error = e.to_string();
                     log::warn!("Failed to insert row into {}: {}", table, e);
                 }
             }
         }
         counts.insert((*table).into(), Value::Number(inserted.into()));
+        if failed > 0 {
+            errors.insert((*table).into(), serde_json::json!({
+                "failed": failed,
+                "last_error": last_error,
+            }));
+            log::warn!("Table {}: {} inserted, {} failed. Last error: {}", table, inserted, failed, last_error);
+        }
         if inserted > 0 {
             log::info!("Inserted {} rows into {}", inserted, table);
         }
+    }
+
+    // Re-enable triggers
+    for table in &tables_with_triggers {
+        let _ = sqlx::query(&format!("ALTER TABLE {} ENABLE TRIGGER USER", table))
+            .execute(&pool).await;
     }
 
     // Reset sequences to max id + 1 for each table
@@ -281,9 +308,14 @@ pub async fn import_booking_data_handler(
         let _ = sqlx::query(&reset_sql).execute(&pool).await;
     }
 
-    Ok(Json(serde_json::json!({
+    let mut response = serde_json::json!({
         "success": true,
         "mode": if is_overwrite { "overwrite" } else { "import" },
         "records_imported": counts,
-    })))
+    });
+    if !errors.is_empty() {
+        response["errors"] = Value::Object(errors);
+    }
+
+    Ok(Json(response))
 }
