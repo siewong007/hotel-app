@@ -158,6 +158,26 @@ pub async fn import_booking_data_handler(
 
     let mut counts = serde_json::Map::new();
 
+    // Collect user IDs that exist in the target database so we can null out
+    // FK references to users that don't exist (users are not part of the export)
+    let existing_user_ids: std::collections::HashSet<i64> = sqlx::query_scalar::<_, i64>(
+        "SELECT id FROM users"
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .collect();
+
+    // Columns that reference users(id) — these must be nulled if the user doesn't exist
+    let user_fk_columns: Vec<&str> = vec![
+        "created_by", "updated_by", "cancelled_by", "posted_by",
+        "modified_by", "run_by", "changed_by", "processed_by",
+        "cashier_id", "void_by", "delivered_by", "inspected_by",
+        "assigned_to", "reported_by", "linked_by", "verified_by",
+        "response_by",
+    ];
+
     // Phase 2: Insert data directly on pool (auto-commit per statement)
     // Each INSERT uses ON CONFLICT DO NOTHING; FK violations are caught and skipped
     let empty_skip: Vec<&str> = vec![];
@@ -198,6 +218,17 @@ pub async fn import_booking_data_handler(
             let mut value_strs: Vec<String> = Vec::new();
             for col in &columns {
                 let val = &obj[*col];
+                // Null out user FK columns that reference non-existent users
+                if user_fk_columns.contains(col) {
+                    if let Value::Number(n) = val {
+                        if let Some(id) = n.as_i64() {
+                            if !existing_user_ids.contains(&id) {
+                                value_strs.push("NULL".to_string());
+                                continue;
+                            }
+                        }
+                    }
+                }
                 match val {
                     Value::Null => value_strs.push("NULL".to_string()),
                     Value::Bool(b) => value_strs.push(b.to_string()),
