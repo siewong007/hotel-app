@@ -178,6 +178,29 @@ pub async fn import_booking_data_handler(
         "response_by",
     ];
 
+    // Query target database for actual column names per table so we only INSERT
+    // columns that exist (the export may include columns from newer migrations)
+    let mut table_columns: std::collections::HashMap<String, std::collections::HashSet<String>> = std::collections::HashMap::new();
+    let all_table_names = [
+        "room_types", "rooms", "guests", "user_guests", "guest_complimentary_credits",
+        "companies", "bookings", "payments", "invoices", "booking_guests",
+        "booking_modifications", "booking_history", "night_audit_runs",
+        "night_audit_details", "customer_ledgers", "customer_ledger_payments", "room_changes",
+    ];
+    for table_name in &all_table_names {
+        let cols: Vec<(String,)> = sqlx::query_as(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = $1 AND table_schema = 'public'"
+        )
+        .bind(*table_name)
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+        table_columns.insert(
+            table_name.to_string(),
+            cols.into_iter().map(|r| r.0).collect(),
+        );
+    }
+
     // Tables with triggers that interfere with bulk import (e.g. room status sync,
     // occupancy validation). Disable them before inserting and re-enable after.
     let tables_with_triggers = ["bookings", "rooms", "guests", "customer_ledgers", "payments"];
@@ -222,9 +245,11 @@ pub async fn import_booking_data_handler(
                 None => continue,
             };
 
+            let valid_cols = table_columns.get(*table);
             let columns: Vec<&str> = obj.keys()
                 .map(|k| k.as_str())
                 .filter(|k| !skip.contains(k))
+                .filter(|k| valid_cols.map_or(true, |vc| vc.contains(*k)))
                 .collect();
 
             let mut value_strs: Vec<String> = Vec::new();
