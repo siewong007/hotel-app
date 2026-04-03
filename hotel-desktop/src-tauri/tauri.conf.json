@@ -5,7 +5,7 @@
   "identifier": "com.hotelapp.desktop",
   "build": {
     "beforeBuildCommand": "",
-    "frontendDist": "../../hotel-web-fe/build"
+    "frontendDist": "../../hotel-web-fe/dist"
   },
   "app": {
     "withGlobalTauri": true,
