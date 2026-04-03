@@ -27,6 +27,7 @@ export interface ImportResult {
   success: boolean;
   mode: string;
   records_imported: Record<string, number>;
+  errors?: Record<string, { failed: number; last_error: string }>;
 }
 
 export class DataTransferService {

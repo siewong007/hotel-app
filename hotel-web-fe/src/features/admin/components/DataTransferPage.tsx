@@ -344,18 +344,30 @@ const DataTransferPage: React.FC = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {Object.entries(importResult.records_imported).map(([key, count]) => (
-                    <TableRow key={key}>
-                      <TableCell>{TABLE_LABELS[key] || key}</TableCell>
-                      <TableCell align="right">
-                        <Chip
-                          label={count}
-                          size="small"
-                          color={count > 0 ? 'success' : 'default'}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {Object.entries(importResult.records_imported).map(([key, count]) => {
+                    const err = importResult.errors?.[key];
+                    return (
+                      <TableRow key={key}>
+                        <TableCell>{TABLE_LABELS[key] || key}</TableCell>
+                        <TableCell align="right">
+                          <Chip
+                            label={count}
+                            size="small"
+                            color={count > 0 ? 'success' : 'default'}
+                          />
+                          {err && (
+                            <Chip
+                              label={`${err.failed} failed`}
+                              size="small"
+                              color="error"
+                              sx={{ ml: 1 }}
+                              title={err.last_error}
+                            />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
