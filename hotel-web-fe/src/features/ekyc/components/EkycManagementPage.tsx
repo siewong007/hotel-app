@@ -39,6 +39,8 @@ import {
   CameraAlt as PhotoIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
+import { EkycService } from '../../../api/ekyc.service';
+import { API_BASE_URL } from '../../../api/client';
 
 interface EkycVerification {
   id: number;
@@ -91,20 +93,10 @@ const EkycManagementPage: React.FC = () => {
   const fetchVerifications = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3030/ekyc/verifications', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch verifications');
-      }
-
-      const data = await response.json();
+      const data = await EkycService.getAllEkycVerifications();
       setVerifications(data);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Failed to fetch verifications');
     } finally {
       setLoading(false);
     }
@@ -122,24 +114,13 @@ const EkycManagementPage: React.FC = () => {
 
     setProcessing(true);
     try {
-      const response = await fetch(`http://localhost:3030/ekyc/verifications/${selectedVerification.id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-        body: JSON.stringify({
-          status,
-          verification_notes: reviewNotes,
-          face_match_score: faceMatchScore > 0 ? faceMatchScore : null,
-          face_match_passed: faceMatchScore >= 80,
-          self_checkin_enabled: status === 'approved' && enableSelfCheckin,
-        }),
+      await EkycService.updateEkycVerification(selectedVerification.id, {
+        status,
+        verification_notes: reviewNotes,
+        face_match_score: faceMatchScore > 0 ? faceMatchScore : null,
+        face_match_passed: faceMatchScore >= 80,
+        self_checkin_enabled: status === 'approved' && enableSelfCheckin,
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to update verification');
-      }
 
       await fetchVerifications();
       setDialogOpen(false);
@@ -147,7 +128,7 @@ const EkycManagementPage: React.FC = () => {
       setReviewNotes('');
       setFaceMatchScore(0);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Failed to update verification');
     } finally {
       setProcessing(false);
     }
@@ -177,6 +158,12 @@ const EkycManagementPage: React.FC = () => {
   const filteredVerifications = verifications.filter(v =>
     filterStatus === 'all' || v.status === filterStatus
   );
+
+  // Build image URL using the centralized API base URL
+  const getImageUrl = (path: string) => {
+    const base = API_BASE_URL || window.location.origin;
+    return `${base}/${path}`;
+  };
 
   if (loading) {
     return (
@@ -390,7 +377,7 @@ const EkycManagementPage: React.FC = () => {
                           <Card variant="outlined">
                             <CardMedia
                               component="img"
-                              image={`http://localhost:3030/${selectedVerification.id_front_image_path}`}
+                              image={getImageUrl(selectedVerification.id_front_image_path)}
                               alt="ID Front"
                               sx={{ height: 200, objectFit: 'contain', p: 1 }}
                             />
@@ -404,7 +391,7 @@ const EkycManagementPage: React.FC = () => {
                             <Card variant="outlined">
                               <CardMedia
                                 component="img"
-                                image={`http://localhost:3030/${selectedVerification.id_back_image_path}`}
+                                image={getImageUrl(selectedVerification.id_back_image_path)}
                                 alt="ID Back"
                                 sx={{ height: 200, objectFit: 'contain', p: 1 }}
                               />
@@ -418,7 +405,7 @@ const EkycManagementPage: React.FC = () => {
                           <Card variant="outlined">
                             <CardMedia
                               component="img"
-                              image={`http://localhost:3030/${selectedVerification.selfie_image_path}`}
+                              image={getImageUrl(selectedVerification.selfie_image_path)}
                               alt="Selfie"
                               sx={{ height: 200, objectFit: 'contain', p: 1 }}
                             />

@@ -36,6 +36,36 @@ pub async fn login_handler(
         }
     };
 
+    // Check account lockout
+    let (is_locked, locked_until, failed_attempts): (Option<bool>, Option<chrono::NaiveDateTime>, Option<i32>) =
+        sqlx::query_as(
+            "SELECT is_locked, locked_until, failed_login_attempts FROM users WHERE id = $1",
+        )
+        .bind(user.id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if is_locked.unwrap_or(false) {
+        if let Some(until) = locked_until {
+            let now = chrono::Utc::now().naive_utc();
+            if now < until {
+                let remaining_mins = (until - now).num_minutes() + 1;
+                let _ = AuditLog::log_login_failure(&pool, &req.username, "Account locked", None, None).await;
+                return Err(ApiError::TooManyRequests(format!(
+                    "Account is locked due to too many failed attempts. Try again in {} minute(s).",
+                    remaining_mins
+                )));
+            }
+            // Lock expired - unlock the account
+            sqlx::query("UPDATE users SET is_locked = false, locked_until = NULL, failed_login_attempts = 0 WHERE id = $1")
+                .bind(user.id)
+                .execute(&pool)
+                .await
+                .ok();
+        }
+    }
+
     // Check email verification (can be disabled in development with SKIP_EMAIL_VERIFICATION env var)
     let skip_email_verification = std::env::var("SKIP_EMAIL_VERIFICATION")
         .unwrap_or_else(|_| "false".to_string())
@@ -56,13 +86,56 @@ pub async fn login_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    // Max login attempts before lockout (default 5)
+    let max_attempts: i32 = sqlx::query_scalar::<_, Option<String>>(
+        "SELECT value FROM system_settings WHERE key = 'max_login_attempts'"
+    )
+    .fetch_optional(&pool)
+    .await
+    .ok()
+    .flatten()
+    .flatten()
+    .and_then(|v| v.parse().ok())
+    .unwrap_or(5);
+
     // Verify password
     let valid = AuthService::verify_password(&req.password, &password_hash).await
         .map_err(|_| ApiError::Internal("Password verification failed".to_string()))?;
 
     if !valid {
+        // Increment failed login attempts
+        let new_attempts = failed_attempts.unwrap_or(0) + 1;
+        let should_lock = new_attempts >= max_attempts;
+
+        if should_lock {
+            sqlx::query(
+                "UPDATE users SET failed_login_attempts = $1, is_locked = true, locked_until = $2 WHERE id = $3"
+            )
+            .bind(new_attempts)
+            .bind(chrono::Utc::now().naive_utc() + chrono::Duration::minutes(30))
+            .bind(user.id)
+            .execute(&pool)
+            .await
+            .ok();
+
+            let _ = AuditLog::log_login_failure(&pool, &req.username, "Account locked after max attempts", None, None).await;
+            return Err(ApiError::TooManyRequests(
+                "Account locked due to too many failed login attempts. Try again in 30 minutes.".to_string(),
+            ));
+        } else {
+            sqlx::query("UPDATE users SET failed_login_attempts = $1 WHERE id = $2")
+                .bind(new_attempts)
+                .execute(&pool)
+                .await
+                .ok();
+        }
+
+        let remaining = max_attempts - new_attempts;
         let _ = AuditLog::log_login_failure(&pool, &req.username, "Invalid password", None, None).await;
-        return Err(ApiError::Unauthorized("Invalid credentials".to_string()));
+        return Err(ApiError::Unauthorized(format!(
+            "Invalid credentials. {} attempt(s) remaining before account lockout.",
+            remaining
+        )));
     }
 
     // Get user 2FA status and check if 2FA code is required
@@ -91,6 +164,13 @@ pub async fn login_handler(
             return Err(ApiError::Unauthorized("2FA required. Please provide a TOTP code.".to_string()));
         }
     }
+
+    // Reset failed login attempts on successful login
+    sqlx::query("UPDATE users SET failed_login_attempts = 0, is_locked = false, locked_until = NULL WHERE id = $1")
+        .bind(user.id)
+        .execute(&pool)
+        .await
+        .ok();
 
     // Get roles and permissions
     let roles = AuthService::get_user_roles(&pool, user.id).await

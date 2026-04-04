@@ -377,9 +377,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return bytes.buffer;
       };
 
-      const challengeBytes = new Uint8Array(atob(challenge).length);
-      for (let i = 0; i < atob(challenge).length; i++) {
-        challengeBytes[i] = atob(challenge).charCodeAt(i);
+      const challengeBinary = atob(challenge);
+      const challengeBytes = new Uint8Array(challengeBinary.length);
+      for (let i = 0; i < challengeBinary.length; i++) {
+        challengeBytes[i] = challengeBinary.charCodeAt(i);
       }
 
       const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {

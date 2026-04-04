@@ -1,7 +1,13 @@
-//! In-memory rate limiter for auth endpoints
+//! In-memory rate limiter for API endpoints
 //!
 //! Uses a sliding window counter approach keyed by IP address.
 //! Suitable for single-instance deployments (hotel PMS).
+//!
+//! Categories:
+//! - `auth`: Login attempts (strict)
+//! - `register`: Account creation (strict)
+//! - `sensitive`: Password changes, 2FA ops, token refresh (moderate)
+//! - `api`: General authenticated API requests (lenient)
 
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -40,8 +46,9 @@ impl RateLimitEntry {
         }
     }
 
-    /// Prune expired timestamps and check if a new request is allowed
-    fn check_and_record(&mut self, config: &RateLimitConfig) -> bool {
+    /// Prune expired timestamps and check if a new request is allowed.
+    /// Returns (allowed, seconds_until_next_slot) so callers can set Retry-After.
+    fn check_and_record(&mut self, config: &RateLimitConfig) -> (bool, u64) {
         let now = Instant::now();
         let cutoff = now - config.window;
 
@@ -50,9 +57,12 @@ impl RateLimitEntry {
 
         if (self.timestamps.len() as u32) < config.max_requests {
             self.timestamps.push(now);
-            true
+            (true, 0)
         } else {
-            false
+            // Calculate how long until the oldest entry expires
+            let oldest = self.timestamps.first().unwrap();
+            let retry_after = config.window.as_secs().saturating_sub(now.duration_since(*oldest).as_secs());
+            (false, retry_after.max(1))
         }
     }
 }
@@ -93,24 +103,42 @@ impl RateLimiter {
     pub async fn check(&self, ip: IpAddr) -> bool {
         let mut entries = self.entries.lock().await;
         let entry = entries.entry(ip).or_insert_with(RateLimitEntry::new);
+        entry.check_and_record(&self.config).0
+    }
+
+    /// Check if a request is allowed, returning (allowed, retry_after_secs).
+    pub async fn check_with_retry(&self, ip: IpAddr) -> (bool, u64) {
+        let mut entries = self.entries.lock().await;
+        let entry = entries.entry(ip).or_insert_with(RateLimitEntry::new);
         entry.check_and_record(&self.config)
+    }
+
+    /// Get the window duration (for Retry-After headers)
+    pub fn window_secs(&self) -> u64 {
+        self.config.window.as_secs()
     }
 }
 
 /// Global rate limiters for different endpoint categories
 #[derive(Clone)]
 pub struct RateLimiters {
-    /// Login attempts: 10 per minute per IP
+    /// Login attempts: 5 per minute per IP (strict - brute force protection)
     pub auth: RateLimiter,
-    /// Registration: 5 per 10 minutes per IP
+    /// Registration: 3 per 10 minutes per IP (strict - spam prevention)
     pub register: RateLimiter,
+    /// Sensitive operations: 10 per 5 minutes per IP (password change, 2FA, refresh)
+    pub sensitive: RateLimiter,
+    /// General API: 200 per minute per IP (lenient - normal usage)
+    pub api: RateLimiter,
 }
 
 impl RateLimiters {
     pub fn new() -> Self {
         Self {
-            auth: RateLimiter::new(RateLimitConfig::new(10, 60)),
-            register: RateLimiter::new(RateLimitConfig::new(5, 600)),
+            auth: RateLimiter::new(RateLimitConfig::new(5, 60)),
+            register: RateLimiter::new(RateLimitConfig::new(3, 600)),
+            sensitive: RateLimiter::new(RateLimitConfig::new(10, 300)),
+            api: RateLimiter::new(RateLimitConfig::new(200, 60)),
         }
     }
 }

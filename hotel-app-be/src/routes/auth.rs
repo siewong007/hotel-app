@@ -48,9 +48,11 @@ async fn login(
     Json(req): Json<models::LoginRequest>,
 ) -> Result<Json<models::AuthResponse>, ApiError> {
     let ip = extract_client_ip(&headers);
-    if !limiters.auth.check(ip).await {
-        return Err(ApiError::TooManyRequests(
-            "Too many login attempts. Please try again later.".to_string(),
+    let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many login attempts. Please try again in {} seconds.", retry_after),
+            retry_after,
         ));
     }
     handlers::auth::login_handler(State(pool), Json(req)).await
@@ -58,8 +60,18 @@ async fn login(
 
 async fn refresh(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
     Json(req): Json<models::RefreshTokenRequest>,
 ) -> Result<Json<models::RefreshTokenResponse>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many refresh attempts. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::auth::refresh_token_handler(State(pool), Json(req)).await
 }
 
@@ -77,9 +89,11 @@ async fn register(
     Json(req): Json<models::RegisterRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let ip = extract_client_ip(&headers);
-    if !limiters.register.check(ip).await {
-        return Err(ApiError::TooManyRequests(
-            "Too many registration attempts. Please try again later.".to_string(),
+    let (allowed, retry_after) = limiters.register.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many registration attempts. Please try again in {} seconds.", retry_after),
+            retry_after,
         ));
     }
     handlers::auth::register_handler(State(pool), Json(req)).await
@@ -103,25 +117,52 @@ async fn resend_verification(
 
 async fn setup_2fa(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     headers: HeaderMap,
     Json(req): Json<models::TwoFactorSetupRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::two_factor::setup_2fa_handler(State(pool), headers, Json(req)).await
 }
 
 async fn enable_2fa(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     headers: HeaderMap,
     Json(req): Json<models::TwoFactorEnableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::two_factor::enable_2fa_handler(State(pool), headers, Json(req)).await
 }
 
 async fn disable_2fa(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     headers: HeaderMap,
     Json(req): Json<models::TwoFactorDisableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::two_factor::disable_2fa_handler(State(pool), headers, Json(req)).await
 }
 
@@ -134,16 +175,35 @@ async fn get_2fa_status(
 
 async fn verify_2fa(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
     Json(req): Json<models::TwoFactorVerifyRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::two_factor::verify_2fa_code_handler(State(pool), Json(req)).await
 }
 
 async fn regenerate_backup_codes(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     headers: HeaderMap,
     Json(req): Json<models::RegenerateBackupCodesRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::two_factor::regenerate_backup_codes_handler(State(pool), headers, Json(req)).await
 }
 
@@ -151,29 +211,69 @@ async fn regenerate_backup_codes(
 
 async fn passkey_register_start(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
     Json(req): Json<models::PasskeyRegistrationStart>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::passkey::passkey_register_start_handler(State(pool), Json(req)).await
 }
 
 async fn passkey_register_finish(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
     Json(req): Json<models::PasskeyRegistrationFinish>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::passkey::passkey_register_finish_handler(State(pool), Json(req)).await
 }
 
 async fn passkey_login_start(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
     Json(req): Json<models::PasskeyLoginStart>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many login attempts. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::passkey::passkey_login_start_handler(State(pool), Json(req)).await
 }
 
 async fn passkey_login_finish(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
     Json(req): Json<models::PasskeyLoginFinish>,
 ) -> Result<Json<models::AuthResponse>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many login attempts. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::passkey::passkey_login_finish_handler(State(pool), Json(req)).await
 }
 
