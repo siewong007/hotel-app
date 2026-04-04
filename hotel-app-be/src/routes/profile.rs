@@ -10,6 +10,7 @@ use axum::{
     response::Json,
 };
 use crate::core::db::DbPool;
+use crate::core::rate_limiter::RateLimiters;
 use crate::handlers;
 use crate::models;
 use crate::core::middleware::require_auth;
@@ -55,9 +56,18 @@ async fn update_profile(
 
 async fn update_password(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     headers: HeaderMap,
     Json(input): Json<models::PasswordUpdateInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many password change attempts. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     let user_id = require_auth(&headers).await?;
     handlers::profile::update_password_handler(State(pool), Extension(user_id), Json(input)).await
 }
@@ -95,25 +105,52 @@ async fn update_passkey(
 
 async fn setup_2fa(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     headers: HeaderMap,
     Json(input): Json<models::TwoFactorSetupRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::two_factor::setup_2fa_handler(State(pool), headers, Json(input)).await
 }
 
 async fn enable_2fa(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     headers: HeaderMap,
     Json(input): Json<models::TwoFactorEnableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::two_factor::enable_2fa_handler(State(pool), headers, Json(input)).await
 }
 
 async fn disable_2fa(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     headers: HeaderMap,
     Json(input): Json<models::TwoFactorDisableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::two_factor::disable_2fa_handler(State(pool), headers, Json(input)).await
 }
 
@@ -126,7 +163,33 @@ async fn get_2fa_status(
 
 async fn verify_2fa(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    headers: HeaderMap,
     Json(input): Json<models::TwoFactorVerifyRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let ip = extract_client_ip(&headers);
+    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            retry_after,
+        ));
+    }
     handlers::two_factor::verify_2fa_code_handler(State(pool), Json(input)).await
+}
+
+/// Extract client IP from headers
+fn extract_client_ip(headers: &HeaderMap) -> std::net::IpAddr {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .and_then(|s| s.trim().parse().ok())
+        .or_else(|| {
+            headers
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.trim().parse().ok())
+        })
+        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
 }

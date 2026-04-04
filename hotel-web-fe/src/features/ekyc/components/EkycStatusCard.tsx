@@ -18,6 +18,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
+import { EkycService } from '../../../api/ekyc.service';
 
 interface EkycStatus {
   id: number;
@@ -53,21 +54,11 @@ const EkycStatusCard: React.FC = () => {
   const fetchEkycStatus = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3030/ekyc/status', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch eKYC status');
-      }
-
-      const data = await response.json();
-      setEkycStatus(data);
+      const data = await EkycService.getEkycStatus();
+      setEkycStatus(data as any);
     } catch (err: any) {
       console.error('eKYC status error:', err);
-      setError(err.message);
+      setError(err.message || 'Failed to fetch eKYC status');
     } finally {
       setLoading(false);
     }

@@ -68,7 +68,16 @@ pub async fn create_pool() -> Result<DbPool, sqlx::Error> {
                     .fetch_optional(&mut *conn)
                     .await?;
                     let tz = tz.unwrap_or_else(|| "UTC".to_string());
-                    conn.execute(format!("SET timezone = '{}'", tz).as_str()).await?;
+                    // Validate timezone is a safe identifier (alphanumeric, underscores, slashes, +/-)
+                    // to prevent SQL injection via the system_settings table
+                    if !tz.chars().all(|c| c.is_alphanumeric() || c == '/' || c == '_' || c == '+' || c == '-') {
+                        log::warn!("Invalid timezone value in system_settings: {}", tz);
+                        conn.execute("SET timezone = 'UTC'").await?;
+                    } else {
+                        // Use sqlx::query to parameterize - PostgreSQL SET doesn't support $1 params,
+                        // so we validate the input above and use format! safely
+                        conn.execute(format!("SET timezone = '{}'", tz).as_str()).await?;
+                    }
                     Ok(())
                 })
             })

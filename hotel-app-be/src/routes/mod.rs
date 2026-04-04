@@ -150,8 +150,8 @@ pub fn create_router(pool: DbPool) -> Router {
                 axum::http::header::CONTENT_SECURITY_POLICY,
                 axum::http::HeaderValue::from_static(
                     "default-src 'self'; \
-                     script-src 'self' 'unsafe-inline' 'unsafe-eval'; \
-                     style-src 'self' 'unsafe-inline'; \
+                     script-src 'self'; \
+                     style-src 'self'; \
                      img-src 'self' data: https:; \
                      font-src 'self' data:; \
                      connect-src 'self'; \

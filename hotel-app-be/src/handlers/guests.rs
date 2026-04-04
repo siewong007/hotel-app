@@ -8,6 +8,7 @@ use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::*;
 use crate::services::audit::AuditLog;
+use crate::utils::sanitization::Sanitizer;
 use axum::{
     extract::{Extension, Path, Query, State},
     http::HeaderMap,
@@ -134,13 +135,17 @@ pub async fn create_guest_handler(
         }
     }
 
+    // Sanitize inputs to prevent XSS and injection attacks
+    let first_name = Sanitizer::sanitize_guest_name(&input.first_name);
+    let last_name = Sanitizer::sanitize_guest_name(&input.last_name);
+
     // Normalize empty email to None so DB NULL constraint is satisfied
     let email = input.email.as_deref()
         .filter(|e| !e.trim().is_empty())
-        .map(|e| e.trim().to_string());
+        .map(|e| Sanitizer::sanitize_email(e));
 
-    // Compute full_name from first_name and last_name
-    let full_name = format!("{} {}", input.first_name.trim(), input.last_name.trim()).trim().to_string();
+    // Compute full_name from sanitized first_name and last_name
+    let full_name = format!("{} {}", first_name, last_name).trim().to_string();
 
     // Default to NonMember if not specified
     let guest_type = input.guest_type.unwrap_or(GuestType::NonMember);
@@ -241,21 +246,21 @@ pub async fn create_guest_handler(
         "#
     )
     .bind(&full_name)
-    .bind(&input.first_name)
-    .bind(&input.last_name)
+    .bind(&first_name)
+    .bind(&last_name)
     .bind(&email)
-    .bind(&input.phone)
-    .bind(&input.ic_number)
-    .bind(&input.nationality)
-    .bind(&input.address_line1)
-    .bind(&input.city)
-    .bind(&input.state_province)
-    .bind(&input.postal_code)
-    .bind(&input.country)
+    .bind(input.phone.as_deref().map(Sanitizer::sanitize_phone))
+    .bind(input.ic_number.as_deref().map(Sanitizer::sanitize_text))
+    .bind(input.nationality.as_deref().map(Sanitizer::sanitize_text))
+    .bind(input.address_line1.as_deref().map(Sanitizer::sanitize_text))
+    .bind(input.city.as_deref().map(Sanitizer::sanitize_text))
+    .bind(input.state_province.as_deref().map(Sanitizer::sanitize_text))
+    .bind(input.postal_code.as_deref().map(Sanitizer::sanitize_text))
+    .bind(input.country.as_deref().map(Sanitizer::sanitize_text))
     .bind(&guest_type)
     .bind(&input.tourism_type)
     .bind(discount_percentage)
-    .bind(&input.company_name)
+    .bind(input.company_name.as_deref().map(Sanitizer::sanitize_text))
     .bind(user_id)
     .fetch_one(&pool)
     .await

@@ -9,6 +9,7 @@ use crate::core::middleware::require_auth;
 use crate::handlers::bookings_queries::*;
 use crate::models::*;
 use crate::services::audit::AuditLog;
+use crate::utils::sanitization::Sanitizer;
 use axum::{
     extract::{Extension, Path, Query, State},
     http::HeaderMap,
@@ -249,6 +250,10 @@ pub async fn create_booking_handler(
 
     let source = input.source.clone().unwrap_or_else(|| "walk_in".to_string());
 
+    // Sanitize user-provided text fields
+    let booking_remarks = input.booking_remarks.as_deref().map(Sanitizer::sanitize_notes);
+    let special_requests = input.special_requests.as_deref().map(Sanitizer::sanitize_notes);
+
     let deposit_paid = input.deposit_paid.unwrap_or(false);
     let deposit_amount_f64 = input.deposit_amount;
     let payment_status = input.payment_status.clone().unwrap_or_else(|| "unpaid".to_string());
@@ -281,13 +286,13 @@ pub async fn create_booking_handler(
         .bind(total_amount.to_f64().unwrap_or(0.0))
         .bind(&payment_status)
         .bind(input.payment_method.as_deref())
-        .bind(input.booking_remarks.as_deref())
+        .bind(booking_remarks.as_deref())
         .bind(user_id)
         .bind(&source)
         .bind(if deposit_paid { 1i32 } else { 0i32 })
         .bind(deposit_amount_f64)
         .bind(rate_override_value)
-        .bind(input.special_requests.as_deref())
+        .bind(special_requests.as_deref())
         .bind(if is_hourly { Some("hourly") } else { None::<&str> })
         .bind(daily_rates_json.as_ref().map(|v| v.to_string()))
         .execute(&mut *tx)
@@ -335,13 +340,13 @@ pub async fn create_booking_handler(
         .bind(total_amount)
         .bind(&payment_status)
         .bind(input.payment_method.as_deref())
-        .bind(input.booking_remarks.as_deref())
+        .bind(booking_remarks.as_deref())
         .bind(user_id)
         .bind(&source)
         .bind(deposit_paid)
         .bind(deposit_amount)
         .bind(rate_override_decimal)
-        .bind(input.special_requests.as_deref())
+        .bind(special_requests.as_deref())
         .bind(input.is_tourist)
         .bind(input.tourism_tax_amount.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
         .bind(input.extra_bed_count)

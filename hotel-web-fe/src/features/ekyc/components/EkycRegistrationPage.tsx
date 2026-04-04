@@ -29,7 +29,7 @@ import {
   ArrowForward as ForwardIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { HotelAPIService } from '../../../api';
+import { HotelAPIService, EkycService } from '../../../api';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 
@@ -199,27 +199,12 @@ const EkycRegistrationPage: React.FC = () => {
     return new Blob([byteArray], { type: contentType });
   };
 
-  // Upload single document
+  // Upload single document using centralized API service
   const uploadDocument = async (base64Data: string, documentType: string): Promise<string> => {
     const blob = base64ToBlob(base64Data);
-    const formData = new FormData();
-    formData.append('file', blob, `${documentType}.jpg`);
-    formData.append('documentType', documentType);
-
-    const response = await fetch('http://localhost:3030/ekyc/upload-document', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-      },
-      body: formData,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to upload ${documentType}`);
-    }
-
-    const data = await response.json();
-    return data.file_path;
+    const file = new File([blob], `${documentType}.jpg`, { type: 'image/jpeg' });
+    const result = await EkycService.uploadEkycDocument(file, documentType);
+    return result.filename;
   };
 
   const handleSubmit = async () => {
@@ -256,19 +241,8 @@ const EkycRegistrationPage: React.FC = () => {
         proof_of_address: proofPath,
       };
 
-      // Call API to submit eKYC
-      const response = await fetch('http://localhost:3030/ekyc/submit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-        },
-        body: JSON.stringify(requestData),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to submit eKYC verification');
-      }
+      // Call API to submit eKYC using centralized service
+      await EkycService.submitEkycVerification(requestData);
 
       setSuccess(true);
       setTimeout(() => {

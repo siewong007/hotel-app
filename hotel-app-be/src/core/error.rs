@@ -24,8 +24,10 @@ pub enum ApiError {
     Conflict(String),
     /// Internal server error
     Internal(String),
-    /// Rate limit exceeded
+    /// Rate limit exceeded (message, optional retry_after_secs)
     TooManyRequests(String),
+    /// Rate limit exceeded with Retry-After header
+    TooManyRequestsRetryAfter(String, u64),
 }
 
 impl std::fmt::Display for ApiError {
@@ -39,6 +41,7 @@ impl std::fmt::Display for ApiError {
             ApiError::Conflict(msg) => write!(f, "Conflict: {}", msg),
             ApiError::Internal(msg) => write!(f, "Internal error: {}", msg),
             ApiError::TooManyRequests(msg) => write!(f, "Too many requests: {}", msg),
+            ApiError::TooManyRequestsRetryAfter(msg, secs) => write!(f, "Too many requests (retry after {}s): {}", secs, msg),
         }
     }
 }
@@ -48,7 +51,10 @@ impl std::error::Error for ApiError {}
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, message) = match &self {
-            ApiError::Database(msg) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", msg)),
+            ApiError::Database(msg) => {
+                log::error!("Database error: {}", msg);
+                (StatusCode::INTERNAL_SERVER_ERROR, "A database error occurred. Please try again later.".to_string())
+            },
             ApiError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
             ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.clone()),
             ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
@@ -56,11 +62,22 @@ impl IntoResponse for ApiError {
             ApiError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
             ApiError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
             ApiError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg.clone()),
+            ApiError::TooManyRequestsRetryAfter(msg, _) => (StatusCode::TOO_MANY_REQUESTS, msg.clone()),
         };
 
         let body = Json(serde_json::json!({
             "error": message
         }));
+
+        // Add Retry-After header for rate limit errors
+        if let ApiError::TooManyRequestsRetryAfter(_, secs) = &self {
+            let mut response = (status, body).into_response();
+            response.headers_mut().insert(
+                "Retry-After",
+                axum::http::HeaderValue::from_str(&secs.to_string()).unwrap(),
+            );
+            return response;
+        }
 
         (status, body).into_response()
     }

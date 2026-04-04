@@ -10,6 +10,7 @@ use axum::{
     response::Json,
 };
 use crate::core::db::DbPool;
+use crate::core::middleware::require_auth;
 use crate::handlers;
 use crate::models;
 use crate::core::error::ApiError;
@@ -40,6 +41,9 @@ async fn update_setting(
 
 async fn process_checkins(
     State(pool): State<DbPool>,
+    headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    // Require authentication - only authenticated users can trigger auto check-in/checkout
+    let _user_id = require_auth(&headers).await?;
     handlers::settings::process_auto_checkin_checkout_handler(State(pool)).await
 }
