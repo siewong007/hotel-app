@@ -160,6 +160,7 @@ export interface CustomerLedgerPaymentRequest {
   receipt_number?: string;
   receipt_file_url?: string;
   notes?: string;
+  payment_date?: string;
 }
 
 export interface CustomerLedgerWithPayments {

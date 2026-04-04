@@ -28,6 +28,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/ledgers/:id/with-payments", get(get_ledger_with_payments))
         .route("/ledgers/:id/payments", get(get_ledger_payments))
         .route("/ledgers/:id/payments", post(create_ledger_payment))
+        .route("/ledgers/:id/payments/:payment_id", patch(update_ledger_payment))
         .route("/ledgers/:id/void", post(void_ledger))
         .route("/ledgers/:id/reverse", post(reverse_ledger))
 }
@@ -103,6 +104,15 @@ async fn create_ledger_payment(
     Json(input): Json<models::CustomerLedgerPaymentRequest>,
 ) -> Result<Json<models::CustomerLedgerPayment>, ApiError> {
     handlers::ledgers::create_ledger_payment_handler(State(pool), headers, path, Json(input)).await
+}
+
+async fn update_ledger_payment(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<(i64, i64)>,
+    Json(input): Json<models::UpdateLedgerPaymentRequest>,
+) -> Result<Json<models::CustomerLedgerPayment>, ApiError> {
+    handlers::ledgers::update_ledger_payment_handler(State(pool), headers, path, Json(input)).await
 }
 
 async fn get_transaction_codes(

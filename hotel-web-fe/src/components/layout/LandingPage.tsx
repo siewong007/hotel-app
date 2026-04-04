@@ -7,6 +7,7 @@ import BedIcon from '@mui/icons-material/Bed';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
 import SpaIcon from '@mui/icons-material/Spa';
 import PoolIcon from '@mui/icons-material/Pool';
+import { getHotelSettings } from '../../utils/hotelSettings';
 
 // Smooth scroll reveal animation
 const fadeInUp = keyframes`
@@ -42,6 +43,7 @@ const shimmer = keyframes`
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
+  const hotelSettings = getHotelSettings();
   const [scrolled, setScrolled] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -135,7 +137,7 @@ const LandingPage: React.FC = () => {
                   fontSize: '0.9rem',
                 }}
               >
-                Salim Inn
+                {hotelSettings.hotel_name}
               </Typography>
             </Box>
             <Box sx={{ display: 'flex', gap: 2 }}>
@@ -232,7 +234,7 @@ const LandingPage: React.FC = () => {
                   letterSpacing: '-0.02em',
                 }}
               >
-                SALIM INN
+                {hotelSettings.hotel_name.toUpperCase()}
               </Typography>
 
               {/* Tagline */}
@@ -461,7 +463,7 @@ const LandingPage: React.FC = () => {
                 fontWeight: 400,
               }}
             >
-              Experience unparalleled luxury and service at Salim Inn
+              Experience unparalleled luxury and service at {hotelSettings.hotel_name}
             </Typography>
             <Button
               variant="contained"
@@ -534,11 +536,11 @@ const LandingPage: React.FC = () => {
                   letterSpacing: '0.1em',
                 }}
               >
-                Salim Inn
+                {hotelSettings.hotel_name}
               </Typography>
             </Box>
             <Typography variant="body2" sx={{ color: 'rgba(0, 137, 123, 0.7)' }}>
-              © 2025 Salim Inn. All rights reserved. | Crafted with excellence
+              © 2025 {hotelSettings.hotel_name}. All rights reserved. | Crafted with excellence
             </Typography>
           </Box>
         </Container>

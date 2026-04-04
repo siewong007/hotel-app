@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { getHotelSettings } from '../../../utils/hotelSettings';
 
 type ReportType = 'balance_sheet' | 'journal_by_type' | 'shift_report' | 'rooms_sold' | 'general_journal' | 'company_ledger_statement';
 
@@ -45,6 +46,7 @@ interface CompanyOption {
 
 const LegacyReportsPage: React.FC = () => {
   const { symbol: currencySymbol } = useCurrency();
+  const hotelSettings = getHotelSettings();
   const [reportType, setReportType] = useState<ReportType>('shift_report');
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
@@ -157,7 +159,7 @@ const LegacyReportsPage: React.FC = () => {
             Balance Sheet
           </Typography>
           <Typography variant="subtitle2" color="text.secondary">
-            Salim Inn
+            {hotelSettings.hotel_name}
           </Typography>
           <Typography variant="caption" color="text.secondary">
             As of {endDate}
@@ -206,7 +208,7 @@ const LegacyReportsPage: React.FC = () => {
             List Journal By Type
           </Typography>
           <Typography variant="subtitle2" color="text.secondary" textAlign="center">
-            Salim Inn
+            {hotelSettings.hotel_name}
           </Typography>
           <Typography variant="caption" color="text.secondary" display="block" textAlign="center">
             {startDate} to {endDate}
@@ -263,7 +265,7 @@ const LegacyReportsPage: React.FC = () => {
             Shift Report
           </Typography>
           <Typography variant="subtitle2" color="text.secondary">
-            Salim Inn
+            {hotelSettings.hotel_name}
           </Typography>
           <Typography variant="caption" color="text.secondary" display="block">
             Shift: {shift === 'all' ? 'All' : `Shift ${shift}`}
@@ -437,7 +439,7 @@ const LegacyReportsPage: React.FC = () => {
             Rooms Sold Detail by Date
           </Typography>
           <Typography variant="subtitle2" color="text.secondary">
-            Salim Inn
+            {hotelSettings.hotel_name}
           </Typography>
           <Typography variant="caption" color="text.secondary">
             For: {startDate} - {endDate} Normal Stays, No Shows, Same Day Stays
@@ -498,7 +500,7 @@ const LegacyReportsPage: React.FC = () => {
             General Journal
           </Typography>
           <Typography variant="subtitle2" color="text.secondary">
-            Salim Inn
+            {hotelSettings.hotel_name}
           </Typography>
           <Typography variant="caption" color="text.secondary" display="block">
             {new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })} to {new Date(endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
@@ -600,9 +602,8 @@ const LegacyReportsPage: React.FC = () => {
         {/* Header */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid item xs={6}>
-            <Typography variant="h6" fontWeight="bold">Salim Inn</Typography>
-            <Typography variant="body2">No 21-22 Lorong Salim 17, Jalan Salim</Typography>
-            <Typography variant="body2">Sibu, 96000, Sarawak, East Malaysia</Typography>
+            <Typography variant="h6" fontWeight="bold">{hotelSettings.hotel_name}</Typography>
+            <Typography variant="body2">{hotelSettings.hotel_address}</Typography>
             <Typography variant="body2" sx={{ mt: 1 }}>TTx ID: 132-2017-10000017</Typography>
           </Grid>
           <Grid item xs={6} textAlign="right">
