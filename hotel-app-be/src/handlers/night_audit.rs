@@ -186,66 +186,71 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             ORDER BY r.room_number
         "#;
 
-        if let Ok(rows) = sqlx::query(query)
+        match sqlx::query(query)
             .bind(audit_date)
             .fetch_all(pool)
             .await
         {
-            for row in rows.iter() {
-                let booking_number: String = row.get("booking_number");
-                let room_number: String = row.get("room_number");
-                let room_charge: Decimal = row.get("room_charge");
-                let service_tax: Decimal = row.get("service_tax");
-                let tourism_tax: Decimal = row.get("tourism_tax");
-                let deposit_amount: Decimal = row.get("deposit_amount");
-                let check_in_date: NaiveDate = row.get("check_in_date");
+            Ok(rows) => {
+                for row in rows.iter() {
+                    let booking_number: String = row.get("booking_number");
+                    let room_number: String = row.get("room_number");
+                    let room_charge: Decimal = row.get("room_charge");
+                    let service_tax: Decimal = row.get("service_tax");
+                    let tourism_tax: Decimal = row.get("tourism_tax");
+                    let deposit_amount: Decimal = row.get("deposit_amount");
+                    let check_in_date: NaiveDate = row.get("check_in_date");
 
-                if room_charge > Decimal::ZERO {
-                    entries.push(JournalEntry {
-                        booking_number: booking_number.clone(),
-                        room_number: room_number.clone(),
-                        entry_type: "room_charge".to_string(),
-                        debit: room_charge,
-                        credit: Decimal::ZERO,
-                        description: Some("Room Charge".to_string()),
-                    });
-                }
-
-                if service_tax > Decimal::ZERO {
-                    entries.push(JournalEntry {
-                        booking_number: booking_number.clone(),
-                        room_number: room_number.clone(),
-                        entry_type: "service_tax".to_string(),
-                        debit: service_tax,
-                        credit: Decimal::ZERO,
-                        description: Some("Service Tax".to_string()),
-                    });
-                }
-
-                if tourism_tax > Decimal::ZERO {
-                    entries.push(JournalEntry {
-                        booking_number: booking_number.clone(),
-                        room_number: room_number.clone(),
-                        entry_type: "tourism_tax".to_string(),
-                        debit: tourism_tax,
-                        credit: Decimal::ZERO,
-                        description: Some("Tourism Tax".to_string()),
-                    });
-                }
-
-                // Deposits only post on the check-in night
-                if check_in_date == audit_date {
-                    if deposit_amount > Decimal::ZERO {
+                    if room_charge > Decimal::ZERO {
                         entries.push(JournalEntry {
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
-                            entry_type: "deposit".to_string(),
-                            debit: deposit_amount,
+                            entry_type: "room_charge".to_string(),
+                            debit: room_charge,
                             credit: Decimal::ZERO,
-                            description: Some("Deposit".to_string()),
+                            description: Some("Room Charge".to_string()),
                         });
                     }
+
+                    if service_tax > Decimal::ZERO {
+                        entries.push(JournalEntry {
+                            booking_number: booking_number.clone(),
+                            room_number: room_number.clone(),
+                            entry_type: "service_tax".to_string(),
+                            debit: service_tax,
+                            credit: Decimal::ZERO,
+                            description: Some("Service Tax".to_string()),
+                        });
+                    }
+
+                    if tourism_tax > Decimal::ZERO {
+                        entries.push(JournalEntry {
+                            booking_number: booking_number.clone(),
+                            room_number: room_number.clone(),
+                            entry_type: "tourism_tax".to_string(),
+                            debit: tourism_tax,
+                            credit: Decimal::ZERO,
+                            description: Some("Tourism Tax".to_string()),
+                        });
+                    }
+
+                    // Deposits only post on the check-in night
+                    if check_in_date == audit_date {
+                        if deposit_amount > Decimal::ZERO {
+                            entries.push(JournalEntry {
+                                booking_number: booking_number.clone(),
+                                room_number: room_number.clone(),
+                                entry_type: "deposit".to_string(),
+                                debit: deposit_amount,
+                                credit: Decimal::ZERO,
+                                description: Some("Deposit".to_string()),
+                            });
+                        }
+                    }
                 }
+            }
+            Err(e) => {
+                log::error!("Failed to fetch posted room charges for {}: {}", audit_date, e);
             }
         }
     } else {
@@ -277,11 +282,12 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
             ORDER BY r.room_number
         "#;
 
-        if let Ok(rows) = sqlx::query(query)
+        match sqlx::query(query)
             .bind(audit_date)
             .fetch_all(pool)
             .await
         {
+            Ok(rows) => {
             for row in rows.iter() {
                 let booking_number: String = row.get("booking_number");
                 let room_number: String = row.get("room_number");
@@ -348,6 +354,10 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                     }
                 }
             }
+            }
+            Err(e) => {
+                log::error!("Failed to fetch unposted room charges for {}: {}", audit_date, e);
+            }
         }
     }
 
@@ -372,12 +382,13 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         ORDER BY r.room_number
     "#;
 
-    if let Ok(payment_rows) = sqlx::query(payment_query)
+    match sqlx::query(payment_query)
         .bind(audit_date)
         .bind(&hotel_timezone)
         .fetch_all(pool)
         .await
     {
+        Ok(payment_rows) => {
         for row in payment_rows.iter() {
             let booking_number: String = row.get("booking_number");
             let room_number: String = row.get("room_number");
@@ -440,6 +451,10 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 description: description.or_else(|| Some(entry_type.clone())),
             });
         }
+        }
+        Err(e) => {
+            log::error!("Failed to fetch payments for {}: {}", audit_date, e);
+        }
     }
 
     // Get deposit refunds: bookings checked out on the audit date with any deposit
@@ -461,12 +476,13 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         ORDER BY r.room_number
     "#;
 
-    if let Ok(refund_rows) = sqlx::query(refund_query)
+    match sqlx::query(refund_query)
         .bind(audit_date)
         .bind(&hotel_timezone)
         .fetch_all(pool)
         .await
     {
+        Ok(refund_rows) => {
         for row in refund_rows.iter() {
             let booking_number: String = row.get("booking_number");
             let room_number: String = row.get("room_number");
@@ -496,6 +512,10 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 });
             }
         }
+        }
+        Err(e) => {
+            log::error!("Failed to fetch deposit refunds for {}: {}", audit_date, e);
+        }
     }
 
     // Get city ledger entries: charges posted to company accounts on the audit date
@@ -512,33 +532,38 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         ORDER BY cl.company_name, cl.room_number
     "#;
 
-    if let Ok(cl_rows) = sqlx::query(city_ledger_query)
+    match sqlx::query(city_ledger_query)
         .bind(audit_date)
         .bind(&hotel_timezone)
         .fetch_all(pool)
         .await
     {
-        for row in cl_rows.iter() {
-            let company_name: String = row.get("company_name");
-            let room_number: String = row.get("room_number");
-            let amount: Decimal = row.get("amount");
-            let transaction_type: String = row.get("transaction_type");
-            let description: String = row.get("description");
+        Ok(cl_rows) => {
+            for row in cl_rows.iter() {
+                let company_name: String = row.get("company_name");
+                let room_number: String = row.get("room_number");
+                let amount: Decimal = row.get("amount");
+                let transaction_type: String = row.get("transaction_type");
+                let description: String = row.get("description");
 
-            let (debit, credit) = if transaction_type == "credit" {
-                (Decimal::ZERO, amount)
-            } else {
-                (amount, Decimal::ZERO)
-            };
+                let (debit, credit) = if transaction_type == "credit" {
+                    (Decimal::ZERO, amount)
+                } else {
+                    (amount, Decimal::ZERO)
+                };
 
-            entries.push(JournalEntry {
-                booking_number: company_name,
-                room_number,
-                entry_type: "city_ledger".to_string(),
-                debit,
-                credit,
-                description: Some(description),
-            });
+                entries.push(JournalEntry {
+                    booking_number: company_name,
+                    room_number,
+                    entry_type: "city_ledger".to_string(),
+                    debit,
+                    credit,
+                    description: Some(description),
+                });
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to fetch city ledger charges for {}: {}", audit_date, e);
         }
     }
 
@@ -556,26 +581,31 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         ORDER BY cl.company_name
     "#;
 
-    if let Ok(clp_rows) = sqlx::query(city_ledger_payments_query)
+    match sqlx::query(city_ledger_payments_query)
         .bind(audit_date)
         .bind(&hotel_timezone)
         .fetch_all(pool)
         .await
     {
-        for row in clp_rows.iter() {
-            let company_name: String = row.get("company_name");
-            let room_number: String = row.get("room_number");
-            let payment_amount: Decimal = row.get("payment_amount");
-            let payment_method: String = row.get("payment_method");
+        Ok(clp_rows) => {
+            for row in clp_rows.iter() {
+                let company_name: String = row.get("company_name");
+                let room_number: String = row.get("room_number");
+                let payment_amount: Decimal = row.get("payment_amount");
+                let payment_method: String = row.get("payment_method");
 
-            entries.push(JournalEntry {
-                booking_number: company_name,
-                room_number,
-                entry_type: "city_ledger".to_string(),
-                debit: Decimal::ZERO,
-                credit: payment_amount,
-                description: Some(format!("City Ledger Payment ({})", payment_method)),
-            });
+                entries.push(JournalEntry {
+                    booking_number: company_name,
+                    room_number,
+                    entry_type: "city_ledger".to_string(),
+                    debit: Decimal::ZERO,
+                    credit: payment_amount,
+                    description: Some(format!("City Ledger Payment ({})", payment_method)),
+                });
+            }
+        }
+        Err(e) => {
+            log::error!("Failed to fetch city ledger payments for {}: {}", audit_date, e);
         }
     }
 
