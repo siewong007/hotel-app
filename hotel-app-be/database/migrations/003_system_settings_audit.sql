@@ -91,7 +91,12 @@ CREATE TRIGGER update_email_templates_updated_at
 -- ============================================================================
 
 COMMENT ON TABLE audit_logs IS 'Comprehensive audit trail for all system actions';
-COMMENT ON TABLE system_settings IS 'Configurable system-wide settings';
+COMMENT ON TABLE system_settings IS 'System-wide configuration settings including tax rates';
+
+-- Insert default service tax rate
+INSERT INTO system_settings (key, value, description)
+VALUES ('service_tax_rate', '8', 'Service tax percentage applied to room charges (e.g. 8 for 8%)')
+ON CONFLICT (key) DO NOTHING;
 COMMENT ON TABLE email_templates IS 'Transactional email templates with variable support';
 
 -- ============================================================================
