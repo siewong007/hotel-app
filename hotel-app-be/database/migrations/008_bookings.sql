@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     -- Rate overrides
     rate_override_weekday DECIMAL(10,2),
     rate_override_weekend DECIMAL(10,2),
+    daily_rates JSONB,
 
     -- Tourism and extra charges
     is_tourist BOOLEAN DEFAULT false,
@@ -100,9 +101,9 @@ CREATE TABLE IF NOT EXISTS bookings (
 
     -- Status
     status VARCHAR(30) DEFAULT 'pending' CHECK (status IN (
-        'pending', 'confirmed', 'checked_in', 'checked_out',
-        'cancelled', 'no_show', 'completed', 'comp_cancelled',
-        'partial_complimentary', 'fully_complimentary'
+        'pending', 'confirmed', 'checked_in', 'auto_checked_in', 'checked_out',
+        'no_show', 'completed', 'comp_cancelled',
+        'partial_complimentary', 'fully_complimentary', 'voided'
     )),
     payment_status VARCHAR(30) DEFAULT 'unpaid' CHECK (payment_status IN (
         'unpaid', 'unpaid_deposit', 'paid_rate', 'partial', 'paid', 'refunded', 'cancelled'
@@ -282,26 +283,77 @@ CREATE OR REPLACE FUNCTION sync_room_status_with_booking() RETURNS TRIGGER AS $$
 DECLARE
     v_current_room_status VARCHAR(20);
     v_has_other_active_bookings BOOLEAN;
+    v_has_upcoming_reservation BOOLEAN;
 BEGIN
-    SELECT status INTO v_current_room_status FROM rooms WHERE id = NEW.room_id;
-    SELECT EXISTS (SELECT 1 FROM bookings WHERE room_id = NEW.room_id AND id != NEW.id
-        AND status IN ('confirmed', 'pending', 'checked_in') AND check_out_date >= CURRENT_DATE) INTO v_has_other_active_bookings;
-
-    IF NEW.status = 'checked_in' AND v_current_room_status NOT IN ('occupied') THEN
-        PERFORM update_room_status(NEW.room_id, 'occupied', 'Guest checked in - Booking #' || NEW.id, NULL, NEW.check_in_date, NEW.check_out_date);
-    ELSIF NEW.status = 'checked_out' AND v_current_room_status = 'occupied' THEN
-        PERFORM update_room_status(NEW.room_id, 'dirty', 'Guest checked out - Needs cleaning - Booking #' || NEW.id, NULL, CURRENT_TIMESTAMP, NULL);
-    ELSIF NEW.status IN ('confirmed', 'pending') AND v_current_room_status = 'available' AND NEW.check_in_date::date > CURRENT_DATE THEN
-        PERFORM update_room_status(NEW.room_id, 'reserved', 'Future reservation - Booking #' || NEW.id, NULL, NEW.check_in_date, NEW.check_out_date);
-    ELSIF NEW.status IN ('cancelled', 'no_show') AND v_current_room_status IN ('occupied', 'reserved') AND NOT v_has_other_active_bookings THEN
-        PERFORM update_room_status(NEW.room_id, 'available', 'Booking cancelled/no-show - Booking #' || NEW.id, NULL, NULL, NULL);
+    -- Skip room status changes for back-dated bookings (check-out already passed)
+    IF NEW.check_out_date < CURRENT_DATE AND NEW.status IN ('checked_in', 'checked_out') THEN
+        RETURN NEW;
     END IF;
+
+    SELECT status INTO v_current_room_status FROM rooms WHERE id = NEW.room_id;
+    SELECT EXISTS (
+        SELECT 1 FROM bookings
+        WHERE room_id = NEW.room_id AND id != NEW.id
+          AND status IN ('confirmed', 'pending', 'checked_in')
+          AND check_out_date >= CURRENT_DATE
+    ) INTO v_has_other_active_bookings;
+
+    -- checked_in -> occupied
+    IF NEW.status = 'checked_in' AND v_current_room_status NOT IN ('occupied') THEN
+        PERFORM update_room_status(NEW.room_id, 'occupied',
+            'Guest checked in - Booking #' || NEW.id, NULL,
+            NEW.check_in_date, NEW.check_out_date);
+
+    -- checked_out -> reserved (if upcoming booking) or dirty
+    ELSIF NEW.status = 'checked_out' AND v_current_room_status = 'occupied' THEN
+        SELECT EXISTS (
+            SELECT 1 FROM bookings
+            WHERE room_id = NEW.room_id
+              AND id != NEW.id
+              AND status IN ('confirmed', 'pending')
+              AND check_in_date >= CURRENT_DATE
+        ) INTO v_has_upcoming_reservation;
+
+        IF v_has_upcoming_reservation THEN
+            PERFORM update_room_status(NEW.room_id, 'reserved',
+                'Guest checked out - Upcoming reservation - Booking #' || NEW.id,
+                NULL, NULL, NULL);
+        ELSE
+            PERFORM update_room_status(NEW.room_id, 'dirty',
+                'Guest checked out - Needs cleaning - Booking #' || NEW.id,
+                NULL, CURRENT_TIMESTAMP, NULL);
+        END IF;
+
+    -- same-day booking -> occupied
+    ELSIF NEW.status IN ('confirmed', 'pending')
+        AND v_current_room_status IN ('available', 'reserved')
+        AND NEW.check_in_date::date = CURRENT_DATE THEN
+        PERFORM update_room_status(NEW.room_id, 'occupied',
+            'Same-day booking - Guest arriving today - Booking #' || NEW.id,
+            NULL, NEW.check_in_date, NEW.check_out_date);
+
+    -- future booking -> reserved
+    ELSIF NEW.status IN ('confirmed', 'pending')
+        AND v_current_room_status = 'available'
+        AND NEW.check_in_date::date > CURRENT_DATE THEN
+        PERFORM update_room_status(NEW.room_id, 'reserved',
+            'Future reservation - Booking #' || NEW.id, NULL,
+            NEW.check_in_date, NEW.check_out_date);
+
+    -- no_show/voided -> available (if no other active bookings)
+    ELSIF NEW.status IN ('no_show', 'voided')
+        AND v_current_room_status IN ('occupied', 'reserved')
+        AND NOT v_has_other_active_bookings THEN
+        PERFORM update_room_status(NEW.room_id, 'available',
+            'Booking no-show/voided - Booking #' || NEW.id, NULL, NULL, NULL);
+    END IF;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_sync_room_status_booking ON bookings;
-CREATE TRIGGER trg_sync_room_status_booking AFTER INSERT OR UPDATE OF status ON bookings FOR EACH ROW EXECUTE FUNCTION sync_room_status_with_booking();
+CREATE TRIGGER trg_sync_room_status_booking AFTER INSERT OR UPDATE OF status, check_in_date ON bookings FOR EACH ROW EXECUTE FUNCTION sync_room_status_with_booking();
 
 -- Validate occupancy
 CREATE OR REPLACE FUNCTION validate_booking_occupancy() RETURNS TRIGGER AS $$
@@ -477,6 +529,28 @@ GROUP BY rt.id, rt.name, rt.max_occupancy;
 -- NIGHT AUDIT FUNCTIONS
 -- ============================================================================
 
+-- Track which (booking, date) combinations have been posted
+CREATE TABLE IF NOT EXISTS night_audit_posted_nights (
+    id BIGSERIAL PRIMARY KEY,
+    booking_id BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    audit_date DATE NOT NULL,
+    room_rate DECIMAL(10,2) NOT NULL,       -- nightly rate posted
+    room_charge DECIMAL(10,2) NOT NULL,     -- room charge (before tax)
+    service_tax DECIMAL(10,2) NOT NULL,     -- tax amount
+    tourism_tax DECIMAL(10,2) NOT NULL DEFAULT 0, -- tourism tax amount
+    total_posted DECIMAL(10,2) NOT NULL,    -- total for this night
+    audit_run_id BIGINT REFERENCES night_audit_runs(id) ON DELETE SET NULL,
+    posted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    posted_by BIGINT,
+    CONSTRAINT unique_booking_night UNIQUE (booking_id, audit_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_posted_nights_booking ON night_audit_posted_nights(booking_id);
+CREATE INDEX IF NOT EXISTS idx_posted_nights_date ON night_audit_posted_nights(audit_date);
+CREATE INDEX IF NOT EXISTS idx_posted_nights_audit_run ON night_audit_posted_nights(audit_run_id);
+
+COMMENT ON TABLE night_audit_posted_nights IS 'Tracks per-night posting for each booking.';
+
 -- Function to get unposted bookings for a date
 CREATE OR REPLACE FUNCTION get_unposted_bookings(p_audit_date DATE)
 RETURNS TABLE (
@@ -505,21 +579,15 @@ BEGIN
     JOIN rooms r ON b.room_id = r.id
     WHERE b.is_posted = FALSE
     AND (
-        -- Bookings that are active on the audit date
         (b.check_in_date <= p_audit_date AND b.check_out_date > p_audit_date)
-        OR
-        -- Bookings that checked out on the audit date
-        (b.check_out_date = p_audit_date AND b.status = 'checked_out')
-        OR
-        -- Bookings that were created/modified on the audit date
-        (DATE(b.created_at) = p_audit_date OR DATE(b.updated_at) = p_audit_date)
+        OR (b.check_out_date = p_audit_date AND b.status = 'checked_out')
+        OR (DATE(b.created_at) = p_audit_date OR DATE(b.updated_at) = p_audit_date)
     )
-    AND b.status NOT IN ('cancelled', 'no_show', 'confirmed', 'pending')
+    AND b.status NOT IN ('voided', 'no_show', 'confirmed', 'pending')
     ORDER BY b.check_in_date;
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to run night audit
 CREATE OR REPLACE FUNCTION run_night_audit(
     p_audit_date DATE,
     p_user_id BIGINT
@@ -538,58 +606,126 @@ DECLARE
     v_total_rooms INTEGER := 0;
     v_occupancy_rate DECIMAL(5, 2) := 0;
     v_booking RECORD;
+    v_tax_rate DECIMAL(5, 4) := 0.08;
+    v_room_charge DECIMAL(10, 2);
+    v_service_tax DECIMAL(10, 2);
+    v_tourism_tax_per_night DECIMAL(10, 2);
+    v_nights INTEGER;
 BEGIN
-    -- Note: The handler now checks for already-run audits and handles force rerun
-    -- This function assumes the caller has already handled the "already completed" check
+    IF EXISTS (SELECT 1 FROM night_audit_runs WHERE audit_date = p_audit_date AND status = 'completed') THEN
+        RAISE EXCEPTION 'Night audit already completed for date %', p_audit_date;
+    END IF;
 
-    -- Create audit run record
+    BEGIN
+        SELECT CAST(value AS DECIMAL) / 100.0 INTO v_tax_rate
+        FROM system_settings WHERE key = 'service_tax_rate';
+    EXCEPTION WHEN OTHERS THEN
+        v_tax_rate := 0.08;
+    END;
+
     INSERT INTO night_audit_runs (audit_date, run_by, status)
     VALUES (p_audit_date, p_user_id, 'in_progress')
     RETURNING id INTO v_audit_run_id;
 
-    -- Post checked_in bookings active on this date,
-    -- plus checked_out bookings that checked in on this date (same-day checkout)
-    -- Explicitly exclude pending, confirmed, cancelled, no_show statuses
     FOR v_booking IN
-        SELECT b.id, b.status, b.total_amount, b.check_in_date, b.check_out_date
+        SELECT b.id, b.booking_number, b.status, b.room_rate, b.total_amount,
+               b.check_in_date, b.check_out_date, b.guest_id, b.room_id,
+               COALESCE(b.is_tourist, false) as is_tourist,
+               COALESCE(b.tourism_tax_amount, 0) as tourism_tax_amount
         FROM bookings b
-        WHERE b.is_posted = FALSE
-        AND b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show')
-        AND (
-            (b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= p_audit_date AND b.check_out_date > p_audit_date)
-            OR (b.status = 'checked_out' AND b.check_in_date = p_audit_date)
+        WHERE b.status NOT IN ('pending', 'confirmed', 'voided', 'no_show')
+        AND b.check_in_date <= p_audit_date
+        AND b.check_out_date > p_audit_date
+        AND NOT EXISTS (
+            SELECT 1 FROM night_audit_posted_nights napn
+            WHERE napn.booking_id = b.id AND napn.audit_date = p_audit_date
         )
     LOOP
-        -- Update booking as posted
-        UPDATE bookings
-        SET is_posted = TRUE,
-            posted_date = p_audit_date,
-            posted_at = NOW(),
-            posted_by = p_user_id
-        WHERE id = v_booking.id;
+        v_room_charge := ROUND(v_booking.room_rate / (1 + v_tax_rate), 2);
+        v_service_tax := v_booking.room_rate - v_room_charge;
+        v_tourism_tax_per_night := 0;
 
-        -- Record the posting detail
+        IF v_booking.is_tourist AND v_booking.tourism_tax_amount > 0 THEN
+            v_nights := GREATEST((v_booking.check_out_date - v_booking.check_in_date), 1);
+            v_tourism_tax_per_night := ROUND(v_booking.tourism_tax_amount / v_nights, 2);
+        END IF;
+
+        INSERT INTO night_audit_posted_nights
+            (booking_id, audit_date, room_rate, room_charge, service_tax, tourism_tax, total_posted, audit_run_id, posted_by)
+        VALUES
+            (v_booking.id, p_audit_date, v_booking.room_rate, v_room_charge, v_service_tax, v_tourism_tax_per_night, v_booking.room_rate + v_tourism_tax_per_night, v_audit_run_id, p_user_id);
+
         INSERT INTO night_audit_details (audit_run_id, booking_id, record_type, action, data)
-        VALUES (v_audit_run_id, v_booking.id, 'booking', 'posted',
+        VALUES (v_audit_run_id, v_booking.id, 'booking', 'night_posted',
             jsonb_build_object(
                 'status', v_booking.status,
-                'total_amount', v_booking.total_amount,
+                'room_rate', v_booking.room_rate,
+                'night_date', p_audit_date,
+                'room_charge', v_room_charge,
+                'service_tax', v_service_tax,
+                'tourism_tax', v_tourism_tax_per_night,
                 'check_in_date', v_booking.check_in_date,
                 'check_out_date', v_booking.check_out_date
             )
         );
 
         v_bookings_posted := v_bookings_posted + 1;
-
-        IF v_booking.status = 'checked_in' THEN
-            v_checkins := v_checkins + 1;
-            v_revenue := v_revenue + COALESCE(v_booking.total_amount, 0);
-        ELSIF v_booking.status = 'checked_out' AND v_booking.check_out_date = p_audit_date THEN
-            v_checkouts := v_checkouts + 1;
-        END IF;
+        v_revenue := v_revenue + v_booking.room_rate + v_tourism_tax_per_night;
     END LOOP;
 
-    -- Get room statistics
+    FOR v_booking IN
+        SELECT b.id, b.booking_number, b.status, b.room_rate, b.total_amount,
+               b.check_in_date, b.check_out_date, b.guest_id, b.room_id,
+               COALESCE(b.is_tourist, false) as is_tourist,
+               COALESCE(b.tourism_tax_amount, 0) as tourism_tax_amount
+        FROM bookings b
+        WHERE b.status = 'checked_out'
+        AND b.check_in_date = p_audit_date
+        AND b.check_out_date = p_audit_date
+        AND NOT EXISTS (
+            SELECT 1 FROM night_audit_posted_nights napn
+            WHERE napn.booking_id = b.id AND napn.audit_date = p_audit_date
+        )
+    LOOP
+        v_room_charge := ROUND(v_booking.room_rate / (1 + v_tax_rate), 2);
+        v_service_tax := v_booking.room_rate - v_room_charge;
+        v_tourism_tax_per_night := 0;
+
+        IF v_booking.is_tourist AND v_booking.tourism_tax_amount > 0 THEN
+            v_tourism_tax_per_night := v_booking.tourism_tax_amount;
+        END IF;
+
+        INSERT INTO night_audit_posted_nights
+            (booking_id, audit_date, room_rate, room_charge, service_tax, tourism_tax, total_posted, audit_run_id, posted_by)
+        VALUES
+            (v_booking.id, p_audit_date, v_booking.room_rate, v_room_charge, v_service_tax, v_tourism_tax_per_night, v_booking.room_rate + v_tourism_tax_per_night, v_audit_run_id, p_user_id);
+
+        INSERT INTO night_audit_details (audit_run_id, booking_id, record_type, action, data)
+        VALUES (v_audit_run_id, v_booking.id, 'booking', 'night_posted',
+            jsonb_build_object(
+                'status', v_booking.status,
+                'room_rate', v_booking.room_rate,
+                'night_date', p_audit_date,
+                'room_charge', v_room_charge,
+                'service_tax', v_service_tax,
+                'tourism_tax', v_tourism_tax_per_night,
+                'check_in_date', v_booking.check_in_date,
+                'check_out_date', v_booking.check_out_date
+            )
+        );
+
+        v_bookings_posted := v_bookings_posted + 1;
+        v_revenue := v_revenue + v_booking.room_rate + v_tourism_tax_per_night;
+        v_checkouts := v_checkouts + 1;
+    END LOOP;
+
+    SELECT COUNT(*) INTO v_checkins FROM bookings
+    WHERE status IN ('checked_in', 'auto_checked_in') AND check_in_date = p_audit_date;
+
+    SELECT COUNT(*) INTO v_checkouts FROM bookings
+    WHERE status = 'checked_out'
+    AND COALESCE((actual_check_out AT TIME ZONE COALESCE((SELECT value FROM system_settings WHERE key = 'timezone'), 'UTC'))::date, check_out_date) = p_audit_date;
+
     SELECT COUNT(*) INTO v_total_rooms FROM rooms;
 
     SELECT
@@ -601,24 +737,20 @@ BEGIN
     INTO v_rooms_available, v_rooms_occupied, v_rooms_reserved, v_rooms_maintenance, v_rooms_dirty
     FROM rooms;
 
-    -- Also count rooms with checked_in bookings as occupied
     SELECT COUNT(DISTINCT r.id) INTO v_rooms_occupied
     FROM rooms r
     JOIN bookings b ON r.id = b.room_id
-    WHERE b.status = 'checked_in'
+    WHERE b.status IN ('checked_in', 'auto_checked_in')
     AND b.check_in_date <= p_audit_date
     AND b.check_out_date > p_audit_date;
 
-    -- Calculate occupancy rate
     IF v_total_rooms > 0 THEN
-        v_occupancy_rate := (v_rooms_occupied::DECIMAL / v_total_rooms) * 100;
+        v_occupancy_rate := ROUND((v_rooms_occupied::DECIMAL / v_total_rooms) * 100, 2);
     END IF;
 
-    -- Update room posted status
     UPDATE rooms
     SET last_posted_status = status, last_posted_date = p_audit_date;
 
-    -- Update audit run with statistics
     UPDATE night_audit_runs
     SET status = 'completed',
         total_bookings_posted = v_bookings_posted,
@@ -632,12 +764,73 @@ BEGIN
         rooms_occupied = v_rooms_occupied,
         rooms_reserved = v_rooms_reserved,
         rooms_maintenance = v_rooms_maintenance,
-        rooms_dirty = v_rooms_dirty
+        rooms_dirty = v_rooms_dirty,
+        run_at = NOW()
     WHERE id = v_audit_run_id;
 
     RETURN v_audit_run_id;
 END;
 $$ LANGUAGE plpgsql;
+
+---- Migration: 022_auto_checkin_function.sql
+-- Description: Create a database function to auto-check-in confirmed reservations
+--              that have passed their check-in date. This provides the server-side
+--              implementation for the 'auto_checked_in' booking status, which is
+--              already referenced throughout queries (rooms_queries, bookings,
+--              analytics, night_audit) but was only partially implemented in the
+--              application-level handler (process_auto_checkin_checkout_handler).
+--
+-- The 'auto_checked_in' status distinguishes guests who were automatically
+-- checked in (e.g., by night audit or a scheduled task) from those who were
+-- manually checked in at the front desk. All existing queries already treat
+-- 'auto_checked_in' identically to 'checked_in'.
+--
+-- Usage:
+--   SELECT auto_check_in_reservations(CURRENT_DATE);
+--   -- Can be called from night audit, a cron job, or the application handler.
+
+CREATE OR REPLACE FUNCTION auto_check_in_reservations(p_date DATE)
+RETURNS INTEGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_count INTEGER;
+    v_booking RECORD;
+BEGIN
+    v_count := 0;
+
+    -- Find all confirmed bookings whose check-in date has arrived or passed
+    FOR v_booking IN
+        SELECT b.id, b.room_id
+        FROM bookings b
+        WHERE b.status = 'confirmed'
+          AND b.check_in_date <= p_date
+          AND b.check_out_date > p_date
+    LOOP
+        -- Update booking status to auto_checked_in
+        UPDATE bookings
+        SET status = 'auto_checked_in',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = v_booking.id;
+
+        -- Update the corresponding room to occupied
+        UPDATE rooms
+        SET status = 'occupied'
+        WHERE id = v_booking.room_id;
+
+        v_count := v_count + 1;
+    END LOOP;
+
+    RETURN v_count;
+END;
+$$;
+
+COMMENT ON FUNCTION auto_check_in_reservations(DATE) IS
+    'Auto-checks-in confirmed reservations whose check-in date is on or before '
+    'the given date (and check-out date is still in the future). Updates booking '
+    'status to auto_checked_in and room status to occupied. Returns the number '
+    'of bookings processed. Intended to be called by night audit or a scheduled task.';
+
 
 -- ============================================================================
 -- DATA FIXES
