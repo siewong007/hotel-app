@@ -75,6 +75,10 @@ export class LedgerService {
     return await api.post(`ledgers/${ledgerId}/payments`, { json: data }).json<CustomerLedgerPayment>();
   }
 
+  static async updateLedgerPaymentDate(ledgerId: number, paymentId: number, paymentDate: string): Promise<CustomerLedgerPayment> {
+    return await api.patch(`ledgers/${ledgerId}/payments/${paymentId}`, { json: { payment_date: paymentDate } }).json<CustomerLedgerPayment>();
+  }
+
   // PAT-style methods
   static async getTransactionCodes(): Promise<PatTransactionCode[]> {
     return await withRetry(

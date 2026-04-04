@@ -1000,6 +1000,9 @@ pub async fn create_ledger_payment_handler(
         "pending"
     };
 
+    // Resolve payment date: use provided date or default to now
+    let payment_date_value = request.payment_date.as_ref().map(|d| format!("{} 12:00:00", d));
+
     // Insert payment without RETURNING
     sqlx::query(
         r#"
@@ -1007,13 +1010,14 @@ pub async fn create_ledger_payment_handler(
             ledger_id, payment_amount, payment_method, payment_reference,
             payment_date, receipt_number, receipt_file_url, notes, processed_by
         )
-        VALUES (?1, ?2, ?3, ?4, datetime('now'), ?5, ?6, ?7, ?8)
+        VALUES (?1, ?2, ?3, ?4, COALESCE(?5, datetime('now')), ?6, ?7, ?8, ?9)
         "#,
     )
     .bind(ledger_id)
     .bind(decimal_to_db(payment_amount))
     .bind(&request.payment_method)
     .bind(&request.payment_reference)
+    .bind(&payment_date_value)
     .bind(&request.receipt_number)
     .bind(&request.receipt_file_url)
     .bind(&request.notes)
@@ -1051,16 +1055,17 @@ pub async fn create_ledger_payment_handler(
             status = ?2,
             payment_method = ?3,
             payment_reference = ?4,
-            payment_date = datetime('now'),
+            payment_date = COALESCE(?5, datetime('now')),
             updated_at = datetime('now'),
-            updated_by = ?5
-        WHERE id = ?6
+            updated_by = ?6
+        WHERE id = ?7
         "#,
     )
     .bind(decimal_to_db(new_total_paid))
     .bind(new_status)
     .bind(&request.payment_method)
     .bind(&request.payment_reference)
+    .bind(&payment_date_value)
     .bind(user_id)
     .bind(ledger_id)
     .execute(&pool)
@@ -1121,13 +1126,20 @@ pub async fn create_ledger_payment_handler(
         "pending"
     };
 
+    // Resolve payment date: use provided date or default to now
+    let payment_date_ts: Option<chrono::NaiveDateTime> = request.payment_date.as_ref().and_then(|d| {
+        chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d")
+            .ok()
+            .map(|date| date.and_hms_opt(12, 0, 0).unwrap())
+    });
+
     let payment_row = sqlx::query(
         r#"
         INSERT INTO customer_ledger_payments (
             ledger_id, payment_amount, payment_method, payment_reference,
             payment_date, receipt_number, receipt_file_url, notes, processed_by
         )
-        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, COALESCE($5, CURRENT_TIMESTAMP), $6, $7, $8, $9)
         RETURNING id, ledger_id, payment_amount, payment_method, payment_reference,
                   payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at
         "#,
@@ -1136,6 +1148,7 @@ pub async fn create_ledger_payment_handler(
     .bind(payment_amount)
     .bind(&request.payment_method)
     .bind(&request.payment_reference)
+    .bind(payment_date_ts)
     .bind(&request.receipt_number)
     .bind(&request.receipt_file_url)
     .bind(&request.notes)
@@ -1153,16 +1166,17 @@ pub async fn create_ledger_payment_handler(
             status = $2,
             payment_method = $3,
             payment_reference = $4,
-            payment_date = CURRENT_TIMESTAMP,
+            payment_date = COALESCE($5, CURRENT_TIMESTAMP),
             updated_at = CURRENT_TIMESTAMP,
-            updated_by = $5
-        WHERE id = $6
+            updated_by = $6
+        WHERE id = $7
         "#,
     )
     .bind(new_total_paid)
     .bind(new_status)
     .bind(&request.payment_method)
     .bind(&request.payment_reference)
+    .bind(payment_date_ts)
     .bind(user_id)
     .bind(ledger_id)
     .execute(&pool)
@@ -1645,4 +1659,124 @@ pub async fn create_ledger_reversal_handler(
     let reversal = row_to_customer_ledger(&row);
 
     Ok(Json(reversal))
+}
+
+/// Update the payment date on an existing ledger payment (SQLite version)
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+pub async fn update_ledger_payment_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path((ledger_id, payment_id)): Path<(i64, i64)>,
+    Json(request): Json<UpdateLedgerPaymentRequest>,
+) -> Result<Json<CustomerLedgerPayment>, ApiError> {
+    let _user_id = require_auth(&headers).await?;
+
+    let payment_date_value = format!("{} 12:00:00", &request.payment_date);
+
+    // Verify the payment belongs to this ledger
+    let exists = sqlx::query("SELECT id FROM customer_ledger_payments WHERE id = ?1 AND ledger_id = ?2")
+        .bind(payment_id)
+        .bind(ledger_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if exists.is_none() {
+        return Err(ApiError::NotFound("Payment not found".to_string()));
+    }
+
+    sqlx::query("UPDATE customer_ledger_payments SET payment_date = ?1 WHERE id = ?2")
+        .bind(&payment_date_value)
+        .bind(payment_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Also update the ledger's payment_date to the latest payment date
+    sqlx::query(
+        r#"
+        UPDATE customer_ledgers
+        SET payment_date = (SELECT MAX(payment_date) FROM customer_ledger_payments WHERE ledger_id = ?1),
+            updated_at = datetime('now')
+        WHERE id = ?1
+        "#,
+    )
+    .bind(ledger_id)
+    .execute(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let payment_row = sqlx::query(
+        r#"
+        SELECT id, ledger_id, payment_amount, payment_method, payment_reference,
+               payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at
+        FROM customer_ledger_payments
+        WHERE id = ?1
+        "#,
+    )
+    .bind(payment_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(Json(row_to_customer_ledger_payment(&payment_row)))
+}
+
+/// Update the payment date on an existing ledger payment (PostgreSQL version)
+#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+pub async fn update_ledger_payment_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path((ledger_id, payment_id)): Path<(i64, i64)>,
+    Json(request): Json<UpdateLedgerPaymentRequest>,
+) -> Result<Json<CustomerLedgerPayment>, ApiError> {
+    let _user_id = require_auth(&headers).await?;
+
+    let payment_date_ts = chrono::NaiveDate::parse_from_str(&request.payment_date, "%Y-%m-%d")
+        .map_err(|_| ApiError::BadRequest("Invalid date format, expected YYYY-MM-DD".to_string()))?
+        .and_hms_opt(12, 0, 0)
+        .unwrap();
+
+    // Verify the payment belongs to this ledger
+    let exists = sqlx::query("SELECT id FROM customer_ledger_payments WHERE id = $1 AND ledger_id = $2")
+        .bind(payment_id)
+        .bind(ledger_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if exists.is_none() {
+        return Err(ApiError::NotFound("Payment not found".to_string()));
+    }
+
+    let payment_row = sqlx::query(
+        r#"
+        UPDATE customer_ledger_payments
+        SET payment_date = $1
+        WHERE id = $2
+        RETURNING id, ledger_id, payment_amount, payment_method, payment_reference,
+                  payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at
+        "#,
+    )
+    .bind(payment_date_ts)
+    .bind(payment_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Also update the ledger's payment_date to the latest payment date
+    sqlx::query(
+        r#"
+        UPDATE customer_ledgers
+        SET payment_date = (SELECT MAX(payment_date) FROM customer_ledger_payments WHERE ledger_id = $1),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        "#,
+    )
+    .bind(ledger_id)
+    .execute(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(Json(row_to_customer_ledger_payment(&payment_row)))
 }

@@ -61,6 +61,11 @@ import {
   Person as PersonIcon,
   Download as DownloadIcon,
   Description as InvoiceIcon,
+  NavigateBefore as PrevIcon,
+  NavigateNext as NextIcon,
+  Visibility as ViewIcon,
+  Save as SaveIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { api } from '../../../api/client';
@@ -77,6 +82,7 @@ import {
 } from '../../../types';
 import { Company } from '../../../api/companies.service';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
 
 type SortField = 'company_name' | 'amount' | 'balance_due' | 'status' | 'due_date' | 'created_at';
@@ -172,6 +178,7 @@ const getStatusText = (status: string): string => {
 
 const CustomerLedgerPage: React.FC = () => {
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
+  const [hotelSettings, setHotelSettings] = useState<HotelSettings>(getHotelSettings());
   const [ledgers, setLedgers] = useState<CustomerLedger[]>([]);
   const [summary, setSummary] = useState<CustomerLedgerSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -213,6 +220,7 @@ const CustomerLedgerPage: React.FC = () => {
   const [paymentFormData, setPaymentFormData] = useState<CustomerLedgerPaymentRequest>({
     payment_amount: 0,
     payment_method: 'cash',
+    payment_date: new Date().toISOString().split('T')[0],
   });
   const [processingPayment, setProcessingPayment] = useState(false);
 
@@ -236,9 +244,17 @@ const CustomerLedgerPage: React.FC = () => {
   const [printingCompany, setPrintingCompany] = useState<string | null>(null);
   const [companyLedgerEntries, setCompanyLedgerEntries] = useState<CustomerLedger[]>([]);
 
+  // Receipt review state (one-by-one navigation)
+  const [currentReceiptIndex, setCurrentReceiptIndex] = useState(0);
+
   // Notifications
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+
+  // Payment date edit state
+  const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
+  const [editingPaymentDate, setEditingPaymentDate] = useState<string>('');
+  const [savingPaymentDate, setSavingPaymentDate] = useState(false);
 
   // Company Check-In state
   const [checkInDialogOpen, setCheckInDialogOpen] = useState(false);
@@ -328,6 +344,7 @@ const CustomerLedgerPage: React.FC = () => {
     payment_reference: '',
     receipt_number: '',
     notes: '',
+    payment_date: new Date().toISOString().split('T')[0],
   });
 
   // Company Invoice state
@@ -350,6 +367,10 @@ const CustomerLedgerPage: React.FC = () => {
     loadCompanies();
     loadGuests();
     loadAllCompanyBookings();
+
+    const handleSettingsChange = () => setHotelSettings(getHotelSettings());
+    window.addEventListener('hotelSettingsChange', handleSettingsChange);
+    return () => window.removeEventListener('hotelSettingsChange', handleSettingsChange);
   }, []);
 
   // Load all bookings that have company billing
@@ -885,6 +906,7 @@ const CustomerLedgerPage: React.FC = () => {
       payment_method: 'bank_transfer',
       payment_reference: '',
       receipt_number: '',
+      payment_date: new Date().toISOString().split('T')[0],
       notes: '',
     });
     setPaymentCompany(null);
@@ -916,6 +938,7 @@ const CustomerLedgerPage: React.FC = () => {
         payment_reference: companyPaymentForm.payment_reference || undefined,
         receipt_number: companyPaymentForm.receipt_number || undefined,
         notes: companyPaymentForm.notes || undefined,
+        payment_date: companyPaymentForm.payment_date || undefined,
       });
 
       setSnackbarMessage(`Payment of ${formatCurrency(paymentAmount)} recorded successfully`);
@@ -1008,47 +1031,352 @@ const CustomerLedgerPage: React.FC = () => {
   };
 
   const handlePrintCompanyInvoice = () => {
-    const printContent = document.getElementById('company-invoice-content');
-    if (!printContent) return;
+    const invoiceContent = document.getElementById('company-invoice-content');
+    if (!invoiceContent) return;
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    // Use iframe for printing (works in Tauri desktop apps)
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'absolute';
+    printFrame.style.top = '-10000px';
+    printFrame.style.left = '-10000px';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    document.body.appendChild(printFrame);
 
-    printWindow.document.write(`
+    const printDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
+    if (!printDoc) {
+      document.body.removeChild(printFrame);
+      return;
+    }
+
+    printDoc.open();
+    printDoc.write(`
+      <!DOCTYPE html>
       <html>
         <head>
-          <title>Invoice ${invoiceNumber}</title>
+          <title>Invoice - ${invoiceNumber}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-            .header h1 { margin: 0; font-size: 28px; }
-            .header p { margin: 5px 0; color: #666; }
-            .invoice-info { display: flex; justify-content: space-between; margin: 20px 0; }
-            .info-section { flex: 1; }
-            .info-section h3 { margin: 0 0 10px 0; font-size: 14px; color: #666; text-transform: uppercase; }
-            .info-section p { margin: 3px 0; }
-            table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-            th { background-color: #f5f5f5; font-weight: bold; }
-            .text-right { text-align: right; }
-            .total-row { font-weight: bold; font-size: 1.1em; background-color: #f9f9f9; }
-            .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; }
-            .footer p { margin: 5px 0; color: #666; font-size: 12px; }
-            .amount { font-family: monospace; }
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: Arial, sans-serif;
+              padding: 20px;
+              color: #333;
+            }
+            .invoice-header, [class*="header"] {
+              text-align: center;
+              margin-bottom: 30px;
+              border-bottom: 2px solid #1976d2 !important;
+              padding-bottom: 20px;
+            }
+            .invoice-header h1, [class*="header"] h4, [class*="header"] h5 {
+              color: #1976d2;
+              font-size: 28px;
+              margin-bottom: 5px;
+            }
+            .invoice-header p, [class*="header"] p {
+              color: #666;
+              font-size: 14px;
+            }
+            .invoice-meta {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 30px;
+            }
+            .invoice-meta div {
+              flex: 1;
+            }
+            .invoice-meta h3 {
+              font-size: 14px;
+              color: #1976d2;
+              margin-bottom: 10px;
+              text-transform: uppercase;
+            }
+            .invoice-meta p {
+              font-size: 13px;
+              margin: 5px 0;
+              line-height: 1.6;
+            }
+            .invoice-meta .label {
+              color: #666;
+              display: inline-block;
+              min-width: 120px;
+            }
+            .invoice-meta .value {
+              font-weight: 600;
+              color: #333;
+            }
+            /* MUI overrides for print */
+            .MuiGrid-container {
+              display: flex !important;
+              flex-wrap: wrap !important;
+              width: 100% !important;
+              margin-bottom: 20px !important;
+            }
+            .MuiGrid-item {
+              padding: 8px !important;
+            }
+            [class*="MuiGrid-grid-xs-6"] {
+              flex: 0 0 50% !important;
+              max-width: 50% !important;
+            }
+            [class*="MuiTypography-overline"] {
+              font-size: 11px !important;
+              text-transform: uppercase !important;
+              letter-spacing: 1px !important;
+              color: #1976d2 !important;
+              font-weight: 600 !important;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 20px 0;
+            }
+            th {
+              background-color: #1976d2 !important;
+              color: white !important;
+              padding: 12px;
+              text-align: left;
+              font-size: 13px;
+              text-transform: uppercase;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            td {
+              padding: 12px;
+              border-bottom: 1px solid #ddd;
+              font-size: 13px;
+            }
+            .amount, [class*="amount"] {
+              text-align: right;
+              font-weight: 600;
+            }
+            .total-row, tr:last-child {
+              background-color: #f5f5f5 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .total-row td {
+              border-top: 3px double #1976d2;
+              font-size: 16px;
+              font-weight: 700;
+              padding: 15px 12px;
+              color: #1976d2;
+            }
+            /* MUI Paper/Table overrides */
+            .MuiPaper-root, .MuiTableContainer-root {
+              box-shadow: none !important;
+              border: 1px solid #ddd !important;
+              border-radius: 0 !important;
+            }
+            .MuiTableHead-root .MuiTableRow-root {
+              background-color: #1976d2 !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .MuiTableHead-root .MuiTableCell-root {
+              background-color: #1976d2 !important;
+              color: white !important;
+              font-weight: 700 !important;
+              text-transform: uppercase !important;
+              font-size: 13px !important;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .MuiTableBody-root .MuiTableCell-root {
+              padding: 12px !important;
+              border-bottom: 1px solid #ddd !important;
+              font-size: 13px !important;
+            }
+            .MuiDivider-root {
+              border-color: #ddd !important;
+              margin: 15px 0 !important;
+            }
+            .footer, [class*="footer"] {
+              margin-top: 40px;
+              text-align: center;
+              padding-top: 20px;
+              border-top: 1px solid #ddd;
+              font-size: 12px;
+              color: #666;
+            }
+            .footer strong {
+              display: block;
+              font-size: 14px;
+              color: #1976d2;
+              margin-bottom: 5px;
+            }
+            /* Hide MUI visual-only elements */
+            .MuiChip-root { display: none !important; }
+            hr { border: none; border-top: 1px solid #ddd; margin: 15px 0; }
             @media print {
               body { padding: 0; }
-              .no-print { display: none; }
             }
           </style>
         </head>
         <body>
-          ${printContent.innerHTML}
+          ${invoiceContent.innerHTML}
         </body>
       </html>
     `);
+    printDoc.close();
 
-    printWindow.document.close();
-    printWindow.print();
+    // Wait for content to load, then print
+    setTimeout(() => {
+      printFrame.contentWindow?.focus();
+      printFrame.contentWindow?.print();
+
+      // Clean up the iframe after printing
+      setTimeout(() => {
+        document.body.removeChild(printFrame);
+      }, 1000);
+    }, 250);
+  };
+
+  const handleDownloadCompanyInvoice = () => {
+    const invoiceContent = document.getElementById('company-invoice-content');
+    if (!invoiceContent) return;
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Invoice - ${invoiceNumber}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; padding: 30px; color: #333; max-width: 800px; margin: 0 auto; }
+            .invoice-header { text-align: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid #1976d2; }
+            .invoice-header h1 { color: #1976d2; font-size: 28px; margin-bottom: 4px; }
+            .invoice-header p { color: #666; font-size: 13px; margin: 2px 0; }
+            .title-bar { background-color: #1976d2; color: white; padding: 8px 16px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
+            .title-bar h2 { font-size: 18px; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
+            .title-bar span { font-size: 15px; font-weight: 600; }
+            .meta { display: flex; justify-content: space-between; margin-bottom: 25px; }
+            .meta-left { flex: 1; }
+            .meta-right { min-width: 220px; text-align: right; }
+            .meta h3 { font-size: 11px; color: #1976d2; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
+            .meta p { font-size: 13px; margin: 4px 0; line-height: 1.5; }
+            .meta .label { color: #666; display: inline-block; min-width: 70px; }
+            .meta .value { font-weight: 600; }
+            .detail-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px; }
+            .detail-row .dlabel { color: #666; }
+            .detail-row .dvalue { font-weight: 600; margin-left: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 0; border: 1px solid #ddd; }
+            th { background-color: #1976d2; color: white; padding: 10px 12px; text-align: left; font-size: 12px; text-transform: uppercase; font-weight: 700; }
+            th.right { text-align: right; }
+            td { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
+            td.right { text-align: right; font-weight: 600; }
+            tr.alt { background-color: #fafafa; }
+            tr.subtotal td { border-top: 2px solid #ddd; padding-top: 14px; font-weight: 600; }
+            tr.total { background-color: #f5f5f5; }
+            tr.total td { border-top: 3px double #1976d2; font-size: 16px; font-weight: 700; color: #1976d2; padding: 14px 12px; }
+            .notes { margin-top: 25px; padding: 12px 16px; background: #fff3cd; border-left: 4px solid #ffc107; }
+            .notes strong { display: block; color: #856404; margin-bottom: 4px; font-size: 13px; }
+            .notes p { color: #856404; font-size: 13px; white-space: pre-wrap; }
+            .footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; }
+            .footer .thanks { font-weight: 600; color: #1976d2; font-size: 14px; margin-bottom: 4px; }
+            .footer p { color: #666; font-size: 12px; margin: 3px 0; }
+            .green { color: #2e7d32; }
+            .red { color: #d32f2f; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="invoice-header">
+            <h1>${hotelSettings.hotel_name}</h1>
+            <p>${hotelSettings.hotel_address}</p>
+            <p>Phone: ${hotelSettings.hotel_phone} | Email: ${hotelSettings.hotel_email}</p>
+          </div>
+
+          <div class="title-bar">
+            <h2>Invoice</h2>
+            <span>#${invoiceNumber}</span>
+          </div>
+
+          <div class="meta">
+            <div class="meta-left">
+              <h3>Bill To</h3>
+              <p><strong>${invoiceCompany?.company_name || ''}</strong></p>
+              ${invoiceCompany?.registration_number ? `<p>Reg No: ${invoiceCompany.registration_number}</p>` : ''}
+              ${invoiceCompany?.billing_address ? `<p>${invoiceCompany.billing_address}</p>` : ''}
+              ${[invoiceCompany?.billing_city, invoiceCompany?.billing_state, invoiceCompany?.billing_postal_code].filter(Boolean).length > 0
+                ? `<p>${[invoiceCompany?.billing_city, invoiceCompany?.billing_state, invoiceCompany?.billing_postal_code].filter(Boolean).join(', ')}</p>` : ''}
+              ${invoiceCompany?.contact_person ? `<p><span class="label">Attn:</span> <span class="value">${invoiceCompany.contact_person}</span></p>` : ''}
+              ${invoiceCompany?.contact_email ? `<p><span class="label">Email:</span> ${invoiceCompany.contact_email}</p>` : ''}
+              ${invoiceCompany?.contact_phone ? `<p><span class="label">Phone:</span> ${invoiceCompany.contact_phone}</p>` : ''}
+            </div>
+            <div class="meta-right">
+              <h3>Invoice Details</h3>
+              <div class="detail-row"><span class="dlabel">Invoice Date:</span><span class="dvalue">${formatDateForDisplay(invoiceDate)}</span></div>
+              <div class="detail-row"><span class="dlabel">Due Date:</span><span class="dvalue">${formatDateForDisplay(invoiceDueDate)}</span></div>
+              <div class="detail-row"><span class="dlabel">Terms:</span><span class="dvalue">${invoiceCompany?.payment_terms_days || 30} days</span></div>
+              <div class="detail-row"><span class="dlabel">Status:</span><span class="dvalue ${getSelectedLedgerBalanceDue() > 0 ? 'red' : 'green'}">${getSelectedLedgerBalanceDue() > 0 ? 'Outstanding' : 'Settled'}</span></div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Description</th>
+                <th>Date</th>
+                <th>Room</th>
+                <th class="right">Amount</th>
+                <th class="right">Paid</th>
+                <th class="right">Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${invoiceLedgerEntries
+                .filter(l => selectedInvoiceLedgers.includes(l.id))
+                .map((ledger, idx) => {
+                  const amount = typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount;
+                  const paidAmount = typeof ledger.paid_amount === 'string' ? parseFloat(ledger.paid_amount) : (ledger.paid_amount || 0);
+                  const balanceDue = typeof ledger.balance_due === 'string' ? parseFloat(ledger.balance_due) : (ledger.balance_due || 0);
+                  return `<tr class="${idx % 2 !== 0 ? 'alt' : ''}">
+                    <td>${ledger.description}</td>
+                    <td>${formatDateForDisplay(ledger.created_at)}</td>
+                    <td>${ledger.room_number || '-'}</td>
+                    <td class="right">${formatCurrency(amount)}</td>
+                    <td class="right green">${paidAmount > 0 ? formatCurrency(paidAmount) : '-'}</td>
+                    <td class="right ${balanceDue > 0 ? 'red' : 'green'}">${formatCurrency(balanceDue)}</td>
+                  </tr>`;
+                }).join('')}
+              <tr class="subtotal">
+                <td colspan="3" style="text-align:right">Subtotal:</td>
+                <td class="right">${formatCurrency(getSelectedLedgerTotal())}</td>
+                <td colspan="2"></td>
+              </tr>
+              <tr class="total">
+                <td colspan="5" style="text-align:right">Total Amount Due:</td>
+                <td class="right">${formatCurrency(getSelectedLedgerBalanceDue())}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          ${invoiceNotes ? `<div class="notes"><strong>Notes:</strong><p>${invoiceNotes}</p></div>` : ''}
+
+          <div class="footer">
+            <p class="thanks">Thank you for your business!</p>
+            <p>Please make payment within ${invoiceCompany?.payment_terms_days || 30} days of invoice date.</p>
+            <p>This is a computer-generated invoice. | ${hotelSettings.hotel_name}</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Invoice-${invoiceNumber}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const loadData = async () => {
@@ -1286,6 +1614,26 @@ const CustomerLedgerPage: React.FC = () => {
     }
   };
 
+  const handleSavePaymentDate = async (payment: CustomerLedgerPayment) => {
+    if (!editingPaymentDate || !paymentLedger) return;
+    try {
+      setSavingPaymentDate(true);
+      await HotelAPIService.updateLedgerPaymentDate(payment.ledger_id, payment.id, editingPaymentDate);
+      // Refresh payment history
+      const payments = await HotelAPIService.getLedgerPayments(payment.ledger_id);
+      setPaymentHistory(payments);
+      setEditingPaymentId(null);
+      setSnackbarMessage('Payment date updated successfully');
+      setSnackbarOpen(true);
+      await loadData();
+    } catch (err: any) {
+      setSnackbarMessage(err.message || 'Failed to update payment date');
+      setSnackbarOpen(true);
+    } finally {
+      setSavingPaymentDate(false);
+    }
+  };
+
   const canDelete = (ledger: CustomerLedger) => {
     return ledger.status !== 'paid' && parseFloat(String(ledger.paid_amount)) === 0;
   };
@@ -1356,6 +1704,7 @@ const CustomerLedgerPage: React.FC = () => {
     setPrintingCompany(companyName);
     const entries = ledgers.filter(l => l.company_name === companyName);
     setCompanyLedgerEntries(entries);
+    setCurrentReceiptIndex(0);
     setPrintDialogOpen(true);
   };
 
@@ -1394,7 +1743,7 @@ const CustomerLedgerPage: React.FC = () => {
         </head>
         <body>
           <div class="header">
-            <h1>Salim Inn</h1>
+            <h1>${hotelSettings.hotel_name}</h1>
             <h2>Company Ledger Statement</h2>
           </div>
           <div class="company-info">
@@ -1449,13 +1798,132 @@ const CustomerLedgerPage: React.FC = () => {
           </table>
           <div class="footer">
             <p>Generated on ${new Date().toLocaleString()}</p>
-            <p>Salim Inn - Hotel Management System</p>
+            <p>${hotelSettings.hotel_name} - Hotel Management System</p>
           </div>
         </body>
       </html>
     `;
 
     // Use iframe for printing (works in Tauri desktop apps)
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'absolute';
+    printFrame.style.top = '-10000px';
+    printFrame.style.left = '-10000px';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    document.body.appendChild(printFrame);
+
+    const frameDoc = printFrame.contentWindow?.document;
+    if (frameDoc) {
+      frameDoc.open();
+      frameDoc.write(htmlContent);
+      frameDoc.close();
+
+      setTimeout(() => {
+        printFrame.contentWindow?.print();
+        setTimeout(() => {
+          document.body.removeChild(printFrame);
+        }, 1000);
+      }, 250);
+    }
+  };
+
+  // Print a single receipt
+  const handlePrintSingleReceipt = (entry: CustomerLedger) => {
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Receipt - ${entry.invoice_number || `#${entry.id}`}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 15px; }
+            .header h1 { margin: 0; color: #333; font-size: 24px; }
+            .header h2 { margin: 5px 0 0; color: #666; font-weight: normal; font-size: 16px; }
+            .receipt-info { margin-bottom: 20px; }
+            .receipt-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+            .receipt-row .label { color: #666; font-weight: 500; }
+            .receipt-row .value { font-weight: 600; }
+            .amount-section { background: #f5f5f5; padding: 15px; border-radius: 4px; margin-top: 20px; }
+            .amount-row { display: flex; justify-content: space-between; padding: 5px 0; }
+            .amount-row.total { font-size: 18px; font-weight: bold; border-top: 2px solid #333; margin-top: 10px; padding-top: 10px; }
+            .status { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+            .status-paid { background: #e8f5e9; color: #2e7d32; }
+            .status-pending { background: #e3f2fd; color: #1565c0; }
+            .status-partial { background: #fff3e0; color: #e65100; }
+            .status-overdue { background: #ffebee; color: #c62828; }
+            .footer { margin-top: 30px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #ddd; padding-top: 15px; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${hotelSettings.hotel_name}</h1>
+            <h2>Payment Receipt</h2>
+          </div>
+          <div class="receipt-info">
+            <div class="receipt-row">
+              <span class="label">Receipt / Invoice #</span>
+              <span class="value">${entry.invoice_number || `LED-${entry.id}`}</span>
+            </div>
+            <div class="receipt-row">
+              <span class="label">Company</span>
+              <span class="value">${entry.company_name}</span>
+            </div>
+            <div class="receipt-row">
+              <span class="label">Description</span>
+              <span class="value">${entry.description}</span>
+            </div>
+            <div class="receipt-row">
+              <span class="label">Expense Type</span>
+              <span class="value">${entry.expense_type}</span>
+            </div>
+            <div class="receipt-row">
+              <span class="label">Date Created</span>
+              <span class="value">${new Date(entry.created_at).toLocaleDateString()}</span>
+            </div>
+            ${entry.payment_date ? `
+            <div class="receipt-row">
+              <span class="label">Payment Date</span>
+              <span class="value">${new Date(entry.payment_date).toLocaleDateString()}</span>
+            </div>` : ''}
+            ${entry.payment_method ? `
+            <div class="receipt-row">
+              <span class="label">Payment Method</span>
+              <span class="value">${entry.payment_method}</span>
+            </div>` : ''}
+            ${entry.payment_reference ? `
+            <div class="receipt-row">
+              <span class="label">Payment Reference</span>
+              <span class="value">${entry.payment_reference}</span>
+            </div>` : ''}
+            <div class="receipt-row">
+              <span class="label">Status</span>
+              <span class="value"><span class="status status-${entry.status}">${entry.status}</span></span>
+            </div>
+          </div>
+          <div class="amount-section">
+            <div class="amount-row">
+              <span>Total Amount</span>
+              <span>${formatCurrency(parseFloat(String(entry.amount)))}</span>
+            </div>
+            <div class="amount-row">
+              <span>Paid Amount</span>
+              <span style="color: green;">${formatCurrency(parseFloat(String(entry.paid_amount)))}</span>
+            </div>
+            <div class="amount-row total">
+              <span>Balance Due</span>
+              <span style="color: ${parseFloat(String(entry.balance_due)) > 0 ? 'red' : 'green'};">${formatCurrency(parseFloat(String(entry.balance_due)))}</span>
+            </div>
+          </div>
+          ${entry.notes ? `<div style="margin-top: 15px;"><strong>Notes:</strong> ${entry.notes}</div>` : ''}
+          <div class="footer">
+            <p>Generated on ${new Date().toLocaleString()}</p>
+            <p>${hotelSettings.hotel_name} - Hotel Management System</p>
+          </div>
+        </body>
+      </html>
+    `;
+
     const printFrame = document.createElement('iframe');
     printFrame.style.position = 'absolute';
     printFrame.style.top = '-10000px';
@@ -2499,6 +2967,16 @@ const CustomerLedgerPage: React.FC = () => {
                     onChange={(e) => setPaymentFormData({ ...paymentFormData, receipt_number: e.target.value })}
                   />
                 </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Payment Date"
+                    type="date"
+                    value={paymentFormData.payment_date || ''}
+                    onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_date: e.target.value })}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
@@ -2523,10 +3001,43 @@ const CustomerLedgerPage: React.FC = () => {
                 <List>
                   {paymentHistory.map((payment, index) => (
                     <React.Fragment key={payment.id}>
-                      <ListItem>
+                      <ListItem
+                        secondaryAction={
+                          editingPaymentId === payment.id ? (
+                            <Box display="flex" gap={0.5}>
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => handleSavePaymentDate(payment)}
+                                disabled={savingPaymentDate}
+                              >
+                                {savingPaymentDate ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={() => setEditingPaymentId(null)}
+                              >
+                                <CloseIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          ) : (
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => {
+                                setEditingPaymentId(payment.id);
+                                setEditingPaymentDate(formatDateForInput(payment.payment_date));
+                              }}
+                              title="Edit payment date"
+                            >
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          )
+                        }
+                      >
                         <ListItemText
                           primary={
-                            <Box display="flex" justifyContent="space-between">
+                            <Box display="flex" justifyContent="space-between" alignItems="center" pr={6}>
                               <Typography variant="body1" fontWeight="medium">
                                 {formatCurrency(parseFloat(String(payment.payment_amount)))}
                               </Typography>
@@ -2535,9 +3046,21 @@ const CustomerLedgerPage: React.FC = () => {
                           }
                           secondary={
                             <>
-                              <Typography variant="body2" color="text.secondary">
-                                {new Date(payment.payment_date).toLocaleString()}
-                              </Typography>
+                              {editingPaymentId === payment.id ? (
+                                <TextField
+                                  size="small"
+                                  type="date"
+                                  label="Payment Date"
+                                  value={editingPaymentDate}
+                                  onChange={(e) => setEditingPaymentDate(e.target.value)}
+                                  InputLabelProps={{ shrink: true }}
+                                  sx={{ mt: 1 }}
+                                />
+                              ) : (
+                                <Typography variant="body2" color="text.secondary">
+                                  {new Date(payment.payment_date).toLocaleString()}
+                                </Typography>
+                              )}
                               {payment.payment_reference && (
                                 <Typography variant="caption" color="text.secondary">
                                   Ref: {payment.payment_reference}
@@ -2653,125 +3176,211 @@ const CustomerLedgerPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Print Statement Preview Dialog */}
+      {/* Receipt Review & Print Dialog (one-by-one) */}
       <Dialog open={printDialogOpen} onClose={() => setPrintDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>
           <Box display="flex" alignItems="center" justifyContent="space-between">
             <Box display="flex" alignItems="center" gap={1}>
-              <PrintIcon color="primary" />
-              Company Ledger Statement
+              <ReceiptIcon color="primary" />
+              <Typography variant="h6">
+                {printingCompany} - Receipts
+              </Typography>
             </Box>
-            <Button
-              variant="contained"
-              startIcon={<PrintIcon />}
-              onClick={handlePrint}
-            >
-              Print
-            </Button>
+            <Box display="flex" gap={1}>
+              {companyLedgerEntries.length > 0 && (
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<PrintIcon />}
+                  onClick={() => handlePrintSingleReceipt(companyLedgerEntries[currentReceiptIndex])}
+                >
+                  Print This Receipt
+                </Button>
+              )}
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<PrintIcon />}
+                onClick={handlePrint}
+              >
+                Print All
+              </Button>
+            </Box>
           </Box>
         </DialogTitle>
         <DialogContent>
-          <Box id="print-statement-content">
-            <Box sx={{ textAlign: 'center', mb: 3, borderBottom: '2px solid #333', pb: 2 }}>
-              <Typography variant="h4" fontWeight="bold">Salim Inn</Typography>
-              <Typography variant="h6" color="text.secondary">Company Ledger Statement</Typography>
-            </Box>
+          {companyLedgerEntries.length === 0 ? (
+            <Alert severity="info">No ledger entries found for this company.</Alert>
+          ) : (
+            <>
+              {/* Navigation Bar */}
+              <Box display="flex" alignItems="center" justifyContent="center" gap={2} sx={{ mb: 2 }}>
+                <IconButton
+                  onClick={() => setCurrentReceiptIndex(Math.max(0, currentReceiptIndex - 1))}
+                  disabled={currentReceiptIndex === 0}
+                >
+                  <PrevIcon />
+                </IconButton>
+                <Typography variant="body1" fontWeight="medium">
+                  Receipt {currentReceiptIndex + 1} of {companyLedgerEntries.length}
+                </Typography>
+                <IconButton
+                  onClick={() => setCurrentReceiptIndex(Math.min(companyLedgerEntries.length - 1, currentReceiptIndex + 1))}
+                  disabled={currentReceiptIndex === companyLedgerEntries.length - 1}
+                >
+                  <NextIcon />
+                </IconButton>
+              </Box>
 
-            <Box sx={{ mb: 3 }}>
-              <Typography variant="h5" fontWeight="bold">{printingCompany}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Statement Date: {new Date().toLocaleDateString()}
-              </Typography>
-            </Box>
+              {/* Thumbnail Strip */}
+              <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 2, mb: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+                {companyLedgerEntries.map((entry, idx) => (
+                  <Paper
+                    key={entry.id}
+                    variant={idx === currentReceiptIndex ? 'elevation' : 'outlined'}
+                    elevation={idx === currentReceiptIndex ? 4 : 0}
+                    onClick={() => setCurrentReceiptIndex(idx)}
+                    sx={{
+                      p: 1,
+                      minWidth: 120,
+                      cursor: 'pointer',
+                      bgcolor: idx === currentReceiptIndex ? 'primary.50' : 'background.paper',
+                      border: idx === currentReceiptIndex ? '2px solid' : '1px solid',
+                      borderColor: idx === currentReceiptIndex ? 'primary.main' : 'divider',
+                      '&:hover': { bgcolor: 'action.hover' },
+                    }}
+                  >
+                    <Typography variant="caption" fontWeight="bold" noWrap>
+                      {entry.invoice_number || `#${entry.id}`}
+                    </Typography>
+                    <Typography variant="caption" display="block" color="text.secondary" noWrap>
+                      {formatCurrency(parseFloat(String(entry.amount)))}
+                    </Typography>
+                    <Chip
+                      label={getStatusText(entry.status)}
+                      color={getStatusColor(entry.status)}
+                      size="small"
+                      sx={{ mt: 0.5, height: 18, fontSize: '0.65rem' }}
+                    />
+                  </Paper>
+                ))}
+              </Box>
 
-            {/* Summary */}
-            <Grid container spacing={2} sx={{ mb: 3 }}>
-              <Grid item xs={3}>
-                <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'grey.100' }}>
-                  <Typography variant="caption" color="text.secondary">Total Entries</Typography>
-                  <Typography variant="h6" fontWeight="bold">{companyLedgerEntries.length}</Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={3}>
-                <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'grey.100' }}>
-                  <Typography variant="caption" color="text.secondary">Total Amount</Typography>
-                  <Typography variant="h6" fontWeight="bold">
-                    {formatCurrency(companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.amount)), 0))}
-                  </Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={3}>
-                <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'success.50' }}>
-                  <Typography variant="caption" color="text.secondary">Total Paid</Typography>
-                  <Typography variant="h6" fontWeight="bold" color="success.main">
-                    {formatCurrency(companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.paid_amount)), 0))}
-                  </Typography>
-                </Paper>
-              </Grid>
-              <Grid item xs={3}>
-                <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'error.50' }}>
-                  <Typography variant="caption" color="text.secondary">Balance Due</Typography>
-                  <Typography variant="h6" fontWeight="bold" color="error.main">
-                    {formatCurrency(companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.balance_due)), 0))}
-                  </Typography>
-                </Paper>
-              </Grid>
-            </Grid>
+              {/* Current Receipt Detail */}
+              {(() => {
+                const entry = companyLedgerEntries[currentReceiptIndex];
+                if (!entry) return null;
+                return (
+                  <Box>
+                    {/* Receipt Header */}
+                    <Box sx={{ textAlign: 'center', mb: 3, borderBottom: '2px solid #333', pb: 2 }}>
+                      <Typography variant="h5" fontWeight="bold">{hotelSettings.hotel_name}</Typography>
+                      <Typography variant="subtitle1" color="text.secondary">Payment Receipt</Typography>
+                    </Box>
 
-            {/* Transactions Table */}
-            <TableContainer component={Paper} variant="outlined">
-              <Table size="small">
-                <TableHead>
-                  <TableRow sx={{ bgcolor: 'primary.main' }}>
-                    <TableCell sx={{ color: 'white' }}>Invoice #</TableCell>
-                    <TableCell sx={{ color: 'white' }}>Date</TableCell>
-                    <TableCell sx={{ color: 'white' }}>Description</TableCell>
-                    <TableCell sx={{ color: 'white' }}>Type</TableCell>
-                    <TableCell sx={{ color: 'white' }} align="right">Amount</TableCell>
-                    <TableCell sx={{ color: 'white' }} align="right">Paid</TableCell>
-                    <TableCell sx={{ color: 'white' }} align="right">Balance</TableCell>
-                    <TableCell sx={{ color: 'white' }}>Status</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {companyLedgerEntries.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell>{entry.invoice_number || '-'}</TableCell>
-                      <TableCell>{new Date(entry.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell>{entry.description}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={EXPENSE_TYPES.find(t => t.value === entry.expense_type)?.label || entry.expense_type}
-                          size="small"
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell align="right">{formatCurrency(parseFloat(String(entry.amount)))}</TableCell>
-                      <TableCell align="right">{formatCurrency(parseFloat(String(entry.paid_amount)))}</TableCell>
-                      <TableCell align="right">
-                        <Typography color={parseFloat(String(entry.balance_due)) > 0 ? 'error.main' : 'success.main'}>
-                          {formatCurrency(parseFloat(String(entry.balance_due)))}
+                    {/* Receipt Details */}
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="text.secondary">Receipt / Invoice #</Typography>
+                        <Typography variant="body1" fontWeight="bold">
+                          {entry.invoice_number || `LED-${entry.id}`}
                         </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={getStatusText(entry.status)}
-                          color={getStatusColor(entry.status)}
-                          size="small"
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Typography variant="caption" color="text.secondary">Company</Typography>
+                        <Typography variant="body1" fontWeight="bold">{entry.company_name}</Typography>
+                      </Grid>
+                      <Grid item xs={12}>
+                        <Typography variant="caption" color="text.secondary">Description</Typography>
+                        <Typography variant="body1">{entry.description}</Typography>
+                      </Grid>
+                      <Grid item xs={4}>
+                        <Typography variant="caption" color="text.secondary">Expense Type</Typography>
+                        <Typography variant="body1">
+                          {EXPENSE_TYPES.find(t => t.value === entry.expense_type)?.label || entry.expense_type}
+                        </Typography>
+                      </Grid>
+                      <Grid item xs={4}>
+                        <Typography variant="caption" color="text.secondary">Date Created</Typography>
+                        <Typography variant="body1">{formatDateForDisplay(entry.created_at)}</Typography>
+                      </Grid>
+                      <Grid item xs={4}>
+                        <Typography variant="caption" color="text.secondary">Status</Typography>
+                        <Box>
+                          <Chip
+                            label={getStatusText(entry.status)}
+                            color={getStatusColor(entry.status)}
+                            size="small"
+                          />
+                        </Box>
+                      </Grid>
+                      {entry.payment_date && (
+                        <Grid item xs={4}>
+                          <Typography variant="caption" color="text.secondary">Payment Date</Typography>
+                          <Typography variant="body1">{formatDateForDisplay(entry.payment_date)}</Typography>
+                        </Grid>
+                      )}
+                      {entry.payment_method && (
+                        <Grid item xs={4}>
+                          <Typography variant="caption" color="text.secondary">Payment Method</Typography>
+                          <Typography variant="body1">
+                            {PAYMENT_METHODS.find(m => m.value === entry.payment_method)?.label || entry.payment_method}
+                          </Typography>
+                        </Grid>
+                      )}
+                      {entry.payment_reference && (
+                        <Grid item xs={4}>
+                          <Typography variant="caption" color="text.secondary">Payment Reference</Typography>
+                          <Typography variant="body1">{entry.payment_reference}</Typography>
+                        </Grid>
+                      )}
+                    </Grid>
 
-            <Box sx={{ mt: 3, textAlign: 'center', color: 'text.secondary' }}>
-              <Typography variant="caption">
-                Generated on {new Date().toLocaleString()} | Salim Inn - Hotel Management System
-              </Typography>
-            </Box>
-          </Box>
+                    {/* Amount Section */}
+                    <Paper sx={{ mt: 3, p: 2, bgcolor: 'grey.50' }}>
+                      <Grid container spacing={1}>
+                        <Grid item xs={4}>
+                          <Typography variant="caption" color="text.secondary">Total Amount</Typography>
+                          <Typography variant="h6" fontWeight="bold">
+                            {formatCurrency(parseFloat(String(entry.amount)))}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={4}>
+                          <Typography variant="caption" color="text.secondary">Paid Amount</Typography>
+                          <Typography variant="h6" fontWeight="bold" color="success.main">
+                            {formatCurrency(parseFloat(String(entry.paid_amount)))}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={4}>
+                          <Typography variant="caption" color="text.secondary">Balance Due</Typography>
+                          <Typography
+                            variant="h6"
+                            fontWeight="bold"
+                            color={parseFloat(String(entry.balance_due)) > 0 ? 'error.main' : 'success.main'}
+                          >
+                            {formatCurrency(parseFloat(String(entry.balance_due)))}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </Paper>
+
+                    {entry.notes && (
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="caption" color="text.secondary">Notes</Typography>
+                        <Typography variant="body2">{entry.notes}</Typography>
+                      </Box>
+                    )}
+
+                    <Box sx={{ mt: 3, textAlign: 'center', color: 'text.secondary' }}>
+                      <Typography variant="caption">
+                        Generated on {new Date().toLocaleString()} | {hotelSettings.hotel_name} - Hotel Management System
+                      </Typography>
+                    </Box>
+                  </Box>
+                );
+              })()}
+            </>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPrintDialogOpen(false)}>Close</Button>
@@ -3714,6 +4323,18 @@ const CustomerLedgerPage: React.FC = () => {
                 />
               </Grid>
 
+              {/* Payment Date */}
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Payment Date"
+                  type="date"
+                  value={companyPaymentForm.payment_date}
+                  onChange={(e) => setCompanyPaymentForm({ ...companyPaymentForm, payment_date: e.target.value })}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+
               {/* Notes */}
               <Grid item xs={12}>
                 <TextField
@@ -3932,20 +4553,57 @@ const CustomerLedgerPage: React.FC = () => {
           {invoiceCompany && showInvoicePreview && (
             <Box id="company-invoice-content">
               {/* Invoice Header */}
-              <Box className="header" textAlign="center" mb={3} pb={2} borderBottom="2px solid #333">
-                <Typography variant="h4" fontWeight={700}>INVOICE</Typography>
-                <Typography variant="body2" color="text.secondary" mt={1}>
-                  Invoice #{invoiceNumber}
+              <Box
+                className="invoice-header"
+                sx={{
+                  textAlign: 'center',
+                  mb: 3,
+                  pb: 2,
+                  borderBottom: '3px solid #1976d2',
+                }}
+              >
+                <Typography variant="h4" sx={{ fontWeight: 700, color: '#1976d2', mb: 0.5 }}>
+                  {hotelSettings.hotel_name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {hotelSettings.hotel_address}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Phone: {hotelSettings.hotel_phone} | Email: {hotelSettings.hotel_email}
                 </Typography>
               </Box>
 
-              {/* Company & Invoice Info */}
-              <Grid container spacing={3} mb={3}>
-                <Grid item xs={6}>
-                  <Typography variant="overline" color="text.secondary">Bill To</Typography>
-                  <Typography variant="h6" fontWeight={600}>{invoiceCompany.company_name}</Typography>
+              {/* Invoice Title Bar */}
+              <Box
+                sx={{
+                  bgcolor: '#1976d2',
+                  color: 'white',
+                  py: 1,
+                  px: 2,
+                  mb: 3,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>
+                  Invoice
+                </Typography>
+                <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                  #{invoiceNumber}
+                </Typography>
+              </Box>
+
+              {/* Two-column: Bill To + Invoice Details */}
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+                {/* Bill To */}
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="overline" sx={{ color: '#1976d2', fontWeight: 700, letterSpacing: 1.5, display: 'block', mb: 1 }}>
+                    Bill To
+                  </Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{invoiceCompany.company_name}</Typography>
                   {invoiceCompany.registration_number && (
-                    <Typography variant="body2">Reg No: {invoiceCompany.registration_number}</Typography>
+                    <Typography variant="body2" color="text.secondary">Reg No: {invoiceCompany.registration_number}</Typography>
                   )}
                   {invoiceCompany.billing_address && (
                     <Typography variant="body2">{invoiceCompany.billing_address}</Typography>
@@ -3956,70 +4614,121 @@ const CustomerLedgerPage: React.FC = () => {
                     </Typography>
                   )}
                   {invoiceCompany.contact_person && (
-                    <Typography variant="body2" mt={1}>Attn: {invoiceCompany.contact_person}</Typography>
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      <Box component="span" sx={{ color: '#666', minWidth: 60, display: 'inline-block' }}>Attn:</Box>
+                      <Box component="span" sx={{ fontWeight: 600 }}>{invoiceCompany.contact_person}</Box>
+                    </Typography>
                   )}
                   {invoiceCompany.contact_email && (
-                    <Typography variant="body2">{invoiceCompany.contact_email}</Typography>
+                    <Typography variant="body2">
+                      <Box component="span" sx={{ color: '#666', minWidth: 60, display: 'inline-block' }}>Email:</Box>
+                      <Box component="span">{invoiceCompany.contact_email}</Box>
+                    </Typography>
                   )}
-                </Grid>
-                <Grid item xs={6} textAlign="right">
-                  <Typography variant="overline" color="text.secondary">Invoice Details</Typography>
-                  <Typography variant="body2"><strong>Invoice Date:</strong> {formatDateForDisplay(invoiceDate)}</Typography>
-                  <Typography variant="body2"><strong>Due Date:</strong> {formatDateForDisplay(invoiceDueDate)}</Typography>
-                  <Typography variant="body2"><strong>Payment Terms:</strong> {invoiceCompany.payment_terms_days || 30} days</Typography>
-                </Grid>
-              </Grid>
+                  {invoiceCompany.contact_phone && (
+                    <Typography variant="body2">
+                      <Box component="span" sx={{ color: '#666', minWidth: 60, display: 'inline-block' }}>Phone:</Box>
+                      <Box component="span">{invoiceCompany.contact_phone}</Box>
+                    </Typography>
+                  )}
+                </Box>
 
-              <Divider sx={{ my: 2 }} />
+                {/* Invoice Details */}
+                <Box sx={{ minWidth: 220, textAlign: 'right' }}>
+                  <Typography variant="overline" sx={{ color: '#1976d2', fontWeight: 700, letterSpacing: 1.5, display: 'block', mb: 1 }}>
+                    Invoice Details
+                  </Typography>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ color: '#666' }}>Invoice Date:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, ml: 2 }}>{formatDateForDisplay(invoiceDate)}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ color: '#666' }}>Due Date:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, ml: 2 }}>{formatDateForDisplay(invoiceDueDate)}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="body2" sx={{ color: '#666' }}>Terms:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, ml: 2 }}>{invoiceCompany.payment_terms_days || 30} days</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <Typography variant="body2" sx={{ color: '#666' }}>Status:</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, ml: 2, color: getSelectedLedgerBalanceDue() > 0 ? '#d32f2f' : '#2e7d32' }}>
+                      {getSelectedLedgerBalanceDue() > 0 ? 'Outstanding' : 'Settled'}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
 
-              {/* Line Items */}
-              <TableContainer component={Paper} elevation={0} variant="outlined">
+              {/* Line Items Table */}
+              <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #ddd', borderRadius: 0, mb: 0 }}>
                 <Table size="small">
                   <TableHead>
-                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                      <TableCell><strong>Description</strong></TableCell>
-                      <TableCell><strong>Date</strong></TableCell>
-                      <TableCell><strong>Room</strong></TableCell>
-                      <TableCell align="right"><strong>Amount</strong></TableCell>
-                      <TableCell align="right"><strong>Paid</strong></TableCell>
-                      <TableCell align="right"><strong>Balance</strong></TableCell>
+                    <TableRow>
+                      <TableCell sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
+                        Description
+                      </TableCell>
+                      <TableCell sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
+                        Date
+                      </TableCell>
+                      <TableCell sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
+                        Room
+                      </TableCell>
+                      <TableCell align="right" sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
+                        Amount
+                      </TableCell>
+                      <TableCell align="right" sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
+                        Paid
+                      </TableCell>
+                      <TableCell align="right" sx={{ bgcolor: '#1976d2', color: 'white', fontWeight: 700, textTransform: 'uppercase', fontSize: 13 }}>
+                        Balance
+                      </TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
                     {invoiceLedgerEntries
                       .filter(l => selectedInvoiceLedgers.includes(l.id))
-                      .map((ledger) => {
+                      .map((ledger, idx) => {
                         const amount = typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount;
                         const paidAmount = typeof ledger.paid_amount === 'string' ? parseFloat(ledger.paid_amount) : (ledger.paid_amount || 0);
                         const balanceDue = typeof ledger.balance_due === 'string' ? parseFloat(ledger.balance_due) : (ledger.balance_due || 0);
                         return (
-                          <TableRow key={ledger.id}>
-                            <TableCell>{ledger.description}</TableCell>
-                            <TableCell>{formatDateForDisplay(ledger.created_at)}</TableCell>
-                            <TableCell>{ledger.room_number || '-'}</TableCell>
-                            <TableCell align="right" className="amount">{formatCurrency(amount)}</TableCell>
-                            <TableCell align="right" className="amount" sx={{ color: 'success.main' }}>
+                          <TableRow key={ledger.id} sx={{ bgcolor: idx % 2 === 0 ? 'white' : '#fafafa' }}>
+                            <TableCell sx={{ py: 1.5, fontSize: 13 }}>{ledger.description}</TableCell>
+                            <TableCell sx={{ py: 1.5, fontSize: 13 }}>{formatDateForDisplay(ledger.created_at)}</TableCell>
+                            <TableCell sx={{ py: 1.5, fontSize: 13 }}>{ledger.room_number || '-'}</TableCell>
+                            <TableCell align="right" sx={{ py: 1.5, fontSize: 13, fontWeight: 600 }}>
+                              {formatCurrency(amount)}
+                            </TableCell>
+                            <TableCell align="right" sx={{ py: 1.5, fontSize: 13, fontWeight: 600, color: '#2e7d32' }}>
                               {paidAmount > 0 ? formatCurrency(paidAmount) : '-'}
                             </TableCell>
-                            <TableCell align="right" className="amount" sx={{ color: 'error.main', fontWeight: 600 }}>
+                            <TableCell align="right" sx={{ py: 1.5, fontSize: 13, fontWeight: 600, color: balanceDue > 0 ? '#d32f2f' : '#2e7d32' }}>
                               {formatCurrency(balanceDue)}
                             </TableCell>
                           </TableRow>
                         );
                       })}
 
-                    {/* Totals */}
-                    <TableRow sx={{ bgcolor: '#f9f9f9' }}>
-                      <TableCell colSpan={3} align="right"><strong>Subtotal:</strong></TableCell>
-                      <TableCell align="right" className="amount"><strong>{formatCurrency(getSelectedLedgerTotal())}</strong></TableCell>
-                      <TableCell colSpan={2}></TableCell>
-                    </TableRow>
-                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-                      <TableCell colSpan={5} align="right">
-                        <Typography variant="h6"><strong>Total Amount Due:</strong></Typography>
+                    {/* Subtotal */}
+                    <TableRow>
+                      <TableCell colSpan={3} align="right" sx={{ borderTop: '2px solid #ddd', pt: 2, fontWeight: 600, fontSize: 13 }}>
+                        Subtotal:
                       </TableCell>
-                      <TableCell align="right">
-                        <Typography variant="h6" color="error.main" fontWeight={700}>
+                      <TableCell align="right" sx={{ borderTop: '2px solid #ddd', pt: 2, fontWeight: 700, fontSize: 13 }}>
+                        {formatCurrency(getSelectedLedgerTotal())}
+                      </TableCell>
+                      <TableCell colSpan={2} sx={{ borderTop: '2px solid #ddd' }} />
+                    </TableRow>
+
+                    {/* Total Amount Due */}
+                    <TableRow sx={{ bgcolor: '#f5f5f5' }}>
+                      <TableCell colSpan={5} align="right" sx={{ borderTop: '3px double #1976d2', py: 2 }}>
+                        <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#1976d2' }}>
+                          Total Amount Due:
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right" sx={{ borderTop: '3px double #1976d2', py: 2 }}>
+                        <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#1976d2' }}>
                           {formatCurrency(getSelectedLedgerBalanceDue())}
                         </Typography>
                       </TableCell>
@@ -4030,21 +4739,24 @@ const CustomerLedgerPage: React.FC = () => {
 
               {/* Notes */}
               {invoiceNotes && (
-                <Box mt={3}>
-                  <Typography variant="subtitle2" gutterBottom>Notes:</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-wrap' }}>
+                <Box sx={{ mt: 3, p: 2, bgcolor: '#fff3cd', borderLeft: '4px solid #ffc107', borderRadius: 0.5 }}>
+                  <Typography variant="subtitle2" sx={{ color: '#856404', mb: 0.5 }}>Notes:</Typography>
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', color: '#856404' }}>
                     {invoiceNotes}
                   </Typography>
                 </Box>
               )}
 
               {/* Footer */}
-              <Box className="footer" mt={4} pt={2} borderTop="1px solid #ddd">
+              <Box sx={{ mt: 5, pt: 2, borderTop: '1px solid #ddd', textAlign: 'center' }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: '#1976d2', mb: 0.5 }}>
+                  Thank you for your business!
+                </Typography>
                 <Typography variant="body2" color="text.secondary">
                   Please make payment within {invoiceCompany.payment_terms_days || 30} days of invoice date.
                 </Typography>
-                <Typography variant="body2" color="text.secondary" mt={1}>
-                  Thank you for your business!
+                <Typography variant="caption" color="text.secondary" display="block" mt={1}>
+                  This is a computer-generated invoice. | {hotelSettings.hotel_name}
                 </Typography>
               </Box>
             </Box>
@@ -4078,7 +4790,7 @@ const CustomerLedgerPage: React.FC = () => {
                 Print
               </Button>
               <Button
-                onClick={handlePrintCompanyInvoice}
+                onClick={handleDownloadCompanyInvoice}
                 variant="contained"
                 startIcon={<DownloadIcon />}
               >

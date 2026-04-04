@@ -44,6 +44,7 @@ import {
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { getHotelSettings } from '../../../utils/hotelSettings';
 
 type ReportType =
   // New hotel management reports
@@ -170,6 +171,7 @@ const REPORT_CONFIGS = [
 
 const ModernReportsPage: React.FC = () => {
   const { symbol: currencySymbol } = useCurrency();
+  const hotelSettings = getHotelSettings();
   const printRef = useRef<HTMLDivElement>(null);
 
   const [selectedReport, setSelectedReport] = useState<ReportType | ''>('');
@@ -328,7 +330,7 @@ const ModernReportsPage: React.FC = () => {
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" fontWeight="bold">General Journal</Typography>
-          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2" color="text.secondary">
             {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
           </Typography>
@@ -395,9 +397,8 @@ const ModernReportsPage: React.FC = () => {
       <Box>
         <Grid container spacing={2} sx={{ mb: 3 }}>
           <Grid item xs={6}>
-            <Typography variant="h4" fontWeight="bold">Salim Inn</Typography>
-            <Typography variant="body2">No 21-22 Lorong Salim 17, Jalan Salim</Typography>
-            <Typography variant="body2">Sibu, 96000, Sarawak</Typography>
+            <Typography variant="h4" fontWeight="bold">{hotelSettings.hotel_name}</Typography>
+            <Typography variant="body2">{hotelSettings.hotel_address}</Typography>
           </Grid>
           <Grid item xs={6} textAlign="right">
             <Typography variant="h4" fontWeight="bold">Account Statement</Typography>
@@ -491,7 +492,7 @@ const ModernReportsPage: React.FC = () => {
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" fontWeight="bold">Balance Sheet</Typography>
-          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2">As of {new Date(endDate).toLocaleDateString()}</Typography>
         </Box>
 
@@ -557,7 +558,7 @@ const ModernReportsPage: React.FC = () => {
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" fontWeight="bold">Payment Records Report</Typography>
-          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2" color="text.secondary">
             {period?.start} to {period?.end}
           </Typography>
@@ -715,7 +716,7 @@ const ModernReportsPage: React.FC = () => {
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" fontWeight="bold">Rooms Sold Report</Typography>
-          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2">
             {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
           </Typography>
@@ -773,7 +774,7 @@ const ModernReportsPage: React.FC = () => {
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" fontWeight="bold">Daily Operations Report</Typography>
-          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2" color="text.secondary">Date: {reportData.date}</Typography>
         </Box>
 
@@ -913,7 +914,7 @@ const ModernReportsPage: React.FC = () => {
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" fontWeight="bold">Occupancy Report</Typography>
-          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2" color="text.secondary">
             {reportData.period?.start} to {reportData.period?.end}
           </Typography>
@@ -993,7 +994,7 @@ const ModernReportsPage: React.FC = () => {
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" fontWeight="bold">Revenue Report</Typography>
-          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2" color="text.secondary">
             {reportData.period?.start} to {reportData.period?.end}
           </Typography>
@@ -1088,7 +1089,7 @@ const ModernReportsPage: React.FC = () => {
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" fontWeight="bold">Payment Status Report</Typography>
-          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2" color="text.secondary">
             {reportData.period?.start} to {reportData.period?.end}
           </Typography>
@@ -1181,7 +1182,7 @@ const ModernReportsPage: React.FC = () => {
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" fontWeight="bold">Complimentary Report</Typography>
-          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2" color="text.secondary">
             {reportData.period?.start} to {reportData.period?.end}
           </Typography>
@@ -1273,7 +1274,7 @@ const ModernReportsPage: React.FC = () => {
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" fontWeight="bold">Guest Statistics</Typography>
-          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2" color="text.secondary">
             {reportData.period?.start} to {reportData.period?.end}
           </Typography>
@@ -1382,7 +1383,7 @@ const ModernReportsPage: React.FC = () => {
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
           <Typography variant="h4" fontWeight="bold">Room Performance Report</Typography>
-          <Typography variant="h6">Salim Inn</Typography>
+          <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2" color="text.secondary">
             {reportData.period?.start} to {reportData.period?.end}
           </Typography>

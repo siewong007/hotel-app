@@ -15,9 +15,11 @@ import {
 import { PersonAdd as RegisterIcon } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail, validatePhone } from '../../../utils/validation';
+import { getHotelSettings } from '../../../utils/hotelSettings';
 import { LoadingSpinner } from '../../../components';
 
 const RegisterPage: React.FC = () => {
+  const hotelSettings = getHotelSettings();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -187,7 +189,7 @@ const RegisterPage: React.FC = () => {
                   mb: 1,
                 }}
               >
-                Salim Inn
+                {hotelSettings.hotel_name}
               </Typography>
               <Typography
                 variant="body2"

@@ -165,6 +165,13 @@ pub struct CustomerLedgerPaymentRequest {
     pub receipt_number: Option<String>,
     pub receipt_file_url: Option<String>,
     pub notes: Option<String>,
+    pub payment_date: Option<String>,
+}
+
+/// Input for updating a ledger payment
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateLedgerPaymentRequest {
+    pub payment_date: String,
 }
 
 /// Ledger with payment history

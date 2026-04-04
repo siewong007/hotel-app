@@ -25,6 +25,7 @@ import {
   AdminPanelSettings as AdminIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
+import { getHotelSettings } from '../../../utils/hotelSettings';
 import FirstLoginPasskeyPrompt from './FirstLoginPasskeyPrompt';
 import { LoadingSpinner } from '../../../components';
 
@@ -32,6 +33,7 @@ type UserType = 'guest' | 'admin' | null;
 type LoginMethod = 'password' | 'passkey' | null;
 
 const LoginPage: React.FC = () => {
+  const hotelSettings = getHotelSettings();
   const [userType, setUserType] = useState<UserType>(null);
   const [loginMethod, setLoginMethod] = useState<LoginMethod>(null);
   const [username, setUsername] = useState('');
@@ -394,7 +396,7 @@ const LoginPage: React.FC = () => {
                   mb: 1,
                 }}
               >
-                Salim Inn
+                {hotelSettings.hotel_name}
               </Typography>
               <Typography
                 variant="body2"

@@ -217,6 +217,7 @@ export class HotelAPIService {
   static getCustomerLedgerSummary = LedgerService.getCustomerLedgerSummary;
   static getLedgerPayments = LedgerService.getLedgerPayments;
   static createLedgerPayment = LedgerService.createLedgerPayment;
+  static updateLedgerPaymentDate = LedgerService.updateLedgerPaymentDate;
   static getTransactionCodes = LedgerService.getTransactionCodes;
   static getDepartmentCodes = LedgerService.getDepartmentCodes;
   static voidLedger = LedgerService.voidLedger;
