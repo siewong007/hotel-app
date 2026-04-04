@@ -48,11 +48,32 @@ pub async fn create_pool() -> Result<DbPool, sqlx::Error> {
         all(feature = "sqlite", feature = "postgres")
     ))]
     {
+        use sqlx::postgres::PgPoolOptions;
+        use sqlx::Executor;
+
         let database_url = env::var("DATABASE_URL")
             .expect("DATABASE_URL must be set in environment variables");
 
         log::info!("Connecting to PostgreSQL database");
-        sqlx::Pool::<sqlx::Postgres>::connect(&database_url).await
+
+        // Set session timezone on every connection so ::date extractions are timezone-correct.
+        // sqlx defaults sessions to UTC, which breaks (ts AT TIME ZONE $tz)::date comparisons.
+        // Read the hotel timezone from system_settings on each new connection.
+        PgPoolOptions::new()
+            .after_connect(|conn, _meta| {
+                Box::pin(async move {
+                    let tz: Option<String> = sqlx::query_scalar(
+                        "SELECT value FROM system_settings WHERE key = 'timezone'"
+                    )
+                    .fetch_optional(&mut *conn)
+                    .await?;
+                    let tz = tz.unwrap_or_else(|| "UTC".to_string());
+                    conn.execute(format!("SET timezone = '{}'", tz).as_str()).await?;
+                    Ok(())
+                })
+            })
+            .connect(&database_url)
+            .await
     }
 }
 
