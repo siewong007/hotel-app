@@ -1,16 +1,43 @@
-# Hotel Management System
+<p align="center">
+  <h1 align="center">Hotel Management System</h1>
+  <p align="center">
+    A full-stack hotel property management system built with Rust, React, and Tauri.
+    <br />
+    Web and desktop deployments with PostgreSQL or SQLite.
+  </p>
+</p>
 
-A full-stack hotel property management system (PMS) built with Rust, React, and Tauri. Supports web and desktop deployments with PostgreSQL or SQLite databases.
+<p align="center">
+  <a href="#quick-start"><img src="https://img.shields.io/badge/QUICK%20START-5%20MIN-blue?style=for-the-badge" alt="Quick Start"></a>
+  <a href="#features"><img src="https://img.shields.io/badge/FEATURES-14+-green?style=for-the-badge" alt="Features"></a>
+  <a href="#api-overview"><img src="https://img.shields.io/badge/API-15%20MODULES-orange?style=for-the-badge" alt="API"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/LICENSE-MIT-yellow?style=for-the-badge" alt="License"></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Rust-2021-orange?logo=rust" alt="Rust">
+  <img src="https://img.shields.io/badge/Axum-0.7-blue" alt="Axum">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react" alt="React">
+  <img src="https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white" alt="Vite">
+  <img src="https://img.shields.io/badge/MUI-v6-007FFF?logo=mui&logoColor=white" alt="MUI">
+  <img src="https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white" alt="Tauri">
+  <img src="https://img.shields.io/badge/PostgreSQL-14+-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/SQLite-supported-003B57?logo=sqlite&logoColor=white" alt="SQLite">
+</p>
+
+---
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Rust, Axum 0.7, Tokio, SQLx |
-| Frontend | React 19, TypeScript 5.7, Vite 8, MUI v6 |
-| Desktop | Tauri 2 (Windows, macOS, Linux) |
-| Database | PostgreSQL (default), SQLite (optional) |
-| Auth | JWT + TOTP 2FA + WebAuthn/Passkeys |
+| **Backend** | Rust, Axum 0.7, Tokio, SQLx |
+| **Frontend** | React 19, TypeScript 5.7, Vite 8, MUI v6 |
+| **Desktop** | Tauri 2 (Windows, macOS, Linux) |
+| **Database** | PostgreSQL (default), SQLite (optional) |
+| **Auth** | JWT + TOTP 2FA + WebAuthn/Passkeys |
+| **Security** | Rate limiting, account lockout, input sanitization, CSP |
 
 ## Features
 
@@ -57,85 +84,64 @@ hotel-app/
     └── src-tauri/         # Tauri config, embedded DB & binaries
 ```
 
-## Getting Started
+## Quick Start
 
 ### Prerequisites
 
-- Rust (2021 edition)
-- Node.js 18+
-- PostgreSQL 14+ (or use SQLite feature)
+- **Rust** (2021 edition) with `cargo`
+- **Node.js** 18+ with `npm`
+- **PostgreSQL** 14+ (or use SQLite for local development)
 
-### Backend Setup
+### Backend
 
 ```bash
 cd hotel-app-be
-
-# Copy and configure environment
-cp .env.example .env
-# Edit .env with your database credentials and JWT secret
-
-# Run database migrations
-sqlx migrate run
-
-# Start the server
-cargo run
+cp .env.example .env       # Configure database credentials & JWT secret
+sqlx migrate run           # Run database migrations
+cargo run                  # Starts at http://localhost:3030
 ```
 
-The API starts at `http://localhost:3030`.
-
-### Frontend Setup
+### Frontend
 
 ```bash
 cd hotel-web-fe
-
-# Install dependencies
 npm install
-
-# Start development server
-npm run dev
+npm run dev                # Starts at http://localhost:5173
 ```
-
-The frontend starts at `http://localhost:5173` with API proxy to the backend.
 
 ### Desktop App
 
 ```bash
 cd hotel-desktop
-
-# Install dependencies
 npm install
-
-# Run in development
-npm run tauri dev
-
-# Build for production
-npm run tauri build
+npm run tauri dev          # Development mode
+npm run tauri build        # Production build
 ```
 
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | Required |
-| `JWT_SECRET` | JWT signing key (min 32 chars) | Required |
-| `BACKEND_PORT` | API server port | `3030` |
-| `ALLOWED_ORIGINS` | CORS allowed origins | `http://localhost:3000,http://localhost:5173` |
-| `RUST_LOG` | Log level | `info` |
-| `VITE_API_URL` | Frontend API URL (production) | `http://localhost:3030` |
-
 ### SQLite Mode
-
-To use SQLite instead of PostgreSQL:
 
 ```bash
 cd hotel-app-be
 cargo run --features sqlite --no-default-features
 ```
 
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | **Required** |
+| `JWT_SECRET` | JWT signing key (min 32 chars) | **Required** |
+| `BACKEND_PORT` | API server port | `3030` |
+| `ALLOWED_ORIGINS` | CORS allowed origins | `http://localhost:3000,http://localhost:5173` |
+| `RUST_LOG` | Log level | `info` |
+| `VITE_API_URL` | Frontend API URL (production) | `http://localhost:3030` |
+
+See [`.env.example`](hotel-app-be/.env.example) for the full configuration reference.
+
 ## API Overview
 
-| Endpoint Group | Description |
-|---------------|-------------|
+| Endpoint | Description |
+|----------|-------------|
 | `/auth/*` | Login, register, 2FA, passkeys, token refresh |
 | `/bookings/*` | CRUD, check-in/out, complimentary, credits |
 | `/rooms/*` | Rooms, room types, occupancy, availability |
@@ -152,26 +158,10 @@ cargo run --features sqlite --no-default-features
 | `/profile/*` | User profile, password, 2FA, passkeys |
 | `/guest-portal/*` | Guest self-service |
 
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
 ## License
 
-MIT License
-
-Copyright (c) 2025
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+This project is licensed under the [MIT License](LICENSE).
