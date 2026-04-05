@@ -15,10 +15,6 @@ code {
     monospace;
 }
 
-* {
-  box-sizing: border-box;
-}
-
 html, body, #root {
   height: 100%;
 }
@@ -174,6 +170,13 @@ html {
   opacity: 0;
   transform: translate3d(0, -8px, 0);
   transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+}
+
+/* MUI v7 Grid spacing fix - force gap on containers */
+.MuiGrid-container {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: var(--Grid-rowSpacing, 16px) var(--Grid-columnSpacing, 16px) !important;
 }
 
 /* Reduce motion for users who prefer it */

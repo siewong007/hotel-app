@@ -176,6 +176,8 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 napn.room_charge,
                 napn.service_tax,
                 COALESCE(napn.tourism_tax, 0) as tourism_tax,
+                COALESCE(napn.extra_bed_charge, 0) as extra_bed_charge,
+                COALESCE(napn.extra_bed_tax, 0) as extra_bed_tax,
                 COALESCE(b.deposit_amount, 0) as deposit_amount,
                 b.check_in_date,
                 b.status
@@ -198,6 +200,8 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                     let room_charge: Decimal = row.get("room_charge");
                     let service_tax: Decimal = row.get("service_tax");
                     let tourism_tax: Decimal = row.get("tourism_tax");
+                    let extra_bed_charge: Decimal = row.get("extra_bed_charge");
+                    let extra_bed_tax: Decimal = row.get("extra_bed_tax");
                     let deposit_amount: Decimal = row.get("deposit_amount");
                     let check_in_date: NaiveDate = row.get("check_in_date");
 
@@ -220,6 +224,28 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                             debit: service_tax,
                             credit: Decimal::ZERO,
                             description: Some("Service Tax".to_string()),
+                        });
+                    }
+
+                    if extra_bed_charge > Decimal::ZERO {
+                        entries.push(JournalEntry {
+                            booking_number: booking_number.clone(),
+                            room_number: room_number.clone(),
+                            entry_type: "extra_bed_charge".to_string(),
+                            debit: extra_bed_charge,
+                            credit: Decimal::ZERO,
+                            description: Some("Extra Bed Charge".to_string()),
+                        });
+                    }
+
+                    if extra_bed_tax > Decimal::ZERO {
+                        entries.push(JournalEntry {
+                            booking_number: booking_number.clone(),
+                            room_number: room_number.clone(),
+                            entry_type: "extra_bed_tax".to_string(),
+                            debit: extra_bed_tax,
+                            credit: Decimal::ZERO,
+                            description: Some("Extra Bed Tax".to_string()),
                         });
                     }
 
@@ -260,6 +286,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 b.booking_number,
                 r.room_number,
                 b.room_rate,
+                COALESCE(b.extra_bed_charge, 0) as extra_bed_charge,
                 COALESCE(b.deposit_amount, 0) as deposit_amount,
                 COALESCE(b.source, 'walk_in') as source,
                 COALESCE(b.remarks, '') as remarks,
@@ -292,6 +319,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 let booking_number: String = row.get("booking_number");
                 let room_number: String = row.get("room_number");
                 let nightly_rate: Decimal = row.get("room_rate");
+                let extra_bed_charge_raw: Decimal = row.get("extra_bed_charge");
                 let deposit_amount: Decimal = row.get("deposit_amount");
                 let check_in_date: NaiveDate = row.get("check_in_date");
                 let check_out_date: NaiveDate = row.get("check_out_date");
@@ -322,6 +350,32 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                         credit: Decimal::ZERO,
                         description: Some("Service Tax".to_string()),
                     });
+                }
+
+                // Extra bed charge: back-calculate charge and tax from tax-inclusive amount
+                if extra_bed_charge_raw > Decimal::ZERO {
+                    let extra_bed_charge = (extra_bed_charge_raw / divisor).round_dp(2);
+                    let extra_bed_tax = extra_bed_charge_raw - extra_bed_charge;
+
+                    entries.push(JournalEntry {
+                        booking_number: booking_number.clone(),
+                        room_number: room_number.clone(),
+                        entry_type: "extra_bed_charge".to_string(),
+                        debit: extra_bed_charge,
+                        credit: Decimal::ZERO,
+                        description: Some("Extra Bed Charge".to_string()),
+                    });
+
+                    if extra_bed_tax > Decimal::ZERO {
+                        entries.push(JournalEntry {
+                            booking_number: booking_number.clone(),
+                            room_number: room_number.clone(),
+                            entry_type: "extra_bed_tax".to_string(),
+                            debit: extra_bed_tax,
+                            credit: Decimal::ZERO,
+                            description: Some("Extra Bed Tax".to_string()),
+                        });
+                    }
                 }
 
                 // Tourism tax: per-night amount for tourist bookings
@@ -613,6 +667,8 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
     let fixed_types = vec![
         ("room_charge", "Room Charges"),
         ("service_tax", "Service Tax"),
+        ("extra_bed_charge", "Extra Bed Charges"),
+        ("extra_bed_tax", "Extra Bed Tax"),
         ("tourism_tax", "Tourism Tax"),
     ];
 
@@ -761,6 +817,7 @@ pub async fn get_night_audit_preview(
             b.check_out_date::text as check_out_date,
             COALESCE(b.status, 'unknown') as status,
             b.room_rate,
+            COALESCE(b.extra_bed_charge, 0) as extra_bed_charge,
             b.total_amount,
             b.payment_method,
             b.source
@@ -805,19 +862,21 @@ pub async fn get_night_audit_preview(
         let payment_method: Option<String> = row.get("payment_method");
         let source: Option<String> = row.get("source");
         let room_rate: Decimal = row.get("room_rate");
+        let extra_bed_charge: Decimal = row.get("extra_bed_charge");
         let _total_amount: Decimal = row.get("total_amount");
         let status: String = row.get("status");
 
-        // Use per-night room_rate for revenue aggregation
+        // Use per-night room_rate + extra_bed_charge for revenue aggregation
+        let night_total = room_rate + extra_bed_charge;
         let pm_key = payment_method.clone().unwrap_or_else(|| "Unknown".to_string());
         let pm_entry = payment_method_map.entry(pm_key).or_insert((0, Decimal::ZERO));
         pm_entry.0 += 1;
-        pm_entry.1 += room_rate;
+        pm_entry.1 += night_total;
 
         let bc_key = source.clone().unwrap_or_else(|| "Unknown".to_string());
         let bc_entry = booking_channel_map.entry(bc_key).or_insert((0, Decimal::ZERO));
         bc_entry.0 += 1;
-        bc_entry.1 += room_rate;
+        bc_entry.1 += night_total;
 
         unposted_bookings.push(UnpostedBooking {
             booking_id: row.get("booking_id"),
@@ -827,7 +886,7 @@ pub async fn get_night_audit_preview(
             check_in_date: check_in,
             check_out_date: check_out,
             status,
-            total_amount: room_rate, // Show per-night rate in preview
+            total_amount: night_total, // Show per-night rate + extra bed in preview
             payment_method,
             source,
         });

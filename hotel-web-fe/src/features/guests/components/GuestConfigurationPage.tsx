@@ -357,19 +357,15 @@ const GuestConfigurationPage: React.FC = () => {
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
-          <Typography variant="h4" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
-            <PersonIcon sx={{ fontSize: 32 }} />
+          <Typography variant="h5" sx={{ fontWeight: 600, color: '#103931' }}>
             Guest Configuration
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Manage guest records - Create, edit, delete, and view booking history
           </Typography>
         </Box>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
           onClick={handleCreateClick}
-          sx={{ borderRadius: 2 }}
+          sx={{ borderRadius: 2, bgcolor: '#009688', textTransform: 'none', boxShadow: 'none', '&:hover': { bgcolor: '#00796b'} }}
         >
           Add New Guest
         </Button>
@@ -382,60 +378,49 @@ const GuestConfigurationPage: React.FC = () => {
       )}
 
       {/* Statistics Cards */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid size={{ xs: 6, sm: 4, md: 3 }}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Typography variant="h4" sx={{ fontWeight: 600, color: 'primary.main' }}>
-                {guests.length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Total Guests
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 6, sm: 4, md: 3 }}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Typography variant="h4" sx={{ fontWeight: 600, color: GUEST_TYPE_CONFIG.member.color }}>
-                {memberGuests}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Members
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 6, sm: 4, md: 3 }}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Typography variant="h4" sx={{ fontWeight: 600, color: GUEST_TYPE_CONFIG.non_member.color }}>
-                {nonMemberGuests}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Non-Members
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 6, sm: 4, md: 3 }}>
-          <Card>
-            <CardContent sx={{ textAlign: 'center', py: 2 }}>
-              <Typography variant="h4" sx={{ fontWeight: 600, color: 'info.main' }}>
-                {guests.filter(g => g.ic_number).length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                With IC
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+      <Grid container spacing={2} sx={{ mb: 4 }}>
+        {[
+          { title: 'Total Guests', value: guests.length, color: '#009688', icon: <PersonIcon sx={{ fontSize: 18, color: '#103931' }} /> },
+          { title: 'Members', value: memberGuests, color: '#00bcd4', icon: <MemberIcon sx={{ fontSize: 18, color: '#103931' }} /> },
+          { title: 'Non-Members', value: nonMemberGuests, color: '#4caf50', icon: <NonMemberIcon sx={{ fontSize: 18, color: '#103931' }} /> },
+          { title: 'With IC', value: guests.filter(g => g.ic_number).length, color: '#ff9800', icon: <PersonIcon sx={{ fontSize: 18, color: '#103931' }} /> }
+        ].map((stat, idx) => (
+          <Grid size={{ xs: 6, sm: 4, md: 3 }} key={idx}>
+            <Card 
+              elevation={0}
+              sx={{ 
+                borderRadius: 2,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                border: '1px solid #edf2f0',
+              }}
+            >
+              <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  {stat.icon}
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#103931' }}>
+                    {stat.title}
+                  </Typography>
+                </Box>
+                <Typography variant="h5" sx={{ fontWeight: 600, color: stat.color }}>
+                  {stat.value}
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
       </Grid>
 
       {/* Search Bar and Filter */}
-      <Card sx={{ mb: 2 }}>
-        <CardContent>
+      <Card 
+        elevation={0}
+        sx={{ 
+          mb: 3, 
+          borderRadius: 2, 
+          border: '1px solid #edf2f0',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+        }}
+      >
+        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             <TextField
               placeholder="Search by name, email, phone, or IC number..."
@@ -444,11 +429,11 @@ const GuestConfigurationPage: React.FC = () => {
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon />
+                    <SearchIcon sx={{ color: '#103931' }} />
                   </InputAdornment>
                 ),
               }}
-              sx={{ flex: 1, minWidth: 250 }}
+              sx={{ flex: 1, minWidth: 280 }}
             />
             <ToggleButtonGroup
               value={filterType}
@@ -495,11 +480,11 @@ const GuestConfigurationPage: React.FC = () => {
       </Card>
 
       {/* Guests Table */}
-      <Card>
+      <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid #edf2f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
         <TableContainer>
-          <Table>
+          <Table size="small" sx={{ minWidth: 800 }}>
             <TableHead>
-              <TableRow>
+              <TableRow sx={{ bgcolor: '#fbfcfc' }}>
                 <TableCell>Name</TableCell>
                 <TableCell>Type</TableCell>
                 <TableCell>Tourism</TableCell>
@@ -508,13 +493,15 @@ const GuestConfigurationPage: React.FC = () => {
                 <TableCell>IC Number</TableCell>
                 <TableCell>Company</TableCell>
                 <TableCell>Discount</TableCell>
-                <TableCell>Free Gift Credits</TableCell>
-                <TableCell align="right">Actions</TableCell>
+                <TableCell align="center">Credits</TableCell>
+                <TableCell align="center">Bookings</TableCell>
+                <TableCell align="center">Edit</TableCell>
+                <TableCell align="center">Delete</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredGuests.map((guest) => (
-                <TableRow key={guest.id}>
+                <TableRow key={guest.id} hover>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {guest.full_name}
@@ -570,43 +557,31 @@ const GuestConfigurationPage: React.FC = () => {
                       <Typography variant="body2" color="text.disabled">-</Typography>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell align="center">
                     <Tooltip title="View credits">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleViewCredits(guest)}
-                        color="secondary"
-                      >
-                        <GiftIcon />
+                      <IconButton size="small" onClick={() => handleViewCredits(guest)} color="secondary">
+                        <GiftIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   </TableCell>
-                  <TableCell align="right">
+                  <TableCell align="center">
                     <Tooltip title="View Bookings">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleViewBookings(guest)}
-                        color="info"
-                      >
-                        <HistoryIcon />
+                      <IconButton size="small" onClick={() => handleViewBookings(guest)} color="info">
+                        <HistoryIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
+                  </TableCell>
+                  <TableCell align="center">
                     <Tooltip title="Edit">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleEditClick(guest)}
-                        color="primary"
-                      >
-                        <EditIcon />
+                      <IconButton size="small" onClick={() => handleEditClick(guest)} color="primary">
+                        <EditIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
+                  </TableCell>
+                  <TableCell align="center">
                     <Tooltip title="Delete">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDeleteClick(guest)}
-                        color="error"
-                      >
-                        <DeleteIcon />
+                      <IconButton size="small" onClick={() => handleDeleteClick(guest)} color="error">
+                        <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   </TableCell>

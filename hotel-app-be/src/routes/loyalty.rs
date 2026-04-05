@@ -23,20 +23,20 @@ pub fn routes() -> Router<DbPool> {
         .route("/loyalty/programs", get(get_programs))
         .route("/loyalty/memberships", get(get_memberships))
         .route("/loyalty/statistics", get(get_statistics))
-        .route("/loyalty/memberships/:id/points/add", post(add_points))
-        .route("/loyalty/memberships/:id/points/redeem", post(redeem_points))
+        .route("/loyalty/memberships/{id}/points/add", post(add_points))
+        .route("/loyalty/memberships/{id}/points/redeem", post(redeem_points))
         // User loyalty routes
         .route("/loyalty/my-membership", get(get_my_membership))
         .route("/loyalty/rewards", get(get_rewards))
         .route("/loyalty/rewards/redeem", post(redeem_reward))
         // Admin reward CRUD routes
         .route("/api/rewards", get(get_all_rewards))
-        .route("/api/rewards/:id", get(get_single_reward))
+        .route("/api/rewards/{id}", get(get_single_reward))
         .route("/api/rewards", post(create_reward))
-        .route("/api/rewards/:id", put(update_reward))
-        .route("/api/rewards/:id", delete(delete_reward))
+        .route("/api/rewards/{id}", put(update_reward))
+        .route("/api/rewards/{id}", delete(delete_reward))
         .route("/api/rewards/redemptions", get(get_redemptions))
-        .route("/api/rewards/:id/redeem", post(redeem_reward_by_id))
+        .route("/api/rewards/{id}/redeem", post(redeem_reward_by_id))
 }
 
 // Admin handlers

@@ -23,12 +23,12 @@ pub fn routes() -> Router<DbPool> {
         .route("/guests/my-guests", get(get_my_guests))
         .route("/guests/my-guests-with-credits", get(get_my_guests_with_credits))
         .route("/guests/link", post(link_guest))
-        .route("/guests/unlink/:guest_id", delete(unlink_guest))
+        .route("/guests/unlink/{guest_id}", delete(unlink_guest))
         .route("/guests/upgrade", post(upgrade_guest))
-        .route("/guests/:id", patch(update_guest))
-        .route("/guests/:id", delete(delete_guest))
-        .route("/guests/:id/bookings", get(get_guest_bookings))
-        .route("/guests/:id/credits", get(get_guest_credits))
+        .route("/guests/{id}", patch(update_guest))
+        .route("/guests/{id}", delete(delete_guest))
+        .route("/guests/{id}/bookings", get(get_guest_bookings))
+        .route("/guests/{id}/credits", get(get_guest_credits))
 }
 
 async fn get_guests(

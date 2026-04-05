@@ -115,11 +115,7 @@ const BookingsPage: React.FC = () => {
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [updating, setUpdating] = useState(false);
 
-  // Delete booking dialog
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deletingBooking, setDeletingBooking] = useState<BookingWithDetails | null>(null);
-  const [cancellationReason, setCancellationReason] = useState('');
-  const [deleting, setDeleting] = useState(false);
+
 
   // Void booking dialog
   const [voidDialogOpen, setVoidDialogOpen] = useState(false);
@@ -447,33 +443,7 @@ const BookingsPage: React.FC = () => {
     }
   };
 
-  const handleDeleteBooking = (booking: BookingWithDetails) => {
-    setDeletingBooking(booking);
-    setCancellationReason('');
-    setDeleteDialogOpen(true);
-  };
 
-  const handleConfirmDelete = async () => {
-    if (!deletingBooking) return;
-
-    try {
-      setDeleting(true);
-      await HotelAPIService.cancelBooking({
-        booking_id: deletingBooking.id,
-        reason: cancellationReason || 'Voided by admin'
-      });
-      setSnackbarMessage('Booking voided successfully!');
-      setSnackbarOpen(true);
-      setDeleteDialogOpen(false);
-      setDeletingBooking(null);
-      setCancellationReason('');
-      await loadData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to void booking');
-    } finally {
-      setDeleting(false);
-    }
-  };
 
   const handleVoidBooking = (booking: BookingWithDetails) => {
     setVoidingBooking(booking);
@@ -748,10 +718,7 @@ const BookingsPage: React.FC = () => {
     return status === 'checked_in';
   };
 
-  // Can delete/void booking in any state except already voided
-  const canDelete = (booking: BookingWithDetails) => {
-    return booking.status !== 'voided';
-  };
+
 
   // Can void booking only if not already voided or checked_out/completed
   const canVoid = (booking: BookingWithDetails) => {
@@ -1248,17 +1215,7 @@ const BookingsPage: React.FC = () => {
                           </IconButton>
                         </Tooltip>
                       )}
-                      {canDelete(booking) && (
-                        <Tooltip title="Cancel Booking">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteBooking(booking)}
-                            color="error"
-                          >
-                            <CancelIcon />
-                          </IconButton>
-                        </Tooltip>
-                      )}
+
                       {canVoid(booking) && (
                         <Tooltip title="Void Booking">
                           <IconButton
@@ -1582,36 +1539,7 @@ const BookingsPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Delete/Cancel Booking Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Cancel Booking</DialogTitle>
-        <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            Are you sure you want to cancel this booking?
-          </Alert>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body2"><strong>Guest:</strong> {deletingBooking?.guest_name}</Typography>
-            <Typography variant="body2"><strong>Room:</strong> {deletingBooking?.room_type} - Room {deletingBooking?.room_number}</Typography>
-            <Typography variant="body2"><strong>Check-in:</strong> {deletingBooking?.formatted_check_in || deletingBooking?.check_in_date}</Typography>
-            <Typography variant="body2"><strong>Check-out:</strong> {deletingBooking?.formatted_check_out || deletingBooking?.check_out_date}</Typography>
-          </Box>
-          <TextField
-            fullWidth
-            multiline
-            rows={3}
-            label="Cancellation Reason (Optional)"
-            value={cancellationReason}
-            onChange={(e) => setCancellationReason(e.target.value)}
-            placeholder="Enter reason for cancellation..."
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Keep Booking</Button>
-          <Button onClick={handleConfirmDelete} variant="contained" color="error" disabled={deleting}>
-            {deleting ? 'Cancelling...' : 'Cancel Booking'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+
 
 
       {/* Void Booking Dialog */}

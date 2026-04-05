@@ -1,0 +1,1 @@
+import{it as e,v as t}from"./Box-DW_5dheM.js";var n=e(),r=t((0,n.jsx)(`path`,{d:`M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5zm-2 16-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9z`}),`VerifiedUser`),i=t((0,n.jsx)(`path`,{d:`M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11z`}),`Security`);export{r as n,i as t};

@@ -1,0 +1,1 @@
+import{B as e,K as t,z as n}from"./Box-DW_5dheM.js";var r=e();function i(e){let{theme:t,name:r,props:i}=e;return!t||!t.components||!t.components[r]||!t.components[r].defaultProps?i:n(t.components[r].defaultProps,i)}function a({props:e,name:n,defaultTheme:r,themeId:a}){let o=t(r);return a&&(o=o[a]||o),i({theme:o,name:n,props:e})}export{r as n,a as t};

@@ -25,8 +25,8 @@ pub fn routes() -> Router<DbPool> {
         .route("/ekyc/self-checkin", post(self_checkin))
         // Admin eKYC routes
         .route("/ekyc/verifications", get(get_all_verifications))
-        .route("/ekyc/verifications/:id", get(get_verification))
-        .route("/ekyc/verifications/:id", patch(update_verification))
+        .route("/ekyc/verifications/{id}", get(get_verification))
+        .route("/ekyc/verifications/{id}", patch(update_verification))
 }
 
 async fn upload_document(
