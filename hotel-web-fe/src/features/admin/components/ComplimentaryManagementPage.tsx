@@ -395,7 +395,7 @@ export default function ComplimentaryManagementPage() {
       {/* Summary Cards */}
       {summary && (
         <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center" mb={1}>
@@ -410,7 +410,7 @@ export default function ComplimentaryManagementPage() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center" mb={1}>
@@ -425,7 +425,7 @@ export default function ComplimentaryManagementPage() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center" mb={1}>
@@ -443,7 +443,7 @@ export default function ComplimentaryManagementPage() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center" mb={1}>
@@ -738,7 +738,7 @@ export default function ComplimentaryManagementPage() {
                 Booking: {selectedBooking.booking_number} - {selectedBooking.guest_name}
               </Alert>
               <Grid container spacing={2}>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <TextField
                     fullWidth
                     label="Complimentary Start Date"
@@ -754,7 +754,7 @@ export default function ComplimentaryManagementPage() {
                     }}
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <TextField
                     fullWidth
                     label="Complimentary End Date"
@@ -770,7 +770,7 @@ export default function ComplimentaryManagementPage() {
                     }}
                   />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     fullWidth
                     label="Reason"
@@ -836,7 +836,7 @@ export default function ComplimentaryManagementPage() {
         <DialogContent>
           <Box sx={{ pt: 1 }}>
             <Grid container spacing={2}>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Autocomplete
                   options={guests}
                   getOptionLabel={(option) => `${option.full_name}${option.email ? ` (${option.email})` : ''}`}
@@ -845,7 +845,7 @@ export default function ComplimentaryManagementPage() {
                   renderInput={(params) => <TextField {...params} label="Select Guest *" />}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <FormControl fullWidth>
                   <InputLabel>Room Type *</InputLabel>
                   <Select
@@ -861,7 +861,7 @@ export default function ComplimentaryManagementPage() {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Number of Nights *"
@@ -871,7 +871,7 @@ export default function ComplimentaryManagementPage() {
                   inputProps={{ min: 1 }}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Notes"
@@ -908,7 +908,7 @@ export default function ComplimentaryManagementPage() {
                 </Typography>
               </Alert>
               <Grid container spacing={2}>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     fullWidth
                     label="Nights Available *"
@@ -918,7 +918,7 @@ export default function ComplimentaryManagementPage() {
                     inputProps={{ min: 0 }}
                   />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     fullWidth
                     label="Notes"

@@ -146,7 +146,7 @@ const SettingsPage: React.FC = () => {
           <Divider sx={{ mb: 3 }} />
 
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Hotel Name"
@@ -156,7 +156,7 @@ const SettingsPage: React.FC = () => {
                 disabled={!isAdmin}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Contact Email"
@@ -167,7 +167,7 @@ const SettingsPage: React.FC = () => {
                 disabled={!isAdmin}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Contact Phone"
@@ -177,7 +177,7 @@ const SettingsPage: React.FC = () => {
                 disabled={!isAdmin}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Address"
@@ -207,7 +207,7 @@ const SettingsPage: React.FC = () => {
           <Divider sx={{ mb: 3 }} />
 
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Check-in Time"
@@ -218,7 +218,7 @@ const SettingsPage: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Check-out Time"
@@ -247,7 +247,7 @@ const SettingsPage: React.FC = () => {
           <Divider sx={{ mb: 3 }} />
 
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 select
                 fullWidth
@@ -264,7 +264,7 @@ const SettingsPage: React.FC = () => {
                 ))}
               </TextField>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Timezone"

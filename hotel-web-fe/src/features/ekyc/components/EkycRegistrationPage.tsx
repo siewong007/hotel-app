@@ -260,7 +260,7 @@ const EkycRegistrationPage: React.FC = () => {
       case 0:
         return (
           <Grid container spacing={3}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="h6" gutterBottom>
                 Personal Information
               </Typography>
@@ -269,7 +269,7 @@ const EkycRegistrationPage: React.FC = () => {
               </Typography>
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Full Name"
@@ -280,7 +280,7 @@ const EkycRegistrationPage: React.FC = () => {
               />
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <ModernDatePicker
                 label="Date of Birth"
                 value={personalInfo.dateOfBirth}
@@ -290,7 +290,7 @@ const EkycRegistrationPage: React.FC = () => {
               />
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 select
@@ -307,7 +307,7 @@ const EkycRegistrationPage: React.FC = () => {
               </TextField>
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Phone Number"
@@ -324,7 +324,7 @@ const EkycRegistrationPage: React.FC = () => {
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Email Address"
@@ -341,7 +341,7 @@ const EkycRegistrationPage: React.FC = () => {
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Current Address"
@@ -359,7 +359,7 @@ const EkycRegistrationPage: React.FC = () => {
       case 1:
         return (
           <Grid container spacing={3}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="h6" gutterBottom>
                 Identity Document Details
               </Typography>
@@ -368,7 +368,7 @@ const EkycRegistrationPage: React.FC = () => {
               </Typography>
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 select
@@ -385,7 +385,7 @@ const EkycRegistrationPage: React.FC = () => {
               </TextField>
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="ID Number"
@@ -395,7 +395,7 @@ const EkycRegistrationPage: React.FC = () => {
               />
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 select
@@ -412,7 +412,7 @@ const EkycRegistrationPage: React.FC = () => {
               </TextField>
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <ModernDatePicker
                 label="Issue Date (Optional)"
                 value={documentInfo.idIssueDate}
@@ -421,7 +421,7 @@ const EkycRegistrationPage: React.FC = () => {
               />
             </Grid>
 
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <ModernDatePicker
                 label="Expiry Date"
                 value={documentInfo.idExpiryDate}
@@ -436,7 +436,7 @@ const EkycRegistrationPage: React.FC = () => {
       case 2:
         return (
           <Grid container spacing={3}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="h6" gutterBottom>
                 Upload Documents
               </Typography>
@@ -446,7 +446,7 @@ const EkycRegistrationPage: React.FC = () => {
             </Grid>
 
             {/* ID Front */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="subtitle2" gutterBottom>
@@ -496,7 +496,7 @@ const EkycRegistrationPage: React.FC = () => {
 
             {/* ID Back */}
             {documentInfo.idType !== 'passport' && (
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Card variant="outlined">
                   <CardContent>
                     <Typography variant="subtitle2" gutterBottom>
@@ -546,7 +546,7 @@ const EkycRegistrationPage: React.FC = () => {
             )}
 
             {/* Selfie */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="subtitle2" gutterBottom>
@@ -599,7 +599,7 @@ const EkycRegistrationPage: React.FC = () => {
             </Grid>
 
             {/* Proof of Address (Optional) */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Card variant="outlined">
                 <CardContent>
                   <Typography variant="subtitle2" gutterBottom>
@@ -668,23 +668,23 @@ const EkycRegistrationPage: React.FC = () => {
                   Personal Information
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Full Name:</Typography>
                     <Typography variant="body1">{personalInfo.fullName}</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Date of Birth:</Typography>
                     <Typography variant="body1">{personalInfo.dateOfBirth}</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Nationality:</Typography>
                     <Typography variant="body1">{personalInfo.nationality}</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Phone:</Typography>
                     <Typography variant="body1">{personalInfo.phone}</Typography>
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Typography variant="body2" color="text.secondary">Email:</Typography>
                     <Typography variant="body1">{personalInfo.email}</Typography>
                   </Grid>
@@ -698,21 +698,21 @@ const EkycRegistrationPage: React.FC = () => {
                   Document Information
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">ID Type:</Typography>
                     <Typography variant="body1">
                       {idTypes.find(t => t.value === documentInfo.idType)?.label}
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">ID Number:</Typography>
                     <Typography variant="body1">{documentInfo.idNumber}</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Issuing Country:</Typography>
                     <Typography variant="body1">{documentInfo.idIssuingCountry}</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Expiry Date:</Typography>
                     <Typography variant="body1">{documentInfo.idExpiryDate}</Typography>
                   </Grid>

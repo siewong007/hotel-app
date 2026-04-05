@@ -111,30 +111,30 @@ export const GuestCheckInVerify: React.FC = () => {
           </Typography>
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">
                 Name:
               </Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" fontWeight="bold">
                 {guest.full_name}
               </Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">
                 Email:
               </Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2">{guest.email}</Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">
                 Phone:
               </Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2">{guest.phone || 'Not provided'}</Typography>
             </Grid>
           </Grid>
@@ -146,54 +146,54 @@ export const GuestCheckInVerify: React.FC = () => {
           </Typography>
           <Divider sx={{ mb: 2 }} />
           <Grid container spacing={2}>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">
                 Booking Number:
               </Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" fontWeight="bold">
                 {booking.folio_number || booking.id}
               </Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">
                 Check-in:
               </Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2">{formatDate(booking.check_in_date)}</Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">
                 Check-out:
               </Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2">{formatDate(booking.check_out_date)}</Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">
                 Nights:
               </Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2">{calculateNights()}</Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">
                 Room Type:
               </Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2">{booking.room_type || 'Standard'}</Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">
                 Guests:
               </Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2">{booking.number_of_guests || 1} Adult(s)</Typography>
             </Grid>
           </Grid>

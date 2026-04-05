@@ -23,16 +23,16 @@ fn validate_not_empty(value: &str) -> Result<(), ValidationError> {
 /// Validated guest input with comprehensive validation rules
 #[derive(Debug, Validate)]
 pub struct ValidatedGuestInput {
-    #[validate(length(min = 1, max = 100), custom = "validate_not_empty")]
+    #[validate(length(min = 1, max = 100), custom(function = validate_not_empty))]
     pub first_name: String,
 
-    #[validate(length(min = 1, max = 100), custom = "validate_not_empty")]
+    #[validate(length(min = 1, max = 100), custom(function = validate_not_empty))]
     pub last_name: String,
 
     #[validate(email)]
     pub email: Option<String>,
 
-    #[validate(custom = "validate_phone")]
+    #[validate(custom(function = validate_phone))]
     pub phone: Option<String>,
 
     #[validate(length(max = 255))]

@@ -480,7 +480,7 @@ const LoyaltyDashboard: React.FC = () => {
         <Card sx={{ mb: 4, background: 'linear-gradient(135deg, #CD7F32 0%, #B87333 100%)', color: 'white' }}>
           <CardContent sx={{ p: 3 }}>
             <Grid container spacing={3} alignItems="center">
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Avatar sx={{ width: 64, height: 64, bgcolor: 'rgba(255,255,255,0.2)' }}>
                     <StarsIcon sx={{ fontSize: 32 }} />
@@ -495,7 +495,7 @@ const LoyaltyDashboard: React.FC = () => {
                   </Box>
                 </Box>
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Alert severity="info" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: 'white', '& .MuiAlert-icon': { color: 'white' } }}>
                   <Typography variant="body2">
                     <strong>Not enrolled yet?</strong> Contact support to join our loyalty program and start earning points with every booking!
@@ -526,7 +526,7 @@ const LoyaltyDashboard: React.FC = () => {
               const tierConfig = getTierConfig(reward.minimum_tier_level);
 
               return (
-                <Grid item xs={12} sm={6} md={4} key={reward.id}>
+                <Grid key={reward.id} size={{ xs: 12, sm: 6, md: 4 }}>
                   <Card
                     sx={{
                       height: '100%',
@@ -753,7 +753,7 @@ const LoyaltyDashboard: React.FC = () => {
           </DialogTitle>
           <DialogContent>
             <Grid container spacing={2} sx={{ mt: 1 }}>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Name"
@@ -761,7 +761,7 @@ const LoyaltyDashboard: React.FC = () => {
                   onChange={(e) => setEditingReward({ ...editingReward, name: e.target.value })}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Description"
@@ -771,7 +771,7 @@ const LoyaltyDashboard: React.FC = () => {
                   onChange={(e) => setEditingReward({ ...editingReward, description: e.target.value })}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Category"
@@ -789,7 +789,7 @@ const LoyaltyDashboard: React.FC = () => {
                   <option value="experience">Experience</option>
                 </TextField>
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Points Cost"
@@ -798,7 +798,7 @@ const LoyaltyDashboard: React.FC = () => {
                   onChange={(e) => setEditingReward({ ...editingReward, points_cost: parseInt(e.target.value) })}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Minimum Tier Level"
@@ -808,7 +808,7 @@ const LoyaltyDashboard: React.FC = () => {
                   inputProps={{ min: 1, max: 4 }}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Stock Quantity"
@@ -817,7 +817,7 @@ const LoyaltyDashboard: React.FC = () => {
                   onChange={(e) => setEditingReward({ ...editingReward, stock_quantity: e.target.value ? parseInt(e.target.value) : undefined })}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label={`Monetary Value (${currencySymbol})`}
@@ -826,7 +826,7 @@ const LoyaltyDashboard: React.FC = () => {
                   onChange={(e) => setEditingReward({ ...editingReward, monetary_value: e.target.value ? parseFloat(e.target.value) : undefined })}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Terms & Conditions"
@@ -915,7 +915,7 @@ const LoyaltyDashboard: React.FC = () => {
         </Box>
         <CardContent sx={{ position: 'relative', zIndex: 1 }}>
           <Grid container spacing={3} alignItems="center">
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Avatar
                   sx={{
@@ -942,7 +942,7 @@ const LoyaltyDashboard: React.FC = () => {
               </Box>
             </Grid>
 
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <Box sx={{ textAlign: 'center' }}>
                 <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
                   {formatNumber(membership.points_balance)}
@@ -956,7 +956,7 @@ const LoyaltyDashboard: React.FC = () => {
               </Box>
             </Grid>
 
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               {membership.next_tier ? (
                 <Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
@@ -1044,7 +1044,7 @@ const LoyaltyDashboard: React.FC = () => {
             const isLocked = membership.tier_level < reward.minimum_tier_level;
 
             return (
-              <Grid item xs={12} sm={6} md={4} key={reward.id}>
+              <Grid key={reward.id} size={{ xs: 12, sm: 6, md: 4 }}>
                 <Card
                   sx={{
                     height: '100%',
@@ -1188,7 +1188,7 @@ const LoyaltyDashboard: React.FC = () => {
       {/* Benefits Tab */}
       <TabPanel value={activeTab} index={1}>
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1212,7 +1212,7 @@ const LoyaltyDashboard: React.FC = () => {
           </Grid>
 
           {membership.next_tier && (
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Card sx={{ border: 2, borderColor: 'primary.main' }}>
                 <CardContent>
                   <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1238,7 +1238,7 @@ const LoyaltyDashboard: React.FC = () => {
           )}
 
           {/* Tier Comparison */}
-          <Grid item xs={12}>
+          <Grid size={12}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom sx={{ fontWeight: 600 }}>
@@ -1251,7 +1251,7 @@ const LoyaltyDashboard: React.FC = () => {
                     const isLocked = tier > membership.tier_level;
 
                     return (
-                      <Grid item xs={12} sm={6} md={3} key={tier}>
+                      <Grid key={tier} size={{ xs: 12, sm: 6, md: 3 }}>
                         <Card
                           sx={{
                             background: isCurrent ? config.gradient : undefined,

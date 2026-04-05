@@ -820,7 +820,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
             {/* Invoice Meta */}
             <Grid container spacing={3} sx={{ mb: 3 }}>
-              <Grid item xs={12} md={4}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1, textTransform: 'uppercase' }}>
                   Invoice Details
                 </Typography>
@@ -850,7 +850,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Typography>
               </Grid>
 
-              <Grid item xs={12} md={4}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1.5, textTransform: 'uppercase' }}>
                   Guest Information
                 </Typography>
@@ -873,7 +873,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 ))}
               </Grid>
 
-              <Grid item xs={12} md={4}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1, textTransform: 'uppercase' }}>
                   Stay Details
                 </Typography>
@@ -921,12 +921,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
               <Box sx={{ bgcolor: '#1976d2', color: 'white', p: 1.5 }}>
                 <Grid container>
-                  <Grid item xs={8}>
+                  <Grid size={8}>
                     <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
                       Description
                     </Typography>
                   </Grid>
-                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                  <Grid sx={{ textAlign: 'right' }} size={4}>
                     <Typography variant="body2" sx={{ fontWeight: 600, textTransform: 'uppercase' }}>
                       Amount
                     </Typography>
@@ -939,10 +939,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 {isHourlyBooking ? (
                   <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
                     <Grid container>
-                      <Grid item xs={8}>
+                      <Grid size={8}>
                         <Typography variant="body2">Room Charges (Hourly Stay)</Typography>
                       </Grid>
-                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                      <Grid sx={{ textAlign: 'right' }} size={4}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
                           {formatCurrency(charges.roomCharges)}
                         </Typography>
@@ -994,12 +994,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           <React.Fragment key={i}>
                             <Box sx={{ p: 1.5, borderBottom: dayTax > 0 ? 'none' : '1px solid #ddd' }}>
                               <Grid container alignItems="center">
-                                <Grid item xs={editingRates ? 5 : 8}>
+                                <Grid size={editingRates ? 5 : 8}>
                                   <Typography variant="body2">
                                     Room Charge — {dateStr}
                                   </Typography>
                                 </Grid>
-                                <Grid item xs={editingRates ? 7 : 4} sx={{ textAlign: 'right' }}>
+                                <Grid sx={{ textAlign: 'right' }} size={editingRates ? 7 : 4}>
                                   {editingRates ? (
                                     <TextField
                                       size="small"
@@ -1026,12 +1026,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                             {dayTax > 0 && (
                               <Box sx={{ p: 1.5, pl: 3, borderBottom: '1px solid #ddd', bgcolor: '#fafafa' }}>
                                 <Grid container>
-                                  <Grid item xs={8}>
+                                  <Grid size={8}>
                                     <Typography variant="body2" color="text.secondary">
                                       Service Tax ({hotelSettings.service_tax_rate}%)
                                     </Typography>
                                   </Grid>
-                                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                                  <Grid sx={{ textAlign: 'right' }} size={4}>
                                     <Typography variant="body2" sx={{ fontWeight: 600 }} color="text.secondary">
                                       {formatCurrency(dayTax)}
                                     </Typography>
@@ -1050,10 +1050,10 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 {charges.tourismTax > 0 && (
                   <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
                     <Grid container>
-                      <Grid item xs={8}>
+                      <Grid size={8}>
                         <Typography variant="body2">Tourism Tax</Typography>
                       </Grid>
-                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                      <Grid sx={{ textAlign: 'right' }} size={4}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
                           {formatCurrency(charges.tourismTax)}
                         </Typography>
@@ -1066,22 +1066,22 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 {charges.extraBedCharge > 0 && (
                   <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
                     <Grid container>
-                      <Grid item xs={8}>
+                      <Grid size={8}>
                         <Typography variant="body2">Extra Bed Charge</Typography>
                       </Grid>
-                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                      <Grid sx={{ textAlign: 'right' }} size={4}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
                           {formatCurrency(charges.extraBedCharge)}
                         </Typography>
                       </Grid>
                       {charges.extraBedServiceTax > 0 && (
                         <>
-                          <Grid item xs={8}>
+                          <Grid size={8}>
                             <Typography variant="body2" color="text.secondary" sx={{ pl: 2, fontSize: '0.8rem' }}>
                               Service Tax ({hotelSettings.service_tax_rate}%)
                             </Typography>
                           </Grid>
-                          <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                          <Grid sx={{ textAlign: 'right' }} size={4}>
                             <Typography variant="body2" sx={{ fontSize: '0.8rem' }}>
                               {formatCurrency(charges.extraBedServiceTax)}
                             </Typography>
@@ -1097,12 +1097,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 {/* Grand Total */}
                 <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderTop: '3px double #1976d2' }}>
                   <Grid container>
-                    <Grid item xs={8}>
+                    <Grid size={8}>
                       <Typography variant="h6" sx={{ fontWeight: 700 }}>
                         {charges.grandTotal >= 0 ? 'Total Amount Due' : 'Total Refund'}
                       </Typography>
                     </Grid>
-                    <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                    <Grid sx={{ textAlign: 'right' }} size={4}>
                       <Typography variant="h5" sx={{ fontWeight: 700, color: '#1976d2' }}>
                         {formatCurrency(Math.abs(charges.grandTotal))}
                       </Typography>
@@ -1117,7 +1117,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ p: 1.5, bgcolor: depositRefunded ? '#e8f5e9' : '#fff3e0' }}>
                   <Grid container alignItems="center">
-                    <Grid item xs={5}>
+                    <Grid size={5}>
                       <Typography variant="body2" sx={{ fontWeight: 600, color: depositRefunded ? '#2e7d32' : '#e65100' }}>
                         Deposit Refund
                       </Typography>
@@ -1125,7 +1125,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         {depositRefunded ? 'Refunded separately to guest' : 'Must be refunded or waived before checkout'}
                       </Typography>
                     </Grid>
-                    <Grid item xs={7} sx={{ textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                    <Grid sx={{ textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }} size={7}>
                       {depositRefunded ? (
                         <>
                           <Chip label="Refunded" size="small" color="success" />
@@ -1168,12 +1168,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 {!depositRefunded && (
                   <Box sx={{ p: 1.5, borderTop: '1px solid #ddd', bgcolor: '#fafafa' }}>
                     <Grid container alignItems="center" spacing={1}>
-                      <Grid item xs={12}>
+                      <Grid size={12}>
                         <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
                           Or waive the deposit (e.g., lost keycard, special arrangement):
                         </Typography>
                       </Grid>
-                      <Grid item xs={8}>
+                      <Grid size={8}>
                         <TextField
                           size="small"
                           fullWidth
@@ -1183,7 +1183,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           sx={{ fontSize: '0.8rem' }}
                         />
                       </Grid>
-                      <Grid item xs={4}>
+                      <Grid size={4}>
                         <Button
                           size="small"
                           variant="outlined"
@@ -1209,7 +1209,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ p: 1.5, bgcolor: '#fff3e0' }}>
                   <Grid container alignItems="center">
-                    <Grid item xs={8}>
+                    <Grid size={8}>
                       <Typography variant="body2" sx={{ color: '#e65100', fontWeight: 600 }}>
                         Deposit
                       </Typography>
@@ -1217,7 +1217,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         Waived: {depositWaiveReason}
                       </Typography>
                     </Grid>
-                    <Grid item xs={4} sx={{ textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                    <Grid sx={{ textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }} size={4}>
                       <Chip label="Waived" size="small" color="warning" />
                       <Button
                         size="small"
@@ -1240,12 +1240,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ p: 1.5, bgcolor: '#e3f2fd' }}>
                   <Grid container alignItems="center">
-                    <Grid item xs={8}>
+                    <Grid size={8}>
                       <Typography variant="body2" sx={{ color: '#1565c0' }}>
                         Deposit
                       </Typography>
                     </Grid>
-                    <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                    <Grid sx={{ textAlign: 'right' }} size={4}>
                       <Chip
                         label={booking?.company_id ? 'City Ledger - N/A' : booking?.payment_note?.includes('waived') ? 'Waived' : 'No Deposit Collected'}
                         size="small"
@@ -1295,7 +1295,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         // Edit form inline
                         <Box>
                           <Grid container spacing={1} sx={{ mb: 1 }}>
-                            <Grid item xs={4}>
+                            <Grid size={4}>
                               <TextField
                                 label="Amount"
                                 type="number"
@@ -1308,7 +1308,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 }}
                               />
                             </Grid>
-                            <Grid item xs={4}>
+                            <Grid size={4}>
                               <FormControl fullWidth size="small">
                                 <InputLabel>Method</InputLabel>
                                 <Select
@@ -1322,7 +1322,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 </Select>
                               </FormControl>
                             </Grid>
-                            <Grid item xs={4}>
+                            <Grid size={4}>
                               <TextField
                                 label="Payment Date"
                                 type="date"
@@ -1333,7 +1333,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 InputLabelProps={{ shrink: true }}
                               />
                             </Grid>
-                            <Grid item xs={6}>
+                            <Grid size={6}>
                               <TextField
                                 label="Reference"
                                 size="small"
@@ -1342,7 +1342,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 onChange={(e) => setEditReference(e.target.value)}
                               />
                             </Grid>
-                            <Grid item xs={6}>
+                            <Grid size={6}>
                               <TextField
                                 label="Notes"
                                 size="small"
@@ -1373,7 +1373,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       ) : (
                         // Normal display
                         <Grid container alignItems="center">
-                          <Grid item xs={4}>
+                          <Grid size={4}>
                             <Typography variant="body2">
                               {p.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                             </Typography>
@@ -1381,17 +1381,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               {new Date(p.created_at).toLocaleString()}
                             </Typography>
                           </Grid>
-                          <Grid item xs={3}>
+                          <Grid size={3}>
                             <Typography variant="caption" color="text.secondary">
                               {p.transaction_reference || p.notes || ''}
                             </Typography>
                           </Grid>
-                          <Grid item xs={3} sx={{ textAlign: 'right' }}>
+                          <Grid sx={{ textAlign: 'right' }} size={3}>
                             <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
                               {formatCurrency(parseFloat(p.total_amount || '0'))}
                             </Typography>
                           </Grid>
-                          <Grid item xs={2} sx={{ textAlign: 'right' }}>
+                          <Grid sx={{ textAlign: 'right' }} size={2}>
                             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
                               <Button
                                 size="small"
@@ -1431,7 +1431,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       {editingPayment?.id === p.id ? (
                         <Box>
                           <Grid container spacing={1} sx={{ mb: 1 }}>
-                            <Grid item xs={4}>
+                            <Grid size={4}>
                               <TextField
                                 label="Amount"
                                 type="number"
@@ -1444,7 +1444,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 }}
                               />
                             </Grid>
-                            <Grid item xs={4}>
+                            <Grid size={4}>
                               <FormControl fullWidth size="small">
                                 <InputLabel>Method</InputLabel>
                                 <Select
@@ -1458,7 +1458,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 </Select>
                               </FormControl>
                             </Grid>
-                            <Grid item xs={4}>
+                            <Grid size={4}>
                               <TextField
                                 label="Refund Date"
                                 type="date"
@@ -1469,7 +1469,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 InputLabelProps={{ shrink: true }}
                               />
                             </Grid>
-                            <Grid item xs={6}>
+                            <Grid size={6}>
                               <TextField
                                 label="Reference"
                                 size="small"
@@ -1478,7 +1478,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 onChange={(e) => setEditReference(e.target.value)}
                               />
                             </Grid>
-                            <Grid item xs={6}>
+                            <Grid size={6}>
                               <TextField
                                 label="Notes"
                                 size="small"
@@ -1508,7 +1508,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         </Box>
                       ) : (
                         <Grid container alignItems="center">
-                          <Grid item xs={5}>
+                          <Grid size={5}>
                             <Typography variant="body2" sx={{ color: '#2e7d32' }}>
                               Deposit Refund ({p.payment_method?.replace('_', ' ')})
                             </Typography>
@@ -1516,15 +1516,15 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               {new Date(p.created_at).toLocaleString()}
                             </Typography>
                           </Grid>
-                          <Grid item xs={2}>
+                          <Grid size={2}>
                             <Chip label="Refunded" size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
                           </Grid>
-                          <Grid item xs={3} sx={{ textAlign: 'right' }}>
+                          <Grid sx={{ textAlign: 'right' }} size={3}>
                             <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
                               -{formatCurrency(parseFloat(p.total_amount || '0'))}
                             </Typography>
                           </Grid>
-                          <Grid item xs={2} sx={{ textAlign: 'right' }}>
+                          <Grid sx={{ textAlign: 'right' }} size={2}>
                             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
                               <Button
                                 size="small"
@@ -1566,7 +1566,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               <Collapse in={showPaymentForm}>
                 <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderTop: '1px solid #ddd' }}>
                   <Grid container spacing={2}>
-                    <Grid item xs={4}>
+                    <Grid size={4}>
                       <TextField
                         label="Amount"
                         type="number"
@@ -1579,7 +1579,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         }}
                       />
                     </Grid>
-                    <Grid item xs={4}>
+                    <Grid size={4}>
                       <FormControl fullWidth size="small">
                         <InputLabel>Method</InputLabel>
                         <Select
@@ -1593,7 +1593,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         </Select>
                       </FormControl>
                     </Grid>
-                    <Grid item xs={4}>
+                    <Grid size={4}>
                       <TextField
                         label="Payment Date"
                         type="date"
@@ -1604,7 +1604,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         InputLabelProps={{ shrink: true }}
                       />
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <TextField
                         label="Reference (Optional)"
                         size="small"
@@ -1613,7 +1613,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         onChange={(e) => setPaymentReference(e.target.value)}
                       />
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <TextField
                         label="Notes (Optional)"
                         size="small"
@@ -1622,7 +1622,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         onChange={(e) => setPaymentNotes(e.target.value)}
                       />
                     </Grid>
-                    <Grid item xs={12} sx={{ textAlign: 'right' }}>
+                    <Grid sx={{ textAlign: 'right' }} size={12}>
                       <Button
                         variant="contained"
                         size="small"
@@ -1640,12 +1640,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               {/* Balance Due */}
               <Box sx={{ p: 1.5, bgcolor: balanceDue > 0 ? '#fff3e0' : '#e8f5e9', borderTop: '2px solid #ddd' }}>
                 <Grid container>
-                  <Grid item xs={8}>
+                  <Grid size={8}>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: balanceDue > 0 ? '#e65100' : '#2e7d32' }}>
                       {balanceDue > 0 ? 'Balance Due' : balanceDue < 0 ? 'Overpayment' : 'Fully Paid'}
                     </Typography>
                   </Grid>
-                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                  <Grid sx={{ textAlign: 'right' }} size={4}>
                     <Typography variant="body2" sx={{ fontWeight: 700, color: balanceDue > 0 ? '#e65100' : '#2e7d32' }}>
                       {formatCurrency(Math.abs(balanceDue))}
                     </Typography>
@@ -1704,42 +1704,42 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               Guest Information
             </Typography>
             <Grid container spacing={1}>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" color="text.secondary">
                   Guest Name:
                 </Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {booking.guest_name}
                 </Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" color="text.secondary">
                   Room:
                 </Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {booking.room_number} - {booking.room_type}
                 </Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" color="text.secondary">
                   Check-in:
                 </Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {new Date(booking.check_in_date).toLocaleString()}
                 </Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" color="text.secondary">
                   Check-out:
                 </Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" component="div" sx={{ fontWeight: 600 }}>
                   {getActualCheckoutDate().toLocaleString()}
                   {isEarlyCheckout() && (
@@ -1747,12 +1747,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   )}
                 </Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" color="text.secondary">
                   Duration:
                 </Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {calculateNights()} night(s)
                 </Typography>
@@ -1767,12 +1767,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             </Typography>
             <Grid container spacing={1}>
               {/* Room Charges */}
-              <Grid item xs={8}>
+              <Grid size={8}>
                 <Typography variant="body2" color="text.secondary">
                   Room Charges ({calculateNights()} nights)
                 </Typography>
               </Grid>
-              <Grid item xs={4} sx={{ textAlign: 'right' }}>
+              <Grid sx={{ textAlign: 'right' }} size={4}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {formatCurrency(charges.roomCharges)}
                 </Typography>
@@ -1781,12 +1781,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               {/* Service Tax */}
               {charges.serviceTax > 0 && (
                 <>
-                  <Grid item xs={8}>
+                  <Grid size={8}>
                     <Typography variant="body2" color="text.secondary">
                       Service Tax ({hotelSettings.service_tax_rate}%)
                     </Typography>
                   </Grid>
-                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                  <Grid sx={{ textAlign: 'right' }} size={4}>
                     <Typography variant="body2">
                       {formatCurrency(charges.serviceTax)}
                     </Typography>
@@ -1797,12 +1797,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               {/* Tourism Tax */}
               {charges.tourismTax > 0 && (
                 <>
-                  <Grid item xs={8}>
+                  <Grid size={8}>
                     <Typography variant="body2" color="text.secondary">
                       Tourism Tax
                     </Typography>
                   </Grid>
-                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                  <Grid sx={{ textAlign: 'right' }} size={4}>
                     <Typography variant="body2">
                       {formatCurrency(charges.tourismTax)}
                     </Typography>
@@ -1813,24 +1813,24 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               {/* Extra Bed */}
               {charges.extraBedCharge > 0 && (
                 <>
-                  <Grid item xs={8}>
+                  <Grid size={8}>
                     <Typography variant="body2" color="text.secondary">
                       Extra Bed Charge
                     </Typography>
                   </Grid>
-                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                  <Grid sx={{ textAlign: 'right' }} size={4}>
                     <Typography variant="body2">
                       {formatCurrency(charges.extraBedCharge)}
                     </Typography>
                   </Grid>
                   {charges.extraBedServiceTax > 0 && (
                     <>
-                      <Grid item xs={8}>
+                      <Grid size={8}>
                         <Typography variant="body2" color="text.secondary" sx={{ pl: 2 }}>
                           Service Tax ({hotelSettings.service_tax_rate}%)
                         </Typography>
                       </Grid>
-                      <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                      <Grid sx={{ textAlign: 'right' }} size={4}>
                         <Typography variant="body2">
                           {formatCurrency(charges.extraBedServiceTax)}
                         </Typography>
@@ -1842,17 +1842,17 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
 
 
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Divider sx={{ my: 1 }} />
               </Grid>
 
               {/* Subtotal */}
-              <Grid item xs={8}>
+              <Grid size={8}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   Subtotal
                 </Typography>
               </Grid>
-              <Grid item xs={4} sx={{ textAlign: 'right' }}>
+              <Grid sx={{ textAlign: 'right' }} size={4}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {formatCurrency(charges.subtotal)}
                 </Typography>
@@ -1861,7 +1861,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               {/* Deposit Refund Status */}
               {depositWaived ? (
                 <>
-                  <Grid item xs={8}>
+                  <Grid size={8}>
                     <Typography variant="body2" sx={{ color: 'warning.main' }}>
                       Deposit
                     </Typography>
@@ -1869,34 +1869,34 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       {depositWaiveReason}
                     </Typography>
                   </Grid>
-                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                  <Grid sx={{ textAlign: 'right' }} size={4}>
                     <Chip label="Waived" size="small" color="warning" sx={{ height: 20, fontSize: '0.7rem' }} />
                   </Grid>
                 </>
               ) : charges.depositRefund > 0 && (
                 <>
-                  <Grid item xs={8}>
+                  <Grid size={8}>
                     <Typography variant="body2" sx={{ color: 'success.main' }}>
                       Deposit
                     </Typography>
                   </Grid>
-                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                  <Grid sx={{ textAlign: 'right' }} size={4}>
                     <Chip label="Refunded" size="small" color="success" sx={{ height: 20, fontSize: '0.7rem' }} />
                   </Grid>
                 </>
               )}
 
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Divider sx={{ my: 1 }} />
               </Grid>
 
               {/* Grand Total */}
-              <Grid item xs={8}>
+              <Grid size={8}>
                 <Typography variant="h6" sx={{ fontWeight: 700 }}>
                   {charges.grandTotal >= 0 ? 'Total to Collect' : 'Total to Refund'}
                 </Typography>
               </Grid>
-              <Grid item xs={4} sx={{ textAlign: 'right' }}>
+              <Grid sx={{ textAlign: 'right' }} size={4}>
                 <Typography
                   variant="h5"
                   color={charges.grandTotal >= 0 ? 'primary' : 'success'}

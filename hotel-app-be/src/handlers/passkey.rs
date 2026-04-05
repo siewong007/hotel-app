@@ -157,8 +157,8 @@ pub async fn passkey_register_start_handler(
 
     // Generate challenge (32 random bytes)
     let challenge_bytes: [u8; 32] = {
-        let mut rng = rand::thread_rng();
-        rand::Rng::gen(&mut rng)
+        let mut rng = rand::rng();
+        rand::Rng::random(&mut rng)
     };
     let challenge_b64 = general_purpose::STANDARD.encode(&challenge_bytes);
 
@@ -292,8 +292,8 @@ pub async fn passkey_login_start_handler(
 
     // Generate challenge (32 random bytes)
     let challenge_bytes: [u8; 32] = {
-        let mut rng = rand::thread_rng();
-        rand::Rng::gen(&mut rng)
+        let mut rng = rand::rng();
+        rand::Rng::random(&mut rng)
     };
     let challenge_b64 = general_purpose::STANDARD.encode(&challenge_bytes);
 

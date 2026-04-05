@@ -269,7 +269,7 @@ const AuditLogPage: React.FC = () => {
           {/* Expandable Filters */}
           <Collapse in={showFilters}>
             <Grid container spacing={2} sx={{ mt: 2 }}>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Action</InputLabel>
                   <Select
@@ -286,7 +286,7 @@ const AuditLogPage: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Resource Type</InputLabel>
                   <Select
@@ -303,7 +303,7 @@ const AuditLogPage: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>User</InputLabel>
                   <Select
@@ -322,7 +322,7 @@ const AuditLogPage: React.FC = () => {
                   </Select>
                 </FormControl>
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <TextField
                   fullWidth
                   size="small"
@@ -333,7 +333,7 @@ const AuditLogPage: React.FC = () => {
                   InputLabelProps={{ shrink: true }}
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <TextField
                   fullWidth
                   size="small"

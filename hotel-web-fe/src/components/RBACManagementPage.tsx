@@ -582,11 +582,11 @@ const RBACManagementPage: React.FC = () => {
         </DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mb: 2 }}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Typography variant="body2" color="text.secondary">Email</Typography>
               <Typography variant="body1">{selectedUser?.user.email}</Typography>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Typography variant="body2" color="text.secondary">Status</Typography>
               <Chip
                 icon={selectedUser?.user.is_active ? <CheckCircleIcon /> : <CancelIcon />}

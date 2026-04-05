@@ -2021,7 +2021,7 @@ const CustomerLedgerPage: React.FC = () => {
       {/* Statistics Cards */}
       {summary && (
         <Grid container spacing={2} mb={3}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center" mb={1}>
@@ -2035,7 +2035,7 @@ const CustomerLedgerPage: React.FC = () => {
             </Card>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center" mb={1}>
@@ -2049,7 +2049,7 @@ const CustomerLedgerPage: React.FC = () => {
             </Card>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center" mb={1}>
@@ -2063,7 +2063,7 @@ const CustomerLedgerPage: React.FC = () => {
             </Card>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
                 <Box display="flex" alignItems="center" mb={1}>
@@ -2113,7 +2113,7 @@ const CustomerLedgerPage: React.FC = () => {
               const ledgerData = uniqueCompanies.find(u => u.name === company.company_name);
               const activeBookings = allCompanyBookings.filter(b => b.company_id === company.id);
               return (
-                <Grid item xs={12} sm={6} md={4} key={company.id}>
+                <Grid key={company.id} size={{ xs: 12, sm: 6, md: 4 }}>
                   <Paper
                     variant="outlined"
                     sx={{
@@ -2291,7 +2291,7 @@ const CustomerLedgerPage: React.FC = () => {
         </Box>
 
         <Grid container spacing={2}>
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <TextField
               fullWidth
               size="small"
@@ -2308,7 +2308,7 @@ const CustomerLedgerPage: React.FC = () => {
             />
           </Grid>
 
-          <Grid item xs={12} sm={6} md={2}>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Status</InputLabel>
               <Select
@@ -2325,7 +2325,7 @@ const CustomerLedgerPage: React.FC = () => {
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={2}>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Expense Type</InputLabel>
               <Select
@@ -2343,7 +2343,7 @@ const CustomerLedgerPage: React.FC = () => {
             </FormControl>
           </Grid>
 
-          <Grid item xs={12} md={2}>
+          <Grid size={{ xs: 12, md: 2 }}>
             <Button
               fullWidth
               variant="outlined"
@@ -2547,7 +2547,7 @@ const CustomerLedgerPage: React.FC = () => {
         <DialogTitle>Create New Ledger Entry</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <Autocomplete
                 value={selectedCompany}
                 onChange={(event, newValue) => {
@@ -2634,7 +2634,7 @@ const CustomerLedgerPage: React.FC = () => {
                 )}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Registration Number"
@@ -2642,7 +2642,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCreateFormData({ ...createFormData, company_registration_number: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Contact Person"
@@ -2650,7 +2650,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCreateFormData({ ...createFormData, contact_person: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Contact Email"
@@ -2659,7 +2659,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCreateFormData({ ...createFormData, contact_email: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Contact Phone"
@@ -2667,7 +2667,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCreateFormData({ ...createFormData, contact_phone: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Billing Address"
@@ -2675,7 +2675,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCreateFormData({ ...createFormData, billing_address_line1: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 required
@@ -2686,7 +2686,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCreateFormData({ ...createFormData, description: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth required>
                 <InputLabel>Expense Type</InputLabel>
                 <Select
@@ -2702,7 +2702,7 @@ const CustomerLedgerPage: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 required
@@ -2715,7 +2715,7 @@ const CustomerLedgerPage: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Invoice Date"
@@ -2725,7 +2725,7 @@ const CustomerLedgerPage: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Due Date"
@@ -2735,7 +2735,7 @@ const CustomerLedgerPage: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Notes"
@@ -2764,7 +2764,7 @@ const CustomerLedgerPage: React.FC = () => {
         <DialogTitle>Edit Ledger Entry - {editingLedger?.invoice_number || `#${editingLedger?.id}`}</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Company Name"
@@ -2772,7 +2772,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setEditFormData({ ...editFormData, company_name: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Registration Number"
@@ -2780,7 +2780,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setEditFormData({ ...editFormData, company_registration_number: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Contact Person"
@@ -2788,7 +2788,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setEditFormData({ ...editFormData, contact_person: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Contact Email"
@@ -2797,7 +2797,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setEditFormData({ ...editFormData, contact_email: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Description"
@@ -2807,7 +2807,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Expense Type</InputLabel>
                 <Select
@@ -2823,7 +2823,7 @@ const CustomerLedgerPage: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Status</InputLabel>
                 <Select
@@ -2838,7 +2838,7 @@ const CustomerLedgerPage: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Due Date"
@@ -2848,7 +2848,7 @@ const CustomerLedgerPage: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Notes"
@@ -2858,7 +2858,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Internal Notes (Staff Only)"
@@ -2921,7 +2921,7 @@ const CustomerLedgerPage: React.FC = () => {
               </Alert>
 
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     required
@@ -2934,7 +2934,7 @@ const CustomerLedgerPage: React.FC = () => {
                     }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <FormControl fullWidth required>
                     <InputLabel>Payment Method</InputLabel>
                     <Select
@@ -2950,7 +2950,7 @@ const CustomerLedgerPage: React.FC = () => {
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Payment Reference"
@@ -2959,7 +2959,7 @@ const CustomerLedgerPage: React.FC = () => {
                     placeholder="Transaction ID, cheque number, etc."
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Receipt Number"
@@ -2967,7 +2967,7 @@ const CustomerLedgerPage: React.FC = () => {
                     onChange={(e) => setPaymentFormData({ ...paymentFormData, receipt_number: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Payment Date"
@@ -2977,7 +2977,7 @@ const CustomerLedgerPage: React.FC = () => {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     fullWidth
                     label="Notes"
@@ -3110,7 +3110,7 @@ const CustomerLedgerPage: React.FC = () => {
             This company is not in our system. Please provide the company details below.
           </Alert>
           <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 required
@@ -3119,7 +3119,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setNewCompanyData({ ...newCompanyData, company_name: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Registration Number"
@@ -3128,7 +3128,7 @@ const CustomerLedgerPage: React.FC = () => {
                 placeholder="e.g., 123456-A"
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Contact Person"
@@ -3136,7 +3136,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_person: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Contact Email"
@@ -3145,7 +3145,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_email: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Contact Phone"
@@ -3153,7 +3153,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_phone: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Billing Address"
@@ -3280,31 +3280,31 @@ const CustomerLedgerPage: React.FC = () => {
 
                     {/* Receipt Details */}
                     <Grid container spacing={2}>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="caption" color="text.secondary">Receipt / Invoice #</Typography>
                         <Typography variant="body1" fontWeight="bold">
                           {entry.invoice_number || `LED-${entry.id}`}
                         </Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="caption" color="text.secondary">Company</Typography>
                         <Typography variant="body1" fontWeight="bold">{entry.company_name}</Typography>
                       </Grid>
-                      <Grid item xs={12}>
+                      <Grid size={12}>
                         <Typography variant="caption" color="text.secondary">Description</Typography>
                         <Typography variant="body1">{entry.description}</Typography>
                       </Grid>
-                      <Grid item xs={4}>
+                      <Grid size={4}>
                         <Typography variant="caption" color="text.secondary">Expense Type</Typography>
                         <Typography variant="body1">
                           {EXPENSE_TYPES.find(t => t.value === entry.expense_type)?.label || entry.expense_type}
                         </Typography>
                       </Grid>
-                      <Grid item xs={4}>
+                      <Grid size={4}>
                         <Typography variant="caption" color="text.secondary">Date Created</Typography>
                         <Typography variant="body1">{formatDateForDisplay(entry.created_at)}</Typography>
                       </Grid>
-                      <Grid item xs={4}>
+                      <Grid size={4}>
                         <Typography variant="caption" color="text.secondary">Status</Typography>
                         <Box>
                           <Chip
@@ -3315,13 +3315,13 @@ const CustomerLedgerPage: React.FC = () => {
                         </Box>
                       </Grid>
                       {entry.payment_date && (
-                        <Grid item xs={4}>
+                        <Grid size={4}>
                           <Typography variant="caption" color="text.secondary">Payment Date</Typography>
                           <Typography variant="body1">{formatDateForDisplay(entry.payment_date)}</Typography>
                         </Grid>
                       )}
                       {entry.payment_method && (
-                        <Grid item xs={4}>
+                        <Grid size={4}>
                           <Typography variant="caption" color="text.secondary">Payment Method</Typography>
                           <Typography variant="body1">
                             {PAYMENT_METHODS.find(m => m.value === entry.payment_method)?.label || entry.payment_method}
@@ -3329,7 +3329,7 @@ const CustomerLedgerPage: React.FC = () => {
                         </Grid>
                       )}
                       {entry.payment_reference && (
-                        <Grid item xs={4}>
+                        <Grid size={4}>
                           <Typography variant="caption" color="text.secondary">Payment Reference</Typography>
                           <Typography variant="body1">{entry.payment_reference}</Typography>
                         </Grid>
@@ -3339,19 +3339,19 @@ const CustomerLedgerPage: React.FC = () => {
                     {/* Amount Section */}
                     <Paper sx={{ mt: 3, p: 2, bgcolor: 'grey.50' }}>
                       <Grid container spacing={1}>
-                        <Grid item xs={4}>
+                        <Grid size={4}>
                           <Typography variant="caption" color="text.secondary">Total Amount</Typography>
                           <Typography variant="h6" fontWeight="bold">
                             {formatCurrency(parseFloat(String(entry.amount)))}
                           </Typography>
                         </Grid>
-                        <Grid item xs={4}>
+                        <Grid size={4}>
                           <Typography variant="caption" color="text.secondary">Paid Amount</Typography>
                           <Typography variant="h6" fontWeight="bold" color="success.main">
                             {formatCurrency(parseFloat(String(entry.paid_amount)))}
                           </Typography>
                         </Grid>
-                        <Grid item xs={4}>
+                        <Grid size={4}>
                           <Typography variant="caption" color="text.secondary">Balance Due</Typography>
                           <Typography
                             variant="h6"
@@ -3403,7 +3403,7 @@ const CustomerLedgerPage: React.FC = () => {
         <DialogContent>
           <Grid container spacing={3} sx={{ mt: 0.5 }}>
             {/* Company Selection */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Autocomplete
                 value={checkInCompany}
                 onChange={(event, newValue) => {
@@ -3454,7 +3454,7 @@ const CustomerLedgerPage: React.FC = () => {
 
             {/* Company Info */}
             {checkInCompany && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Alert severity="info" icon={<BusinessIcon />}>
                   <Typography variant="subtitle2">{checkInCompany.company_name}</Typography>
                   {checkInCompany.contact_person && (
@@ -3472,14 +3472,14 @@ const CustomerLedgerPage: React.FC = () => {
               </Grid>
             )}
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider>
                 <Chip label="Guest Details" size="small" />
               </Divider>
             </Grid>
 
             {/* Guest Selection */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Box display="flex" alignItems="center" gap={2} mb={2}>
                 <Button
                   variant={!isCreatingNewCheckInGuest ? 'contained' : 'outlined'}
@@ -3537,7 +3537,7 @@ const CustomerLedgerPage: React.FC = () => {
                 />
               ) : (
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       required
@@ -3546,7 +3546,7 @@ const CustomerLedgerPage: React.FC = () => {
                       onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, first_name: e.target.value })}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       required
@@ -3555,7 +3555,7 @@ const CustomerLedgerPage: React.FC = () => {
                       onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, last_name: e.target.value })}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="Email (Optional)"
@@ -3566,7 +3566,7 @@ const CustomerLedgerPage: React.FC = () => {
                       error={newCheckInGuestForm.email !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email)}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="Phone"
@@ -3574,7 +3574,7 @@ const CustomerLedgerPage: React.FC = () => {
                       onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, phone: e.target.value })}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="IC/Passport Number"
@@ -3582,7 +3582,7 @@ const CustomerLedgerPage: React.FC = () => {
                       onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, ic_number: e.target.value })}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="Nationality"
@@ -3591,7 +3591,7 @@ const CustomerLedgerPage: React.FC = () => {
                       placeholder="e.g. Malaysian"
                     />
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <TextField
                       fullWidth
                       label="Address"
@@ -3600,7 +3600,7 @@ const CustomerLedgerPage: React.FC = () => {
                       placeholder="Street address"
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="City"
@@ -3608,7 +3608,7 @@ const CustomerLedgerPage: React.FC = () => {
                       onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, city: e.target.value })}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="State/Province"
@@ -3616,7 +3616,7 @@ const CustomerLedgerPage: React.FC = () => {
                       onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, state_province: e.target.value })}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="Postal Code"
@@ -3624,7 +3624,7 @@ const CustomerLedgerPage: React.FC = () => {
                       onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, postal_code: e.target.value })}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="Country"
@@ -3636,14 +3636,14 @@ const CustomerLedgerPage: React.FC = () => {
               )}
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider>
                 <Chip label="Room & Dates" size="small" />
               </Divider>
             </Grid>
 
             {/* Dates */}
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 required
@@ -3654,7 +3654,7 @@ const CustomerLedgerPage: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 required
@@ -3668,7 +3668,7 @@ const CustomerLedgerPage: React.FC = () => {
             </Grid>
 
             {/* Room Selection */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Autocomplete
                 value={checkInRoom}
                 onChange={(event, newValue) => setCheckInRoom(newValue)}
@@ -3719,7 +3719,7 @@ const CustomerLedgerPage: React.FC = () => {
 
             {/* Summary */}
             {checkInCompany && checkInRoom && (checkInGuest || (isCreatingNewCheckInGuest && newCheckInGuestForm.first_name)) && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Alert severity="success">
                   <Typography variant="subtitle2">Ready to Check-In</Typography>
                   <Typography variant="body2">
@@ -3795,12 +3795,12 @@ const CustomerLedgerPage: React.FC = () => {
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
             {/* Company Basic Info */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="primary" gutterBottom>
                 Company Information
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 required
@@ -3810,7 +3810,7 @@ const CustomerLedgerPage: React.FC = () => {
                 placeholder="Enter company name"
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Registration Number"
@@ -3821,13 +3821,13 @@ const CustomerLedgerPage: React.FC = () => {
             </Grid>
 
             {/* Contact Information */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 1 }} />
               <Typography variant="subtitle2" color="primary" gutterBottom>
                 Contact Information
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Contact Person"
@@ -3836,7 +3836,7 @@ const CustomerLedgerPage: React.FC = () => {
                 placeholder="Primary contact name"
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Contact Email"
@@ -3846,7 +3846,7 @@ const CustomerLedgerPage: React.FC = () => {
                 placeholder="email@company.com"
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Contact Phone"
@@ -3857,13 +3857,13 @@ const CustomerLedgerPage: React.FC = () => {
             </Grid>
 
             {/* Billing Address */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 1 }} />
               <Typography variant="subtitle2" color="primary" gutterBottom>
                 Billing Address
               </Typography>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Street Address"
@@ -3872,7 +3872,7 @@ const CustomerLedgerPage: React.FC = () => {
                 placeholder="Street address, building, floor"
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="City"
@@ -3880,7 +3880,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_city: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="State"
@@ -3888,7 +3888,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_state: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Postal Code"
@@ -3898,13 +3898,13 @@ const CustomerLedgerPage: React.FC = () => {
             </Grid>
 
             {/* Billing Terms */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 1 }} />
               <Typography variant="subtitle2" color="primary" gutterBottom>
                 Billing Terms
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Credit Limit"
@@ -3917,7 +3917,7 @@ const CustomerLedgerPage: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Payment Terms (Days)"
@@ -3929,10 +3929,10 @@ const CustomerLedgerPage: React.FC = () => {
             </Grid>
 
             {/* Notes */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 1 }} />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 multiline
@@ -3976,12 +3976,12 @@ const CustomerLedgerPage: React.FC = () => {
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
             {/* Company Basic Info */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="primary" gutterBottom>
                 Company Information
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 required
@@ -3990,7 +3990,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCompanyEditForm({ ...companyEditForm, company_name: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Registration Number"
@@ -4000,13 +4000,13 @@ const CustomerLedgerPage: React.FC = () => {
             </Grid>
 
             {/* Contact Information */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 1 }} />
               <Typography variant="subtitle2" color="primary" gutterBottom>
                 Contact Information
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Contact Person"
@@ -4014,7 +4014,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCompanyEditForm({ ...companyEditForm, contact_person: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Contact Email"
@@ -4023,7 +4023,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCompanyEditForm({ ...companyEditForm, contact_email: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Contact Phone"
@@ -4033,13 +4033,13 @@ const CustomerLedgerPage: React.FC = () => {
             </Grid>
 
             {/* Billing Address */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 1 }} />
               <Typography variant="subtitle2" color="primary" gutterBottom>
                 Billing Address
               </Typography>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Street Address"
@@ -4047,7 +4047,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_address: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="City"
@@ -4055,7 +4055,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_city: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="State"
@@ -4063,7 +4063,7 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_state: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Postal Code"
@@ -4073,13 +4073,13 @@ const CustomerLedgerPage: React.FC = () => {
             </Grid>
 
             {/* Billing Terms */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 1 }} />
               <Typography variant="subtitle2" color="primary" gutterBottom>
                 Billing Terms
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Credit Limit"
@@ -4091,7 +4091,7 @@ const CustomerLedgerPage: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Payment Terms (Days)"
@@ -4102,10 +4102,10 @@ const CustomerLedgerPage: React.FC = () => {
             </Grid>
 
             {/* Notes */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 1 }} />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 multiline
@@ -4214,7 +4214,7 @@ const CustomerLedgerPage: React.FC = () => {
           ) : (
             <Grid container spacing={2} sx={{ mt: 0.5 }}>
               {/* Select Ledger Entry */}
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   select
                   fullWidth
@@ -4246,20 +4246,20 @@ const CustomerLedgerPage: React.FC = () => {
 
               {/* Selected Entry Details */}
               {selectedLedgerForPayment && (
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
                     <Grid container spacing={1}>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="caption" color="text.secondary">Description</Typography>
                         <Typography variant="body2">{selectedLedgerForPayment.description}</Typography>
                       </Grid>
-                      <Grid item xs={3}>
+                      <Grid size={3}>
                         <Typography variant="caption" color="text.secondary">Total Amount</Typography>
                         <Typography variant="body2">
                           {formatCurrency(typeof selectedLedgerForPayment.amount === 'string' ? parseFloat(selectedLedgerForPayment.amount) : selectedLedgerForPayment.amount)}
                         </Typography>
                       </Grid>
-                      <Grid item xs={3}>
+                      <Grid size={3}>
                         <Typography variant="caption" color="text.secondary">Balance Due</Typography>
                         <Typography variant="body2" color="error.main" fontWeight={600}>
                           {formatCurrency(typeof selectedLedgerForPayment.balance_due === 'string' ? parseFloat(selectedLedgerForPayment.balance_due) : (selectedLedgerForPayment.balance_due || (typeof selectedLedgerForPayment.amount === 'string' ? parseFloat(selectedLedgerForPayment.amount) : selectedLedgerForPayment.amount)))}
@@ -4271,7 +4271,7 @@ const CustomerLedgerPage: React.FC = () => {
               )}
 
               {/* Payment Amount */}
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   required
@@ -4286,7 +4286,7 @@ const CustomerLedgerPage: React.FC = () => {
               </Grid>
 
               {/* Payment Method */}
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   select
                   fullWidth
@@ -4303,7 +4303,7 @@ const CustomerLedgerPage: React.FC = () => {
               </Grid>
 
               {/* Payment Reference */}
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Payment Reference"
@@ -4314,7 +4314,7 @@ const CustomerLedgerPage: React.FC = () => {
               </Grid>
 
               {/* Receipt Number */}
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Receipt Number"
@@ -4324,7 +4324,7 @@ const CustomerLedgerPage: React.FC = () => {
               </Grid>
 
               {/* Payment Date */}
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Payment Date"
@@ -4336,7 +4336,7 @@ const CustomerLedgerPage: React.FC = () => {
               </Grid>
 
               {/* Notes */}
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   multiline
@@ -4392,7 +4392,7 @@ const CustomerLedgerPage: React.FC = () => {
 
               {/* Invoice Details */}
               <Grid container spacing={2} sx={{ mt: 0.5 }}>
-                <Grid item xs={12} sm={4}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <TextField
                     fullWidth
                     required
@@ -4401,7 +4401,7 @@ const CustomerLedgerPage: React.FC = () => {
                     onChange={(e) => setInvoiceNumber(e.target.value)}
                   />
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <TextField
                     fullWidth
                     required
@@ -4412,7 +4412,7 @@ const CustomerLedgerPage: React.FC = () => {
                     InputLabelProps={{ shrink: true }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={4}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <TextField
                     fullWidth
                     required
@@ -4425,7 +4425,7 @@ const CustomerLedgerPage: React.FC = () => {
                 </Grid>
 
                 {/* Select Ledger Entries */}
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Divider sx={{ my: 1 }} />
                   <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                     <Typography variant="subtitle1" fontWeight={600}>
@@ -4445,13 +4445,13 @@ const CustomerLedgerPage: React.FC = () => {
                 </Grid>
 
                 {invoiceLedgerEntries.length === 0 ? (
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Alert severity="warning">
                       No ledger entries found for this company.
                     </Alert>
                   </Grid>
                 ) : (
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300 }}>
                       <Table size="small" stickyHeader>
                         <TableHead>
@@ -4512,17 +4512,17 @@ const CustomerLedgerPage: React.FC = () => {
                     {/* Summary */}
                     <Paper variant="outlined" sx={{ p: 2, mt: 2, bgcolor: 'grey.50' }}>
                       <Grid container spacing={2}>
-                        <Grid item xs={4}>
+                        <Grid size={4}>
                           <Typography variant="caption" color="text.secondary">Selected Items</Typography>
                           <Typography variant="h6">{selectedInvoiceLedgers.length}</Typography>
                         </Grid>
-                        <Grid item xs={4}>
+                        <Grid size={4}>
                           <Typography variant="caption" color="text.secondary">Total Amount</Typography>
                           <Typography variant="h6" color="primary.main">
                             {formatCurrency(getSelectedLedgerTotal())}
                           </Typography>
                         </Grid>
-                        <Grid item xs={4}>
+                        <Grid size={4}>
                           <Typography variant="caption" color="text.secondary">Balance Due</Typography>
                           <Typography variant="h6" color="error.main">
                             {formatCurrency(getSelectedLedgerBalanceDue())}
@@ -4534,7 +4534,7 @@ const CustomerLedgerPage: React.FC = () => {
                 )}
 
                 {/* Notes */}
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     fullWidth
                     multiline

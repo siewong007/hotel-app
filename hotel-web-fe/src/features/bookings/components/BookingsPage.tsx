@@ -838,7 +838,7 @@ const BookingsPage: React.FC = () => {
 
       {/* Statistics Cards */}
       <Grid container spacing={2} mb={3}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" mb={1}>
@@ -852,7 +852,7 @@ const BookingsPage: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" mb={1}>
@@ -866,7 +866,7 @@ const BookingsPage: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" mb={1}>
@@ -880,7 +880,7 @@ const BookingsPage: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" mb={1}>
@@ -904,7 +904,7 @@ const BookingsPage: React.FC = () => {
 
         <Grid container spacing={2}>
           {/* Search */}
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <TextField
               fullWidth
               size="small"
@@ -922,7 +922,7 @@ const BookingsPage: React.FC = () => {
           </Grid>
 
           {/* Date Search */}
-          <Grid item xs={12} sm={6} md={2}>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
             <TextField
               fullWidth
               size="small"
@@ -942,7 +942,7 @@ const BookingsPage: React.FC = () => {
           </Grid>
 
           {/* Status Filter */}
-          <Grid item xs={12} sm={6} md={2}>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Status</InputLabel>
               <Select
@@ -962,7 +962,7 @@ const BookingsPage: React.FC = () => {
           </Grid>
 
           {/* Date Filter Buttons */}
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <ToggleButtonGroup
               value={dateFilter === 'date_search' ? null : dateFilter}
               exclusive
@@ -984,7 +984,7 @@ const BookingsPage: React.FC = () => {
           </Grid>
 
           {/* Clear Filters */}
-          <Grid item xs={12} md={2}>
+          <Grid size={{ xs: 12, md: 2 }}>
             <Button
               fullWidth
               variant="outlined"
@@ -999,7 +999,7 @@ const BookingsPage: React.FC = () => {
           {/* Custom Date Range */}
           {dateFilter === 'custom' && (
             <>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <TextField
                   fullWidth
                   size="small"
@@ -1010,7 +1010,7 @@ const BookingsPage: React.FC = () => {
                   InputLabelProps={{ shrink: true }}
                 />
               </Grid>
-              <Grid item xs={12} sm={6} md={3}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <TextField
                   fullWidth
                   size="small"
@@ -1371,7 +1371,7 @@ const BookingsPage: React.FC = () => {
         <DialogTitle>Edit Booking #{editingBooking?.folio_number || editingBooking?.id.toString().substring(0, 8)}</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Check-In Date"
@@ -1381,7 +1381,7 @@ const BookingsPage: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Check-Out Date"
@@ -1391,7 +1391,7 @@ const BookingsPage: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 select
                 fullWidth
@@ -1410,7 +1410,7 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="voided">Voided</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 select
                 fullWidth
@@ -1428,7 +1428,7 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="corporate">Corporate</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 select
                 fullWidth
@@ -1444,7 +1444,7 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="refunded">Refunded</MenuItem>
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Room Rate (Before Tax)"
@@ -1462,7 +1462,7 @@ const BookingsPage: React.FC = () => {
             </Grid>
             {editRoomTypeConfig?.allows_extra_bed && (editRoomTypeConfig?.max_extra_beds || 0) > 0 && (
               <>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Number of Extra Beds"
@@ -1490,7 +1490,7 @@ const BookingsPage: React.FC = () => {
                     )} per extra bed (max ${editRoomTypeConfig?.max_extra_beds || 0})`}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Extra Bed Charge"
@@ -1508,7 +1508,7 @@ const BookingsPage: React.FC = () => {
                 </Grid>
               </>
             )}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Notes / Remarks"
@@ -1519,7 +1519,7 @@ const BookingsPage: React.FC = () => {
                 placeholder="Enter any notes or remarks for this booking..."
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Special Requests"
@@ -1532,7 +1532,7 @@ const BookingsPage: React.FC = () => {
             </Grid>
             {editingBooking && !['checked_in', 'auto_checked_in', 'checked_out', 'completed'].includes(editingBooking.status) ? (
               <>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     select
                     fullWidth
@@ -1558,14 +1558,14 @@ const BookingsPage: React.FC = () => {
                     ))}
                   </TextField>
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Alert severity="info" sx={{ height: '100%', display: 'flex', alignItems: 'center' }}>
                     Guest: <strong>{editingBooking?.guest_name}</strong>
                   </Alert>
                 </Grid>
               </>
             ) : (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Alert severity="info">
                   Guest: <strong>{editingBooking?.guest_name}</strong><br />
                   Room: <strong>{editingBooking?.room_type} - Room {editingBooking?.room_number}</strong>
@@ -1811,26 +1811,26 @@ const BookingsPage: React.FC = () => {
                   Booking #{checkinBooking.booking_number}
                 </Typography>
                 <Grid container spacing={2} sx={{ mt: 1 }}>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Typography variant="h6" fontWeight={600}>{checkinBooking.guest_name}</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Check-in</Typography>
                     <Typography variant="body2" fontWeight={500}>
                       {new Date(checkinBooking.check_in_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Check-out</Typography>
                     <Typography variant="body2" fontWeight={500}>
                       {new Date(checkinBooking.check_out_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Room Type</Typography>
                     <Typography variant="body2" fontWeight={500}>{checkinBooking.room_type}</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Total Amount</Typography>
                     <Typography variant="body2" fontWeight={500}>{formatCurrency(Number(checkinBooking.total_amount || 0))}</Typography>
                   </Grid>
@@ -1848,7 +1848,7 @@ const BookingsPage: React.FC = () => {
               </ToggleButtonGroup>
               {ciPaymentChoice === 'pay_now' && (
                 <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Payment Method</InputLabel>
                       <Select value={ciPaymentMethod} onChange={(e) => setCiPaymentMethod(e.target.value)} label="Payment Method">
@@ -1856,7 +1856,7 @@ const BookingsPage: React.FC = () => {
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <TextField fullWidth size="small" label="Amount Paid" type="number" value={ciAmountPaid} onChange={(e) => setCiAmountPaid(parseFloat(e.target.value) || 0)}
                       InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }} />
                   </Grid>
@@ -1877,7 +1877,7 @@ const BookingsPage: React.FC = () => {
               </ToggleButtonGroup>
               {ciDepositChoice === 'receive' && (
                 <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Deposit Method</InputLabel>
                       <Select value={ciDepositMethod} onChange={(e) => setCiDepositMethod(e.target.value)} label="Deposit Method">
@@ -1885,7 +1885,7 @@ const BookingsPage: React.FC = () => {
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <TextField fullWidth size="small" label="Deposit Amount" type="number" value={ciDepositAmount} onChange={(e) => setCiDepositAmount(parseFloat(e.target.value) || 0)}
                       InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }} />
                   </Grid>

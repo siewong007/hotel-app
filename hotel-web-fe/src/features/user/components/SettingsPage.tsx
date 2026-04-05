@@ -199,7 +199,7 @@ const SettingsPage: React.FC = () => {
           <Divider sx={{ mb: 3 }} />
 
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Hotel Name"
@@ -209,7 +209,7 @@ const SettingsPage: React.FC = () => {
                 disabled={!isAdmin}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Contact Email"
@@ -220,7 +220,7 @@ const SettingsPage: React.FC = () => {
                 disabled={!isAdmin}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Contact Phone"
@@ -230,7 +230,7 @@ const SettingsPage: React.FC = () => {
                 disabled={!isAdmin}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Address"
@@ -260,7 +260,7 @@ const SettingsPage: React.FC = () => {
           <Divider sx={{ mb: 3 }} />
 
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Check-in Time"
@@ -271,7 +271,7 @@ const SettingsPage: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Check-out Time"
@@ -282,7 +282,7 @@ const SettingsPage: React.FC = () => {
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Night Shift / Night Audit Time"
@@ -311,7 +311,7 @@ const SettingsPage: React.FC = () => {
           <Divider sx={{ mb: 3 }} />
 
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 select
                 fullWidth
@@ -337,7 +337,7 @@ const SettingsPage: React.FC = () => {
                 </optgroup>
               </TextField>
             </Grid>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 select
                 fullWidth
@@ -402,7 +402,7 @@ const SettingsPage: React.FC = () => {
           <Divider sx={{ mb: 3 }} />
 
           <Grid container spacing={3}>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
                 label="Service Tax Rate"
@@ -420,7 +420,7 @@ const SettingsPage: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
                 label="Tourism Tax Rate"
@@ -437,7 +437,7 @@ const SettingsPage: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid item xs={12} md={4}>
+            <Grid size={{ xs: 12, md: 4 }}>
               <TextField
                 fullWidth
                 label="Default Deposit Amount"
@@ -473,7 +473,7 @@ const SettingsPage: React.FC = () => {
 
           <Grid container spacing={3}>
             {/* Booking Channels */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle1" gutterBottom fontWeight="medium">
                 Online Booking Channels
               </Typography>
@@ -525,7 +525,7 @@ const SettingsPage: React.FC = () => {
             </Grid>
 
             {/* Payment Methods */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle1" gutterBottom fontWeight="medium">
                 Payment Methods
               </Typography>

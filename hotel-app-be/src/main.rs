@@ -58,7 +58,8 @@ async fn main() {
 
     // Initialize logging
     if std::env::var("RUST_LOG").is_err() {
-        std::env::set_var("RUST_LOG", "info");
+        // SAFETY: Called before any other threads are spawned (single-threaded at startup)
+        unsafe { std::env::set_var("RUST_LOG", "info") };
     }
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 

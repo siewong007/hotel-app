@@ -141,7 +141,7 @@ const Dashboard: React.FC = () => {
       </Box>
 
       <Grid container spacing={3}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Total Rooms"
             value={stats.totalRooms}
@@ -151,7 +151,7 @@ const Dashboard: React.FC = () => {
           />
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Available Rooms"
             value={stats.availableRooms}
@@ -161,7 +161,7 @@ const Dashboard: React.FC = () => {
           />
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Total Guests"
             value={stats.totalGuests}
@@ -171,7 +171,7 @@ const Dashboard: React.FC = () => {
           />
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Total Bookings"
             value={stats.totalBookings}
@@ -181,7 +181,7 @@ const Dashboard: React.FC = () => {
           />
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <Box display="flex" alignItems="center" mb={2}>
@@ -220,7 +220,7 @@ const Dashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <Box display="flex" alignItems="center" mb={2}>

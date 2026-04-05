@@ -383,7 +383,7 @@ const GuestConfigurationPage: React.FC = () => {
 
       {/* Statistics Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={6} sm={4} md={3}>
+        <Grid size={{ xs: 6, sm: 4, md: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
               <Typography variant="h4" sx={{ fontWeight: 600, color: 'primary.main' }}>
@@ -395,7 +395,7 @@ const GuestConfigurationPage: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={6} sm={4} md={3}>
+        <Grid size={{ xs: 6, sm: 4, md: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
               <Typography variant="h4" sx={{ fontWeight: 600, color: GUEST_TYPE_CONFIG.member.color }}>
@@ -407,7 +407,7 @@ const GuestConfigurationPage: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={6} sm={4} md={3}>
+        <Grid size={{ xs: 6, sm: 4, md: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
               <Typography variant="h4" sx={{ fontWeight: 600, color: GUEST_TYPE_CONFIG.non_member.color }}>
@@ -419,7 +419,7 @@ const GuestConfigurationPage: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={6} sm={4} md={3}>
+        <Grid size={{ xs: 6, sm: 4, md: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center', py: 2 }}>
               <Typography variant="h4" sx={{ fontWeight: 600, color: 'info.main' }}>
@@ -622,7 +622,7 @@ const GuestConfigurationPage: React.FC = () => {
         <DialogTitle>Create New Guest</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="First Name"
@@ -631,7 +631,7 @@ const GuestConfigurationPage: React.FC = () => {
                 required
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Last Name"
@@ -640,7 +640,7 @@ const GuestConfigurationPage: React.FC = () => {
                 required
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Email"
@@ -649,7 +649,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Phone"
@@ -657,7 +657,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="IC Number / Passport"
@@ -666,7 +666,7 @@ const GuestConfigurationPage: React.FC = () => {
                 helperText="Identity card or passport number"
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Nationality"
@@ -674,7 +674,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Company Name"
@@ -682,7 +682,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Address"
@@ -690,7 +690,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="City"
@@ -698,7 +698,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="State/Province"
@@ -706,7 +706,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, state_province: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Postal Code"
@@ -714,7 +714,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Country"
@@ -724,7 +724,7 @@ const GuestConfigurationPage: React.FC = () => {
             </Grid>
 
             {/* Membership Section */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Box
                 sx={{
                   p: 2,
@@ -739,7 +739,7 @@ const GuestConfigurationPage: React.FC = () => {
                   Membership & Pricing
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       select
                       fullWidth
@@ -765,7 +765,7 @@ const GuestConfigurationPage: React.FC = () => {
                       </MenuItem>
                     </TextField>
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="Discount Percentage"
@@ -785,7 +785,7 @@ const GuestConfigurationPage: React.FC = () => {
             </Grid>
 
             {/* Tourism Type Section */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Box
                 sx={{
                   p: 2,
@@ -799,7 +799,7 @@ const GuestConfigurationPage: React.FC = () => {
                   Tourism Classification
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       select
                       fullWidth
@@ -858,7 +858,7 @@ const GuestConfigurationPage: React.FC = () => {
             </Alert>
           )}
           <Grid container spacing={2} sx={{ mt: dialogError ? 0 : 1 }}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="First Name"
@@ -866,7 +866,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Last Name"
@@ -874,7 +874,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Email"
@@ -883,7 +883,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Phone"
@@ -891,7 +891,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="IC Number / Passport"
@@ -899,7 +899,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, ic_number: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Nationality"
@@ -907,7 +907,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Company Name"
@@ -915,7 +915,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Address"
@@ -923,7 +923,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="City"
@@ -931,7 +931,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="State/Province"
@@ -939,7 +939,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, state_province: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Postal Code"
@@ -947,7 +947,7 @@ const GuestConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Country"
@@ -957,7 +957,7 @@ const GuestConfigurationPage: React.FC = () => {
             </Grid>
 
             {/* Membership Section */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Box
                 sx={{
                   p: 2,
@@ -972,7 +972,7 @@ const GuestConfigurationPage: React.FC = () => {
                   Membership & Pricing
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       select
                       fullWidth
@@ -998,7 +998,7 @@ const GuestConfigurationPage: React.FC = () => {
                       </MenuItem>
                     </TextField>
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="Discount Percentage"
@@ -1018,7 +1018,7 @@ const GuestConfigurationPage: React.FC = () => {
             </Grid>
 
             {/* Tourism Type Section */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Box
                 sx={{
                   p: 2,
@@ -1032,7 +1032,7 @@ const GuestConfigurationPage: React.FC = () => {
                   Tourism Classification
                 </Typography>
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       select
                       fullWidth

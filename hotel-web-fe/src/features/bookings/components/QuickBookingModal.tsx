@@ -529,7 +529,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 </Button>
               </Box>
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="First Name"
@@ -539,7 +539,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                     size="small"
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Last Name"
@@ -548,7 +548,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                     size="small"
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Email (Optional)"
@@ -570,7 +570,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                     size="small"
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Phone (Optional)"
@@ -597,7 +597,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
               Booking Details
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <ModernDatePicker
                   label="Check-in Date"
                   value={checkInDate}
@@ -606,7 +606,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   margin="none"
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Check-in Time"
@@ -622,7 +622,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   })}`}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <ModernDatePicker
                   label="Check-out Date"
                   value={checkOutDate}
@@ -631,7 +631,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   margin="none"
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Check-out Time"
@@ -647,7 +647,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   })}`}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <FormControlLabel
                   control={
                     <Checkbox
@@ -680,7 +680,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 />
               </Grid>
               {useCustomRate && getStayDates().length > 0 && (
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
                     <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
@@ -695,7 +695,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                         const dayName = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' });
                         const displayDate = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                         return (
-                          <Grid item xs={6} sm={4} md={3} key={date}>
+                          <Grid key={date} size={{ xs: 6, sm: 4, md: 3 }}>
                             <TextField
                               fullWidth
                               size="small"
@@ -718,7 +718,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   </Paper>
                 </Grid>
               )}
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Booking Remarks (Visible on Dashboard)"
@@ -739,7 +739,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
               Additional Charges
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControlLabel
                   control={
                     <Checkbox
@@ -761,7 +761,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   sx={{ mt: 1 }}
                 />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
                   label="Tourism Tax (Auto-calculated)"
@@ -777,7 +777,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
               </Grid>
               {allowsExtraBed && maxExtraBeds > 0 && (
                 <>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="Number of Extra Beds"
@@ -792,7 +792,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                       helperText={`${formatCurrency(extraBedChargePerBed)} per extra bed (max ${maxExtraBeds})`}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       fullWidth
                       label="Extra Bed Charge"
@@ -815,32 +815,32 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 Booking Summary
               </Typography>
               <Grid container spacing={1}>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2" color="text.secondary">
                     Room:
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {room?.room_number} - {room?.room_type}
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2" color="text.secondary">
                     Duration:
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {calculateNights()} night(s)
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2" color="text.secondary">
                     Room Rate{useCustomRate ? ' (Custom)' : ''}:
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {formatCurrency(calculateRoomTotal())}
                     {useCustomRate && Object.keys(dailyRates).length > 0 && (
@@ -852,12 +852,12 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 </Grid>
                 {tourismTax > 0 && (
                   <>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">
                         Tourism Tax:
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2">
                         {formatCurrency(tourismTax)}
                       </Typography>
@@ -866,27 +866,27 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 )}
                 {extraBedCharge > 0 && (
                   <>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">
                         Extra Bed:
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2">
                         {formatCurrency(extraBedCharge)}
                       </Typography>
                     </Grid>
                   </>
                 )}
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Divider sx={{ my: 1 }} />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body1" sx={{ fontWeight: 700 }}>
                     Grand Total:
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="h6" color="primary" sx={{ fontWeight: 700 }}>
                     {formatCurrency(calculateTotal())}
                   </Typography>

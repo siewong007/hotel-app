@@ -124,19 +124,19 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
           <Box sx={{ bgcolor: 'grey.50', p: 2, borderRadius: 1 }}>
             <Typography variant="subtitle2" gutterBottom>Current Booking</Typography>
             <Grid container spacing={1}>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" color="text.secondary">Guest</Typography>
                 <Typography variant="body2" fontWeight={600}>{booking.guest_name}</Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" color="text.secondary">Room</Typography>
                 <Typography variant="body2" fontWeight={600}>{booking.room_number} - {booking.room_type}</Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" color="text.secondary">Check-in</Typography>
                 <Typography variant="body2" fontWeight={600}>{new Date(checkInDate).toLocaleDateString()}</Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="body2" color="text.secondary">Current Checkout</Typography>
                 <Typography variant="body2" fontWeight={600}>{new Date(currentCheckoutDate).toLocaleDateString()}</Typography>
               </Grid>
@@ -160,32 +160,32 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
           <Box sx={{ bgcolor: 'primary.50', p: 2, borderRadius: 1 }}>
             <Typography variant="subtitle2" gutterBottom>Price Preview</Typography>
             <Grid container spacing={1}>
-              <Grid item xs={8}>
+              <Grid size={8}>
                 <Typography variant="body2" color="text.secondary">Rate per night</Typography>
               </Grid>
-              <Grid item xs={4} sx={{ textAlign: 'right' }}>
+              <Grid sx={{ textAlign: 'right' }} size={4}>
                 <Typography variant="body2">{formatCurrency(pricePerNight)}</Typography>
               </Grid>
-              <Grid item xs={8}>
+              <Grid size={8}>
                 <Typography variant="body2" color="text.secondary">
                   Current: {currentNights} night(s)
                 </Typography>
               </Grid>
-              <Grid item xs={4} sx={{ textAlign: 'right' }}>
+              <Grid sx={{ textAlign: 'right' }} size={4}>
                 <Typography variant="body2">{formatCurrency(currentTotal)}</Typography>
               </Grid>
-              <Grid item xs={8}>
+              <Grid size={8}>
                 <Typography variant="body2" fontWeight={600}>
                   New: {Math.max(newNights, 1)} night(s)
                 </Typography>
               </Grid>
-              <Grid item xs={4} sx={{ textAlign: 'right' }}>
+              <Grid sx={{ textAlign: 'right' }} size={4}>
                 <Typography variant="body2" fontWeight={600}>{formatCurrency(newTotal)}</Typography>
               </Grid>
               {difference !== 0 && (
                 <>
-                  <Grid item xs={12}><Divider sx={{ my: 0.5 }} /></Grid>
-                  <Grid item xs={8}>
+                  <Grid size={12}><Divider sx={{ my: 0.5 }} /></Grid>
+                  <Grid size={8}>
                     <Typography
                       variant="body2"
                       fontWeight={600}
@@ -194,7 +194,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
                       {difference > 0 ? 'Additional Charge' : 'Reduction'}
                     </Typography>
                   </Grid>
-                  <Grid item xs={4} sx={{ textAlign: 'right' }}>
+                  <Grid sx={{ textAlign: 'right' }} size={4}>
                     <Typography
                       variant="body2"
                       fontWeight={600}

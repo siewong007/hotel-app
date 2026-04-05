@@ -784,7 +784,7 @@ const NightAuditPage: React.FC = () => {
         <Card sx={{ mb: 3 }}>
           <CardContent>
             <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={4}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <TextField
                   label="Audit Date"
                   type="date"
@@ -794,7 +794,7 @@ const NightAuditPage: React.FC = () => {
                   InputLabelProps={{ shrink: true }}
                 />
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 <Button
                   variant="outlined"
                   onClick={fetchPreview}
@@ -804,7 +804,7 @@ const NightAuditPage: React.FC = () => {
                   Load Preview
                 </Button>
               </Grid>
-              <Grid item xs={12} md={4}>
+              <Grid size={{ xs: 12, md: 4 }}>
                 {preview && !preview.already_run && (
                   <Button
                     variant="contained"
@@ -859,25 +859,25 @@ const NightAuditPage: React.FC = () => {
 
                         {/* Summary Row */}
                         <Grid container spacing={2} sx={{ mb: 3 }}>
-                          <Grid item xs={6} sm={3}>
+                          <Grid size={{ xs: 6, sm: 3 }}>
                             <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
                               <Typography variant="h4" fontWeight="bold">{completedAudit.total_bookings_posted}</Typography>
                               <Typography variant="body2">Bookings Posted</Typography>
                             </Box>
                           </Grid>
-                          <Grid item xs={6} sm={3}>
+                          <Grid size={{ xs: 6, sm: 3 }}>
                             <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
                               <Typography variant="h4" fontWeight="bold">{completedAudit.total_checkins}</Typography>
                               <Typography variant="body2">Check-ins</Typography>
                             </Box>
                           </Grid>
-                          <Grid item xs={6} sm={3}>
+                          <Grid size={{ xs: 6, sm: 3 }}>
                             <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
                               <Typography variant="h4" fontWeight="bold">{completedAudit.total_checkouts}</Typography>
                               <Typography variant="body2">Check-outs</Typography>
                             </Box>
                           </Grid>
-                          <Grid item xs={6} sm={3}>
+                          <Grid size={{ xs: 6, sm: 3 }}>
                             <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.200', borderRadius: 1 }}>
                               <Typography variant="h4" fontWeight="bold">{Number(completedAudit.occupancy_rate).toFixed(0)}%</Typography>
                               <Typography variant="body2">Occupancy</Typography>
@@ -966,25 +966,25 @@ const NightAuditPage: React.FC = () => {
                 <>
                   {/* Summary Row */}
                   <Grid container spacing={2} sx={{ mb: 3 }}>
-                    <Grid item xs={6} sm={3}>
+                    <Grid size={{ xs: 6, sm: 3 }}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'primary.light', borderRadius: 1 }}>
                         <Typography variant="h4" fontWeight="bold">{preview.total_unposted}</Typography>
                         <Typography variant="body2">Bookings to Post</Typography>
                       </Box>
                     </Grid>
-                    <Grid item xs={6} sm={3}>
+                    <Grid size={{ xs: 6, sm: 3 }}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
                         <Typography variant="h4" fontWeight="bold">{preview.room_snapshot.occupied}</Typography>
                         <Typography variant="body2">Occupied Rooms</Typography>
                       </Box>
                     </Grid>
-                    <Grid item xs={6} sm={3}>
+                    <Grid size={{ xs: 6, sm: 3 }}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
                         <Typography variant="h4" fontWeight="bold">{preview.room_snapshot.available}</Typography>
                         <Typography variant="body2">Available Rooms</Typography>
                       </Box>
                     </Grid>
-                    <Grid item xs={6} sm={3}>
+                    <Grid size={{ xs: 6, sm: 3 }}>
                       <Box sx={{ textAlign: 'center', p: 2, bgcolor: 'grey.200', borderRadius: 1 }}>
                         <Typography variant="h4" fontWeight="bold">
                           {preview.room_snapshot.total > 0
@@ -1121,7 +1121,7 @@ const NightAuditPage: React.FC = () => {
                       Booking Statistics
                     </Typography>
                     <Grid container spacing={2} sx={{ mb: 3 }}>
-                      <Grid item xs={6} sm={4}>
+                      <Grid size={{ xs: 6, sm: 4 }}>
                         <Card variant="outlined">
                           <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
                             <Typography variant="h4" color="primary">{audit.total_bookings_posted}</Typography>
@@ -1129,7 +1129,7 @@ const NightAuditPage: React.FC = () => {
                           </CardContent>
                         </Card>
                       </Grid>
-                      <Grid item xs={6} sm={4}>
+                      <Grid size={{ xs: 6, sm: 4 }}>
                         <Card variant="outlined">
                           <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
                             <Typography variant="h4" color="success.main">{audit.total_checkins}</Typography>
@@ -1137,7 +1137,7 @@ const NightAuditPage: React.FC = () => {
                           </CardContent>
                         </Card>
                       </Grid>
-                      <Grid item xs={6} sm={4}>
+                      <Grid size={{ xs: 6, sm: 4 }}>
                         <Card variant="outlined">
                           <CardContent sx={{ textAlign: 'center', py: 1.5 }}>
                             <Typography variant="h4" color="warning.main">{audit.total_checkouts}</Typography>
@@ -1152,7 +1152,7 @@ const NightAuditPage: React.FC = () => {
                       Room Snapshot at Audit Time
                     </Typography>
                     <Grid container spacing={2} sx={{ mb: 3 }}>
-                      <Grid item xs={4} sm={2}>
+                      <Grid size={{ xs: 4, sm: 2 }}>
                         <Card sx={{ bgcolor: 'success.light' }}>
                           <CardContent sx={{ textAlign: 'center', py: 1 }}>
                             <Typography variant="h5">{audit.rooms_available}</Typography>
@@ -1160,7 +1160,7 @@ const NightAuditPage: React.FC = () => {
                           </CardContent>
                         </Card>
                       </Grid>
-                      <Grid item xs={4} sm={2}>
+                      <Grid size={{ xs: 4, sm: 2 }}>
                         <Card sx={{ bgcolor: 'error.light' }}>
                           <CardContent sx={{ textAlign: 'center', py: 1 }}>
                             <Typography variant="h5">{audit.rooms_occupied}</Typography>
@@ -1168,7 +1168,7 @@ const NightAuditPage: React.FC = () => {
                           </CardContent>
                         </Card>
                       </Grid>
-                      <Grid item xs={4} sm={2}>
+                      <Grid size={{ xs: 4, sm: 2 }}>
                         <Card sx={{ bgcolor: 'info.light' }}>
                           <CardContent sx={{ textAlign: 'center', py: 1 }}>
                             <Typography variant="h5">{audit.rooms_reserved}</Typography>
@@ -1176,7 +1176,7 @@ const NightAuditPage: React.FC = () => {
                           </CardContent>
                         </Card>
                       </Grid>
-                      <Grid item xs={4} sm={2}>
+                      <Grid size={{ xs: 4, sm: 2 }}>
                         <Card sx={{ bgcolor: 'warning.light' }}>
                           <CardContent sx={{ textAlign: 'center', py: 1 }}>
                             <Typography variant="h5">{audit.rooms_maintenance}</Typography>
@@ -1184,7 +1184,7 @@ const NightAuditPage: React.FC = () => {
                           </CardContent>
                         </Card>
                       </Grid>
-                      <Grid item xs={4} sm={2}>
+                      <Grid size={{ xs: 4, sm: 2 }}>
                         <Card sx={{ bgcolor: 'grey.300' }}>
                           <CardContent sx={{ textAlign: 'center', py: 1 }}>
                             <Typography variant="h5">{audit.rooms_dirty}</Typography>
@@ -1192,7 +1192,7 @@ const NightAuditPage: React.FC = () => {
                           </CardContent>
                         </Card>
                       </Grid>
-                      <Grid item xs={4} sm={2}>
+                      <Grid size={{ xs: 4, sm: 2 }}>
                         <Card variant="outlined">
                           <CardContent sx={{ textAlign: 'center', py: 1 }}>
                             <Typography variant="h5" color="primary">{Number(audit.occupancy_rate).toFixed(1)}%</Typography>

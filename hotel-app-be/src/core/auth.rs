@@ -6,7 +6,7 @@ use chrono::{Duration, Utc};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use std::env;
 use regex::Regex;
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use sha2::{Sha256, Digest};
 use hex;
 use totp_rs::{TOTP, Algorithm, Secret};
@@ -116,8 +116,8 @@ impl AuthService {
 
     /// Generates a cryptographically secure refresh token
     pub fn generate_refresh_token() -> String {
-        let mut rng = thread_rng();
-        let token_bytes: [u8; 32] = rng.gen();
+        let mut rng = rand::rng();
+        let token_bytes: [u8; 32] = rng.random();
         hex::encode(token_bytes)
     }
 
@@ -290,8 +290,8 @@ impl AuthService {
 
     /// Generate a secure email verification token
     pub fn generate_email_verification_token() -> String {
-        let mut rng = thread_rng();
-        let token_bytes: [u8; 32] = rng.gen();
+        let mut rng = rand::rng();
+        let token_bytes: [u8; 32] = rng.random();
         hex::encode(token_bytes)
     }
 
@@ -375,8 +375,8 @@ impl AuthService {
     /// Generate a new TOTP secret and QR code URL for Google Authenticator setup
     pub fn generate_totp_secret(username: &str) -> Result<(String, String), Box<dyn std::error::Error>> {
         // Generate random secret bytes (20 bytes = 160 bits for SHA1)
-        let mut rng = thread_rng();
-        let secret_bytes: Vec<u8> = (0..20).map(|_| rng.gen::<u8>()).collect();
+        let mut rng = rand::rng();
+        let secret_bytes: Vec<u8> = (0..20).map(|_| rng.random::<u8>()).collect();
 
         let secret = Secret::Raw(secret_bytes.clone());
         let secret_base32 = secret.to_encoded().to_string();
@@ -399,10 +399,10 @@ impl AuthService {
     /// Generate backup recovery codes (10 codes, each 8 characters)
     pub fn generate_backup_codes() -> Vec<String> {
         let mut codes = Vec::new();
-        let mut rng = thread_rng();
+        let mut rng = rand::rng();
 
         for _ in 0..10 {
-            let code_bytes: [u8; 4] = rng.gen();
+            let code_bytes: [u8; 4] = rng.random();
             let code = hex::encode(&code_bytes[..4]).to_uppercase();
             // Format as XXXX-XXXX
             let formatted = format!("{}-{}", &code[..4], &code[4..]);

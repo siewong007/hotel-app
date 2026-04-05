@@ -175,7 +175,7 @@ export const GuestCheckInForm: React.FC = () => {
         {/* Tab 1: Personal Information */}
         <TabPanel value={activeTab} index={0}>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={3}>
+            <Grid size={{ xs: 12, sm: 3 }}>
               <FormControl fullWidth>
                 <InputLabel>Title</InputLabel>
                 <Select
@@ -191,7 +191,7 @@ export const GuestCheckInForm: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={4.5}>
+            <Grid size={{ xs: 12, sm: 4.5 }}>
               <TextField
                 fullWidth
                 label="First Name"
@@ -200,7 +200,7 @@ export const GuestCheckInForm: React.FC = () => {
                 required
               />
             </Grid>
-            <Grid item xs={12} sm={4.5}>
+            <Grid size={{ xs: 12, sm: 4.5 }}>
               <TextField
                 fullWidth
                 label="Last Name"
@@ -209,7 +209,7 @@ export const GuestCheckInForm: React.FC = () => {
                 required
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Email"
@@ -219,7 +219,7 @@ export const GuestCheckInForm: React.FC = () => {
                 required
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Phone"
@@ -227,7 +227,7 @@ export const GuestCheckInForm: React.FC = () => {
                 onChange={(e) => handleChange('phone', e.target.value)}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Alternate Phone"
@@ -235,7 +235,7 @@ export const GuestCheckInForm: React.FC = () => {
                 onChange={(e) => handleChange('alt_phone', e.target.value)}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Nationality"
@@ -243,7 +243,7 @@ export const GuestCheckInForm: React.FC = () => {
                 onChange={(e) => handleChange('nationality', e.target.value)}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Street Address"
@@ -251,7 +251,7 @@ export const GuestCheckInForm: React.FC = () => {
                 onChange={(e) => handleChange('address_line1', e.target.value)}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="City"
@@ -259,7 +259,7 @@ export const GuestCheckInForm: React.FC = () => {
                 onChange={(e) => handleChange('city', e.target.value)}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="State/Province"
@@ -267,7 +267,7 @@ export const GuestCheckInForm: React.FC = () => {
                 onChange={(e) => handleChange('state_province', e.target.value)}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Postal Code"
@@ -275,7 +275,7 @@ export const GuestCheckInForm: React.FC = () => {
                 onChange={(e) => handleChange('postal_code', e.target.value)}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Country"
@@ -283,7 +283,7 @@ export const GuestCheckInForm: React.FC = () => {
                 onChange={(e) => handleChange('country', e.target.value)}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="IC/Passport Number"
@@ -297,12 +297,12 @@ export const GuestCheckInForm: React.FC = () => {
         {/* Tab 2: Stay Details */}
         <TabPanel value={activeTab} index={1}>
           <Grid container spacing={2}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 The following information is read-only. Please contact the hotel if you need to make changes.
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Check-in Date"
@@ -310,7 +310,7 @@ export const GuestCheckInForm: React.FC = () => {
                 disabled
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Check-out Date"
@@ -318,7 +318,7 @@ export const GuestCheckInForm: React.FC = () => {
                 disabled
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Room Type"
@@ -326,7 +326,7 @@ export const GuestCheckInForm: React.FC = () => {
                 disabled
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Number of Guests"
@@ -334,7 +334,7 @@ export const GuestCheckInForm: React.FC = () => {
                 disabled
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <FormControl fullWidth>
                 <InputLabel>Booking Type</InputLabel>
                 <Select
@@ -349,7 +349,7 @@ export const GuestCheckInForm: React.FC = () => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Special Requests"

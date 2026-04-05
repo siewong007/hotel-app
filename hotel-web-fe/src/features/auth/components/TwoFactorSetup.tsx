@@ -216,7 +216,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
               </Alert>
 
               <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
                       Backup Codes
@@ -234,7 +234,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                     </Button>
                   </Paper>
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
                       Disable 2FA
@@ -315,7 +315,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
                 </Typography>
                 <Grid container spacing={1}>
                   {setupData.backup_codes.map((code, index) => (
-                    <Grid item xs={6} key={index}>
+                    <Grid key={index} size={6}>
                       <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
                         {code}
                       </Typography>
@@ -400,7 +400,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
               </Typography>
               <Grid container spacing={1}>
                 {newBackupCodes.map((code, index) => (
-                  <Grid item xs={6} key={index}>
+                  <Grid key={index} size={6}>
                     <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>
                       {code}
                     </Typography>

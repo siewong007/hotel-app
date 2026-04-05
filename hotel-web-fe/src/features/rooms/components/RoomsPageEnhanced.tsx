@@ -265,7 +265,7 @@ const RoomsPageEnhanced: React.FC = () => {
         <Fade in timeout={800}>
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {getAllStatuses().map((status, index) => (
-              <Grid item xs={12} sm={6} md={3} lg={12 / 7} key={status}>
+              <Grid key={status} size={{ xs: 12, sm: 6, md: 3, lg: 12 / 7 }}>
                 <Slide
                   direction="up"
                   in
@@ -306,7 +306,7 @@ const RoomsPageEnhanced: React.FC = () => {
         <Card sx={{ mb: 2 }}>
           <CardContent>
             <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   size="small"
@@ -318,7 +318,7 @@ const RoomsPageEnhanced: React.FC = () => {
                   }}
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Typography variant="caption" sx={{ alignSelf: 'center', mr: 1 }}>
                     Filter:
@@ -525,7 +525,7 @@ const RoomsPageEnhanced: React.FC = () => {
       {/* Available rooms grid for guests */}
       <Grid container spacing={3}>
         {availableRooms.map((room) => (
-          <Grid item xs={12} md={6} lg={4} key={room.id}>
+          <Grid key={room.id} size={{ xs: 12, md: 6, lg: 4 }}>
             <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
               <CardContent sx={{ flexGrow: 1 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
