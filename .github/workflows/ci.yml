@@ -49,6 +49,7 @@ jobs:
           components: clippy
 
       - name: Cache Cargo dependencies
+        if: ${{ !env.ACT }}
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: hotel-app-be

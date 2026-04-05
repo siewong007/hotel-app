@@ -126,14 +126,13 @@ pub async fn create_guest_handler(
     }
 
     // Validate email format only if provided
-    if let Some(ref email) = input.email {
-        if !email.trim().is_empty() {
+    if let Some(ref email) = input.email
+        && !email.trim().is_empty() {
             let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
             if !email_regex.is_match(email) {
                 return Err(ApiError::BadRequest("Invalid email format".to_string()));
             }
         }
-    }
 
     // Sanitize inputs to prevent XSS and injection attacks
     let first_name = Sanitizer::sanitize_guest_name(&input.first_name);
@@ -142,7 +141,7 @@ pub async fn create_guest_handler(
     // Normalize empty email to None so DB NULL constraint is satisfied
     let email = input.email.as_deref()
         .filter(|e| !e.trim().is_empty())
-        .map(|e| Sanitizer::sanitize_email(e));
+        .map(Sanitizer::sanitize_email);
 
     // Compute full_name from sanitized first_name and last_name
     let full_name = format!("{} {}", first_name, last_name).trim().to_string();
@@ -287,6 +286,7 @@ pub async fn update_guest_handler(
     Json(input): Json<GuestUpdateInput>,
 ) -> Result<Json<Guest>, ApiError> {
     // Get basic existing guest data (limited tuple to avoid FromRow size limit)
+    #[allow(clippy::type_complexity)]
     let existing_basic: Option<(i64, String, String, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
         "SELECT id, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, title, alt_phone, company_name FROM guests WHERE id = $1 AND deleted_at IS NULL"
     )
@@ -488,6 +488,7 @@ pub async fn get_guest_bookings_handler(
     State(pool): State<DbPool>,
     Path(guest_id): Path<i64>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+    #[allow(clippy::type_complexity)]
     let rows: Vec<(i64, Option<String>, NaiveDate, NaiveDate, Option<i32>, String, Decimal, DateTime<Utc>, String, String)> = sqlx::query_as(
         r#"
         SELECT
@@ -728,6 +729,7 @@ pub async fn get_guest_credits_handler(
     // Get credits by room type from the guest_complimentary_credits table
     // If it doesn't exist, we'll try to create it from the legacy complimentary_nights_credit field
     // Note: gcc.id is i32 (integer), guest_id and room_type_id are i64 (bigint)
+    #[allow(clippy::type_complexity)]
     let credits: Vec<(i32, i64, i64, String, String, i32, DateTime<Utc>, DateTime<Utc>)> = sqlx::query_as(
         r#"
         SELECT

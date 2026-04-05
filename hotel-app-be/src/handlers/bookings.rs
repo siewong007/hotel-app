@@ -69,7 +69,7 @@ pub async fn get_bookings_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let bookings: Vec<BookingWithDetails> = rows.iter()
-        .map(|row| row_mappers::row_to_booking_with_details(row))
+        .map(row_mappers::row_to_booking_with_details)
         .collect();
 
     Ok(Json(PaginatedResponse {
@@ -99,7 +99,7 @@ pub async fn get_my_bookings_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let bookings: Vec<BookingWithDetails> = rows.iter()
-        .map(|row| row_mappers::row_to_booking_with_details(row))
+        .map(row_mappers::row_to_booking_with_details)
         .collect();
 
     Ok(Json(bookings))
@@ -315,7 +315,7 @@ pub async fn create_booking_handler(
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let booking: Booking = {
         let deposit_amount = deposit_amount_f64.map(|d| Decimal::from_f64_retain(d).unwrap_or(Decimal::ZERO));
-        let rate_override_decimal = rate_override_value.and_then(|r| Decimal::from_f64_retain(r));
+        let rate_override_decimal = rate_override_value.and_then(Decimal::from_f64_retain);
         sqlx::query_as(
             r#"
             INSERT INTO bookings (
@@ -381,8 +381,8 @@ pub async fn create_booking_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Record payment if deposit was paid during booking creation
-    if let Some(amount_paid) = input.amount_paid {
-        if amount_paid > 0.0 {
+    if let Some(amount_paid) = input.amount_paid
+        && amount_paid > 0.0 {
             let payment_amount = Decimal::from_f64_retain(amount_paid).unwrap_or(Decimal::ZERO);
             let payment_method_str = input.payment_method.as_deref().unwrap_or("Cash");
             let _ = sqlx::query(
@@ -398,7 +398,6 @@ pub async fn create_booking_handler(
             .execute(&mut *tx)
             .await;
         }
-    }
 
     // Commit the transaction - all conflict check + insert + room update are now atomic
     tx.commit().await
@@ -521,11 +520,10 @@ pub async fn update_booking_handler(
         existing_booking.check_out_date
     };
 
-    if input.check_in_date.is_some() || input.check_out_date.is_some() {
-        if check_out < check_in {
+    if (input.check_in_date.is_some() || input.check_out_date.is_some())
+        && check_out < check_in {
             return Err(ApiError::BadRequest("Check-out date must be on or after check-in date".to_string()));
         }
-    }
 
     // Check for room conflicts when room or dates change
     let room_changed = input.room_id.is_some() && new_room_id != existing_booking.room_id;
@@ -701,7 +699,7 @@ pub async fn update_booking_handler(
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let booking: Booking = {
         let deposit_amount = deposit_amount_f64.map(|d| Decimal::from_f64_retain(d).unwrap_or(Decimal::ZERO));
-        let rate_override_decimal = input.room_rate_override.and_then(|r| Decimal::from_f64_retain(r));
+        let rate_override_decimal = input.room_rate_override.and_then(Decimal::from_f64_retain);
         sqlx::query_as(
             r#"UPDATE bookings SET
                 room_id = $1, status = $2, check_in_date = $3, check_out_date = $4,
@@ -731,7 +729,7 @@ pub async fn update_booking_handler(
             WHERE id = $7
             RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type"#
         )
-        .bind(&new_room_id)
+        .bind(new_room_id)
         .bind(&new_status)
         .bind(check_in)
         .bind(check_out)
@@ -1113,17 +1111,16 @@ pub async fn manual_checkin_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    if let Some(status) = room_status {
-        if status == "maintenance" || status == "out_of_order" {
+    if let Some(status) = room_status
+        && (status == "maintenance" || status == "out_of_order") {
             return Err(ApiError::BadRequest(format!(
                 "Cannot check in - room is currently under {}.",
                 status.replace("_", " ")
             )));
         }
-    }
 
-    if let Some(ref checkin) = checkin_data {
-        if let Some(ref guest_update) = checkin.guest_update {
+    if let Some(ref checkin) = checkin_data
+        && let Some(ref guest_update) = checkin.guest_update {
             let mut updates = vec!["updated_at = CURRENT_TIMESTAMP".to_string()];
             let mut params: Vec<String> = vec![];
 
@@ -1163,11 +1160,10 @@ pub async fn manual_checkin_handler(
                 }
             }
         }
-    }
 
     // Apply booking_update fields if provided (market_code, payment_method, special_requests, etc.)
-    if let Some(ref checkin) = checkin_data {
-        if let Some(ref booking_update) = checkin.booking_update {
+    if let Some(ref checkin) = checkin_data
+        && let Some(ref booking_update) = checkin.booking_update {
             let mut updates = vec![];
             let mut params: Vec<String> = vec![];
 
@@ -1188,7 +1184,6 @@ pub async fn manual_checkin_handler(
                 }
             }
         }
-    }
 
     let updated_booking: Booking = sqlx::query_as(
         r#"
@@ -1202,9 +1197,9 @@ pub async fn manual_checkin_handler(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Record payment if provided during check-in
-    if let Some(ref checkin) = checkin_data {
-        if let Some(ref payment) = checkin.payment_record {
-            if payment.amount > 0.0 {
+    if let Some(ref checkin) = checkin_data
+        && let Some(ref payment) = checkin.payment_record
+            && payment.amount > 0.0 {
                 let pay_amount = Decimal::from_f64_retain(payment.amount)
                     .unwrap_or(Decimal::ZERO);
                 let pay_type = payment.payment_type.as_deref().unwrap_or("booking");
@@ -1224,20 +1219,17 @@ pub async fn manual_checkin_handler(
                     log::warn!("Failed to record check-in payment for booking {}: {}", booking_id, e);
                 }
             }
-        }
-    }
 
     // Only update room status for current/future bookings (skip back-dated)
     let today = chrono::Local::now().date_naive();
-    if booking.check_out_date >= today {
-        if let Err(e) = sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
+    if booking.check_out_date >= today
+        && let Err(e) = sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
             .bind(booking.room_id)
             .execute(&pool)
             .await
         {
             log::warn!("Failed to update room {} to occupied during check-in: {}", booking.room_id, e);
         }
-    }
 
     // Log check-in
     let _ = AuditLog::log_event(
@@ -2311,11 +2303,10 @@ pub async fn update_guest_credits_handler(
         )));
     }
 
-    if let Some(nights) = input.nights_available {
-        if nights < 0 {
+    if let Some(nights) = input.nights_available
+        && nights < 0 {
             return Err(ApiError::BadRequest("Nights available cannot be negative".to_string()));
         }
-    }
 
     // Build update query dynamically
     let mut updates = Vec::new();

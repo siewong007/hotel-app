@@ -60,9 +60,7 @@ impl Sanitizer {
         let mut result = String::new();
 
         for (i, c) in trimmed.chars().enumerate() {
-            if c.is_ascii_digit() {
-                result.push(c);
-            } else if i == 0 && c == '+' {
+            if c.is_ascii_digit() || (i == 0 && c == '+') {
                 result.push(c);
             }
             // Skip all other characters (spaces, dashes, parentheses, etc.)

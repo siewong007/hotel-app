@@ -88,7 +88,7 @@ export interface BookingWithDetails extends Booking {
   formatted_check_out?: string;
   formatted_total?: string;
   is_active?: boolean;
-  can_cancel?: boolean;
+  can_void?: boolean;
   can_modify?: boolean;
   is_tourist?: boolean;
   tourism_tax_amount?: number | string;

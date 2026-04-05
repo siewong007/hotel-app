@@ -186,8 +186,8 @@ pub async fn record_payment_handler(
     let mut tx = pool.begin().await.map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Idempotency check: if a transaction_reference is provided, check for duplicates
-    if let Some(ref txn_ref) = request.transaction_reference {
-        if !txn_ref.is_empty() {
+    if let Some(ref txn_ref) = request.transaction_reference
+        && !txn_ref.is_empty() {
             let duplicate: Option<i64> = sqlx::query_scalar(
                 "SELECT id FROM payments WHERE transaction_id = $1 LIMIT 1"
             )
@@ -200,7 +200,6 @@ pub async fn record_payment_handler(
                 return Err(ApiError::BadRequest("A payment with this transaction reference already exists".to_string()));
             }
         }
-    }
 
     // Parse optional payment_date to override created_at
     let created_at_override: Option<String> = request.payment_date.as_ref().map(|d| format!("{} 12:00:00", d));

@@ -5,18 +5,13 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 /// Guest membership type for pricing differentiation
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type, Default)]
 #[sqlx(type_name = "guest_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum GuestType {
     Member,
+    #[default]
     NonMember,
-}
-
-impl Default for GuestType {
-    fn default() -> Self {
-        GuestType::NonMember
-    }
 }
 
 /// Tourism type for tourism tax calculation

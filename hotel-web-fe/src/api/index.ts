@@ -107,7 +107,7 @@ export class HotelAPIService {
   static updateBooking = BookingsService.updateBooking;
   static checkInGuest = BookingsService.checkInGuest;
   static preCheckInUpdate = BookingsService.preCheckInUpdate;
-  static cancelBooking = BookingsService.cancelBooking;
+  static voidBooking = BookingsService.voidBooking;
   static getBookingById = BookingsService.getBookingById;
   static getBookingsWithDetails = BookingsService.getBookingsWithDetails;
   static markBookingComplimentary = BookingsService.markBookingComplimentary;

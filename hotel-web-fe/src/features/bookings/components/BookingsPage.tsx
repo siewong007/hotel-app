@@ -8,7 +8,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   Card,
   CardContent,
   Chip,
@@ -32,6 +31,7 @@ import {
   TableSortLabel,
   ToggleButtonGroup,
   ToggleButton,
+  alpha,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -40,7 +40,6 @@ import {
   Edit as EditIcon,
   CheckCircle as CheckCircleIcon,
   ExitToApp as CheckOutIcon,
-  Cancel as CancelIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
   Today as TodayIcon,
@@ -766,15 +765,16 @@ const BookingsPage: React.FC = () => {
 
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          Booking Management
-        </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 600, color: '#103931' }}>Booking Management</Typography>
+        </Box>
         <Box display="flex" gap={2}>
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
             onClick={loadData}
+            sx={{ borderRadius: 2, textTransform: 'none', boxShadow: 'none' }}
           >
             Refresh
           </Button>
@@ -783,6 +783,7 @@ const BookingsPage: React.FC = () => {
             startIcon={<BookIcon />}
             onClick={() => setCreateDialogOpen(true)}
             disabled={rooms.length === 0 || guests.length === 0}
+            sx={{ borderRadius: 2, bgcolor: '#009688', textTransform: 'none', boxShadow: 'none', '&:hover': { bgcolor: '#00796b' } }}
           >
             New Booking
           </Button>
@@ -805,69 +806,29 @@ const BookingsPage: React.FC = () => {
 
       {/* Statistics Cards */}
       <Grid container spacing={2} mb={3}>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
-                <BookIcon color="primary" sx={{ mr: 1 }} />
-                <Typography variant="h6">Total Bookings</Typography>
-              </Box>
-              <Typography variant="h4" color="primary">
-                {stats.total}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
-                <CheckCircleIcon color="success" sx={{ mr: 1 }} />
-                <Typography variant="h6">Checked In</Typography>
-              </Box>
-              <Typography variant="h4" color="success.main">
-                {stats.checkedIn}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
-                <TodayIcon color="warning" sx={{ mr: 1 }} />
-                <Typography variant="h6">Today Check-ins</Typography>
-              </Box>
-              <Typography variant="h4" color="warning.main">
-                {stats.todayCheckIns}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <Card>
-            <CardContent>
-              <Box display="flex" alignItems="center" mb={1}>
-                <HotelIcon color="info" sx={{ mr: 1 }} />
-                <Typography variant="h6">Available Rooms</Typography>
-              </Box>
-              <Typography variant="h4" color="info.main">
-                {stats.availableRooms}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+        {[
+          { title: 'Total Bookings', value: stats.total, color: '#009688', icon: <BookIcon sx={{ fontSize: 18, color: '#103931' }} /> },
+          { title: 'Checked In', value: stats.checkedIn, color: '#4caf50', icon: <CheckCircleIcon sx={{ fontSize: 18, color: '#103931' }} /> },
+          { title: "Today's Check-ins", value: stats.todayCheckIns, color: '#ff9800', icon: <TodayIcon sx={{ fontSize: 18, color: '#103931' }} /> },
+          { title: 'Available Rooms', value: stats.availableRooms, color: '#00bcd4', icon: <HotelIcon sx={{ fontSize: 18, color: '#103931' }} /> },
+        ].map((stat, idx) => (
+          <Grid size={{ xs: 6, sm: 3 }} key={idx}>
+            <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid #edf2f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  {stat.icon}
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#103931' }}>{stat.title}</Typography>
+                </Box>
+                <Typography variant="h5" sx={{ fontWeight: 600, color: stat.color }}>{stat.value}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
       </Grid>
 
       {/* Filters and Search */}
-      <Card sx={{ mb: 3, p: 2 }}>
-        <Box display="flex" alignItems="center" gap={1} mb={2}>
-          <FilterIcon color="action" />
-          <Typography variant="h6">Filters & Search</Typography>
-        </Box>
+      <Card elevation={0} sx={{ mb: 3, borderRadius: 2, border: '1px solid #edf2f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
 
         <Grid container spacing={2}>
           {/* Search */}
@@ -1021,242 +982,207 @@ const BookingsPage: React.FC = () => {
             </Typography>
           )}
         </Box>
+        </CardContent>
       </Card>
 
       {/* Bookings Table */}
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-              <TableCell>
-                <TableSortLabel
-                  active={sortField === 'folio_number'}
-                  direction={sortField === 'folio_number' ? sortOrder : 'asc'}
-                  onClick={() => handleSort('folio_number')}
-                >
-                  <strong>Booking #</strong>
-                </TableSortLabel>
-              </TableCell>
-              <TableCell>
-                <TableSortLabel
-                  active={sortField === 'guest_name'}
-                  direction={sortField === 'guest_name' ? sortOrder : 'asc'}
-                  onClick={() => handleSort('guest_name')}
-                >
-                  <strong>Guest Name</strong>
-                </TableSortLabel>
-              </TableCell>
-              <TableCell>
-                <TableSortLabel
-                  active={sortField === 'room_number'}
-                  direction={sortField === 'room_number' ? sortOrder : 'asc'}
-                  onClick={() => handleSort('room_number')}
-                >
-                  <strong>Room</strong>
-                </TableSortLabel>
-              </TableCell>
-              <TableCell>
-                <TableSortLabel
-                  active={sortField === 'check_in_date'}
-                  direction={sortField === 'check_in_date' ? sortOrder : 'asc'}
-                  onClick={() => handleSort('check_in_date')}
-                >
-                  <strong>Check-in</strong>
-                </TableSortLabel>
-              </TableCell>
-              <TableCell>
-                <TableSortLabel
-                  active={sortField === 'check_out_date'}
-                  direction={sortField === 'check_out_date' ? sortOrder : 'asc'}
-                  onClick={() => handleSort('check_out_date')}
-                >
-                  <strong>Check-out</strong>
-                </TableSortLabel>
-              </TableCell>
-              <TableCell><strong>Room Rate</strong></TableCell>
-              <TableCell><strong>Channel</strong></TableCell>
-              <TableCell><strong>Payment Method</strong></TableCell>
-              <TableCell><strong>Payment Status</strong></TableCell>
-              <TableCell><strong>Notes</strong></TableCell>
-              <TableCell>
-                <TableSortLabel
-                  active={sortField === 'status'}
-                  direction={sortField === 'status' ? sortOrder : 'asc'}
-                  onClick={() => handleSort('status')}
-                >
-                  <strong>Status</strong>
-                </TableSortLabel>
-              </TableCell>
-              {isAdmin && <TableCell><strong>Actions</strong></TableCell>}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredAndSortedBookings.map((booking) => (
-              <TableRow
-                key={booking.id}
-                hover
-                sx={{
-                  opacity: booking.status === 'voided' ? 0.6 : 1,
-                  bgcolor: booking.status === 'voided' ? 'grey.100' : 'inherit',
-                  textDecoration: booking.status === 'voided' ? 'line-through' : 'none',
-                  '& td': {
-                    textDecoration: booking.status === 'voided' ? 'line-through' : 'none',
-                  }
-                }}
-              >
-                <TableCell>{booking.booking_number || booking.folio_number || '-'}</TableCell>
-                <TableCell>{booking.guest_name}</TableCell>
+      <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid #edf2f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+        <TableContainer>
+          <Table size="small" sx={{ minWidth: 900 }}>
+            <TableHead>
+              <TableRow sx={{ bgcolor: '#fbfcfc' }}>
                 <TableCell>
-                  <Box>
-                    <Typography variant="body2">{booking.room_type}</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Room {booking.room_number}
-                    </Typography>
-                  </Box>
+                  <TableSortLabel active={sortField === 'folio_number'} direction={sortField === 'folio_number' ? sortOrder : 'asc'} onClick={() => handleSort('folio_number')}>
+                    Booking #
+                  </TableSortLabel>
                 </TableCell>
-                <TableCell>{booking.formatted_check_in || booking.check_in_date.split('T')[0]}</TableCell>
                 <TableCell>
-                  {(() => {
-                    const scheduledCheckout = booking.formatted_check_out || booking.check_out_date.split('T')[0];
-                    const actualCheckout = booking.actual_check_out ? booking.actual_check_out.split('T')[0] : null;
-                    const isEarlyCheckout = actualCheckout && actualCheckout < booking.check_out_date.split('T')[0];
-
-                    if (isEarlyCheckout) {
-                      return (
-                        <Tooltip title={`Originally scheduled: ${scheduledCheckout}`}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Typography variant="body2">{actualCheckout}</Typography>
-                            <Chip label="Early" size="small" color="info" sx={{ height: 18, fontSize: '0.65rem' }} />
-                          </Box>
-                        </Tooltip>
-                      );
+                  <TableSortLabel active={sortField === 'guest_name'} direction={sortField === 'guest_name' ? sortOrder : 'asc'} onClick={() => handleSort('guest_name')}>
+                    Guest
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell>
+                  <TableSortLabel active={sortField === 'room_number'} direction={sortField === 'room_number' ? sortOrder : 'asc'} onClick={() => handleSort('room_number')}>
+                    Room
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell>
+                  <TableSortLabel active={sortField === 'check_in_date'} direction={sortField === 'check_in_date' ? sortOrder : 'asc'} onClick={() => handleSort('check_in_date')}>
+                    Check-in
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell>
+                  <TableSortLabel active={sortField === 'check_out_date'} direction={sortField === 'check_out_date' ? sortOrder : 'asc'} onClick={() => handleSort('check_out_date')}>
+                    Check-out
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell>Rate</TableCell>
+                <TableCell>Channel</TableCell>
+                <TableCell>Payment</TableCell>
+                <TableCell>Notes</TableCell>
+                <TableCell>
+                  <TableSortLabel active={sortField === 'status'} direction={sortField === 'status' ? sortOrder : 'asc'} onClick={() => handleSort('status')}>
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                {isAdmin && <TableCell align="center">Check In</TableCell>}
+                {isAdmin && <TableCell align="center">Edit</TableCell>}
+                {isAdmin && <TableCell align="center">Payment</TableCell>}
+                {isAdmin && <TableCell align="center">Void</TableCell>}
+                {isAdmin && <TableCell align="center">Invoice</TableCell>}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredAndSortedBookings.map((booking) => (
+                <TableRow
+                  key={booking.id}
+                  hover
+                  sx={{
+                    opacity: booking.status === 'voided' ? 0.55 : 1,
+                    bgcolor: booking.status === 'voided' ? 'grey.50' : 'inherit',
+                    '& td': {
+                      textDecoration: booking.status === 'voided' ? 'line-through' : 'none',
                     }
-                    return scheduledCheckout;
-                  })()}
-                </TableCell>
-                <TableCell>{formatCurrency(Number(booking.price_per_night) || 0)}</TableCell>
-                <TableCell>
-                  <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                    {booking.source?.replace(/_/g, ' ') || '-'}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                    {booking.payment_method?.replace(/_/g, ' ') || '-'}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={getPaymentStatusText(booking.payment_status)}
-                    color={getPaymentStatusColor(booking.payment_status)}
-                    size="small"
-                    variant="outlined"
-                  />
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2" sx={{
-                    maxWidth: 150,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {[booking.remarks, booking.special_requests].filter(Boolean).join(' | ') || '-'}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={getBookingStatusText(booking.status)}
-                    color={getBookingStatusColor(booking.status)}
-                    size="small"
-                  />
-                </TableCell>
-                {isAdmin && (
+                  }}
+                >
                   <TableCell>
-                    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                      {canCheckIn(booking) && (
+                    <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                      {booking.booking_number || booking.folio_number || '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{booking.guest_name}</Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2">{booking.room_type}</Typography>
+                    <Typography variant="caption" color="text.secondary">Rm {booking.room_number}</Typography>
+                  </TableCell>
+                  <TableCell>{booking.formatted_check_in || booking.check_in_date.split('T')[0]}</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const scheduledCheckout = booking.formatted_check_out || booking.check_out_date.split('T')[0];
+                      const actualCheckout = booking.actual_check_out ? booking.actual_check_out.split('T')[0] : null;
+                      const isEarlyCheckout = actualCheckout && actualCheckout < booking.check_out_date.split('T')[0];
+                      if (isEarlyCheckout) {
+                        return (
+                          <Tooltip title={`Originally scheduled: ${scheduledCheckout}`}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Typography variant="body2">{actualCheckout}</Typography>
+                              <Chip label="Early" size="small" color="info" sx={{ height: 16, fontSize: '0.6rem' }} />
+                            </Box>
+                          </Tooltip>
+                        );
+                      }
+                      return scheduledCheckout;
+                    })()}
+                  </TableCell>
+                  <TableCell>{formatCurrency(Number(booking.price_per_night) || 0)}</TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
+                      {booking.source?.replace(/_/g, ' ') || '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                      <Chip
+                        label={getPaymentStatusText(booking.payment_status)}
+                        color={getPaymentStatusColor(booking.payment_status)}
+                        size="small"
+                        variant="outlined"
+                        sx={{ height: 18, fontSize: '0.65rem' }}
+                      />
+                      {booking.payment_method && (
+                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
+                          {booking.payment_method.replace(/_/g, ' ')}
+                        </Typography>
+                      )}
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {[booking.remarks, booking.special_requests].filter(Boolean).join(' | ') || '-'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={getBookingStatusText(booking.status)}
+                      color={getBookingStatusColor(booking.status)}
+                      size="small"
+                      sx={{ height: 20, fontSize: '0.68rem' }}
+                    />
+                  </TableCell>
+                  {isAdmin && (
+                    <TableCell align="center">
+                      {canCheckIn(booking) ? (
                         <Tooltip title="Check In">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleCheckIn(booking.id)}
-                            color="success"
-                          >
-                            <CheckCircleIcon />
+                          <IconButton size="small" onClick={() => handleCheckIn(booking.id)} color="success">
+                            <LoginIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                      )}
-                      {canCheckOut(booking) && (
+                      ) : canCheckOut(booking) ? (
                         <Tooltip title="Check Out">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleCheckOut(booking)}
-                            color="warning"
-                          >
-                            <CheckOutIcon />
+                          <IconButton size="small" onClick={() => handleCheckOut(booking)} color="warning">
+                            <CheckOutIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                      )}
+                      ) : null}
+                    </TableCell>
+                  )}
+                  {isAdmin && (
+                    <TableCell align="center">
                       <Tooltip title="Edit Booking">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleEditBooking(booking)}
-                          color="primary"
-                        >
-                          <EditIcon />
+                        <IconButton size="small" onClick={() => handleEditBooking(booking)} color="primary">
+                          <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
+                    </TableCell>
+                  )}
+                  {isAdmin && (
+                    <TableCell align="center">
                       {!booking.is_complimentary && (
-                        <Tooltip title="Collect Room Payment">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleUpdatePaymentStatus(booking)}
-                            color="info"
-                          >
-                            <PaymentIcon />
+                        <Tooltip title="Collect Payment">
+                          <IconButton size="small" onClick={() => handleUpdatePaymentStatus(booking)} color="info">
+                            <PaymentIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       )}
-
+                    </TableCell>
+                  )}
+                  {isAdmin && (
+                    <TableCell align="center">
                       {canVoid(booking) && (
                         <Tooltip title="Void Booking">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleVoidBooking(booking)}
-                            color="default"
-                          >
-                            <VoidIcon />
+                          <IconButton size="small" onClick={() => handleVoidBooking(booking)} sx={{ color: 'text.secondary' }}>
+                            <VoidIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       )}
                       {canReactivate(booking) && (
-                        <Tooltip title="Reactivate Booking">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleReactivateBooking(booking)}
-                            color="success"
-                          >
-                            <RestoreIcon />
+                        <Tooltip title="Reactivate">
+                          <IconButton size="small" onClick={() => handleReactivateBooking(booking)} color="success">
+                            <RestoreIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       )}
+                    </TableCell>
+                  )}
+                  {isAdmin && (
+                    <TableCell align="center">
                       {booking.status === 'checked_out' && (
                         <Tooltip title="View Invoice">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleViewInvoice(booking)}
-                            color="primary"
-                          >
-                            <ReceiptIcon />
+                          <IconButton size="small" onClick={() => handleViewInvoice(booking)} color="primary">
+                            <ReceiptIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       )}
-                    </Box>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Card>
 
       {filteredAndSortedBookings.length === 0 && (
         <Box textAlign="center" py={4}>
@@ -1734,7 +1660,7 @@ const BookingsPage: React.FC = () => {
         <DialogContent sx={{ pt: 3 }}>
           {checkinBooking && (
             <Box>
-              <Paper elevation={0} sx={{ p: 2, mb: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
+              <Box sx={{ p: 2, mb: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
                 <Typography variant="subtitle2" color="text.secondary" gutterBottom>
                   Booking #{checkinBooking.booking_number}
                 </Typography>
@@ -1763,7 +1689,7 @@ const BookingsPage: React.FC = () => {
                     <Typography variant="body2" fontWeight={500}>{formatCurrency(Number(checkinBooking.total_amount || 0))}</Typography>
                   </Grid>
                 </Grid>
-              </Paper>
+              </Box>
 
               <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Payment</Typography>
               <ToggleButtonGroup value={ciPaymentChoice} exclusive onChange={(_, val) => { if (val) setCiPaymentChoice(val); }} fullWidth size="small" sx={{ mb: 1.5 }}>

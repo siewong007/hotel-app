@@ -87,7 +87,7 @@ pub async fn list_companies_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?
     };
 
-    let companies: Vec<Company> = rows.iter().map(|row| row_mappers::row_to_company(row)).collect();
+    let companies: Vec<Company> = rows.iter().map(row_mappers::row_to_company).collect();
 
     Ok(Json(companies))
 }
