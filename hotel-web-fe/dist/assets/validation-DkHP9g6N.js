@@ -1,0 +1,1 @@
+var e=e=>!e||!e.trim()?`Email is required`:/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())?``:`Please enter a valid email address`,t=t=>e(t)===``;export{e as n,t};

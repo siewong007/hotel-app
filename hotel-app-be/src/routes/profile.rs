@@ -25,8 +25,8 @@ pub fn routes() -> Router<DbPool> {
         .route("/profile/password", post(update_password))
         // Passkey management
         .route("/profile/passkeys", get(list_passkeys))
-        .route("/profile/passkeys/:id", delete(delete_passkey))
-        .route("/profile/passkeys/:id", patch(update_passkey))
+        .route("/profile/passkeys/{id}", delete(delete_passkey))
+        .route("/profile/passkeys/{id}", patch(update_passkey))
         // 2FA management (profile-specific endpoints)
         .route("/profile/2fa/setup", post(setup_2fa))
         .route("/profile/2fa/enable", post(enable_2fa))

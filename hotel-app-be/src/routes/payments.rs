@@ -18,17 +18,17 @@ use crate::core::error::ApiError;
 pub fn routes() -> Router<DbPool> {
     Router::new()
         // Payment routes
-        .route("/payments/calculate/:booking_id", get(calculate_payment))
+        .route("/payments/calculate/{booking_id}", get(calculate_payment))
         .route("/payments/record-payment", post(record_payment))
-        .route("/payments/all-payments/:booking_id", get(get_all_payments))
-        .route("/payments/refund-deposit/:booking_id", post(refund_deposit))
-        .route("/payments/booking/:booking_id", get(get_payment))
-        .route("/payments/:payment_id", patch(update_payment))
-        .route("/payments/:payment_id", delete(delete_payment))
+        .route("/payments/all-payments/{booking_id}", get(get_all_payments))
+        .route("/payments/refund-deposit/{booking_id}", post(refund_deposit))
+        .route("/payments/booking/{booking_id}", get(get_payment))
+        .route("/payments/{payment_id}", patch(update_payment))
+        .route("/payments/{payment_id}", delete(delete_payment))
         .route("/payments", post(create_payment))
         // Invoice routes
-        .route("/invoices/preview/:booking_id", get(get_invoice_preview))
-        .route("/invoices/generate/:booking_id", post(generate_invoice))
+        .route("/invoices/preview/{booking_id}", get(get_invoice_preview))
+        .route("/invoices/generate/{booking_id}", post(generate_invoice))
         .route("/invoices", get(get_user_invoices))
 }
 

@@ -1,0 +1,9 @@
+Name: libecpg_compat
+Description: PostgreSQL libecpg_compat library
+Url: https://www.postgresql.org/
+Version: 14.19
+Requires: 
+Requires.private: libecpg libpgtypes
+Cflags: -I/opt/homebrew/include/postgresql@14
+Libs: -L/opt/homebrew/lib/postgresql@14 -lecpg_compat
+Libs.private: -L/opt/homebrew/opt/lz4/lib -L/opt/homebrew/opt/openssl@3/lib -L/opt/homebrew/opt/readline/lib -lpgcommon -lpgport -lpq -lm

@@ -19,7 +19,7 @@ use crate::core::error::ApiError;
 pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/settings", get(get_settings))
-        .route("/settings/:key", patch(update_setting))
+        .route("/settings/{key}", patch(update_setting))
         .route("/system/process-checkins", post(process_checkins))
 }
 

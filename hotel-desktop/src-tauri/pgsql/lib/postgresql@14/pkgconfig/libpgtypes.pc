@@ -1,0 +1,9 @@
+Name: libpgtypes
+Description: PostgreSQL libpgtypes library
+Url: https://www.postgresql.org/
+Version: 14.19
+Requires: 
+Requires.private: 
+Cflags: -I/opt/homebrew/include/postgresql@14
+Libs: -L/opt/homebrew/lib/postgresql@14 -lpgtypes
+Libs.private: -L/opt/homebrew/opt/lz4/lib -L/opt/homebrew/opt/openssl@3/lib -L/opt/homebrew/opt/readline/lib -lpgcommon -lpgport -lm

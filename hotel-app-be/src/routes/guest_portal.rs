@@ -17,8 +17,8 @@ use crate::core::error::ApiError;
 pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/guest-portal/verify", post(verify_booking))
-        .route("/guest-portal/booking/:token", get(get_booking))
-        .route("/guest-portal/pre-checkin/:token", post(submit_precheckin))
+        .route("/guest-portal/booking/{token}", get(get_booking))
+        .route("/guest-portal/pre-checkin/{token}", post(submit_precheckin))
 }
 
 async fn verify_booking(

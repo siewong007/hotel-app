@@ -538,6 +538,8 @@ CREATE TABLE IF NOT EXISTS night_audit_posted_nights (
     room_charge DECIMAL(10,2) NOT NULL,     -- room charge (before tax)
     service_tax DECIMAL(10,2) NOT NULL,     -- tax amount
     tourism_tax DECIMAL(10,2) NOT NULL DEFAULT 0, -- tourism tax amount
+    extra_bed_charge DECIMAL(10,2) NOT NULL DEFAULT 0, -- extra bed charge (before tax)
+    extra_bed_tax DECIMAL(10,2) NOT NULL DEFAULT 0,    -- extra bed tax amount
     total_posted DECIMAL(10,2) NOT NULL,    -- total for this night
     audit_run_id BIGINT REFERENCES night_audit_runs(id) ON DELETE SET NULL,
     posted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -611,6 +613,9 @@ DECLARE
     v_service_tax DECIMAL(10, 2);
     v_tourism_tax_per_night DECIMAL(10, 2);
     v_nights INTEGER;
+    v_extra_bed_charge_per_night DECIMAL(10, 2);
+    v_extra_bed_tax DECIMAL(10, 2);
+    v_night_total DECIMAL(10, 2);
 BEGIN
     IF EXISTS (SELECT 1 FROM night_audit_runs WHERE audit_date = p_audit_date AND status = 'completed') THEN
         RAISE EXCEPTION 'Night audit already completed for date %', p_audit_date;
@@ -631,7 +636,8 @@ BEGIN
         SELECT b.id, b.booking_number, b.status, b.room_rate, b.total_amount,
                b.check_in_date, b.check_out_date, b.guest_id, b.room_id,
                COALESCE(b.is_tourist, false) as is_tourist,
-               COALESCE(b.tourism_tax_amount, 0) as tourism_tax_amount
+               COALESCE(b.tourism_tax_amount, 0) as tourism_tax_amount,
+               COALESCE(b.extra_bed_charge, 0) as extra_bed_charge
         FROM bookings b
         WHERE b.status NOT IN ('pending', 'confirmed', 'voided', 'no_show')
         AND b.check_in_date <= p_audit_date
@@ -644,16 +650,28 @@ BEGIN
         v_room_charge := ROUND(v_booking.room_rate / (1 + v_tax_rate), 2);
         v_service_tax := v_booking.room_rate - v_room_charge;
         v_tourism_tax_per_night := 0;
+        v_extra_bed_charge_per_night := 0;
+        v_extra_bed_tax := 0;
+
+        IF v_booking.extra_bed_charge > 0 THEN
+            v_extra_bed_charge_per_night := ROUND(v_booking.extra_bed_charge / (1 + v_tax_rate), 2);
+            v_extra_bed_tax := v_booking.extra_bed_charge - v_extra_bed_charge_per_night;
+        END IF;
 
         IF v_booking.is_tourist AND v_booking.tourism_tax_amount > 0 THEN
             v_nights := GREATEST((v_booking.check_out_date - v_booking.check_in_date), 1);
             v_tourism_tax_per_night := ROUND(v_booking.tourism_tax_amount / v_nights, 2);
         END IF;
 
+        v_night_total := v_booking.room_rate + v_booking.extra_bed_charge + v_tourism_tax_per_night;
+
         INSERT INTO night_audit_posted_nights
-            (booking_id, audit_date, room_rate, room_charge, service_tax, tourism_tax, total_posted, audit_run_id, posted_by)
+            (booking_id, audit_date, room_rate, room_charge, service_tax, tourism_tax,
+             extra_bed_charge, extra_bed_tax, total_posted, audit_run_id, posted_by)
         VALUES
-            (v_booking.id, p_audit_date, v_booking.room_rate, v_room_charge, v_service_tax, v_tourism_tax_per_night, v_booking.room_rate + v_tourism_tax_per_night, v_audit_run_id, p_user_id);
+            (v_booking.id, p_audit_date, v_booking.room_rate, v_room_charge, v_service_tax,
+             v_tourism_tax_per_night, v_extra_bed_charge_per_night, v_extra_bed_tax,
+             v_night_total, v_audit_run_id, p_user_id);
 
         INSERT INTO night_audit_details (audit_run_id, booking_id, record_type, action, data)
         VALUES (v_audit_run_id, v_booking.id, 'booking', 'night_posted',
@@ -664,20 +682,23 @@ BEGIN
                 'room_charge', v_room_charge,
                 'service_tax', v_service_tax,
                 'tourism_tax', v_tourism_tax_per_night,
+                'extra_bed_charge', v_extra_bed_charge_per_night,
+                'extra_bed_tax', v_extra_bed_tax,
                 'check_in_date', v_booking.check_in_date,
                 'check_out_date', v_booking.check_out_date
             )
         );
 
         v_bookings_posted := v_bookings_posted + 1;
-        v_revenue := v_revenue + v_booking.room_rate + v_tourism_tax_per_night;
+        v_revenue := v_revenue + v_night_total;
     END LOOP;
 
     FOR v_booking IN
         SELECT b.id, b.booking_number, b.status, b.room_rate, b.total_amount,
                b.check_in_date, b.check_out_date, b.guest_id, b.room_id,
                COALESCE(b.is_tourist, false) as is_tourist,
-               COALESCE(b.tourism_tax_amount, 0) as tourism_tax_amount
+               COALESCE(b.tourism_tax_amount, 0) as tourism_tax_amount,
+               COALESCE(b.extra_bed_charge, 0) as extra_bed_charge
         FROM bookings b
         WHERE b.status = 'checked_out'
         AND b.check_in_date = p_audit_date
@@ -690,15 +711,27 @@ BEGIN
         v_room_charge := ROUND(v_booking.room_rate / (1 + v_tax_rate), 2);
         v_service_tax := v_booking.room_rate - v_room_charge;
         v_tourism_tax_per_night := 0;
+        v_extra_bed_charge_per_night := 0;
+        v_extra_bed_tax := 0;
+
+        IF v_booking.extra_bed_charge > 0 THEN
+            v_extra_bed_charge_per_night := ROUND(v_booking.extra_bed_charge / (1 + v_tax_rate), 2);
+            v_extra_bed_tax := v_booking.extra_bed_charge - v_extra_bed_charge_per_night;
+        END IF;
 
         IF v_booking.is_tourist AND v_booking.tourism_tax_amount > 0 THEN
             v_tourism_tax_per_night := v_booking.tourism_tax_amount;
         END IF;
 
+        v_night_total := v_booking.room_rate + v_booking.extra_bed_charge + v_tourism_tax_per_night;
+
         INSERT INTO night_audit_posted_nights
-            (booking_id, audit_date, room_rate, room_charge, service_tax, tourism_tax, total_posted, audit_run_id, posted_by)
+            (booking_id, audit_date, room_rate, room_charge, service_tax, tourism_tax,
+             extra_bed_charge, extra_bed_tax, total_posted, audit_run_id, posted_by)
         VALUES
-            (v_booking.id, p_audit_date, v_booking.room_rate, v_room_charge, v_service_tax, v_tourism_tax_per_night, v_booking.room_rate + v_tourism_tax_per_night, v_audit_run_id, p_user_id);
+            (v_booking.id, p_audit_date, v_booking.room_rate, v_room_charge, v_service_tax,
+             v_tourism_tax_per_night, v_extra_bed_charge_per_night, v_extra_bed_tax,
+             v_night_total, v_audit_run_id, p_user_id);
 
         INSERT INTO night_audit_details (audit_run_id, booking_id, record_type, action, data)
         VALUES (v_audit_run_id, v_booking.id, 'booking', 'night_posted',
@@ -709,13 +742,15 @@ BEGIN
                 'room_charge', v_room_charge,
                 'service_tax', v_service_tax,
                 'tourism_tax', v_tourism_tax_per_night,
+                'extra_bed_charge', v_extra_bed_charge_per_night,
+                'extra_bed_tax', v_extra_bed_tax,
                 'check_in_date', v_booking.check_in_date,
                 'check_out_date', v_booking.check_out_date
             )
         );
 
         v_bookings_posted := v_bookings_posted + 1;
-        v_revenue := v_revenue + v_booking.room_rate + v_tourism_tax_per_night;
+        v_revenue := v_revenue + v_night_total;
         v_checkouts := v_checkouts + 1;
     END LOOP;
 

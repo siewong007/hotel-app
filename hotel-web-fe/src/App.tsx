@@ -188,12 +188,6 @@ const theme = createTheme({
   components: {
     MuiCssBaseline: {
       styleOverrides: {
-        // Global styles for preventing screen glitches
-        '*, *::before, *::after': {
-          // Smooth font rendering
-          WebkitFontSmoothing: 'antialiased',
-          MozOsxFontSmoothing: 'grayscale',
-        },
         // Prevent FOUC (Flash of Unstyled Content)
         body: {
           visibility: 'visible',
