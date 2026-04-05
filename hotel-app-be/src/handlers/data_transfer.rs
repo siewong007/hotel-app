@@ -249,13 +249,14 @@ pub async fn import_booking_data_handler(
             let columns: Vec<&str> = obj.keys()
                 .map(|k| k.as_str())
                 .filter(|k| !skip.contains(k))
-                .filter(|k| valid_cols.map_or(true, |vc| vc.contains(*k)))
+                .filter(|k| valid_cols.is_none_or(|vc| vc.contains(*k)))
                 .collect();
 
             let mut value_strs: Vec<String> = Vec::new();
             for col in &columns {
                 let val = &obj[*col];
                 // Null out user FK columns that reference non-existent users
+                #[allow(clippy::collapsible_if)]
                 if user_fk_columns.contains(col) {
                     if let Value::Number(n) = val {
                         if let Some(id) = n.as_i64() {

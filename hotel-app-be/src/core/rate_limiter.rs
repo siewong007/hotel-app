@@ -100,6 +100,7 @@ impl RateLimiter {
     }
 
     /// Check if a request from this IP is allowed. Returns true if allowed.
+    #[allow(dead_code)]
     pub async fn check(&self, ip: IpAddr) -> bool {
         let mut entries = self.entries.lock().await;
         let entry = entries.entry(ip).or_insert_with(RateLimitEntry::new);
@@ -114,6 +115,7 @@ impl RateLimiter {
     }
 
     /// Get the window duration (for Retry-After headers)
+    #[allow(dead_code)]
     pub fn window_secs(&self) -> u64 {
         self.config.window.as_secs()
     }
@@ -129,7 +131,14 @@ pub struct RateLimiters {
     /// Sensitive operations: 10 per 5 minutes per IP (password change, 2FA, refresh)
     pub sensitive: RateLimiter,
     /// General API: 200 per minute per IP (lenient - normal usage)
+    #[allow(dead_code)]
     pub api: RateLimiter,
+}
+
+impl Default for RateLimiters {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RateLimiters {

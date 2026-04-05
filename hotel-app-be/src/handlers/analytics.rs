@@ -501,7 +501,7 @@ async fn generate_journal_by_type(
         // Debit entry (Room Charge)
         transactions.push(serde_json::json!({
             "date": date.and_hms_opt(8, 0, 0).unwrap().and_utc().to_rfc3339(),
-            "folio": folio.clone().unwrap_or_else(|| "".to_string()),
+            "folio": folio.clone().unwrap_or_default(),
             "account_code": "100",
             "description": "[Room Charge]",
             "debit": amount,
@@ -514,7 +514,7 @@ async fn generate_journal_by_type(
         let service_tax = amount * tax_rate;
         transactions.push(serde_json::json!({
             "date": date.and_hms_opt(8, 0, 0).unwrap().and_utc().to_rfc3339(),
-            "folio": folio.unwrap_or_else(|| "".to_string()),
+            "folio": folio.unwrap_or_default(),
             "account_code": "105",
             "description": "[Service Tax]",
             "debit": 0,
@@ -590,11 +590,10 @@ async fn generate_shift_report(
         let source: Option<String> = row.get("source");
 
         total_revenue += total_amount;
-        if let Some(dep) = deposit_amount {
-            if deposit_paid.unwrap_or(false) {
+        if let Some(dep) = deposit_amount
+            && deposit_paid.unwrap_or(false) {
                 total_deposits += dep;
             }
-        }
 
         let method = payment_method.clone().unwrap_or_else(|| "cash".to_string());
         *payment_by_method.entry(method.clone()).or_insert(Decimal::ZERO) += total_amount;
@@ -1445,6 +1444,7 @@ async fn generate_payment_status_report(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Overdue payments (past check-out with unpaid status)
+    #[allow(clippy::type_complexity)]
     let overdue: Vec<(i64, String, String, String, Decimal, NaiveDate, Option<String>)> = sqlx::query_as(
         r#"
         SELECT b.id, b.booking_number, g.full_name, r.room_number, b.total_amount, b.check_out_date, b.payment_status
@@ -1505,6 +1505,7 @@ async fn generate_complimentary_report(
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
     // All complimentary bookings
+    #[allow(clippy::type_complexity)]
     let complimentary: Vec<(i64, String, String, String, NaiveDate, NaiveDate,
                            Option<bool>, Option<String>, Option<NaiveDate>, Option<NaiveDate>,
                            Option<Decimal>, Decimal, Option<i32>, String)> = sqlx::query_as(
@@ -1908,6 +1909,7 @@ async fn generate_company_ledger_statement(
     let company = company_name.ok_or_else(|| ApiError::BadRequest("Company name is required".to_string()))?;
 
     // Get company details from the most recent ledger entry
+    #[allow(clippy::type_complexity)]
     let company_info: Option<(
         String, Option<String>, Option<String>, Option<String>, Option<String>,
         Option<String>, Option<String>, Option<String>, Option<String>, Option<String>
@@ -1933,6 +1935,7 @@ async fn generate_company_ledger_statement(
     ) = company_info.ok_or_else(|| ApiError::NotFound(format!("No ledger entries found for company: {}", company)))?;
 
     // Get all ledger entries for this company
+    #[allow(clippy::type_complexity)]
     let ledger_entries: Vec<(
         i64, String, String, Decimal, Decimal, Decimal, String,
         Option<String>, Option<NaiveDate>, Option<NaiveDate>, chrono::NaiveDateTime

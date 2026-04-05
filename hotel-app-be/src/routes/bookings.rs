@@ -24,7 +24,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/bookings/my-bookings", get(get_my_bookings))
         .route("/bookings/complimentary", get(get_complimentary_bookings))
         .route("/bookings/book-with-credits", post(book_with_credits))
-        .route("/bookings/cancel", post(cancel_booking))
+        .route("/bookings/void", post(void_booking))
         // Complimentary management routes (static paths)
         .route("/complimentary/summary", get(get_complimentary_summary))
         .route("/guests/credits", get(get_guests_with_credits).post(add_guest_credits))
@@ -101,7 +101,7 @@ async fn delete_booking(
     handlers::bookings::delete_booking_handler(State(pool), Extension(user_id), path).await
 }
 
-async fn cancel_booking(
+async fn void_booking(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::BookingCancellationRequest>,

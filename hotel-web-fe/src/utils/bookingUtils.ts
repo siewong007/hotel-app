@@ -267,18 +267,11 @@ export const getPaymentStatusText = (status: string | undefined): string => {
 };
 
 /**
- * Check if booking can be cancelled
+ * Check if booking can be voided
  */
-export const canCancelBooking = (booking: Booking): boolean => {
-  const checkInDate = new Date(booking.check_in_date);
-  const now = new Date();
-  const hoursDiff = (checkInDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-  // Can cancel if:
-  // 1. Status is confirmed or pending
-  // 2. Check-in is more than 24 hours away
-  const validStatuses = [BookingStatus.CONFIRMED, BookingStatus.PENDING, 'confirmed', 'pending'];
-  return validStatuses.includes(booking.status) && hoursDiff > 24;
+export const canVoidBooking = (booking: Booking): boolean => {
+  const validStatuses = [BookingStatus.CONFIRMED, BookingStatus.PENDING, BookingStatus.CHECKED_IN, 'confirmed', 'pending', 'checked_in'];
+  return validStatuses.includes(booking.status);
 };
 
 /**
@@ -325,7 +318,7 @@ export const enhanceBookingDetails = (
     formatted_check_out: formatDateForDisplay(checkOutDate),
     formatted_total: formatCurrency(totalAmount),
     is_active: isBookingActive(booking),
-    can_cancel: canCancelBooking(booking),
+    can_void: canVoidBooking(booking),
     can_modify: canModifyBooking(booking),
   };
 };

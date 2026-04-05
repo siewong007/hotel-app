@@ -261,8 +261,8 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                     }
 
                     // Deposits only post on the check-in night
-                    if check_in_date == audit_date {
-                        if deposit_amount > Decimal::ZERO {
+                    if check_in_date == audit_date
+                        && deposit_amount > Decimal::ZERO {
                             entries.push(JournalEntry {
                                 booking_number: booking_number.clone(),
                                 room_number: room_number.clone(),
@@ -272,7 +272,6 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                                 description: Some("Deposit".to_string()),
                             });
                         }
-                    }
                 }
             }
             Err(e) => {
@@ -395,8 +394,8 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 }
 
                 // Deposits only post on the check-in night
-                if check_in_date == audit_date {
-                    if deposit_amount > Decimal::ZERO {
+                if check_in_date == audit_date
+                    && deposit_amount > Decimal::ZERO {
                         entries.push(JournalEntry {
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
@@ -406,7 +405,6 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                             description: Some("Deposit".to_string()),
                         });
                     }
-                }
             }
             }
             Err(e) => {

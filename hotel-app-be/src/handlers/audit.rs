@@ -80,7 +80,7 @@ pub async fn get_audit_logs(
     require_permission_helper(&pool, &headers, "audit:read").await?;
 
     let page = params.page.unwrap_or(1).max(1);
-    let page_size = params.page_size.unwrap_or(25).min(100).max(1);
+    let page_size = params.page_size.unwrap_or(25).clamp(1, 100);
     let offset = (page - 1) * page_size;
 
     let sort_by = params.sort_by.as_deref().unwrap_or("created_at");

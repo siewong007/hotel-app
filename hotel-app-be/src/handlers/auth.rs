@@ -46,8 +46,8 @@ pub async fn login_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    if is_locked.unwrap_or(false) {
-        if let Some(until) = locked_until {
+    if is_locked.unwrap_or(false)
+        && let Some(until) = locked_until {
             let now = chrono::Utc::now().naive_utc();
             if now < until {
                 let remaining_mins = (until - now).num_minutes() + 1;
@@ -64,7 +64,6 @@ pub async fn login_handler(
                 .await
                 .ok();
         }
-    }
 
     // Check email verification (can be disabled in development with SKIP_EMAIL_VERIFICATION env var)
     let skip_email_verification = std::env::var("SKIP_EMAIL_VERIFICATION")
@@ -293,7 +292,7 @@ pub async fn register_handler(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Validate password
     AuthService::validate_password(&req.password)
-        .map_err(|e| ApiError::BadRequest(e))?;
+        .map_err(ApiError::BadRequest)?;
 
     // Validate email format
     let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();

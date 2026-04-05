@@ -631,11 +631,10 @@ pub async fn redeem_reward_handler(
     }
 
     // Check stock
-    if let Some(stock) = reward.stock_quantity {
-        if stock <= 0 {
+    if let Some(stock) = reward.stock_quantity
+        && stock <= 0 {
             return Err(ApiError::BadRequest("Reward is out of stock".to_string()));
         }
-    }
 
     // Deduct points
     let new_balance = membership.points_balance - reward.points_cost;
@@ -766,7 +765,7 @@ pub async fn create_reward_handler(
     Json(input): Json<RewardInput>,
 ) -> Result<Json<LoyaltyReward>, ApiError> {
     // Validate category
-    let valid_categories = vec!["room_upgrade", "service", "discount", "gift", "dining", "spa", "experience"];
+    let valid_categories = ["room_upgrade", "service", "discount", "gift", "dining", "spa", "experience"];
     if !valid_categories.contains(&input.category.as_str()) {
         return Err(ApiError::BadRequest(format!(
             "Invalid category. Must be one of: {}",
@@ -831,7 +830,7 @@ pub async fn update_reward_handler(
 
     // Validate category if provided
     if let Some(ref category) = input.category {
-        let valid_categories = vec!["room_upgrade", "service", "discount", "gift", "dining", "spa", "experience"];
+        let valid_categories = ["room_upgrade", "service", "discount", "gift", "dining", "spa", "experience"];
         if !valid_categories.contains(&category.as_str()) {
             return Err(ApiError::BadRequest(format!(
                 "Invalid category. Must be one of: {}",
@@ -841,18 +840,16 @@ pub async fn update_reward_handler(
     }
 
     // Validate tier level if provided
-    if let Some(tier_level) = input.minimum_tier_level {
-        if tier_level < 1 || tier_level > 4 {
+    if let Some(tier_level) = input.minimum_tier_level
+        && (!(1..=4).contains(&tier_level)) {
             return Err(ApiError::BadRequest("Minimum tier level must be between 1 and 4".to_string()));
         }
-    }
 
     // Validate points cost if provided
-    if let Some(points_cost) = input.points_cost {
-        if points_cost <= 0 {
+    if let Some(points_cost) = input.points_cost
+        && points_cost <= 0 {
             return Err(ApiError::BadRequest("Points cost must be greater than 0".to_string()));
         }
-    }
 
     // Use provided values or keep existing ones
     let name = input.name.as_ref().unwrap_or(&existing.name);
@@ -1034,11 +1031,10 @@ pub async fn redeem_reward_for_user_handler(
     }
 
     // Check stock
-    if let Some(stock) = reward.stock_quantity {
-        if stock <= 0 {
+    if let Some(stock) = reward.stock_quantity
+        && stock <= 0 {
             return Err(ApiError::BadRequest("Reward is out of stock".to_string()));
         }
-    }
 
     // Deduct points
     let new_balance = membership.points_balance - reward.points_cost;

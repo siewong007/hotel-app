@@ -450,9 +450,9 @@ pub async fn create_customer_ledger_handler(
     let amount = Decimal::from_f64_retain(request.amount)
         .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
     let tax_amount = request.tax_amount
-        .and_then(|v| Decimal::from_f64_retain(v));
+        .and_then(Decimal::from_f64_retain);
     let service_charge = request.service_charge
-        .and_then(|v| Decimal::from_f64_retain(v));
+        .and_then(Decimal::from_f64_retain);
 
     let query_str = format!(
         r#"
@@ -490,8 +490,8 @@ pub async fn create_customer_ledger_handler(
         .bind(&request.expense_type)
         .bind(amount)
         .bind(&request.currency)
-        .bind(&request.booking_id)
-        .bind(&request.guest_id)
+        .bind(request.booking_id)
+        .bind(request.guest_id)
         .bind(invoice_date)
         .bind(due_date)
         .bind(&request.notes)

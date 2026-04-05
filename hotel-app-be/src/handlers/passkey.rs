@@ -160,7 +160,7 @@ pub async fn passkey_register_start_handler(
         let mut rng = rand::rng();
         rand::Rng::random(&mut rng)
     };
-    let challenge_b64 = general_purpose::STANDARD.encode(&challenge_bytes);
+    let challenge_b64 = general_purpose::STANDARD.encode(challenge_bytes);
 
     // Store challenge temporarily (expires in 5 minutes)
     sqlx::query(
@@ -295,7 +295,7 @@ pub async fn passkey_login_start_handler(
         let mut rng = rand::rng();
         rand::Rng::random(&mut rng)
     };
-    let challenge_b64 = general_purpose::STANDARD.encode(&challenge_bytes);
+    let challenge_b64 = general_purpose::STANDARD.encode(challenge_bytes);
 
     // Store challenge
     sqlx::query(

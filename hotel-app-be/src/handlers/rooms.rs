@@ -27,10 +27,10 @@ fn row_to_room_type(row: &DbRow) -> RoomType {
         .unwrap_or_default();
     let weekday_rate: Option<Decimal> = row.try_get::<Decimal, _>("weekday_rate").ok()
         .or_else(|| row.try_get::<String, _>("weekday_rate").ok().and_then(|s| s.parse().ok()))
-        .or_else(|| row.try_get::<f64, _>("weekday_rate").ok().and_then(|f| Decimal::from_f64_retain(f)));
+        .or_else(|| row.try_get::<f64, _>("weekday_rate").ok().and_then(Decimal::from_f64_retain));
     let weekend_rate: Option<Decimal> = row.try_get::<Decimal, _>("weekend_rate").ok()
         .or_else(|| row.try_get::<String, _>("weekend_rate").ok().and_then(|s| s.parse().ok()))
-        .or_else(|| row.try_get::<f64, _>("weekend_rate").ok().and_then(|f| Decimal::from_f64_retain(f)));
+        .or_else(|| row.try_get::<f64, _>("weekend_rate").ok().and_then(Decimal::from_f64_retain));
     let extra_bed_charge: Decimal = row.try_get::<Decimal, _>("extra_bed_charge")
         .or_else(|_| row.try_get::<String, _>("extra_bed_charge").map(|s| s.parse().unwrap_or_default()))
         .or_else(|_| row.try_get::<f64, _>("extra_bed_charge").map(|f| Decimal::from_f64_retain(f).unwrap_or_default()))
@@ -938,12 +938,12 @@ pub async fn update_room_status_handler(
         .bind(&target_status)
         .bind(&input.notes)
         .bind(&status_notes)
-        .bind(&reserved_start)
-        .bind(&reserved_end)
-        .bind(&maintenance_start)
-        .bind(&maintenance_end)
-        .bind(&cleaning_start)
-        .bind(&cleaning_end)
+        .bind(reserved_start)
+        .bind(reserved_end)
+        .bind(maintenance_start)
+        .bind(maintenance_end)
+        .bind(cleaning_start)
+        .bind(cleaning_end)
         .bind(room_id)
         .execute(&pool)
         .await
@@ -961,8 +961,8 @@ pub async fn update_room_status_handler(
             .bind(room_id)
             .bind(&current_status)
             .bind(&target_status)
-            .bind(&history_start)
-            .bind(&history_end)
+            .bind(history_start)
+            .bind(history_end)
             .bind(user_id)
             .bind(&input.notes)
             .execute(&pool)
@@ -1247,7 +1247,7 @@ pub async fn sync_room_statuses_handler(
         "success": true,
         "synced_count": rows.len(),
         "changes": changes,
-        "message": if rows.len() > 0 {
+        "message": if !rows.is_empty() {
             format!("Successfully synchronized {} room(s)", rows.len())
         } else {
             "All room statuses are already consistent".to_string()
@@ -1736,7 +1736,7 @@ pub async fn get_room_reviews_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let reviews: Vec<GuestReview> = rows.iter().map(|row| row_mappers::row_to_guest_review(row)).collect();
+    let reviews: Vec<GuestReview> = rows.iter().map(row_mappers::row_to_guest_review).collect();
     Ok(Json(reviews))
 }
 
@@ -1779,7 +1779,7 @@ pub async fn get_all_room_occupancy_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let occupancy: Vec<RoomCurrentOccupancy> = rows.iter().map(|row| row_mappers::row_to_room_current_occupancy(row)).collect();
+    let occupancy: Vec<RoomCurrentOccupancy> = rows.iter().map(row_mappers::row_to_room_current_occupancy).collect();
     Ok(Json(occupancy))
 }
 
@@ -1906,7 +1906,7 @@ pub async fn get_occupancy_by_room_type_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let occupancy: Vec<OccupancyByRoomType> = rows.iter().map(|row| row_mappers::row_to_occupancy_by_room_type(row)).collect();
+    let occupancy: Vec<OccupancyByRoomType> = rows.iter().map(row_mappers::row_to_occupancy_by_room_type).collect();
 
     Ok(Json(occupancy))
 }

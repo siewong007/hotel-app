@@ -48,6 +48,7 @@ impl PaymentRepository {
     }
 
     /// Create a payment
+    #[allow(clippy::too_many_arguments)]
     pub async fn create(
         pool: &DbPool,
         booking_id: i64,

@@ -156,21 +156,21 @@ export class BookingsService {
     }
   }
 
-  static async cancelBooking(cancellationData: BookingCancellationRequest): Promise<Booking> {
+  static async voidBooking(cancellationData: BookingCancellationRequest): Promise<Booking> {
     try {
       return await api
-        .post('bookings/cancel', { json: cancellationData })
+        .post('bookings/void', { json: cancellationData })
         .json<Booking>();
     } catch (error) {
       if (error instanceof HTTPError) {
         const errorData = await error.response.json().catch(() => ({}));
         throw new APIError(
-          errorData.error || 'Failed to cancel booking',
+          errorData.error || 'Failed to void booking',
           error.response.status,
           errorData
         );
       }
-      throw new APIError('Failed to cancel booking');
+      throw new APIError('Failed to void booking');
     }
   }
 

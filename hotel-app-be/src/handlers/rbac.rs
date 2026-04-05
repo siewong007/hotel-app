@@ -266,7 +266,7 @@ pub async fn create_user_handler(
     }
 
     AuthService::validate_password(&input.password)
-        .map_err(|e| ApiError::BadRequest(e))?;
+        .map_err(ApiError::BadRequest)?;
 
     let password_hash = AuthService::hash_password(&input.password)
         .await

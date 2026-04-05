@@ -17,6 +17,7 @@ impl AuditLog {
     /// * `details` - Additional details as JSON
     /// * `ip_address` - IP address of the requester
     /// * `user_agent` - User agent string from the request
+    #[allow(clippy::too_many_arguments)]
     pub async fn log_event(
         pool: &DbPool,
         user_id: Option<i64>,

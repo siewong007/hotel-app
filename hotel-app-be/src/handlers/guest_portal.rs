@@ -64,7 +64,7 @@ pub async fn verify_guest_booking(
 
     // Verify guest email matches
     let guest = sqlx::query_as::<_, Guest>("SELECT * FROM guests WHERE id = $1")
-        .bind(&booking.guest_id)
+        .bind(booking.guest_id)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(format!("Failed to fetch guest: {}", e)))?;
@@ -107,7 +107,7 @@ pub async fn verify_guest_booking(
     )
     .bind(&token)
     .bind(expires_at)
-    .bind(&booking.id)
+    .bind(booking.id)
     .execute(&pool)
     .await
     .map_err(|e| ApiError::Database(format!("Failed to update token: {}", e)))?;
@@ -150,7 +150,7 @@ pub async fn get_booking_by_token(
 
     // Get guest details
     let guest = sqlx::query_as::<_, Guest>("SELECT * FROM guests WHERE id = $1")
-        .bind(&booking.guest_id)
+        .bind(booking.guest_id)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(format!("Failed to fetch guest: {}", e)))?;
@@ -268,7 +268,7 @@ pub async fn submit_precheckin_update(
         for value in values {
             sqlx_query = sqlx_query.bind(value);
         }
-        sqlx_query = sqlx_query.bind(&booking.guest_id);
+        sqlx_query = sqlx_query.bind(booking.guest_id);
 
         sqlx_query
             .execute(&pool)
@@ -309,7 +309,7 @@ pub async fn submit_precheckin_update(
         for value in booking_values {
             sqlx_query = sqlx_query.bind(value);
         }
-        sqlx_query = sqlx_query.bind(&booking.id);
+        sqlx_query = sqlx_query.bind(booking.id);
 
         sqlx_query
             .execute(&pool)
@@ -319,13 +319,13 @@ pub async fn submit_precheckin_update(
 
     // Return updated data
     let updated_booking = sqlx::query_as::<_, Booking>("SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, created_at, updated_at FROM bookings WHERE id = $1")
-        .bind(&booking.id)
+        .bind(booking.id)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(format!("Failed to fetch updated booking: {}", e)))?;
 
     let updated_guest = sqlx::query_as::<_, Guest>("SELECT * FROM guests WHERE id = $1")
-        .bind(&updated_booking.guest_id)
+        .bind(updated_booking.guest_id)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(format!("Failed to fetch updated guest: {}", e)))?;

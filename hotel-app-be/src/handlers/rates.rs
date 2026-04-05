@@ -338,29 +338,26 @@ pub async fn update_rate_plan(
         has_updates = true;
     }
 
-    if let Some(adjustment_value) = input.adjustment_value {
-        if let Some(val) = Decimal::from_f64_retain(adjustment_value) {
+    if let Some(adjustment_value) = input.adjustment_value
+        && let Some(val) = Decimal::from_f64_retain(adjustment_value) {
             query_builder.push(", adjustment_value = ");
             query_builder.push_bind(val);
             has_updates = true;
         }
-    }
 
-    if let Some(valid_from) = &input.valid_from {
-        if let Ok(date) = NaiveDate::parse_from_str(valid_from, "%Y-%m-%d") {
+    if let Some(valid_from) = &input.valid_from
+        && let Ok(date) = NaiveDate::parse_from_str(valid_from, "%Y-%m-%d") {
             query_builder.push(", valid_from = ");
             query_builder.push_bind(date);
             has_updates = true;
         }
-    }
 
-    if let Some(valid_to) = &input.valid_to {
-        if let Ok(date) = NaiveDate::parse_from_str(valid_to, "%Y-%m-%d") {
+    if let Some(valid_to) = &input.valid_to
+        && let Ok(date) = NaiveDate::parse_from_str(valid_to, "%Y-%m-%d") {
             query_builder.push(", valid_to = ");
             query_builder.push_bind(date);
             has_updates = true;
         }
-    }
 
     if let Some(v) = input.applies_monday {
         query_builder.push(", applies_monday = ");
@@ -630,8 +627,8 @@ pub async fn update_room_rate(
     let mut query_builder = sqlx::QueryBuilder::new("UPDATE room_rates SET ");
     let mut has_updates = false;
 
-    if let Some(price) = input.price {
-        if let Some(price_decimal) = Decimal::from_f64_retain(price) {
+    if let Some(price) = input.price
+        && let Some(price_decimal) = Decimal::from_f64_retain(price) {
             if has_updates {
                 query_builder.push(", ");
             }
@@ -639,10 +636,9 @@ pub async fn update_room_rate(
             query_builder.push_bind(price_decimal);
             has_updates = true;
         }
-    }
 
-    if let Some(effective_from) = &input.effective_from {
-        if let Ok(date) = NaiveDate::parse_from_str(effective_from, "%Y-%m-%d") {
+    if let Some(effective_from) = &input.effective_from
+        && let Ok(date) = NaiveDate::parse_from_str(effective_from, "%Y-%m-%d") {
             if has_updates {
                 query_builder.push(", ");
             }
@@ -650,10 +646,9 @@ pub async fn update_room_rate(
             query_builder.push_bind(date);
             has_updates = true;
         }
-    }
 
-    if let Some(effective_to) = &input.effective_to {
-        if let Ok(date) = NaiveDate::parse_from_str(effective_to, "%Y-%m-%d") {
+    if let Some(effective_to) = &input.effective_to
+        && let Ok(date) = NaiveDate::parse_from_str(effective_to, "%Y-%m-%d") {
             if has_updates {
                 query_builder.push(", ");
             }
@@ -661,7 +656,6 @@ pub async fn update_room_rate(
             query_builder.push_bind(Some(date));
             has_updates = true;
         }
-    }
 
     if !has_updates {
         return Err(RateError::BadRequest(

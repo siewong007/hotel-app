@@ -1,0 +1,4 @@
+hotel-app-be/target/
+hotel-web-fe/node_modules/
+hotel-desktop/node_modules/
+.git/
