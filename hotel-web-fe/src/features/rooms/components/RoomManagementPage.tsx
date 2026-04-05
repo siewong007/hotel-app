@@ -2002,7 +2002,13 @@ const RoomManagementPage: React.FC = () => {
       </Paper>
 
       {/* Room Grid */}
-      <Grid container spacing={2}>
+      <Box 
+        sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(7, 1fr)', lg: 'repeat(7, 1fr)', xl: 'repeat(7, 1fr)' }, 
+          gap: 1.5 
+        }}
+      >
         {rooms.map((room) => {
           const { computedStatus, booking, reservedBooking, hasReservationForToday, hasFutureReservation, futureCheckInDate, isOccupied, isReserved, isReservedToday, isComplimentary } = getRoomStatusInfo(room);
           const compCancelledBooking = compCancelledBookings.get(room.id);
@@ -2013,7 +2019,7 @@ const RoomManagementPage: React.FC = () => {
           // Get colors based on status
           const statusColor = getRoomStatusColor(displayRoom);
           return (
-            <Grid key={room.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
+            <Box key={room.id} sx={{ minWidth: 0 }}>
               <Card
                 elevation={2}
                 sx={{
@@ -2025,6 +2031,7 @@ const RoomManagementPage: React.FC = () => {
                   },
                   position: 'relative',
                   height: 240,
+                  maxWidth: '100%',
                   display: 'flex',
                   flexDirection: 'column',
                   borderRadius: 2,
@@ -2555,10 +2562,10 @@ const RoomManagementPage: React.FC = () => {
                   </Tooltip>
                 </CardContent>
               </Card>
-            </Grid>
+            </Box>
           );
         })}
-      </Grid>
+      </Box>
 
       {/* Context Menu */}
       <Menu
