@@ -15,12 +15,12 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Rust-2021-orange?logo=rust" alt="Rust">
-  <img src="https://img.shields.io/badge/Axum-0.7-blue" alt="Axum">
+  <img src="https://img.shields.io/badge/Rust-2024-orange?logo=rust" alt="Rust">
+  <img src="https://img.shields.io/badge/Axum-0.8-blue" alt="Axum">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react" alt="React">
-  <img src="https://img.shields.io/badge/TypeScript-5.7-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white" alt="TypeScript">
   <img src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white" alt="Vite">
-  <img src="https://img.shields.io/badge/MUI-v6-007FFF?logo=mui&logoColor=white" alt="MUI">
+  <img src="https://img.shields.io/badge/MUI-v7-007FFF?logo=mui&logoColor=white" alt="MUI">
   <img src="https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white" alt="Tauri">
   <img src="https://img.shields.io/badge/PostgreSQL-14+-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL">
   <img src="https://img.shields.io/badge/SQLite-supported-003B57?logo=sqlite&logoColor=white" alt="SQLite">
@@ -32,8 +32,8 @@
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | Rust, Axum 0.7, Tokio, SQLx |
-| **Frontend** | React 19, TypeScript 5.7, Vite 8, MUI v6 |
+| **Backend** | Rust 1.94 (2024 edition), Axum 0.8, Tokio, SQLx 0.8 |
+| **Frontend** | React 19, TypeScript 5.8, Vite 8, MUI v7 |
 | **Desktop** | Tauri 2 (Windows, macOS, Linux) |
 | **Database** | PostgreSQL (default), SQLite (optional) |
 | **Auth** | JWT + TOTP 2FA + WebAuthn/Passkeys |
@@ -88,7 +88,7 @@ hotel-app/
 
 ### Prerequisites
 
-- **Rust** (2021 edition) with `cargo`
+- **Rust** 1.94+ (2024 edition) with `cargo`
 - **Node.js** 18+ with `npm`
 - **PostgreSQL** 14+ (or use SQLite for local development)
 
