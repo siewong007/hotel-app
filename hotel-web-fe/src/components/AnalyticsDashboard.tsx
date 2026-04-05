@@ -186,7 +186,7 @@ const AnalyticsDashboard: React.FC = () => {
 
       {/* KPI Cards */}
       <Grid container spacing={3} mb={3}>
-        <Grid item xs={12} md={3}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" mb={1}>
@@ -203,7 +203,7 @@ const AnalyticsDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={3}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" mb={1}>
@@ -220,7 +220,7 @@ const AnalyticsDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={3}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" mb={1}>
@@ -237,7 +237,7 @@ const AnalyticsDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={3}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" mb={1}>
@@ -257,7 +257,7 @@ const AnalyticsDashboard: React.FC = () => {
 
       {/* Charts Section */}
       <Grid container spacing={3}>
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -268,7 +268,7 @@ const AnalyticsDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -279,7 +279,7 @@ const AnalyticsDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12}>
+        <Grid size={12}>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>

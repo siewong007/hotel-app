@@ -899,7 +899,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               const config = BOOKING_MODE_CONFIG[mode];
               const Icon = config.icon;
               return (
-                <Grid item xs={12} sm={6} key={mode}>
+                <Grid key={mode} size={{ xs: 12, sm: 6 }}>
                   <Card
                     sx={{
                       border: bookingMode === mode ? 2 : 1,
@@ -959,7 +959,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               const config = RESERVATION_TYPE_CONFIG[type];
               const Icon = config.icon;
               return (
-                <Grid item xs={12} sm={4} key={type}>
+                <Grid key={type} size={{ xs: 12, sm: 4 }}>
                   <Card
                     sx={{
                       border: reservationType === type ? 2 : 1,
@@ -1016,7 +1016,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           </Typography>
           <Grid container spacing={2}>
             {/* Hourly toggle */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <FormControlLabel
                 control={
                   <Checkbox
@@ -1038,7 +1038,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               />
             </Grid>
             {/* Dates */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 required
@@ -1050,7 +1050,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               />
             </Grid>
             {!isHourlyBooking && (
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   required
@@ -1063,7 +1063,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               </Grid>
             )}
             {isHourlyBooking && (
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Alert severity="info" sx={{ py: 0.5 }}>
                   <Typography variant="body2">
                     Guest will check out at {hotelSettings.check_out_time || '12:00 PM'} on the same day
@@ -1072,7 +1072,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               </Grid>
             )}
             {/* Room selection */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Autocomplete
                 fullWidth
                 options={availableRooms}
@@ -1112,22 +1112,22 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             </Grid>
             {/* Show selected room details */}
             {selectedRoom && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
                   <Grid container spacing={1}>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">Room Number</Typography>
                       <Typography variant="body1" fontWeight={600}>{selectedRoom.room_number}</Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">Room Type</Typography>
                       <Typography variant="body1">{selectedRoom.room_type}</Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">Rate per Night</Typography>
                       <Typography variant="body1">{formatCurrency(Number(selectedRoom.price_per_night))}</Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">Total ({isHourlyBooking ? 'Hourly Stay' : `${numberOfNights} night${numberOfNights > 1 ? 's' : ''}`})</Typography>
                       <Typography variant="body1" fontWeight={600}>{formatCurrency(Number(selectedRoom.price_per_night) * billableNights)}</Typography>
                     </Grid>
@@ -1182,7 +1182,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           <Grid container spacing={2}>
             {/* Hourly toggle - show when dates are shown */}
             {showDates && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <FormControlLabel
                   control={
                     <Checkbox
@@ -1207,7 +1207,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             {/* Dates - only show if room was pre-selected */}
             {showDates && (
               <>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     required
@@ -1219,7 +1219,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                   />
                 </Grid>
                 {!isHourlyBooking && (
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       fullWidth
                       required
@@ -1232,7 +1232,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                   </Grid>
                 )}
                 {isHourlyBooking && (
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <Alert severity="info" sx={{ py: 0.5 }}>
                       <Typography variant="body2">
                         Guest will check out at {hotelSettings.check_out_time || '12:00 PM'} on the same day
@@ -1244,14 +1244,14 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             )}
             {/* Room availability warning for pre-selected rooms */}
             {showDates && roomIsAvailable === false && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Alert severity="warning">
                   Room {room?.room_number} is not available for these dates. It has an overlapping booking. Please choose different dates.
                 </Alert>
               </Grid>
             )}
             {showDates && checkingAvailability && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <CircularProgress size={16} />
                   <Typography variant="body2" color="text.secondary">Checking room availability...</Typography>
@@ -1262,7 +1262,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             {/* Online booking specific fields */}
             {isOnline && (
               <>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <FormControl fullWidth required>
                     <InputLabel>Booking Channel</InputLabel>
                     <Select
@@ -1278,7 +1278,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Booking Reference"
@@ -1293,13 +1293,13 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             {/* Custom Rate Override (for walk-in and online, not complimentary) */}
             {(isWalkIn || isOnline) && (
               <>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Divider sx={{ my: 1 }} />
                   <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
                     Room Rate
                   </Typography>
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <FormControlLabel
                     control={
                       <Checkbox
@@ -1329,7 +1329,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                   />
                 </Grid>
                 {useCustomRate && (
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       fullWidth
                       label="Custom Rate per Night"
@@ -1349,13 +1349,13 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             {/* Tourism Tax Toggle (for walk-in and online, not complimentary) */}
             {(isWalkIn || isOnline) && (
               <>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Divider sx={{ my: 1 }} />
                   <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
                     Tourism Tax
                   </Typography>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   {isTourist ? (
                     <Alert severity="warning" sx={{ py: 0.5 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -1381,13 +1381,13 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             {/* Extra Bed (for walk-in and online, not complimentary) */}
             {(isWalkIn || isOnline) && allowsExtraBed && maxExtraBeds > 0 && (
               <>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Divider sx={{ my: 1 }} />
                   <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
                     Extra Bed
                   </Typography>
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Number of Extra Beds"
@@ -1402,7 +1402,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                     helperText={`${formatCurrency(extraBedChargePerBed)} per extra bed (max ${maxExtraBeds})`}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Extra Bed Charge"
@@ -1419,13 +1419,13 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             )}
 
             {/* Booking Notes */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 1 }} />
               <Typography variant="subtitle2" gutterBottom sx={{ mt: 1 }}>
                 Booking Notes
               </Typography>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 multiline
@@ -1474,7 +1474,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
           <Grid container spacing={2}>
             {/* Booking Type */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                 <Chip
                   label={getModeLabel()}
@@ -1487,25 +1487,25 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               </Box>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider />
             </Grid>
 
             {/* Room Info */}
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">Room</Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" fontWeight={600}>
                 {room?.room_number} ({room?.room_type})
               </Typography>
             </Grid>
 
             {/* Guest Info */}
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">Guest</Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" fontWeight={600}>
                 {effectiveType === 'complimentary'
                   ? selectedGuestWithCredits?.full_name
@@ -1516,22 +1516,22 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             </Grid>
 
             {/* Dates */}
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">Check-in</Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2">{checkInDate}</Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">Check-out</Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2">{checkOutDate}</Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">Duration</Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2">
                 {isHourlyBooking ? (
                   <Chip label="Hourly Stay" size="small" color="warning" sx={{ height: 20, fontSize: '0.75rem' }} />
@@ -1544,18 +1544,18 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             {/* Online booking info */}
             {effectiveType === 'online' && bookingChannel && (
               <>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2" color="text.secondary">Channel</Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2">{bookingChannel}</Typography>
                 </Grid>
                 {bookingReference && (
                   <>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">Reference</Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2">{bookingReference}</Typography>
                     </Grid>
                   </>
@@ -1566,26 +1566,26 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             {/* Booking Notes */}
             {bookingNotes.trim() && (
               <>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2" color="text.secondary">Notes</Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2" sx={{ fontStyle: 'italic' }}>{bookingNotes.trim()}</Typography>
                 </Grid>
               </>
             )}
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider />
             </Grid>
 
             {/* Pricing */}
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" color="text.secondary">
                 Rate{useCustomRate ? ' (Custom)' : ''}
               </Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2">
                 {effectiveType === 'complimentary' ? (
                   <Box component="span" sx={{ textDecoration: 'line-through', color: 'text.disabled' }}>
@@ -1606,12 +1606,12 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             {/* Tourism Tax */}
             {isTourist && effectiveType !== 'complimentary' && (
               <>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2" color="text.secondary">
                     Tourism Tax ({formatCurrency(hotelSettings.tourism_tax_rate)}/{isHourlyBooking ? 'stay' : 'night'})
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2">
                     {formatCurrency(tourismTaxAmount)}
                   </Typography>
@@ -1622,12 +1622,12 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             {/* Extra Bed */}
             {extraBedCount > 0 && effectiveType !== 'complimentary' && (
               <>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2" color="text.secondary">
                     Extra Bed ({extraBedCount})
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="body2">
                     {formatCurrency(extraBedCharge)}
                   </Typography>
@@ -1635,10 +1635,10 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               </>
             )}
 
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" fontWeight={600}>Total</Typography>
             </Grid>
-            <Grid item xs={6}>
+            <Grid size={6}>
               <Typography variant="body2" fontWeight={600} color={effectiveType === 'complimentary' ? 'success.main' : 'text.primary'}>
                 {effectiveType === 'complimentary' ? 'FREE (Complimentary)' : formatCurrency(calculateTotal())}
               </Typography>
@@ -1648,10 +1648,10 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             {/* Credits info for complimentary */}
             {effectiveType === 'complimentary' && selectedGuestWithCredits && (
               <>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Divider />
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Alert severity="info" sx={{ mt: 1 }}>
                     <Typography variant="body2">
                       Using {numberOfNights} night(s) from guest's free room credits

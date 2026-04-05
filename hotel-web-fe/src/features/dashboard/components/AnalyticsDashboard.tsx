@@ -354,21 +354,21 @@ const AnalyticsDashboard: React.FC = () => {
       {loading ? (
         <Grid container spacing={3}>
           {[1, 2, 3, 4].map((i) => (
-            <Grid item xs={12} sm={6} md={3} key={i}>
+            <Grid key={i} size={{ xs: 12, sm: 6, md: 3 }}>
               <Skeleton variant="rectangular" height={120} sx={{ borderRadius: 2 }} />
             </Grid>
           ))}
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Skeleton variant="rectangular" height={300} sx={{ borderRadius: 2 }} />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Skeleton variant="rectangular" height={300} sx={{ borderRadius: 2 }} />
           </Grid>
         </Grid>
       ) : (
         <Grid container spacing={3}>
           {/* Key Stats Row */}
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <StatCard
               title="Total Rooms"
               value={roomStats.totalRooms}
@@ -377,7 +377,7 @@ const AnalyticsDashboard: React.FC = () => {
               color="#1a73e8"
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <StatCard
               title="Occupancy Rate"
               value={`${occupancyRate}%`}
@@ -387,7 +387,7 @@ const AnalyticsDashboard: React.FC = () => {
               trend={{ value: 5, label: 'vs last week' }}
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <StatCard
               title="Today's Check-ins"
               value={bookingStats.todayCheckIns}
@@ -396,7 +396,7 @@ const AnalyticsDashboard: React.FC = () => {
               color="#fbbc04"
             />
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <StatCard
               title="Total Guests"
               value={totalGuests}
@@ -407,7 +407,7 @@ const AnalyticsDashboard: React.FC = () => {
           </Grid>
 
           {/* Occupancy Gauge & Room Status */}
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Card sx={{ height: '100%' }}>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
@@ -433,7 +433,7 @@ const AnalyticsDashboard: React.FC = () => {
           </Grid>
 
           {/* Room Status Distribution */}
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Card sx={{ height: '100%' }}>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
@@ -472,7 +472,7 @@ const AnalyticsDashboard: React.FC = () => {
           </Grid>
 
           {/* Revenue Chart */}
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Card sx={{ height: '100%' }}>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
@@ -494,7 +494,7 @@ const AnalyticsDashboard: React.FC = () => {
           </Grid>
 
           {/* Room Type Breakdown */}
-          <Grid item xs={12} md={8}>
+          <Grid size={{ xs: 12, md: 8 }}>
             <Card>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>
@@ -518,7 +518,7 @@ const AnalyticsDashboard: React.FC = () => {
           </Grid>
 
           {/* Quick Stats */}
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Card sx={{ height: '100%' }}>
               <CardContent>
                 <Typography variant="h6" sx={{ fontWeight: 600, mb: 3 }}>

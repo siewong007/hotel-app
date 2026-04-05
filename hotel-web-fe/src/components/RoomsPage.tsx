@@ -198,7 +198,7 @@ const RoomsPage: React.FC = () => {
           </Typography>
         </Box>
         <Grid container spacing={3} alignItems="center">
-          <Grid item xs={12} sm={4}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               select
               fullWidth
@@ -214,7 +214,7 @@ const RoomsPage: React.FC = () => {
               ))}
             </TextField>
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <TextField
               fullWidth
               label="Max Price ($)"
@@ -224,7 +224,7 @@ const RoomsPage: React.FC = () => {
               placeholder="Enter max price"
             />
           </Grid>
-          <Grid item xs={12} sm={4}>
+          <Grid size={{ xs: 12, sm: 4 }}>
             <Box display="flex" gap={1}>
               <Button
                 variant="contained"
@@ -278,7 +278,7 @@ const RoomsPage: React.FC = () => {
       ) : (
         <Grid container spacing={3}>
           {filteredRooms.map((room) => (
-            <Grid item xs={12} sm={6} md={4} key={room.id}>
+            <Grid key={room.id} size={{ xs: 12, sm: 6, md: 4 }}>
               <Card sx={{
                 height: '100%',
                 display: 'flex',

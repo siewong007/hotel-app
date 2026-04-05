@@ -193,7 +193,7 @@ const ReportsPage: React.FC = () => {
           </Box>
 
           <Grid container spacing={3}>
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 select
                 fullWidth
@@ -208,7 +208,7 @@ const ReportsPage: React.FC = () => {
             </Grid>
 
             {filterType === 'year' && (
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
                   select
                   fullWidth
@@ -225,7 +225,7 @@ const ReportsPage: React.FC = () => {
 
             {filterType === 'month' && (
               <>
-                <Grid item xs={12} md={3}>
+                <Grid size={{ xs: 12, md: 3 }}>
                   <TextField
                     select
                     fullWidth
@@ -238,7 +238,7 @@ const ReportsPage: React.FC = () => {
                     ))}
                   </TextField>
                 </Grid>
-                <Grid item xs={12} md={3}>
+                <Grid size={{ xs: 12, md: 3 }}>
                   <TextField
                     select
                     fullWidth
@@ -255,7 +255,7 @@ const ReportsPage: React.FC = () => {
             )}
 
             {filterType === 'date' && (
-              <Grid item xs={12} md={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
                 <TextField
                   fullWidth
                   label="Date"
@@ -267,7 +267,7 @@ const ReportsPage: React.FC = () => {
               </Grid>
             )}
 
-            <Grid item xs={12} md={filterType === 'date' ? 6 : 3}>
+            <Grid size={{ xs: 12, md: filterType === 'date' ? 6 : 3 }}>
               <Box display="flex" gap={2} height="100%">
                 <Button
                   variant="contained"

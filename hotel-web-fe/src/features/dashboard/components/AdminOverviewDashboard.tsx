@@ -239,7 +239,7 @@ const AdminOverviewDashboard: React.FC = () => {
 
       {/* Key Metrics - Top Row */}
       <Grid container spacing={3} mb={3}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Occupancy Rate"
             value={`${stats.occupancyRate.toFixed(1)}%`}
@@ -249,7 +249,7 @@ const AdminOverviewDashboard: React.FC = () => {
             trend={{ value: 5.2, label: 'vs last month' }}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Monthly Revenue"
             value={formatCurrencyCustom(stats.monthlyRevenue, 0)}
@@ -259,7 +259,7 @@ const AdminOverviewDashboard: React.FC = () => {
             trend={{ value: 12.5, label: 'vs last month' }}
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Active Bookings"
             value={stats.activeBookings}
@@ -268,7 +268,7 @@ const AdminOverviewDashboard: React.FC = () => {
             color="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
           />
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Total Guests"
             value={stats.totalGuests}
@@ -281,7 +281,7 @@ const AdminOverviewDashboard: React.FC = () => {
 
       {/* Today's Activity */}
       <Grid container spacing={3} mb={3}>
-        <Grid item xs={12} md={8}>
+        <Grid size={{ xs: 12, md: 8 }}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
@@ -297,7 +297,7 @@ const AdminOverviewDashboard: React.FC = () => {
               </Box>
 
               <Grid container spacing={2}>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Paper
                     elevation={0}
                     sx={{
@@ -318,7 +318,7 @@ const AdminOverviewDashboard: React.FC = () => {
                   </Paper>
                 </Grid>
 
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Paper
                     elevation={0}
                     sx={{
@@ -343,7 +343,7 @@ const AdminOverviewDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <Box display="flex" alignItems="center" mb={2}>
@@ -405,7 +405,7 @@ const AdminOverviewDashboard: React.FC = () => {
 
       {/* Revenue Overview */}
       <Grid container spacing={3}>
-        <Grid item xs={12}>
+        <Grid size={12}>
           <Card>
             <CardContent>
               <Box display="flex" alignItems="center" mb={3}>
@@ -416,7 +416,7 @@ const AdminOverviewDashboard: React.FC = () => {
               </Box>
 
               <Grid container spacing={3}>
-                <Grid item xs={12} sm={4}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <Box>
                     <Typography variant="body2" color="text.secondary" gutterBottom>
                       Total Revenue
@@ -427,7 +427,7 @@ const AdminOverviewDashboard: React.FC = () => {
                   </Box>
                 </Grid>
 
-                <Grid item xs={12} sm={4}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <Box>
                     <Typography variant="body2" color="text.secondary" gutterBottom>
                       This Month
@@ -438,7 +438,7 @@ const AdminOverviewDashboard: React.FC = () => {
                   </Box>
                 </Grid>
 
-                <Grid item xs={12} sm={4}>
+                <Grid size={{ xs: 12, sm: 4 }}>
                   <Box>
                     <Typography variant="body2" color="text.secondary" gutterBottom>
                       Last 7 Days

@@ -537,7 +537,7 @@ const UserProfilePage: React.FC = () => {
             </Box>
 
             <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Full Name"
@@ -546,7 +546,7 @@ const UserProfilePage: React.FC = () => {
                   disabled={!editing}
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Email"
@@ -566,7 +566,7 @@ const UserProfilePage: React.FC = () => {
                   disabled={!editing}
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
                   label="Phone"
@@ -581,7 +581,7 @@ const UserProfilePage: React.FC = () => {
                   disabled={!editing}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Avatar URL"
@@ -592,7 +592,7 @@ const UserProfilePage: React.FC = () => {
                 />
               </Grid>
               {editing && (
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Button
                       variant="outlined"
@@ -656,7 +656,7 @@ const UserProfilePage: React.FC = () => {
               Change Password
             </Typography>
             <Grid container spacing={3}>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   type="password"
@@ -671,7 +671,7 @@ const UserProfilePage: React.FC = () => {
               </Grid>
 
               {!showNewPasswordFields && (
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Box sx={{ display: 'flex', gap: 2 }}>
                     <Button
                       variant="contained"
@@ -686,7 +686,7 @@ const UserProfilePage: React.FC = () => {
 
               {showNewPasswordFields && (
                 <>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       fullWidth
                       type="password"
@@ -698,7 +698,7 @@ const UserProfilePage: React.FC = () => {
                       helperText="Minimum 8 characters"
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
+                  <Grid size={{ xs: 12, md: 6 }}>
                     <TextField
                       fullWidth
                       type="password"

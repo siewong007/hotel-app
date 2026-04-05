@@ -270,7 +270,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
       {/* New Guest Registration Form */}
       {isCreatingNew && (
         <Grid container spacing={2}>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               required
@@ -279,7 +279,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, first_name: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               required
@@ -288,7 +288,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, last_name: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               label="Email"
@@ -297,7 +297,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, email: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               label="Phone"
@@ -305,7 +305,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, phone: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               label="IC/Passport Number"
@@ -313,7 +313,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, ic_number: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               label="Nationality"
@@ -321,7 +321,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, nationality: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               label="Company Name"
@@ -330,7 +330,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               placeholder="e.g. Acme Corporation"
             />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <FormControl fullWidth>
               <InputLabel>Tourism Type</InputLabel>
               <Select
@@ -356,7 +356,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               </Select>
             </FormControl>
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <FormControl fullWidth>
               <InputLabel>Guest Type</InputLabel>
               <Select
@@ -388,7 +388,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
           </Grid>
           {/* Member benefits alert */}
           {newGuestForm.guest_type === 'member' && (
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Alert severity="success" icon={<MemberIcon />}>
                 <Typography variant="body2">
                   Registering as <strong>Member</strong> — Room card deposit will be <strong>waived</strong>
@@ -396,7 +396,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               </Alert>
             </Grid>
           )}
-          <Grid item xs={12}>
+          <Grid size={12}>
             <TextField
               fullWidth
               label="Address"
@@ -404,7 +404,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, address_line1: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               label="City"
@@ -412,7 +412,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, city: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               label="State/Province"
@@ -420,7 +420,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, state_province: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               label="Postal Code"
@@ -428,7 +428,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, postal_code: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
               label="Country"

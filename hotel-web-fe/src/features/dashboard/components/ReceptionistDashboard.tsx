@@ -486,7 +486,7 @@ const ReceptionistDashboard: React.FC = () => {
 
       {/* Summary Stats */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ background: 'linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)', color: 'white', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -502,7 +502,7 @@ const ReceptionistDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ background: 'linear-gradient(135deg, #f44336 0%, #e57373 100%)', color: 'white', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -518,7 +518,7 @@ const ReceptionistDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ background: 'linear-gradient(135deg, #ff9800 0%, #ffb74d 100%)', color: 'white', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -534,7 +534,7 @@ const ReceptionistDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ background: 'linear-gradient(135deg, #1a73e8 0%, #4285f4 100%)', color: 'white', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -553,7 +553,7 @@ const ReceptionistDashboard: React.FC = () => {
 
       {/* Today's Activity */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" alignItems="center" mb={1}>
@@ -587,7 +587,7 @@ const ReceptionistDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" alignItems="center" mb={1}>
@@ -621,7 +621,7 @@ const ReceptionistDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" alignItems="center" mb={1}>
@@ -667,7 +667,7 @@ const ReceptionistDashboard: React.FC = () => {
           {/* Room Grid */}
           <Grid container spacing={2}>
             {rooms.map((room) => (
-              <Grid item xs={6} sm={4} md={3} lg={2} key={room.id}>
+              <Grid key={room.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
                 <Tooltip
                   title={
                     <Box>
@@ -913,26 +913,26 @@ const ReceptionistDashboard: React.FC = () => {
                   Booking #{checkinBooking.booking_number || checkinBooking.folio_number}
                 </Typography>
                 <Grid container spacing={2} sx={{ mt: 1 }}>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Typography variant="h6" fontWeight={600}>{checkinBooking.guest_name || 'Guest'}</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Check-in</Typography>
                     <Typography variant="body2" fontWeight={500}>
                       {new Date(checkinBooking.check_in_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Check-out</Typography>
                     <Typography variant="body2" fontWeight={500}>
                       {new Date(checkinBooking.check_out_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Room Type</Typography>
                     <Typography variant="body2" fontWeight={500}>{checkinBooking.room_type || 'N/A'}</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Total Amount</Typography>
                     <Typography variant="body2" fontWeight={500}>{formatCurrency(Number(checkinBooking.total_amount || 0))}</Typography>
                   </Grid>
@@ -950,7 +950,7 @@ const ReceptionistDashboard: React.FC = () => {
               </ToggleButtonGroup>
               {ciPaymentChoice === 'pay_now' && (
                 <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Payment Method</InputLabel>
                       <Select value={ciPaymentMethod} onChange={(e) => setCiPaymentMethod(e.target.value as string)} label="Payment Method">
@@ -958,7 +958,7 @@ const ReceptionistDashboard: React.FC = () => {
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <TextField fullWidth size="small" label="Amount Paid" type="number" value={ciAmountPaid} onChange={(e) => setCiAmountPaid(parseFloat(e.target.value) || 0)}
                       InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }} />
                   </Grid>
@@ -979,7 +979,7 @@ const ReceptionistDashboard: React.FC = () => {
               </ToggleButtonGroup>
               {ciDepositChoice === 'receive' && (
                 <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Deposit Method</InputLabel>
                       <Select value={ciDepositMethod} onChange={(e) => setCiDepositMethod(e.target.value as string)} label="Deposit Method">
@@ -987,7 +987,7 @@ const ReceptionistDashboard: React.FC = () => {
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <TextField fullWidth size="small" label="Deposit Amount" type="number" value={ciDepositAmount} onChange={(e) => setCiDepositAmount(parseFloat(e.target.value) || 0)}
                       InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }} />
                   </Grid>

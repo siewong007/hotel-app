@@ -142,7 +142,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
       ) : (
         <Grid container spacing={2}>
           {roles.map((role) => (
-            <Grid item xs={12} md={6} key={role.id}>
+            <Grid key={role.id} size={{ xs: 12, md: 6 }}>
               <RoleCard
                 role={role}
                 onEdit={handleEditRole}

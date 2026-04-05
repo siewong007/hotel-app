@@ -278,7 +278,7 @@ const RoomConfigurationPage: React.FC = () => {
 
       {/* Statistics Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" sx={{ fontWeight: 600, color: 'primary.main' }}>
@@ -290,7 +290,7 @@ const RoomConfigurationPage: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" sx={{ fontWeight: 600, color: 'success.main' }}>
@@ -302,7 +302,7 @@ const RoomConfigurationPage: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" sx={{ fontWeight: 600, color: 'info.main' }}>
@@ -314,7 +314,7 @@ const RoomConfigurationPage: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card>
             <CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h4" sx={{ fontWeight: 600, color: 'warning.main' }}>
@@ -394,7 +394,7 @@ const RoomConfigurationPage: React.FC = () => {
         <DialogTitle>Create New Room</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Room Number"
@@ -404,7 +404,7 @@ const RoomConfigurationPage: React.FC = () => {
                 helperText="e.g., 101, 102, 201A"
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 select
                 fullWidth
@@ -420,7 +420,7 @@ const RoomConfigurationPage: React.FC = () => {
                 ))}
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Floor"
@@ -431,7 +431,7 @@ const RoomConfigurationPage: React.FC = () => {
                 inputProps={{ min: 0 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Building"
@@ -440,7 +440,7 @@ const RoomConfigurationPage: React.FC = () => {
                 helperText="Optional, e.g., Main Building, Tower A"
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label={`Custom Price (${currencySymbol})`}
@@ -455,7 +455,7 @@ const RoomConfigurationPage: React.FC = () => {
                 }
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -488,7 +488,7 @@ const RoomConfigurationPage: React.FC = () => {
         <DialogTitle>Edit Room {editingRoom?.room_number}</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Room Number"
@@ -496,7 +496,7 @@ const RoomConfigurationPage: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, room_number: e.target.value })}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Custom Price (RM)"
@@ -507,7 +507,7 @@ const RoomConfigurationPage: React.FC = () => {
                 helperText="Leave empty to use room type base price"
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Alert severity="info">
                 Room type, floor, and building cannot be changed after creation. To change these, please delete and recreate the room.
               </Alert>

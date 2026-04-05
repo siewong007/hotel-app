@@ -597,36 +597,36 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                   Room Details
                 </Typography>
                 <Grid container spacing={1}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Room Type:</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {detailedStatus.room_type}
                     </Typography>
                   </Grid>
                   {detailedStatus.current_booking && (
                     <>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" color="text.secondary">Current Guest:</Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
                           {detailedStatus.current_booking.guest_name}
                         </Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" color="text.secondary">Check-in Date:</Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
                           {detailedStatus.current_booking.check_in_date}
                         </Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" color="text.secondary">Check-out Date:</Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
                           {detailedStatus.current_booking.check_out_date}
                         </Typography>
@@ -635,10 +635,10 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                   )}
                   {detailedStatus.next_booking && (
                     <>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" color="text.secondary">Next Booking:</Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
                           {detailedStatus.next_booking.guest_name} - {detailedStatus.next_booking.check_in_date}
                         </Typography>
@@ -664,7 +664,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                   complete the associated event or use the check-out process.
                 </Alert>
                 <Grid container spacing={2}>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <FormControl fullWidth>
                       <InputLabel>New Status</InputLabel>
                       <Select
@@ -677,7 +677,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Alert severity="info" sx={{ mt: 0 }}>
                       <Typography variant="body2">
                         <strong>To reserve a room:</strong> Use the "Walk-in Check-in" or "Book Room" options from the room menu.
@@ -689,14 +689,14 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                   {/* Reserved and Occupied status - show date range */}
                   {(newStatus === 'reserved' || newStatus === 'occupied') && (
                     <>
-                      <Grid item xs={12}>
+                      <Grid size={12}>
                         <Typography variant="caption" color="primary" sx={{ display: 'block', mb: 1 }}>
                           {newStatus === 'occupied'
                             ? 'Occupied rooms must have defined start and end dates to track availability:'
                             : 'Fill in both dates and times for reservation:'}
                         </Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <TextField
                           fullWidth
                           type="datetime-local"
@@ -707,7 +707,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                           required
                         />
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <TextField
                           fullWidth
                           type="datetime-local"
@@ -724,12 +724,12 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                   {/* Maintenance status - show date range */}
                   {newStatus === 'maintenance' && (
                     <>
-                      <Grid item xs={12}>
+                      <Grid size={12}>
                         <Typography variant="caption" color="primary" sx={{ display: 'block', mb: 1 }}>
                           Fill in both dates and times for maintenance schedule:
                         </Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <TextField
                           fullWidth
                           type="datetime-local"
@@ -747,7 +747,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                           helperText={!maintenanceStartDate && error ? "Required" : "When will maintenance start?"}
                         />
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <TextField
                           fullWidth
                           type="datetime-local"
@@ -768,7 +768,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                     </>
                   )}
 
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <TextField
                       fullWidth
                       label="Status Notes"

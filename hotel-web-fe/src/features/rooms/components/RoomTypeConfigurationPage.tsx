@@ -324,7 +324,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
 
       {/* Summary Cards */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={4}>
+        <Grid size={{ xs: 12, sm: 4 }}>
           <Card>
             <CardContent>
               <Typography color="text.secondary" gutterBottom>Total Room Types</Typography>
@@ -332,7 +332,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={4}>
+        <Grid size={{ xs: 12, sm: 4 }}>
           <Card>
             <CardContent>
               <Typography color="text.secondary" gutterBottom>Active Types</Typography>
@@ -340,7 +340,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
             </CardContent>
           </Card>
         </Grid>
-        <Grid item xs={12} sm={4}>
+        <Grid size={{ xs: 12, sm: 4 }}>
           <Card>
             <CardContent>
               <Typography color="text.secondary" gutterBottom>With Extra Bed Option</Typography>
@@ -472,7 +472,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
         </DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Name"
@@ -482,7 +482,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
                 placeholder="e.g., Deluxe Room"
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Code"
@@ -494,7 +494,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
                 helperText="Short code for the room type"
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Description"
@@ -507,13 +507,13 @@ const RoomTypeConfigurationPage: React.FC = () => {
             </Grid>
 
             {/* Pricing Section */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
                 <MoneyIcon sx={{ fontSize: 16, verticalAlign: 'middle', mr: 0.5 }} />
                 Pricing
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Base Price"
@@ -526,7 +526,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Weekday Rate"
@@ -539,7 +539,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
                 helperText="Optional"
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Weekend Rate"
@@ -554,13 +554,13 @@ const RoomTypeConfigurationPage: React.FC = () => {
             </Grid>
 
             {/* Room Configuration */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, mt: 1 }}>
                 <BedIcon sx={{ fontSize: 16, verticalAlign: 'middle', mr: 0.5 }} />
                 Room Configuration
               </Typography>
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Max Occupancy"
@@ -570,7 +570,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
                 inputProps={{ min: 1, max: 10 }}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 select
@@ -583,7 +583,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
                 ))}
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Bed Count"
@@ -595,12 +595,12 @@ const RoomTypeConfigurationPage: React.FC = () => {
             </Grid>
 
             {/* Extra Bed Configuration */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1, mt: 1 }}>
                 Extra Bed Configuration
               </Typography>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <FormControlLabel
                 control={
                   <Switch
@@ -617,7 +617,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
             </Grid>
             {formData.allows_extra_bed && (
               <>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Max Extra Beds"
@@ -627,7 +627,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
                     inputProps={{ min: 1, max: 5 }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Extra Bed Charge (per night)"
@@ -643,7 +643,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
             )}
 
             {/* Display Settings */}
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Sort Order"
@@ -654,7 +654,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
               />
             </Grid>
             {editDialogOpen && (
-              <Grid item xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControlLabel
                   control={
                     <Switch

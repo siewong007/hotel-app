@@ -389,7 +389,7 @@ const AdminDashboard: React.FC = () => {
 
       {/* Summary Stats */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ background: 'linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)', color: 'white', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -405,7 +405,7 @@ const AdminDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ background: 'linear-gradient(135deg, #f44336 0%, #e57373 100%)', color: 'white', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -421,7 +421,7 @@ const AdminDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ background: 'linear-gradient(135deg, #ff9800 0%, #ffb74d 100%)', color: 'white', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -437,7 +437,7 @@ const AdminDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={3}>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <Card sx={{ background: 'linear-gradient(135deg, #1a73e8 0%, #4285f4 100%)', color: 'white', boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" justifyContent="space-between" alignItems="center">
@@ -456,7 +456,7 @@ const AdminDashboard: React.FC = () => {
 
       {/* Today's Activity */}
       <Grid container spacing={2} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" alignItems="center" mb={1}>
@@ -490,7 +490,7 @@ const AdminDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" alignItems="center" mb={1}>
@@ -524,7 +524,7 @@ const AdminDashboard: React.FC = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} md={4}>
+        <Grid size={{ xs: 12, md: 4 }}>
           <Card sx={{ boxShadow: 1 }}>
             <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
               <Box display="flex" alignItems="center" mb={1}>
@@ -570,7 +570,7 @@ const AdminDashboard: React.FC = () => {
           {/* Room Grid */}
           <Grid container spacing={2}>
             {rooms.map((room) => (
-              <Grid item xs={6} sm={4} md={3} lg={2} key={room.id}>
+              <Grid key={room.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
                 <Tooltip
                   title={
                     <Box>

@@ -292,7 +292,7 @@ const EkycManagementPage: React.FC = () => {
             <DialogContent>
               <Grid container spacing={3}>
                 {/* Personal Information */}
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Card variant="outlined">
                     <CardContent>
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -300,27 +300,27 @@ const EkycManagementPage: React.FC = () => {
                         <Typography variant="h6">Personal Information</Typography>
                       </Box>
                       <Grid container spacing={2}>
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                           <Typography variant="caption" color="text.secondary">Full Name</Typography>
                           <Typography variant="body1">{selectedVerification.full_name}</Typography>
                         </Grid>
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                           <Typography variant="caption" color="text.secondary">Date of Birth</Typography>
                           <Typography variant="body1">{selectedVerification.date_of_birth}</Typography>
                         </Grid>
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                           <Typography variant="caption" color="text.secondary">Nationality</Typography>
                           <Typography variant="body1">{selectedVerification.nationality}</Typography>
                         </Grid>
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                           <Typography variant="caption" color="text.secondary">Phone</Typography>
                           <Typography variant="body1">{selectedVerification.phone}</Typography>
                         </Grid>
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                           <Typography variant="caption" color="text.secondary">Email</Typography>
                           <Typography variant="body1">{selectedVerification.email}</Typography>
                         </Grid>
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                           <Typography variant="caption" color="text.secondary">Address</Typography>
                           <Typography variant="body1">{selectedVerification.current_address}</Typography>
                         </Grid>
@@ -330,7 +330,7 @@ const EkycManagementPage: React.FC = () => {
                 </Grid>
 
                 {/* Document Information */}
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Card variant="outlined">
                     <CardContent>
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -338,21 +338,21 @@ const EkycManagementPage: React.FC = () => {
                         <Typography variant="h6">Document Information</Typography>
                       </Box>
                       <Grid container spacing={2}>
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                           <Typography variant="caption" color="text.secondary">ID Type</Typography>
                           <Typography variant="body1">
                             {selectedVerification.id_type.replace('_', ' ').toUpperCase()}
                           </Typography>
                         </Grid>
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                           <Typography variant="caption" color="text.secondary">ID Number</Typography>
                           <Typography variant="body1">{selectedVerification.id_number}</Typography>
                         </Grid>
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                           <Typography variant="caption" color="text.secondary">Issuing Country</Typography>
                           <Typography variant="body1">{selectedVerification.id_issuing_country}</Typography>
                         </Grid>
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                           <Typography variant="caption" color="text.secondary">Expiry Date</Typography>
                           <Typography variant="body1">{selectedVerification.id_expiry_date}</Typography>
                         </Grid>
@@ -362,7 +362,7 @@ const EkycManagementPage: React.FC = () => {
                 </Grid>
 
                 {/* Uploaded Documents */}
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Card variant="outlined">
                     <CardContent>
                       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -370,7 +370,7 @@ const EkycManagementPage: React.FC = () => {
                         <Typography variant="h6">Uploaded Documents</Typography>
                       </Box>
                       <Grid container spacing={2}>
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                           <Typography variant="caption" color="text.secondary" gutterBottom>
                             ID Front
                           </Typography>
@@ -384,7 +384,7 @@ const EkycManagementPage: React.FC = () => {
                           </Card>
                         </Grid>
                         {selectedVerification.id_back_image_path && (
-                          <Grid item xs={12} md={4}>
+                          <Grid size={{ xs: 12, md: 4 }}>
                             <Typography variant="caption" color="text.secondary" gutterBottom>
                               ID Back
                             </Typography>
@@ -398,7 +398,7 @@ const EkycManagementPage: React.FC = () => {
                             </Card>
                           </Grid>
                         )}
-                        <Grid item xs={12} md={4}>
+                        <Grid size={{ xs: 12, md: 4 }}>
                           <Typography variant="caption" color="text.secondary" gutterBottom>
                             Selfie
                           </Typography>
@@ -417,7 +417,7 @@ const EkycManagementPage: React.FC = () => {
                 </Grid>
 
                 {/* Face Match Score */}
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Card variant="outlined">
                     <CardContent>
                       <Typography variant="subtitle1" gutterBottom>
@@ -439,7 +439,7 @@ const EkycManagementPage: React.FC = () => {
                 </Grid>
 
                 {/* Review Notes */}
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     fullWidth
                     multiline
@@ -453,7 +453,7 @@ const EkycManagementPage: React.FC = () => {
 
                 {/* Current Status */}
                 {selectedVerification.status !== 'pending' && (
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Alert severity="info">
                       <Typography variant="body2">
                         <strong>Current Status:</strong> {getStatusLabel(selectedVerification.status)}

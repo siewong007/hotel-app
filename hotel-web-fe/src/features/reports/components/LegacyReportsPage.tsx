@@ -601,12 +601,12 @@ const LegacyReportsPage: React.FC = () => {
       <Paper sx={{ p: 3, mt: 3 }} className="print-content">
         {/* Header */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={6}>
+          <Grid size={6}>
             <Typography variant="h6" fontWeight="bold">{hotelSettings.hotel_name}</Typography>
             <Typography variant="body2">{hotelSettings.hotel_address}</Typography>
             <Typography variant="body2" sx={{ mt: 1 }}>TTx ID: 132-2017-10000017</Typography>
           </Grid>
-          <Grid item xs={6} textAlign="right">
+          <Grid sx={{ textAlign: 'right' }} size={6}>
             <Typography variant="h5" fontWeight="bold">Account Statement</Typography>
             <Typography variant="body2">Page 1</Typography>
           </Grid>
@@ -614,7 +614,7 @@ const LegacyReportsPage: React.FC = () => {
 
         {/* Account Summary Box */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={6}>
+          <Grid size={6}>
             <Typography variant="body2" sx={{ mt: 2 }}>
               <strong>Attn: {company.contact_person || 'N/A'}</strong>
             </Typography>
@@ -627,7 +627,7 @@ const LegacyReportsPage: React.FC = () => {
             )}
             {company.address?.country && <Typography variant="body2">{company.address.country}</Typography>}
           </Grid>
-          <Grid item xs={6}>
+          <Grid size={6}>
             <Paper variant="outlined" sx={{ p: 2 }}>
               <Table size="small">
                 <TableBody>
@@ -765,7 +765,7 @@ const LegacyReportsPage: React.FC = () => {
           </Typography>
 
           <Grid container spacing={3}>
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 select
                 fullWidth
@@ -781,7 +781,7 @@ const LegacyReportsPage: React.FC = () => {
               </TextField>
             </Grid>
 
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
                 label="Start Date"
@@ -792,7 +792,7 @@ const LegacyReportsPage: React.FC = () => {
               />
             </Grid>
 
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
                 label="End Date"
@@ -805,7 +805,7 @@ const LegacyReportsPage: React.FC = () => {
 
             {reportType === 'shift_report' && (
               <>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     select
                     fullWidth
@@ -820,7 +820,7 @@ const LegacyReportsPage: React.FC = () => {
                   </TextField>
                 </Grid>
 
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     select
                     fullWidth
@@ -837,7 +837,7 @@ const LegacyReportsPage: React.FC = () => {
             )}
 
             {reportType === 'company_ledger_statement' && (
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   select
                   fullWidth
@@ -856,7 +856,7 @@ const LegacyReportsPage: React.FC = () => {
               </Grid>
             )}
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <Button
                   variant="contained"

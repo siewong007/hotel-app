@@ -2013,7 +2013,7 @@ const RoomManagementPage: React.FC = () => {
           // Get colors based on status
           const statusColor = getRoomStatusColor(displayRoom);
           return (
-            <Grid item xs={6} sm={4} md={3} lg={2} key={room.id}>
+            <Grid key={room.id} size={{ xs: 6, sm: 4, md: 3, lg: 2 }}>
               <Card
                 elevation={2}
                 sx={{
@@ -2620,7 +2620,7 @@ const RoomManagementPage: React.FC = () => {
         <DialogContent sx={{ pt: 3 }}>
           <Grid container spacing={3}>
             {/* Toggle between existing guest and new guest */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
                 <Button
                   variant={!isCreatingNewGuest ? 'contained' : 'outlined'}
@@ -2641,7 +2641,7 @@ const RoomManagementPage: React.FC = () => {
 
             {/* Guest Selection (Existing Guest) */}
             {!isCreatingNewGuest && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Autocomplete
                   value={walkInGuest}
                   onChange={(_, newValue) => {
@@ -2696,7 +2696,7 @@ const RoomManagementPage: React.FC = () => {
             {/* New Guest Registration Form */}
             {isCreatingNewGuest && (
               <>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     required
@@ -2705,7 +2705,7 @@ const RoomManagementPage: React.FC = () => {
                     onChange={(e) => setNewGuestForm({ ...newGuestForm, first_name: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     required
@@ -2714,7 +2714,7 @@ const RoomManagementPage: React.FC = () => {
                     onChange={(e) => setNewGuestForm({ ...newGuestForm, last_name: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Email"
@@ -2723,7 +2723,7 @@ const RoomManagementPage: React.FC = () => {
                     onChange={(e) => setNewGuestForm({ ...newGuestForm, email: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Phone"
@@ -2731,7 +2731,7 @@ const RoomManagementPage: React.FC = () => {
                     onChange={(e) => setNewGuestForm({ ...newGuestForm, phone: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="IC/Passport Number"
@@ -2739,7 +2739,7 @@ const RoomManagementPage: React.FC = () => {
                     onChange={(e) => setNewGuestForm({ ...newGuestForm, ic_number: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Nationality"
@@ -2751,7 +2751,7 @@ const RoomManagementPage: React.FC = () => {
             )}
 
             {/* Check-in Date */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 required
@@ -2773,7 +2773,7 @@ const RoomManagementPage: React.FC = () => {
             </Grid>
 
             {/* Check-out Date */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 required
@@ -2795,38 +2795,38 @@ const RoomManagementPage: React.FC = () => {
             </Grid>
 
             {/* Summary */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
                 <Typography variant="subtitle2" gutterBottom>
                   Booking Summary
                 </Typography>
                 <Grid container spacing={1}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">
                       Number of Nights:
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2">
                       {walkInNumberOfNights}
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">
                       Room Rate:
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2">
                       {currencySymbol}{selectedRoom?.price_per_night || 0} / night
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">
                       Room Charges:
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2">
                       {currencySymbol}{(() => {
                         const price = selectedRoom?.price_per_night || 0;
@@ -2882,7 +2882,7 @@ const RoomManagementPage: React.FC = () => {
         <DialogContent sx={{ pt: 3 }}>
           <Grid container spacing={3}>
             {/* Toggle between existing guest and new guest */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
                 <Button
                   variant={!isCreatingNewOnlineGuest ? 'contained' : 'outlined'}
@@ -2903,7 +2903,7 @@ const RoomManagementPage: React.FC = () => {
 
             {/* Guest Selection (Existing Guest) */}
             {!isCreatingNewOnlineGuest && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Autocomplete
                   value={onlineCheckInGuest}
                   onChange={(_, newValue) => setOnlineCheckInGuest(newValue)}
@@ -2925,7 +2925,7 @@ const RoomManagementPage: React.FC = () => {
             {/* New Guest Registration Form */}
             {isCreatingNewOnlineGuest && (
               <>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     required
@@ -2934,7 +2934,7 @@ const RoomManagementPage: React.FC = () => {
                     onChange={(e) => setNewOnlineGuestForm({ ...newOnlineGuestForm, first_name: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     required
@@ -2943,7 +2943,7 @@ const RoomManagementPage: React.FC = () => {
                     onChange={(e) => setNewOnlineGuestForm({ ...newOnlineGuestForm, last_name: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Email"
@@ -2952,7 +2952,7 @@ const RoomManagementPage: React.FC = () => {
                     onChange={(e) => setNewOnlineGuestForm({ ...newOnlineGuestForm, email: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Phone"
@@ -2960,7 +2960,7 @@ const RoomManagementPage: React.FC = () => {
                     onChange={(e) => setNewOnlineGuestForm({ ...newOnlineGuestForm, phone: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="IC/Passport Number"
@@ -2968,7 +2968,7 @@ const RoomManagementPage: React.FC = () => {
                     onChange={(e) => setNewOnlineGuestForm({ ...newOnlineGuestForm, ic_number: e.target.value })}
                   />
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Nationality"
@@ -2980,7 +2980,7 @@ const RoomManagementPage: React.FC = () => {
             )}
 
             {/* Booking Channel */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth required>
                 <InputLabel>Booking Channel</InputLabel>
                 <Select
@@ -2998,7 +2998,7 @@ const RoomManagementPage: React.FC = () => {
             </Grid>
 
             {/* Booking Reference */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 label="Booking Reference"
@@ -3009,7 +3009,7 @@ const RoomManagementPage: React.FC = () => {
             </Grid>
 
             {/* Check-in Date */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 required
@@ -3031,7 +3031,7 @@ const RoomManagementPage: React.FC = () => {
             </Grid>
 
             {/* Check-out Date */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 required
@@ -3053,38 +3053,38 @@ const RoomManagementPage: React.FC = () => {
             </Grid>
 
             {/* Summary */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
                 <Typography variant="subtitle2" gutterBottom>
                   Booking Summary
                 </Typography>
                 <Grid container spacing={1}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">
                       Number of Nights:
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2">
                       {onlineNumberOfNights}
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">
                       Room Rate:
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2">
                       {currencySymbol}{selectedRoom?.price_per_night || 0} / night
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">
                       Total Amount:
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" fontWeight="bold">
                       {currencySymbol}{(() => {
                         const price = selectedRoom?.price_per_night || 0;
@@ -3140,7 +3140,7 @@ const RoomManagementPage: React.FC = () => {
         <DialogContent sx={{ pt: 3 }}>
           <Grid container spacing={3}>
             {/* Info Banner */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Alert severity="info" sx={{ mb: 2 }}>
                 <Typography variant="body2">
                   This booking uses the guest's <strong>Free Room Credits</strong>. Only guests with available credits are shown below.
@@ -3149,7 +3149,7 @@ const RoomManagementPage: React.FC = () => {
             </Grid>
 
             {/* Guest Selection (Only guests with credits) */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               {loadingGuestsWithCredits ? (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
                   <CircularProgress size={24} />
@@ -3213,7 +3213,7 @@ const RoomManagementPage: React.FC = () => {
             </Grid>
 
             {/* Check-in Date */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 required
@@ -3234,7 +3234,7 @@ const RoomManagementPage: React.FC = () => {
             </Grid>
 
             {/* Check-out Date */}
-            <Grid item xs={12} md={6}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 required
@@ -3255,40 +3255,40 @@ const RoomManagementPage: React.FC = () => {
             </Grid>
 
             {/* Summary */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Paper sx={{ p: 2, bgcolor: 'secondary.light' }}>
                 <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <GiftIcon /> Booking Summary
                 </Typography>
                 <Grid container spacing={1}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Number of Nights:</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2">{complimentaryNumberOfNights}</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Room Rate:</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" sx={{ textDecoration: 'line-through', color: 'text.disabled' }}>
                       {currencySymbol}{selectedRoom?.price_per_night || 0} / night
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Total Amount:</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" fontWeight="bold" color="success.main">
                       FREE (Complimentary)
                     </Typography>
                   </Grid>
                   {complimentaryCheckInGuest && (
                     <>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" color="text.secondary">Credits Available:</Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                           {complimentaryCheckInGuest.credits_by_room_type.map((credit) => (
                             <Chip
@@ -3358,38 +3358,38 @@ const RoomManagementPage: React.FC = () => {
         <DialogContent sx={{ pt: 3 }}>
           <Grid container spacing={3}>
             {/* Current Room Info */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Paper sx={{ p: 2, bgcolor: 'grey.100' }}>
                 <Typography variant="subtitle2" gutterBottom>
                   Current Room
                 </Typography>
                 <Grid container spacing={1}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">
                       Room Number:
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" fontWeight="bold">
                       {selectedRoom?.room_number}
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">
                       Room Type:
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2">
                       {selectedRoom?.room_type}
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">
                       Current Rate:
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2">
                       {currencySymbol}{selectedRoom?.price_per_night} / night
                     </Typography>
@@ -3399,7 +3399,7 @@ const RoomManagementPage: React.FC = () => {
             </Grid>
 
             {/* New Room Selection */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <FormControl fullWidth required>
                 <InputLabel>Select New Room</InputLabel>
                 <Select
@@ -3430,7 +3430,7 @@ const RoomManagementPage: React.FC = () => {
             </Grid>
 
             {/* Custom Rate */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Custom Rate (per night)"
@@ -3449,18 +3449,18 @@ const RoomManagementPage: React.FC = () => {
             {/* Price Difference */}
             {newSelectedRoom && selectedRoom && (
               <>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Paper sx={{ p: 2, bgcolor: 'info.lighter' }}>
                     <Typography variant="subtitle2" gutterBottom>
                       Price Summary
                     </Typography>
                     <Grid container spacing={1}>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" color="text.secondary">
                           New Rate:
                         </Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" fontWeight="bold">
                           {currencySymbol}{changeRoomCustomRate && !isNaN(parseFloat(changeRoomCustomRate)) ? parseFloat(changeRoomCustomRate).toFixed(2) : newSelectedRoom.price_per_night} / night
                           {changeRoomCustomRate && !isNaN(parseFloat(changeRoomCustomRate)) && (
@@ -3468,12 +3468,12 @@ const RoomManagementPage: React.FC = () => {
                           )}
                         </Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" color="text.secondary">
                           Difference per Night:
                         </Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography
                           variant="body2"
                           fontWeight="bold"
@@ -3599,42 +3599,42 @@ const RoomManagementPage: React.FC = () => {
                     Current Status
                   </Typography>
                   <Grid container spacing={2}>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="caption" color="text.secondary">Status</Typography>
                       <Typography variant="body2" fontWeight={600}>
                         {selectedRoom.status?.toUpperCase() || 'UNKNOWN'}
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="caption" color="text.secondary">Available</Typography>
                       <Typography variant="body2" fontWeight={600}>
                         {selectedRoom.available ? 'Yes' : 'No'}
                       </Typography>
                     </Grid>
                     {selectedRoom.status_notes && (
-                      <Grid item xs={12}>
+                      <Grid size={12}>
                         <Typography variant="caption" color="text.secondary">Notes</Typography>
                         <Typography variant="body2">{selectedRoom.status_notes}</Typography>
                       </Grid>
                     )}
                     {roomBookings.get(selectedRoom.id) && (
                       <>
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                           <Divider sx={{ my: 1 }} />
                         </Grid>
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                           <Typography variant="caption" color="text.secondary">Guest</Typography>
                           <Typography variant="body2" fontWeight={600}>
                             {roomBookings.get(selectedRoom.id)?.guest_name}
                           </Typography>
                         </Grid>
-                        <Grid item xs={6}>
+                        <Grid size={6}>
                           <Typography variant="caption" color="text.secondary">Booking Period</Typography>
                           <Typography variant="body2">
                             {new Date(roomBookings.get(selectedRoom.id)!.check_in_date).toLocaleDateString()} - {new Date(roomBookings.get(selectedRoom.id)!.check_out_date).toLocaleDateString()}
                           </Typography>
                         </Grid>
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                           <Button
                             size="small"
                             variant="outlined"
@@ -3686,7 +3686,7 @@ const RoomManagementPage: React.FC = () => {
                       onClick={() => entry.guest_id && handleViewGuestDetails(entry.guest_id)}
                     >
                       <Grid container spacing={1} alignItems="center">
-                        <Grid item>
+                        <Grid>
                           <Box
                             sx={{
                               width: 40,
@@ -3702,7 +3702,7 @@ const RoomManagementPage: React.FC = () => {
                             {statusIcon}
                           </Box>
                         </Grid>
-                        <Grid item xs>
+                        <Grid size="grow">
                           <Typography variant="body2" fontWeight={600}>
                             {entry.from_status ? `${entry.from_status.toUpperCase()} → ${entry.to_status.toUpperCase()}` : entry.to_status.toUpperCase()}
                           </Typography>
@@ -3759,28 +3759,28 @@ const RoomManagementPage: React.FC = () => {
           {selectedRoom && (
             <Box sx={{ mt: 2 }}>
               <Grid container spacing={2}>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="caption" color="text.secondary">Room Number</Typography>
                   <Typography variant="body1" fontWeight={600}>{selectedRoom.room_number}</Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="caption" color="text.secondary">Room Type</Typography>
                   <Typography variant="body1" fontWeight={600}>{selectedRoom.room_type}</Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="caption" color="text.secondary">Price per Night</Typography>
                   <Typography variant="body1" fontWeight={600}>{formatCurrency(Number(selectedRoom.price_per_night))}</Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="caption" color="text.secondary">Max Occupancy</Typography>
                   <Typography variant="body1" fontWeight={600}>{selectedRoom.max_occupancy} guests</Typography>
                 </Grid>
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Typography variant="caption" color="text.secondary">Status</Typography>
                   <Typography variant="body1" fontWeight={600}>{selectedRoom.status}</Typography>
                 </Grid>
                 {selectedRoom.description && (
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Typography variant="caption" color="text.secondary">Description</Typography>
                     <Typography variant="body2">{selectedRoom.description}</Typography>
                   </Grid>
@@ -3929,7 +3929,7 @@ const RoomManagementPage: React.FC = () => {
                   }}
                 >
                   <Grid container spacing={2} alignItems="center">
-                    <Grid item xs={12} sm={6}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
                       <Typography variant="subtitle1" fontWeight={600}>
                         {booking.guest_name || 'Unknown Guest'}
                       </Typography>
@@ -3937,7 +3937,7 @@ const RoomManagementPage: React.FC = () => {
                         {booking.guest_email || ''} {booking.guest_phone ? `• ${booking.guest_phone}` : ''}
                       </Typography>
                     </Grid>
-                    <Grid item xs={12} sm={3}>
+                    <Grid size={{ xs: 12, sm: 3 }}>
                       <Typography variant="caption" color="text.secondary" display="block">
                         Check-in
                       </Typography>
@@ -3949,7 +3949,7 @@ const RoomManagementPage: React.FC = () => {
                         })}
                       </Typography>
                     </Grid>
-                    <Grid item xs={12} sm={3}>
+                    <Grid size={{ xs: 12, sm: 3 }}>
                       <Typography variant="caption" color="text.secondary" display="block">
                         Check-out
                       </Typography>
@@ -3961,7 +3961,7 @@ const RoomManagementPage: React.FC = () => {
                         })}
                       </Typography>
                     </Grid>
-                    <Grid item xs={12}>
+                    <Grid size={12}>
                       <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
                         {(() => {
                           const checkInDate = new Date(booking.check_in_date);
@@ -4034,7 +4034,7 @@ const RoomManagementPage: React.FC = () => {
                       </Stack>
                     </Grid>
                     {booking.special_requests && (
-                      <Grid item xs={12}>
+                      <Grid size={12}>
                         <Typography variant="caption" color="text.secondary">
                           <strong>Notes:</strong> {booking.special_requests}
                         </Typography>
@@ -4092,7 +4092,7 @@ const RoomManagementPage: React.FC = () => {
                 </Typography>
 
                 <Grid container spacing={2} sx={{ mt: 1 }}>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Typography variant="h6" fontWeight={600}>
                       {reservedCheckInBooking.guest_name}
                     </Typography>
@@ -4102,7 +4102,7 @@ const RoomManagementPage: React.FC = () => {
                     </Typography>
                   </Grid>
 
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Check-in</Typography>
                     <Typography variant="body2" fontWeight={500}>
                       {new Date(reservedCheckInBooking.check_in_date).toLocaleDateString('en-US', {
@@ -4110,7 +4110,7 @@ const RoomManagementPage: React.FC = () => {
                       })}
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Check-out</Typography>
                     <Typography variant="body2" fontWeight={500}>
                       {new Date(reservedCheckInBooking.check_out_date).toLocaleDateString('en-US', {
@@ -4119,13 +4119,13 @@ const RoomManagementPage: React.FC = () => {
                     </Typography>
                   </Grid>
 
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Room Type</Typography>
                     <Typography variant="body2" fontWeight={500}>
                       {reservedCheckInBooking.room_type}
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Total Amount</Typography>
                     <Typography variant="body2" fontWeight={500}>
                       {formatCurrency(Number(reservedCheckInBooking.total_amount || 0))}
@@ -4156,7 +4156,7 @@ const RoomManagementPage: React.FC = () => {
 
               {rcPaymentChoice === 'pay_now' && (
                 <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Payment Method</InputLabel>
                       <Select
@@ -4170,7 +4170,7 @@ const RoomManagementPage: React.FC = () => {
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <TextField
                       fullWidth
                       size="small"
@@ -4215,7 +4215,7 @@ const RoomManagementPage: React.FC = () => {
 
               {rcDepositChoice === 'receive' && (
                 <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <FormControl fullWidth size="small">
                       <InputLabel>Deposit Method</InputLabel>
                       <Select
@@ -4229,7 +4229,7 @@ const RoomManagementPage: React.FC = () => {
                       </Select>
                     </FormControl>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <TextField
                       fullWidth
                       size="small"
@@ -4335,7 +4335,7 @@ const RoomManagementPage: React.FC = () => {
                 </Typography>
 
                 <Grid container spacing={2} sx={{ mt: 1 }}>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Typography variant="h6" fontWeight={600}>
                       {paymentBooking.guest_name}
                     </Typography>
@@ -4344,7 +4344,7 @@ const RoomManagementPage: React.FC = () => {
                     </Typography>
                   </Grid>
 
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Check-in</Typography>
                     <Typography variant="body2" fontWeight={500}>
                       {new Date(paymentBooking.check_in_date).toLocaleDateString('en-US', {
@@ -4352,7 +4352,7 @@ const RoomManagementPage: React.FC = () => {
                       })}
                     </Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Check-out</Typography>
                     <Typography variant="body2" fontWeight={500}>
                       {new Date(paymentBooking.check_out_date).toLocaleDateString('en-US', {
@@ -4469,16 +4469,16 @@ const RoomManagementPage: React.FC = () => {
           {/* Tab 0: Guest Info */}
           {guestDetailsTab === 0 && selectedGuestDetails && (
             <Grid container spacing={2}>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="caption" color="text.secondary">Email</Typography>
                 <Typography variant="body2">{selectedGuestDetails.email}</Typography>
               </Grid>
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <Typography variant="caption" color="text.secondary">Phone</Typography>
                 <Typography variant="body2">{selectedGuestDetails.phone || 'N/A'}</Typography>
               </Grid>
               {selectedGuestDetails.address_line1 && (
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <Typography variant="caption" color="text.secondary">Address</Typography>
                   <Typography variant="body2">
                     {selectedGuestDetails.address_line1}
@@ -4489,33 +4489,33 @@ const RoomManagementPage: React.FC = () => {
                 </Grid>
               )}
               {selectedGuestDetails.country && (
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="caption" color="text.secondary">Country</Typography>
                   <Typography variant="body2">{selectedGuestDetails.country}</Typography>
                 </Grid>
               )}
               {selectedGuestDetails.nationality && (
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="caption" color="text.secondary">Nationality</Typography>
                   <Typography variant="body2">{selectedGuestDetails.nationality}</Typography>
                 </Grid>
               )}
               {selectedGuestDetails.ic_number && (
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="caption" color="text.secondary">IC Number</Typography>
                   <Typography variant="body2">{selectedGuestDetails.ic_number}</Typography>
                 </Grid>
               )}
               {selectedGuestDetails.company_name && (
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <Typography variant="caption" color="text.secondary">Company</Typography>
                   <Typography variant="body2">{selectedGuestDetails.company_name}</Typography>
                 </Grid>
               )}
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Divider sx={{ my: 1 }} />
               </Grid>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Typography variant="caption" color="text.secondary">Member Since</Typography>
                 <Typography variant="body2">
                   {new Date(selectedGuestDetails.created_at).toLocaleDateString()}
@@ -4567,7 +4567,7 @@ const RoomManagementPage: React.FC = () => {
               ) : (
                 <Grid container spacing={3}>
                   {/* Credits Summary */}
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Paper sx={{ p: 2, bgcolor: 'secondary.light' }}>
                       <Typography variant="subtitle1" fontWeight={600} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <GiftIcon /> Available Free Gift Credits
@@ -4595,13 +4595,13 @@ const RoomManagementPage: React.FC = () => {
                   {/* Booking Form */}
                   {guestCredits && guestCredits.total_nights > 0 && (
                     <>
-                      <Grid item xs={12}>
+                      <Grid size={12}>
                         <Typography variant="subtitle1" fontWeight={600}>
                           Book a Room with Free Gift Credits
                         </Typography>
                       </Grid>
 
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <TextField
                           label="Check-in Date"
                           type="date"
@@ -4614,7 +4614,7 @@ const RoomManagementPage: React.FC = () => {
                           InputLabelProps={{ shrink: true }}
                         />
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <TextField
                           label="Check-out Date"
                           type="date"
@@ -4628,7 +4628,7 @@ const RoomManagementPage: React.FC = () => {
                         />
                       </Grid>
 
-                      <Grid item xs={12}>
+                      <Grid size={12}>
                         <FormControl fullWidth>
                           <InputLabel>Select Room</InputLabel>
                           <Select
@@ -4663,7 +4663,7 @@ const RoomManagementPage: React.FC = () => {
 
                       {/* Date Selection for Complimentary Nights */}
                       {creditsBookingForm.room_id && getCreditsBookingDates().length > 0 && (
-                        <Grid item xs={12}>
+                        <Grid size={12}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                             <Typography variant="subtitle2">
                               Select Complimentary Dates (Available: {getTotalCreditsForRoom(creditsBookingForm.room_id)})
@@ -4753,7 +4753,7 @@ const RoomManagementPage: React.FC = () => {
                         </Grid>
                       )}
 
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <TextField
                           label="Adults"
                           type="number"
@@ -4763,7 +4763,7 @@ const RoomManagementPage: React.FC = () => {
                           inputProps={{ min: 1, max: 10 }}
                         />
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <TextField
                           label="Children"
                           type="number"
@@ -4774,7 +4774,7 @@ const RoomManagementPage: React.FC = () => {
                         />
                       </Grid>
 
-                      <Grid item xs={12}>
+                      <Grid size={12}>
                         <Button
                           variant="contained"
                           color="secondary"
@@ -4825,68 +4825,68 @@ const RoomManagementPage: React.FC = () => {
           {selectedBooking && (
             <Grid container spacing={3}>
               {/* Booking Info */}
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Paper sx={{ p: 2, bgcolor: 'grey.100' }}>
                   <Typography variant="subtitle2" gutterBottom>
                     Booking Details
                   </Typography>
                   <Grid container spacing={1}>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">
                         Room:
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" fontWeight="bold">
                         {selectedRoom?.room_number} - {selectedRoom?.room_type}
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">
                         Guest:
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" fontWeight="bold">
                         {selectedBooking.guest_name}
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">
                         Check-in Date:
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2">
                         {new Date(selectedBooking.check_in_date).toLocaleDateString()}
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">
                         Check-out Date:
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2">
                         {new Date(selectedBooking.check_out_date).toLocaleDateString()}
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">
                         Original Amount:
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" sx={{ textDecoration: 'line-through', color: 'error.main' }}>
                         {currencySymbol}{Number(selectedBooking.total_amount).toFixed(2)}
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">
                         New Amount:
                       </Typography>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Typography variant="body2" fontWeight="bold" color="success.main">
                         {currencySymbol}0.00 (Complimentary)
                       </Typography>
@@ -4896,7 +4896,7 @@ const RoomManagementPage: React.FC = () => {
               </Grid>
 
               {/* Reason Input */}
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Reason for Complimentary Stay"
@@ -4909,7 +4909,7 @@ const RoomManagementPage: React.FC = () => {
               </Grid>
 
               {/* Info Alert */}
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Alert severity="info" sx={{ mt: 1 }}>
                   Marking this booking as complimentary will set the total amount to {currencySymbol}0.00.
                   If the guest cancels or doesn't show up, the complimentary nights will be converted to credits for future use.

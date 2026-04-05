@@ -139,7 +139,7 @@ const PersonalizedReportsPage: React.FC = () => {
                 <Typography variant="h6">Report Context</Typography>
               </Box>
               <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <Typography variant="body2" color="text.secondary">
                     Report Scope: <strong>{report.reportScope === 'all' ? 'System-wide' : 'Personal'}</strong>
                   </Typography>
@@ -149,7 +149,7 @@ const PersonalizedReportsPage: React.FC = () => {
                     ))}
                   </Typography>
                 </Grid>
-                <Grid item xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <Typography variant="body2" color="text.secondary">
                     Generated: {formatDate(report.generatedAt)}
                   </Typography>
@@ -163,7 +163,7 @@ const PersonalizedReportsPage: React.FC = () => {
 
           {/* Summary Cards */}
           <Grid container spacing={3} mb={3}>
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <Card>
                 <CardContent>
                   <Box display="flex" alignItems="center" mb={1}>
@@ -180,7 +180,7 @@ const PersonalizedReportsPage: React.FC = () => {
               </Card>
             </Grid>
 
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <Card>
                 <CardContent>
                   <Box display="flex" alignItems="center" mb={1}>
@@ -197,7 +197,7 @@ const PersonalizedReportsPage: React.FC = () => {
               </Card>
             </Grid>
 
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <Card>
                 <CardContent>
                   <Box display="flex" alignItems="center" mb={1}>
@@ -214,7 +214,7 @@ const PersonalizedReportsPage: React.FC = () => {
               </Card>
             </Grid>
 
-            <Grid item xs={12} md={3}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <Card>
                 <CardContent>
                   <Box display="flex" alignItems="center" mb={1}>

@@ -179,7 +179,7 @@ const DataTransferPage: React.FC = () => {
 
       <Grid container spacing={3}>
         {/* Export Section */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -233,7 +233,7 @@ const DataTransferPage: React.FC = () => {
         </Grid>
 
         {/* Import Section */}
-        <Grid item xs={12} md={6}>
+        <Grid size={{ xs: 12, md: 6 }}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -293,7 +293,7 @@ const DataTransferPage: React.FC = () => {
                   </TableContainer>
 
                   <Grid container spacing={1}>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Button
                         variant="contained"
                         color="primary"
@@ -305,7 +305,7 @@ const DataTransferPage: React.FC = () => {
                         Import
                       </Button>
                     </Grid>
-                    <Grid item xs={6}>
+                    <Grid size={6}>
                       <Button
                         variant="contained"
                         color="error"

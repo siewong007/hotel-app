@@ -396,7 +396,7 @@ const EnhancedRBACManagementPage: React.FC = () => {
 
           <Grid container spacing={3}>
             {['core', 'management', 'analytics', 'system'].map(category => (
-              <Grid item xs={12} key={category}>
+              <Grid key={category} size={12}>
                 <Typography variant="h6" gutterBottom sx={{ textTransform: 'capitalize' }}>
                   {category} Navigation
                 </Typography>

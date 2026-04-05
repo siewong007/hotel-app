@@ -219,7 +219,7 @@ const RegisterPage: React.FC = () => {
 
           <form onSubmit={handleRegister}>
             <Grid container spacing={2}>
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Username"
@@ -239,7 +239,7 @@ const RegisterPage: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Email"
@@ -262,7 +262,7 @@ const RegisterPage: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <TextField
                   fullWidth
                   label="First Name"
@@ -281,7 +281,7 @@ const RegisterPage: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={6}>
+              <Grid size={6}>
                 <TextField
                   fullWidth
                   label="Last Name"
@@ -300,7 +300,7 @@ const RegisterPage: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Phone"
@@ -321,7 +321,7 @@ const RegisterPage: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Password"
@@ -341,7 +341,7 @@ const RegisterPage: React.FC = () => {
                 />
               </Grid>
 
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Confirm Password"

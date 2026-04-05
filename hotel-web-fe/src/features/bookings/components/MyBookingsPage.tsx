@@ -467,7 +467,7 @@ const MyBookingsPage: React.FC = () => {
               {guestsWithCredits.map((guest) => {
                 const totalCredits = guest.total_complimentary_credits;
                 return (
-                  <Grid item xs={12} sm={6} md={4} key={guest.id}>
+                  <Grid key={guest.id} size={{ xs: 12, sm: 6, md: 4 }}>
                     <Paper
                       variant="outlined"
                       sx={{
@@ -614,7 +614,7 @@ const MyBookingsPage: React.FC = () => {
               )}
 
               <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     label="Check-in Date"
                     type="date"
@@ -628,7 +628,7 @@ const MyBookingsPage: React.FC = () => {
                     inputProps={{ min: new Date().toISOString().split('T')[0] }}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     label="Check-out Date"
                     type="date"
@@ -643,7 +643,7 @@ const MyBookingsPage: React.FC = () => {
                   />
                 </Grid>
 
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     select
                     label="Select Room"
@@ -664,7 +664,7 @@ const MyBookingsPage: React.FC = () => {
                   </TextField>
                 </Grid>
 
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <TextField
                     label="Adults"
                     type="number"
@@ -674,7 +674,7 @@ const MyBookingsPage: React.FC = () => {
                     inputProps={{ min: 1, max: 10 }}
                   />
                 </Grid>
-                <Grid item xs={6}>
+                <Grid size={6}>
                   <TextField
                     label="Children"
                     type="number"
@@ -685,7 +685,7 @@ const MyBookingsPage: React.FC = () => {
                   />
                 </Grid>
 
-                <Grid item xs={12}>
+                <Grid size={12}>
                   <TextField
                     label="Special Requests (Optional)"
                     fullWidth
@@ -699,7 +699,7 @@ const MyBookingsPage: React.FC = () => {
 
                 {/* Date Selection for Complimentary Nights */}
                 {bookingDates.length > 0 && bookingForm.room_id && (
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Divider sx={{ my: 2 }} />
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                       <Typography variant="subtitle1" fontWeight={600}>

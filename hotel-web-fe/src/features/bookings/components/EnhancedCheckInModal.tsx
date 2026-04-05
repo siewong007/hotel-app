@@ -780,39 +780,39 @@ export default function EnhancedCheckInModal({
             />
           </Box>
           <Grid container spacing={1}>
-            <Grid item xs={4}>
+            <Grid size={4}>
               <Typography variant="caption" color="text.secondary">Room</Typography>
               <Typography variant="body2" fontWeight={600}>
                 {(booking as any).room_number || booking.room_id} ({booking.room_type || 'N/A'})
               </Typography>
             </Grid>
-            <Grid item xs={4}>
+            <Grid size={4}>
               <Typography variant="caption" color="text.secondary">Guest</Typography>
               <Typography variant="body2" fontWeight={600}>{guest.full_name}</Typography>
             </Grid>
-            <Grid item xs={4}>
+            <Grid size={4}>
               <Typography variant="caption" color="text.secondary">Folio</Typography>
               <Typography variant="body2" fontWeight={600}>{booking.folio_number || 'N/A'}</Typography>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 0.5 }} />
             </Grid>
-            <Grid item xs={4}>
+            <Grid size={4}>
               <Typography variant="caption" color="text.secondary">Check-in</Typography>
               <Typography variant="body2">{booking.check_in_date}</Typography>
             </Grid>
-            <Grid item xs={4}>
+            <Grid size={4}>
               <Typography variant="caption" color="text.secondary">Check-out</Typography>
               <Typography variant="body2">{booking.check_out_date}</Typography>
             </Grid>
-            <Grid item xs={4}>
+            <Grid size={4}>
               <Typography variant="caption" color="text.secondary">Nights</Typography>
               <Typography variant="body2">{calculateNights()}</Typography>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Divider sx={{ my: 0.5 }} />
             </Grid>
-            <Grid item xs={4}>
+            <Grid size={4}>
               <Typography variant="caption" color="text.secondary">Room Rate</Typography>
               <Typography variant="body2">
                 {booking.rate_override_weekday
@@ -822,25 +822,25 @@ export default function EnhancedCheckInModal({
               </Typography>
             </Grid>
             {booking.is_tourist && Number(booking.tourism_tax_amount || 0) > 0 && (
-              <Grid item xs={4}>
+              <Grid size={4}>
                 <Typography variant="caption" color="text.secondary">Tourism Tax</Typography>
                 <Typography variant="body2">{formatCurrency(Number(booking.tourism_tax_amount))}</Typography>
               </Grid>
             )}
             {extraBedCount > 0 && (
-              <Grid item xs={4}>
+              <Grid size={4}>
                 <Typography variant="caption" color="text.secondary">Extra Bed ({extraBedCount})</Typography>
                 <Typography variant="body2">{formatCurrency(extraBedCharge)}</Typography>
               </Grid>
             )}
-            <Grid item xs={4}>
+            <Grid size={4}>
               <Typography variant="caption" color="text.secondary">Total Amount</Typography>
               <Typography variant="body2" fontWeight={600} color="primary.main">
                 {formatCurrency(Number(booking.total_amount))}
               </Typography>
             </Grid>
             {Number(booking.deposit_amount || 0) > 0 && (
-              <Grid item xs={4}>
+              <Grid size={4}>
                 <Typography variant="caption" color="text.secondary">Deposit Paid</Typography>
                 <Typography variant="body2" color="success.main">{formatCurrency(Number(booking.deposit_amount))}</Typography>
               </Grid>
@@ -871,7 +871,7 @@ export default function EnhancedCheckInModal({
         {/* Tab 1: Personal Information (View Only) */}
         <TabPanel value={activeTab} index={0}>
           <Grid container spacing={2}>
-            <Grid item xs={12} sm={3}>
+            <Grid size={{ xs: 12, sm: 3 }}>
               <TextField
                 fullWidth
                 label="Title"
@@ -880,7 +880,7 @@ export default function EnhancedCheckInModal({
                 InputProps={{ readOnly: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={4.5}>
+            <Grid size={{ xs: 12, sm: 4.5 }}>
               <TextField
                 fullWidth
                 label="First Name"
@@ -889,7 +889,7 @@ export default function EnhancedCheckInModal({
                 InputProps={{ readOnly: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={4.5}>
+            <Grid size={{ xs: 12, sm: 4.5 }}>
               <TextField
                 fullWidth
                 label="Last Name"
@@ -898,7 +898,7 @@ export default function EnhancedCheckInModal({
                 InputProps={{ readOnly: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Email"
@@ -908,7 +908,7 @@ export default function EnhancedCheckInModal({
                 InputProps={{ readOnly: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Phone 1"
@@ -917,7 +917,7 @@ export default function EnhancedCheckInModal({
                 InputProps={{ readOnly: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Phone 2"
@@ -926,7 +926,7 @@ export default function EnhancedCheckInModal({
                 InputProps={{ readOnly: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Reference/IC Number"
@@ -935,7 +935,7 @@ export default function EnhancedCheckInModal({
                 InputProps={{ readOnly: true }}
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Street Address"
@@ -944,7 +944,7 @@ export default function EnhancedCheckInModal({
                 InputProps={{ readOnly: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="City"
@@ -953,7 +953,7 @@ export default function EnhancedCheckInModal({
                 InputProps={{ readOnly: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="State/Province"
@@ -962,7 +962,7 @@ export default function EnhancedCheckInModal({
                 InputProps={{ readOnly: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Zip Code"
@@ -971,7 +971,7 @@ export default function EnhancedCheckInModal({
                 InputProps={{ readOnly: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Country"
@@ -980,7 +980,7 @@ export default function EnhancedCheckInModal({
                 InputProps={{ readOnly: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Nationality"
@@ -995,13 +995,13 @@ export default function EnhancedCheckInModal({
         {/* Tab 2: Stay Information */}
         <TabPanel value={activeTab} index={1}>
           <Grid container spacing={2}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="primary" gutterBottom>
                 Check-in/Check-out
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Check-in Date"
@@ -1012,7 +1012,7 @@ export default function EnhancedCheckInModal({
                 helperText={getDayOfWeek(booking.check_in_date)}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Check-in Time"
@@ -1022,7 +1022,7 @@ export default function EnhancedCheckInModal({
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Nights"
@@ -1030,7 +1030,7 @@ export default function EnhancedCheckInModal({
                 disabled
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Check-out Date"
@@ -1041,7 +1041,7 @@ export default function EnhancedCheckInModal({
                 helperText={getDayOfWeek(booking.check_out_date)}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Check-out Time"
@@ -1052,7 +1052,7 @@ export default function EnhancedCheckInModal({
               />
             </Grid>
 
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Adults"
@@ -1061,7 +1061,7 @@ export default function EnhancedCheckInModal({
                 disabled
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Extra Beds"
@@ -1070,7 +1070,7 @@ export default function EnhancedCheckInModal({
                 disabled
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Room Number"
@@ -1079,14 +1079,14 @@ export default function EnhancedCheckInModal({
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
                 Rate & Charges
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
 
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <FormControl fullWidth>
                 <InputLabel>Rate Code</InputLabel>
                 <Select
@@ -1100,7 +1100,7 @@ export default function EnhancedCheckInModal({
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <Autocomplete
                 freeSolo
                 options={marketCodes}
@@ -1116,7 +1116,7 @@ export default function EnhancedCheckInModal({
                 )}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Discount %"
@@ -1127,7 +1127,7 @@ export default function EnhancedCheckInModal({
               />
             </Grid>
 
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Weekday Rate"
@@ -1140,7 +1140,7 @@ export default function EnhancedCheckInModal({
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Weekend Rate"
@@ -1153,7 +1153,7 @@ export default function EnhancedCheckInModal({
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <FormControlLabel
                 control={
                   <Checkbox
@@ -1165,30 +1165,30 @@ export default function EnhancedCheckInModal({
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
                 <Typography variant="subtitle2" gutterBottom>
                   Room Charge Summary
                 </Typography>
                 <Grid container spacing={1}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Total Amount:</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" fontWeight="bold">{formatCurrency(Number(booking.total_amount))}</Typography>
                   </Grid>
                 </Grid>
               </Paper>
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
                 Special Posting
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
 
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="EPI Rate"
@@ -1198,7 +1198,7 @@ export default function EnhancedCheckInModal({
                 InputProps={{ inputProps: { min: 1, step: 1 } }}
               />
             </Grid>
-            <Grid item xs={12} sm={4}>
+            <Grid size={{ xs: 12, sm: 4 }}>
               <TextField
                 fullWidth
                 label="Next Posting"
@@ -1206,7 +1206,7 @@ export default function EnhancedCheckInModal({
                 onChange={(e) => setNextPosting(e.target.value)}
               />
             </Grid>
-            <Grid item xs={12} sm={4} sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <Grid sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }} size={{ xs: 12, sm: 4 }}>
               <FormControlLabel
                 control={
                   <Checkbox
@@ -1233,13 +1233,13 @@ export default function EnhancedCheckInModal({
         <TabPanel value={activeTab} index={2}>
           <Grid container spacing={2}>
             {/* Payment Section */}
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="primary" gutterBottom>
                 Payment
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <ToggleButtonGroup
                 value={paymentChoice}
                 exclusive
@@ -1261,7 +1261,7 @@ export default function EnhancedCheckInModal({
 
             {paymentChoice === 'pay_now' && (
               <>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <FormControl fullWidth>
                     <InputLabel>Payment Method</InputLabel>
                     <Select
@@ -1278,7 +1278,7 @@ export default function EnhancedCheckInModal({
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Amount Paid"
@@ -1294,13 +1294,13 @@ export default function EnhancedCheckInModal({
 
                 {(paymentType === 'Visa Card' || paymentType === 'Master Card' || paymentType === 'Debit Card' || paymentType === 'American Express' || paymentType === 'Credit Card') && (
                   <>
-                    <Grid item xs={12}>
+                    <Grid size={12}>
                       <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 1 }}>
                         Card Information
                       </Typography>
                       <Divider sx={{ mb: 2 }} />
                     </Grid>
-                    <Grid item xs={12} sm={6}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
                       <TextField
                         fullWidth
                         label="Card Number"
@@ -1331,7 +1331,7 @@ export default function EnhancedCheckInModal({
                         }}
                       />
                     </Grid>
-                    <Grid item xs={12} sm={6}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
                       <TextField
                         fullWidth
                         label="Expire Date"
@@ -1349,7 +1349,7 @@ export default function EnhancedCheckInModal({
                         helperText={(touched.cardExpiry && validationErrors.cardExpiry) || 'Format: MM/YY'}
                       />
                     </Grid>
-                    <Grid item xs={12}>
+                    <Grid size={12}>
                       <TextField
                         fullWidth
                         label="Name on Card"
@@ -1362,13 +1362,13 @@ export default function EnhancedCheckInModal({
 
                 {paymentType === 'Direct Billing' && (
                   <>
-                    <Grid item xs={12}>
+                    <Grid size={12}>
                       <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 1 }}>
                         Direct Billing Information
                       </Typography>
                       <Divider sx={{ mb: 2 }} />
                     </Grid>
-                    <Grid item xs={12}>
+                    <Grid size={12}>
                       <Autocomplete
                         value={selectedCompany}
                         onChange={(event, newValue) => {
@@ -1454,7 +1454,7 @@ export default function EnhancedCheckInModal({
                       />
                     </Grid>
                     {selectedCompany && !selectedCompany.isNew && (
-                      <Grid item xs={12}>
+                      <Grid size={12}>
                         <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
                           <Typography variant="subtitle2" gutterBottom>
                             Company Details
@@ -1462,40 +1462,40 @@ export default function EnhancedCheckInModal({
                           <Grid container spacing={1}>
                             {selectedCompany.company_registration_number && (
                               <>
-                                <Grid item xs={4}>
+                                <Grid size={4}>
                                   <Typography variant="caption" color="text.secondary">Reg. No:</Typography>
                                 </Grid>
-                                <Grid item xs={8}>
+                                <Grid size={8}>
                                   <Typography variant="body2">{selectedCompany.company_registration_number}</Typography>
                                 </Grid>
                               </>
                             )}
                             {selectedCompany.contact_person && (
                               <>
-                                <Grid item xs={4}>
+                                <Grid size={4}>
                                   <Typography variant="caption" color="text.secondary">Contact:</Typography>
                                 </Grid>
-                                <Grid item xs={8}>
+                                <Grid size={8}>
                                   <Typography variant="body2">{selectedCompany.contact_person}</Typography>
                                 </Grid>
                               </>
                             )}
                             {selectedCompany.contact_email && (
                               <>
-                                <Grid item xs={4}>
+                                <Grid size={4}>
                                   <Typography variant="caption" color="text.secondary">Email:</Typography>
                                 </Grid>
-                                <Grid item xs={8}>
+                                <Grid size={8}>
                                   <Typography variant="body2">{selectedCompany.contact_email}</Typography>
                                 </Grid>
                               </>
                             )}
                             {selectedCompany.contact_phone && (
                               <>
-                                <Grid item xs={4}>
+                                <Grid size={4}>
                                   <Typography variant="caption" color="text.secondary">Phone:</Typography>
                                 </Grid>
-                                <Grid item xs={8}>
+                                <Grid size={8}>
                                   <Typography variant="body2">{selectedCompany.contact_phone}</Typography>
                                 </Grid>
                               </>
@@ -1510,7 +1510,7 @@ export default function EnhancedCheckInModal({
             )}
 
             {paymentChoice === 'pay_later' && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <Alert severity="info">
                   Payment will be collected later. Guest will check in with unpaid status.
                 </Alert>
@@ -1518,13 +1518,13 @@ export default function EnhancedCheckInModal({
             )}
 
             {/* Deposit Section */}
-            <Grid item xs={12} sx={{ mt: 2 }}>
+            <Grid sx={{ mt: 2 }} size={12}>
               <Typography variant="subtitle2" color="primary" gutterBottom>
                 Deposit
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <ToggleButtonGroup
                 value={depositChoice}
                 exclusive
@@ -1546,7 +1546,7 @@ export default function EnhancedCheckInModal({
 
             {depositChoice === 'receive' && (
               <>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <FormControl fullWidth>
                     <InputLabel>Deposit Method</InputLabel>
                     <Select
@@ -1560,7 +1560,7 @@ export default function EnhancedCheckInModal({
                     </Select>
                   </FormControl>
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Deposit Amount"
@@ -1577,7 +1577,7 @@ export default function EnhancedCheckInModal({
             )}
 
             {depositChoice === 'waive' && (
-              <Grid item xs={12}>
+              <Grid size={12}>
                 <TextField
                   fullWidth
                   label="Reason for Waiving Deposit"
@@ -1592,20 +1592,20 @@ export default function EnhancedCheckInModal({
             )}
 
             {/* Payment Summary */}
-            <Grid item xs={12} sx={{ mt: 1 }}>
+            <Grid sx={{ mt: 1 }} size={12}>
               <Paper sx={{ p: 2, bgcolor: 'grey.50', border: 1, borderColor: 'divider' }}>
                 <Typography variant="subtitle2" gutterBottom>Payment Summary</Typography>
                 <Grid container spacing={1}>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Total Amount:</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" fontWeight={600}>{formatCurrency(Number(booking.total_amount))}</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Payment Status:</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     <Chip
                       label={paymentChoice === 'pay_now' ? 'Paid' : 'Unpaid'}
                       size="small"
@@ -1615,25 +1615,25 @@ export default function EnhancedCheckInModal({
                   </Grid>
                   {paymentChoice === 'pay_now' && (
                     <>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" color="text.secondary">Amount Paid:</Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" color="success.main" fontWeight={600}>{formatCurrency(amountPaid)}</Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" color="text.secondary">Payment Method:</Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2">{paymentType}</Typography>
                       </Grid>
                     </>
                   )}
-                  <Grid item xs={12}><Divider sx={{ my: 0.5 }} /></Grid>
-                  <Grid item xs={6}>
+                  <Grid size={12}><Divider sx={{ my: 0.5 }} /></Grid>
+                  <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Deposit:</Typography>
                   </Grid>
-                  <Grid item xs={6}>
+                  <Grid size={6}>
                     {depositChoice === 'receive' ? (
                       <Typography variant="body2" color="success.main" fontWeight={600}>
                         {formatCurrency(depositAmount)} ({depositMethod})
@@ -1644,10 +1644,10 @@ export default function EnhancedCheckInModal({
                   </Grid>
                   {depositChoice === 'waive' && waiveReason && (
                     <>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" color="text.secondary">Waive Reason:</Typography>
                       </Grid>
-                      <Grid item xs={6}>
+                      <Grid size={6}>
                         <Typography variant="body2" color="text.secondary" fontStyle="italic">{waiveReason}</Typography>
                       </Grid>
                     </>
@@ -1661,13 +1661,13 @@ export default function EnhancedCheckInModal({
         {/* Tab 4: Custom Fields */}
         <TabPanel value={activeTab} index={3}>
           <Grid container spacing={2}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="primary" gutterBottom>
                 Guest Vehicles
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Car Plate No."
@@ -1675,7 +1675,7 @@ export default function EnhancedCheckInModal({
                 onChange={(e) => setCarPlateNo(e.target.value)}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="ETA"
@@ -1685,13 +1685,13 @@ export default function EnhancedCheckInModal({
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
                 Travel Information
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Group Code"
@@ -1708,7 +1708,7 @@ export default function EnhancedCheckInModal({
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <FormControl fullWidth>
                 <InputLabel>Language</InputLabel>
                 <Select
@@ -1724,7 +1724,7 @@ export default function EnhancedCheckInModal({
               </FormControl>
             </Grid>
 
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Travel Agent 1"
@@ -1741,7 +1741,7 @@ export default function EnhancedCheckInModal({
                 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Travel Agent 2"
@@ -1759,7 +1759,7 @@ export default function EnhancedCheckInModal({
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Drivers Info"
@@ -1770,13 +1770,13 @@ export default function EnhancedCheckInModal({
               />
             </Grid>
 
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
                 Special Charges
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
                 label="Tourism Tax"
@@ -1789,7 +1789,7 @@ export default function EnhancedCheckInModal({
             </Grid>
             {allowsExtraBed && maxExtraBeds > 0 ? (
               <>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Extra Bed Count"
@@ -1804,7 +1804,7 @@ export default function EnhancedCheckInModal({
                     helperText={`${formatCurrency(extraBedChargePerBed)} per extra bed (max ${maxExtraBeds})`}
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Extra Bed Charge"
@@ -1820,7 +1820,7 @@ export default function EnhancedCheckInModal({
               </>
             ) : (
               <>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Extra Bed Count"
@@ -1830,7 +1830,7 @@ export default function EnhancedCheckInModal({
                     helperText="This room type does not allow extra beds"
                   />
                 </Grid>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
                     label="Extra Bed Charge"
@@ -1849,13 +1849,13 @@ export default function EnhancedCheckInModal({
         {/* Tab 5: Notes */}
         <TabPanel value={activeTab} index={4}>
           <Grid container spacing={2}>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="primary" gutterBottom>
                 Special Requests
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <TextField
                 fullWidth
                 label="Special Requests"
@@ -1866,13 +1866,13 @@ export default function EnhancedCheckInModal({
                 helperText="Add or edit special requests for this booking"
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Typography variant="subtitle2" color="primary" gutterBottom sx={{ mt: 2 }}>
                 Check-in Information
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <Paper sx={{ p: 2, bgcolor: 'info.50', borderLeft: 4, borderColor: 'info.main' }}>
                 <Typography variant="body2">
                   <strong>Confirmation Number:</strong> {booking.folio_number || 'N/A'}
@@ -1934,7 +1934,7 @@ export default function EnhancedCheckInModal({
           This company is not in our system. Please provide the company details below.
         </Alert>
         <Grid container spacing={2} sx={{ mt: 1 }}>
-          <Grid item xs={12}>
+          <Grid size={12}>
             <TextField
               fullWidth
               required
@@ -1943,7 +1943,7 @@ export default function EnhancedCheckInModal({
               onChange={(e) => setNewCompanyData({ ...newCompanyData, company_name: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12}>
+          <Grid size={12}>
             <TextField
               fullWidth
               label="Registration Number"
@@ -1952,7 +1952,7 @@ export default function EnhancedCheckInModal({
               placeholder="e.g., 123456-A"
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               label="Contact Person"
@@ -1960,7 +1960,7 @@ export default function EnhancedCheckInModal({
               onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_person: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               label="Contact Email"
@@ -1969,7 +1969,7 @@ export default function EnhancedCheckInModal({
               onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_email: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               label="Contact Phone"
@@ -1977,7 +1977,7 @@ export default function EnhancedCheckInModal({
               onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_phone: e.target.value })}
             />
           </Grid>
-          <Grid item xs={12} sm={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <TextField
               fullWidth
               label="Billing Address"
