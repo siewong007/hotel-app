@@ -512,7 +512,9 @@ const NightAuditPage: React.FC = () => {
         for (const entry of section.entries) {
           const amount = isDepositRefund ? Number(entry.credit) : Number(entry.debit);
           // For advance payments, show booking info (e.g. "Book FR on 21.03.2026") in the last column
-          const roomOrNote = entry.description && entry.description !== displayName
+          const descNorm = (entry.description || '').replace(/s$/i, '').toLowerCase();
+          const nameNorm = displayName.replace(/s$/i, '').toLowerCase();
+          const roomOrNote = entry.description && descNorm !== nameNorm
             ? entry.description
             : entry.room_number;
           rows.push([
