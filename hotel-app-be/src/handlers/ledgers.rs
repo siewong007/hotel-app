@@ -1780,3 +1780,160 @@ pub async fn update_ledger_payment_handler(
 
     Ok(Json(row_to_customer_ledger_payment(&payment_row)))
 }
+
+/// Delete a payment from a customer ledger (SQLite version)
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+pub async fn delete_ledger_payment_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path((ledger_id, payment_id)): Path<(i64, i64)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let _user_id = require_auth(&headers).await?;
+
+    // Verify the payment belongs to this ledger
+    let exists = sqlx::query(
+        "SELECT id FROM customer_ledger_payments WHERE id = ?1 AND ledger_id = ?2"
+    )
+    .bind(payment_id)
+    .bind(ledger_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if exists.is_none() {
+        return Err(ApiError::NotFound("Payment not found".to_string()));
+    }
+
+    // Delete the payment
+    sqlx::query("DELETE FROM customer_ledger_payments WHERE id = ?1")
+        .bind(payment_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Recalculate paid_amount from remaining payments
+    let new_paid: f64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = ?1"
+    )
+    .bind(ledger_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Get total amount for status calculation
+    let total_amount: f64 = sqlx::query_scalar(
+        "SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = ?1"
+    )
+    .bind(ledger_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let new_status = if new_paid >= total_amount {
+        "paid"
+    } else if new_paid > 0.0 {
+        "partial"
+    } else {
+        "pending"
+    };
+
+    sqlx::query(
+        r#"
+        UPDATE customer_ledgers
+        SET paid_amount = ?1,
+            status = ?2,
+            payment_date = (SELECT MAX(payment_date) FROM customer_ledger_payments WHERE ledger_id = ?3),
+            updated_at = datetime('now')
+        WHERE id = ?3
+        "#,
+    )
+    .bind(new_paid)
+    .bind(new_status)
+    .bind(ledger_id)
+    .execute(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(Json(serde_json::json!({
+        "message": "Payment deleted successfully",
+        "payment_id": payment_id
+    })))
+}
+
+/// Delete a payment from a customer ledger (PostgreSQL version)
+#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+pub async fn delete_ledger_payment_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path((ledger_id, payment_id)): Path<(i64, i64)>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let _user_id = require_auth(&headers).await?;
+
+    // Verify the payment belongs to this ledger
+    let exists = sqlx::query(
+        "SELECT id FROM customer_ledger_payments WHERE id = $1 AND ledger_id = $2"
+    )
+    .bind(payment_id)
+    .bind(ledger_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if exists.is_none() {
+        return Err(ApiError::NotFound("Payment not found".to_string()));
+    }
+
+    // Delete the payment
+    sqlx::query("DELETE FROM customer_ledger_payments WHERE id = $1")
+        .bind(payment_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Recalculate paid_amount and status from remaining payments
+    let new_paid: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = $1"
+    )
+    .bind(ledger_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let total_amount: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1"
+    )
+    .bind(ledger_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let new_status = if new_paid >= total_amount {
+        "paid"
+    } else if new_paid > Decimal::ZERO {
+        "partial"
+    } else {
+        "pending"
+    };
+
+    sqlx::query(
+        r#"
+        UPDATE customer_ledgers
+        SET paid_amount = $1,
+            status = $2,
+            payment_date = (SELECT MAX(payment_date) FROM customer_ledger_payments WHERE ledger_id = $3),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+        "#,
+    )
+    .bind(new_paid)
+    .bind(new_status)
+    .bind(ledger_id)
+    .execute(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(Json(serde_json::json!({
+        "message": "Payment deleted successfully",
+        "payment_id": payment_id
+    })))
+}
