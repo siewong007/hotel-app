@@ -336,7 +336,7 @@ const CustomerLedgerPage: React.FC = () => {
   const [companyPaymentDialogOpen, setCompanyPaymentDialogOpen] = useState(false);
   const [paymentCompany, setPaymentCompany] = useState<Company | null>(null);
   const [paymentCompanyLedgers, setPaymentCompanyLedgers] = useState<CustomerLedger[]>([]);
-  const [selectedLedgerForPayment, setSelectedLedgerForPayment] = useState<CustomerLedger | null>(null);
+  const [selectedLedgersForPayment, setSelectedLedgersForPayment] = useState<CustomerLedger[]>([]);
   const [processingCompanyPayment, setProcessingCompanyPayment] = useState(false);
   const [companyPaymentForm, setCompanyPaymentForm] = useState({
     payment_amount: '',
@@ -895,7 +895,7 @@ const CustomerLedgerPage: React.FC = () => {
            (l.status === 'pending' || l.status === 'partial')
     );
     setPaymentCompanyLedgers(companyLedgersFiltered);
-    setSelectedLedgerForPayment(companyLedgersFiltered.length > 0 ? companyLedgersFiltered[0] : null);
+    setSelectedLedgersForPayment(companyLedgersFiltered);
     setCompanyPaymentDialogOpen(true);
   };
 
@@ -911,13 +911,13 @@ const CustomerLedgerPage: React.FC = () => {
     });
     setPaymentCompany(null);
     setPaymentCompanyLedgers([]);
-    setSelectedLedgerForPayment(null);
+    setSelectedLedgersForPayment([]);
   };
 
-  // Handle recording company payment
+  // Handle recording company payment (distributes across selected ledgers)
   const handleRecordCompanyPayment = async () => {
-    if (!selectedLedgerForPayment || !companyPaymentForm.payment_amount) {
-      setSnackbarMessage('Please select a ledger entry and enter payment amount');
+    if (selectedLedgersForPayment.length === 0 || !companyPaymentForm.payment_amount) {
+      setSnackbarMessage('Please select at least one ledger entry and enter payment amount');
       setSnackbarOpen(true);
       return;
     }
@@ -932,14 +932,26 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       setProcessingCompanyPayment(true);
 
-      await HotelAPIService.createLedgerPayment(selectedLedgerForPayment.id, {
-        payment_amount: paymentAmount,
-        payment_method: companyPaymentForm.payment_method,
-        payment_reference: companyPaymentForm.payment_reference || undefined,
-        receipt_number: companyPaymentForm.receipt_number || undefined,
-        notes: companyPaymentForm.notes || undefined,
-        payment_date: companyPaymentForm.payment_date || undefined,
-      });
+      // Distribute payment across selected ledgers in order
+      let remaining = paymentAmount;
+      for (const ledger of selectedLedgersForPayment) {
+        if (remaining <= 0) break;
+        const balance = typeof ledger.balance_due === 'string'
+          ? parseFloat(ledger.balance_due)
+          : (ledger.balance_due || (typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount));
+        const allocate = Math.min(remaining, balance);
+        if (allocate <= 0) continue;
+
+        await HotelAPIService.createLedgerPayment(ledger.id, {
+          payment_amount: parseFloat(allocate.toFixed(2)),
+          payment_method: companyPaymentForm.payment_method,
+          payment_reference: companyPaymentForm.payment_reference || undefined,
+          receipt_number: companyPaymentForm.receipt_number || undefined,
+          notes: companyPaymentForm.notes || undefined,
+          payment_date: companyPaymentForm.payment_date || undefined,
+        });
+        remaining -= allocate;
+      }
 
       setSnackbarMessage(`Payment of ${formatCurrency(paymentAmount)} recorded successfully`);
       setSnackbarOpen(true);
@@ -4213,56 +4225,89 @@ const CustomerLedgerPage: React.FC = () => {
             </Alert>
           ) : (
             <Grid container spacing={2} sx={{ mt: 0.5 }}>
-              {/* Select Ledger Entry */}
+              {/* Select Ledger Entries */}
               <Grid size={12}>
-                <TextField
-                  select
-                  fullWidth
-                  label="Select Ledger Entry"
-                  value={selectedLedgerForPayment?.id || ''}
-                  onChange={(e) => {
-                    const ledger = paymentCompanyLedgers.find(l => l.id === parseInt(e.target.value));
-                    setSelectedLedgerForPayment(ledger || null);
-                  }}
-                >
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>Select Ledger Entries</Typography>
+                <Paper variant="outlined" sx={{ maxHeight: 220, overflow: 'auto' }}>
+                  {/* Select All */}
+                  <Box sx={{ px: 2, py: 0.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={selectedLedgersForPayment.length === paymentCompanyLedgers.length}
+                          indeterminate={selectedLedgersForPayment.length > 0 && selectedLedgersForPayment.length < paymentCompanyLedgers.length}
+                          onChange={(e) => setSelectedLedgersForPayment(e.target.checked ? [...paymentCompanyLedgers] : [])}
+                        />
+                      }
+                      label={<Typography variant="body2" fontWeight={600}>Select All</Typography>}
+                    />
+                  </Box>
                   {paymentCompanyLedgers.map((ledger) => {
                     const amount = typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount;
                     const balanceDue = typeof ledger.balance_due === 'string' ? parseFloat(ledger.balance_due) : (ledger.balance_due || amount);
+                    const isSelected = selectedLedgersForPayment.some(l => l.id === ledger.id);
                     return (
-                      <MenuItem key={ledger.id} value={ledger.id}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
-                          <Typography variant="body2" noWrap sx={{ flex: 1 }}>
-                            {ledger.description}
-                          </Typography>
-                          <Typography variant="body2" color="error.main" fontWeight={600} sx={{ ml: 2 }}>
-                            Due: {formatCurrency(balanceDue)}
-                          </Typography>
-                        </Box>
-                      </MenuItem>
+                      <Box
+                        key={ledger.id}
+                        sx={{ px: 2, py: 0.5, display: 'flex', alignItems: 'center', '&:hover': { bgcolor: 'grey.50' } }}
+                      >
+                        <FormControlLabel
+                          sx={{ flex: 1, mr: 0 }}
+                          control={
+                            <Checkbox
+                              size="small"
+                              checked={isSelected}
+                              onChange={() => {
+                                setSelectedLedgersForPayment(prev =>
+                                  isSelected ? prev.filter(l => l.id !== ledger.id) : [...prev, ledger]
+                                );
+                              }}
+                            />
+                          }
+                          label={
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                              <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                                {ledger.description}
+                              </Typography>
+                              <Typography variant="body2" color="error.main" fontWeight={600} sx={{ ml: 2, whiteSpace: 'nowrap' }}>
+                                Due: {formatCurrency(balanceDue)}
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </Box>
                     );
                   })}
-                </TextField>
+                </Paper>
               </Grid>
 
-              {/* Selected Entry Details */}
-              {selectedLedgerForPayment && (
+              {/* Selected Entries Summary */}
+              {selectedLedgersForPayment.length > 0 && (
                 <Grid size={12}>
                   <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50' }}>
                     <Grid container spacing={1}>
                       <Grid size={6}>
-                        <Typography variant="caption" color="text.secondary">Description</Typography>
-                        <Typography variant="body2">{selectedLedgerForPayment.description}</Typography>
+                        <Typography variant="caption" color="text.secondary">Selected Entries</Typography>
+                        <Typography variant="body2">{selectedLedgersForPayment.length} of {paymentCompanyLedgers.length} entries</Typography>
                       </Grid>
                       <Grid size={3}>
                         <Typography variant="caption" color="text.secondary">Total Amount</Typography>
                         <Typography variant="body2">
-                          {formatCurrency(typeof selectedLedgerForPayment.amount === 'string' ? parseFloat(selectedLedgerForPayment.amount) : selectedLedgerForPayment.amount)}
+                          {formatCurrency(selectedLedgersForPayment.reduce((sum, l) => {
+                            const amt = typeof l.amount === 'string' ? parseFloat(l.amount) : l.amount;
+                            return sum + amt;
+                          }, 0))}
                         </Typography>
                       </Grid>
                       <Grid size={3}>
-                        <Typography variant="caption" color="text.secondary">Balance Due</Typography>
+                        <Typography variant="caption" color="text.secondary">Total Balance Due</Typography>
                         <Typography variant="body2" color="error.main" fontWeight={600}>
-                          {formatCurrency(typeof selectedLedgerForPayment.balance_due === 'string' ? parseFloat(selectedLedgerForPayment.balance_due) : (selectedLedgerForPayment.balance_due || (typeof selectedLedgerForPayment.amount === 'string' ? parseFloat(selectedLedgerForPayment.amount) : selectedLedgerForPayment.amount)))}
+                          {formatCurrency(selectedLedgersForPayment.reduce((sum, l) => {
+                            const amt = typeof l.amount === 'string' ? parseFloat(l.amount) : l.amount;
+                            const bal = typeof l.balance_due === 'string' ? parseFloat(l.balance_due) : (l.balance_due || amt);
+                            return sum + bal;
+                          }, 0))}
                         </Typography>
                       </Grid>
                     </Grid>
@@ -4357,7 +4402,7 @@ const CustomerLedgerPage: React.FC = () => {
           <Button
             onClick={handleRecordCompanyPayment}
             variant="contained"
-            disabled={processingCompanyPayment || !selectedLedgerForPayment || !companyPaymentForm.payment_amount}
+            disabled={processingCompanyPayment || selectedLedgersForPayment.length === 0 || !companyPaymentForm.payment_amount}
             startIcon={processingCompanyPayment ? <CircularProgress size={20} /> : <PaymentIcon />}
           >
             {processingCompanyPayment ? 'Processing...' : 'Record Payment'}
