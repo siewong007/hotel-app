@@ -3033,17 +3033,42 @@ const CustomerLedgerPage: React.FC = () => {
                               </IconButton>
                             </Box>
                           ) : (
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              onClick={() => {
-                                setEditingPaymentId(payment.id);
-                                setEditingPaymentDate(formatDateForInput(payment.payment_date));
-                              }}
-                              title="Edit payment date"
-                            >
-                              <EditIcon fontSize="small" />
-                            </IconButton>
+                            <Box display="flex" gap={0.5}>
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => {
+                                  setEditingPaymentId(payment.id);
+                                  setEditingPaymentDate(formatDateForInput(payment.payment_date));
+                                }}
+                                title="Edit payment date"
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={async () => {
+                                  if (!paymentLedger) return;
+                                  if (!window.confirm('Are you sure you want to delete this payment?')) return;
+                                  try {
+                                    await HotelAPIService.deleteLedgerPayment(paymentLedger.id, payment.id);
+                                    setSnackbarMessage('Payment deleted successfully');
+                                    setSnackbarOpen(true);
+                                    // Refresh payment history
+                                    const payments = await HotelAPIService.getLedgerPayments(paymentLedger.id);
+                                    setPaymentHistory(payments);
+                                    await loadData();
+                                  } catch (error: any) {
+                                    setSnackbarMessage(error.message || 'Failed to delete payment');
+                                    setSnackbarOpen(true);
+                                  }
+                                }}
+                                title="Delete payment"
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Box>
                           )
                         }
                       >

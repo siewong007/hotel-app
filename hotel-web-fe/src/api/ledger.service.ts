@@ -79,6 +79,10 @@ export class LedgerService {
     return await api.patch(`ledgers/${ledgerId}/payments/${paymentId}`, { json: { payment_date: paymentDate } }).json<CustomerLedgerPayment>();
   }
 
+  static async deleteLedgerPayment(ledgerId: number, paymentId: number): Promise<void> {
+    await api.delete(`ledgers/${ledgerId}/payments/${paymentId}`).json();
+  }
+
   // PAT-style methods
   static async getTransactionCodes(): Promise<PatTransactionCode[]> {
     return await withRetry(
