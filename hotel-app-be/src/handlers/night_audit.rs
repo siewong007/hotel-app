@@ -570,55 +570,6 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
         }
     }
 
-    // Get city ledger entries: charges posted to company accounts on the audit date
-    let city_ledger_query = r#"
-        SELECT
-            cl.company_name,
-            COALESCE(cl.room_number, '') as room_number,
-            cl.amount,
-            COALESCE(cl.transaction_type, 'debit') as transaction_type,
-            COALESCE(cl.description, 'Guest Ledger Transfer') as description
-        FROM customer_ledgers cl
-        WHERE cl.void_at IS NULL
-        AND COALESCE(cl.posting_date, (cl.created_at AT TIME ZONE $2)::date) = $1
-        ORDER BY cl.company_name, cl.room_number
-    "#;
-
-    match sqlx::query(city_ledger_query)
-        .bind(audit_date)
-        .bind(&hotel_timezone)
-        .fetch_all(pool)
-        .await
-    {
-        Ok(cl_rows) => {
-            for row in cl_rows.iter() {
-                let company_name: String = row.get("company_name");
-                let room_number: String = row.get("room_number");
-                let amount: Decimal = row.get("amount");
-                let transaction_type: String = row.get("transaction_type");
-                let description: String = row.get("description");
-
-                let (debit, credit) = if transaction_type == "credit" {
-                    (Decimal::ZERO, amount)
-                } else {
-                    (amount, Decimal::ZERO)
-                };
-
-                entries.push(JournalEntry {
-                    booking_number: company_name,
-                    room_number,
-                    entry_type: "city_ledger".to_string(),
-                    debit,
-                    credit,
-                    description: Some(description),
-                });
-            }
-        }
-        Err(e) => {
-            log::error!("Failed to fetch city ledger charges for {}: {}", audit_date, e);
-        }
-    }
-
     // Get city ledger payments received on the audit date
     let city_ledger_payments_query = r#"
         SELECT
