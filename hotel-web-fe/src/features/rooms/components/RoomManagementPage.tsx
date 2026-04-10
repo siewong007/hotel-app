@@ -1382,7 +1382,7 @@ const RoomManagementPage: React.FC = () => {
     // Use allBookingsData from state instead of fetching again
     const roomBookingsFiltered = allBookingsData.filter(b =>
       b.room_id?.toString() === roomId &&
-      !['no_show', 'checked_out', 'voided'].includes(b.status)
+      !['checked_out', 'voided'].includes(b.status)
     );
 
     const blocked = roomBookingsFiltered.map(b => ({

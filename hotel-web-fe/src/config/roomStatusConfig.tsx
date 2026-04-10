@@ -38,7 +38,6 @@ export type BookingStatusType =
   | 'checked_in'
   | 'auto_checked_in'
   | 'checked_out'
-  | 'no_show'
   | 'voided';
 
 /**
@@ -386,13 +385,6 @@ export const BOOKING_STATUS_CONFIG: Record<BookingStatusType, BookingStatusConfi
     shortLabel: 'Out',
     description: 'Guest has checked out',
     displayAs: 'checked_out',
-  },
-  no_show: {
-    color: '#EF5350', // Red
-    label: 'No Show',
-    shortLabel: 'N/S',
-    description: 'Guest did not arrive',
-    displayAs: 'voided',
   },
   voided: {
     color: '#BDBDBD', // Grey

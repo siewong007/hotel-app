@@ -164,7 +164,7 @@ pub async fn create_booking_handler(
 
     // Only check for ACTIVE bookings that would conflict
     // Active statuses: reserved, confirmed, checked_in, pending
-    // Inactive statuses (don't block): voided, no_show, checked_out, completed
+    // Inactive statuses (don't block): voided, checked_out, completed
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let conflict_query = r#"
         SELECT EXISTS(
@@ -525,10 +525,11 @@ pub async fn update_booking_handler(
             return Err(ApiError::BadRequest("Check-out date must be on or after check-in date".to_string()));
         }
 
-    // Check for room conflicts when room or dates change
+    // Check for room conflicts when room or dates change (skip for non-active statuses)
     let room_changed = input.room_id.is_some() && new_room_id != existing_booking.room_id;
     let dates_changed = input.check_in_date.is_some() || input.check_out_date.is_some();
-    if room_changed || dates_changed {
+    let is_inactive_status = matches!(new_status.as_str(), "voided" | "checked_out" | "late_checkout");
+    if (room_changed || dates_changed) && !is_inactive_status {
         #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
         let conflict_query = r#"
             SELECT EXISTS(
@@ -809,7 +810,7 @@ pub async fn update_booking_handler(
 
     if old_status != updated_status {
         match updated_status {
-            "no_show" | "voided" => {
+            "voided" => {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
                 let has_other_query2 = r#"SELECT EXISTS(SELECT 1 FROM bookings WHERE room_id = ?1 AND id != ?2 AND status IN ('confirmed', 'checked_in', 'auto_checked_in') AND check_out_date > date('now'))"#;
                 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
@@ -1566,10 +1567,10 @@ pub async fn convert_complimentary_to_credits_handler(
         return Err(ApiError::BadRequest("Only complimentary bookings can be converted to credits".to_string()));
     }
 
-    // Only allow conversion for voided or no_show bookings
-    if status != "voided" && status != "no_show" {
+    // Only allow conversion for voided bookings
+    if status != "voided" {
         return Err(ApiError::BadRequest(format!(
-            "Can only convert complimentary bookings with status voided or no_show. Current status: {}",
+            "Can only convert complimentary bookings with status voided. Current status: {}",
             status
         )));
     }
@@ -1717,7 +1718,7 @@ pub async fn book_with_credits_handler(
         SELECT NOT EXISTS(
             SELECT 1 FROM bookings
             WHERE room_id = $1
-              AND status NOT IN ('checked_out', 'no_show', 'voided')
+              AND status NOT IN ('checked_out', 'voided')
               AND check_in_date < $3
               AND check_out_date > $2
         )

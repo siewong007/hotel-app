@@ -1058,7 +1058,7 @@ async fn generate_daily_operations_report(
         r#"
         SELECT COUNT(DISTINCT room_id)::bigint FROM bookings
         WHERE check_in_date <= $1 AND check_out_date > $1
-        AND status NOT IN ('no_show', 'voided')
+        AND status NOT IN ('voided')
         "#
     )
     .bind(date)
@@ -1148,7 +1148,7 @@ async fn generate_occupancy_report(
         SELECT COUNT(*)::bigint, SUM(total_amount)
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('no_show', 'voided')
+        AND status NOT IN ('voided')
         "#
     )
     .bind(start_date)
@@ -1191,7 +1191,7 @@ async fn generate_occupancy_report(
         JOIN rooms r ON b.room_id = r.id
         JOIN room_types rt ON r.room_type_id = rt.id
         WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
-        AND b.status NOT IN ('no_show', 'voided')
+        AND b.status NOT IN ('voided')
         GROUP BY rt.name
         ORDER BY COUNT(*) DESC
         "#
@@ -1218,7 +1218,7 @@ async fn generate_occupancy_report(
         SELECT check_in_date, COUNT(*), SUM(total_amount)
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('no_show', 'voided')
+        AND status NOT IN ('voided')
         GROUP BY check_in_date
         ORDER BY check_in_date
         "#
@@ -1271,7 +1271,7 @@ async fn generate_revenue_report(
         r#"
         SELECT SUM(total_amount) FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('no_show', 'voided')
+        AND status NOT IN ('voided')
         "#
     )
     .bind(start_date)
@@ -1290,7 +1290,7 @@ async fn generate_revenue_report(
         JOIN rooms r ON b.room_id = r.id
         JOIN room_types rt ON r.room_type_id = rt.id
         WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
-        AND b.status NOT IN ('no_show', 'voided')
+        AND b.status NOT IN ('voided')
         GROUP BY rt.name
         ORDER BY SUM(b.total_amount) DESC
         "#
@@ -1307,7 +1307,7 @@ async fn generate_revenue_report(
         SELECT source, COUNT(*), SUM(total_amount)
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('no_show', 'voided')
+        AND status NOT IN ('voided')
         GROUP BY source
         ORDER BY SUM(total_amount) DESC
         "#
@@ -1324,7 +1324,7 @@ async fn generate_revenue_report(
         SELECT payment_status, COUNT(*), SUM(total_amount)
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('no_show', 'voided')
+        AND status NOT IN ('voided')
         GROUP BY payment_status
         ORDER BY SUM(total_amount) DESC
         "#
@@ -1341,7 +1341,7 @@ async fn generate_revenue_report(
         SELECT check_in_date, COUNT(*), SUM(total_amount)
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
-        AND status NOT IN ('no_show', 'voided')
+        AND status NOT IN ('voided')
         GROUP BY check_in_date
         ORDER BY check_in_date
         "#
@@ -1775,7 +1775,7 @@ async fn generate_room_performance_report(
         JOIN rooms r ON b.room_id = r.id
         JOIN room_types rt ON r.room_type_id = rt.id
         WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
-        AND b.status NOT IN ('no_show', 'voided')
+        AND b.status NOT IN ('voided')
         GROUP BY r.room_number, rt.name
         ORDER BY SUM(b.total_amount) DESC
         "#
@@ -1794,7 +1794,7 @@ async fn generate_room_performance_report(
         JOIN room_types rt ON r.room_type_id = rt.id
         LEFT JOIN bookings b ON b.room_id = r.id
             AND b.check_in_date >= $1 AND b.check_in_date <= $2
-            AND b.status NOT IN ('no_show', 'voided')
+            AND b.status NOT IN ('voided')
         WHERE r.is_active = true
         GROUP BY rt.name
         ORDER BY SUM(b.total_amount) DESC NULLS LAST
@@ -1814,7 +1814,7 @@ async fn generate_room_performance_report(
         JOIN room_types rt ON r.room_type_id = rt.id
         LEFT JOIN bookings b ON b.room_id = r.id
             AND b.check_in_date >= $1 AND b.check_in_date <= $2
-            AND b.status NOT IN ('no_show', 'voided')
+            AND b.status NOT IN ('voided')
         WHERE r.is_active = true
         GROUP BY r.room_number, rt.name
         HAVING COUNT(b.id) < 2

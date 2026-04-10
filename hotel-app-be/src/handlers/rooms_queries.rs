@@ -139,7 +139,7 @@ pub const SEARCH_ROOMS_WITH_DATES_QUERY: &str = r#"
 WITH conflicting_bookings AS (
     SELECT DISTINCT room_id
     FROM bookings
-    WHERE status NOT IN ('no_show', 'checked_out', 'voided')
+    WHERE status NOT IN ('checked_out', 'voided')
       AND (check_in_date < $2 AND check_out_date > $1)
       AND ($3::BIGINT IS NULL OR id != $3)
 )
@@ -178,7 +178,7 @@ pub const SEARCH_ROOMS_WITH_DATES_QUERY: &str = r#"
 WITH conflicting_bookings AS (
     SELECT DISTINCT room_id
     FROM bookings
-    WHERE status NOT IN ('no_show', 'checked_out', 'voided')
+    WHERE status NOT IN ('checked_out', 'voided')
       AND (check_in_date < ?2 AND check_out_date > ?1)
       AND (?3 IS NULL OR id != ?3)
 )

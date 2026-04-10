@@ -173,8 +173,6 @@ export const getBookingStatusColor = (
       return 'primary';
     case BookingStatus.CHECKED_OUT:
       return 'info';
-    case BookingStatus.NO_SHOW:
-      return 'error';
     case BookingStatus.PARTIAL_COMPLIMENTARY:
     case 'partial_complimentary':
       return 'secondary';
@@ -204,8 +202,6 @@ export const getBookingStatusText = (status: BookingStatus | string): string => 
       return 'Auto Checked In';
     case BookingStatus.CHECKED_OUT:
       return 'Checked Out';
-    case BookingStatus.NO_SHOW:
-      return 'No Show';
     case BookingStatus.PARTIAL_COMPLIMENTARY:
     case 'partial_complimentary':
       return 'Partial Complimentary';
