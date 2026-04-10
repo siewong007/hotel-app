@@ -56,7 +56,7 @@ pub async fn get_bookings_handler(
     let offset = (page - 1) * page_size;
 
     let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM bookings b WHERE b.status NOT IN ('voided')"
+        "SELECT COUNT(*) FROM bookings b"
     )
     .fetch_one(&pool)
     .await

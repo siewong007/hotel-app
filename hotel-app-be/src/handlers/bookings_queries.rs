@@ -25,7 +25,6 @@ pub const GET_BOOKINGS_QUERY: &str = r#"
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
     INNER JOIN room_types rt ON r.room_type_id = rt.id
-    WHERE b.status NOT IN ('voided')
     ORDER BY b.created_at DESC
 "#;
 
@@ -48,7 +47,6 @@ pub const GET_BOOKINGS_QUERY: &str = r#"
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
     INNER JOIN room_types rt ON r.room_type_id = rt.id
-    WHERE b.status NOT IN ('voided')
     ORDER BY b.created_at DESC
 "#;
 
