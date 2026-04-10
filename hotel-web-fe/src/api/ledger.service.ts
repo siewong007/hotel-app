@@ -26,7 +26,8 @@ export class LedgerService {
     limit?: number;
     offset?: number;
   }): Promise<CustomerLedger[]> {
-    const searchParams: Record<string, string> = {};
+    const pageSize = 500;
+    const searchParams: Record<string, string> = { page: '1', page_size: pageSize.toString() };
     if (params?.status) searchParams.status = params.status;
     if (params?.company_name) searchParams.company_name = params.company_name;
     if (params?.expense_type) searchParams.expense_type = params.expense_type;
@@ -34,12 +35,30 @@ export class LedgerService {
     if (params?.post_type) searchParams.post_type = params.post_type;
     if (params?.department_code) searchParams.department_code = params.department_code;
     if (params?.room_number) searchParams.room_number = params.room_number;
-    if (params?.limit) searchParams.limit = params.limit.toString();
-    if (params?.offset) searchParams.offset = params.offset.toString();
 
-    return await withRetry(
-      () => api.get('ledgers', { searchParams }).json<CustomerLedger[]>(),
+    const firstPage = await withRetry(
+      () => api.get('ledgers', { searchParams }).json<any>(),
       { maxAttempts: 3, initialDelay: 1000 }
+    );
+    const firstData: CustomerLedger[] = Array.isArray(firstPage) ? firstPage : (firstPage.data || []);
+    const total = firstPage.total || firstData.length;
+
+    if (total <= pageSize) return firstData;
+
+    // Fetch remaining pages in parallel
+    const totalPages = Math.ceil(total / pageSize);
+    const remainingPages = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, i) =>
+        withRetry(
+          () => api.get('ledgers', { searchParams: { ...searchParams, page: (i + 2).toString() } }).json<any>(),
+          { maxAttempts: 3, initialDelay: 1000 }
+        )
+      )
+    );
+
+    return remainingPages.reduce(
+      (acc, res) => acc.concat(Array.isArray(res) ? res : (res.data || [])),
+      firstData
     );
   }
 

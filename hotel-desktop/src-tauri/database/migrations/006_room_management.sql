@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     is_accessible BOOLEAN DEFAULT false,
     has_view BOOLEAN DEFAULT false,
     view_type VARCHAR(50),
-    connecting_room_id BIGINT REFERENCES rooms(id) ON DELETE SET NULL,
+    connecting_room_id BIGINT REFERENCES rooms(id),
     notes TEXT,
     is_active BOOLEAN DEFAULT true,
     -- Night audit tracking
@@ -220,9 +220,9 @@ CREATE TABLE IF NOT EXISTS maintenance_tickets (
 CREATE TABLE IF NOT EXISTS room_changes (
     id BIGINT PRIMARY KEY DEFAULT nextval('room_changes_id_seq'),
     booking_id BIGINT NOT NULL,
-    from_room_id BIGINT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-    to_room_id BIGINT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
-    guest_id BIGINT NOT NULL,
+    from_room_id BIGINT NOT NULL REFERENCES rooms(id),
+    to_room_id BIGINT NOT NULL REFERENCES rooms(id),
+    guest_id BIGINT REFERENCES guests(id) ON DELETE SET NULL,
     reason TEXT,
     changed_by BIGINT,
     changed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -236,7 +236,7 @@ CREATE TABLE IF NOT EXISTS room_changes (
 
 CREATE TABLE IF NOT EXISTS room_status_change_log (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    room_id BIGINT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    room_id BIGINT NOT NULL REFERENCES rooms(id),
     from_status VARCHAR(20),
     to_status VARCHAR(20),
     trigger_source VARCHAR(100),
@@ -258,10 +258,32 @@ CREATE OR REPLACE FUNCTION validate_room_status_transition(
 DECLARE
     v_current_status VARCHAR(20);
     v_is_allowed BOOLEAN;
+    v_count INT;
 BEGIN
     SELECT status INTO v_current_status FROM rooms WHERE id = p_room_id;
     IF v_current_status IS NULL THEN RAISE EXCEPTION 'Room % not found', p_room_id; END IF;
     IF v_current_status = p_new_status THEN RETURN true; END IF;
+
+    -- Auto-seed transitions if table is empty
+    SELECT COUNT(*) INTO v_count FROM room_status_transitions;
+    IF v_count = 0 THEN
+        INSERT INTO room_status_transitions (from_status, to_status, is_allowed) VALUES
+        ('available', 'occupied', true), ('available', 'reserved', true),
+        ('available', 'dirty', true), ('available', 'maintenance', true),
+        ('available', 'out_of_order', true),
+        ('occupied', 'available', true), ('occupied', 'dirty', true),
+        ('occupied', 'maintenance', true), ('occupied', 'reserved', true),
+        ('reserved', 'occupied', true), ('reserved', 'available', true),
+        ('reserved', 'dirty', true), ('reserved', 'maintenance', true),
+        ('dirty', 'available', true), ('dirty', 'maintenance', true),
+        ('dirty', 'reserved', true), ('dirty', 'occupied', true),
+        ('maintenance', 'available', true), ('maintenance', 'dirty', true),
+        ('maintenance', 'out_of_order', true),
+        ('out_of_order', 'available', true), ('out_of_order', 'maintenance', true),
+        ('out_of_order', 'dirty', true)
+        ON CONFLICT DO NOTHING;
+    END IF;
+
     SELECT is_allowed INTO v_is_allowed FROM room_status_transitions
     WHERE from_status = v_current_status AND to_status = p_new_status;
     IF NOT FOUND THEN RAISE EXCEPTION 'Transition from % to % is not defined', v_current_status, p_new_status; END IF;

@@ -605,6 +605,15 @@ const RoomManagementPage: React.FC = () => {
           return;
         }
 
+        // Check for duplicate guest name
+        const fullName = `${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}`.toLowerCase();
+        const existingGuestByName = guests.find(g => g.full_name.toLowerCase().trim() === fullName);
+        if (existingGuestByName) {
+          showSnackbar(`A guest with the name '${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}' already exists. Please select from existing guests.`, 'error');
+          setCreatingBooking(false);
+          return;
+        }
+
         // Check for duplicate email only if provided
         if (newGuestForm.email && newGuestForm.email.trim()) {
           const existingGuest = guests.find(g => g.email && g.email.toLowerCase() === newGuestForm.email.toLowerCase());
@@ -922,6 +931,15 @@ const RoomManagementPage: React.FC = () => {
         // Validate email format only if provided
         if (newOnlineGuestForm.email && newOnlineGuestForm.email.trim() && !isValidEmail(newOnlineGuestForm.email)) {
           showSnackbar('Please enter a valid email address', 'error');
+          setCreatingBooking(false);
+          return;
+        }
+
+        // Check for duplicate guest name
+        const onlineFullName = `${newOnlineGuestForm.first_name.trim()} ${newOnlineGuestForm.last_name.trim()}`.toLowerCase();
+        const existingGuestByName = guests.find(g => g.full_name.toLowerCase().trim() === onlineFullName);
+        if (existingGuestByName) {
+          showSnackbar(`A guest with the name '${newOnlineGuestForm.first_name.trim()} ${newOnlineGuestForm.last_name.trim()}' already exists. Please select from existing guests.`, 'error');
           setCreatingBooking(false);
           return;
         }

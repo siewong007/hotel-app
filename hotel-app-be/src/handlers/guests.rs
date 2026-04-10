@@ -150,83 +150,20 @@ pub async fn create_guest_handler(
     let guest_type = input.guest_type.unwrap_or(GuestType::NonMember);
     let discount_percentage = input.discount_percentage.unwrap_or(0);
 
-    // Check if a guest with the same full_name already exists (case-insensitive)
-    let existing_guest = sqlx::query_as::<_, Guest>(
-        r#"
-        SELECT id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country,
-               NULL::TEXT as title, NULL::TEXT as alt_phone,
-               true as is_active,
-               guest_type,
-               tourism_type,
-               COALESCE(discount_percentage, 0) as discount_percentage,
-               company_name,
-               COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
-               created_at, updated_at
-        FROM guests
-        WHERE LOWER(TRIM(full_name)) = LOWER($1) AND deleted_at IS NULL
-        LIMIT 1
-        "#
+    // Block creation if a guest with the same full_name already exists (case-insensitive)
+    let existing_guest_id: Option<i64> = sqlx::query_scalar(
+        "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER($1) AND deleted_at IS NULL LIMIT 1"
     )
     .bind(&full_name)
     .fetch_optional(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    if let Some(guest) = existing_guest {
-        // Update existing guest with any new non-empty fields
-        sqlx::query(
-            r#"
-            UPDATE guests SET
-                email = COALESCE($2, email),
-                phone = COALESCE($3, phone),
-                ic_number = COALESCE($4, ic_number),
-                nationality = COALESCE($5, nationality),
-                address_line_1 = COALESCE($6, address_line_1),
-                city = COALESCE($7, city),
-                state = COALESCE($8, state),
-                postal_code = COALESCE($9, postal_code),
-                country = COALESCE($10, country),
-                company_name = COALESCE($11, company_name),
-                updated_at = NOW()
-            WHERE id = $1
-            "#
-        )
-        .bind(guest.id)
-        .bind(&email)
-        .bind(&input.phone)
-        .bind(&input.ic_number)
-        .bind(&input.nationality)
-        .bind(&input.address_line1)
-        .bind(&input.city)
-        .bind(&input.state_province)
-        .bind(&input.postal_code)
-        .bind(&input.country)
-        .bind(&input.company_name)
-        .execute(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        // Return the existing guest (re-fetch to get updated fields)
-        let updated_guest = sqlx::query_as::<_, Guest>(
-            r#"
-            SELECT id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country,
-                   NULL::TEXT as title, NULL::TEXT as alt_phone,
-                   true as is_active,
-                   guest_type,
-                   tourism_type,
-                   COALESCE(discount_percentage, 0) as discount_percentage,
-                   company_name,
-                   COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
-                   created_at, updated_at
-            FROM guests WHERE id = $1
-            "#
-        )
-        .bind(guest.id)
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        return Ok(Json(updated_guest));
+    if existing_guest_id.is_some() {
+        return Err(ApiError::BadRequest(format!(
+            "A guest with the name '{}' already exists. Please select the existing guest instead of creating a new one.",
+            full_name
+        )));
     }
 
     let guest = sqlx::query_as::<_, Guest>(

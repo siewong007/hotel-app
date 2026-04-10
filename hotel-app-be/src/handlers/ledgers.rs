@@ -9,7 +9,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
 use crate::core::db::DbPool;
@@ -33,6 +33,16 @@ pub struct LedgerListQuery {
     pub room_number: Option<String>,
     pub limit: Option<i32>,
     pub offset: Option<i32>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LedgerPaginatedResponse {
+    pub data: Vec<CustomerLedger>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
 }
 
 // Common SELECT fields for CustomerLedger including PAT fields
@@ -255,11 +265,54 @@ pub async fn list_customer_ledgers_handler(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     Query(query): Query<LedgerListQuery>,
-) -> Result<Json<Vec<CustomerLedger>>, ApiError> {
+) -> Result<Json<LedgerPaginatedResponse>, ApiError> {
     let _user_id = require_auth(&headers).await?;
 
-    let limit = query.limit.unwrap_or(100).min(500) as i64;
-    let offset = query.offset.unwrap_or(0) as i64;
+    let page = query.page.unwrap_or(1).max(1);
+    let page_size = query.page_size
+        .or(query.limit.map(|l| l as i64))
+        .unwrap_or(100)
+        .min(500);
+    let offset = query.offset
+        .map(|o| o as i64)
+        .unwrap_or_else(|| (page - 1) * page_size);
+
+    // Get total count with same filters
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let count_query = r#"
+        SELECT COUNT(*) FROM customer_ledgers
+        WHERE (?1 IS NULL OR status = ?1)
+          AND (?2 IS NULL OR company_name LIKE '%' || ?2 || '%')
+          AND (?3 IS NULL OR expense_type = ?3)
+          AND (?4 IS NULL OR folio_type = ?4)
+          AND (?5 IS NULL OR post_type = ?5)
+          AND (?6 IS NULL OR department_code = ?6)
+          AND (?7 IS NULL OR room_number = ?7)
+    "#;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let count_query = r#"
+        SELECT COUNT(*) FROM customer_ledgers
+        WHERE ($1::text IS NULL OR status = $1)
+          AND ($2::text IS NULL OR company_name ILIKE '%' || $2 || '%')
+          AND ($3::text IS NULL OR expense_type = $3)
+          AND ($4::text IS NULL OR folio_type = $4)
+          AND ($5::text IS NULL OR post_type = $5)
+          AND ($6::text IS NULL OR department_code = $6)
+          AND ($7::text IS NULL OR room_number = $7)
+    "#;
+
+    let total: i64 = sqlx::query_scalar(count_query)
+        .bind(query.status.as_deref())
+        .bind(query.company_name.as_deref())
+        .bind(query.expense_type.as_deref())
+        .bind(query.folio_type.as_deref())
+        .bind(query.post_type.as_deref())
+        .bind(query.department_code.as_deref())
+        .bind(query.room_number.as_deref())
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(0);
 
     let rows = sqlx::query(LIST_LEDGERS_QUERY)
         .bind(query.status.as_deref())
@@ -269,7 +322,7 @@ pub async fn list_customer_ledgers_handler(
         .bind(query.post_type.as_deref())
         .bind(query.department_code.as_deref())
         .bind(query.room_number.as_deref())
-        .bind(limit)
+        .bind(page_size)
         .bind(offset)
         .fetch_all(&pool)
         .await
@@ -277,7 +330,12 @@ pub async fn list_customer_ledgers_handler(
 
     let ledgers: Vec<CustomerLedger> = rows.iter().map(row_to_customer_ledger).collect();
 
-    Ok(Json(ledgers))
+    Ok(Json(LedgerPaginatedResponse {
+        data: ledgers,
+        total,
+        page,
+        page_size,
+    }))
 }
 
 /// Get a single customer ledger by ID
