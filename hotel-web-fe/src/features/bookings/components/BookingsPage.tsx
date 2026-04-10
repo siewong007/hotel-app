@@ -883,7 +883,6 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="confirmed">Confirmed</MenuItem>
                 <MenuItem value="checked_in">Checked In</MenuItem>
                 <MenuItem value="checked_out">Checked Out</MenuItem>
-                <MenuItem value="no_show">No Show</MenuItem>
                 <MenuItem value="voided">Voided</MenuItem>
               </Select>
             </FormControl>
@@ -1289,7 +1288,6 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="auto_checked_in">Auto Checked In</MenuItem>
                 <MenuItem value="checked_out">Checked Out</MenuItem>
                 <MenuItem value="late_checkout">Late Checkout</MenuItem>
-                <MenuItem value="no_show">No Show</MenuItem>
                 <MenuItem value="voided">Voided</MenuItem>
               </TextField>
             </Grid>

@@ -296,7 +296,7 @@ async fn generate_journal_sections(pool: &DbPool, audit_date: NaiveDate, is_post
                 COALESCE(b.tourism_tax_amount, 0) as tourism_tax_amount
             FROM bookings b
             JOIN rooms r ON b.room_id = r.id
-            WHERE b.status NOT IN ('pending', 'confirmed', 'no_show', 'voided')
+            WHERE b.status NOT IN ('pending', 'confirmed', 'voided')
             AND (
                 (b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1)
                 OR (b.status = 'checked_out' AND b.check_in_date <= $1 AND b.check_out_date >= $1)
@@ -773,7 +773,7 @@ pub async fn get_night_audit_preview(
         FROM bookings b
         JOIN guests g ON b.guest_id = g.id
         JOIN rooms r ON b.room_id = r.id
-        WHERE b.status NOT IN ('pending', 'confirmed', 'no_show', 'voided')
+        WHERE b.status NOT IN ('pending', 'confirmed', 'voided')
         AND (
             (b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1)
             OR (b.status = 'checked_out' AND b.check_in_date <= $1 AND b.check_out_date >= $1)

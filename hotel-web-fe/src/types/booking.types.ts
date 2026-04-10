@@ -6,7 +6,6 @@ export enum BookingStatus {
   CONFIRMED = 'confirmed',
   CHECKED_IN = 'checked_in',
   CHECKED_OUT = 'checked_out',
-  NO_SHOW = 'no_show',
   AUTO_CHECKED_IN = 'auto_checked_in',
   PARTIAL_COMPLIMENTARY = 'partial_complimentary',
   FULLY_COMPLIMENTARY = 'fully_complimentary',

@@ -442,7 +442,7 @@ const LegacyReportsPage: React.FC = () => {
             {hotelSettings.hotel_name}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            For: {startDate} - {endDate} Normal Stays, No Shows, Same Day Stays
+            For: {startDate} - {endDate} Normal Stays, Same Day Stays
           </Typography>
         </Box>
 
