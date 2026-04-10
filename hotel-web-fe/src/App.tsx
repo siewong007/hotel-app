@@ -861,7 +861,7 @@ const NavigationTabs = React.memo(function NavigationTabs() {
 
 // Breadcrumb configuration - maps routes to display names and icons
 const breadcrumbConfig: Record<string, { label: string; icon?: React.ReactElement }> = {
-  '/': { label: 'Dashboard', icon: <HomeIcon sx={{ fontSize: 16 }} /> },
+  // Root route label is now dynamic in BreadcrumbNav
   '/timeline': { label: 'Reservation Timeline', icon: <CalendarMonthIcon sx={{ fontSize: 16 }} /> },
   '/my-bookings': { label: 'My Bookings', icon: <EventNoteIcon sx={{ fontSize: 16 }} /> },
   '/guest-config': { label: 'Guest Management', icon: <PeopleIcon sx={{ fontSize: 16 }} /> },
@@ -884,7 +884,14 @@ const breadcrumbConfig: Record<string, { label: string; icon?: React.ReactElemen
 
 const BreadcrumbNav = React.memo(function BreadcrumbNav() {
   const location = useLocation();
+  const { hasRole } = useAuth();
   const pathnames = location.pathname.split('/').filter((x) => x);
+
+  // Determine root label based on role
+  // Employees (Receptionist only) see "My Profile", Admins/Execs see "Dashboard"
+  const isEmployeeOnly = (hasRole('receptionist') || hasRole('employee')) && !hasRole('admin') && !hasRole('superadmin') && !hasRole('manager');
+  const rootLabel = isEmployeeOnly ? 'My Profile' : 'Dashboard';
+  const rootIcon = isEmployeeOnly ? <PersonIcon sx={{ fontSize: 16 }} /> : <HomeIcon sx={{ fontSize: 16 }} />;
 
   // Don't show breadcrumbs on dashboard (home)
   if (location.pathname === '/') {
@@ -893,7 +900,7 @@ const BreadcrumbNav = React.memo(function BreadcrumbNav() {
 
   // Build breadcrumb items
   const breadcrumbItems: { path: string; label: string; icon?: React.ReactElement; isLast: boolean }[] = [
-    { path: '/', label: 'Dashboard', icon: <HomeIcon sx={{ fontSize: 16 }} />, isLast: false },
+    { path: '/', label: rootLabel, icon: rootIcon, isLast: false },
   ];
 
   let currentPath = '';
