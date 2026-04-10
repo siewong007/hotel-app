@@ -512,6 +512,15 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           return;
         }
 
+        // Check for duplicate guest name
+        const modalFullName = `${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}`.toLowerCase();
+        const existingGuestByName = guests.find(g => g.full_name.toLowerCase().trim() === modalFullName);
+        if (existingGuestByName) {
+          onError(`A guest with the name '${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}' already exists. Please select the existing guest instead.`);
+          setProcessing(false);
+          return;
+        }
+
         // Check for duplicate email
         if (newGuestForm.email && newGuestForm.email.trim()) {
           const existingGuest = guests.find(g => g.email && g.email.toLowerCase() === newGuestForm.email.toLowerCase());

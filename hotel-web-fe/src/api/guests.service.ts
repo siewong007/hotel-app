@@ -5,12 +5,31 @@ import { withRetry } from '../utils/retry';
 
 export class GuestsService {
   static async getAllGuests(): Promise<Guest[]> {
-    const response = await withRetry(
-      () => api.get('guests', { searchParams: { page: 1, page_size: 500 } }).json<any>(),
+    const pageSize = 500;
+    const firstPage = await withRetry(
+      () => api.get('guests', { searchParams: { page: 1, page_size: pageSize } }).json<any>(),
       { maxAttempts: 3, initialDelay: 1000 }
     );
-    // Handle both paginated response { data: [...] } and legacy array response
-    return Array.isArray(response) ? response : (response.data || []);
+    const firstData: Guest[] = Array.isArray(firstPage) ? firstPage : (firstPage.data || []);
+    const total = firstPage.total || firstData.length;
+
+    if (total <= pageSize) return firstData;
+
+    // Fetch remaining pages in parallel
+    const totalPages = Math.ceil(total / pageSize);
+    const remainingPages = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, i) =>
+        withRetry(
+          () => api.get('guests', { searchParams: { page: i + 2, page_size: pageSize } }).json<any>(),
+          { maxAttempts: 3, initialDelay: 1000 }
+        )
+      )
+    );
+
+    return remainingPages.reduce(
+      (acc, res) => acc.concat(Array.isArray(res) ? res : (res.data || [])),
+      firstData
+    );
   }
 
   static async getGuest(guestId: number | string): Promise<Guest> {
@@ -21,10 +40,22 @@ export class GuestsService {
   }
 
   static async createGuest(guestData: GuestCreateRequest): Promise<Guest> {
-    return await withRetry(
-      () => api.post('guests', { json: guestData }).json<Guest>(),
-      { maxAttempts: 2, initialDelay: 1000 }
-    );
+    try {
+      return await withRetry(
+        () => api.post('guests', { json: guestData }).json<Guest>(),
+        { maxAttempts: 2, initialDelay: 1000 }
+      );
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to create guest',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to create guest');
+    }
   }
 
   static async updateGuest(guestId: number, guestData: Partial<GuestCreateRequest>): Promise<Guest> {

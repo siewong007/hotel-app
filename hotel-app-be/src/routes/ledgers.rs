@@ -38,7 +38,7 @@ async fn list_ledgers(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     query: Query<handlers::ledgers::LedgerListQuery>,
-) -> Result<Json<Vec<models::CustomerLedger>>, ApiError> {
+) -> Result<Json<handlers::ledgers::LedgerPaginatedResponse>, ApiError> {
     handlers::ledgers::list_customer_ledgers_handler(State(pool), headers, query).await
 }
 
