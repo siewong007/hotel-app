@@ -736,9 +736,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     return Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
   };
 
-  // Get actual checkout date (today for early/normal checkout)
+  // Get actual checkout date from booking data
   const getActualCheckoutDate = () => {
-    return new Date();
+    if (booking.actual_check_out) {
+      return new Date(booking.actual_check_out);
+    }
+    return new Date(booking.check_out_date);
   };
 
   // Check if this is an early checkout (today is before scheduled checkout)
