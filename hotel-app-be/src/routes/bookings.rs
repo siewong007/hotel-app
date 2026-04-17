@@ -22,6 +22,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/bookings", get(get_bookings))
         .route("/bookings", post(create_booking))
         .route("/bookings/my-bookings", get(get_my_bookings))
+        .route("/bookings/stats", get(get_booking_stats))
         .route("/bookings/complimentary", get(get_complimentary_bookings))
         .route("/bookings/book-with-credits", post(book_with_credits))
         .route("/bookings/void", post(void_booking))
@@ -71,6 +72,14 @@ async fn get_my_bookings(
 ) -> Result<Json<Vec<models::BookingWithDetails>>, ApiError> {
     // Only requires authentication, not specific permissions
     handlers::bookings::get_my_bookings_handler(State(pool), headers).await
+}
+
+async fn get_booking_stats(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<handlers::bookings::BookingStats>, ApiError> {
+    require_permission_helper(&pool, &headers, "bookings:read").await?;
+    handlers::bookings::get_booking_stats_handler(State(pool)).await
 }
 
 async fn get_booking(

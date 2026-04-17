@@ -13,28 +13,44 @@ import {
   Alert,
   CircularProgress,
   Card,
-  CardContent
+  CardContent,
+  TextField,
+  InputAdornment,
+  Pagination,
+  Stack,
 } from '@mui/material';
 import {
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  Search as SearchIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { Guest } from '../../../types';
+
+const PAGE_SIZE = 50;
 
 const GuestsPage: React.FC = () => {
   const [guests, setGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalGuests, setTotalGuests] = useState(0);
 
   useEffect(() => {
-    loadGuests();
-  }, []);
+    const timer = setTimeout(() => loadGuests(currentPage, searchQuery), searchQuery ? 400 : 0);
+    return () => clearTimeout(timer);
+  }, [currentPage, searchQuery]);
 
-  const loadGuests = async () => {
+  const loadGuests = async (page: number, search?: string) => {
     try {
       setLoading(true);
-      const data = await HotelAPIService.getAllGuests();
-      setGuests(data);
+      const resp = await HotelAPIService.getGuestsPage({
+        page,
+        page_size: PAGE_SIZE,
+        ...(search ? { search } : {}),
+      });
+      setGuests(resp.data);
+      setTotalGuests(resp.total);
       setError(null);
     } catch (err: any) {
       console.error('Failed to load guests:', err);
@@ -44,13 +60,10 @@ const GuestsPage: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
 
   return (
     <Box>
@@ -66,7 +79,7 @@ const GuestsPage: React.FC = () => {
         <Button
           variant="outlined"
           startIcon={<RefreshIcon />}
-          onClick={loadGuests}
+          onClick={() => loadGuests(currentPage, searchQuery)}
         >
           Refresh
         </Button>
@@ -77,7 +90,7 @@ const GuestsPage: React.FC = () => {
           severity="error"
           sx={{ mb: 3 }}
           action={
-            <Button color="inherit" size="small" onClick={loadGuests}>
+            <Button color="inherit" size="small" onClick={() => loadGuests(currentPage, searchQuery)}>
               Retry
             </Button>
           }
@@ -86,20 +99,35 @@ const GuestsPage: React.FC = () => {
         </Alert>
       )}
 
-      {/* Guest Statistics */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Guest User Statistics
-          </Typography>
-          <Typography variant="body1">
-            Total registered guest users: <strong>{guests.length}</strong>
-          </Typography>
-        </CardContent>
-      </Card>
+      {/* Stats + Search row */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Card elevation={0} sx={{ border: '1px solid #edf2f0', borderRadius: 2 }}>
+          <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+            <Typography variant="body2" color="text.secondary">
+              Total registered guests: <strong>{totalGuests}</strong>
+              {searchQuery && ` · ${totalGuests} matching`}
+            </Typography>
+          </CardContent>
+        </Card>
+
+        <TextField
+          size="small"
+          placeholder="Search by name, email, or phone..."
+          value={searchQuery}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          sx={{ width: 320 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+          }}
+        />
+      </Box>
 
       {/* Guests Table */}
-      <TableContainer component={Paper}>
+      <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid #edf2f0', borderRadius: 2 }}>
         <Table>
           <TableHead>
             <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
@@ -112,50 +140,73 @@ const GuestsPage: React.FC = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {guests.map((guest) => (
-              <TableRow key={guest.id} hover>
-                <TableCell>{guest.id}</TableCell>
-                <TableCell>{guest.full_name || 'N/A'}</TableCell>
-                <TableCell>{guest.email}</TableCell>
-                <TableCell>{guest.phone || 'N/A'}</TableCell>
-                <TableCell>
-                  <Box
-                    component="span"
-                    sx={{
-                      px: 1.5,
-                      py: 0.5,
-                      borderRadius: 1,
-                      fontSize: '0.875rem',
-                      fontWeight: 500,
-                      bgcolor: guest.is_active ? 'success.light' : 'error.light',
-                      color: guest.is_active ? 'success.dark' : 'error.dark',
-                    }}
-                  >
-                    {guest.is_active ? 'Active' : 'Inactive'}
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  {new Date(guest.created_at).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                  })}
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                  <CircularProgress size={32} />
                 </TableCell>
               </TableRow>
-            ))}
+            ) : guests.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                  <Typography variant="body1" color="text.secondary">
+                    {searchQuery ? `No guests found matching "${searchQuery}"` : 'No guest users registered yet'}
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ) : (
+              guests.map((guest) => (
+                <TableRow key={guest.id} hover>
+                  <TableCell>{guest.id}</TableCell>
+                  <TableCell>{guest.full_name || 'N/A'}</TableCell>
+                  <TableCell>{guest.email}</TableCell>
+                  <TableCell>{guest.phone || 'N/A'}</TableCell>
+                  <TableCell>
+                    <Box
+                      component="span"
+                      sx={{
+                        px: 1.5,
+                        py: 0.5,
+                        borderRadius: 1,
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        bgcolor: guest.is_active ? 'success.light' : 'error.light',
+                        color: guest.is_active ? 'success.dark' : 'error.dark',
+                      }}
+                    >
+                      {guest.is_active ? 'Active' : 'Inactive'}
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    {new Date(guest.created_at).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
-      {guests.length === 0 && (
-        <Box textAlign="center" py={4}>
-          <Typography variant="h6" color="text.secondary">
-            No guest users registered yet
+      {/* Pagination */}
+      {totalGuests > PAGE_SIZE && (
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2, px: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalGuests)} of {totalGuests} guests
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            Guest users can register through the registration page
-          </Typography>
-        </Box>
+          <Pagination
+            count={Math.ceil(totalGuests / PAGE_SIZE)}
+            page={currentPage}
+            onChange={(_, page) => setCurrentPage(page)}
+            color="primary"
+            size="small"
+            showFirstButton
+            showLastButton
+          />
+        </Stack>
       )}
     </Box>
   );

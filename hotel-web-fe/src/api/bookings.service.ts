@@ -193,6 +193,63 @@ export class BookingsService {
     }
   }
 
+  static async getBookingsPage(params: {
+    page?: number;
+    page_size?: number;
+    search?: string;
+    status?: string;
+    room_number?: string;
+    date_search?: string;
+    check_in_from?: string;
+    check_in_to?: string;
+    sort_by?: string;
+    sort_order?: string;
+  } = {}): Promise<{ data: BookingWithDetails[]; total: number; page: number; page_size: number }> {
+    try {
+      const searchParams: Record<string, any> = {
+        page: params.page ?? 1,
+        page_size: params.page_size ?? 50,
+      };
+      if (params.search) searchParams.search = params.search;
+      if (params.status && params.status !== 'all') searchParams.status = params.status;
+      if (params.room_number) searchParams.room_number = params.room_number;
+      if (params.date_search) searchParams.date_search = params.date_search;
+      if (params.check_in_from) searchParams.check_in_from = params.check_in_from;
+      if (params.check_in_to) searchParams.check_in_to = params.check_in_to;
+      if (params.sort_by) searchParams.sort_by = params.sort_by;
+      if (params.sort_order) searchParams.sort_order = params.sort_order;
+
+      const resp = await withRetry(
+        () => api.get('bookings', { searchParams }).json<any>(),
+        { maxAttempts: 3, initialDelay: 1000 }
+      );
+      const raw: any[] = Array.isArray(resp) ? resp : (resp.data || []);
+      return {
+        data: raw.map(b => enhanceBookingDetails(b as any)),
+        total: resp.total ?? raw.length,
+        page: resp.page ?? 1,
+        page_size: resp.page_size ?? 50,
+      };
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(errorData.error || 'Failed to fetch bookings', error.response.status, errorData);
+      }
+      throw new APIError('Failed to fetch bookings');
+    }
+  }
+
+  static async getBookingStats(): Promise<{ total: number; checked_in: number; confirmed: number; today_check_ins: number }> {
+    try {
+      return await withRetry(
+        () => api.get('bookings/stats').json<any>(),
+        { maxAttempts: 3, initialDelay: 1000 }
+      );
+    } catch (error) {
+      return { total: 0, checked_in: 0, confirmed: 0, today_check_ins: 0 };
+    }
+  }
+
   static async getBookingsWithDetails(filters?: { room_number?: string }): Promise<BookingWithDetails[]> {
     try {
       const bookings = await this.getAllBookings(filters);

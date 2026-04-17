@@ -32,6 +32,8 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   alpha,
+  Pagination,
+  Stack,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -104,6 +106,14 @@ const BookingsPage: React.FC = () => {
   const [customEndDate, setCustomEndDate] = useState('');
   const [searchDate, setSearchDate] = useState('');
 
+  // Pagination state
+  const PAGE_SIZE = 50;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalBookings, setTotalBookings] = useState(0);
+
+  // Stats (separate from paginated list)
+  const [statsData, setStatsData] = useState({ total: 0, checked_in: 0, confirmed: 0, today_check_ins: 0 });
+
   // Create booking dialog (using UnifiedBookingModal)
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
@@ -159,151 +169,89 @@ const BookingsPage: React.FC = () => {
     });
   };
 
+  // On mount: load rooms, stats, and first page of bookings (not guests — lazy loaded)
   useEffect(() => {
-    const timer = setTimeout(() => {
-      loadData(roomNumberFilter || undefined);
-    }, roomNumberFilter ? 400 : 0);
+    loadRooms();
+    loadStats();
+    const timer = setTimeout(() => loadGuests(), 800);
     return () => clearTimeout(timer);
-  }, [roomNumberFilter]);
+  }, []);
 
-  const loadData = async (roomNumber?: string) => {
+  // Reload bookings when any filter or page changes (debounce text input)
+  useEffect(() => {
+    const isText = !!(searchQuery || roomNumberFilter);
+    const timer = setTimeout(loadBookings, isText ? 400 : 0);
+    return () => clearTimeout(timer);
+  }, [currentPage, sortField, sortOrder, searchQuery, roomNumberFilter, statusFilter, dateFilter, customStartDate, customEndDate, searchDate]);
+
+  const loadRooms = async () => {
+    try {
+      const roomsData = await HotelAPIService.getAllRooms();
+      setRooms(roomsData);
+    } catch (err: any) {
+      console.error('Failed to load rooms:', err);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      const data = await HotelAPIService.getBookingStats();
+      setStatsData(data);
+    } catch (err: any) {
+      console.error('Failed to load booking stats:', err);
+    }
+  };
+
+  const loadGuests = async () => {
+    try {
+      const guestsData = await HotelAPIService.getAllGuests();
+      setGuests(guestsData);
+    } catch (err: any) {
+      console.error('Failed to load guests:', err);
+    }
+  };
+
+  const loadBookings = async () => {
     try {
       setLoading(true);
-      const filters = roomNumber ? { room_number: roomNumber } : undefined;
-      const [bookingsData, roomsData, guestsData] = await Promise.all([
-        HotelAPIService.getBookingsWithDetails(filters),
-        HotelAPIService.getAllRooms(),
-        HotelAPIService.getAllGuests()
-      ]);
 
-      setBookings(bookingsData);
-      setRooms(roomsData);
-      setGuests(guestsData);
+      const today = new Date().toISOString().split('T')[0];
+      const addDays = (base: string, n: number) => {
+        const d = new Date(base); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0];
+      };
+
+      const apiParams: Record<string, any> = {
+        page: currentPage,
+        page_size: PAGE_SIZE,
+        sort_by: sortField,
+        sort_order: sortOrder,
+      };
+      if (searchQuery) apiParams.search = searchQuery;
+      if (roomNumberFilter) apiParams.room_number = roomNumberFilter;
+      if (statusFilter !== 'all') apiParams.status = statusFilter;
+      if (dateFilter === 'today') { apiParams.check_in_from = today; apiParams.check_in_to = today; }
+      else if (dateFilter === 'week') { apiParams.check_in_from = today; apiParams.check_in_to = addDays(today, 7); }
+      else if (dateFilter === 'month') { apiParams.check_in_from = today; apiParams.check_in_to = addDays(today, 30); }
+      else if (dateFilter === 'custom' && customStartDate && customEndDate) { apiParams.check_in_from = customStartDate; apiParams.check_in_to = customEndDate; }
+      else if (dateFilter === 'date_search' && searchDate) { apiParams.date_search = searchDate; }
+
+      const resp = await HotelAPIService.getBookingsPage(apiParams);
+      setBookings(resp.data);
+      setTotalBookings(resp.total);
       setError(null);
     } catch (err: any) {
-      console.error('Failed to load bookings data:', err);
-      setError(err.message || 'Failed to load bookings data. Please check your connection and try again.');
+      console.error('Failed to load bookings:', err);
+      setError(err.message || 'Failed to load bookings. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Filter and sort bookings
-  const filteredAndSortedBookings = useMemo(() => {
-    let filtered = [...bookings];
+  // Keep loadData alias for onRefreshData prop compatibility
+  const loadData = async () => { await loadBookings(); loadStats(); };
 
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(booking =>
-        booking.guest_name.toLowerCase().includes(query) ||
-        booking.room_number.toLowerCase().includes(query) ||
-        booking.booking_number?.toLowerCase().includes(query) ||
-        booking.folio_number?.toLowerCase().includes(query) ||
-        String(booking.id).toLowerCase().includes(query)
-      );
-    }
-
-    // Status filter - hide voided by default unless explicitly selected
-    if (statusFilter === 'voided') {
-      filtered = filtered.filter(booking => booking.status === 'voided');
-    } else if (statusFilter !== 'all') {
-      filtered = filtered.filter(booking => booking.status === statusFilter);
-    } else {
-      // 'all' filter still excludes voided bookings
-      filtered = filtered.filter(booking => booking.status !== 'voided');
-    }
-
-    // Date filter
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (dateFilter === 'today') {
-      filtered = filtered.filter(booking => {
-        const checkIn = new Date(booking.check_in_date);
-        checkIn.setHours(0, 0, 0, 0);
-        return checkIn.getTime() === today.getTime();
-      });
-    } else if (dateFilter === 'week') {
-      const weekFromNow = new Date(today);
-      weekFromNow.setDate(weekFromNow.getDate() + 7);
-      filtered = filtered.filter(booking => {
-        const checkIn = new Date(booking.check_in_date);
-        return checkIn >= today && checkIn <= weekFromNow;
-      });
-    } else if (dateFilter === 'month') {
-      const monthFromNow = new Date(today);
-      monthFromNow.setMonth(monthFromNow.getMonth() + 1);
-      filtered = filtered.filter(booking => {
-        const checkIn = new Date(booking.check_in_date);
-        return checkIn >= today && checkIn <= monthFromNow;
-      });
-    } else if (dateFilter === 'custom' && customStartDate && customEndDate) {
-      const start = new Date(customStartDate);
-      const end = new Date(customEndDate);
-      filtered = filtered.filter(booking => {
-        const checkIn = new Date(booking.check_in_date);
-        return checkIn >= start && checkIn <= end;
-      });
-    } else if (dateFilter === 'date_search' && searchDate) {
-      const target = searchDate; // YYYY-MM-DD
-      filtered = filtered.filter(booking => {
-        const checkIn = booking.check_in_date.split('T')[0];
-        const checkOut = booking.check_out_date.split('T')[0];
-        return checkIn === target || checkOut === target;
-      });
-    }
-
-    // Sorting - voided bookings always go to the bottom
-    filtered.sort((a, b) => {
-      // First, push voided bookings to the bottom
-      const aCancelled = a.status === 'voided';
-      const bCancelled = b.status === 'voided';
-      if (aCancelled !== bCancelled) {
-        return aCancelled ? 1 : -1;
-      }
-
-      // Then apply normal sorting
-      let aValue: any;
-      let bValue: any;
-
-      switch (sortField) {
-        case 'check_in_date':
-          aValue = new Date(a.check_in_date).getTime();
-          bValue = new Date(b.check_in_date).getTime();
-          break;
-        case 'check_out_date':
-          aValue = new Date(a.check_out_date).getTime();
-          bValue = new Date(b.check_out_date).getTime();
-          break;
-        case 'guest_name':
-          aValue = a.guest_name.toLowerCase();
-          bValue = b.guest_name.toLowerCase();
-          break;
-        case 'room_number':
-          aValue = a.room_number.toLowerCase();
-          bValue = b.room_number.toLowerCase();
-          break;
-        case 'status':
-          aValue = a.status.toLowerCase();
-          bValue = b.status.toLowerCase();
-          break;
-        case 'folio_number':
-          aValue = (a.booking_number || a.folio_number || '').toLowerCase();
-          bValue = (b.booking_number || b.folio_number || '').toLowerCase();
-          break;
-        default:
-          aValue = a.check_in_date;
-          bValue = b.check_in_date;
-      }
-
-      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return filtered;
-  }, [bookings, searchQuery, statusFilter, dateFilter, customStartDate, customEndDate, searchDate, sortField, sortOrder]);
+  // Server handles all filtering and sorting — bookings is already the correct page
+  const filteredAndSortedBookings = bookings;
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -312,6 +260,7 @@ const BookingsPage: React.FC = () => {
       setSortField(field);
       setSortOrder('asc');
     }
+    setCurrentPage(1);
   };
 
   const clearFilters = () => {
@@ -324,6 +273,7 @@ const BookingsPage: React.FC = () => {
     setSearchDate('');
     setSortField('check_in_date');
     setSortOrder('desc');
+    setCurrentPage(1);
   };
 
   const handleEditBooking = (booking: BookingWithDetails) => {
@@ -741,25 +691,13 @@ const BookingsPage: React.FC = () => {
     return booking.status === 'voided';
   };
 
-  // Statistics
-  const stats = useMemo(() => {
-    const confirmedBookings = bookings.filter(b => b.status === 'confirmed' || b.status === 'pending').length;
-    const checkedInBookings = bookings.filter(b => b.status === 'checked_in').length;
-    const todayCheckIns = bookings.filter(b => {
-      const checkIn = new Date(b.check_in_date);
-      const today = new Date();
-      return checkIn.toDateString() === today.toDateString();
-    }).length;
-
-    return {
-      total: bookings.length,
-      confirmed: confirmedBookings,
-      checkedIn: checkedInBookings,
-      todayCheckIns,
-      availableRooms: rooms.filter(r => r.available).length,
-      totalGuests: guests.length,
-    };
-  }, [bookings, rooms, guests]);
+  // Statistics — use server-side stats for global accuracy
+  const stats = useMemo(() => ({
+    total: statsData.total,
+    checkedIn: statsData.checked_in,
+    todayCheckIns: statsData.today_check_ins,
+    availableRooms: rooms.filter(r => r.available).length,
+  }), [statsData, rooms]);
 
   if (loading) {
     return (
@@ -779,7 +717,7 @@ const BookingsPage: React.FC = () => {
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
-            onClick={() => loadData(roomNumberFilter || undefined)}
+            onClick={loadData}
             sx={{ borderRadius: 2, textTransform: 'none', boxShadow: 'none' }}
           >
             Refresh
@@ -788,7 +726,7 @@ const BookingsPage: React.FC = () => {
             variant="contained"
             startIcon={<BookIcon />}
             onClick={() => setCreateDialogOpen(true)}
-            disabled={rooms.length === 0 || guests.length === 0}
+            disabled={rooms.length === 0}
             sx={{ borderRadius: 2, bgcolor: '#009688', textTransform: 'none', boxShadow: 'none', '&:hover': { bgcolor: '#00796b' } }}
           >
             New Booking
@@ -801,7 +739,7 @@ const BookingsPage: React.FC = () => {
           severity="error"
           sx={{ mb: 3 }}
           action={
-            <Button color="inherit" size="small" onClick={() => loadData(roomNumberFilter || undefined)}>
+            <Button color="inherit" size="small" onClick={loadData}>
               Retry
             </Button>
           }
@@ -844,7 +782,7 @@ const BookingsPage: React.FC = () => {
               size="small"
               placeholder="Search by guest, folio..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -862,7 +800,7 @@ const BookingsPage: React.FC = () => {
               size="small"
               placeholder="Room number..."
               value={roomNumberFilter}
-              onChange={(e) => setRoomNumberFilter(e.target.value)}
+              onChange={(e) => { setRoomNumberFilter(e.target.value); setCurrentPage(1); }}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -883,11 +821,8 @@ const BookingsPage: React.FC = () => {
               value={searchDate}
               onChange={(e) => {
                 setSearchDate(e.target.value);
-                if (e.target.value) {
-                  setDateFilter('date_search');
-                } else {
-                  setDateFilter('all');
-                }
+                setDateFilter(e.target.value ? 'date_search' : 'all');
+                setCurrentPage(1);
               }}
               InputLabelProps={{ shrink: true }}
             />
@@ -900,7 +835,7 @@ const BookingsPage: React.FC = () => {
               <Select
                 value={statusFilter}
                 label="Status"
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
               >
                 <MenuItem value="all">All Status</MenuItem>
                 <MenuItem value="pending">Pending</MenuItem>
@@ -921,6 +856,7 @@ const BookingsPage: React.FC = () => {
                 if (newValue) {
                   setDateFilter(newValue);
                   setSearchDate('');
+                  setCurrentPage(1);
                 }
               }}
               size="small"
@@ -1207,18 +1143,36 @@ const BookingsPage: React.FC = () => {
         </TableContainer>
       </Card>
 
-      {filteredAndSortedBookings.length === 0 && (
+      {filteredAndSortedBookings.length === 0 && !loading && (
         <Box textAlign="center" py={4}>
           <Typography variant="h6" color="text.secondary">
-            {bookings.length === 0 ? 'No bookings yet' : 'No bookings match your filters'}
+            {totalBookings === 0 ? 'No bookings yet' : 'No bookings match your filters'}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            {bookings.length === 0
+            {totalBookings === 0
               ? 'Create your first booking using the "New Booking" button above'
               : 'Try adjusting your search or filter criteria'
             }
           </Typography>
         </Box>
+      )}
+
+      {/* Pagination */}
+      {totalBookings > PAGE_SIZE && (
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2, px: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalBookings)} of {totalBookings} bookings
+          </Typography>
+          <Pagination
+            count={Math.ceil(totalBookings / PAGE_SIZE)}
+            page={currentPage}
+            onChange={(_, page) => setCurrentPage(page)}
+            color="primary"
+            size="small"
+            showFirstButton
+            showLastButton
+          />
+        </Stack>
       )}
 
       {/* Create Booking Modal (Unified) */}
