@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent, Box, Typography, alpha } from '@mui/material';
-import { RoomStatusType, getStatusConfig } from '../../../../config/roomStatusConfig';
+import { RoomStatusType, getStatusConfig } from '../../config';
 
 interface RoomStatusSummaryCardProps {
   status: RoomStatusType;

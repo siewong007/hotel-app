@@ -35,9 +35,10 @@ import {
 } from '@mui/icons-material';
 import { BookingWithDetails } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
 import { HotelAPIService } from '../../../api';
 import { InvoicesService } from '../../../api/invoices.service';
+import { useCheckoutInvoiceData } from '../hooks/useCheckoutInvoiceData';
+import { calculateChargesFromInputs, emptyCharges, ChargesBreakdown } from '../utils/chargesCalculation';
 
 interface CheckoutInvoiceModalProps {
   open: boolean;
@@ -45,18 +46,6 @@ interface CheckoutInvoiceModalProps {
   booking: BookingWithDetails | null;
   onConfirmCheckout?: (lateCheckoutData?: { penalty: number; notes: string }, paymentMethod?: string) => Promise<void>;
   readOnly?: boolean;
-}
-
-interface ChargesBreakdown {
-  roomCharges: number;
-  roomCardDeposit: number;
-  serviceTax: number;
-  tourismTax: number;
-  extraBedCharge: number;
-  extraBedServiceTax: number;
-  subtotal: number;
-  depositRefund: number;
-  grandTotal: number;
 }
 
 const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
@@ -70,11 +59,24 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<'preview' | 'confirm'>('preview');
-  const [hotelSettings, setHotelSettings] = useState<HotelSettings>(getHotelSettings());
-  const [roomPrice, setRoomPrice] = useState<number>(0);
+
+  const {
+    hotelSettings,
+    roomPrice,
+    guestCompanyName,
+    guestAddress,
+    guestPhone,
+    guestIcNumber,
+    payments,
+    setPayments,
+    depositRefunded,
+    setDepositRefunded,
+    editableDailyRates,
+    setEditableDailyRates,
+    reloadPayments,
+  } = useCheckoutInvoiceData(booking, open);
 
   // Payment recording state
-  const [payments, setPayments] = useState<any[]>([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
@@ -94,7 +96,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [deletingPaymentId, setDeletingPaymentId] = useState<number | null>(null);
 
   // Deposit refund state
-  const [depositRefunded, setDepositRefunded] = useState(false);
   const [refundingDeposit, setRefundingDeposit] = useState(false);
   const [refundPaymentMethod, setRefundPaymentMethod] = useState('cash');
 
@@ -102,297 +103,46 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [depositWaived, setDepositWaived] = useState(false);
   const [depositWaiveReason, setDepositWaiveReason] = useState('');
 
-  // Editable daily rates (tax-inclusive per day)
-  const [editableDailyRates, setEditableDailyRates] = useState<Record<string, number>>({});
+  // Editable daily rates UI state
   const [editingRates, setEditingRates] = useState(false);
   const [savingRates, setSavingRates] = useState(false);
 
-  // Guest details
-  const [guestCompanyName, setGuestCompanyName] = useState<string>('');
-  const [guestAddress, setGuestAddress] = useState<string>('');
-  const [guestPhone, setGuestPhone] = useState<string>('');
-  const [guestIcNumber, setGuestIcNumber] = useState<string>('');
-
-  const [charges, setCharges] = useState<ChargesBreakdown>({
-    roomCharges: 0,
-    roomCardDeposit: 50,
-    serviceTax: 0,
-    tourismTax: 0,
-    extraBedCharge: 0,
-    extraBedServiceTax: 0,
-    subtotal: 0,
-    depositRefund: 0,
-    grandTotal: 0,
-  });
+  // Derived charges (pure calculation, no state mutation needed)
+  const charges: ChargesBreakdown = booking
+    ? calculateChargesFromInputs(booking, roomPrice, hotelSettings, editableDailyRates)
+    : emptyCharges;
 
 
 
+  // Reset UI state when booking/open changes
   useEffect(() => {
     if (open && booking) {
-      // Load latest hotel settings
-      const settings = getHotelSettings();
-      setHotelSettings(settings);
-
-      // Fetch room price directly from API
-      const fetchRoomPrice = async () => {
-        try {
-          const rooms = await HotelAPIService.getAllRooms();
-          const room = rooms.find(r => r.id.toString() === booking.room_id.toString());
-          if (room) {
-            const price = typeof room.price_per_night === 'string'
-              ? parseFloat(room.price_per_night)
-              : room.price_per_night || 0;
-            console.log('Fetched room price from API:', price, 'for room:', room.room_number);
-            setRoomPrice(price);
-          } else {
-            console.error('Room not found in API response');
-            setRoomPrice(0);
-          }
-        } catch (err) {
-          console.error('Failed to fetch room price:', err);
-          setRoomPrice(0);
-        }
-      };
-      fetchRoomPrice();
-
-      // Fetch guest details (company, address, phone, ID)
-      const fetchGuestInfo = async () => {
-        try {
-          const guests = await HotelAPIService.getAllGuests();
-          const guest = guests.find(g => String(g.id) === String(booking.guest_id));
-          if (guest) {
-            setGuestCompanyName(guest.company_name || '');
-            setGuestPhone(guest.phone || '');
-            setGuestIcNumber(guest.ic_number || '');
-            const parts = [
-              guest.address_line1,
-              guest.city,
-              guest.state_province,
-              guest.postal_code,
-              guest.country,
-            ].filter(Boolean);
-            setGuestAddress(parts.join(', '));
-          }
-        } catch {
-          setGuestCompanyName('');
-          setGuestAddress('');
-          setGuestPhone('');
-          setGuestIcNumber('');
-        }
-      };
-      fetchGuestInfo();
-
-      // Initialize editable daily rates
-      const checkIn = new Date(booking.check_in_date);
-      const checkOut = new Date(booking.check_out_date);
-      const rawNights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-      const isHourly = booking.post_type === 'hourly' || rawNights === 0;
-      if (!isHourly) {
-        const nights = rawNights;
-        const rates: Record<string, number> = {};
-        const pricePerNight = typeof booking.price_per_night === 'string'
-          ? parseFloat(booking.price_per_night) : booking.price_per_night || 0;
-        for (let i = 0; i < nights; i++) {
-          const d = new Date(checkIn);
-          d.setDate(d.getDate() + i);
-          const key = d.toISOString().split('T')[0];
-          if (booking.daily_rates && typeof booking.daily_rates === 'object' && booking.daily_rates[key] !== undefined) {
-            rates[key] = parseFloat(String(booking.daily_rates[key])) || 0;
-          } else {
-            rates[key] = pricePerNight;
-          }
-        }
-        setEditableDailyRates(rates);
-      }
-
-      // Reset to preview step when modal opens
       setCheckoutStep('preview');
-
-      // Reset payment form state
-      // Auto-open payment form for all guests with outstanding balance
       setShowPaymentForm(true);
       setPaymentAmount(0);
-      // Pre-fill payment method from booking (use title case to match hotel settings)
       const bookingPaymentMethod = booking.payment_method
         ? booking.payment_method.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
         : 'Cash';
       setPaymentMethod(bookingPaymentMethod);
       setPaymentReference('');
       setPaymentNotes('');
-      setDepositRefunded(false);
       setDepositWaived(false);
       setDepositWaiveReason('');
-
-      // Load existing payments
-      const loadPayments = async () => {
-        try {
-          const existingPayments = await InvoicesService.getBookingPayments(booking.id);
-          setPayments(existingPayments || []);
-          // Check if deposit was already refunded
-          const hasRefund = (existingPayments || []).some(
-            (p: any) => p.payment_status === 'refunded' && p.notes === 'Keycard deposit refund'
-          );
-          setDepositRefunded(hasRefund);
-        } catch {
-          setPayments([]);
-        }
-      };
-      loadPayments();
     }
   }, [open, booking]);
 
-  // Recalculate charges when room price is loaded
-  useEffect(() => {
-    if (open && booking && roomPrice > 0) {
-      calculateCharges();
-    }
-  }, [roomPrice]);
-
-  // Recalculate when editable daily rates change
-  useEffect(() => {
-    if (open && booking && Object.keys(editableDailyRates).length > 0) {
-      calculateCharges();
-    }
-  }, [editableDailyRates]);
-
-  // Pre-fill payment amount for members when charges are ready
+  // Pre-fill payment amount when charges or payments update
   useEffect(() => {
     if (open && booking && charges.grandTotal > 0) {
-      const balance = charges.grandTotal - payments
+      const totalPaid = payments
         .filter((p: any) => p.payment_status === 'completed')
         .reduce((sum: number, p: any) => sum + parseFloat(p.total_amount || '0'), 0);
+      const balance = charges.grandTotal - totalPaid;
       if (balance > 0) {
         setPaymentAmount(parseFloat(balance.toFixed(2)));
       }
     }
   }, [open, booking, charges.grandTotal, payments]);
-
-  // Listen for hotel settings changes
-  useEffect(() => {
-    const handleSettingsChange = (event: CustomEvent) => {
-      setHotelSettings(event.detail);
-    };
-
-    window.addEventListener('hotelSettingsChange', handleSettingsChange as EventListener);
-    return () => {
-      window.removeEventListener('hotelSettingsChange', handleSettingsChange as EventListener);
-    };
-  }, []);
-
-  const calculateCharges = () => {
-    if (!booking) return;
-
-    // Calculate nights first
-    const checkIn = new Date(booking.check_in_date);
-    const checkOut = new Date(booking.check_out_date);
-    const rawNights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-    // For hourly bookings (same-day), use 1 for billing
-    const isHourly = booking.post_type === 'hourly' || rawNights === 0;
-    const nights = isHourly ? 1 : rawNights;
-
-    // Debug: log booking price info
-    console.log('Checkout calculation - booking:', {
-      price_per_night: booking.price_per_night,
-      total_amount: booking.total_amount,
-      room_number: booking.room_number,
-      roomPrice_from_API: roomPrice,
-      nights
-    });
-
-    // Get the booking's price per night
-    let bookingPricePerNight = typeof booking.price_per_night === 'string'
-      ? parseFloat(booking.price_per_night)
-      : booking.price_per_night || 0;
-
-    // Tax rate for calculations
-    const taxRate = hotelSettings.service_tax_rate / 100;
-    const taxMultiplier = 1 + taxRate;
-
-    // All prices (regular or override) are treated as tax-inclusive
-    let taxInclusivePrice = bookingPricePerNight;
-
-    // Fallback: if booking price not available, use room price from API
-    if (!taxInclusivePrice || taxInclusivePrice === 0) {
-      taxInclusivePrice = roomPrice;
-      console.log('Using room price as fallback:', roomPrice);
-    }
-
-    // Fallback 2: if still not available, derive from total_amount
-    if (!taxInclusivePrice || taxInclusivePrice === 0) {
-      const totalAmount = typeof booking.total_amount === 'string'
-        ? parseFloat(booking.total_amount)
-        : booking.total_amount || 0;
-      taxInclusivePrice = nights > 0 ? totalAmount / nights : 0;
-      console.log('Using fallback from total_amount:', taxInclusivePrice);
-    }
-
-    console.log('Price calculation (tax-inclusive):', { taxInclusivePrice, bookingPricePerNight, roomPrice });
-
-    // Use editable daily rates if available, otherwise fall back to uniform price
-    let roomSubtotal: number;
-    if (Object.keys(editableDailyRates).length > 0) {
-      roomSubtotal = Object.values(editableDailyRates).reduce((sum, rate) => sum + (rate || 0), 0);
-    } else if (booking.daily_rates && typeof booking.daily_rates === 'object' && Object.keys(booking.daily_rates).length > 0) {
-      roomSubtotal = Object.values(booking.daily_rates).reduce((sum: number, rate: any) => sum + (parseFloat(rate) || 0), 0);
-    } else {
-      // The price IS the final price per night (tax-inclusive)
-      roomSubtotal = taxInclusivePrice * nights;
-    }
-    // Room Charges (before tax) = Subtotal / (1 + tax_rate)
-    const roomCharges = roomSubtotal / taxMultiplier;
-    // Service Tax is the difference
-    const serviceTax = roomSubtotal - roomCharges;
-
-    // Get deposit from booking's deposit_amount (set during check-in)
-    const isMember = booking.guest_type === 'member';
-    const isCityLedger = !!(booking.company_id);
-    const roomCardDeposit = booking.deposit_paid
-      ? (typeof booking.deposit_amount === 'string' ? parseFloat(booking.deposit_amount) : booking.deposit_amount) || 0
-      : 0;
-
-    // Get tourism tax - foreign tourists are charged, local tourists are not
-    // Use guest_tourism_type (current guest setting) or fall back to is_tourist (booking-time setting)
-    const isForeignTourist = booking.guest_tourism_type === 'foreign' || booking.is_tourist === true;
-    console.log('Tourism tax debug:', { guest_tourism_type: booking.guest_tourism_type, is_tourist: booking.is_tourist, isForeignTourist, tourism_tax_amount: booking.tourism_tax_amount, tourism_tax_rate: hotelSettings.tourism_tax_rate, nights });
-    let tourismTax = 0;
-    if (isForeignTourist) {
-      const storedTourismTax = booking.tourism_tax_amount
-        ? (typeof booking.tourism_tax_amount === 'string' ? parseFloat(booking.tourism_tax_amount) : booking.tourism_tax_amount)
-        : 0;
-      // Use stored amount if > 0, otherwise calculate from settings
-      tourismTax = storedTourismTax > 0 ? storedTourismTax : nights * hotelSettings.tourism_tax_rate;
-    }
-
-    // Get extra bed charge from booking (tax-inclusive)
-    const extraBedChargeInclTax = booking.extra_bed_charge
-      ? (typeof booking.extra_bed_charge === 'string' ? parseFloat(booking.extra_bed_charge) : booking.extra_bed_charge)
-      : 0;
-
-    // Extra bed charge is tax-inclusive, so extract the base and tax components
-    const extraBedCharge = extraBedChargeInclTax > 0 ? extraBedChargeInclTax / (1 + hotelSettings.service_tax_rate / 100) : 0;
-    const extraBedServiceTax = extraBedChargeInclTax - extraBedCharge;
-
-    // Subtotal = Room Charges + Service Tax + other charges
-    // This equals configured_price × nights + other charges
-    const subtotal = roomCharges + serviceTax + tourismTax + extraBedCharge + extraBedServiceTax;
-
-    // Deposit is refunded separately - does not reduce the total amount due
-    const depositRefund = roomCardDeposit;
-
-    const grandTotal = subtotal;
-
-    setCharges({
-      roomCharges,
-      roomCardDeposit,
-      serviceTax,
-      tourismTax,
-      extraBedCharge,
-      extraBedServiceTax,
-      subtotal,
-      depositRefund,
-      grandTotal,
-    });
-  };
 
   const totalPayments = payments
     .filter((p: any) => p.payment_status === 'completed')
@@ -1195,7 +945,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           onClick={() => {
                             if (depositWaiveReason.trim()) {
                               setDepositWaived(true);
-                              calculateCharges();
                             }
                           }}
                           disabled={!depositWaiveReason.trim()}
@@ -1229,7 +978,6 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         onClick={() => {
                           setDepositWaived(false);
                           setDepositWaiveReason('');
-                          calculateCharges();
                         }}
                         sx={{ fontSize: '0.7rem', minWidth: 'auto' }}
                       >

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, Typography, alpha } from '@mui/material';
-import { RoomStatusType, getStatusConfig } from '../../../../config/roomStatusConfig';
+import { RoomStatusType, getStatusConfig } from '../../config';
 
 interface RoomStatusBadgeProps {
   status: RoomStatusType;

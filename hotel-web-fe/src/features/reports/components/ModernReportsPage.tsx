@@ -42,9 +42,9 @@ import {
   People as PeopleIcon,
   MeetingRoom as RoomIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
+import { useReportData } from '../hooks/useReportData';
 
 type ReportType =
   // New hotel management reports
@@ -174,15 +174,25 @@ const ModernReportsPage: React.FC = () => {
   const hotelSettings = getHotelSettings();
   const printRef = useRef<HTMLDivElement>(null);
 
-  const [selectedReport, setSelectedReport] = useState<ReportType | ''>('');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedCompany, setSelectedCompany] = useState<string>('');
-  const [companyList, setCompanyList] = useState<CompanyOption[]>([]);
-  const [loadingCompanies, setLoadingCompanies] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [reportData, setReportData] = useState<any>(null);
+  const {
+    selectedReport,
+    setSelectedReport,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    selectedCompany,
+    setSelectedCompany,
+    companyList,
+    loadingCompanies,
+    loading,
+    error,
+    setError,
+    reportData,
+    handleReportTypeChange: handleReportTypeChangeHook,
+    handleGenerateReport: handleGenerateReportHook,
+  } = useReportData();
+
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
 
   const handlePrintPreview = () => {
@@ -260,67 +270,11 @@ const ModernReportsPage: React.FC = () => {
     setPrintPreviewOpen(false);
   };
 
-  const loadCompanyList = async () => {
-    try {
-      setLoadingCompanies(true);
-      const data = await HotelAPIService.generateReport({
-        reportType: 'company_ledger_statement',
-        startDate,
-        endDate,
-      });
-      if (data.type === 'company_list' && data.companies) {
-        setCompanyList(data.companies);
-      }
-    } catch (err: any) {
-      console.error('Failed to load company list:', err);
-    } finally {
-      setLoadingCompanies(false);
-    }
-  };
+  const handleReportTypeChange = (type: ReportType) =>
+    handleReportTypeChangeHook(type, startDate, endDate);
 
-  const handleReportTypeChange = async (type: ReportType) => {
-    setSelectedReport(type);
-    setReportData(null);
-    setError('');
-    if (type === 'company_ledger_statement') {
-      await loadCompanyList();
-    }
-  };
-
-  const handleGenerateReport = async () => {
-    if (!selectedReport) {
-      setError('Please select a report type');
-      return;
-    }
-
-    if (selectedReport === 'company_ledger_statement' && !selectedCompany) {
-      setError('Please select a company');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setReportData(null);
-
-    try {
-      const params: any = {
-        reportType: selectedReport,
-        startDate,
-        endDate,
-      };
-
-      if (selectedReport === 'company_ledger_statement' && selectedCompany) {
-        params.companyName = selectedCompany;
-      }
-
-      const data = await HotelAPIService.generateReport(params);
-      setReportData(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to generate report');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleGenerateReport = () =>
+    handleGenerateReportHook(selectedReport, startDate, endDate, selectedCompany);
 
   // Render General Journal
   const renderGeneralJournal = () => {

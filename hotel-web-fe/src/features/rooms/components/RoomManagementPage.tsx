@@ -72,6 +72,7 @@ import { HotelAPIService } from '../../../api';
 
 import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, Booking } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { useRoomData } from '../hooks/useRoomData';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { isValidEmail } from '../../../utils/validation';
 import {
@@ -79,7 +80,7 @@ import {
   getUnifiedStatusLabel,
   getUnifiedStatusShortLabel,
   RoomStatusType
-} from '../../../config/roomStatusConfig';
+} from '../config';
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
 import UnifiedBookingModal, { BookingType } from './UnifiedBookingModal';
 import UpdateCheckoutDateDialog from './UpdateCheckoutDateDialog';
@@ -108,16 +109,23 @@ interface GuestWithCredits {
 const RoomManagementPage: React.FC = () => {
   const navigate = useNavigate();
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [guests, setGuests] = useState<Guest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    rooms, setRooms,
+    guests, setGuests,
+    loading,
+    error: dataError,
+    roomBookings,
+    reservedBookings,
+    compCancelledBookings,
+    allBookingsData,
+    reload: loadData,
+    reloadRooms: loadRooms,
+    reloadGuests: loadGuests,
+    reloadBookings: loadBookings,
+  } = useRoomData();
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
-  const [roomBookings, setRoomBookings] = useState<Map<string, BookingWithDetails>>(new Map());
-  const [reservedBookings, setReservedBookings] = useState<Map<string, BookingWithDetails>>(new Map());
-  const [compCancelledBookings, setCompCancelledBookings] = useState<Map<string, BookingWithDetails>>(new Map());
-  const [allBookingsData, setAllBookingsData] = useState<BookingWithDetails[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<BookingWithDetails | null>(null);
 
   // Dialogs
@@ -305,6 +313,11 @@ const RoomManagementPage: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Show data loading errors in snackbar
+  useEffect(() => {
+    if (dataError) showSnackbar(dataError, 'error');
+  }, [dataError]);
+
   // Clear any blocked dates from selection when room blocked dates are loaded
   useEffect(() => {
     if (roomBlockedDates.length > 0 && selectedComplimentaryDates.length > 0) {
@@ -314,79 +327,6 @@ const RoomManagementPage: React.FC = () => {
       }
     }
   }, [roomBlockedDates]);
-
-  const loadData = useCallback(async () => {
-    await Promise.all([loadRooms(true), loadGuests(), loadBookings()]);
-  }, []);
-
-  const loadRooms = async (fixHiddenOnLoad = false) => {
-    try {
-      // Only show loading spinner on initial load, not periodic refreshes
-      if (fixHiddenOnLoad) setLoading(true);
-      // Use getAllRooms() instead of searchRooms() to get ALL rooms including dirty ones
-      const roomsData = await HotelAPIService.getAllRooms();
-
-      setRooms(roomsData);
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to load rooms', 'error');
-    } finally {
-      if (fixHiddenOnLoad) setLoading(false);
-    }
-  };
-
-  const loadBookings = async () => {
-    try {
-      const bookingsData = await HotelAPIService.getAllBookings();
-      // Store all bookings for filtering (cast to BookingWithDetails as API returns full details)
-      setAllBookingsData(bookingsData as BookingWithDetails[]);
-
-      // Create a map of room_id to current active booking
-      const bookingsMap = new Map<string, BookingWithDetails>();
-      const reservedMap = new Map<string, BookingWithDetails>();
-      const compCancelledMap = new Map<string, BookingWithDetails>();
-
-      bookingsData.forEach((booking: BookingWithDetails) => {
-        // Track checked_in and auto_checked_in bookings (occupied rooms)
-        if (booking.status === 'checked_in' || booking.status === 'auto_checked_in') {
-          bookingsMap.set(booking.room_id, booking);
-        }
-        // Track confirmed/pending bookings (reserved)
-        // Prioritize bookings with earlier check-in dates (today's booking over future bookings)
-        if (booking.status === 'confirmed' || booking.status === 'pending') {
-          const existingBooking = reservedMap.get(booking.room_id);
-          if (!existingBooking) {
-            reservedMap.set(booking.room_id, booking);
-          } else {
-            // Keep the booking with the earlier check-in date
-            const existingCheckIn = new Date(existingBooking.check_in_date);
-            const newCheckIn = new Date(booking.check_in_date);
-            if (newCheckIn < existingCheckIn) {
-              reservedMap.set(booking.room_id, booking);
-            }
-          }
-        }
-        // Track voided bookings (booking voided, credits preserved)
-        if (booking.status === 'voided') {
-          compCancelledMap.set(booking.room_id, booking);
-        }
-      });
-
-      setRoomBookings(bookingsMap);
-      setReservedBookings(reservedMap);
-      setCompCancelledBookings(compCancelledMap);
-    } catch (error: any) {
-      console.error('Failed to load bookings:', error);
-    }
-  };
-
-  const loadGuests = async () => {
-    try {
-      const guestsData = await HotelAPIService.getAllGuests();
-      setGuests(guestsData);
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to load guests', 'error');
-    }
-  };
 
   const showSnackbar = (message: string, severity: 'success' | 'error') => {
     setSnackbar({ open: true, message, severity });

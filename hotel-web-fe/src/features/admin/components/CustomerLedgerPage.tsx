@@ -84,9 +84,8 @@ import { Company } from '../../../api/companies.service';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
-
-type SortField = 'company_name' | 'amount' | 'balance_due' | 'status' | 'due_date' | 'created_at';
-type SortOrder = 'asc' | 'desc';
+import { useLedgerData } from '../hooks/useLedgerData';
+import { useLedgerFilters, SortField, SortOrder } from '../hooks/useLedgerFilters';
 
 // Company option for autocomplete
 interface CompanyOption {
@@ -179,17 +178,16 @@ const getStatusText = (status: string): string => {
 const CustomerLedgerPage: React.FC = () => {
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
   const [hotelSettings, setHotelSettings] = useState<HotelSettings>(getHotelSettings());
-  const [ledgers, setLedgers] = useState<CustomerLedger[]>([]);
-  const [summary, setSummary] = useState<CustomerLedgerSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Sorting and filtering state
-  const [sortField, setSortField] = useState<SortField>('created_at');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [expenseTypeFilter, setExpenseTypeFilter] = useState<string>('all');
+  const { ledgers, summary, loading, error, setError, reload: loadData } = useLedgerData();
+  const {
+    sortField, sortOrder,
+    searchQuery, setSearchQuery,
+    statusFilter, setStatusFilter,
+    expenseTypeFilter, setExpenseTypeFilter,
+    filtered: filteredAndSortedLedgers,
+    handleSort,
+    clearFilters,
+  } = useLedgerFilters(ledgers);
 
   // Create dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -1380,109 +1378,6 @@ const CustomerLedgerPage: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [ledgersData, summaryData] = await Promise.all([
-        HotelAPIService.getCustomerLedgers(),
-        HotelAPIService.getCustomerLedgerSummary(),
-      ]);
-      setLedgers(ledgersData);
-      setSummary(summaryData);
-      setError(null);
-    } catch (err: any) {
-      console.error('Failed to load ledger data:', err);
-      setError(err.message || 'Failed to load ledger data. Please check your connection and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Filter and sort ledgers
-  const filteredAndSortedLedgers = useMemo(() => {
-    let filtered = [...ledgers];
-
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(ledger =>
-        ledger.company_name.toLowerCase().includes(query) ||
-        ledger.description.toLowerCase().includes(query) ||
-        ledger.invoice_number?.toLowerCase().includes(query) ||
-        ledger.contact_person?.toLowerCase().includes(query)
-      );
-    }
-
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(ledger => ledger.status === statusFilter);
-    }
-
-    // Expense type filter
-    if (expenseTypeFilter !== 'all') {
-      filtered = filtered.filter(ledger => ledger.expense_type === expenseTypeFilter);
-    }
-
-    // Sorting
-    filtered.sort((a, b) => {
-      let aValue: any;
-      let bValue: any;
-
-      switch (sortField) {
-        case 'company_name':
-          aValue = a.company_name.toLowerCase();
-          bValue = b.company_name.toLowerCase();
-          break;
-        case 'amount':
-          aValue = parseFloat(String(a.amount));
-          bValue = parseFloat(String(b.amount));
-          break;
-        case 'balance_due':
-          aValue = parseFloat(String(a.balance_due));
-          bValue = parseFloat(String(b.balance_due));
-          break;
-        case 'status':
-          aValue = a.status;
-          bValue = b.status;
-          break;
-        case 'due_date':
-          aValue = a.due_date ? new Date(a.due_date).getTime() : 0;
-          bValue = b.due_date ? new Date(b.due_date).getTime() : 0;
-          break;
-        case 'created_at':
-          aValue = new Date(a.created_at).getTime();
-          bValue = new Date(b.created_at).getTime();
-          break;
-        default:
-          aValue = a.created_at;
-          bValue = b.created_at;
-      }
-
-      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return filtered;
-  }, [ledgers, searchQuery, statusFilter, expenseTypeFilter, sortField, sortOrder]);
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortOrder('asc');
-    }
-  };
-
-  const clearFilters = () => {
-    setSearchQuery('');
-    setStatusFilter('all');
-    setExpenseTypeFilter('all');
-    setSortField('created_at');
-    setSortOrder('desc');
   };
 
   // Create ledger handlers
