@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for React Frontend
 # Stage 1: Build the application
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -16,14 +16,12 @@ RUN npm install --legacy-peer-deps
 COPY . .
 
 # Build arguments for environment variables
-ARG REACT_APP_API_URL=http://localhost:3030
-ARG REACT_APP_WS_URL=ws://localhost:3030
-ARG REACT_APP_ENVIRONMENT=production
+ARG VITE_API_URL=http://localhost:3030
+ARG VITE_ENVIRONMENT=production
 
 # Set environment variables for build
-ENV REACT_APP_API_URL=$REACT_APP_API_URL
-ENV REACT_APP_WS_URL=$REACT_APP_WS_URL
-ENV REACT_APP_ENVIRONMENT=$REACT_APP_ENVIRONMENT
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_ENVIRONMENT=$VITE_ENVIRONMENT
 ENV NODE_ENV=production
 ENV TSC_COMPILE_ON_ERROR=true
 ENV ESLINT_NO_DEV_ERRORS=true
@@ -41,7 +39,7 @@ RUN apk add --no-cache curl
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built files from builder stage
-COPY --from=builder /app/build /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Create non-root user for nginx
 RUN addgroup -g 1000 appuser && \
