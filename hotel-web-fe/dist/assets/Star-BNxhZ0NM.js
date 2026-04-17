@@ -1,1 +1,0 @@
-import{it as e,v as t}from"./Box-DW_5dheM.js";var n=t((0,e().jsx)(`path`,{d:`M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z`}),`Star`);export{n as t};

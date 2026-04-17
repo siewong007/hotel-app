@@ -1,1 +1,0 @@
-import{r as e}from"./chunk-DECur_0Z.js";import{dt as t,it as n}from"./Box-DW_5dheM.js";var r=e(t()),i=n(),a=r.createContext();function o({value:e,...t}){return(0,i.jsx)(a.Provider,{value:e??!0,...t})}var s=()=>r.useContext(a)??!1;export{s as n,o as t};

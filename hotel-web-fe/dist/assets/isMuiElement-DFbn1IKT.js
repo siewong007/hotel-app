@@ -1,1 +1,0 @@
-import{r as e}from"./chunk-DECur_0Z.js";import{dt as t}from"./Box-DW_5dheM.js";var n=e(t());function r(e,t){return n.isValidElement(e)&&t.indexOf(e.type.muiName??e.type?._payload?.value?.muiName)!==-1}export{r as t};
