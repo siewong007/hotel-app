@@ -22,6 +22,8 @@ use serde::{Deserialize, Serialize};
 pub struct GuestPaginationParams {
     pub page: Option<i64>,
     pub page_size: Option<i64>,
+    /// Search by name, email, or phone (partial match)
+    pub search: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -60,55 +62,84 @@ pub async fn get_guests_handler(
     let page_size = params.page_size.unwrap_or(100).min(500);
     let offset = (page - 1) * page_size;
 
-    let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM guests WHERE deleted_at IS NULL"
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap_or(0);
+    let search = params.search.as_deref().filter(|s| !s.trim().is_empty());
 
-    let guests = sqlx::query_as::<_, Guest>(
-        r#"
-        SELECT
-            id,
-            full_name,
-            email,
-            phone,
-            ic_number,
-            nationality,
-            address_line_1 as address_line1,
-            city,
-            state as state_province,
-            postal_code,
-            country,
-            title,
-            alt_phone,
-            true as is_active,
-            guest_type,
-            tourism_type,
-            COALESCE(discount_percentage, 0) as discount_percentage,
-            company_name,
-            COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
-            created_at,
-            updated_at
-        FROM guests
-        WHERE deleted_at IS NULL
-        ORDER BY full_name
-        LIMIT $1 OFFSET $2
-        "#
-    )
-    .bind(page_size)
-    .bind(offset)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let like_op = "LIKE";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let like_op = "ILIKE";
 
-    Ok(Json(GuestPaginatedResponse {
-        data: guests,
-        total,
-        page,
-        page_size,
-    }))
+    let (total, guests) = if let Some(q) = search {
+        let pattern = format!("%{}%", q.trim());
+
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let (p1, p2, p3, p_limit, p_offset) = ("?1", "?1", "?1", "?2", "?3");
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        let (p1, p2, p3, p_limit, p_offset) = ("$1", "$1", "$1", "$2", "$3");
+
+        let count_sql = format!(
+            "SELECT COUNT(*) FROM guests WHERE deleted_at IS NULL AND \
+             (full_name {like_op} {p1} OR email {like_op} {p2} OR phone {like_op} {p3})"
+        );
+        let data_sql = format!(
+            r#"SELECT id, full_name, email, phone, ic_number, nationality,
+                address_line_1 as address_line1, city, state as state_province,
+                postal_code, country, title, alt_phone, true as is_active,
+                guest_type, tourism_type,
+                COALESCE(discount_percentage, 0) as discount_percentage, company_name,
+                COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
+                created_at, updated_at
+            FROM guests
+            WHERE deleted_at IS NULL AND (full_name {like_op} {p1} OR email {like_op} {p2} OR phone {like_op} {p3})
+            ORDER BY full_name LIMIT {p_limit} OFFSET {p_offset}"#
+        );
+
+        let total: i64 = sqlx::query_scalar(&count_sql)
+            .bind(&pattern)
+            .fetch_one(&pool)
+            .await
+            .unwrap_or(0);
+
+        let guests = sqlx::query_as::<_, Guest>(&data_sql)
+            .bind(&pattern)
+            .bind(page_size)
+            .bind(offset)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        (total, guests)
+    } else {
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM guests WHERE deleted_at IS NULL"
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(0);
+
+        let guests = sqlx::query_as::<_, Guest>(
+            r#"SELECT id, full_name, email, phone, ic_number, nationality,
+                address_line_1 as address_line1, city, state as state_province,
+                postal_code, country, title, alt_phone, true as is_active,
+                guest_type, tourism_type,
+                COALESCE(discount_percentage, 0) as discount_percentage, company_name,
+                COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
+                created_at, updated_at
+            FROM guests
+            WHERE deleted_at IS NULL
+            ORDER BY full_name
+            LIMIT $1 OFFSET $2"#
+        )
+        .bind(page_size)
+        .bind(offset)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        (total, guests)
+    };
+
+    Ok(Json(GuestPaginatedResponse { data: guests, total, page, page_size }))
 }
 
 pub async fn create_guest_handler(

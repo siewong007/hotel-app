@@ -101,7 +101,10 @@ export class HotelAPIService {
   static getMyGuestsWithCredits = GuestsService.getMyGuestsWithCredits;
 
   // Booking operations
+  static getGuestsPage = GuestsService.getGuestsPage;
   static getAllBookings = BookingsService.getAllBookings;
+  static getBookingsPage = BookingsService.getBookingsPage;
+  static getBookingStats = BookingsService.getBookingStats;
   static getMyBookings = BookingsService.getMyBookings;
   static createBooking = BookingsService.createBooking;
   static updateBooking = BookingsService.updateBooking;

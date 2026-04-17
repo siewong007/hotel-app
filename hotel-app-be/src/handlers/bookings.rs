@@ -20,12 +20,57 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
-/// Pagination and filter query parameters
+/// Pagination and filter query parameters for bookings
 #[derive(Debug, Deserialize)]
 pub struct PaginationParams {
     pub page: Option<i64>,
     pub page_size: Option<i64>,
+    /// General text search: guest name, booking number, folio number, room number
+    pub search: Option<String>,
+    /// Filter by exact booking status (e.g. "checked_in", "confirmed"). Omit to exclude voided.
+    pub status: Option<String>,
+    /// Filter by room number (partial match)
     pub room_number: Option<String>,
+    /// Only bookings whose check-in date matches this date (YYYY-MM-DD)
+    pub date_search: Option<NaiveDate>,
+    /// Bookings with check-in >= this date
+    pub check_in_from: Option<NaiveDate>,
+    /// Bookings with check-in <= this date
+    pub check_in_to: Option<NaiveDate>,
+    /// Column to sort by: check_in_date | check_out_date | guest_name | room_number | status | folio_number
+    pub sort_by: Option<String>,
+    /// Sort direction: asc | desc (default desc)
+    pub sort_order: Option<String>,
+}
+
+/// Lightweight booking statistics
+#[derive(Debug, Serialize)]
+pub struct BookingStats {
+    pub total: i64,
+    pub checked_in: i64,
+    pub confirmed: i64,
+    pub today_check_ins: i64,
+}
+
+fn param_placeholder(idx: i32) -> String {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    return format!("?{}", idx);
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    return format!("${}", idx);
+}
+
+fn like_operator() -> &'static str {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    return "LIKE";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    return "ILIKE";
+}
+
+fn date_cast(col: &str) -> String {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    return format!("date({})", col);
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    return format!("{}::date", col);
 }
 
 /// Paginated response wrapper
@@ -53,65 +98,133 @@ pub async fn get_bookings_handler(
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<Vec<BookingWithDetails>>>, ApiError> {
     let page = params.page.unwrap_or(1).max(1);
-    let page_size = params.page_size.unwrap_or(100).min(500);
+    let page_size = params.page_size.unwrap_or(50).min(500);
     let offset = (page - 1) * page_size;
+
+    let search = params.search.as_deref().filter(|s| !s.trim().is_empty());
+    let status = params.status.as_deref().filter(|s| !s.trim().is_empty());
     let room_number = params.room_number.as_deref().filter(|s| !s.trim().is_empty());
 
-    let (total, bookings) = if let Some(rn) = room_number {
-        let pattern = format!("%{}%", rn.trim());
+    let like_op = like_operator();
+    let mut conditions: Vec<String> = Vec::new();
+    let mut param_idx = 0i32;
 
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let (placeholder, like_op) = ("?1", "LIKE");
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-        let (placeholder, like_op) = ("$1", "ILIKE");
+    let mut bind_status: Option<String> = None;
+    let mut bind_search: Option<String> = None;
+    let mut bind_room_number: Option<String> = None;
+    let mut bind_date_search: Option<NaiveDate> = None;
+    let mut bind_check_in_from: Option<NaiveDate> = None;
+    let mut bind_check_in_to: Option<NaiveDate> = None;
 
-        let count_sql = format!(
-            "SELECT COUNT(*) FROM bookings b INNER JOIN rooms r ON b.room_id = r.id WHERE r.room_number {} {}",
-            like_op, placeholder
-        );
-        let main_sql = format!(
-            "{}WHERE r.room_number {} {} ORDER BY b.created_at DESC LIMIT {} OFFSET {}",
-            GET_BOOKINGS_BASE_QUERY, like_op, placeholder, page_size, offset
-        );
-
-        let total: i64 = sqlx::query_scalar(&count_sql)
-            .bind(&pattern)
-            .fetch_one(&pool)
-            .await
-            .unwrap_or(0);
-
-        let rows = sqlx::query(&main_sql)
-            .bind(&pattern)
-            .fetch_all(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        let bookings: Vec<BookingWithDetails> = rows.iter()
-            .map(row_mappers::row_to_booking_with_details)
-            .collect();
-
-        (total, bookings)
+    // 1. Status — explicit filter or default exclude voided
+    if let Some(s) = status {
+        param_idx += 1;
+        conditions.push(format!("b.status = {}", param_placeholder(param_idx)));
+        bind_status = Some(s.to_string());
     } else {
-        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bookings b")
-            .fetch_one(&pool)
-            .await
-            .unwrap_or(0);
+        conditions.push("b.status != 'voided'".to_string());
+    }
 
-        let paginated_query = format!(
-            "{}ORDER BY b.created_at DESC LIMIT {} OFFSET {}",
-            GET_BOOKINGS_BASE_QUERY, page_size, offset
-        );
-        let rows = sqlx::query(&paginated_query)
-            .fetch_all(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+    // 2. General text search
+    if let Some(s) = search {
+        param_idx += 1;
+        let p = param_placeholder(param_idx);
+        conditions.push(format!(
+            "(g.full_name {like_op} {p} OR b.booking_number {like_op} {p} OR b.folio_number {like_op} {p} OR r.room_number {like_op} {p})"
+        ));
+        bind_search = Some(format!("%{}%", s.trim()));
+    }
 
-        let bookings: Vec<BookingWithDetails> = rows.iter()
-            .map(row_mappers::row_to_booking_with_details)
-            .collect();
+    // 3. Room number filter
+    if let Some(rn) = room_number {
+        param_idx += 1;
+        let p = param_placeholder(param_idx);
+        conditions.push(format!("r.room_number {like_op} {p}"));
+        bind_room_number = Some(format!("%{}%", rn.trim()));
+    }
 
-        (total, bookings)
+    // 4. Date filters — date_search matches either check-in or check-out
+    if let Some(ds) = params.date_search {
+        param_idx += 1;
+        let p = param_placeholder(param_idx);
+        let col_in = date_cast("b.check_in_date");
+        let col_out = date_cast("b.check_out_date");
+        conditions.push(format!("({col_in} = {p} OR {col_out} = {p})"));
+        bind_date_search = Some(ds);
+    } else {
+        if let Some(from) = params.check_in_from {
+            param_idx += 1;
+            let p = param_placeholder(param_idx);
+            let col = date_cast("b.check_in_date");
+            conditions.push(format!("{col} >= {p}"));
+            bind_check_in_from = Some(from);
+        }
+        if let Some(to) = params.check_in_to {
+            param_idx += 1;
+            let p = param_placeholder(param_idx);
+            let col = date_cast("b.check_in_date");
+            conditions.push(format!("{col} <= {p}"));
+            bind_check_in_to = Some(to);
+        }
+    }
+
+    let where_clause = if conditions.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", conditions.join(" AND "))
     };
+
+    let sort_col = match params.sort_by.as_deref() {
+        Some("check_in_date") => "b.check_in_date",
+        Some("check_out_date") => "b.check_out_date",
+        Some("guest_name") => "g.full_name",
+        Some("room_number") => "r.room_number",
+        Some("status") => "b.status",
+        Some("folio_number") | Some("booking_number") => "b.booking_number",
+        _ => "b.created_at",
+    };
+    let sort_dir = match params.sort_order.as_deref() {
+        Some("asc") => "ASC",
+        _ => "DESC",
+    };
+
+    let count_sql = format!(
+        "SELECT COUNT(*) FROM bookings b \
+         INNER JOIN guests g ON b.guest_id = g.id \
+         INNER JOIN rooms r ON b.room_id = r.id {}",
+        where_clause
+    );
+    let main_sql = format!(
+        "{}{} ORDER BY {} {} LIMIT {} OFFSET {}",
+        GET_BOOKINGS_BASE_QUERY, where_clause, sort_col, sort_dir, page_size, offset
+    );
+
+    macro_rules! apply_binds {
+        ($q:expr) => {{
+            let q = $q;
+            let q = if let Some(ref v) = bind_status { q.bind(v.as_str()) } else { q };
+            let q = if let Some(ref v) = bind_search { q.bind(v.as_str()) } else { q };
+            let q = if let Some(ref v) = bind_room_number { q.bind(v.as_str()) } else { q };
+            let q = if let Some(ref v) = bind_date_search { q.bind(*v) } else { q };
+            let q = if let Some(ref v) = bind_check_in_from { q.bind(*v) } else { q };
+            let q = if let Some(ref v) = bind_check_in_to { q.bind(*v) } else { q };
+            q
+        }};
+    }
+
+    let total: i64 = apply_binds!(sqlx::query_scalar::<_, i64>(&count_sql))
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(0);
+
+    let rows = apply_binds!(sqlx::query(&main_sql))
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let bookings: Vec<BookingWithDetails> = rows.iter()
+        .map(row_mappers::row_to_booking_with_details)
+        .collect();
 
     Ok(Json(PaginatedResponse {
         data: bookings,
@@ -119,6 +232,36 @@ pub async fn get_bookings_handler(
         page,
         page_size,
     }))
+}
+
+pub async fn get_booking_stats_handler(
+    State(pool): State<DbPool>,
+) -> Result<Json<BookingStats>, ApiError> {
+    let today = chrono::Local::now().date_naive();
+
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bookings WHERE status != 'voided'"
+    ).fetch_one(&pool).await.unwrap_or(0);
+
+    let checked_in: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bookings WHERE status = 'checked_in'"
+    ).fetch_one(&pool).await.unwrap_or(0);
+
+    let confirmed: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bookings WHERE status = 'confirmed'"
+    ).fetch_one(&pool).await.unwrap_or(0);
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let today_check_ins: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bookings WHERE status IN ('pending', 'confirmed') AND date(check_in_date) = ?"
+    ).bind(today).fetch_one(&pool).await.unwrap_or(0);
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let today_check_ins: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bookings WHERE status IN ('pending', 'confirmed') AND check_in_date::date = $1"
+    ).bind(today).fetch_one(&pool).await.unwrap_or(0);
+
+    Ok(Json(BookingStats { total, checked_in, confirmed, today_check_ins }))
 }
 
 pub async fn get_my_bookings_handler(

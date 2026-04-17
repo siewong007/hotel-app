@@ -4,10 +4,13 @@ import { Guest, GuestCreateRequest } from '../types';
 import { withRetry } from '../utils/retry';
 
 export class GuestsService {
-  static async getAllGuests(): Promise<Guest[]> {
+  static async getAllGuests(params?: { search?: string }): Promise<Guest[]> {
     const pageSize = 500;
+    const baseParams: Record<string, any> = { page: 1, page_size: pageSize };
+    if (params?.search) baseParams.search = params.search;
+
     const firstPage = await withRetry(
-      () => api.get('guests', { searchParams: { page: 1, page_size: pageSize } }).json<any>(),
+      () => api.get('guests', { searchParams: baseParams }).json<any>(),
       { maxAttempts: 3, initialDelay: 1000 }
     );
     const firstData: Guest[] = Array.isArray(firstPage) ? firstPage : (firstPage.data || []);
@@ -20,7 +23,7 @@ export class GuestsService {
     const remainingPages = await Promise.all(
       Array.from({ length: totalPages - 1 }, (_, i) =>
         withRetry(
-          () => api.get('guests', { searchParams: { page: i + 2, page_size: pageSize } }).json<any>(),
+          () => api.get('guests', { searchParams: { ...baseParams, page: i + 2 } }).json<any>(),
           { maxAttempts: 3, initialDelay: 1000 }
         )
       )
@@ -30,6 +33,38 @@ export class GuestsService {
       (acc, res) => acc.concat(Array.isArray(res) ? res : (res.data || [])),
       firstData
     );
+  }
+
+  static async getGuestsPage(params: {
+    page?: number;
+    page_size?: number;
+    search?: string;
+  } = {}): Promise<{ data: Guest[]; total: number; page: number; page_size: number }> {
+    const searchParams: Record<string, any> = {
+      page: params.page ?? 1,
+      page_size: params.page_size ?? 50,
+    };
+    if (params.search) searchParams.search = params.search;
+
+    try {
+      const resp = await withRetry(
+        () => api.get('guests', { searchParams }).json<any>(),
+        { maxAttempts: 3, initialDelay: 1000 }
+      );
+      const data: Guest[] = Array.isArray(resp) ? resp : (resp.data || []);
+      return {
+        data,
+        total: resp.total ?? data.length,
+        page: resp.page ?? 1,
+        page_size: resp.page_size ?? 50,
+      };
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(errorData.error || 'Failed to fetch guests', error.response.status, errorData);
+      }
+      throw new APIError('Failed to fetch guests');
+    }
   }
 
   static async getGuest(guestId: number | string): Promise<Guest> {
