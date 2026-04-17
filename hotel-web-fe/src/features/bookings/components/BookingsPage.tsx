@@ -97,6 +97,7 @@ const BookingsPage: React.FC = () => {
   const [sortField, setSortField] = useState<SortField>('check_in_date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [searchQuery, setSearchQuery] = useState('');
+  const [roomNumberFilter, setRoomNumberFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customStartDate, setCustomStartDate] = useState('');
@@ -159,14 +160,18 @@ const BookingsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    const timer = setTimeout(() => {
+      loadData(roomNumberFilter || undefined);
+    }, roomNumberFilter ? 400 : 0);
+    return () => clearTimeout(timer);
+  }, [roomNumberFilter]);
 
-  const loadData = async () => {
+  const loadData = async (roomNumber?: string) => {
     try {
       setLoading(true);
+      const filters = roomNumber ? { room_number: roomNumber } : undefined;
       const [bookingsData, roomsData, guestsData] = await Promise.all([
-        HotelAPIService.getBookingsWithDetails(),
+        HotelAPIService.getBookingsWithDetails(filters),
         HotelAPIService.getAllRooms(),
         HotelAPIService.getAllGuests()
       ]);
@@ -311,6 +316,7 @@ const BookingsPage: React.FC = () => {
 
   const clearFilters = () => {
     setSearchQuery('');
+    setRoomNumberFilter('');
     setStatusFilter('all');
     setDateFilter('all');
     setCustomStartDate('');
@@ -773,7 +779,7 @@ const BookingsPage: React.FC = () => {
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
-            onClick={loadData}
+            onClick={() => loadData(roomNumberFilter || undefined)}
             sx={{ borderRadius: 2, textTransform: 'none', boxShadow: 'none' }}
           >
             Refresh
@@ -795,7 +801,7 @@ const BookingsPage: React.FC = () => {
           severity="error"
           sx={{ mb: 3 }}
           action={
-            <Button color="inherit" size="small" onClick={loadData}>
+            <Button color="inherit" size="small" onClick={() => loadData(roomNumberFilter || undefined)}>
               Retry
             </Button>
           }
@@ -836,9 +842,27 @@ const BookingsPage: React.FC = () => {
             <TextField
               fullWidth
               size="small"
-              placeholder="Search by guest, room, folio..."
+              placeholder="Search by guest, folio..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Grid>
+
+          {/* Room Number Filter */}
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Room number..."
+              value={roomNumberFilter}
+              onChange={(e) => setRoomNumberFilter(e.target.value)}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">

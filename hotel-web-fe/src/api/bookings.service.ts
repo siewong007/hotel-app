@@ -13,11 +13,14 @@ import { withRetry } from '../utils/retry';
 import { validateBookingRequest, enhanceBookingDetails } from '../utils/bookingUtils';
 
 export class BookingsService {
-  static async getAllBookings(): Promise<Booking[]> {
+  static async getAllBookings(filters?: { room_number?: string }): Promise<Booking[]> {
     try {
       const pageSize = 500;
+      const baseParams: Record<string, any> = { page: 1, page_size: pageSize };
+      if (filters?.room_number) baseParams.room_number = filters.room_number;
+
       const firstPage = await withRetry(
-        () => api.get('bookings', { searchParams: { page: 1, page_size: pageSize } }).json<any>(),
+        () => api.get('bookings', { searchParams: baseParams }).json<any>(),
         { maxAttempts: 3, initialDelay: 1000 }
       );
       const firstData: Booking[] = Array.isArray(firstPage) ? firstPage : (firstPage.data || []);
@@ -30,7 +33,7 @@ export class BookingsService {
       const remainingPages = await Promise.all(
         Array.from({ length: totalPages - 1 }, (_, i) =>
           withRetry(
-            () => api.get('bookings', { searchParams: { page: i + 2, page_size: pageSize } }).json<any>(),
+            () => api.get('bookings', { searchParams: { ...baseParams, page: i + 2 } }).json<any>(),
             { maxAttempts: 3, initialDelay: 1000 }
           )
         )
@@ -190,9 +193,9 @@ export class BookingsService {
     }
   }
 
-  static async getBookingsWithDetails(): Promise<BookingWithDetails[]> {
+  static async getBookingsWithDetails(filters?: { room_number?: string }): Promise<BookingWithDetails[]> {
     try {
-      const bookings = await this.getAllBookings();
+      const bookings = await this.getAllBookings(filters);
       const bookingsWithDetails = bookings as any as BookingWithDetails[];
       return bookingsWithDetails.map(booking => enhanceBookingDetails(booking));
     } catch (error) {

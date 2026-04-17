@@ -20,11 +20,12 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
-/// Pagination query parameters
+/// Pagination and filter query parameters
 #[derive(Debug, Deserialize)]
 pub struct PaginationParams {
     pub page: Option<i64>,
     pub page_size: Option<i64>,
+    pub room_number: Option<String>,
 }
 
 /// Paginated response wrapper
@@ -54,23 +55,63 @@ pub async fn get_bookings_handler(
     let page = params.page.unwrap_or(1).max(1);
     let page_size = params.page_size.unwrap_or(100).min(500);
     let offset = (page - 1) * page_size;
+    let room_number = params.room_number.as_deref().filter(|s| !s.trim().is_empty());
 
-    let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM bookings b"
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap_or(0);
+    let (total, bookings) = if let Some(rn) = room_number {
+        let pattern = format!("%{}%", rn.trim());
 
-    let paginated_query = format!("{} LIMIT {} OFFSET {}", GET_BOOKINGS_QUERY, page_size, offset);
-    let rows = sqlx::query(&paginated_query)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let (placeholder, like_op) = ("?1", "LIKE");
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        let (placeholder, like_op) = ("$1", "ILIKE");
 
-    let bookings: Vec<BookingWithDetails> = rows.iter()
-        .map(row_mappers::row_to_booking_with_details)
-        .collect();
+        let count_sql = format!(
+            "SELECT COUNT(*) FROM bookings b INNER JOIN rooms r ON b.room_id = r.id WHERE r.room_number {} {}",
+            like_op, placeholder
+        );
+        let main_sql = format!(
+            "{}WHERE r.room_number {} {} ORDER BY b.created_at DESC LIMIT {} OFFSET {}",
+            GET_BOOKINGS_BASE_QUERY, like_op, placeholder, page_size, offset
+        );
+
+        let total: i64 = sqlx::query_scalar(&count_sql)
+            .bind(&pattern)
+            .fetch_one(&pool)
+            .await
+            .unwrap_or(0);
+
+        let rows = sqlx::query(&main_sql)
+            .bind(&pattern)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        let bookings: Vec<BookingWithDetails> = rows.iter()
+            .map(row_mappers::row_to_booking_with_details)
+            .collect();
+
+        (total, bookings)
+    } else {
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bookings b")
+            .fetch_one(&pool)
+            .await
+            .unwrap_or(0);
+
+        let paginated_query = format!(
+            "{}ORDER BY b.created_at DESC LIMIT {} OFFSET {}",
+            GET_BOOKINGS_BASE_QUERY, page_size, offset
+        );
+        let rows = sqlx::query(&paginated_query)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        let bookings: Vec<BookingWithDetails> = rows.iter()
+            .map(row_mappers::row_to_booking_with_details)
+            .collect();
+
+        (total, bookings)
+    };
 
     Ok(Json(PaginatedResponse {
         data: bookings,
