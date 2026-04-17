@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [master]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   frontend:
     name: Frontend — Typecheck & Build
@@ -18,10 +15,10 @@ jobs:
         working-directory: hotel-web-fe
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -44,7 +41,7 @@ jobs:
         working-directory: hotel-app-be
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
