@@ -2144,9 +2144,6 @@ const RoomManagementPage: React.FC = () => {
                     {isComplimentary && (
                       <Chip label="FREE GIFT" size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 600, bgcolor: 'rgba(156, 39, 176, 0.8)', color: 'white' }} />
                     )}
-                    {compCancelledBooking && (
-                      <Chip label="VOIDED" size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 600, bgcolor: 'rgba(0,0,0,0.2)', color: 'inherit' }} />
-                    )}
                   </Box>
 
                   {/* Room Notes */}
@@ -2174,26 +2171,7 @@ const RoomManagementPage: React.FC = () => {
                     </Typography>
                   )}
 
-                  {/* Voided Booking Indicator */}
-                  {compCancelledBooking && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                      <Typography
-                        variant="caption"
-                        display="block"
-                        sx={{
-                          fontSize: '0.6rem',
-                          fontWeight: 500,
-                          bgcolor: 'rgba(156, 39, 176, 0.3)',
-                          px: 0.5,
-                          borderRadius: 0.5,
-                        }}
-                      >
-                        Voided: {new Date(compCancelledBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(compCancelledBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </Typography>
-                    </Box>
-                  )}
-
-                  {/* Staying Time for Occupied/Dirty Rooms */}
+{/* Staying Time for Occupied/Dirty Rooms */}
                   {isOccupied && booking && (
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
                       <TimeIcon sx={{ fontSize: 14 }} />
