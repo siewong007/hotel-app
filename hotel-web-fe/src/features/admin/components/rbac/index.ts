@@ -1,5 +1,5 @@
 // Main page component
-export { default as RBACManagementPageV2 } from './RBACManagementPageV2';
+export { default as RBACManagementPage } from './RBACManagementPage';
 
 // Hooks
 export { useRBACData } from './hooks/useRBACData';

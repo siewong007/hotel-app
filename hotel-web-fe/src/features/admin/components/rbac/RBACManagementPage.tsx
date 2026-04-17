@@ -54,7 +54,7 @@ function a11yProps(index: number) {
   };
 }
 
-const RBACManagementPageV2: React.FC = () => {
+const RBACManagementPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -307,4 +307,4 @@ const RBACManagementPageV2: React.FC = () => {
   );
 };
 
-export default RBACManagementPageV2;
+export default RBACManagementPage;

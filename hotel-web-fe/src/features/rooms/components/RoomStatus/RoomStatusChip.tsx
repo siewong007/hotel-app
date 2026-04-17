@@ -1,6 +1,6 @@
 import React from 'react';
 import { Chip, ChipProps, Tooltip, Box } from '@mui/material';
-import { RoomStatusType, getStatusConfig } from '../../../../config/roomStatusConfig';
+import { RoomStatusType, getStatusConfig } from '../../config';
 
 interface RoomStatusChipProps {
   status: RoomStatusType;

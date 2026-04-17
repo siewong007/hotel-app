@@ -64,10 +64,7 @@ import { useCurrency } from '../../../hooks/useCurrency';
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
 import UnifiedBookingModal from '../../rooms/components/UnifiedBookingModal';
 import { getHotelSettings } from '../../../utils/hotelSettings';
-
-type SortField = 'check_in_date' | 'check_out_date' | 'guest_name' | 'room_number' | 'status' | 'folio_number';
-type SortOrder = 'asc' | 'desc';
-type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom' | 'date_search';
+import { useBookings, PAGE_SIZE, SortField, DateFilter } from '../hooks/useBookings';
 
 const BookingsPage: React.FC = () => {
   const { hasRole, hasPermission } = useAuth();
@@ -75,9 +72,43 @@ const BookingsPage: React.FC = () => {
   const PAYMENT_METHODS = getHotelSettings().payment_methods;
   const isAdmin = hasRole('admin') || hasRole('receptionist') || hasRole('manager') || hasPermission('bookings:update');
 
-  const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [guests, setGuests] = useState<Guest[]>([]);
+  const {
+    bookings,
+    rooms,
+    setRooms,
+    guests,
+    loading,
+    error,
+    setError,
+    totalBookings,
+    statsData,
+    sortField,
+    sortOrder,
+    searchQuery,
+    setSearchQuery,
+    roomNumberFilter,
+    setRoomNumberFilter,
+    statusFilter,
+    setStatusFilter,
+    dateFilter,
+    setDateFilter,
+    customStartDate,
+    setCustomStartDate,
+    customEndDate,
+    setCustomEndDate,
+    searchDate,
+    setSearchDate,
+    currentPage,
+    setCurrentPage,
+    loadRooms,
+    loadStats,
+    loadGuests,
+    loadBookings,
+    reload: loadData,
+    handleSort,
+    clearFilters,
+  } = useBookings();
+
   const [checkoutBooking, setCheckoutBooking] = useState<BookingWithDetails | null>(null);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [checkinBooking, setCheckinBooking] = useState<BookingWithDetails | null>(null);
@@ -92,27 +123,6 @@ const BookingsPage: React.FC = () => {
   const [ciWaiveReason, setCiWaiveReason] = useState('');
   const [invoiceBooking, setInvoiceBooking] = useState<BookingWithDetails | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Sorting and filtering state
-  const [sortField, setSortField] = useState<SortField>('check_in_date');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [roomNumberFilter, setRoomNumberFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState<DateFilter>('all');
-  const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate] = useState('');
-  const [searchDate, setSearchDate] = useState('');
-
-  // Pagination state
-  const PAGE_SIZE = 50;
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalBookings, setTotalBookings] = useState(0);
-
-  // Stats (separate from paginated list)
-  const [statsData, setStatsData] = useState({ total: 0, checked_in: 0, confirmed: 0, today_check_ins: 0 });
 
   // Create booking dialog (using UnifiedBookingModal)
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -157,124 +167,17 @@ const BookingsPage: React.FC = () => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
-  // Sort rooms by room number ascending
   const sortRoomsByNumber = (roomList: Room[]) => {
     return [...roomList].sort((a, b) => {
       const numA = parseInt(a.room_number, 10);
       const numB = parseInt(b.room_number, 10);
-      if (!isNaN(numA) && !isNaN(numB)) {
-        return numA - numB;
-      }
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
       return a.room_number.localeCompare(b.room_number);
     });
   };
 
-  // On mount: load rooms, stats, and first page of bookings (not guests — lazy loaded)
-  useEffect(() => {
-    loadRooms();
-    loadStats();
-    const timer = setTimeout(() => loadGuests(), 800);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Reload bookings when any filter or page changes (debounce text input)
-  useEffect(() => {
-    const isText = !!(searchQuery || roomNumberFilter);
-    const timer = setTimeout(loadBookings, isText ? 400 : 0);
-    return () => clearTimeout(timer);
-  }, [currentPage, sortField, sortOrder, searchQuery, roomNumberFilter, statusFilter, dateFilter, customStartDate, customEndDate, searchDate]);
-
-  const loadRooms = async () => {
-    try {
-      const roomsData = await HotelAPIService.getAllRooms();
-      setRooms(roomsData);
-    } catch (err: any) {
-      console.error('Failed to load rooms:', err);
-    }
-  };
-
-  const loadStats = async () => {
-    try {
-      const data = await HotelAPIService.getBookingStats();
-      setStatsData(data);
-    } catch (err: any) {
-      console.error('Failed to load booking stats:', err);
-    }
-  };
-
-  const loadGuests = async () => {
-    try {
-      const guestsData = await HotelAPIService.getAllGuests();
-      setGuests(guestsData);
-    } catch (err: any) {
-      console.error('Failed to load guests:', err);
-    }
-  };
-
-  const loadBookings = async () => {
-    try {
-      setLoading(true);
-
-      const today = new Date().toISOString().split('T')[0];
-      const addDays = (base: string, n: number) => {
-        const d = new Date(base); d.setDate(d.getDate() + n); return d.toISOString().split('T')[0];
-      };
-
-      const apiParams: Record<string, any> = {
-        page: currentPage,
-        page_size: PAGE_SIZE,
-        sort_by: sortField,
-        sort_order: sortOrder,
-      };
-      if (searchQuery) apiParams.search = searchQuery;
-      if (roomNumberFilter) apiParams.room_number = roomNumberFilter;
-      if (statusFilter !== 'all') apiParams.status = statusFilter;
-      if (dateFilter === 'today') { apiParams.check_in_from = today; apiParams.check_in_to = today; }
-      else if (dateFilter === 'week') { apiParams.check_in_from = today; apiParams.check_in_to = addDays(today, 7); }
-      else if (dateFilter === 'month') { apiParams.check_in_from = today; apiParams.check_in_to = addDays(today, 30); }
-      else if (dateFilter === 'custom' && customStartDate && customEndDate) { apiParams.check_in_from = customStartDate; apiParams.check_in_to = customEndDate; }
-      else if (dateFilter === 'date_search' && searchDate) { apiParams.date_search = searchDate; }
-
-      const resp = await HotelAPIService.getBookingsPage(apiParams);
-      setBookings(resp.data);
-      setTotalBookings(resp.total);
-      setError(null);
-    } catch (err: any) {
-      console.error('Failed to load bookings:', err);
-      setError(err.message || 'Failed to load bookings. Please check your connection and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Keep loadData alias for onRefreshData prop compatibility
-  const loadData = async () => { await loadBookings(); loadStats(); };
-
   // Server handles all filtering and sorting — bookings is already the correct page
   const filteredAndSortedBookings = bookings;
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortOrder('asc');
-    }
-    setCurrentPage(1);
-  };
-
-  const clearFilters = () => {
-    setSearchQuery('');
-    setRoomNumberFilter('');
-    setStatusFilter('all');
-    setDateFilter('all');
-    setCustomStartDate('');
-    setCustomEndDate('');
-    setSearchDate('');
-    setSortField('check_in_date');
-    setSortOrder('desc');
-    setCurrentPage(1);
-  };
 
   const handleEditBooking = (booking: BookingWithDetails) => {
     setEditingBooking(booking);

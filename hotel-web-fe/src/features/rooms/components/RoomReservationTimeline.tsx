@@ -42,7 +42,7 @@ import { Room, BookingWithDetails } from '../../../types';
 import {
   getUnifiedStatusColor,
   getUnifiedStatusLabel,
-} from '../../../config/roomStatusConfig';
+} from '../config';
 import { useCurrency } from '../../../hooks/useCurrency';
 
 interface TimelineBooking {
