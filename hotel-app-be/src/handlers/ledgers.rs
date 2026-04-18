@@ -35,6 +35,12 @@ pub struct LedgerListQuery {
     pub offset: Option<i32>,
     pub page: Option<i64>,
     pub page_size: Option<i64>,
+    /// Full-text search across company_name, description, invoice_number, contact_person
+    pub search: Option<String>,
+    /// Column to sort by (whitelisted)
+    pub sort_by: Option<String>,
+    /// Sort direction: "asc" or "desc"
+    pub sort_order: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -271,38 +277,63 @@ pub async fn list_customer_ledgers_handler(
     let page = query.page.unwrap_or(1).max(1);
     let page_size = query.page_size
         .or(query.limit.map(|l| l as i64))
-        .unwrap_or(100)
+        .unwrap_or(50)
         .min(500);
     let offset = query.offset
         .map(|o| o as i64)
         .unwrap_or_else(|| (page - 1) * page_size);
 
-    // Get total count with same filters
+    // Whitelisted sort column and direction — safe to interpolate via format!
+    let sort_col = match query.sort_by.as_deref() {
+        Some("company_name") => "company_name",
+        Some("amount") => "amount",
+        Some("balance_due") => "balance_due",
+        Some("status") => "status",
+        Some("due_date") => "due_date",
+        _ => "created_at",
+    };
+    let sort_dir = if query.sort_order.as_deref() == Some("asc") { "ASC" } else { "DESC" };
+
+    // Normalise the free-text search (None when blank)
+    let search = query.search.as_deref().filter(|s| !s.trim().is_empty());
+
+    // Build queries dynamically so we can inject the safe ORDER BY and the
+    // optional search clause. All user-supplied values still go through bindings.
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let count_query = r#"
-        SELECT COUNT(*) FROM customer_ledgers
-        WHERE (?1 IS NULL OR status = ?1)
-          AND (?2 IS NULL OR company_name LIKE '%' || ?2 || '%')
-          AND (?3 IS NULL OR expense_type = ?3)
-          AND (?4 IS NULL OR folio_type = ?4)
-          AND (?5 IS NULL OR post_type = ?5)
-          AND (?6 IS NULL OR department_code = ?6)
-          AND (?7 IS NULL OR room_number = ?7)
-    "#;
+    let (count_sql, data_sql) = {
+        let search_clause = if search.is_some() {
+            "AND (?8 IS NULL OR (company_name LIKE '%' || ?8 || '%' OR description LIKE '%' || ?8 || '%' OR COALESCE(invoice_number,'') LIKE '%' || ?8 || '%' OR COALESCE(contact_person,'') LIKE '%' || ?8 || '%'))"
+        } else {
+            "AND (?8 IS NULL OR 1=1)"
+        };
+        let base_where = format!(
+            "WHERE (?1 IS NULL OR status = ?1) AND (?2 IS NULL OR company_name LIKE '%' || ?2 || '%') AND (?3 IS NULL OR expense_type = ?3) AND (?4 IS NULL OR folio_type = ?4) AND (?5 IS NULL OR post_type = ?5) AND (?6 IS NULL OR department_code = ?6) AND (?7 IS NULL OR room_number = ?7) {search_clause}"
+        );
+        let count = format!("SELECT COUNT(*) FROM customer_ledgers {base_where}");
+        let data = format!(
+            "SELECT id, company_name, company_registration_number, contact_person, contact_email, contact_phone, billing_address_line1, billing_city, billing_state, billing_postal_code, billing_country, description, expense_type, amount, currency, status, paid_amount, balance_due, payment_method, payment_reference, payment_date, booking_id, guest_id, invoice_number, invoice_date, due_date, notes, internal_notes, created_by, updated_by, created_at, updated_at, folio_number, folio_type, transaction_type, post_type, department_code, transaction_code, room_number, posting_date, transaction_date, reference_number, cashier_id, is_reversal, original_transaction_id, reversal_reason, tax_amount, service_charge, net_amount, is_posted, posted_at, void_at, void_by, void_reason FROM customer_ledgers {base_where} ORDER BY {sort_col} {sort_dir} LIMIT ?9 OFFSET ?10"
+        );
+        (count, data)
+    };
 
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let count_query = r#"
-        SELECT COUNT(*) FROM customer_ledgers
-        WHERE ($1::text IS NULL OR status = $1)
-          AND ($2::text IS NULL OR company_name ILIKE '%' || $2 || '%')
-          AND ($3::text IS NULL OR expense_type = $3)
-          AND ($4::text IS NULL OR folio_type = $4)
-          AND ($5::text IS NULL OR post_type = $5)
-          AND ($6::text IS NULL OR department_code = $6)
-          AND ($7::text IS NULL OR room_number = $7)
-    "#;
+    let (count_sql, data_sql) = {
+        let search_clause = if search.is_some() {
+            "AND ($8::text IS NULL OR (company_name ILIKE '%' || $8 || '%' OR description ILIKE '%' || $8 || '%' OR COALESCE(invoice_number,'') ILIKE '%' || $8 || '%' OR COALESCE(contact_person,'') ILIKE '%' || $8 || '%'))"
+        } else {
+            "AND ($8::text IS NULL OR TRUE)"
+        };
+        let base_where = format!(
+            "WHERE ($1::text IS NULL OR status = $1) AND ($2::text IS NULL OR company_name ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR expense_type = $3) AND ($4::text IS NULL OR folio_type = $4) AND ($5::text IS NULL OR post_type = $5) AND ($6::text IS NULL OR department_code = $6) AND ($7::text IS NULL OR room_number = $7) {search_clause}"
+        );
+        let count = format!("SELECT COUNT(*) FROM customer_ledgers {base_where}");
+        let data = format!(
+            "SELECT {LEDGER_SELECT_FIELDS} FROM customer_ledgers {base_where} ORDER BY {sort_col} {sort_dir} LIMIT $9 OFFSET $10"
+        );
+        (count, data)
+    };
 
-    let total: i64 = sqlx::query_scalar(count_query)
+    let total: i64 = sqlx::query_scalar(&count_sql)
         .bind(query.status.as_deref())
         .bind(query.company_name.as_deref())
         .bind(query.expense_type.as_deref())
@@ -310,11 +341,12 @@ pub async fn list_customer_ledgers_handler(
         .bind(query.post_type.as_deref())
         .bind(query.department_code.as_deref())
         .bind(query.room_number.as_deref())
+        .bind(search)
         .fetch_one(&pool)
         .await
         .unwrap_or(0);
 
-    let rows = sqlx::query(LIST_LEDGERS_QUERY)
+    let rows = sqlx::query(&data_sql)
         .bind(query.status.as_deref())
         .bind(query.company_name.as_deref())
         .bind(query.expense_type.as_deref())
@@ -322,6 +354,7 @@ pub async fn list_customer_ledgers_handler(
         .bind(query.post_type.as_deref())
         .bind(query.department_code.as_deref())
         .bind(query.room_number.as_deref())
+        .bind(search)
         .bind(page_size)
         .bind(offset)
         .fetch_all(&pool)

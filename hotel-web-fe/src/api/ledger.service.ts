@@ -62,6 +62,38 @@ export class LedgerService {
     );
   }
 
+  static async getLedgersPage(params: {
+    page?: number;
+    page_size?: number;
+    search?: string;
+    status?: string;
+    expense_type?: string;
+    sort_by?: string;
+    sort_order?: string;
+  } = {}): Promise<{ data: CustomerLedger[]; total: number; page: number; page_size: number }> {
+    const searchParams: Record<string, string> = {
+      page: String(params.page ?? 1),
+      page_size: String(params.page_size ?? 50),
+    };
+    if (params.search)       searchParams.search       = params.search;
+    if (params.status)       searchParams.status       = params.status;
+    if (params.expense_type) searchParams.expense_type = params.expense_type;
+    if (params.sort_by)      searchParams.sort_by      = params.sort_by;
+    if (params.sort_order)   searchParams.sort_order   = params.sort_order;
+
+    const resp = await withRetry(
+      () => api.get('ledgers', { searchParams }).json<any>(),
+      { maxAttempts: 3, initialDelay: 1000 }
+    );
+    const data: CustomerLedger[] = Array.isArray(resp) ? resp : (resp.data || []);
+    return {
+      data,
+      total: resp.total ?? data.length,
+      page: resp.page ?? 1,
+      page_size: resp.page_size ?? 50,
+    };
+  }
+
   static async getCustomerLedger(ledgerId: number): Promise<CustomerLedger> {
     return await api.get(`ledgers/${ledgerId}`).json<CustomerLedger>();
   }

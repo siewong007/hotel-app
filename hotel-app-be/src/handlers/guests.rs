@@ -24,6 +24,8 @@ pub struct GuestPaginationParams {
     pub page_size: Option<i64>,
     /// Search by name, email, or phone (partial match)
     pub search: Option<String>,
+    /// Filter by guest type: "member" or "non_member"
+    pub guest_type: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -63,11 +65,27 @@ pub async fn get_guests_handler(
     let offset = (page - 1) * page_size;
 
     let search = params.search.as_deref().filter(|s| !s.trim().is_empty());
+    let guest_type_filter = params.guest_type.as_deref().filter(|s| !s.trim().is_empty());
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let like_op = "LIKE";
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let like_op = "ILIKE";
+
+    // Build WHERE clause conditions
+    let type_clause = match guest_type_filter {
+        Some(gt) if gt == "member" => " AND guest_type = 'member'",
+        Some(gt) if gt == "non_member" => " AND (guest_type = 'non_member' OR guest_type IS NULL)",
+        _ => "",
+    };
+
+    let select_cols = r#"id, full_name, email, phone, ic_number, nationality,
+        address_line_1 as address_line1, city, state as state_province,
+        postal_code, country, title, alt_phone, true as is_active,
+        guest_type, tourism_type,
+        COALESCE(discount_percentage, 0) as discount_percentage, company_name,
+        COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
+        created_at, updated_at"#;
 
     let (total, guests) = if let Some(q) = search {
         let pattern = format!("%{}%", q.trim());
@@ -78,20 +96,14 @@ pub async fn get_guests_handler(
         let (p1, p2, p3, p_limit, p_offset) = ("$1", "$1", "$1", "$2", "$3");
 
         let count_sql = format!(
-            "SELECT COUNT(*) FROM guests WHERE deleted_at IS NULL AND \
+            "SELECT COUNT(*) FROM guests WHERE deleted_at IS NULL{type_clause} AND \
              (full_name {like_op} {p1} OR email {like_op} {p2} OR phone {like_op} {p3})"
         );
         let data_sql = format!(
-            r#"SELECT id, full_name, email, phone, ic_number, nationality,
-                address_line_1 as address_line1, city, state as state_province,
-                postal_code, country, title, alt_phone, true as is_active,
-                guest_type, tourism_type,
-                COALESCE(discount_percentage, 0) as discount_percentage, company_name,
-                COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
-                created_at, updated_at
-            FROM guests
-            WHERE deleted_at IS NULL AND (full_name {like_op} {p1} OR email {like_op} {p2} OR phone {like_op} {p3})
-            ORDER BY full_name LIMIT {p_limit} OFFSET {p_offset}"#
+            "SELECT {select_cols} FROM guests \
+             WHERE deleted_at IS NULL{type_clause} AND \
+             (full_name {like_op} {p1} OR email {like_op} {p2} OR phone {like_op} {p3}) \
+             ORDER BY full_name LIMIT {p_limit} OFFSET {p_offset}"
         );
 
         let total: i64 = sqlx::query_scalar(&count_sql)
@@ -110,31 +122,27 @@ pub async fn get_guests_handler(
 
         (total, guests)
     } else {
-        let total: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM guests WHERE deleted_at IS NULL"
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap_or(0);
+        let count_sql = format!(
+            "SELECT COUNT(*) FROM guests WHERE deleted_at IS NULL{type_clause}"
+        );
+        let data_sql = format!(
+            "SELECT {select_cols} FROM guests \
+             WHERE deleted_at IS NULL{type_clause} \
+             ORDER BY full_name \
+             LIMIT $1 OFFSET $2"
+        );
 
-        let guests = sqlx::query_as::<_, Guest>(
-            r#"SELECT id, full_name, email, phone, ic_number, nationality,
-                address_line_1 as address_line1, city, state as state_province,
-                postal_code, country, title, alt_phone, true as is_active,
-                guest_type, tourism_type,
-                COALESCE(discount_percentage, 0) as discount_percentage, company_name,
-                COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
-                created_at, updated_at
-            FROM guests
-            WHERE deleted_at IS NULL
-            ORDER BY full_name
-            LIMIT $1 OFFSET $2"#
-        )
-        .bind(page_size)
-        .bind(offset)
-        .fetch_all(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        let total: i64 = sqlx::query_scalar(&count_sql)
+            .fetch_one(&pool)
+            .await
+            .unwrap_or(0);
+
+        let guests = sqlx::query_as::<_, Guest>(&data_sql)
+            .bind(page_size)
+            .bind(offset)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
         (total, guests)
     };

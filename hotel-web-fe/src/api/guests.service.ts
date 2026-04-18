@@ -39,12 +39,14 @@ export class GuestsService {
     page?: number;
     page_size?: number;
     search?: string;
+    guest_type?: string;
   } = {}): Promise<{ data: Guest[]; total: number; page: number; page_size: number }> {
     const searchParams: Record<string, any> = {
       page: params.page ?? 1,
       page_size: params.page_size ?? 50,
     };
     if (params.search) searchParams.search = params.search;
+    if (params.guest_type) searchParams.guest_type = params.guest_type;
 
     try {
       const resp = await withRetry(
