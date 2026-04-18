@@ -38,6 +38,8 @@ import {
   Autocomplete,
   Checkbox,
   FormControlLabel,
+  Pagination,
+  Stack,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -84,8 +86,7 @@ import { Company } from '../../../api/companies.service';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
-import { useLedgerData } from '../hooks/useLedgerData';
-import { useLedgerFilters, SortField, SortOrder } from '../hooks/useLedgerFilters';
+import { useLedgers, SortField, SortOrder, PAGE_SIZE } from '../hooks/useLedgers';
 
 // Company option for autocomplete
 interface CompanyOption {
@@ -178,16 +179,27 @@ const getStatusText = (status: string): string => {
 const CustomerLedgerPage: React.FC = () => {
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
   const [hotelSettings, setHotelSettings] = useState<HotelSettings>(getHotelSettings());
-  const { ledgers, summary, loading, error, setError, reload: loadData } = useLedgerData();
   const {
-    sortField, sortOrder,
-    searchQuery, setSearchQuery,
-    statusFilter, setStatusFilter,
-    expenseTypeFilter, setExpenseTypeFilter,
-    filtered: filteredAndSortedLedgers,
+    ledgers,
+    summary,
+    loading,
+    error,
+    setError,
+    reload: loadData,
+    totalLedgers,
+    currentPage,
+    setCurrentPage,
+    searchQuery,
+    setSearchQuery,
+    statusFilter,
+    setStatusFilter,
+    expenseTypeFilter,
+    setExpenseTypeFilter,
+    sortField,
+    sortOrder,
     handleSort,
     clearFilters,
-  } = useLedgerFilters(ledgers);
+  } = useLedgers();
 
   // Create dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -2277,9 +2289,9 @@ const CustomerLedgerPage: React.FC = () => {
               onDelete={() => setExpenseTypeFilter('all')}
             />
           )}
-          {filteredAndSortedLedgers.length !== ledgers.length && (
+          {totalLedgers > 0 && (
             <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto', alignSelf: 'center' }}>
-              Showing {filteredAndSortedLedgers.length} of {ledgers.length} entries
+              Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalLedgers)} of {totalLedgers} entries
             </Typography>
           )}
         </Box>
@@ -2344,7 +2356,7 @@ const CustomerLedgerPage: React.FC = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredAndSortedLedgers.map((ledger) => (
+            {ledgers.map((ledger) => (
               <TableRow key={ledger.id} hover>
                 <TableCell>{ledger.invoice_number || '-'}</TableCell>
                 <TableCell>
@@ -2426,13 +2438,30 @@ const CustomerLedgerPage: React.FC = () => {
         </Table>
       </TableContainer>
 
-      {filteredAndSortedLedgers.length === 0 && (
+      {totalLedgers > PAGE_SIZE && (
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2, px: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalLedgers)} of {totalLedgers} entries
+          </Typography>
+          <Pagination
+            count={Math.ceil(totalLedgers / PAGE_SIZE)}
+            page={currentPage}
+            onChange={(_, page) => setCurrentPage(page)}
+            color="primary"
+            size="small"
+            showFirstButton
+            showLastButton
+          />
+        </Stack>
+      )}
+
+      {ledgers.length === 0 && !loading && (
         <Box textAlign="center" py={4}>
           <Typography variant="h6" color="text.secondary">
-            {ledgers.length === 0 ? 'No ledger entries yet' : 'No entries match your filters'}
+            {totalLedgers === 0 ? 'No ledger entries yet' : 'No entries match your filters'}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            {ledgers.length === 0
+            {totalLedgers === 0
               ? 'Create your first ledger entry using the "New Entry" button above'
               : 'Try adjusting your search or filter criteria'
             }

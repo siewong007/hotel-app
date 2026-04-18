@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box,
   Typography,
@@ -23,6 +23,8 @@ import {
   Card,
   CardContent,
   InputAdornment,
+  Pagination,
+  Stack,
   Tooltip,
   MenuItem,
   ToggleButton,
@@ -54,17 +56,23 @@ interface GuestFormData extends GuestCreateRequest {
   id?: number;
 }
 
+const PAGE_SIZE = 50;
+
 const GuestConfigurationPage: React.FC = () => {
   const { hasRole, hasPermission } = useAuth();
   const { format: formatCurrency } = useCurrency();
   const hasAccess = hasRole('admin') || hasRole('receptionist') || hasRole('manager') || hasPermission('guests:read') || hasPermission('guests:manage');
 
   const [guests, setGuests] = useState<Guest[]>([]);
-  const [filteredGuests, setFilteredGuests] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | GuestType>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalGuests, setTotalGuests] = useState(0);
+  // Stats counts fetched once on mount, independent of filters
+  const [statsTotal, setStatsTotal] = useState(0);
+  const [statsMembers, setStatsMembers] = useState(0);
 
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -120,43 +128,57 @@ const GuestConfigurationPage: React.FC = () => {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
-  useEffect(() => {
-    if (hasAccess) {
-      loadData();
-    }
-  }, [hasAccess]);
-
-  useEffect(() => {
-    // Filter guests based on search term and guest type
-    let filtered = guests.filter(guest =>
-      guest.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (guest.email && guest.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (guest.phone && guest.phone.includes(searchTerm)) ||
-      (guest.ic_number && guest.ic_number.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-
-    // Apply guest type filter
-    if (filterType !== 'all') {
-      filtered = filtered.filter(guest => guest.guest_type === filterType);
-    }
-
-    // Sort alphabetically by name
-    const sorted = [...filtered].sort((a, b) => a.full_name.localeCompare(b.full_name));
-    setFilteredGuests(sorted);
-  }, [searchTerm, guests, filterType]);
-
-  const loadData = async () => {
+  const loadGuests = useCallback(async (opts?: { page?: number; search?: string; type?: 'all' | GuestType }) => {
     try {
       setLoading(true);
-      const guestsData = await HotelAPIService.getAllGuests();
-      setGuests(guestsData);
-      setFilteredGuests(guestsData);
+      const page = opts?.page ?? currentPage;
+      const search = opts?.search ?? searchTerm;
+      const type = opts?.type ?? filterType;
+      const resp = await HotelAPIService.getGuestsPage({
+        page,
+        page_size: PAGE_SIZE,
+        ...(search.trim() ? { search: search.trim() } : {}),
+        ...(type !== 'all' ? { guest_type: type } : {}),
+      });
+      setGuests(resp.data);
+      setTotalGuests(resp.total);
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
+  }, [currentPage, searchTerm, filterType]);
+
+  // Fetch global stats once on mount (total + member count, independent of active filters)
+  useEffect(() => {
+    if (!hasAccess) return;
+    Promise.all([
+      HotelAPIService.getGuestsPage({ page: 1, page_size: 1 }),
+      HotelAPIService.getGuestsPage({ page: 1, page_size: 1, guest_type: 'member' }),
+    ]).then(([all, members]) => {
+      setStatsTotal(all.total);
+      setStatsMembers(members.total);
+    }).catch(() => {});
+  }, [hasAccess]);
+
+  // Reload on page/filter/search changes; debounce text input
+  useEffect(() => {
+    if (!hasAccess) return;
+    const delay = searchTerm ? 400 : 0;
+    const timer = setTimeout(() => loadGuests(), delay);
+    return () => clearTimeout(timer);
+  }, [currentPage, searchTerm, filterType, hasAccess]);
+
+  const handleFilterTypeChange = (_: React.MouseEvent<HTMLElement>, value: 'all' | GuestType | null) => {
+    if (!value) return;
+    setFilterType(value);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
   };
 
   const resetForm = () => {
@@ -274,7 +296,7 @@ const GuestConfigurationPage: React.FC = () => {
       setSnackbarOpen(true);
       setCreateDialogOpen(false);
       resetForm();
-      await loadData();
+      await loadGuests();
     } catch (err: any) {
       setError(err.message || 'Failed to create guest');
     } finally {
@@ -301,7 +323,7 @@ const GuestConfigurationPage: React.FC = () => {
       setEditingGuest(null);
       setDialogError(null);
       resetForm();
-      await loadData();
+      await loadGuests();
     } catch (err: any) {
       setDialogError(err.message || 'Failed to update guest');
     } finally {
@@ -319,7 +341,7 @@ const GuestConfigurationPage: React.FC = () => {
       setSnackbarOpen(true);
       setDeleteDialogOpen(false);
       setDeletingGuest(null);
-      await loadData();
+      await loadGuests();
     } catch (err: any) {
       setError(err.message || 'Failed to delete guest');
     } finally {
@@ -335,16 +357,7 @@ const GuestConfigurationPage: React.FC = () => {
     );
   }
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  const memberGuests = guests.filter(g => g.guest_type === 'member').length;
-  const nonMemberGuests = guests.filter(g => g.guest_type === 'non_member' || !g.guest_type).length;
+  const nonMemberStats = statsTotal - statsMembers;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -380,10 +393,10 @@ const GuestConfigurationPage: React.FC = () => {
       {/* Statistics Cards */}
       <Grid container spacing={2} sx={{ mb: 4 }}>
         {[
-          { title: 'Total Guests', value: guests.length, color: '#009688', icon: <PersonIcon sx={{ fontSize: 18, color: '#103931' }} /> },
-          { title: 'Members', value: memberGuests, color: '#00bcd4', icon: <MemberIcon sx={{ fontSize: 18, color: '#103931' }} /> },
-          { title: 'Non-Members', value: nonMemberGuests, color: '#4caf50', icon: <NonMemberIcon sx={{ fontSize: 18, color: '#103931' }} /> },
-          { title: 'With IC', value: guests.filter(g => g.ic_number).length, color: '#ff9800', icon: <PersonIcon sx={{ fontSize: 18, color: '#103931' }} /> }
+          { title: 'Total Guests', value: statsTotal, color: '#009688', icon: <PersonIcon sx={{ fontSize: 18, color: '#103931' }} /> },
+          { title: 'Members', value: statsMembers, color: '#00bcd4', icon: <MemberIcon sx={{ fontSize: 18, color: '#103931' }} /> },
+          { title: 'Non-Members', value: nonMemberStats, color: '#4caf50', icon: <NonMemberIcon sx={{ fontSize: 18, color: '#103931' }} /> },
+          { title: 'Showing', value: `${totalGuests}${filterType !== 'all' || searchTerm ? ' filtered' : ''}`, color: '#ff9800', icon: <PersonIcon sx={{ fontSize: 18, color: '#103931' }} /> }
         ].map((stat, idx) => (
           <Grid size={{ xs: 6, sm: 4, md: 3 }} key={idx}>
             <Card 
@@ -425,7 +438,7 @@ const GuestConfigurationPage: React.FC = () => {
             <TextField
               placeholder="Search by name, email, phone, or IC number..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -438,7 +451,7 @@ const GuestConfigurationPage: React.FC = () => {
             <ToggleButtonGroup
               value={filterType}
               exclusive
-              onChange={(_, value) => value && setFilterType(value)}
+              onChange={handleFilterTypeChange}
               size="small"
             >
               <ToggleButton value="all">
@@ -500,7 +513,24 @@ const GuestConfigurationPage: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredGuests.map((guest) => (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={12} align="center" sx={{ py: 6 }}>
+                    <CircularProgress size={32} />
+                  </TableCell>
+                </TableRow>
+              ) : guests.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={12} align="center" sx={{ py: 6 }}>
+                    <Typography variant="body1" color="text.secondary">
+                      {searchTerm || filterType !== 'all'
+                        ? 'No guests match the current filters'
+                        : 'No guests registered yet'}
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : null}
+              {!loading && guests.map((guest) => (
                 <TableRow key={guest.id} hover>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -591,6 +621,24 @@ const GuestConfigurationPage: React.FC = () => {
           </Table>
         </TableContainer>
       </Card>
+
+      {/* Pagination */}
+      {totalGuests > PAGE_SIZE && (
+        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2, px: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalGuests)} of {totalGuests} guests
+          </Typography>
+          <Pagination
+            count={Math.ceil(totalGuests / PAGE_SIZE)}
+            page={currentPage}
+            onChange={(_, page) => setCurrentPage(page)}
+            color="primary"
+            size="small"
+            showFirstButton
+            showLastButton
+          />
+        </Stack>
+      )}
 
       {/* Create Dialog */}
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>

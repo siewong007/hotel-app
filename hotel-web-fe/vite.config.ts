@@ -7,6 +7,8 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/auth': 'http://127.0.0.1:3030',
+      '/profile': 'http://127.0.0.1:3030',
+      '/rbac': 'http://127.0.0.1:3030',
       '/bookings': 'http://127.0.0.1:3030',
       '/rooms': 'http://127.0.0.1:3030',
       '/room-types': 'http://127.0.0.1:3030',

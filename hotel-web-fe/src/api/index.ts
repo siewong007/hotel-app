@@ -212,6 +212,7 @@ export class HotelAPIService {
 
   // Ledger operations (including PAT-style)
   static getCustomerLedgers = LedgerService.getCustomerLedgers;
+  static getLedgersPage = LedgerService.getLedgersPage;
   static getCustomerLedger = LedgerService.getCustomerLedger;
   static getCustomerLedgerWithPayments = LedgerService.getCustomerLedgerWithPayments;
   static createCustomerLedger = LedgerService.createCustomerLedger;

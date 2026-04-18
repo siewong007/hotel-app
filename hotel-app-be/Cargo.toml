@@ -52,5 +52,6 @@ qrcode = "0.14"
 # Rate limiting is implemented in-memory (core/rate_limiter.rs) - no external dependency needed
 
 [dev-dependencies]
+tokio = { version = "1.51", features = ["rt-multi-thread", "macros"] }
 tokio-test = "0.4"
 reqwest = { version = "0.12", features = ["json"] }

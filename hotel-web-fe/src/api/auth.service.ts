@@ -102,6 +102,6 @@ export class AuthService {
   }
 
   static async regenerateBackupCodes(code: string): Promise<{ backup_codes: string[] }> {
-    return await api.post('profile/2fa/regenerate-codes', { json: { code } }).json();
+    return await api.post('auth/2fa/regenerate-backup-codes', { json: { code } }).json();
   }
 }
