@@ -8,19 +8,21 @@ pub mod audit;
 pub mod auth;
 pub mod bookings;
 pub mod companies;
+pub mod data_transfer;
 pub mod ekyc;
 pub mod guest_portal;
 pub mod guests;
 pub mod ledgers;
 pub mod loyalty;
 pub mod night_audit;
+pub mod passkey;
 pub mod payments;
 pub mod profile;
 pub mod rates;
 pub mod rbac;
 pub mod rooms;
 pub mod settings;
-pub mod data_transfer;
+pub mod two_factor;
 
 use axum::{http::Method, routing::get, Router};
 use crate::core::db::DbPool;
@@ -32,6 +34,22 @@ use tower_http::{
     set_header::SetResponseHeaderLayer,
     trace::TraceLayer,
 };
+
+/// Extract client IP from X-Forwarded-For or X-Real-IP headers, defaulting to localhost.
+pub(crate) fn extract_client_ip(headers: &axum::http::HeaderMap) -> std::net::IpAddr {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .and_then(|s| s.trim().parse().ok())
+        .or_else(|| {
+            headers
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.trim().parse().ok())
+        })
+        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+}
 
 /// Health check handler
 async fn health_handler() -> axum::response::Json<serde_json::Value> {
@@ -121,6 +139,8 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(audit::routes())
         .merge(night_audit::routes())
         .merge(data_transfer::routes())
+        .merge(passkey::routes())
+        .merge(two_factor::routes())
         .with_state(pool)
         .layer(axum::Extension(rate_limiters));
 

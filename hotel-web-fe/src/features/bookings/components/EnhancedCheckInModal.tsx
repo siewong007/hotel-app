@@ -56,6 +56,7 @@ import {
 } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
+import { useCheckInFormData } from '../hooks/useCheckInFormData';
 
 // Validation helper functions
 const validateEmail = (email: string): boolean => {
@@ -177,6 +178,19 @@ export default function EnhancedCheckInModal({
   onCheckInSuccess,
 }: EnhancedCheckInModalProps) {
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
+
+  const {
+    rateCodes,
+    marketCodes,
+    companyOptions,
+    setCompanyOptions,
+    loadingCompanies,
+    roomTypeConfig,
+    setRoomTypeConfig,
+    loadDropdownData,
+    loadCompanies,
+    loadRoomTypeConfig,
+  } = useCheckInFormData();
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -230,9 +244,7 @@ export default function EnhancedCheckInModal({
   const [eta, setEta] = useState('');
 
   // Company autocomplete state
-  const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
-  const [loadingCompanies, setLoadingCompanies] = useState(false);
 
   // New company registration dialog
   const [newCompanyDialogOpen, setNewCompanyDialogOpen] = useState(false);
@@ -252,14 +264,10 @@ export default function EnhancedCheckInModal({
   // Company Ledger state
   const [creatingLedger, setCreatingLedger] = useState(false);
 
-  // Room type config for extra bed
-  const [roomTypeConfig, setRoomTypeConfig] = useState<RoomType | null>(null);
+  // Extra bed state (UI form state, not loaded data)
   const [extraBedCount, setExtraBedCount] = useState(0);
   const [extraBedCharge, setExtraBedCharge] = useState(0);
 
-  // Dropdowns data
-  const [rateCodes, setRateCodes] = useState<string[]>([]);
-  const [marketCodes, setMarketCodes] = useState<string[]>([]);
   const [titleOptions] = useState(['Mr', 'Mrs', 'Ms', 'Dr', 'Prof']);
   const [paymentMethods] = useState(() => {
     const settings = getHotelSettings();
@@ -306,50 +314,11 @@ export default function EnhancedCheckInModal({
         loadCompanies();
         initializeFormData();
         // Load room type config for extra bed settings
-        if (booking.room_type) {
-          HotelAPIService.getAllRoomTypes().then(roomTypes => {
-            const matched = roomTypes.find(rt => rt.name === booking.room_type);
-            setRoomTypeConfig(matched || null);
-          }).catch(() => setRoomTypeConfig(null));
-        }
+        loadRoomTypeConfig(booking as any);
         initializedRef.current = { bookingId: booking.id, guestId: guest.id };
       }
     }
   }, [open, booking?.id, guest?.id]);
-
-  const loadDropdownData = async () => {
-    try {
-      const [ratesResp, marketsResp] = await Promise.all([
-        HotelAPIService.getRateCodes(),
-        HotelAPIService.getMarketCodes(),
-      ]);
-      setRateCodes(ratesResp.rate_codes);
-      setMarketCodes(marketsResp.market_codes);
-    } catch (err) {
-      console.error('Failed to load dropdown data:', err);
-    }
-  };
-
-  // Load companies from database for autocomplete
-  const loadCompanies = async () => {
-    try {
-      setLoadingCompanies(true);
-      const companies = await HotelAPIService.getCompanies({ is_active: true });
-      const companyOptions: CompanyOption[] = companies.map((company: any) => ({
-        company_name: company.company_name,
-        company_registration_number: company.registration_number,
-        contact_person: company.contact_person,
-        contact_email: company.contact_email,
-        contact_phone: company.contact_phone,
-        billing_address: company.billing_address,
-      }));
-      setCompanyOptions(companyOptions);
-    } catch (err) {
-      console.error('Failed to load companies:', err);
-    } finally {
-      setLoadingCompanies(false);
-    }
-  };
 
   // Handle registering a new company
   const handleRegisterNewCompany = async () => {
