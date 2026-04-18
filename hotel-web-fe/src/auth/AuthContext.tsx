@@ -51,7 +51,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [authState, setAuthState] = useState<AuthState>({
+  const emptyAuthState: AuthState = {
     user: null,
     roles: [],
     permissions: [],
@@ -60,7 +60,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: false,
     isLoading: true,
     shouldPromptPasskey: false,
+  };
+
+  const [authState, setAuthState] = useState<AuthState>({
+    ...emptyAuthState,
   });
+
+  const clearStoredAuth = () => {
+    storage.removeItem('accessToken');
+    storage.removeItem('refreshToken');
+    storage.removeItem('user');
+    storage.removeItem('roles');
+    storage.removeItem('permissions');
+  };
+
+  const resetAuthState = () => {
+    setAuthState({
+      ...emptyAuthState,
+      isLoading: false,
+    });
+  };
+
+  const normalizeAccessValue = (value: string) => value.trim().toLowerCase();
 
   useEffect(() => {
     // Batch read all stored auth data
@@ -91,17 +112,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Listen for unauthorized events from API interceptor
   useEffect(() => {
     const handleUnauthorized = () => {
-      // Clear auth state
-      setAuthState({
-        user: null,
-        roles: [],
-        permissions: [],
-        accessToken: null,
-        refreshToken: null,
-        isAuthenticated: false,
-        isLoading: false,
-        shouldPromptPasskey: false,
-      });
+      clearStoredAuth();
+      resetAuthState();
 
       // Use window.location since we're outside Router context
       // This will cause a full page reload, which is acceptable for auth errors
@@ -215,23 +227,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
-    setAuthState({
-      user: null,
-      roles: [],
-      permissions: [],
-      accessToken: null,
-      refreshToken: null,
-      isAuthenticated: false,
-      isLoading: false,
-      shouldPromptPasskey: false,
-    });
-
-    // Clear only auth-related data, preserve language preferences
-    storage.removeItem('accessToken');
-    storage.removeItem('refreshToken');
-    storage.removeItem('user');
-    storage.removeItem('roles');
-    storage.removeItem('permissions');
+    resetAuthState();
+    clearStoredAuth();
   };
 
   const dismissPasskeyPrompt = () => {
@@ -242,11 +239,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const hasPermission = (permission: string): boolean => {
-    return authState.permissions.includes(permission);
+    const normalizedPermission = normalizeAccessValue(permission);
+    return authState.permissions.some((storedPermission) => normalizeAccessValue(storedPermission) === normalizedPermission);
   };
 
   const hasRole = (role: string): boolean => {
-    return authState.roles.includes(role);
+    const normalizedRole = normalizeAccessValue(role);
+    return authState.roles.some((storedRole) => normalizeAccessValue(storedRole) === normalizedRole);
   };
 
   const registerPasskey = async (username: string) => {

@@ -1,20 +1,5 @@
 import React from 'react';
 import { Box, Tabs, Tab, Typography, Avatar, Menu, MenuItem, ListItemIcon, ListItemText, Divider, IconButton, Tooltip } from '@mui/material';
-import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import EventNoteIcon from '@mui/icons-material/EventNote';
-import PeopleIcon from '@mui/icons-material/People';
-import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
-import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
-import SecurityIcon from '@mui/icons-material/Security';
-import SettingsIcon from '@mui/icons-material/Settings';
-import AssessmentIcon from '@mui/icons-material/Assessment';
-import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
-import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
-import CategoryIcon from '@mui/icons-material/Category';
-import HomeWorkIcon from '@mui/icons-material/HomeWork';
-import HistoryIcon from '@mui/icons-material/History';
-import NightsStayIcon from '@mui/icons-material/NightsStay';
-import SyncAltIcon from '@mui/icons-material/SyncAlt';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -23,86 +8,43 @@ import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-
-const navIcons: Record<string, React.ReactElement> = {
-  'timeline': <CalendarMonthIcon sx={{ fontSize: 18 }} />,
-  'my-bookings': <EventNoteIcon sx={{ fontSize: 18 }} />,
-  'guest-config': <PeopleIcon sx={{ fontSize: 18 }} />,
-  'bookings': <EventNoteIcon sx={{ fontSize: 18 }} />,
-  'room-management': <HomeWorkIcon sx={{ fontSize: 18 }} />,
-  'ekyc-admin': <VerifiedUserIcon sx={{ fontSize: 18 }} />,
-  'rbac': <SecurityIcon sx={{ fontSize: 18 }} />,
-  'room-config': <MeetingRoomIcon sx={{ fontSize: 18 }} />,
-  'room-type-config': <CategoryIcon sx={{ fontSize: 18 }} />,
-  'company-ledger': <AccountBalanceIcon sx={{ fontSize: 18 }} />,
-  'complimentary': <CardGiftcardIcon sx={{ fontSize: 18 }} />,
-  'audit-log': <HistoryIcon sx={{ fontSize: 18 }} />,
-  'night-audit': <NightsStayIcon sx={{ fontSize: 18 }} />,
-  'data-transfer': <SyncAltIcon sx={{ fontSize: 18 }} />,
-  'reports': <AssessmentIcon sx={{ fontSize: 18 }} />,
-  'settings': <SettingsIcon sx={{ fontSize: 18 }} />,
-};
-
-type NavGroup = 'main' | 'operations' | 'admin' | 'config';
-
-interface NavItem {
-  id: string;
-  label: string;
-  path: string;
-  permissions: string[];
-  roles?: string[];
-  excludeRoles?: string[];
-  group: NavGroup;
-}
-
-const navigationItems: NavItem[] = [
-  { id: 'timeline', label: 'Timeline', path: '/timeline', permissions: ['navigation_timeline:read', 'bookings:read'], roles: ['admin', 'receptionist', 'manager'], group: 'main' },
-  { id: 'my-bookings', label: 'My Bookings', path: '/my-bookings', permissions: ['navigation_my_bookings:read'], excludeRoles: ['admin', 'receptionist', 'manager'], group: 'main' },
-  { id: 'room-management', label: 'Rooms', path: '/room-management', permissions: ['navigation_room_management:read', 'rooms:read', 'rooms:manage'], roles: ['admin', 'receptionist', 'manager'], group: 'main' },
-  { id: 'bookings', label: 'Bookings', path: '/bookings', permissions: ['navigation_bookings:read', 'bookings:manage'], roles: ['admin', 'receptionist', 'manager'], group: 'main' },
-  { id: 'guest-config', label: 'Guests', path: '/guest-config', permissions: ['navigation_guest_config:read', 'guests:read', 'guests:manage'], roles: ['admin', 'receptionist', 'manager'], group: 'main' },
-  { id: 'company-ledger', label: 'Ledger', path: '/company-ledger', permissions: ['ledgers:read', 'ledgers:manage'], roles: ['admin', 'receptionist', 'manager'], group: 'operations' },
-  { id: 'reports', label: 'Reports', path: '/reports', permissions: [], group: 'operations' },
-  { id: 'rbac', label: 'Access Control', path: '/rbac', permissions: ['rbac:manage', 'rbac:read', 'users:manage', 'users:read'], roles: ['admin', 'superadmin'], group: 'admin' },
-  { id: 'ekyc-admin', label: 'eKYC Admin', path: '/ekyc-admin', permissions: ['ekyc:manage'], group: 'admin' },
-  { id: 'complimentary', label: 'Complimentary Nights', path: '/complimentary', permissions: ['bookings:read', 'bookings:update'], roles: ['admin', 'manager', 'receptionist'], group: 'admin' },
-  { id: 'audit-log', label: 'Audit Log', path: '/audit-log', permissions: ['audit:read'], roles: ['admin', 'superadmin'], group: 'admin' },
-  { id: 'night-audit', label: 'Night Audit', path: '/night-audit', permissions: ['night_audit:read', 'night_audit:execute'], roles: ['admin', 'manager', 'receptionist'], group: 'admin' },
-  { id: 'data-transfer', label: 'Data Transfer', path: '/data-transfer', permissions: ['settings:manage'], roles: ['admin'], group: 'admin' },
-  { id: 'room-config', label: 'Room Configuration', path: '/room-config', permissions: ['navigation_room_config:read', 'rooms:update', 'rooms:manage'], roles: ['admin', 'receptionist', 'manager'], group: 'config' },
-  { id: 'room-type-config', label: 'Room Types', path: '/room-type-config', permissions: ['rooms:write', 'rooms:manage'], roles: ['admin', 'manager'], group: 'config' },
-  { id: 'settings', label: 'Settings', path: '/settings', permissions: ['navigation_settings:read', 'settings:read', 'settings:manage'], group: 'config' },
-];
+import { canAccessNavigationRoute, navigationRouteDefinitions, preloadRoute } from '../../navigation/routeRegistry';
 
 export const NavigationTabs = React.memo(function NavigationTabs() {
   const location = useLocation();
   const navigate = useNavigate();
   const { hasPermission, hasRole, logout, user } = useAuth();
 
-  const canSeeItem = (item: NavItem): boolean => {
-    const isExcluded = item.excludeRoles?.some(role =>
-      hasRole(role) || hasRole(role.toLowerCase()) || hasRole(role.charAt(0).toUpperCase() + role.slice(1).toLowerCase())
-    ) ?? false;
-    if (isExcluded) return false;
+  const visibleItems = navigationRouteDefinitions.filter((item) =>
+    canAccessNavigationRoute(item, { hasPermission, hasRole })
+  );
+  const mainNavItems = visibleItems.filter((item) => item.navGroup === 'main' || item.navGroup === 'operations');
+  const moreMenuItems = visibleItems.filter((item) => item.navGroup === 'admin' || item.navGroup === 'config');
+  const preloadSignature = visibleItems.map((item) => item.path).join('|');
 
-    const noRestrictions = item.permissions.length === 0 && (!item.roles || item.roles.length === 0);
-    if (noRestrictions) return true;
+  React.useEffect(() => {
+    if (visibleItems.length === 0) {
+      return;
+    }
 
-    const hasRequiredPermission = item.permissions.some(perm => hasPermission(perm));
-    const hasRequiredRole = item.roles?.some(role =>
-      hasRole(role) || hasRole(role.toLowerCase()) || hasRole(role.charAt(0).toUpperCase() + role.slice(1).toLowerCase())
-    ) ?? false;
+    const idleCallback = window.requestIdleCallback?.(() => {
+      visibleItems.slice(0, 4).forEach((item) => preloadRoute(item.path));
+    });
 
-    return hasRequiredPermission || hasRequiredRole;
-  };
+    if (idleCallback !== undefined) {
+      return () => window.cancelIdleCallback?.(idleCallback);
+    }
 
-  const visibleItems = navigationItems.filter(canSeeItem);
-  const mainNavItems = visibleItems.filter(item => item.group === 'main' || item.group === 'operations');
-  const moreMenuItems = visibleItems.filter(item => item.group === 'admin' || item.group === 'config');
+    const timeoutId = window.setTimeout(() => {
+      visibleItems.slice(0, 4).forEach((item) => preloadRoute(item.path));
+    }, 300);
 
-  const visibleTabs = mainNavItems.map(item => item.path);
+    return () => window.clearTimeout(timeoutId);
+  }, [preloadSignature]);
+
+  const visibleTabs = mainNavItems.map((item) => item.path);
   const currentTab = visibleTabs.indexOf(location.pathname);
-  const isMoreMenuActive = moreMenuItems.some(item => item.path === location.pathname);
+  const isMoreMenuActive = moreMenuItems.some((item) => item.path === location.pathname);
   const activeTab = currentTab >= 0 ? currentTab : false;
 
   const getUserInitials = () => {
@@ -129,6 +71,11 @@ export const NavigationTabs = React.memo(function NavigationTabs() {
     handleUserMenuClose();
     handleMoreMenuClose();
     navigate(path);
+  };
+
+  const renderNavIcon = (item: (typeof visibleItems)[number], size: number) => {
+    const Icon = item.icon;
+    return Icon ? <Icon sx={{ fontSize: size }} /> : undefined;
   };
 
   const handleLogout = () => {
@@ -164,12 +111,14 @@ export const NavigationTabs = React.memo(function NavigationTabs() {
         {mainNavItems.map(item => (
           <Tab
             key={item.id}
-            icon={navIcons[item.id] || undefined}
+            icon={renderNavIcon(item, 18)}
             iconPosition="start"
-            label={item.label}
+            label={item.navLabel || item.breadcrumbLabel}
             component={Link}
             to={item.path}
             sx={{ gap: 0.75, '& .MuiTab-iconWrapper': { marginRight: 0, marginBottom: 0 } }}
+            onMouseEnter={() => preloadRoute(item.path)}
+            onFocus={() => preloadRoute(item.path)}
           />
         ))}
       </Tabs>
@@ -202,27 +151,41 @@ export const NavigationTabs = React.memo(function NavigationTabs() {
             anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
             slotProps={{ paper: { elevation: 8, sx: { mt: 1, minWidth: 220, borderRadius: 2, overflow: 'visible', '&::before': { content: '""', display: 'block', position: 'absolute', top: 0, right: 20, width: 10, height: 10, bgcolor: 'background.paper', transform: 'translateY(-50%) rotate(45deg)', zIndex: 0 } } } }}
           >
-            {moreMenuItems.filter(item => item.group === 'admin').length > 0 && (
+            {moreMenuItems.filter(item => item.navGroup === 'admin').length > 0 && (
               <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50' }}>
                 <Typography variant="caption" color="text.secondary" fontWeight={600}>ADMINISTRATION</Typography>
               </Box>
             )}
-            {moreMenuItems.filter(item => item.group === 'admin').map(item => (
-              <MenuItem key={item.id} onClick={() => handleMenuItemClick(item.path)} selected={location.pathname === item.path} sx={{ py: 1.25 }}>
-                <ListItemIcon>{navIcons[item.id]}</ListItemIcon>
-                <ListItemText>{item.label}</ListItemText>
+            {moreMenuItems.filter(item => item.navGroup === 'admin').map(item => (
+              <MenuItem
+                key={item.id}
+                onClick={() => handleMenuItemClick(item.path)}
+                selected={location.pathname === item.path}
+                sx={{ py: 1.25 }}
+                onMouseEnter={() => preloadRoute(item.path)}
+                onFocus={() => preloadRoute(item.path)}
+              >
+                <ListItemIcon>{renderNavIcon(item, 18)}</ListItemIcon>
+                <ListItemText>{item.navLabel || item.breadcrumbLabel}</ListItemText>
               </MenuItem>
             ))}
-            {moreMenuItems.filter(item => item.group === 'admin').length > 0 && moreMenuItems.filter(item => item.group === 'config').length > 0 && <Divider />}
-            {moreMenuItems.filter(item => item.group === 'config').length > 0 && (
+            {moreMenuItems.filter(item => item.navGroup === 'admin').length > 0 && moreMenuItems.filter(item => item.navGroup === 'config').length > 0 && <Divider />}
+            {moreMenuItems.filter(item => item.navGroup === 'config').length > 0 && (
               <Box sx={{ px: 2, py: 1, bgcolor: 'grey.50' }}>
                 <Typography variant="caption" color="text.secondary" fontWeight={600}>CONFIGURATION</Typography>
               </Box>
             )}
-            {moreMenuItems.filter(item => item.group === 'config').map(item => (
-              <MenuItem key={item.id} onClick={() => handleMenuItemClick(item.path)} selected={location.pathname === item.path} sx={{ py: 1.25 }}>
-                <ListItemIcon>{navIcons[item.id]}</ListItemIcon>
-                <ListItemText>{item.label}</ListItemText>
+            {moreMenuItems.filter(item => item.navGroup === 'config').map(item => (
+              <MenuItem
+                key={item.id}
+                onClick={() => handleMenuItemClick(item.path)}
+                selected={location.pathname === item.path}
+                sx={{ py: 1.25 }}
+                onMouseEnter={() => preloadRoute(item.path)}
+                onFocus={() => preloadRoute(item.path)}
+              >
+                <ListItemIcon>{renderNavIcon(item, 18)}</ListItemIcon>
+                <ListItemText>{item.navLabel || item.breadcrumbLabel}</ListItemText>
               </MenuItem>
             ))}
           </Menu>
@@ -270,15 +233,30 @@ export const NavigationTabs = React.memo(function NavigationTabs() {
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{user?.full_name || user?.username}</Typography>
             <Typography variant="caption" color="text.secondary">{user?.email || user?.username}</Typography>
           </Box>
-          <MenuItem onClick={() => handleMenuItemClick('/profile?edit=true')} sx={{ py: 1.25 }}>
+          <MenuItem
+            onClick={() => handleMenuItemClick('/profile?edit=true')}
+            sx={{ py: 1.25 }}
+            onMouseEnter={() => preloadRoute('/profile')}
+            onFocus={() => preloadRoute('/profile')}
+          >
             <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
             <ListItemText>My Profile</ListItemText>
           </MenuItem>
-          <MenuItem onClick={() => handleMenuItemClick('/settings')} sx={{ py: 1.25 }}>
+          <MenuItem
+            onClick={() => handleMenuItemClick('/settings')}
+            sx={{ py: 1.25 }}
+            onMouseEnter={() => preloadRoute('/settings')}
+            onFocus={() => preloadRoute('/settings')}
+          >
             <ListItemIcon><ManageAccountsIcon fontSize="small" /></ListItemIcon>
             <ListItemText>Account Settings</ListItemText>
           </MenuItem>
-          <MenuItem onClick={() => handleMenuItemClick('/help')} sx={{ py: 1.25 }}>
+          <MenuItem
+            onClick={() => handleMenuItemClick('/help')}
+            sx={{ py: 1.25 }}
+            onMouseEnter={() => preloadRoute('/help')}
+            onFocus={() => preloadRoute('/help')}
+          >
             <ListItemIcon><HelpOutlineIcon fontSize="small" /></ListItemIcon>
             <ListItemText>Help & Support</ListItemText>
           </MenuItem>

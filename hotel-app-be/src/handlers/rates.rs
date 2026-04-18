@@ -12,11 +12,13 @@ use rust_decimal::Decimal;
 use serde_json::json;
 
 use crate::core::db::{DbPool, DbRow};
+use crate::core::error::ApiError;
 use crate::models::{
     RatePlan, RatePlanInput, RatePlanUpdateInput, RatePlanWithRates, RoomRate, RoomRateInput,
     RoomRateUpdateInput, RoomRateWithDetails, RoomType,
 };
 use crate::models::row_mappers;
+use crate::services::audit::AuditLog;
 use sqlx::Row;
 
 /// Rate-specific error type
@@ -24,6 +26,7 @@ pub enum RateError {
     Database(sqlx::Error),
     NotFound,
     BadRequest(String),
+    Api(ApiError),
 }
 
 impl IntoResponse for RateError {
@@ -37,6 +40,7 @@ impl IntoResponse for RateError {
             RateError::BadRequest(msg) => {
                 return (StatusCode::BAD_REQUEST, Json(json!({"error": msg}))).into_response()
             }
+            RateError::Api(err) => return err.into_response(),
         };
         (status, Json(json!({"error": message}))).into_response()
     }
@@ -49,6 +53,64 @@ impl From<sqlx::Error> for RateError {
             _ => RateError::Database(e),
         }
     }
+}
+
+impl From<ApiError> for RateError {
+    fn from(error: ApiError) -> Self {
+        Self::Api(error)
+    }
+}
+
+fn rate_plan_audit_details(rate_plan: &RatePlan) -> serde_json::Value {
+    json!({
+        "code": rate_plan.code,
+        "name": rate_plan.name,
+        "plan_type": rate_plan.plan_type,
+        "adjustment_type": rate_plan.adjustment_type,
+        "adjustment_value": rate_plan.adjustment_value.map(|value| value.to_string()),
+        "valid_from": rate_plan.valid_from,
+        "valid_to": rate_plan.valid_to,
+        "is_active": rate_plan.is_active,
+        "priority": rate_plan.priority,
+    })
+}
+
+fn room_rate_audit_details(room_rate: &RoomRate) -> serde_json::Value {
+    json!({
+        "rate_plan_id": room_rate.rate_plan_id,
+        "room_type_id": room_rate.room_type_id,
+        "price": room_rate.price.to_string(),
+        "effective_from": room_rate.effective_from,
+        "effective_to": room_rate.effective_to,
+    })
+}
+
+async fn log_rate_plan_event(pool: &DbPool, user_id: i64, action: &str, rate_plan: &RatePlan) {
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        action,
+        "rate_plan",
+        Some(rate_plan.id),
+        Some(rate_plan_audit_details(rate_plan)),
+        None,
+        None,
+    )
+    .await;
+}
+
+async fn log_room_rate_event(pool: &DbPool, user_id: i64, action: &str, room_rate: &RoomRate) {
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        action,
+        "room_rate",
+        Some(room_rate.id),
+        Some(room_rate_audit_details(room_rate)),
+        None,
+        None,
+    )
+    .await;
 }
 
 /// Helper function to map a database row to RoomType
@@ -107,6 +169,7 @@ fn row_to_room_type(row: DbRow) -> RoomType {
 /// Create a new rate plan
 pub async fn create_rate_plan(
     State(pool): State<DbPool>,
+    user_id: i64,
     Json(input): Json<RatePlanInput>,
 ) -> Result<impl IntoResponse, RateError> {
     let valid_from = input
@@ -157,7 +220,7 @@ pub async fn create_rate_plan(
         .bind(&input.blackout_dates)
         .bind(if input.is_active.unwrap_or(true) { 1i32 } else { 0i32 })
         .bind(input.priority.unwrap_or(0))
-        .bind(1i64) // TODO: Get from auth token
+        .bind(user_id)
         .execute(&pool)
         .await?;
 
@@ -214,12 +277,14 @@ pub async fn create_rate_plan(
         .bind(&input.blackout_dates)
         .bind(input.is_active.unwrap_or(true))
         .bind(input.priority.unwrap_or(0))
-        .bind(1i64) // TODO: Get from auth token
+        .bind(user_id)
         .fetch_one(&pool)
         .await?;
 
         row_mappers::row_to_rate_plan(&row)
     };
+
+    log_rate_plan_event(&pool, user_id, "rate_plan_created", &rate_plan).await;
 
     Ok((
         StatusCode::CREATED,
@@ -308,6 +373,7 @@ pub async fn get_rate_plan_with_rates(
 pub async fn update_rate_plan(
     State(pool): State<DbPool>,
     Path(rate_plan_id): Path<i64>,
+    user_id: i64,
     Json(input): Json<RatePlanUpdateInput>,
 ) -> Result<impl IntoResponse, RateError> {
     let mut query_builder =
@@ -317,6 +383,12 @@ pub async fn update_rate_plan(
     if let Some(name) = &input.name {
         query_builder.push(", name = ");
         query_builder.push_bind(name);
+        has_updates = true;
+    }
+
+    if let Some(code) = &input.code {
+        query_builder.push(", code = ");
+        query_builder.push_bind(code);
         has_updates = true;
     }
 
@@ -452,6 +524,8 @@ pub async fn update_rate_plan(
         .fetch_one(&pool)
         .await?;
 
+    log_rate_plan_event(&pool, user_id, "rate_plan_updated", &rate_plan).await;
+
     Ok(Json(json!({
         "message": "Rate plan updated successfully",
         "rate_plan": rate_plan
@@ -462,7 +536,18 @@ pub async fn update_rate_plan(
 pub async fn delete_rate_plan(
     State(pool): State<DbPool>,
     Path(rate_plan_id): Path<i64>,
+    user_id: i64,
 ) -> Result<impl IntoResponse, RateError> {
+    let existing_rate_plan = sqlx::query_as::<_, RatePlan>(
+        r#"
+        SELECT * FROM rate_plans WHERE id = $1
+        "#,
+    )
+    .bind(rate_plan_id)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or(RateError::NotFound)?;
+
     let result = sqlx::query(
         r#"
         DELETE FROM rate_plans WHERE id = $1
@@ -476,6 +561,8 @@ pub async fn delete_rate_plan(
         return Err(RateError::NotFound);
     }
 
+    log_rate_plan_event(&pool, user_id, "rate_plan_deleted", &existing_rate_plan).await;
+
     Ok(Json(json!({
         "message": "Rate plan deleted successfully"
     })))
@@ -484,6 +571,7 @@ pub async fn delete_rate_plan(
 /// Create a new room rate
 pub async fn create_room_rate(
     State(pool): State<DbPool>,
+    user_id: i64,
     Json(input): Json<RoomRateInput>,
 ) -> Result<impl IntoResponse, RateError> {
     let effective_from = NaiveDate::parse_from_str(&input.effective_from, "%Y-%m-%d").map_err(
@@ -512,6 +600,8 @@ pub async fn create_room_rate(
     .bind(effective_to)
     .fetch_one(&pool)
     .await?;
+
+    log_room_rate_event(&pool, user_id, "room_rate_created", &room_rate).await;
 
     Ok((
         StatusCode::CREATED,
@@ -622,6 +712,7 @@ pub async fn get_room_rate(
 pub async fn update_room_rate(
     State(pool): State<DbPool>,
     Path(rate_id): Path<i64>,
+    user_id: i64,
     Json(input): Json<RoomRateUpdateInput>,
 ) -> Result<impl IntoResponse, RateError> {
     let mut query_builder = sqlx::QueryBuilder::new("UPDATE room_rates SET ");
@@ -672,6 +763,8 @@ pub async fn update_room_rate(
         .fetch_one(&pool)
         .await?;
 
+    log_room_rate_event(&pool, user_id, "room_rate_updated", &rate).await;
+
     Ok(Json(json!({
         "message": "Room rate updated successfully",
         "room_rate": rate
@@ -682,7 +775,18 @@ pub async fn update_room_rate(
 pub async fn delete_room_rate(
     State(pool): State<DbPool>,
     Path(rate_id): Path<i64>,
+    user_id: i64,
 ) -> Result<impl IntoResponse, RateError> {
+    let existing_rate = sqlx::query_as::<_, RoomRate>(
+        r#"
+        SELECT * FROM room_rates WHERE id = $1
+        "#,
+    )
+    .bind(rate_id)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or(RateError::NotFound)?;
+
     let result = sqlx::query(
         r#"
         DELETE FROM room_rates WHERE id = $1
@@ -695,6 +799,8 @@ pub async fn delete_room_rate(
     if result.rows_affected() == 0 {
         return Err(RateError::NotFound);
     }
+
+    log_room_rate_event(&pool, user_id, "room_rate_deleted", &existing_rate).await;
 
     Ok(Json(json!({
         "message": "Room rate deleted successfully"

@@ -34,24 +34,11 @@ pub async fn check_permission(
     user_id: i64,
     permission: &str,
 ) -> Result<(), ApiError> {
-    // First check the exact permission
     let has_permission = AuthService::check_permission(pool, user_id, permission).await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if has_permission {
         return Ok(());
-    }
-
-    // If not, check for :manage permission on the same resource
-    // e.g., guests:update -> also check guests:manage
-    if let Some(resource) = permission.split(':').next() {
-        let manage_permission = format!("{}:manage", resource);
-        let has_manage = AuthService::check_permission(pool, user_id, &manage_permission).await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        if has_manage {
-            return Ok(());
-        }
     }
 
     Err(ApiError::Forbidden(format!("Missing permission: {}", permission)))
@@ -125,4 +112,3 @@ pub async fn require_super_admin_helper(
 
     Ok(user_id)
 }
-

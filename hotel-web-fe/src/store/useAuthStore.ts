@@ -107,12 +107,14 @@ export const useAuthStore = create<AuthState>()(
 
       // Check if user has a specific role
       hasRole: (role) => {
-        return get().roles.includes(role);
+        const normalizedRole = role.trim().toLowerCase();
+        return get().roles.some((storedRole) => storedRole.trim().toLowerCase() === normalizedRole);
       },
 
       // Check if user has a specific permission
       hasPermission: (permission) => {
-        return get().permissions.includes(permission);
+        const normalizedPermission = permission.trim().toLowerCase();
+        return get().permissions.some((storedPermission) => storedPermission.trim().toLowerCase() === normalizedPermission);
       },
 
       // Check if user is authenticated
