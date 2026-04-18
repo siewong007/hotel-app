@@ -1,9 +1,9 @@
-//! Authentication routes
+//! Authentication routes (login, registration, email verification).
 //!
-//! Routes for login, registration, 2FA, and passkey authentication.
+//! 2FA routes are in `routes::two_factor`, passkey routes in `routes::passkey`.
 
 use axum::{
-    routing::{get, post},
+    routing::post,
     Router,
     extract::{Extension, State},
     http::HeaderMap,
@@ -14,29 +14,16 @@ use crate::core::rate_limiter::RateLimiters;
 use crate::handlers;
 use crate::models;
 use crate::core::error::ApiError;
+use super::extract_client_ip;
 
-/// Create authentication routes
 pub fn routes() -> Router<DbPool> {
     Router::new()
-        // Basic auth routes
         .route("/auth/login", post(login))
         .route("/auth/refresh", post(refresh))
         .route("/auth/logout", post(logout))
         .route("/auth/register", post(register))
         .route("/auth/verify-email", post(verify_email))
         .route("/auth/resend-verification", post(resend_verification))
-        // 2FA routes
-        .route("/auth/2fa/setup", post(setup_2fa))
-        .route("/auth/2fa/enable", post(enable_2fa))
-        .route("/auth/2fa/disable", post(disable_2fa))
-        .route("/auth/2fa/status", get(get_2fa_status))
-        .route("/auth/2fa/verify", post(verify_2fa))
-        .route("/auth/2fa/regenerate-backup-codes", post(regenerate_backup_codes))
-        // Passkey routes
-        .route("/auth/passkey/register/start", post(passkey_register_start))
-        .route("/auth/passkey/register/finish", post(passkey_register_finish))
-        .route("/auth/passkey/login/start", post(passkey_login_start))
-        .route("/auth/passkey/login/finish", post(passkey_login_finish))
 }
 
 // Basic auth handlers
@@ -113,182 +100,3 @@ async fn resend_verification(
     handlers::auth::resend_verification_handler(State(pool), Json(req)).await
 }
 
-// 2FA handlers
-
-async fn setup_2fa(
-    State(pool): State<DbPool>,
-    Extension(limiters): Extension<RateLimiters>,
-    headers: HeaderMap,
-    Json(req): Json<models::TwoFactorSetupRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
-    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
-    if !allowed {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
-            retry_after,
-        ));
-    }
-    handlers::two_factor::setup_2fa_handler(State(pool), headers, Json(req)).await
-}
-
-async fn enable_2fa(
-    State(pool): State<DbPool>,
-    Extension(limiters): Extension<RateLimiters>,
-    headers: HeaderMap,
-    Json(req): Json<models::TwoFactorEnableRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
-    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
-    if !allowed {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
-            retry_after,
-        ));
-    }
-    handlers::two_factor::enable_2fa_handler(State(pool), headers, Json(req)).await
-}
-
-async fn disable_2fa(
-    State(pool): State<DbPool>,
-    Extension(limiters): Extension<RateLimiters>,
-    headers: HeaderMap,
-    Json(req): Json<models::TwoFactorDisableRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
-    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
-    if !allowed {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
-            retry_after,
-        ));
-    }
-    handlers::two_factor::disable_2fa_handler(State(pool), headers, Json(req)).await
-}
-
-async fn get_2fa_status(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-) -> Result<Json<models::TwoFactorStatusResponse>, ApiError> {
-    handlers::two_factor::get_2fa_status_handler(State(pool), headers).await
-}
-
-async fn verify_2fa(
-    State(pool): State<DbPool>,
-    Extension(limiters): Extension<RateLimiters>,
-    headers: HeaderMap,
-    Json(req): Json<models::TwoFactorVerifyRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
-    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
-    if !allowed {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
-            retry_after,
-        ));
-    }
-    handlers::two_factor::verify_2fa_code_handler(State(pool), Json(req)).await
-}
-
-async fn regenerate_backup_codes(
-    State(pool): State<DbPool>,
-    Extension(limiters): Extension<RateLimiters>,
-    headers: HeaderMap,
-    Json(req): Json<models::RegenerateBackupCodesRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
-    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
-    if !allowed {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
-            retry_after,
-        ));
-    }
-    handlers::two_factor::regenerate_backup_codes_handler(State(pool), headers, Json(req)).await
-}
-
-// Passkey handlers
-
-async fn passkey_register_start(
-    State(pool): State<DbPool>,
-    Extension(limiters): Extension<RateLimiters>,
-    headers: HeaderMap,
-    Json(req): Json<models::PasskeyRegistrationStart>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
-    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
-    if !allowed {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
-            retry_after,
-        ));
-    }
-    handlers::passkey::passkey_register_start_handler(State(pool), Json(req)).await
-}
-
-async fn passkey_register_finish(
-    State(pool): State<DbPool>,
-    Extension(limiters): Extension<RateLimiters>,
-    headers: HeaderMap,
-    Json(req): Json<models::PasskeyRegistrationFinish>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
-    let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
-    if !allowed {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
-            retry_after,
-        ));
-    }
-    handlers::passkey::passkey_register_finish_handler(State(pool), Json(req)).await
-}
-
-async fn passkey_login_start(
-    State(pool): State<DbPool>,
-    Extension(limiters): Extension<RateLimiters>,
-    headers: HeaderMap,
-    Json(req): Json<models::PasskeyLoginStart>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
-    let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
-    if !allowed {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many login attempts. Please try again in {} seconds.", retry_after),
-            retry_after,
-        ));
-    }
-    handlers::passkey::passkey_login_start_handler(State(pool), Json(req)).await
-}
-
-async fn passkey_login_finish(
-    State(pool): State<DbPool>,
-    Extension(limiters): Extension<RateLimiters>,
-    headers: HeaderMap,
-    Json(req): Json<models::PasskeyLoginFinish>,
-) -> Result<Json<models::AuthResponse>, ApiError> {
-    let ip = extract_client_ip(&headers);
-    let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
-    if !allowed {
-        return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many login attempts. Please try again in {} seconds.", retry_after),
-            retry_after,
-        ));
-    }
-    handlers::passkey::passkey_login_finish_handler(State(pool), Json(req)).await
-}
-
-/// Extract client IP from X-Forwarded-For header or fall back to 127.0.0.1
-fn extract_client_ip(headers: &HeaderMap) -> std::net::IpAddr {
-    headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .and_then(|s| s.trim().parse().ok())
-        .or_else(|| {
-            headers
-                .get("x-real-ip")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.trim().parse().ok())
-        })
-        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
-}

@@ -6,6 +6,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
 use crate::models::row_mappers;
+use crate::services::loyalty as svc;
 use axum::{
     extract::{Extension, Path, Query, State},
     response::Json,
@@ -273,64 +274,9 @@ pub async fn add_points_handler(
     if input.points <= 0 {
         return Err(ApiError::BadRequest("Points must be positive".to_string()));
     }
-
-    // Get current membership
-    let membership = sqlx::query_as::<_, LoyaltyMembership>(
-        "SELECT * FROM loyalty_memberships WHERE id = $1"
-    )
-    .bind(membership_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("Membership not found".to_string()))?;
-
-    // Calculate new balance
-    let new_balance = membership.points_balance + input.points;
-
-    // Start transaction
-    let mut tx = pool.begin().await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Update membership
-    sqlx::query(
-        r#"
-        UPDATE loyalty_memberships
-        SET points_balance = $1,
-            lifetime_points = lifetime_points + $2,
-            last_points_activity = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $3
-        "#
-    )
-    .bind(new_balance)
-    .bind(input.points)
-    .bind(membership_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Create transaction record
-    let transaction = sqlx::query_as::<_, PointsTransaction>(
-        r#"
-        INSERT INTO points_transactions (
-            membership_id, transaction_type, points_amount, balance_after, description
-        )
-        VALUES ($1, 'earn', $2, $3, $4)
-        RETURNING id::text, membership_id, transaction_type, points_amount,
-                  balance_after, reference_type, reference_id, description, created_at
-        "#
-    )
-    .bind(membership_id)
-    .bind(input.points)
-    .bind(new_balance)
-    .bind(&input.description)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    tx.commit().await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
+    let transaction = svc::adjust_membership_points(
+        &pool, membership_id, input.points, true, input.description,
+    ).await?;
     Ok(Json(transaction))
 }
 
@@ -342,67 +288,9 @@ pub async fn redeem_points_handler(
     if input.points <= 0 {
         return Err(ApiError::BadRequest("Points must be positive".to_string()));
     }
-
-    // Get current membership
-    let membership = sqlx::query_as::<_, LoyaltyMembership>(
-        "SELECT * FROM loyalty_memberships WHERE id = $1"
-    )
-    .bind(membership_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("Membership not found".to_string()))?;
-
-    // Check sufficient balance
-    if membership.points_balance < input.points {
-        return Err(ApiError::BadRequest("Insufficient points balance".to_string()));
-    }
-
-    // Calculate new balance
-    let new_balance = membership.points_balance - input.points;
-
-    // Start transaction
-    let mut tx = pool.begin().await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Update membership
-    sqlx::query(
-        r#"
-        UPDATE loyalty_memberships
-        SET points_balance = $1,
-            last_points_activity = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-        "#
-    )
-    .bind(new_balance)
-    .bind(membership_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Create transaction record
-    let transaction = sqlx::query_as::<_, PointsTransaction>(
-        r#"
-        INSERT INTO points_transactions (
-            membership_id, transaction_type, points_amount, balance_after, description
-        )
-        VALUES ($1, 'redeem', $2, $3, $4)
-        RETURNING id::text, membership_id, transaction_type, points_amount,
-                  balance_after, reference_type, reference_id, description, created_at
-        "#
-    )
-    .bind(membership_id)
-    .bind(-input.points)
-    .bind(new_balance)
-    .bind(&input.description)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    tx.commit().await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
+    let transaction = svc::adjust_membership_points(
+        &pool, membership_id, input.points, false, input.description,
+    ).await?;
     Ok(Json(transaction))
 }
 
@@ -411,27 +299,7 @@ pub async fn get_user_loyalty_membership_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
 ) -> Result<Json<UserLoyaltyMembership>, ApiError> {
-    // First, get the user's email
-    let user_email: Option<String> = sqlx::query_scalar(
-        "SELECT email FROM users WHERE id = $1"
-    )
-    .bind(user_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let user_email = user_email.ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
-
-    // Find guest by matching email
-    let guest_id: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM guests WHERE email = $1 AND deleted_at IS NULL"
-    )
-    .bind(&user_email)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let guest_id = guest_id.ok_or_else(|| ApiError::NotFound("Guest profile not found. Please contact support to enroll in the loyalty programme.".to_string()))?;
+    let guest_id = svc::resolve_user_to_guest(&pool, user_id).await?;
 
     // Get the membership
     let membership = sqlx::query_as::<_, LoyaltyMembership>(
@@ -517,25 +385,7 @@ pub async fn get_loyalty_rewards_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
 ) -> Result<Json<Vec<LoyaltyReward>>, ApiError> {
-    // Get user's email
-    let user_email: Option<String> = sqlx::query_scalar(
-        "SELECT email FROM users WHERE id = $1"
-    )
-    .bind(user_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let user_email = user_email.unwrap_or_default();
-
-    // Get guest_id by matching email
-    let guest_id: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM guests WHERE email = $1 AND deleted_at IS NULL"
-    )
-    .bind(&user_email)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let guest_id = svc::resolve_user_to_guest(&pool, user_id).await.ok();
 
     let tier_level: i32 = if let Some(gid) = guest_id {
         sqlx::query_scalar(
@@ -574,27 +424,7 @@ pub async fn redeem_reward_handler(
     Extension(user_id): Extension<i64>,
     Json(input): Json<RedeemRewardInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Get user's email
-    let user_email: Option<String> = sqlx::query_scalar(
-        "SELECT email FROM users WHERE id = $1"
-    )
-    .bind(user_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let user_email = user_email.ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
-
-    // Get guest_id by matching email
-    let guest_id: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM guests WHERE email = $1 AND deleted_at IS NULL"
-    )
-    .bind(&user_email)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let guest_id = guest_id.ok_or_else(|| ApiError::NotFound("Guest profile not found".to_string()))?;
+    let guest_id = svc::resolve_user_to_guest(&pool, user_id).await?;
 
     // Start transaction
     let mut tx = pool.begin().await
@@ -971,27 +801,7 @@ pub async fn redeem_reward_for_user_handler(
     Path(reward_id): Path<i64>,
     Json(input): Json<RedeemRewardInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Get user's email
-    let user_email: Option<String> = sqlx::query_scalar(
-        "SELECT email FROM users WHERE id = $1"
-    )
-    .bind(user_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let user_email = user_email.ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
-
-    // Get guest_id by matching email
-    let guest_id: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM guests WHERE email = $1 AND deleted_at IS NULL"
-    )
-    .bind(&user_email)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let guest_id = guest_id.ok_or_else(|| ApiError::NotFound("Guest profile not found".to_string()))?;
+    let guest_id = svc::resolve_user_to_guest(&pool, user_id).await?;
 
     // Start transaction
     let mut tx = pool.begin().await

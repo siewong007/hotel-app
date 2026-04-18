@@ -9,6 +9,7 @@ use crate::core::middleware::require_auth;
 use crate::handlers::bookings_queries::*;
 use crate::models::*;
 use crate::services::audit::AuditLog;
+use crate::services::booking as booking_svc;
 use crate::utils::sanitization::Sanitizer;
 use axum::{
     extract::{Extension, Path, Query, State},
@@ -394,6 +395,17 @@ pub async fn create_booking_handler(
         return Err(ApiError::BadRequest("Room is already booked for these dates".to_string()));
     }
 
+    // Derive is_tourist from the guest's tourism_type rather than trusting the request.
+    // A guest with tourism_type = 'foreign' is always a tourist regardless of what was sent.
+    let guest_tourism_type: Option<String> = sqlx::query_scalar(
+        "SELECT tourism_type::text FROM guests WHERE id = $1"
+    )
+    .bind(input.guest_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .unwrap_or(None);
+    let is_tourist = guest_tourism_type.as_deref() == Some("foreign");
+
     let nights = (check_out - check_in).num_days() as i32;
     let is_hourly = nights == 0; // Same-day check-in/check-out = hourly booking
     let billable_nights = if is_hourly { 1 } else { nights }; // Charge 1 night for hourly
@@ -423,13 +435,7 @@ pub async fn create_booking_handler(
     // Use provided booking_number for online bookings, or auto-generate for walk-ins
     let booking_number = match &input.booking_number {
         Some(bn) if !bn.trim().is_empty() => bn.trim().to_string(),
-        _ => {
-            // Generate unique booking number with date and UUID suffix to guarantee uniqueness
-            format!("BK-{}-{}",
-                chrono::Utc::now().format("%Y%m%d"),
-                &uuid::Uuid::new_v4().to_string()[..8]
-            )
-        }
+        _ => booking_svc::generate_booking_number(),
     };
 
     let source = input.source.clone().unwrap_or_else(|| "walk_in".to_string());
@@ -531,7 +537,7 @@ pub async fn create_booking_handler(
         .bind(deposit_amount)
         .bind(rate_override_decimal)
         .bind(special_requests.as_deref())
-        .bind(input.is_tourist)
+        .bind(is_tourist)
         .bind(input.tourism_tax_amount.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
         .bind(input.extra_bed_count)
         .bind(input.extra_bed_charge.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
@@ -636,19 +642,7 @@ pub async fn update_booking_handler(
     Path(booking_id): Path<i64>,
     Json(input): Json<BookingUpdateInput>,
 ) -> Result<Json<Booking>, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let get_booking_query = "SELECT * FROM bookings WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let get_booking_query = "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at FROM bookings WHERE id = $1";
-
-    let existing_row = sqlx::query(get_booking_query)
-        .bind(booking_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
-
-    let existing_booking = row_mappers::row_to_booking(&existing_row);
+    let existing_booking = booking_svc::fetch_booking_by_id(&pool, booking_id).await?;
 
     let has_booking_update = AuthService::check_permission(&pool, user_id, "bookings:update")
         .await
@@ -1117,25 +1111,14 @@ pub async fn delete_booking_handler(
     Extension(user_id): Extension<i64>,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let get_booking_query = "SELECT * FROM bookings WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let get_booking_query = "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, created_at, updated_at FROM bookings WHERE id = $1";
+    let booking_row = booking_svc::fetch_booking_by_id(&pool, booking_id).await?;
 
-    let booking_row = sqlx::query(get_booking_query)
-        .bind(booking_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let booking_row = booking_row.ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
-
-    let guest_id: i64 = booking_row.get("guest_id");
-    let room_id: i64 = booking_row.get("room_id");
-    let status: String = booking_row.get("status");
-    let is_complimentary: Option<bool> = booking_row.get("is_complimentary");
-    let check_in_date: NaiveDate = booking_row.get("check_in_date");
-    let check_out_date: NaiveDate = booking_row.get("check_out_date");
+    let guest_id: i64 = booking_row.guest_id;
+    let room_id: i64 = booking_row.room_id;
+    let status: String = booking_row.status.clone();
+    let is_complimentary: Option<bool> = booking_row.is_complimentary;
+    let check_in_date: NaiveDate = booking_row.check_in_date;
+    let check_out_date: NaiveDate = booking_row.check_out_date;
 
     let has_booking_delete = AuthService::check_permission(&pool, user_id, "bookings:delete")
         .await
@@ -1262,14 +1245,7 @@ pub async fn manual_checkin_handler(
     Path(booking_id): Path<i64>,
     Json(checkin_data): Json<Option<CheckInRequest>>,
 ) -> Result<Json<Booking>, ApiError> {
-    let booking: Booking = sqlx::query_as(
-        "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at FROM bookings WHERE id = $1"
-    )
-    .bind(booking_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+    let booking = booking_svc::fetch_booking_by_id(&pool, booking_id).await?;
 
     let has_checkin_permission = AuthService::check_permission(&pool, user_id, "bookings:update")
         .await

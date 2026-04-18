@@ -454,6 +454,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
               onChange={(_, newValue) => {
                 setSelectedGuest(newValue);
                 setShowNewGuestForm(false);
+                // Auto-set tourist status from guest's tourism_type
+                const guestIsTourist = newValue?.tourism_type === 'foreign';
+                setIsTourist(guestIsTourist);
               }}
               onInputChange={(_, value) => handleGuestInputChange(value)}
               renderInput={(params) => (

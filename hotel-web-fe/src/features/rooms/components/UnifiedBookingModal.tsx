@@ -42,6 +42,7 @@ import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useRoomAvailabilityCheck } from '../../../hooks/useRoomAvailabilityCheck';
 import { getHotelSettings } from '../../../utils/hotelSettings';
+import { useUnifiedBookingData } from '../hooks/useUnifiedBookingData';
 import { isValidEmail } from '../../../utils/validation';
 import GuestSelector, { NewGuestForm, GuestWithCredits, emptyNewGuestForm } from './GuestSelector';
 
@@ -120,6 +121,19 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   // Determine if we need room selection (when room is not pre-selected)
   const needsRoomSelection = !roomProp;
 
+  const {
+    guestsWithCredits,
+    loadingGuestsWithCredits,
+    availableRooms,
+    setAvailableRooms,
+    loadingAvailableRooms,
+    roomTypeConfig,
+    setRoomTypeConfig,
+    loadGuestsWithCredits,
+    loadAvailableRooms,
+    loadRoomTypeConfig,
+  } = useUnifiedBookingData();
+
   // Stepper state
   const [activeStep, setActiveStep] = useState(0);
   const [bookingMode, setBookingMode] = useState<BookingMode | null>(null);
@@ -129,9 +143,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [newGuestForm, setNewGuestForm] = useState<NewGuestForm>(emptyNewGuestForm);
   const [isCreatingNewGuest, setIsCreatingNewGuest] = useState(false);
-  const [guestsWithCredits, setGuestsWithCredits] = useState<GuestWithCredits[]>([]);
   const [selectedGuestWithCredits, setSelectedGuestWithCredits] = useState<GuestWithCredits | null>(null);
-  const [loadingGuestsWithCredits, setLoadingGuestsWithCredits] = useState(false);
 
   // Booking details state
   const [checkInDate, setCheckInDate] = useState('');
@@ -159,7 +171,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const isTourist = getIsForeignTourist();
 
   // Extra bed state
-  const [roomTypeConfig, setRoomTypeConfig] = useState<RoomType | null>(null);
   const [extraBedCount, setExtraBedCount] = useState(0);
   const [extraBedCharge, setExtraBedCharge] = useState(0);
 
@@ -168,8 +179,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Room selection state (when room is not pre-selected)
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
-  const [loadingAvailableRooms, setLoadingAvailableRooms] = useState(false);
 
   // Use selected room or prop room
   const room = roomProp || selectedRoom;
@@ -199,12 +208,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Load room type config when room changes
   useEffect(() => {
-    const roomTypeName = room?.room_type;
-    if (roomTypeName && open) {
-      HotelAPIService.getAllRoomTypes().then(roomTypes => {
-        const matched = roomTypes.find(rt => rt.name === roomTypeName);
-        setRoomTypeConfig(matched || null);
-      }).catch(() => setRoomTypeConfig(null));
+    if (room?.room_type && open) {
+      loadRoomTypeConfig(room.room_type);
     }
   }, [room?.room_type, open]);
 
@@ -299,27 +304,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Fetch available rooms when dates change (for room selection mode)
   useEffect(() => {
-    // Only fetch when we need room selection and have valid dates
-    if (!needsRoomSelection || !checkInDate || !checkOutDate) {
-      return;
-    }
-
-    const fetchAvailableRooms = async () => {
-      setLoadingAvailableRooms(true);
-      try {
-        // Fetch available rooms for the date range
-        const available = await HotelAPIService.getAvailableRoomsForDates(checkInDate, checkOutDate);
-        setAvailableRooms(sortRoomsByNumber(available));
-      } catch (error) {
-        console.error('Failed to fetch available rooms:', error);
-        // Fall back to all rooms if search fails
-        setAvailableRooms(sortRoomsByNumber(roomsRef.current));
-      } finally {
-        setLoadingAvailableRooms(false);
-      }
-    };
-
-    fetchAvailableRooms();
+    if (!needsRoomSelection || !checkInDate || !checkOutDate) return;
+    loadAvailableRooms(checkInDate, checkOutDate, sortRoomsByNumber, roomsRef.current);
   }, [needsRoomSelection, checkInDate, checkOutDate]);
 
   // Load guests with credits when complimentary reservation is selected
@@ -328,20 +314,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       loadGuestsWithCredits();
     }
   }, [reservationType, open]);
-
-  const loadGuestsWithCredits = async () => {
-    setLoadingGuestsWithCredits(true);
-    try {
-      const response = await HotelAPIService.getMyGuestsWithCredits();
-      // Filter to only show guests who have any credits
-      const filteredGuests = response.filter(g => g.total_complimentary_credits > 0);
-      setGuestsWithCredits(filteredGuests);
-    } catch (error) {
-      console.error('Failed to load guests with credits:', error);
-    } finally {
-      setLoadingGuestsWithCredits(false);
-    }
-  };
 
   // Calculate nights when dates change
   const handleDateChange = (field: 'checkIn' | 'checkOut', value: string) => {

@@ -26,6 +26,7 @@ pub mod settings;
 pub mod company;
 #[allow(dead_code)]
 pub mod row_mappers;
+pub mod night_audit;
 
 // Re-export all models for convenience
 pub use common::*;
@@ -43,3 +44,4 @@ pub use ekyc::*;
 pub use ledger::*;
 pub use settings::*;
 pub use company::*;
+pub use night_audit::*;
