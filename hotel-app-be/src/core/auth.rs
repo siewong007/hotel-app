@@ -5,6 +5,7 @@ use sqlx::Row;
 use chrono::{Duration, Utc};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use std::env;
+use std::sync::OnceLock;
 use regex::Regex;
 use rand::Rng;
 use sha2::{Sha256, Digest};
@@ -21,6 +22,42 @@ pub struct Claims {
 }
 
 pub struct AuthService;
+
+fn uppercase_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r"[A-Z]").expect("uppercase regex must compile"))
+}
+
+fn lowercase_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r"[a-z]").expect("lowercase regex must compile"))
+}
+
+fn digit_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r"\d").expect("digit regex must compile"))
+}
+
+fn special_character_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(r#"[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\';/~`]"#)
+            .expect("special character regex must compile")
+    })
+}
+
+const WEAK_PASSWORDS: &[&str] = &[
+    "password",
+    "password123",
+    "12345678",
+    "qwerty123",
+    "abc123456",
+    "password1",
+    "welcome123",
+    "admin123",
+    "letmein123",
+    "monkey123",
+];
 
 impl AuthService {
     pub fn generate_jwt(user_id: i64, username: String, roles: Vec<String>) -> Result<String, jsonwebtoken::errors::Error> {
@@ -75,37 +112,32 @@ impl AuthService {
         }
 
         // Check for at least one uppercase letter
-        let has_uppercase = Regex::new(r"[A-Z]").unwrap().is_match(password);
+        let has_uppercase = uppercase_regex().is_match(password);
         if !has_uppercase {
             return Err("Password must contain at least one uppercase letter".to_string());
         }
 
         // Check for at least one lowercase letter
-        let has_lowercase = Regex::new(r"[a-z]").unwrap().is_match(password);
+        let has_lowercase = lowercase_regex().is_match(password);
         if !has_lowercase {
             return Err("Password must contain at least one lowercase letter".to_string());
         }
 
         // Check for at least one digit
-        let has_digit = Regex::new(r"\d").unwrap().is_match(password);
+        let has_digit = digit_regex().is_match(password);
         if !has_digit {
             return Err("Password must contain at least one number".to_string());
         }
 
         // Check for at least one special character
-        let has_special = Regex::new(r#"[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\';/~`]"#).unwrap().is_match(password);
+        let has_special = special_character_regex().is_match(password);
         if !has_special {
             return Err("Password must contain at least one special character".to_string());
         }
 
         // Check for common weak passwords
-        let weak_passwords = vec![
-            "password", "password123", "12345678", "qwerty123", "abc123456",
-            "password1", "welcome123", "admin123", "letmein123", "monkey123"
-        ];
-
         let lowercase_pwd = password.to_lowercase();
-        for weak in weak_passwords {
+        for weak in WEAK_PASSWORDS {
             if lowercase_pwd.contains(weak) {
                 return Err("Password is too common or weak".to_string());
             }
@@ -250,6 +282,11 @@ impl AuthService {
     }
 
     pub async fn check_permission(pool: &DbPool, user_id: i64, permission: &str) -> Result<bool, sqlx::Error> {
+        let manage_permission = permission
+            .split_once(':')
+            .map(|(resource, _)| format!("{resource}:manage"))
+            .unwrap_or_else(|| permission.to_string());
+
         let has_permission = sqlx::query_scalar::<_, bool>(
             r#"
             SELECT EXISTS(
@@ -257,12 +294,14 @@ impl AuthService {
                 FROM permissions p
                 INNER JOIN role_permissions rp ON p.id = rp.permission_id
                 INNER JOIN user_roles ur ON rp.role_id = ur.role_id
-                WHERE ur.user_id = $1 AND p.name = $2
+                WHERE ur.user_id = $1
+                  AND (p.name = $2 OR p.name = $3)
             )
             "#
         )
         .bind(user_id)
         .bind(permission)
+        .bind(manage_permission)
         .fetch_one(pool)
         .await?;
 

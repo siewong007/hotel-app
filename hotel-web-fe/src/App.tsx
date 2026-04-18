@@ -11,7 +11,11 @@ import { BreadcrumbNav } from './components/layout/BreadcrumbNav';
 import { UnauthRoutes, AuthRoutes, FirstLoginPasskeyPrompt, LoadingFallback, MinimalLoadingFallback } from './routes';
 
 function AppContent() {
-  const { isAuthenticated, shouldPromptPasskey, user, dismissPasskeyPrompt } = useAuth();
+  const { isAuthenticated, isLoading, shouldPromptPasskey, user, dismissPasskeyPrompt } = useAuth();
+
+  if (isLoading) {
+    return <LoadingFallback />;
+  }
 
   if (!isAuthenticated) {
     return <UnauthRoutes />;
