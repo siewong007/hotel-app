@@ -28,7 +28,7 @@ pub struct PaginationParams {
     pub page_size: Option<i64>,
     /// General text search: guest name, booking number, folio number, room number
     pub search: Option<String>,
-    /// Filter by exact booking status (e.g. "checked_in", "confirmed"). Omit to exclude voided.
+    /// Filter by exact booking status (e.g. "checked_in", "confirmed"). Pass "all" to include every status (including voided). Omit to exclude voided.
     pub status: Option<String>,
     /// Filter by room number (partial match)
     pub room_number: Option<String>,
@@ -117,11 +117,15 @@ pub async fn get_bookings_handler(
     let mut bind_check_in_from: Option<NaiveDate> = None;
     let mut bind_check_in_to: Option<NaiveDate> = None;
 
-    // 1. Status — explicit filter or default exclude voided
+    // 1. Status — explicit filter, "all" to include every status, or default exclude voided
     if let Some(s) = status {
-        param_idx += 1;
-        conditions.push(format!("b.status = {}", param_placeholder(param_idx)));
-        bind_status = Some(s.to_string());
+        if s.eq_ignore_ascii_case("all") {
+            // include every status, including voided
+        } else {
+            param_idx += 1;
+            conditions.push(format!("b.status = {}", param_placeholder(param_idx)));
+            bind_status = Some(s.to_string());
+        }
     } else {
         conditions.push("b.status != 'voided'".to_string());
     }
@@ -1019,6 +1023,25 @@ pub async fn update_booking_handler(
                     let _ = sqlx::query("UPDATE rooms SET status = 'available' WHERE id = $1")
                         .bind(new_room_id).execute(&pool).await;
                 }
+
+                // Cancel all linked payments so they don't appear in night audit.
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let cancel_payments = sqlx::query(
+                    "UPDATE payments SET status = 'cancelled' WHERE booking_id = ?1 AND status != 'cancelled'"
+                )
+                .bind(booking_id)
+                .execute(&pool)
+                .await;
+                #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+                let cancel_payments = sqlx::query(
+                    "UPDATE payments SET status = 'cancelled' WHERE booking_id = $1 AND status != 'cancelled'"
+                )
+                .bind(booking_id)
+                .execute(&pool)
+                .await;
+                if let Err(e) = cancel_payments {
+                    log::warn!("Failed to cancel payments for voided booking {}: {}", booking_id, e);
+                }
             }
             "checked_out" | "completed" => {
                 // Always set room to 'dirty' on checkout - staff needs to clean before next guest
@@ -1044,6 +1067,18 @@ pub async fn update_booking_handler(
                     .bind(new_room_id).execute(&pool).await;
             }
             _ => {}
+        }
+
+        // Back-fill night audit postings when a booking enters a "stayed" status.
+        // Handles edits that advance a back-dated booking past a closed audit.
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        if matches!(
+            updated_status,
+            "checked_in" | "auto_checked_in" | "checked_out" | "late_checkout" | "completed"
+        ) && let Err(e) = crate::services::night_audit::backfill_booking_posted_nights(
+            &pool, booking_id, user_id,
+        ).await {
+            log::warn!("Failed to backfill posted nights for booking {}: {}", booking_id, e);
         }
     }
 
@@ -1391,6 +1426,15 @@ pub async fn manual_checkin_handler(
         {
             log::warn!("Failed to update room {} to occupied during check-in: {}", booking.room_id, e);
         }
+
+    // Back-fill night audit postings for any past nights whose audit already closed.
+    // Covers same-day walk-ins created after their own 00:00 audit ran.
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    if let Err(e) = crate::services::night_audit::backfill_booking_posted_nights(
+        &pool, booking_id, user_id,
+    ).await {
+        log::warn!("Failed to backfill posted nights for booking {}: {}", booking_id, e);
+    }
 
     // Log check-in
     let _ = AuditLog::log_event(
