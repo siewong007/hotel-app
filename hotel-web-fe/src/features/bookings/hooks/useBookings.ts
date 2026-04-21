@@ -105,7 +105,7 @@ export function useBookings() {
       };
       if (resolvedSearch) apiParams.search = resolvedSearch;
       if (resolvedRoom) apiParams.room_number = resolvedRoom;
-      if (resolvedStatus !== 'all') apiParams.status = resolvedStatus;
+      apiParams.status = resolvedStatus;
       if (resolvedDateFilter === 'today') { apiParams.check_in_from = today; apiParams.check_in_to = today; }
       else if (resolvedDateFilter === 'week') { apiParams.check_in_from = today; apiParams.check_in_to = addDays(today, 7); }
       else if (resolvedDateFilter === 'month') { apiParams.check_in_from = today; apiParams.check_in_to = addDays(today, 30); }
