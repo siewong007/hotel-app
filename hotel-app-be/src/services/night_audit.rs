@@ -11,6 +11,169 @@ use crate::models::{
     JournalEntry, JournalSection, NightAuditRunWithUser, RevenueBreakdownItem,
 };
 
+/// Backfill missing `night_audit_posted_nights` rows for a booking whose stay
+/// overlaps one or more already-completed audit dates.
+///
+/// Runs after a booking transitions into a "stayed" status (e.g. checked_in,
+/// checked_out) so that back-dated bookings — created after the relevant
+/// night audits already closed — still appear on those reports.
+/// Mirrors the per-night calculations of `run_night_audit`.
+/// No-op for bookings in non-stay statuses. Returns the number of nights posted.
+pub async fn backfill_booking_posted_nights(
+    pool: &DbPool,
+    booking_id: i64,
+    posted_by: i64,
+) -> Result<u32, ApiError> {
+    let row = sqlx::query(
+        r#"
+        SELECT b.check_in_date, b.check_out_date, b.room_rate,
+               COALESCE(b.daily_rates, '{}'::jsonb) as daily_rates,
+               COALESCE(b.is_tourist, false) as is_tourist,
+               COALESCE(b.tourism_tax_amount, 0) as tourism_tax_amount,
+               COALESCE(b.extra_bed_charge, 0) as extra_bed_charge,
+               b.status
+        FROM bookings b
+        WHERE b.id = $1
+        "#,
+    )
+    .bind(booking_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .ok_or_else(|| ApiError::NotFound(format!("Booking {} not found", booking_id)))?;
+
+    let status: String = row.get("status");
+    if matches!(
+        status.as_str(),
+        "pending" | "confirmed" | "cancelled" | "no_show" | "voided"
+    ) {
+        return Ok(0);
+    }
+
+    let check_in: NaiveDate = row.get("check_in_date");
+    let check_out: NaiveDate = row.get("check_out_date");
+    let room_rate: Decimal = row.get("room_rate");
+    let daily_rates: serde_json::Value = row.get("daily_rates");
+    let is_tourist: bool = row.get("is_tourist");
+    let tourism_tax_amount: Decimal = row.get("tourism_tax_amount");
+    let extra_bed_charge_full: Decimal = row.get("extra_bed_charge");
+
+    let tax_rate_pct: Decimal = sqlx::query_scalar::<_, String>(
+        "SELECT value FROM system_settings WHERE key = 'service_tax_rate'",
+    )
+    .fetch_optional(pool)
+    .await
+    .unwrap_or(None)
+    .and_then(|v| v.parse::<Decimal>().ok())
+    .unwrap_or(Decimal::new(8, 0));
+    let divisor = Decimal::ONE + tax_rate_pct / Decimal::new(100, 0);
+
+    let is_hourly = check_in == check_out;
+    let nights_total = (check_out - check_in).num_days().max(1);
+    let tourism_tax_per_night = if is_tourist && tourism_tax_amount > Decimal::ZERO {
+        if is_hourly {
+            tourism_tax_amount
+        } else {
+            (tourism_tax_amount / Decimal::from(nights_total)).round_dp(2)
+        }
+    } else {
+        Decimal::ZERO
+    };
+
+    let (eb_charge_per_night, eb_tax_per_night) = if extra_bed_charge_full > Decimal::ZERO {
+        let c = (extra_bed_charge_full / divisor).round_dp(2);
+        (c, extra_bed_charge_full - c)
+    } else {
+        (Decimal::ZERO, Decimal::ZERO)
+    };
+
+    let iter_end = if is_hourly {
+        check_in
+            .succ_opt()
+            .ok_or_else(|| ApiError::Database("Date overflow".to_string()))?
+    } else {
+        check_out
+    };
+
+    let mut date = check_in;
+    let mut inserted: u32 = 0;
+
+    while date < iter_end {
+        let audit_run_id: Option<i64> = sqlx::query_scalar(
+            "SELECT id FROM night_audit_runs WHERE audit_date = $1 AND status = 'completed' LIMIT 1",
+        )
+        .bind(date)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if let Some(run_id) = audit_run_id {
+            let date_key = date.format("%Y-%m-%d").to_string();
+            let night_rate = daily_rates
+                .as_object()
+                .and_then(|o| o.get(&date_key))
+                .and_then(|v| {
+                    v.as_str()
+                        .and_then(|s| s.parse::<Decimal>().ok())
+                        .or_else(|| v.as_f64().and_then(Decimal::from_f64_retain))
+                })
+                .unwrap_or(room_rate);
+
+            let room_charge = (night_rate / divisor).round_dp(2);
+            let service_tax = night_rate - room_charge;
+            let night_total = night_rate + extra_bed_charge_full + tourism_tax_per_night;
+
+            let res = sqlx::query(
+                r#"
+                INSERT INTO night_audit_posted_nights
+                    (booking_id, audit_date, room_rate, room_charge, service_tax, tourism_tax,
+                     extra_bed_charge, extra_bed_tax, total_posted, audit_run_id, posted_by)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                ON CONFLICT (booking_id, audit_date) DO NOTHING
+                "#,
+            )
+            .bind(booking_id)
+            .bind(date)
+            .bind(night_rate)
+            .bind(room_charge)
+            .bind(service_tax)
+            .bind(tourism_tax_per_night)
+            .bind(eb_charge_per_night)
+            .bind(eb_tax_per_night)
+            .bind(night_total)
+            .bind(run_id)
+            .bind(posted_by)
+            .execute(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+            if res.rows_affected() > 0 {
+                sqlx::query(
+                    r#"
+                    UPDATE night_audit_runs
+                    SET total_bookings_posted = COALESCE(total_bookings_posted, 0) + 1,
+                        total_revenue = COALESCE(total_revenue, 0) + $2
+                    WHERE id = $1
+                    "#,
+                )
+                .bind(run_id)
+                .bind(night_total)
+                .execute(pool)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+
+                inserted += 1;
+            }
+        }
+
+        date = date
+            .succ_opt()
+            .ok_or_else(|| ApiError::Database("Date overflow".to_string()))?;
+    }
+
+    Ok(inserted)
+}
+
 /// Check whether a completed audit run exists for the given date.
 pub async fn is_audit_completed(pool: &DbPool, audit_date: NaiveDate) -> bool {
     sqlx::query_scalar::<_, Option<bool>>(
@@ -152,6 +315,7 @@ pub async fn fetch_breakdown_for_date(
         FROM night_audit_posted_nights napn
         JOIN bookings b ON napn.booking_id = b.id
         WHERE napn.audit_date = $1
+          AND b.status != 'voided'
         "#,
     )
     .bind(audit_date)
@@ -460,6 +624,7 @@ pub async fn generate_journal_sections(
         JOIN rooms r ON b.room_id = r.id
         WHERE p.status = 'completed'
         AND p.payment_type != 'refund'
+        AND b.status != 'voided'
         AND (p.created_at AT TIME ZONE $2)::date = $1
         ORDER BY r.room_number
     "#;
@@ -533,7 +698,9 @@ pub async fn generate_journal_sections(
         }
     }
 
-    // Deposit refunds on checkout day
+    // Deposit refunds are attributed to the booking's scheduled check_out_date
+    // (not actual_check_out) so that back-dated check-outs land on the audit
+    // date they logically belong to.
     let refund_query = r#"
         SELECT
             b.booking_number,
@@ -543,14 +710,13 @@ pub async fn generate_journal_sections(
         FROM bookings b
         JOIN rooms r ON b.room_id = r.id
         WHERE b.status = 'checked_out'
-        AND COALESCE((b.actual_check_out AT TIME ZONE $2)::date, b.check_out_date) = $1
+        AND b.check_out_date = $1
         AND (COALESCE(b.room_card_deposit, 0) > 0 OR COALESCE(b.deposit_amount, 0) > 0)
         ORDER BY r.room_number
     "#;
 
     match sqlx::query(refund_query)
         .bind(audit_date)
-        .bind(&hotel_timezone)
         .fetch_all(pool)
         .await
     {
