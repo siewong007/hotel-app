@@ -698,25 +698,30 @@ pub async fn generate_journal_sections(
         }
     }
 
-    // Deposit refunds are attributed to the booking's scheduled check_out_date
-    // (not actual_check_out) so that back-dated check-outs land on the audit
-    // date they logically belong to.
+    // Deposit refunds are driven by the refund payment record itself: one entry
+    // per payments row with payment_type='refund' whose created_at (in hotel TZ)
+    // falls on the audit date. Amount comes from the payment, not the booking's
+    // deposit_amount column.
     let refund_query = r#"
         SELECT
             b.booking_number,
             r.room_number,
-            COALESCE(b.room_card_deposit, 0) as room_card_deposit,
-            COALESCE(b.deposit_amount, 0) as deposit_amount
-        FROM bookings b
+            p.amount,
+            p.payment_method,
+            p.notes
+        FROM payments p
+        JOIN bookings b ON p.booking_id = b.id
         JOIN rooms r ON b.room_id = r.id
-        WHERE b.status = 'checked_out'
-        AND b.check_out_date = $1
-        AND (COALESCE(b.room_card_deposit, 0) > 0 OR COALESCE(b.deposit_amount, 0) > 0)
+        WHERE p.payment_type = 'refund'
+        AND p.status = 'refunded'
+        AND b.status != 'voided'
+        AND (p.created_at AT TIME ZONE $2)::date = $1
         ORDER BY r.room_number
     "#;
 
     match sqlx::query(refund_query)
         .bind(audit_date)
+        .bind(&hotel_timezone)
         .fetch_all(pool)
         .await
     {
@@ -724,29 +729,21 @@ pub async fn generate_journal_sections(
             for row in &refund_rows {
                 let booking_number: String = row.get("booking_number");
                 let room_number: String = row.get("room_number");
-                let room_card_deposit: Decimal = row.get("room_card_deposit");
-                let deposit_amount: Decimal = row.get("deposit_amount");
+                let amount: Decimal = row.get("amount");
+                let notes: Option<String> = row.try_get("notes").ok();
 
-                if room_card_deposit > Decimal::ZERO {
-                    entries.push(JournalEntry {
-                        booking_number: booking_number.clone(),
-                        room_number: room_number.clone(),
-                        entry_type: "deposit_refund".to_string(),
-                        debit: Decimal::ZERO,
-                        credit: room_card_deposit,
-                        description: Some("Deposit Refund".to_string()),
-                    });
-                }
-                if deposit_amount > Decimal::ZERO && deposit_amount != room_card_deposit {
-                    entries.push(JournalEntry {
-                        booking_number: booking_number.clone(),
-                        room_number: room_number.clone(),
-                        entry_type: "deposit_refund".to_string(),
-                        debit: Decimal::ZERO,
-                        credit: deposit_amount,
-                        description: Some("Deposit Refund".to_string()),
-                    });
-                }
+                entries.push(JournalEntry {
+                    booking_number,
+                    room_number,
+                    entry_type: "deposit_refund".to_string(),
+                    debit: Decimal::ZERO,
+                    credit: amount,
+                    description: Some(
+                        notes
+                            .filter(|s| !s.trim().is_empty())
+                            .unwrap_or_else(|| "Deposit Refund".to_string()),
+                    ),
+                });
             }
         }
         Err(e) => {
