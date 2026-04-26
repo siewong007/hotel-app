@@ -133,7 +133,7 @@ pub fn bool_false() -> &'static str {
 }
 
 /// Helper for NULL type casting
-pub fn null_type(pg_type: &str) -> String {
+pub fn null_type(_pg_type: &str) -> String {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     {
         "NULL".to_string()
@@ -143,7 +143,7 @@ pub fn null_type(pg_type: &str) -> String {
         all(feature = "sqlite", feature = "postgres")
     ))]
     {
-        format!("NULL::{}", pg_type)
+        format!("NULL::{}", _pg_type)
     }
 }
 

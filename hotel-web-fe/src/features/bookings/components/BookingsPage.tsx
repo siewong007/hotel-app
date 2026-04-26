@@ -39,7 +39,6 @@ import {
   Refresh as RefreshIcon,
   EventAvailable as BookIcon,
   Hotel as HotelIcon,
-  Edit as EditIcon,
   CheckCircle as CheckCircleIcon,
   ExitToApp as CheckOutIcon,
   Search as SearchIcon,
@@ -683,7 +682,7 @@ const BookingsPage: React.FC = () => {
             <TextField
               fullWidth
               size="small"
-              placeholder="Search by guest, folio..."
+              placeholder="Search by guest, invoice, folio..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               InputProps={{
@@ -849,13 +848,13 @@ const BookingsPage: React.FC = () => {
 
       {/* Bookings Table */}
       <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid #edf2f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
-        <TableContainer>
-          <Table size="small" sx={{ minWidth: 900 }}>
+        <TableContainer sx={{ overflowX: 'hidden' }}>
+          <Table size="small" sx={{ width: '100%' }}>
             <TableHead>
               <TableRow sx={{ bgcolor: '#fbfcfc' }}>
                 <TableCell>
-                  <TableSortLabel active={sortField === 'folio_number'} direction={sortField === 'folio_number' ? sortOrder : 'asc'} onClick={() => handleSort('folio_number')}>
-                    Booking #
+                  <TableSortLabel active={sortField === 'invoice_number'} direction={sortField === 'invoice_number' ? sortOrder : 'asc'} onClick={() => handleSort('invoice_number')}>
+                    Invoice #
                   </TableSortLabel>
                 </TableCell>
                 <TableCell>
@@ -881,14 +880,11 @@ const BookingsPage: React.FC = () => {
                 <TableCell>Rate</TableCell>
                 <TableCell>Channel</TableCell>
                 <TableCell>Payment</TableCell>
-                <TableCell>Notes</TableCell>
                 <TableCell>
                   <TableSortLabel active={sortField === 'status'} direction={sortField === 'status' ? sortOrder : 'asc'} onClick={() => handleSort('status')}>
                     Status
                   </TableSortLabel>
                 </TableCell>
-                {isAdmin && <TableCell align="center">Check In</TableCell>}
-                {isAdmin && <TableCell align="center">Edit</TableCell>}
                 {isAdmin && <TableCell align="center">Payment</TableCell>}
                 {isAdmin && <TableCell align="center">Void</TableCell>}
                 {isAdmin && <TableCell align="center">Invoice</TableCell>}
@@ -899,7 +895,9 @@ const BookingsPage: React.FC = () => {
                 <TableRow
                   key={booking.id}
                   hover
+                  onClick={isAdmin ? () => handleEditBooking(booking) : undefined}
                   sx={{
+                    cursor: isAdmin ? 'pointer' : 'default',
                     opacity: booking.status === 'voided' ? 0.55 : 1,
                     bgcolor: booking.status === 'voided' ? 'grey.50' : 'inherit',
                     '& td': {
@@ -909,7 +907,7 @@ const BookingsPage: React.FC = () => {
                 >
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                      {booking.booking_number || booking.folio_number || '-'}
+                      {booking.invoice_number || '-'}
                     </Typography>
                   </TableCell>
                   <TableCell>
@@ -961,11 +959,6 @@ const BookingsPage: React.FC = () => {
                     </Box>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" sx={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {[booking.remarks, booking.special_requests].filter(Boolean).join(' | ') || '-'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
                     <Chip
                       label={getBookingStatusText(booking.status)}
                       color={getBookingStatusColor(booking.status)}
@@ -974,33 +967,7 @@ const BookingsPage: React.FC = () => {
                     />
                   </TableCell>
                   {isAdmin && (
-                    <TableCell align="center">
-                      {canCheckIn(booking) ? (
-                        <Tooltip title="Check In">
-                          <IconButton size="small" onClick={() => handleCheckIn(booking.id)} color="success">
-                            <LoginIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      ) : canCheckOut(booking) ? (
-                        <Tooltip title="Check Out">
-                          <IconButton size="small" onClick={() => handleCheckOut(booking)} color="warning">
-                            <CheckOutIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      ) : null}
-                    </TableCell>
-                  )}
-                  {isAdmin && (
-                    <TableCell align="center">
-                      <Tooltip title="Edit Booking">
-                        <IconButton size="small" onClick={() => handleEditBooking(booking)} color="primary">
-                          <EditIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  )}
-                  {isAdmin && (
-                    <TableCell align="center">
+                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                       {!booking.is_complimentary && (
                         <Tooltip title="Collect Payment">
                           <IconButton size="small" onClick={() => handleUpdatePaymentStatus(booking)} color="info">
@@ -1011,7 +978,7 @@ const BookingsPage: React.FC = () => {
                     </TableCell>
                   )}
                   {isAdmin && (
-                    <TableCell align="center">
+                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                       {canVoid(booking) && (
                         <Tooltip title="Void Booking">
                           <IconButton size="small" onClick={() => handleVoidBooking(booking)} sx={{ color: 'text.secondary' }}>
@@ -1029,8 +996,8 @@ const BookingsPage: React.FC = () => {
                     </TableCell>
                   )}
                   {isAdmin && (
-                    <TableCell align="center">
-                      {booking.status === 'checked_out' && (
+                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
+                      {['checked_out', 'completed'].includes(booking.status) && (
                         <Tooltip title="View Invoice">
                           <IconButton size="small" onClick={() => handleViewInvoice(booking)} color="primary">
                             <ReceiptIcon fontSize="small" />

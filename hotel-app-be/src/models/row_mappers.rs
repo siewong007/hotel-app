@@ -13,13 +13,12 @@ use crate::core::db::DbRow;
 // Helper functions for reading Decimal values from SQLite rows
 // =============================================================================
 
-/// Read a required Decimal field from a row (tries Decimal first for PostgreSQL, then String, then f64)
+/// Read a required Decimal field from a PostgreSQL row.
+#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub fn get_decimal(row: &DbRow, col: &str) -> Decimal {
-    // For PostgreSQL: try reading as Decimal directly (works with numeric columns)
     row.try_get::<Decimal, _>(col)
         .ok()
         .or_else(|| {
-            // For SQLite or text columns: try reading as String and parse
             row.try_get::<String, _>(col)
                 .ok()
                 .and_then(|s| s.parse().ok())
@@ -33,14 +32,27 @@ pub fn get_decimal(row: &DbRow, col: &str) -> Decimal {
         .unwrap_or_default()
 }
 
-/// Read an optional Decimal field from a row
+/// Read a required Decimal field from a SQLite row.
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+pub fn get_decimal(row: &DbRow, col: &str) -> Decimal {
+    row.try_get::<String, _>(col)
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .or_else(|| {
+            row.try_get::<f64, _>(col)
+                .ok()
+                .and_then(Decimal::from_f64_retain)
+        })
+        .unwrap_or_default()
+}
+
+/// Read an optional Decimal field from a PostgreSQL row.
+#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub fn get_opt_decimal(row: &DbRow, col: &str) -> Option<Decimal> {
-    // For PostgreSQL: try reading as Decimal directly (works with numeric columns)
     row.try_get::<Option<Decimal>, _>(col)
         .ok()
         .flatten()
         .or_else(|| {
-            // For SQLite or text columns: try reading as String and parse
             row.try_get::<Option<String>, _>(col)
                 .ok()
                 .flatten()
@@ -48,6 +60,21 @@ pub fn get_opt_decimal(row: &DbRow, col: &str) -> Option<Decimal> {
         })
         .or_else(|| {
             // Fallback: try reading as f64 and convert
+            row.try_get::<Option<f64>, _>(col)
+                .ok()
+                .flatten()
+                .and_then(Decimal::from_f64_retain)
+        })
+}
+
+/// Read an optional Decimal field from a SQLite row.
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+pub fn get_opt_decimal(row: &DbRow, col: &str) -> Option<Decimal> {
+    row.try_get::<Option<String>, _>(col)
+        .ok()
+        .flatten()
+        .and_then(|s| s.parse().ok())
+        .or_else(|| {
             row.try_get::<Option<f64>, _>(col)
                 .ok()
                 .flatten()
@@ -104,8 +131,12 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
         room_number: row.try_get("room_number").unwrap_or_default(),
         room_type: row.try_get("room_type").unwrap_or_default(),
         room_type_code: row.try_get("room_type_code").ok(),
-        check_in_date: row.try_get("check_in_date").unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
-        check_out_date: row.try_get("check_out_date").unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
+        check_in_date: row
+            .try_get("check_in_date")
+            .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
+        check_out_date: row
+            .try_get("check_out_date")
+            .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
         room_rate: get_decimal(row, "room_rate"),
         total_amount: get_decimal(row, "total_amount"),
         status: row.try_get("status").unwrap_or_default(),
@@ -137,6 +168,7 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
         rate_override_weekend: get_opt_decimal(row, "rate_override_weekend"),
         actual_check_out: row.try_get("actual_check_out").ok(),
         daily_rates: row.try_get("daily_rates").ok().flatten(),
+        invoice_number: row.try_get("invoice_number").ok(),
     }
 }
 
@@ -152,8 +184,12 @@ pub fn row_to_booking(row: &DbRow) -> Booking {
         booking_number: row.try_get("booking_number").unwrap_or_default(),
         guest_id: row.try_get("guest_id").unwrap_or_default(),
         room_id: row.try_get("room_id").unwrap_or_default(),
-        check_in_date: row.try_get("check_in_date").unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
-        check_out_date: row.try_get("check_out_date").unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
+        check_in_date: row
+            .try_get("check_in_date")
+            .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
+        check_out_date: row
+            .try_get("check_out_date")
+            .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
         room_rate: get_decimal(row, "room_rate"),
         subtotal: get_decimal(row, "subtotal"),
         tax_amount: get_opt_decimal(row, "tax_amount"),
@@ -198,7 +234,7 @@ pub fn row_to_booking(row: &DbRow) -> Booking {
 // Payment mapper
 // =============================================================================
 
-use super::payment::{Payment, Invoice, KeycardDeposit};
+use super::payment::{Invoice, KeycardDeposit, Payment};
 
 pub fn row_to_payment(row: &DbRow) -> Payment {
     Payment {
@@ -234,7 +270,9 @@ pub fn row_to_invoice(row: &DbRow) -> Invoice {
         billing_address: row.try_get("billing_address").ok(),
         billing_email: row.try_get("billing_email").ok(),
         invoice_date: row.try_get("invoice_date").ok(),
-        issue_date: row.try_get("issue_date").unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
+        issue_date: row
+            .try_get("issue_date")
+            .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
         due_date: row.try_get("due_date").ok(),
         check_in_date: row.try_get("check_in_date").ok(),
         check_out_date: row.try_get("check_out_date").ok(),
@@ -247,7 +285,9 @@ pub fn row_to_invoice(row: &DbRow) -> Invoice {
         total_amount: get_decimal(row, "total_amount"),
         paid_amount: get_decimal(row, "paid_amount"),
         balance_due: get_decimal(row, "balance_due"),
-        currency: row.try_get("currency").unwrap_or_else(|_| "MYR".to_string()),
+        currency: row
+            .try_get("currency")
+            .unwrap_or_else(|_| "MYR".to_string()),
         status: row.try_get("status").unwrap_or_default(),
         notes: row.try_get("notes").ok(),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
@@ -309,7 +349,9 @@ pub fn row_to_room_rate(row: &DbRow) -> RoomRate {
         rate_plan_id: row.try_get("rate_plan_id").unwrap_or_default(),
         room_type_id: row.try_get("room_type_id").unwrap_or_default(),
         price: get_decimal(row, "price"),
-        effective_from: row.try_get("effective_from").unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
+        effective_from: row
+            .try_get("effective_from")
+            .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
         effective_to: row.try_get("effective_to").ok(),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
     }
@@ -325,7 +367,9 @@ pub fn row_to_room_rate_with_details(row: &DbRow) -> RoomRateWithDetails {
         room_type_name: row.try_get("room_type_name").unwrap_or_default(),
         room_type_code: row.try_get("room_type_code").unwrap_or_default(),
         price: get_decimal(row, "price"),
-        effective_from: row.try_get("effective_from").unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
+        effective_from: row
+            .try_get("effective_from")
+            .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
         effective_to: row.try_get("effective_to").ok(),
     }
 }
@@ -334,9 +378,17 @@ pub fn row_to_room_rate_with_details(row: &DbRow) -> RoomRateWithDetails {
 // Ledger mappers
 // =============================================================================
 
-use super::ledger::{CustomerLedger, CustomerLedgerPayment, PatTransactionCode};
+use super::ledger::{CustomerLedger, CustomerLedgerPayment};
 
 pub fn row_to_customer_ledger(row: &DbRow) -> CustomerLedger {
+    let status: String = row.try_get("status").unwrap_or_default();
+    let void_at = row.try_get("void_at").ok();
+    let balance_due = if status == "cancelled" || void_at.is_some() {
+        Decimal::ZERO
+    } else {
+        get_decimal(row, "balance_due")
+    };
+
     CustomerLedger {
         id: row.try_get("id").unwrap_or_default(),
         company_name: row.try_get("company_name").unwrap_or_default(),
@@ -353,9 +405,9 @@ pub fn row_to_customer_ledger(row: &DbRow) -> CustomerLedger {
         expense_type: row.try_get("expense_type").unwrap_or_default(),
         amount: get_decimal(row, "amount"),
         currency: row.try_get("currency").ok(),
-        status: row.try_get("status").unwrap_or_default(),
+        status,
         paid_amount: get_decimal(row, "paid_amount"),
-        balance_due: get_decimal(row, "balance_due"),
+        balance_due,
         payment_method: row.try_get("payment_method").ok(),
         payment_reference: row.try_get("payment_reference").ok(),
         payment_date: row.try_get("payment_date").ok(),
@@ -368,8 +420,12 @@ pub fn row_to_customer_ledger(row: &DbRow) -> CustomerLedger {
         internal_notes: row.try_get("internal_notes").ok(),
         created_by: row.try_get("created_by").ok(),
         updated_by: row.try_get("updated_by").ok(),
-        created_at: row.try_get("created_at").unwrap_or_else(|_| NaiveDateTime::default()),
-        updated_at: row.try_get("updated_at").unwrap_or_else(|_| NaiveDateTime::default()),
+        created_at: row
+            .try_get("created_at")
+            .unwrap_or_else(|_| NaiveDateTime::default()),
+        updated_at: row
+            .try_get("updated_at")
+            .unwrap_or_else(|_| NaiveDateTime::default()),
         folio_number: row.try_get("folio_number").ok(),
         folio_type: row.try_get("folio_type").ok(),
         transaction_type: row.try_get("transaction_type").ok(),
@@ -389,7 +445,7 @@ pub fn row_to_customer_ledger(row: &DbRow) -> CustomerLedger {
         net_amount: get_opt_decimal(row, "net_amount"),
         is_posted: get_opt_bool(row, "is_posted"),
         posted_at: row.try_get("posted_at").ok(),
-        void_at: row.try_get("void_at").ok(),
+        void_at,
         void_by: row.try_get("void_by").ok(),
         void_reason: row.try_get("void_reason").ok(),
     }
@@ -402,29 +458,16 @@ pub fn row_to_customer_ledger_payment(row: &DbRow) -> CustomerLedgerPayment {
         payment_amount: get_decimal(row, "payment_amount"),
         payment_method: row.try_get("payment_method").unwrap_or_default(),
         payment_reference: row.try_get("payment_reference").ok(),
-        payment_date: row.try_get("payment_date").unwrap_or_else(|_| NaiveDateTime::default()),
+        payment_date: row
+            .try_get("payment_date")
+            .unwrap_or_else(|_| NaiveDateTime::default()),
         receipt_number: row.try_get("receipt_number").ok(),
         receipt_file_url: row.try_get("receipt_file_url").ok(),
         notes: row.try_get("notes").ok(),
         processed_by: row.try_get("processed_by").ok(),
-        created_at: row.try_get("created_at").unwrap_or_else(|_| NaiveDateTime::default()),
-    }
-}
-
-pub fn row_to_pat_transaction_code(row: &DbRow) -> PatTransactionCode {
-    PatTransactionCode {
-        id: row.try_get("id").unwrap_or_default(),
-        code: row.try_get("code").unwrap_or_default(),
-        name: row.try_get("name").unwrap_or_default(),
-        post_type: row.try_get("post_type").unwrap_or_default(),
-        department_code: row.try_get("department_code").ok(),
-        default_amount: get_opt_decimal(row, "default_amount"),
-        is_taxable: get_bool(row, "is_taxable"),
-        is_service_chargeable: get_bool(row, "is_service_chargeable"),
-        gl_account_code: row.try_get("gl_account_code").ok(),
-        is_active: get_bool(row, "is_active"),
-        sort_order: row.try_get("sort_order").unwrap_or(0),
-        created_at: row.try_get("created_at").unwrap_or_else(|_| NaiveDateTime::default()),
+        created_at: row
+            .try_get("created_at")
+            .unwrap_or_else(|_| NaiveDateTime::default()),
     }
 }
 
@@ -485,7 +528,9 @@ pub fn row_to_loyalty_reward(row: &DbRow) -> LoyaltyReward {
 // Room mappers
 // =============================================================================
 
-use super::room::{RoomType, GuestReview, RoomCurrentOccupancy, HotelOccupancySummary, OccupancyByRoomType};
+use super::room::{
+    GuestReview, HotelOccupancySummary, OccupancyByRoomType, RoomCurrentOccupancy, RoomType,
+};
 
 pub fn row_to_room_type(row: &DbRow) -> RoomType {
     RoomType {

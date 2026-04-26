@@ -3,10 +3,11 @@
 //! Handles company CRUD operations for direct billing.
 
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::HeaderMap,
-    Json,
 };
+#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
@@ -140,22 +141,20 @@ pub async fn create_company_handler(
 
     // Check if company with same name already exists
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let existing: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM companies WHERE LOWER(company_name) = LOWER(?1)",
-    )
-    .bind(&input.company_name)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let existing: Option<(i64,)> =
+        sqlx::query_as("SELECT id FROM companies WHERE LOWER(company_name) = LOWER(?1)")
+            .bind(&input.company_name)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let existing: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM companies WHERE LOWER(company_name) = LOWER($1)",
-    )
-    .bind(&input.company_name)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let existing: Option<(i64,)> =
+        sqlx::query_as("SELECT id FROM companies WHERE LOWER(company_name) = LOWER($1)")
+            .bind(&input.company_name)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if existing.is_some() {
         return Err(ApiError::Conflict(format!(
@@ -164,8 +163,9 @@ pub async fn create_company_handler(
         )));
     }
 
-    // Convert credit_limit to f64 for database binding (works for both SQLite and PostgreSQL)
-    let _credit_limit_f64 = input.credit_limit;
+    // Convert credit_limit to f64 for SQLite database binding.
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let credit_limit_f64 = input.credit_limit;
 
     // SQLite version: no RETURNING clause, use separate SELECT
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
@@ -224,7 +224,9 @@ pub async fn create_company_handler(
     // PostgreSQL version: use RETURNING clause
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let company = {
-        let credit_limit = input.credit_limit.map(|v| Decimal::from_f64_retain(v).unwrap_or_default());
+        let credit_limit = input
+            .credit_limit
+            .map(|v| Decimal::from_f64_retain(v).unwrap_or_default());
 
         let row = sqlx::query(
             r#"
@@ -374,7 +376,9 @@ pub async fn update_company_handler(
     // PostgreSQL version: use $N parameters, NOW(), native booleans
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     {
-        let credit_limit = input.credit_limit.map(|v| Decimal::from_f64_retain(v).unwrap_or_default());
+        let credit_limit = input
+            .credit_limit
+            .map(|v| Decimal::from_f64_retain(v).unwrap_or_default());
 
         sqlx::query(
             r#"

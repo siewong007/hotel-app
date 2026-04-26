@@ -39,7 +39,7 @@
 \echo '[9/10] Setting up payments & invoices...';
 \i /docker-entrypoint-initdb.d/migrations/009_payments_invoices.sql
 
-\echo '[10/10] Creating customer ledgers (PAT system)...';
+\echo '[10/10] Creating customer ledgers...';
 \i /docker-entrypoint-initdb.d/migrations/010_customer_ledgers.sql
 
 \echo '';
