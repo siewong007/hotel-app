@@ -148,13 +148,17 @@ pub async fn get_bookings_handler(
         bind_room_number = Some(format!("%{}%", rn.trim()));
     }
 
-    // 4. Date filters — date_search matches either check-in or check-out
+    // 4. Date filters — date_search matches any night the booking occupies
+    // (check_in <= date AND date < check_out), plus same-day/hourly bookings
+    // where check_in == check_out == date.
     if let Some(ds) = params.date_search {
         param_idx += 1;
         let p = param_placeholder(param_idx);
         let col_in = date_cast("b.check_in_date");
         let col_out = date_cast("b.check_out_date");
-        conditions.push(format!("({col_in} = {p} OR {col_out} = {p})"));
+        conditions.push(format!(
+            "({col_in} <= {p} AND ({col_out} > {p} OR {col_in} = {col_out}))"
+        ));
         bind_date_search = Some(ds);
     } else {
         if let Some(from) = params.check_in_from {

@@ -799,21 +799,48 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   </>
                 )}
 
-                {/* Tourism Tax */}
-                {charges.tourismTax > 0 && (
-                  <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
-                    <Grid container>
-                      <Grid size={8}>
-                        <Typography variant="body2">Tourism Tax</Typography>
-                      </Grid>
-                      <Grid sx={{ textAlign: 'right' }} size={4}>
-                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {formatCurrency(charges.tourismTax)}
-                        </Typography>
-                      </Grid>
-                    </Grid>
-                  </Box>
-                )}
+                {/* Tourism Tax — billed per night */}
+                {charges.tourismTax > 0 && (() => {
+                  const nights = calculateNights();
+                  if (isHourlyBooking || nights <= 0) {
+                    return (
+                      <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
+                        <Grid container>
+                          <Grid size={8}>
+                            <Typography variant="body2">Tourism Tax</Typography>
+                          </Grid>
+                          <Grid sx={{ textAlign: 'right' }} size={4}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {formatCurrency(charges.tourismTax)}
+                            </Typography>
+                          </Grid>
+                        </Grid>
+                      </Box>
+                    );
+                  }
+                  const perNight = charges.tourismTax / nights;
+                  const checkIn = new Date(booking.check_in_date);
+                  return Array.from({ length: nights }, (_, i) => {
+                    const date = new Date(checkIn);
+                    date.setDate(date.getDate() + i);
+                    return (
+                      <Box key={`tt-${i}`} sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
+                        <Grid container>
+                          <Grid size={8}>
+                            <Typography variant="body2">
+                              Tourism Tax — {date.toLocaleDateString()}
+                            </Typography>
+                          </Grid>
+                          <Grid sx={{ textAlign: 'right' }} size={4}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {formatCurrency(perNight)}
+                            </Typography>
+                          </Grid>
+                        </Grid>
+                      </Box>
+                    );
+                  });
+                })()}
 
                 {/* Extra Bed */}
                 {charges.extraBedCharge > 0 && (
@@ -1545,21 +1572,46 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </>
               )}
 
-              {/* Tourism Tax */}
-              {charges.tourismTax > 0 && (
-                <>
-                  <Grid size={8}>
-                    <Typography variant="body2" color="text.secondary">
-                      Tourism Tax
-                    </Typography>
-                  </Grid>
-                  <Grid sx={{ textAlign: 'right' }} size={4}>
-                    <Typography variant="body2">
-                      {formatCurrency(charges.tourismTax)}
-                    </Typography>
-                  </Grid>
-                </>
-              )}
+              {/* Tourism Tax — billed per night */}
+              {charges.tourismTax > 0 && (() => {
+                const nights = calculateNights();
+                if (isHourlyBooking || nights <= 0) {
+                  return (
+                    <React.Fragment key="tt-single">
+                      <Grid size={8}>
+                        <Typography variant="body2" color="text.secondary">
+                          Tourism Tax
+                        </Typography>
+                      </Grid>
+                      <Grid sx={{ textAlign: 'right' }} size={4}>
+                        <Typography variant="body2">
+                          {formatCurrency(charges.tourismTax)}
+                        </Typography>
+                      </Grid>
+                    </React.Fragment>
+                  );
+                }
+                const perNight = charges.tourismTax / nights;
+                const checkIn = new Date(booking.check_in_date);
+                return Array.from({ length: nights }, (_, i) => {
+                  const date = new Date(checkIn);
+                  date.setDate(date.getDate() + i);
+                  return (
+                    <React.Fragment key={`tt-${i}`}>
+                      <Grid size={8}>
+                        <Typography variant="body2" color="text.secondary">
+                          Tourism Tax — {date.toLocaleDateString()}
+                        </Typography>
+                      </Grid>
+                      <Grid sx={{ textAlign: 'right' }} size={4}>
+                        <Typography variant="body2">
+                          {formatCurrency(perNight)}
+                        </Typography>
+                      </Grid>
+                    </React.Fragment>
+                  );
+                });
+              })()}
 
               {/* Extra Bed */}
               {charges.extraBedCharge > 0 && (
@@ -1865,12 +1917,29 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               })()
             )}
 
-            {charges.tourismTax > 0 && (
-              <tr>
-                <td>Tourism Tax</td>
-                <td className="amount">{formatCurrency(charges.tourismTax)}</td>
-              </tr>
-            )}
+            {charges.tourismTax > 0 && (() => {
+              const ttNights = calculateNights();
+              if (isHourlyBooking || ttNights <= 0) {
+                return (
+                  <tr>
+                    <td>Tourism Tax</td>
+                    <td className="amount">{formatCurrency(charges.tourismTax)}</td>
+                  </tr>
+                );
+              }
+              const perNight = charges.tourismTax / ttNights;
+              const ttCheckIn = new Date(booking.check_in_date);
+              return Array.from({ length: ttNights }, (_, i) => {
+                const date = new Date(ttCheckIn);
+                date.setDate(date.getDate() + i);
+                return (
+                  <tr key={`tt-print-${i}`}>
+                    <td>Tourism Tax — {date.toLocaleDateString()}</td>
+                    <td className="amount">{formatCurrency(perNight)}</td>
+                  </tr>
+                );
+              });
+            })()}
 
             {charges.extraBedCharge > 0 && (
               <>
