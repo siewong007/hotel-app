@@ -210,7 +210,7 @@ export class HotelAPIService {
   static rejectEkycVerification = EkycService.rejectEkycVerification;
   static uploadEkycDocument = EkycService.uploadEkycDocument;
 
-  // Ledger operations (including PAT-style)
+  // Ledger operations
   static getCustomerLedgers = LedgerService.getCustomerLedgers;
   static getLedgersPage = LedgerService.getLedgersPage;
   static getCustomerLedger = LedgerService.getCustomerLedger;
@@ -223,8 +223,6 @@ export class HotelAPIService {
   static createLedgerPayment = LedgerService.createLedgerPayment;
   static updateLedgerPaymentDate = LedgerService.updateLedgerPaymentDate;
   static deleteLedgerPayment = LedgerService.deleteLedgerPayment;
-  static getTransactionCodes = LedgerService.getTransactionCodes;
-  static getDepartmentCodes = LedgerService.getDepartmentCodes;
   static voidLedger = LedgerService.voidLedger;
   static reverseLedger = LedgerService.reverseLedger;
 

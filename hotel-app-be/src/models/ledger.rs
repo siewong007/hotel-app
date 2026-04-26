@@ -5,7 +5,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-/// Customer ledger entry with PAT-style fields
+/// Customer ledger entry.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct CustomerLedger {
     pub id: i64,
@@ -40,7 +40,7 @@ pub struct CustomerLedger {
     pub updated_by: Option<i64>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    // PAT-style fields
+    // Ledger accounting fields
     pub folio_number: Option<String>,
     pub folio_type: Option<String>,
     pub transaction_type: Option<String>,
@@ -65,7 +65,7 @@ pub struct CustomerLedger {
     pub void_reason: Option<String>,
 }
 
-/// Input for creating a customer ledger entry with PAT-style fields
+/// Input for creating a customer ledger entry.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CustomerLedgerCreateRequest {
     pub company_name: String,
@@ -88,7 +88,7 @@ pub struct CustomerLedgerCreateRequest {
     pub due_date: Option<String>,
     pub notes: Option<String>,
     pub internal_notes: Option<String>,
-    // PAT-style fields
+    // Ledger accounting fields
     pub folio_type: Option<String>,
     pub transaction_type: Option<String>,
     pub post_type: Option<String>,
@@ -102,7 +102,7 @@ pub struct CustomerLedgerCreateRequest {
     pub service_charge: Option<f64>,
 }
 
-/// Input for updating a customer ledger entry with PAT-style fields
+/// Input for updating a customer ledger entry.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CustomerLedgerUpdateRequest {
     pub company_name: Option<String>,
@@ -126,7 +126,7 @@ pub struct CustomerLedgerUpdateRequest {
     pub due_date: Option<String>,
     pub notes: Option<String>,
     pub internal_notes: Option<String>,
-    // PAT-style fields
+    // Ledger accounting fields
     pub folio_type: Option<String>,
     pub transaction_type: Option<String>,
     pub post_type: Option<String>,
@@ -179,35 +179,6 @@ pub struct UpdateLedgerPaymentRequest {
 pub struct CustomerLedgerWithPayments {
     pub ledger: CustomerLedger,
     pub payments: Vec<CustomerLedgerPayment>,
-}
-
-/// PAT Transaction Code
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct PatTransactionCode {
-    pub id: i32,
-    pub code: String,
-    pub name: String,
-    pub post_type: String,
-    pub department_code: Option<String>,
-    pub default_amount: Option<Decimal>,
-    pub is_taxable: bool,
-    pub is_service_chargeable: bool,
-    pub gl_account_code: Option<String>,
-    pub is_active: bool,
-    pub sort_order: i32,
-    pub created_at: NaiveDateTime,
-}
-
-/// PAT Department Code
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct PatDepartmentCode {
-    pub id: i32,
-    pub code: String,
-    pub name: String,
-    pub description: Option<String>,
-    pub is_active: bool,
-    pub sort_order: i32,
-    pub created_at: NaiveDateTime,
 }
 
 /// Input for creating a ledger reversal

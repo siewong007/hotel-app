@@ -90,7 +90,7 @@ export type {
 // Payment types
 export * from './payment.types';
 
-// Ledger types (including PAT-style)
+// Ledger types
 export type {
   FolioType,
   TransactionType,
@@ -102,8 +102,6 @@ export type {
   CustomerLedgerPaymentRequest,
   CustomerLedgerWithPayments,
   CustomerLedgerSummary,
-  PatTransactionCode,
-  PatDepartmentCode,
   LedgerVoidRequest,
   LedgerReversalRequest,
 } from './ledger.types';

@@ -65,7 +65,10 @@ pub async fn get_guests_handler(
     let offset = (page - 1) * page_size;
 
     let search = params.search.as_deref().filter(|s| !s.trim().is_empty());
-    let guest_type_filter = params.guest_type.as_deref().filter(|s| !s.trim().is_empty());
+    let guest_type_filter = params
+        .guest_type
+        .as_deref()
+        .filter(|s| !s.trim().is_empty());
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let like_op = "LIKE";
@@ -74,8 +77,8 @@ pub async fn get_guests_handler(
 
     // Build WHERE clause conditions
     let type_clause = match guest_type_filter {
-        Some(gt) if gt == "member" => " AND guest_type = 'member'",
-        Some(gt) if gt == "non_member" => " AND (guest_type = 'non_member' OR guest_type IS NULL)",
+        Some("member") => " AND guest_type = 'member'",
+        Some("non_member") => " AND (guest_type = 'non_member' OR guest_type IS NULL)",
         _ => "",
     };
 
@@ -122,9 +125,8 @@ pub async fn get_guests_handler(
 
         (total, guests)
     } else {
-        let count_sql = format!(
-            "SELECT COUNT(*) FROM guests WHERE deleted_at IS NULL{type_clause}"
-        );
+        let count_sql =
+            format!("SELECT COUNT(*) FROM guests WHERE deleted_at IS NULL{type_clause}");
         let data_sql = format!(
             "SELECT {select_cols} FROM guests \
              WHERE deleted_at IS NULL{type_clause} \
@@ -147,7 +149,12 @@ pub async fn get_guests_handler(
         (total, guests)
     };
 
-    Ok(Json(GuestPaginatedResponse { data: guests, total, page, page_size }))
+    Ok(Json(GuestPaginatedResponse {
+        data: guests,
+        total,
+        page,
+        page_size,
+    }))
 }
 
 pub async fn create_guest_handler(
@@ -158,27 +165,35 @@ pub async fn create_guest_handler(
     let user_id = require_auth(&headers).await?;
 
     if input.first_name.trim().is_empty() {
-        return Err(ApiError::BadRequest("First name cannot be empty".to_string()));
+        return Err(ApiError::BadRequest(
+            "First name cannot be empty".to_string(),
+        ));
     }
     if input.last_name.trim().is_empty() {
-        return Err(ApiError::BadRequest("Last name cannot be empty".to_string()));
+        return Err(ApiError::BadRequest(
+            "Last name cannot be empty".to_string(),
+        ));
     }
 
     // Validate email format only if provided
     if let Some(ref email) = input.email
-        && !email.trim().is_empty() {
-            let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
-            if !email_regex.is_match(email) {
-                return Err(ApiError::BadRequest("Invalid email format".to_string()));
-            }
+        && !email.trim().is_empty()
+    {
+        let email_regex =
+            regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+        if !email_regex.is_match(email) {
+            return Err(ApiError::BadRequest("Invalid email format".to_string()));
         }
+    }
 
     // Sanitize inputs to prevent XSS and injection attacks
     let first_name = Sanitizer::sanitize_guest_name(&input.first_name);
     let last_name = Sanitizer::sanitize_guest_name(&input.last_name);
 
     // Normalize empty email to None so DB NULL constraint is satisfied
-    let email = input.email.as_deref()
+    let email = input
+        .email
+        .as_deref()
         .filter(|e| !e.trim().is_empty())
         .map(Sanitizer::sanitize_email);
 
@@ -251,7 +266,8 @@ pub async fn create_guest_handler(
         Some(serde_json::json!({"name": &guest.full_name, "email": &guest.email})),
         None,
         None,
-    ).await;
+    )
+    .await;
 
     Ok(Json(guest))
 }
@@ -271,7 +287,8 @@ pub async fn update_guest_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let existing_basic = existing_basic.ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
+    let existing_basic =
+        existing_basic.ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
 
     // Get guest_type, tourism_type, and discount_percentage separately
     let (existing_guest_type, existing_tourism_type, existing_discount_percentage): (GuestType, Option<TourismType>, i32) = sqlx::query_as(
@@ -283,7 +300,23 @@ pub async fn update_guest_handler(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Extract existing values
-    let (_, existing_first_name, existing_last_name, existing_email, existing_phone, existing_ic_number, existing_nationality, existing_address_line1, existing_city, existing_state_province, existing_postal_code, existing_country, existing_title, existing_alt_phone, existing_company_name) = existing_basic;
+    let (
+        _,
+        existing_first_name,
+        existing_last_name,
+        existing_email,
+        existing_phone,
+        existing_ic_number,
+        existing_nationality,
+        existing_address_line1,
+        existing_city,
+        existing_state_province,
+        existing_postal_code,
+        existing_country,
+        existing_title,
+        existing_alt_phone,
+        existing_company_name,
+    ) = existing_basic;
 
     // Apply updates, falling back to existing values
     let first_name = input.first_name.unwrap_or(existing_first_name);
@@ -294,12 +327,13 @@ pub async fn update_guest_handler(
         Some(e) => {
             let trimmed = e.trim().to_string();
             // Validate email format
-            let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+            let email_regex =
+                regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
             if !email_regex.is_match(&trimmed) {
                 return Err(ApiError::BadRequest("Invalid email format".to_string()));
             }
             Some(trimmed)
-        },
+        }
         None => existing_email,
     };
     let phone = input.phone.or(existing_phone);
@@ -315,7 +349,9 @@ pub async fn update_guest_handler(
     let _is_active = input.is_active.unwrap_or(true);
     let guest_type = input.guest_type.unwrap_or(existing_guest_type);
     let tourism_type = input.tourism_type.or(existing_tourism_type);
-    let discount_percentage = input.discount_percentage.unwrap_or(existing_discount_percentage);
+    let discount_percentage = input
+        .discount_percentage
+        .unwrap_or(existing_discount_percentage);
     let company_name = match input.company_name {
         Some(ref c) if c.trim().is_empty() => None,
         Some(c) => Some(c),
@@ -323,7 +359,9 @@ pub async fn update_guest_handler(
     };
 
     // Compute full_name from first_name and last_name
-    let full_name = format!("{} {}", first_name.trim(), last_name.trim()).trim().to_string();
+    let full_name = format!("{} {}", first_name.trim(), last_name.trim())
+        .trim()
+        .to_string();
 
     // Check if another guest already has this full_name (case-insensitive)
     let name_conflict: Option<i64> = sqlx::query_scalar(
@@ -394,14 +432,15 @@ pub async fn update_guest_handler(
     // Log guest update
     let _ = AuditLog::log_event(
         &pool,
-        None,  // No user_id available in this handler
+        None, // No user_id available in this handler
         "guest_updated",
         "guest",
         Some(guest_id),
         Some(serde_json::json!({"name": &updated_guest.full_name})),
         None,
         None,
-    ).await;
+    )
+    .await;
 
     Ok(Json(updated_guest))
 }
@@ -422,7 +461,7 @@ pub async fn delete_guest_handler(
 
     // Only block deletion if the guest is currently checked in
     let has_active_booking: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM bookings WHERE guest_id = $1 AND status = 'checked_in' LIMIT 1"
+        "SELECT id FROM bookings WHERE guest_id = $1 AND status = 'checked_in' LIMIT 1",
     )
     .bind(guest_id)
     .fetch_optional(&pool)
@@ -431,7 +470,8 @@ pub async fn delete_guest_handler(
 
     if has_active_booking.is_some() {
         return Err(ApiError::BadRequest(
-            "Cannot delete guest who is currently checked in. Please complete the checkout first.".to_string()
+            "Cannot delete guest who is currently checked in. Please complete the checkout first."
+                .to_string(),
         ));
     }
 
@@ -445,14 +485,15 @@ pub async fn delete_guest_handler(
     // Log guest deletion
     let _ = AuditLog::log_event(
         &pool,
-        None,  // No user_id available in this handler
+        None, // No user_id available in this handler
         "guest_deleted",
         "guest",
         Some(guest_id),
         None,
         None,
         None,
-    ).await;
+    )
+    .await;
 
     Ok(Json(serde_json::json!({
         "success": true,
@@ -465,7 +506,18 @@ pub async fn get_guest_bookings_handler(
     Path(guest_id): Path<i64>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     #[allow(clippy::type_complexity)]
-    let rows: Vec<(i64, Option<String>, NaiveDate, NaiveDate, Option<i32>, String, Decimal, DateTime<Utc>, String, String)> = sqlx::query_as(
+    let rows: Vec<(
+        i64,
+        Option<String>,
+        NaiveDate,
+        NaiveDate,
+        Option<i32>,
+        String,
+        Decimal,
+        DateTime<Utc>,
+        String,
+        String,
+    )> = sqlx::query_as(
         r#"
         SELECT
             b.id,
@@ -483,7 +535,7 @@ pub async fn get_guest_bookings_handler(
         LEFT JOIN room_types rt ON r.room_type_id = rt.id
         WHERE b.guest_id = $1
         ORDER BY b.created_at DESC
-        "#
+        "#,
     )
     .bind(guest_id)
     .fetch_all(&pool)
@@ -492,18 +544,33 @@ pub async fn get_guest_bookings_handler(
 
     let result: Vec<serde_json::Value> = rows
         .into_iter()
-        .map(|(id, booking_number, check_in_date, check_out_date, nights, status, total_amount, created_at, room_number, room_type)| serde_json::json!({
-            "id": id.to_string(),
-            "booking_number": booking_number,
-            "check_in_date": check_in_date,
-            "check_out_date": check_out_date,
-            "nights": nights,
-            "status": status,
-            "total_amount": total_amount.to_string(),
-            "created_at": created_at,
-            "room_number": room_number,
-            "room_type": room_type
-        }))
+        .map(
+            |(
+                id,
+                booking_number,
+                check_in_date,
+                check_out_date,
+                nights,
+                status,
+                total_amount,
+                created_at,
+                room_number,
+                room_type,
+            )| {
+                serde_json::json!({
+                    "id": id.to_string(),
+                    "booking_number": booking_number,
+                    "check_in_date": check_in_date,
+                    "check_out_date": check_out_date,
+                    "nights": nights,
+                    "status": status,
+                    "total_amount": total_amount.to_string(),
+                    "created_at": created_at,
+                    "room_number": room_number,
+                    "room_type": room_type
+                })
+            },
+        )
         .collect();
 
     Ok(Json(result))
@@ -517,7 +584,7 @@ pub async fn link_guest_handler(
     let user_id = require_auth(&headers).await?;
 
     let guest_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM guests WHERE id = $1 AND deleted_at IS NULL)"
+        "SELECT EXISTS(SELECT 1 FROM guests WHERE id = $1 AND deleted_at IS NULL)",
     )
     .bind(input.guest_id)
     .fetch_one(&pool)
@@ -565,14 +632,12 @@ pub async fn unlink_guest_handler(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
 
-    let result = sqlx::query(
-        "DELETE FROM user_guests WHERE user_id = $1 AND guest_id = $2"
-    )
-    .bind(user_id)
-    .bind(guest_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let result = sqlx::query("DELETE FROM user_guests WHERE user_id = $1 AND guest_id = $2")
+        .bind(user_id)
+        .bind(guest_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if result.rows_affected() == 0 {
         return Err(ApiError::NotFound("Guest link not found".to_string()));
@@ -629,32 +694,32 @@ pub async fn upgrade_guest_to_user_handler(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if !has_relationship {
-        return Err(ApiError::Unauthorized("You don't have permission to upgrade this guest".to_string()));
+        return Err(ApiError::Unauthorized(
+            "You don't have permission to upgrade this guest".to_string(),
+        ));
     }
 
     let password_hash = AuthService::hash_password(&input.password)
         .await
         .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?;
 
-    let new_user_id: i64 = sqlx::query_scalar(
-        "SELECT upgrade_guest_to_user($1, $2, $3, $4)"
-    )
-    .bind(input.guest_id)
-    .bind(&input.username)
-    .bind(&password_hash)
-    .bind(input.role.unwrap_or_else(|| "guest".to_string()))
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| {
-        let err_msg = e.to_string();
-        if err_msg.contains("already exists") {
-            ApiError::BadRequest("User with this email already exists".to_string())
-        } else if err_msg.contains("not found") {
-            ApiError::NotFound("Guest not found or deleted".to_string())
-        } else {
-            ApiError::Database(err_msg)
-        }
-    })?;
+    let new_user_id: i64 = sqlx::query_scalar("SELECT upgrade_guest_to_user($1, $2, $3, $4)")
+        .bind(input.guest_id)
+        .bind(&input.username)
+        .bind(&password_hash)
+        .bind(input.role.unwrap_or_else(|| "guest".to_string()))
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| {
+            let err_msg = e.to_string();
+            if err_msg.contains("already exists") {
+                ApiError::BadRequest("User with this email already exists".to_string())
+            } else if err_msg.contains("not found") {
+                ApiError::NotFound("Guest not found or deleted".to_string())
+            } else {
+                ApiError::Database(err_msg)
+            }
+        })?;
 
     Ok(Json(serde_json::json!({
         "message": "Guest upgraded to user successfully",
@@ -674,7 +739,7 @@ pub async fn get_guest_credits_handler(
 
     // Verify user has access to this guest
     let has_access: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM user_guests WHERE user_id = $1 AND guest_id = $2)"
+        "SELECT EXISTS(SELECT 1 FROM user_guests WHERE user_id = $1 AND guest_id = $2)",
     )
     .bind(user_id)
     .bind(guest_id)
@@ -688,25 +753,36 @@ pub async fn get_guest_credits_handler(
         .unwrap_or(false);
 
     if !has_access && !has_guest_permission {
-        return Err(ApiError::Unauthorized("You don't have access to this guest's credits".to_string()));
+        return Err(ApiError::Unauthorized(
+            "You don't have access to this guest's credits".to_string(),
+        ));
     }
 
     // Get guest info
-    let guest_info: Option<(i64, String)> = sqlx::query_as(
-        "SELECT id, full_name FROM guests WHERE id = $1 AND deleted_at IS NULL"
-    )
-    .bind(guest_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let guest_info: Option<(i64, String)> =
+        sqlx::query_as("SELECT id, full_name FROM guests WHERE id = $1 AND deleted_at IS NULL")
+            .bind(guest_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let (guest_id, guest_name) = guest_info.ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
+    let (guest_id, guest_name) =
+        guest_info.ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
 
     // Get credits by room type from the guest_complimentary_credits table
     // If it doesn't exist, we'll try to create it from the legacy complimentary_nights_credit field
     // Note: gcc.id is i32 (integer), guest_id and room_type_id are i64 (bigint)
     #[allow(clippy::type_complexity)]
-    let credits: Vec<(i32, i64, i64, String, String, i32, DateTime<Utc>, DateTime<Utc>)> = sqlx::query_as(
+    let credits: Vec<(
+        i32,
+        i64,
+        i64,
+        String,
+        String,
+        i32,
+        DateTime<Utc>,
+        DateTime<Utc>,
+    )> = sqlx::query_as(
         r#"
         SELECT
             gcc.id,
@@ -721,7 +797,7 @@ pub async fn get_guest_credits_handler(
         INNER JOIN room_types rt ON gcc.room_type_id = rt.id
         WHERE gcc.guest_id = $1 AND gcc.nights_available > 0
         ORDER BY rt.name
-        "#
+        "#,
     )
     .bind(guest_id)
     .fetch_all(&pool)
@@ -730,18 +806,29 @@ pub async fn get_guest_credits_handler(
 
     let credits_by_room_type: Vec<serde_json::Value> = credits
         .into_iter()
-        .map(|(id, guest_id, room_type_id, room_type_name, room_type_code, nights_available, created_at, updated_at)| {
-            serde_json::json!({
-                "id": id,
-                "guest_id": guest_id,
-                "room_type_id": room_type_id,
-                "room_type_name": room_type_name,
-                "room_type_code": room_type_code,
-                "nights_available": nights_available,
-                "created_at": created_at,
-                "updated_at": updated_at
-            })
-        })
+        .map(
+            |(
+                id,
+                guest_id,
+                room_type_id,
+                room_type_name,
+                room_type_code,
+                nights_available,
+                created_at,
+                updated_at,
+            )| {
+                serde_json::json!({
+                    "id": id,
+                    "guest_id": guest_id,
+                    "room_type_id": room_type_id,
+                    "room_type_name": room_type_name,
+                    "room_type_code": room_type_code,
+                    "nights_available": nights_available,
+                    "created_at": created_at,
+                    "updated_at": updated_at
+                })
+            },
+        )
         .collect();
 
     let total_nights: i32 = credits_by_room_type
@@ -751,7 +838,7 @@ pub async fn get_guest_credits_handler(
 
     // Also get the legacy total from the guest table
     let legacy_total: i32 = sqlx::query_scalar(
-        "SELECT COALESCE(complimentary_nights_credit, 0) FROM guests WHERE id = $1"
+        "SELECT COALESCE(complimentary_nights_credit, 0) FROM guests WHERE id = $1",
     )
     .bind(guest_id)
     .fetch_one(&pool)
@@ -804,7 +891,7 @@ pub async fn get_my_guests_with_credits_handler(
             INNER JOIN room_types rt ON gcc.room_type_id = rt.id
             WHERE gcc.guest_id = $1 AND gcc.nights_available > 0
             ORDER BY rt.name
-            "#
+            "#,
         )
         .bind(guest_id)
         .fetch_all(&pool)
@@ -813,14 +900,16 @@ pub async fn get_my_guests_with_credits_handler(
 
         let credits_by_room_type: Vec<serde_json::Value> = credits
             .into_iter()
-            .map(|(room_type_id, room_type_name, room_type_code, nights_available)| {
-                serde_json::json!({
-                    "room_type_id": room_type_id,
-                    "room_type_name": room_type_name,
-                    "room_type_code": room_type_code,
-                    "nights_available": nights_available
-                })
-            })
+            .map(
+                |(room_type_id, room_type_name, room_type_code, nights_available)| {
+                    serde_json::json!({
+                        "room_type_id": room_type_id,
+                        "room_type_name": room_type_name,
+                        "room_type_code": room_type_code,
+                        "nights_available": nights_available
+                    })
+                },
+            )
             .collect();
 
         let total_credits: i32 = credits_by_room_type

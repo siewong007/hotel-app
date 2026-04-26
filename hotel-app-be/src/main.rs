@@ -84,6 +84,13 @@ async fn main() {
         }
     };
 
+    // One-shot backfill: ensure every booking has an invoice row.
+    match hotel_app_be::services::invoice_numbers::backfill_missing_booking_invoices(&pool).await {
+        Ok(0) => {}
+        Ok(n) => log::info!("✓ Backfilled invoice numbers for {} booking(s)", n),
+        Err(e) => log::warn!("Invoice backfill failed: {}", e),
+    }
+
     // Create router with all routes and middleware
     let app = create_router(pool);
 
@@ -103,8 +110,14 @@ async fn main() {
     };
 
     let bind_addr = format!("{}:{}", bind_address, port);
-    log::info!("Hotel Management API server starting on http://{}", bind_addr);
-    println!("Hotel Management API server starting on http://{}", bind_addr);
+    log::info!(
+        "Hotel Management API server starting on http://{}",
+        bind_addr
+    );
+    println!(
+        "Hotel Management API server starting on http://{}",
+        bind_addr
+    );
 
     let listener = tokio::net::TcpListener::bind(&bind_addr)
         .await

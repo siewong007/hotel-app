@@ -4,7 +4,7 @@
 
 #[allow(dead_code)]
 pub mod audit;
-pub mod night_audit;
-pub mod loyalty;
 pub mod booking;
-
+pub mod invoice_numbers;
+pub mod loyalty;
+pub mod night_audit;

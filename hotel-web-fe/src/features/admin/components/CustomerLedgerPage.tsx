@@ -68,6 +68,7 @@ import {
   Visibility as ViewIcon,
   Save as SaveIcon,
   Close as CloseIcon,
+  Block as VoidIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { api } from '../../../api/client';
@@ -86,6 +87,7 @@ import { Company } from '../../../api/companies.service';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
+import { enhanceBookingDetails } from '../../../utils/bookingUtils';
 import { useLedgers, SortField, SortOrder, PAGE_SIZE } from '../hooks/useLedgers';
 
 // Company option for autocomplete
@@ -117,24 +119,31 @@ const PAYMENT_METHODS = [
   { value: 'cheque', label: 'Cheque' },
 ];
 
-// Helper function to format date for input[type="date"]
+// Date-only ISO 8601 (YYYY-MM-DD): date columns from the backend arrive
+// without a time/offset. Plain `new Date("YYYY-MM-DD")` parses as UTC midnight,
+// which shifts the date by one day in UTC-negative timezones; build the Date
+// in local time instead.
+const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
 const formatDateForInput = (dateString: string | null | undefined): string => {
   if (!dateString) return '';
+  if (DATE_ONLY_RE.test(dateString)) return dateString;
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return '';
-    // Format as YYYY-MM-DD
     return date.toISOString().split('T')[0];
   } catch {
     return '';
   }
 };
 
-// Helper function to format date for display
 const formatDateForDisplay = (dateString: string | null | undefined): string => {
   if (!dateString) return '-';
   try {
-    const date = new Date(dateString);
+    const m = DATE_ONLY_RE.exec(dateString);
+    const date = m
+      ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+      : new Date(dateString);
     if (isNaN(date.getTime())) return '-';
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
@@ -217,10 +226,16 @@ const CustomerLedgerPage: React.FC = () => {
   const [editFormData, setEditFormData] = useState<CustomerLedgerUpdateRequest>({});
   const [updating, setUpdating] = useState(false);
 
-  // Delete dialog state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deletingLedger, setDeletingLedger] = useState<CustomerLedger | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  // Void dialog state (mirrors normal booking void flow)
+  const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+  const [voidingLedger, setVoidingLedger] = useState<CustomerLedger | null>(null);
+  const [voidReason, setVoidReason] = useState('');
+  const [voiding, setVoiding] = useState(false);
+
+  // Read-only invoice modal state (for ledger entries linked to a checked-out booking)
+  const [ledgerInvoiceOpen, setLedgerInvoiceOpen] = useState(false);
+  const [ledgerInvoiceBooking, setLedgerInvoiceBooking] = useState<BookingWithDetails | null>(null);
+  const [loadingLedgerInvoice, setLoadingLedgerInvoice] = useState(false);
 
   // Payment dialog state
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -1462,30 +1477,6 @@ const CustomerLedgerPage: React.FC = () => {
     }
   };
 
-  // Delete ledger handlers
-  const handleDeleteLedger = (ledger: CustomerLedger) => {
-    setDeletingLedger(ledger);
-    setDeleteDialogOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deletingLedger) return;
-
-    try {
-      setDeleting(true);
-      await HotelAPIService.deleteCustomerLedger(deletingLedger.id);
-      setSnackbarMessage('Ledger entry deleted successfully!');
-      setSnackbarOpen(true);
-      setDeleteDialogOpen(false);
-      setDeletingLedger(null);
-      await loadData();
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete ledger entry');
-    } finally {
-      setDeleting(false);
-    }
-  };
-
   // Payment handlers
   const handleOpenPaymentDialog = async (ledger: CustomerLedger) => {
     setPaymentLedger(ledger);
@@ -1544,12 +1535,66 @@ const CustomerLedgerPage: React.FC = () => {
     }
   };
 
-  const canDelete = (ledger: CustomerLedger) => {
-    return ledger.status !== 'paid' && parseFloat(String(ledger.paid_amount)) === 0;
+  const isVoidedLedger = (ledger: CustomerLedger) => {
+    return Boolean(ledger.void_at) || ledger.status === 'cancelled';
+  };
+
+  const getLedgerBalanceDue = (ledger: CustomerLedger) => {
+    return isVoidedLedger(ledger) ? 0 : parseFloat(String(ledger.balance_due || 0));
   };
 
   const canRecordPayment = (ledger: CustomerLedger) => {
-    return ledger.status !== 'paid';
+    return ledger.status !== 'paid' && !isVoidedLedger(ledger);
+  };
+
+  // Mirrors booking canVoid: cannot void what is already voided/cancelled
+  const canVoid = (ledger: CustomerLedger) => {
+    return !isVoidedLedger(ledger);
+  };
+
+  const canViewInvoice = (ledger: CustomerLedger) => {
+    return !!ledger.booking_id;
+  };
+
+  const handleVoidLedger = (ledger: CustomerLedger) => {
+    setVoidingLedger(ledger);
+    setVoidReason('');
+    setVoidDialogOpen(true);
+  };
+
+  const handleConfirmVoidLedger = async () => {
+    if (!voidingLedger) return;
+    try {
+      setVoiding(true);
+      await HotelAPIService.voidLedger(voidingLedger.id, {
+        reason: voidReason || 'Voided by admin',
+      });
+      setSnackbarMessage('Ledger entry voided successfully');
+      setSnackbarOpen(true);
+      setVoidDialogOpen(false);
+      setVoidingLedger(null);
+      setVoidReason('');
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to void ledger entry');
+    } finally {
+      setVoiding(false);
+    }
+  };
+
+  const handleViewLedgerInvoice = async (ledger: CustomerLedger) => {
+    if (!ledger.booking_id) return;
+    try {
+      setLoadingLedgerInvoice(true);
+      const booking = await api.get(`bookings/${ledger.booking_id}`).json<BookingWithDetails>();
+      setLedgerInvoiceBooking(enhanceBookingDetails(booking));
+      setLedgerInvoiceOpen(true);
+    } catch (err: any) {
+      setSnackbarMessage(err.message || 'Failed to load invoice');
+      setSnackbarOpen(true);
+    } finally {
+      setLoadingLedgerInvoice(false);
+    }
   };
 
   // Register new company
@@ -2357,7 +2402,12 @@ const CustomerLedgerPage: React.FC = () => {
           </TableHead>
           <TableBody>
             {ledgers.map((ledger) => (
-              <TableRow key={ledger.id} hover>
+              <TableRow
+                key={ledger.id}
+                hover
+                onClick={() => handleEditLedger(ledger)}
+                sx={{ cursor: 'pointer' }}
+              >
                 <TableCell>{ledger.invoice_number || '-'}</TableCell>
                 <TableCell>
                   <Box>
@@ -2384,10 +2434,10 @@ const CustomerLedgerPage: React.FC = () => {
                 <TableCell>{formatCurrency(parseFloat(String(ledger.amount)))}</TableCell>
                 <TableCell>
                   <Typography
-                    color={parseFloat(String(ledger.balance_due)) > 0 ? 'error.main' : 'success.main'}
+                    color={getLedgerBalanceDue(ledger) > 0 ? 'error.main' : 'success.main'}
                     fontWeight="medium"
                   >
-                    {formatCurrency(parseFloat(String(ledger.balance_due)))}
+                    {formatCurrency(getLedgerBalanceDue(ledger))}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -2400,7 +2450,7 @@ const CustomerLedgerPage: React.FC = () => {
                     size="small"
                   />
                 </TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <Box sx={{ display: 'flex', gap: 0.5 }}>
                     {canRecordPayment(ledger) && (
                       <IconButton
@@ -2412,22 +2462,25 @@ const CustomerLedgerPage: React.FC = () => {
                         <PaymentIcon />
                       </IconButton>
                     )}
-                    <IconButton
-                      size="small"
-                      onClick={() => handleEditLedger(ledger)}
-                      color="primary"
-                      title="Edit"
-                    >
-                      <EditIcon />
-                    </IconButton>
-                    {canDelete(ledger) && (
+                    {canViewInvoice(ledger) && (
                       <IconButton
                         size="small"
-                        onClick={() => handleDeleteLedger(ledger)}
-                        color="error"
-                        title="Delete"
+                        onClick={() => handleViewLedgerInvoice(ledger)}
+                        color="primary"
+                        title="View Invoice"
+                        disabled={loadingLedgerInvoice}
                       >
-                        <DeleteIcon />
+                        <ReceiptIcon />
+                      </IconButton>
+                    )}
+                    {canVoid(ledger) && (
+                      <IconButton
+                        size="small"
+                        onClick={() => handleVoidLedger(ledger)}
+                        sx={{ color: 'text.secondary' }}
+                        title="Void Entry"
+                      >
+                        <VoidIcon />
                       </IconButton>
                     )}
                   </Box>
@@ -2805,23 +2858,32 @@ const CustomerLedgerPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Delete Ledger Entry</DialogTitle>
+      {/* Void Ledger Dialog */}
+      <Dialog open={voidDialogOpen} onClose={() => setVoidDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Void Ledger Entry</DialogTitle>
         <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            Are you sure you want to delete this ledger entry? This action cannot be undone.
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Voiding a ledger entry marks it as cancelled and removes its outstanding balance. This is reversible only by reactivating from the database.
           </Alert>
-          <Box>
-            <Typography variant="body2"><strong>Company:</strong> {deletingLedger?.company_name}</Typography>
-            <Typography variant="body2"><strong>Amount:</strong> {formatCurrency(parseFloat(String(deletingLedger?.amount || 0)))}</Typography>
-            <Typography variant="body2"><strong>Description:</strong> {deletingLedger?.description}</Typography>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2"><strong>Company:</strong> {voidingLedger?.company_name}</Typography>
+            <Typography variant="body2"><strong>Amount:</strong> {formatCurrency(parseFloat(String(voidingLedger?.amount || 0)))}</Typography>
+            <Typography variant="body2"><strong>Description:</strong> {voidingLedger?.description}</Typography>
           </Box>
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            label="Void Reason (Optional)"
+            value={voidReason}
+            onChange={(e) => setVoidReason(e.target.value)}
+            placeholder="Enter reason for voiding..."
+          />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleConfirmDelete} variant="contained" color="error" disabled={deleting}>
-            {deleting ? 'Deleting...' : 'Delete Entry'}
+          <Button onClick={() => setVoidDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleConfirmVoidLedger} variant="contained" color="error" disabled={voiding}>
+            {voiding ? 'Voiding...' : 'Void Entry'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -3729,6 +3791,17 @@ const CustomerLedgerPage: React.FC = () => {
         }}
         booking={checkoutBooking}
         onConfirmCheckout={handleConfirmCompanyCheckout}
+      />
+
+      {/* Read-only invoice for ledger entries linked to a booking */}
+      <CheckoutInvoiceModal
+        open={ledgerInvoiceOpen}
+        onClose={() => {
+          setLedgerInvoiceOpen(false);
+          setLedgerInvoiceBooking(null);
+        }}
+        booking={ledgerInvoiceBooking}
+        readOnly
       />
 
       {/* Company Registration Dialog */}
