@@ -2,17 +2,17 @@
 //!
 //! Routes for customer ledgers and accounts receivable.
 
-use axum::{
-    routing::{get, post, patch, delete},
-    Router,
-    extract::{State, Path, Query},
-    http::HeaderMap,
-    response::Json,
-};
 use crate::core::db::DbPool;
+use crate::core::error::ApiError;
 use crate::handlers;
 use crate::models;
-use crate::core::error::ApiError;
+use axum::{
+    Router,
+    extract::{Path, Query, State},
+    http::HeaderMap,
+    response::Json,
+    routing::{delete, get, patch, post},
+};
 
 /// Create ledger routes
 pub fn routes() -> Router<DbPool> {
@@ -20,16 +20,20 @@ pub fn routes() -> Router<DbPool> {
         .route("/ledgers", get(list_ledgers))
         .route("/ledgers", post(create_ledger))
         .route("/ledgers/summary", get(get_ledger_summary))
-        .route("/ledgers/transaction-codes", get(get_transaction_codes))
-        .route("/ledgers/department-codes", get(get_department_codes))
         .route("/ledgers/{id}", get(get_ledger))
         .route("/ledgers/{id}", patch(update_ledger))
         .route("/ledgers/{id}", delete(delete_ledger))
         .route("/ledgers/{id}/with-payments", get(get_ledger_with_payments))
         .route("/ledgers/{id}/payments", get(get_ledger_payments))
         .route("/ledgers/{id}/payments", post(create_ledger_payment))
-        .route("/ledgers/{id}/payments/{payment_id}", patch(update_ledger_payment))
-        .route("/ledgers/{id}/payments/{payment_id}", delete(delete_ledger_payment))
+        .route(
+            "/ledgers/{id}/payments/{payment_id}",
+            patch(update_ledger_payment),
+        )
+        .route(
+            "/ledgers/{id}/payments/{payment_id}",
+            delete(delete_ledger_payment),
+        )
         .route("/ledgers/{id}/void", post(void_ledger))
         .route("/ledgers/{id}/reverse", post(reverse_ledger))
 }
@@ -122,20 +126,6 @@ async fn delete_ledger_payment(
     path: Path<(i64, i64)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     handlers::ledgers::delete_ledger_payment_handler(State(pool), headers, path).await
-}
-
-async fn get_transaction_codes(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-) -> Result<Json<Vec<models::PatTransactionCode>>, ApiError> {
-    handlers::ledgers::get_pat_transaction_codes_handler(State(pool), headers).await
-}
-
-async fn get_department_codes(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-) -> Result<Json<Vec<models::PatDepartmentCode>>, ApiError> {
-    handlers::ledgers::get_pat_department_codes_handler(State(pool), headers).await
 }
 
 async fn void_ledger(

@@ -7,8 +7,6 @@ import {
   CustomerLedgerPaymentRequest,
   CustomerLedgerWithPayments,
   CustomerLedgerSummary,
-  PatTransactionCode,
-  PatDepartmentCode,
   LedgerVoidRequest,
   LedgerReversalRequest,
 } from '../types';
@@ -132,21 +130,6 @@ export class LedgerService {
 
   static async deleteLedgerPayment(ledgerId: number, paymentId: number): Promise<void> {
     await api.delete(`ledgers/${ledgerId}/payments/${paymentId}`).json();
-  }
-
-  // PAT-style methods
-  static async getTransactionCodes(): Promise<PatTransactionCode[]> {
-    return await withRetry(
-      () => api.get('ledgers/transaction-codes').json<PatTransactionCode[]>(),
-      { maxAttempts: 3, initialDelay: 1000 }
-    );
-  }
-
-  static async getDepartmentCodes(): Promise<PatDepartmentCode[]> {
-    return await withRetry(
-      () => api.get('ledgers/department-codes').json<PatDepartmentCode[]>(),
-      { maxAttempts: 3, initialDelay: 1000 }
-    );
   }
 
   static async voidLedger(ledgerId: number, data: LedgerVoidRequest): Promise<CustomerLedger> {

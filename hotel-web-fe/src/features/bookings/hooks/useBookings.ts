@@ -3,7 +3,7 @@ import { HotelAPIService } from '../../../api';
 import { BookingWithDetails, Room, Guest } from '../../../types';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 
-export type SortField = 'check_in_date' | 'check_out_date' | 'guest_name' | 'room_number' | 'status' | 'folio_number';
+export type SortField = 'check_in_date' | 'check_out_date' | 'guest_name' | 'room_number' | 'status' | 'folio_number' | 'invoice_number';
 export type SortOrder = 'asc' | 'desc';
 export type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom' | 'date_search';
 

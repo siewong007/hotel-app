@@ -2,11 +2,12 @@
 //!
 //! Handles room CRUD, status management, and events.
 
-use crate::core::db::{DbPool, opt_decimal_to_db, DbRow};
+use crate::core::db::{DbPool, DbRow, opt_decimal_to_db};
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_auth, require_permission_helper};
 use crate::handlers::rooms_queries::*;
 use crate::models::*;
+use crate::models::row_mappers::{get_decimal, get_opt_decimal};
 use crate::services::audit::AuditLog;
 use axum::{
     extract::{Path, Query, State},
@@ -20,25 +21,17 @@ use sqlx::Row;
 /// Helper function to map a database row to RoomType
 /// This avoids using FromRow which doesn't work for Decimal in SQLite
 fn row_to_room_type(row: &DbRow) -> RoomType {
-    // Read Decimal fields - try Decimal first (PostgreSQL NUMERIC), then String, then f64 (SQLite)
-    let base_price: Decimal = row.try_get::<Decimal, _>("base_price")
-        .or_else(|_| row.try_get::<String, _>("base_price").map(|s| s.parse().unwrap_or_default()))
-        .or_else(|_| row.try_get::<f64, _>("base_price").map(|f| Decimal::from_f64_retain(f).unwrap_or_default()))
-        .unwrap_or_default();
-    let weekday_rate: Option<Decimal> = row.try_get::<Decimal, _>("weekday_rate").ok()
-        .or_else(|| row.try_get::<String, _>("weekday_rate").ok().and_then(|s| s.parse().ok()))
-        .or_else(|| row.try_get::<f64, _>("weekday_rate").ok().and_then(Decimal::from_f64_retain));
-    let weekend_rate: Option<Decimal> = row.try_get::<Decimal, _>("weekend_rate").ok()
-        .or_else(|| row.try_get::<String, _>("weekend_rate").ok().and_then(|s| s.parse().ok()))
-        .or_else(|| row.try_get::<f64, _>("weekend_rate").ok().and_then(Decimal::from_f64_retain));
-    let extra_bed_charge: Decimal = row.try_get::<Decimal, _>("extra_bed_charge")
-        .or_else(|_| row.try_get::<String, _>("extra_bed_charge").map(|s| s.parse().unwrap_or_default()))
-        .or_else(|_| row.try_get::<f64, _>("extra_bed_charge").map(|f| Decimal::from_f64_retain(f).unwrap_or_default()))
-        .unwrap_or_default();
+    let base_price = get_decimal(row, "base_price");
+    let weekday_rate = get_opt_decimal(row, "weekday_rate");
+    let weekend_rate = get_opt_decimal(row, "weekend_rate");
+    let extra_bed_charge = get_decimal(row, "extra_bed_charge");
 
     // Handle boolean fields for SQLite (returns 0/1)
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let allows_extra_bed: bool = row.try_get::<i32, _>("allows_extra_bed").map(|v| v != 0).unwrap_or(false);
+    let allows_extra_bed: bool = row
+        .try_get::<i32, _>("allows_extra_bed")
+        .map(|v| v != 0)
+        .unwrap_or(false);
     #[cfg(any(
         all(feature = "postgres", not(feature = "sqlite")),
         all(feature = "sqlite", feature = "postgres")
@@ -46,7 +39,10 @@ fn row_to_room_type(row: &DbRow) -> RoomType {
     let allows_extra_bed: bool = row.try_get("allows_extra_bed").unwrap_or(false);
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let is_active: bool = row.try_get::<i32, _>("is_active").map(|v| v != 0).unwrap_or(true);
+    let is_active: bool = row
+        .try_get::<i32, _>("is_active")
+        .map(|v| v != 0)
+        .unwrap_or(true);
     #[cfg(any(
         all(feature = "postgres", not(feature = "sqlite")),
         all(feature = "sqlite", feature = "postgres")
@@ -248,7 +244,8 @@ pub async fn update_room_handler(
     if input.room_number.is_none()
         && input.price_per_night.is_none()
         && input.available.is_none()
-        && input.notes.is_none() {
+        && input.notes.is_none()
+    {
         return Ok(Json(Room {
             id: existing_row.get(0),
             room_number: current_room_number,
@@ -265,12 +262,21 @@ pub async fn update_room_handler(
     }
 
     let room_number = input.room_number.as_ref().unwrap_or(&current_room_number);
-    let custom_price = input.price_per_night
+    let custom_price = input
+        .price_per_night
         .map(|p| rust_decimal::Decimal::from_f64_retain(p).unwrap_or_default());
-    let notes = if input.notes.is_some() { input.notes.clone() } else { current_notes };
+    let notes = if input.notes.is_some() {
+        input.notes.clone()
+    } else {
+        current_notes
+    };
 
     let new_status = if let Some(avail) = input.available {
-        if avail { Some("available") } else { Some("out_of_order") }
+        if avail {
+            Some("available")
+        } else {
+            Some("out_of_order")
+        }
     } else {
         None
     };
@@ -352,7 +358,10 @@ pub async fn create_room_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if existing.is_some() {
-        return Err(ApiError::BadRequest(format!("Room number '{}' already exists", input.room_number)));
+        return Err(ApiError::BadRequest(format!(
+            "Room number '{}' already exists",
+            input.room_number
+        )));
     }
 
     let room_type_exists: Option<i64> = sqlx::query_scalar(CHECK_ROOM_TYPE_EXISTS)
@@ -365,7 +374,8 @@ pub async fn create_room_handler(
         return Err(ApiError::BadRequest("Invalid room_type_id".to_string()));
     }
 
-    let custom_price_decimal = input.custom_price
+    let custom_price_decimal = input
+        .custom_price
         .map(|p| Decimal::from_f64_retain(p).unwrap_or_default());
 
     // SQLite doesn't support RETURNING, so we need different handling
@@ -377,7 +387,11 @@ pub async fn create_room_handler(
             .bind(input.floor)
             .bind(&input.building)
             .bind(opt_decimal_to_db(custom_price_decimal))
-            .bind(if input.is_accessible.unwrap_or(false) { 1i32 } else { 0i32 })
+            .bind(if input.is_accessible.unwrap_or(false) {
+                1i32
+            } else {
+                0i32
+            })
             .execute(&pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -539,9 +553,14 @@ pub async fn create_room_type_handler(
 
     // Convert f64 prices to Decimal for proper binding to DECIMAL columns
     let base_price_decimal = Decimal::from_f64_retain(input.base_price).unwrap_or(Decimal::ZERO);
-    let weekday_rate_decimal = input.weekday_rate.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
-    let weekend_rate_decimal = input.weekend_rate.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
-    let extra_bed_charge_decimal = Decimal::from_f64_retain(input.extra_bed_charge.unwrap_or(0.0)).unwrap_or(Decimal::ZERO);
+    let weekday_rate_decimal = input
+        .weekday_rate
+        .map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
+    let weekend_rate_decimal = input
+        .weekend_rate
+        .map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
+    let extra_bed_charge_decimal =
+        Decimal::from_f64_retain(input.extra_bed_charge.unwrap_or(0.0)).unwrap_or(Decimal::ZERO);
 
     // PostgreSQL version with RETURNING
     #[cfg(any(
@@ -558,7 +577,7 @@ pub async fn create_room_type_handler(
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
             RETURNING id
-            "#
+            "#,
         )
         .bind(&input.name)
         .bind(&input.code)
@@ -590,7 +609,7 @@ pub async fn create_room_type_handler(
                 extra_bed_charge, sort_order
             )
             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
-            "#
+            "#,
         )
         .bind(&input.name)
         .bind(&input.code)
@@ -638,7 +657,8 @@ pub async fn create_room_type_handler(
         })),
         None,
         None,
-    ).await;
+    )
+    .await;
 
     Ok(Json(room_type))
 }
@@ -652,10 +672,18 @@ pub async fn update_room_type_handler(
     let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
 
     // Convert f64 prices to Decimal for proper binding to DECIMAL columns
-    let base_price_decimal = input.base_price.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
-    let weekday_rate_decimal = input.weekday_rate.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
-    let weekend_rate_decimal = input.weekend_rate.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
-    let extra_bed_charge_decimal = input.extra_bed_charge.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
+    let base_price_decimal = input
+        .base_price
+        .map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
+    let weekday_rate_decimal = input
+        .weekday_rate
+        .map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
+    let weekend_rate_decimal = input
+        .weekend_rate
+        .map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
+    let extra_bed_charge_decimal = input
+        .extra_bed_charge
+        .map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO));
 
     // PostgreSQL version with RETURNING
     #[cfg(any(
@@ -682,7 +710,7 @@ pub async fn update_room_type_handler(
                 sort_order = COALESCE($15, sort_order),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(id)
         .bind(&input.name)
@@ -730,7 +758,7 @@ pub async fn update_room_type_handler(
                 sort_order = COALESCE(?15, sort_order),
                 updated_at = datetime('now')
             WHERE id = ?1
-            "#
+            "#,
         )
         .bind(id)
         .bind(&input.name)
@@ -776,7 +804,8 @@ pub async fn update_room_type_handler(
         })),
         None,
         None,
-    ).await;
+    )
+    .await;
 
     Ok(Json(room_type))
 }
@@ -829,7 +858,8 @@ pub async fn delete_room_type_handler(
             })),
             None,
             None,
-        ).await;
+        )
+        .await;
     }
 
     Ok(Json(serde_json::json!({
@@ -846,13 +876,27 @@ pub async fn update_room_status_handler(
 ) -> Result<Json<Room>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
 
-    let valid_statuses = vec!["available", "occupied", "maintenance", "reserved", "dirty", "clean"];
+    let valid_statuses = vec![
+        "available",
+        "occupied",
+        "maintenance",
+        "reserved",
+        "dirty",
+        "clean",
+    ];
     if !valid_statuses.contains(&input.status.as_str()) {
-        return Err(ApiError::BadRequest(format!("Invalid status. Must be one of: {:?}", valid_statuses)));
+        return Err(ApiError::BadRequest(format!(
+            "Invalid status. Must be one of: {:?}",
+            valid_statuses
+        )));
     }
 
     // Map "clean" to "available" for consistency
-    let target_status = if input.status == "clean" { "available".to_string() } else { input.status.clone() };
+    let target_status = if input.status == "clean" {
+        "available".to_string()
+    } else {
+        input.status.clone()
+    };
 
     // Get current status to check if we're transitioning from a protected status
     let current_status_check: Option<String> = sqlx::query_scalar(GET_ROOM_STATUS)
@@ -870,7 +914,10 @@ pub async fn update_room_status_handler(
         && target_status == "available";
 
     let status_notes = if needs_bypass_marker {
-        Some(format!("{} [via update_room_status]", input.notes.as_deref().unwrap_or("Status updated")))
+        Some(format!(
+            "{} [via update_room_status]",
+            input.notes.as_deref().unwrap_or("Status updated")
+        ))
     } else {
         input.notes.clone()
     };
@@ -914,7 +961,7 @@ pub async fn update_room_status_handler(
 
         if booking_exists.is_none() {
             return Err(ApiError::BadRequest(
-                "Invalid booking_id or booking is not for this room.".to_string()
+                "Invalid booking_id or booking is not for this room.".to_string(),
             ));
         }
     }
@@ -931,7 +978,9 @@ pub async fn update_room_status_handler(
             }
             // Try parsing as date only and convert to midnight UTC
             if let Ok(nd) = NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
-                return nd.and_hms_opt(0, 0, 0).map(|ndt| DateTime::<Utc>::from_naive_utc_and_offset(ndt, Utc));
+                return nd
+                    .and_hms_opt(0, 0, 0)
+                    .map(|ndt| DateTime::<Utc>::from_naive_utc_and_offset(ndt, Utc));
             }
             None
         })
@@ -1019,7 +1068,8 @@ pub async fn update_room_status_handler(
         })),
         None,
         None,
-    ).await;
+    )
+    .await;
 
     Ok(Json(Room {
         id: row.get(0),
@@ -1049,7 +1099,8 @@ pub async fn end_maintenance_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let current_status = current_status.ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
+    let current_status =
+        current_status.ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
     let status = &current_status;
     if status == "available" {
         sqlx::query(CLEAR_MAINTENANCE_DATES)
@@ -1090,7 +1141,7 @@ pub async fn end_maintenance_handler(
 
     if status == "occupied" {
         return Err(ApiError::BadRequest(
-            "Cannot clear status for occupied room. Please check out the guest first.".to_string()
+            "Cannot clear status for occupied room. Please check out the guest first.".to_string(),
         ));
     }
 
@@ -1140,7 +1191,8 @@ pub async fn end_maintenance_handler(
         })),
         None,
         None,
-    ).await;
+    )
+    .await;
 
     Ok(Json(Room {
         id: row.get(0),
@@ -1172,9 +1224,10 @@ pub async fn end_cleaning_handler(
 
     if let Some(status) = &current_status {
         if status != "cleaning" {
-            return Err(ApiError::BadRequest(
-                format!("Room is not in cleaning status. Current status: {}. Only rooms in 'cleaning' status can be marked as cleaned.", status)
-            ));
+            return Err(ApiError::BadRequest(format!(
+                "Room is not in cleaning status. Current status: {}. Only rooms in 'cleaning' status can be marked as cleaned.",
+                status
+            )));
         }
     } else {
         return Err(ApiError::NotFound("Room not found".to_string()));
@@ -1221,7 +1274,8 @@ pub async fn end_cleaning_handler(
         })),
         None,
         None,
-    ).await;
+    )
+    .await;
 
     Ok(Json(serde_json::json!({
         "success": true,
@@ -1273,20 +1327,25 @@ pub async fn execute_room_change_handler(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
 
-    let target_id: i64 = input.get("target_room_id")
+    let target_id: i64 = input
+        .get("target_room_id")
         .and_then(|v| {
-            v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+            v.as_i64()
+                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
         })
         .ok_or_else(|| ApiError::BadRequest("Invalid target_room_id".to_string()))?;
 
-    let reason = input.get("reason")
+    let reason = input
+        .get("reason")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
         .unwrap_or_else(|| "Room change requested".to_string());
 
     // Prevent changing to the same room
     if room_id == target_id {
-        return Err(ApiError::BadRequest("Cannot change to the same room".to_string()));
+        return Err(ApiError::BadRequest(
+            "Cannot change to the same room".to_string(),
+        ));
     }
 
     // Find the currently active booking for this room
@@ -1309,16 +1368,20 @@ pub async fn execute_room_change_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let (target_status, target_active, _) = target_room.ok_or_else(||
-        ApiError::BadRequest("Target room not found".to_string())
-    )?;
+    let (target_status, target_active, _) =
+        target_room.ok_or_else(|| ApiError::BadRequest("Target room not found".to_string()))?;
 
     if !target_active {
-        return Err(ApiError::BadRequest("Target room is not active".to_string()));
+        return Err(ApiError::BadRequest(
+            "Target room is not active".to_string(),
+        ));
     }
 
     if target_status != "available" {
-        return Err(ApiError::BadRequest(format!("Target room is not available (current status: {})", target_status)));
+        return Err(ApiError::BadRequest(format!(
+            "Target room is not available (current status: {})",
+            target_status
+        )));
     }
 
     // Get room numbers for the history notes
@@ -1334,7 +1397,10 @@ pub async fn execute_room_change_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let mut tx = pool.begin().await.map_err(|e| ApiError::Database(e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Update booking to new room
     sqlx::query(UPDATE_BOOKING_ROOM)
@@ -1376,7 +1442,10 @@ pub async fn execute_room_change_handler(
         .bind("occupied")
         .bind("dirty")
         .bind(user_id)
-        .bind(format!("Guest moved to room {} - {}", to_room_number, reason))
+        .bind(format!(
+            "Guest moved to room {} - {}",
+            to_room_number, reason
+        ))
         .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -1387,7 +1456,10 @@ pub async fn execute_room_change_handler(
         .bind("available")
         .bind("occupied")
         .bind(user_id)
-        .bind(format!("Guest moved from room {} - {}", from_room_number, reason))
+        .bind(format!(
+            "Guest moved from room {} - {}",
+            from_room_number, reason
+        ))
         .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -1402,7 +1474,9 @@ pub async fn execute_room_change_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    tx.commit().await.map_err(|e| ApiError::Database(e.to_string()))?;
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Audit log: room change
     let _ = AuditLog::log_event(
@@ -1422,7 +1496,8 @@ pub async fn execute_room_change_handler(
         })),
         None,
         None,
-    ).await;
+    )
+    .await;
 
     Ok(Json(serde_json::json!({
         "success": true,
@@ -1446,7 +1521,10 @@ pub async fn get_room_change_history_handler(
     let booking_id = params.get("booking_id").and_then(|v| v.parse::<i64>().ok());
     let guest_id = params.get("guest_id").and_then(|v| v.parse::<i64>().ok());
     let room_id = params.get("room_id").and_then(|v| v.parse::<i64>().ok());
-    let limit = params.get("limit").and_then(|v| v.parse::<i64>().ok()).unwrap_or(50);
+    let limit = params
+        .get("limit")
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(50);
 
     let rows = sqlx::query(GET_ROOM_CHANGE_HISTORY)
         .bind(booking_id)
@@ -1457,33 +1535,36 @@ pub async fn get_room_change_history_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let changes: Vec<serde_json::Value> = rows.iter().map(|row| {
-        serde_json::json!({
-            "id": row.get::<i64, _>("id"),
-            "booking_id": row.get::<i64, _>("booking_id"),
-            "booking_number": row.get::<String, _>("booking_number"),
-            "from_room": {
-                "id": row.get::<i64, _>("from_room_id"),
-                "room_number": row.get::<String, _>("from_room_number"),
-                "room_type": row.get::<String, _>("from_room_type")
-            },
-            "to_room": {
-                "id": row.get::<i64, _>("to_room_id"),
-                "room_number": row.get::<String, _>("to_room_number"),
-                "room_type": row.get::<String, _>("to_room_type")
-            },
-            "guest": {
-                "id": row.get::<i64, _>("guest_id"),
-                "name": row.get::<String, _>("guest_name")
-            },
-            "reason": row.get::<Option<String>, _>("reason"),
-            "changed_by": {
-                "id": row.get::<Option<i64>, _>("changed_by"),
-                "name": row.get::<Option<String>, _>("changed_by_name")
-            },
-            "changed_at": row.get::<chrono::DateTime<chrono::Utc>, _>("changed_at")
+    let changes: Vec<serde_json::Value> = rows
+        .iter()
+        .map(|row| {
+            serde_json::json!({
+                "id": row.get::<i64, _>("id"),
+                "booking_id": row.get::<i64, _>("booking_id"),
+                "booking_number": row.get::<String, _>("booking_number"),
+                "from_room": {
+                    "id": row.get::<i64, _>("from_room_id"),
+                    "room_number": row.get::<String, _>("from_room_number"),
+                    "room_type": row.get::<String, _>("from_room_type")
+                },
+                "to_room": {
+                    "id": row.get::<i64, _>("to_room_id"),
+                    "room_number": row.get::<String, _>("to_room_number"),
+                    "room_type": row.get::<String, _>("to_room_type")
+                },
+                "guest": {
+                    "id": row.get::<i64, _>("guest_id"),
+                    "name": row.get::<String, _>("guest_name")
+                },
+                "reason": row.get::<Option<String>, _>("reason"),
+                "changed_by": {
+                    "id": row.get::<Option<i64>, _>("changed_by"),
+                    "name": row.get::<Option<String>, _>("changed_by_name")
+                },
+                "changed_at": row.get::<chrono::DateTime<chrono::Utc>, _>("changed_at")
+            })
         })
-    }).collect();
+        .collect();
 
     Ok(Json(changes))
 }
@@ -1498,17 +1579,26 @@ pub async fn create_room_event_handler(
 
     let valid_types = vec!["reserved", "maintenance"];
     if !valid_types.contains(&input.event_type.as_str()) {
-        return Err(ApiError::BadRequest(format!("Invalid event type. Must be one of: {:?}", valid_types)));
+        return Err(ApiError::BadRequest(format!(
+            "Invalid event type. Must be one of: {:?}",
+            valid_types
+        )));
     }
 
     let valid_statuses = vec!["pending", "in_progress", "completed", "cancelled"];
     if !valid_statuses.contains(&input.status.as_str()) {
-        return Err(ApiError::BadRequest(format!("Invalid status. Must be one of: {:?}", valid_statuses)));
+        return Err(ApiError::BadRequest(format!(
+            "Invalid status. Must be one of: {:?}",
+            valid_statuses
+        )));
     }
 
     let scheduled_date = if let Some(date_str) = &input.scheduled_date {
-        Some(NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
-            .map_err(|_| ApiError::BadRequest("Invalid date format. Use YYYY-MM-DD".to_string()))?)
+        Some(
+            NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
+                ApiError::BadRequest("Invalid date format. Use YYYY-MM-DD".to_string())
+            })?,
+        )
     } else {
         None
     };
@@ -1517,7 +1607,10 @@ pub async fn create_room_event_handler(
 
     let valid_priorities = vec!["low", "normal", "high", "urgent"];
     if !valid_priorities.contains(&priority) {
-        return Err(ApiError::BadRequest(format!("Invalid priority. Must be one of: {:?}", valid_priorities)));
+        return Err(ApiError::BadRequest(format!(
+            "Invalid priority. Must be one of: {:?}",
+            valid_priorities
+        )));
     }
 
     // SQLite doesn't support RETURNING, so we need different handling
@@ -1695,7 +1788,8 @@ pub async fn get_room_history_handler(
     let history = match sqlx::query(GET_ROOM_HISTORY)
         .bind(room_id)
         .fetch_all(&pool)
-        .await {
+        .await
+    {
         Ok(rows) => rows,
         Err(e) => {
             if e.to_string().contains("relation") && e.to_string().contains("does not exist") {
@@ -1783,13 +1877,16 @@ pub async fn get_all_room_occupancy_handler(
             is_occupied
         FROM room_current_occupancy
         ORDER BY room_number
-        "#
+        "#,
     )
     .fetch_all(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let occupancy: Vec<RoomCurrentOccupancy> = rows.iter().map(row_mappers::row_to_room_current_occupancy).collect();
+    let occupancy: Vec<RoomCurrentOccupancy> = rows
+        .iter()
+        .map(row_mappers::row_to_room_current_occupancy)
+        .collect();
     Ok(Json(occupancy))
 }
 
@@ -1880,7 +1977,7 @@ pub async fn get_hotel_occupancy_summary_handler(
             total_capacity,
             guest_occupancy_rate
         FROM hotel_occupancy_summary
-        "#
+        "#,
     )
     .fetch_one(&pool)
     .await
@@ -1910,13 +2007,16 @@ pub async fn get_occupancy_by_room_type_handler(
             guest_occupancy_rate
         FROM occupancy_by_room_type
         ORDER BY room_type_name
-        "#
+        "#,
     )
     .fetch_all(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let occupancy: Vec<OccupancyByRoomType> = rows.iter().map(row_mappers::row_to_occupancy_by_room_type).collect();
+    let occupancy: Vec<OccupancyByRoomType> = rows
+        .iter()
+        .map(row_mappers::row_to_occupancy_by_room_type)
+        .collect();
 
     Ok(Json(occupancy))
 }

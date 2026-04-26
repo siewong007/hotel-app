@@ -109,6 +109,7 @@ export interface BookingWithDetails extends Booking {
   remarks?: string;
   actual_check_out?: string;
   daily_rates?: Record<string, number>;
+  invoice_number?: string;
 }
 
 export interface BookingCreateRequest {

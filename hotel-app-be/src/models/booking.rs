@@ -71,7 +71,7 @@ pub struct BookingInput {
     pub extra_bed_charge: Option<f64>,
     pub late_checkout_penalty: Option<f64>,
     pub payment_method: Option<String>,
-    pub payment_status: Option<String>,  // unpaid, unpaid_deposit, paid
+    pub payment_status: Option<String>, // unpaid, unpaid_deposit, paid
     pub amount_paid: Option<f64>,
     pub source: Option<String>,         // walk_in, online, phone, agent
     pub booking_number: Option<String>, // Optional - if provided, use this instead of auto-generating
@@ -153,8 +153,8 @@ pub struct PreCheckInUpdateRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MarkComplimentaryRequest {
     pub reason: Option<String>,
-    pub complimentary_start_date: String,  // YYYY-MM-DD format
-    pub complimentary_end_date: String,    // YYYY-MM-DD format
+    pub complimentary_start_date: String, // YYYY-MM-DD format
+    pub complimentary_end_date: String,   // YYYY-MM-DD format
 }
 
 /// Booking with related details (guest, room info)
@@ -211,4 +211,6 @@ pub struct BookingWithDetails {
     pub actual_check_out: Option<DateTime<Utc>>,
     // Per-day rate overrides
     pub daily_rates: Option<serde_json::Value>,
+    // Joined from invoices table (set after checkout)
+    pub invoice_number: Option<String>,
 }
