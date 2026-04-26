@@ -1,9 +1,7 @@
 use super::auth::{AuthService, Claims};
 use super::db::DbPool;
 use super::error::ApiError;
-use axum::{
-    http::header::HeaderMap,
-};
+use axum::http::header::HeaderMap;
 
 // Extract JWT token from Authorization header
 pub async fn extract_claims(headers: &HeaderMap) -> Result<Claims, ApiError> {
@@ -13,7 +11,9 @@ pub async fn extract_claims(headers: &HeaderMap) -> Result<Claims, ApiError> {
         .ok_or_else(|| ApiError::Unauthorized("Missing authorization header".to_string()))?;
 
     if !auth_header.starts_with("Bearer ") {
-        return Err(ApiError::Unauthorized("Invalid authorization header format".to_string()));
+        return Err(ApiError::Unauthorized(
+            "Invalid authorization header format".to_string(),
+        ));
     }
 
     let token = auth_header.strip_prefix("Bearer ").unwrap();
@@ -23,7 +23,9 @@ pub async fn extract_claims(headers: &HeaderMap) -> Result<Claims, ApiError> {
 
 // Extract user ID from claims
 pub fn extract_user_id(claims: &Claims) -> Result<i64, ApiError> {
-    claims.sub.parse::<i64>()
+    claims
+        .sub
+        .parse::<i64>()
         .map_err(|_| ApiError::Unauthorized("Invalid user ID in token".to_string()))
 }
 
@@ -34,22 +36,24 @@ pub async fn check_permission(
     user_id: i64,
     permission: &str,
 ) -> Result<(), ApiError> {
-    let has_permission = AuthService::check_permission(pool, user_id, permission).await
+    let has_permission = AuthService::check_permission(pool, user_id, permission)
+        .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if has_permission {
         return Ok(());
     }
 
-    Err(ApiError::Forbidden(format!("Missing permission: {}", permission)))
+    Err(ApiError::Forbidden(format!(
+        "Missing permission: {}",
+        permission
+    )))
 }
 
 // Check if user has admin role
-pub async fn check_admin_role(
-    pool: &DbPool,
-    user_id: i64,
-) -> Result<(), ApiError> {
-    let is_admin = AuthService::check_role(pool, user_id, "admin").await
+pub async fn check_admin_role(pool: &DbPool, user_id: i64) -> Result<(), ApiError> {
+    let is_admin = AuthService::check_role(pool, user_id, "admin")
+        .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if !is_admin {
@@ -77,10 +81,7 @@ pub async fn require_permission_helper(
 }
 
 // Helper function to require admin role
-pub async fn require_admin_helper(
-    pool: &DbPool,
-    headers: &HeaderMap,
-) -> Result<i64, ApiError> {
+pub async fn require_admin_helper(pool: &DbPool, headers: &HeaderMap) -> Result<i64, ApiError> {
     let user_id = require_auth(headers).await?;
     check_admin_role(pool, user_id).await?;
     Ok(user_id)
@@ -95,18 +96,16 @@ pub async fn require_super_admin_helper(
     let user_id = require_auth(headers).await?;
 
     // Check if user is a super admin
-    let is_super_admin: bool = sqlx::query_scalar(
-        "SELECT is_super_admin FROM users WHERE id = $1"
-    )
-    .bind(user_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .unwrap_or(false);
+    let is_super_admin: bool = sqlx::query_scalar("SELECT is_super_admin FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .unwrap_or(false);
 
     if !is_super_admin {
         return Err(ApiError::Forbidden(
-            "Only super administrators can perform this operation".to_string()
+            "Only super administrators can perform this operation".to_string(),
         ));
     }
 

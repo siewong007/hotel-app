@@ -2,19 +2,19 @@
 //!
 //! Routes for user profile management, 2FA, and passkeys.
 
-use axum::{
-    routing::{get, post, patch, delete},
-    Router,
-    extract::{State, Path, Extension},
-    http::HeaderMap,
-    response::Json,
-};
 use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::core::middleware::require_auth;
 use crate::core::rate_limiter::RateLimiters;
 use crate::handlers;
 use crate::models;
-use crate::core::middleware::require_auth;
-use crate::core::error::ApiError;
+use axum::{
+    Router,
+    extract::{Extension, Path, State},
+    http::HeaderMap,
+    response::Json,
+    routing::{delete, get, patch, post},
+};
 
 /// Create profile routes
 pub fn routes() -> Router<DbPool> {
@@ -51,7 +51,8 @@ async fn update_profile(
     Json(input): Json<models::UserProfileUpdate>,
 ) -> Result<Json<models::UserProfile>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::profile::update_user_profile_handler(State(pool), Extension(user_id), Json(input)).await
+    handlers::profile::update_user_profile_handler(State(pool), Extension(user_id), Json(input))
+        .await
 }
 
 async fn update_password(
@@ -64,7 +65,10 @@ async fn update_password(
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many password change attempts. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many password change attempts. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -98,7 +102,8 @@ async fn update_passkey(
     Json(input): Json<models::PasskeyUpdateInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::passkey::update_passkey_handler(State(pool), Extension(user_id), path, Json(input)).await
+    handlers::passkey::update_passkey_handler(State(pool), Extension(user_id), path, Json(input))
+        .await
 }
 
 // 2FA handlers (profile context)
@@ -113,7 +118,10 @@ async fn setup_2fa(
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many requests. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -130,7 +138,10 @@ async fn enable_2fa(
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many requests. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -147,7 +158,10 @@ async fn disable_2fa(
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many requests. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -171,7 +185,10 @@ async fn verify_2fa(
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many requests. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }

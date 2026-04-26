@@ -1,22 +1,23 @@
 //! Data transfer routes for export/import/overwrite of booking data
 
+use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::core::middleware::require_admin_helper;
+use crate::handlers;
 use axum::{
-    routing::{get, post},
     Router,
-    extract::{State, DefaultBodyLimit},
+    extract::{DefaultBodyLimit, State},
     http::HeaderMap,
     response::Json,
+    routing::{get, post},
 };
-use crate::core::db::DbPool;
-use crate::handlers;
-use crate::core::middleware::require_admin_helper;
-use crate::core::error::ApiError;
 
 pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/data-transfer/export", get(export_data))
-        .route("/data-transfer/import",
-            post(import_data).layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100MB limit
+        .route(
+            "/data-transfer/import",
+            post(import_data).layer(DefaultBodyLimit::max(100 * 1024 * 1024)), // 100MB limit
         )
 }
 

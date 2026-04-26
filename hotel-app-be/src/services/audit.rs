@@ -51,7 +51,12 @@ impl AuditLog {
 
         // Log to console if database insert fails (table might not exist yet)
         if let Err(e) = &result {
-            log::warn!("Audit log failed (table may not exist): {} - Action: {}, Resource: {}", e, action, resource_type);
+            log::warn!(
+                "Audit log failed (table may not exist): {} - Action: {}, Resource: {}",
+                e,
+                action,
+                resource_type
+            );
         }
 
         // Return Ok even if insert fails - don't block operations due to audit log issues
@@ -80,7 +85,8 @@ impl AuditLog {
             Some(details),
             ip_address,
             user_agent,
-        ).await
+        )
+        .await
     }
 
     /// Log a failed login attempt
@@ -106,7 +112,8 @@ impl AuditLog {
             Some(details),
             ip_address,
             user_agent,
-        ).await
+        )
+        .await
     }
 
     /// Log role assignment
@@ -131,7 +138,8 @@ impl AuditLog {
             Some(details),
             None,
             None,
-        ).await
+        )
+        .await
     }
 
     /// Log role removal
@@ -156,7 +164,8 @@ impl AuditLog {
             Some(details),
             None,
             None,
-        ).await
+        )
+        .await
     }
 
     /// Log booking creation
@@ -182,7 +191,8 @@ impl AuditLog {
             Some(details),
             None,
             None,
-        ).await
+        )
+        .await
     }
 
     /// Log booking modification
@@ -201,7 +211,8 @@ impl AuditLog {
             Some(changes),
             None,
             None,
-        ).await
+        )
+        .await
     }
 
     /// Log booking cancellation
@@ -219,7 +230,8 @@ impl AuditLog {
             None,
             None,
             None,
-        ).await
+        )
+        .await
     }
 
     /// Log eKYC approval
@@ -244,7 +256,8 @@ impl AuditLog {
             Some(details),
             None,
             None,
-        ).await
+        )
+        .await
     }
 
     /// Log eKYC rejection
@@ -271,14 +284,12 @@ impl AuditLog {
             Some(details),
             None,
             None,
-        ).await
+        )
+        .await
     }
 
     /// Log password change
-    pub async fn log_password_changed(
-        pool: &DbPool,
-        user_id: i64,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn log_password_changed(pool: &DbPool, user_id: i64) -> Result<(), sqlx::Error> {
         Self::log_event(
             pool,
             Some(user_id),
@@ -288,7 +299,8 @@ impl AuditLog {
             None,
             None,
             None,
-        ).await
+        )
+        .await
     }
 
     /// Log system settings change
@@ -314,7 +326,8 @@ impl AuditLog {
             Some(details),
             None,
             None,
-        ).await
+        )
+        .await
     }
 }
 

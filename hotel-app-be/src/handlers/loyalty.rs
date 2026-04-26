@@ -4,8 +4,8 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::*;
 use crate::models::row_mappers;
+use crate::models::*;
 use crate::services::loyalty as svc;
 use axum::{
     extract::{Extension, Path, Query, State},
@@ -27,12 +27,18 @@ fn row_to_loyalty_program(row: &crate::core::db::DbRow) -> LoyaltyProgram {
         points_multiplier: row_mappers::get_decimal(row, "points_multiplier"),
         minimum_points_required: row.try_get("minimum_points_required").unwrap_or_default(),
         is_active: row_mappers::get_bool(row, "is_active"),
-        created_at: row.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now()),
-        updated_at: row.try_get("updated_at").unwrap_or_else(|_| chrono::Utc::now()),
+        created_at: row
+            .try_get("created_at")
+            .unwrap_or_else(|_| chrono::Utc::now()),
+        updated_at: row
+            .try_get("updated_at")
+            .unwrap_or_else(|_| chrono::Utc::now()),
     }
 }
 
-fn row_to_loyalty_membership_with_details(row: &crate::core::db::DbRow) -> LoyaltyMembershipWithDetails {
+fn row_to_loyalty_membership_with_details(
+    row: &crate::core::db::DbRow,
+) -> LoyaltyMembershipWithDetails {
     LoyaltyMembershipWithDetails {
         id: row.try_get("id").unwrap_or_default(),
         guest_id: row.try_get("guest_id").unwrap_or_default(),
@@ -47,7 +53,9 @@ fn row_to_loyalty_membership_with_details(row: &crate::core::db::DbRow) -> Loyal
         tier_level: row.try_get("tier_level").unwrap_or_default(),
         points_multiplier: row_mappers::get_decimal(row, "points_multiplier"),
         status: row.try_get("status").unwrap_or_default(),
-        enrolled_date: row.try_get("enrolled_date").unwrap_or_else(|_| chrono::NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
+        enrolled_date: row
+            .try_get("enrolled_date")
+            .unwrap_or_else(|_| chrono::NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
     }
 }
 
@@ -61,7 +69,9 @@ fn row_to_points_transaction(row: &crate::core::db::DbRow) -> PointsTransaction 
         reference_type: row.try_get("reference_type").ok(),
         reference_id: row.try_get("reference_id").ok(),
         description: row.try_get("description").ok(),
-        created_at: row.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now()),
+        created_at: row
+            .try_get("created_at")
+            .unwrap_or_else(|_| chrono::Utc::now()),
     }
 }
 
@@ -69,7 +79,7 @@ pub async fn get_loyalty_programs_handler(
     State(pool): State<DbPool>,
 ) -> Result<Json<Vec<LoyaltyProgram>>, ApiError> {
     let programs = sqlx::query_as::<_, LoyaltyProgram>(
-        "SELECT * FROM loyalty_programs WHERE is_active = true ORDER BY tier_level"
+        "SELECT * FROM loyalty_programs WHERE is_active = true ORDER BY tier_level",
     )
     .fetch_all(&pool)
     .await
@@ -103,7 +113,7 @@ pub async fn get_loyalty_memberships_handler(
         JOIN loyalty_programs lp ON lm.program_id = lp.id
         WHERE lm.status = 'active'
         ORDER BY lm.lifetime_points DESC
-        "#
+        "#,
     )
     .fetch_all(&pool)
     .await
@@ -122,7 +132,7 @@ pub async fn get_loyalty_statistics_handler(
             COUNT(*) as total,
             COUNT(*) FILTER (WHERE status = 'active') as active
         FROM loyalty_memberships
-        "#
+        "#,
     )
     .fetch_one(&pool)
     .await
@@ -148,19 +158,20 @@ pub async fn get_loyalty_statistics_handler(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Get points statistics
-    let (total_points_issued, total_points_active, average_points): (i64, i64, f64) = sqlx::query_as(
-        r#"
+    let (total_points_issued, total_points_active, average_points): (i64, i64, f64) =
+        sqlx::query_as(
+            r#"
         SELECT
             COALESCE(SUM(lifetime_points), 0)::bigint as total_issued,
             COALESCE(SUM(points_balance), 0)::bigint as total_active,
             COALESCE(AVG(points_balance), 0.0)::double precision as avg_points
         FROM loyalty_memberships
         WHERE status = 'active'
-        "#
-    )
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+        "#,
+        )
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let total_points_redeemed = total_points_issued - total_points_active;
 
@@ -179,7 +190,7 @@ pub async fn get_loyalty_statistics_handler(
         WHERE lm.status = 'active'
         ORDER BY lm.lifetime_points DESC
         LIMIT 10
-        "#
+        "#,
     )
     .fetch_all(&pool)
     .await
@@ -200,7 +211,7 @@ pub async fn get_loyalty_statistics_handler(
         JOIN guests g ON lm.guest_id = g.id
         ORDER BY pt.created_at DESC
         LIMIT 20
-        "#
+        "#,
     )
     .fetch_all(&pool)
     .await
@@ -222,7 +233,7 @@ pub async fn get_loyalty_statistics_handler(
         LEFT JOIN loyalty_memberships lm ON lm.enrolled_date = date_series::date
         GROUP BY date_series
         ORDER BY date_series
-        "#
+        "#,
     )
     .fetch_all(&pool)
     .await
@@ -274,9 +285,9 @@ pub async fn add_points_handler(
     if input.points <= 0 {
         return Err(ApiError::BadRequest("Points must be positive".to_string()));
     }
-    let transaction = svc::adjust_membership_points(
-        &pool, membership_id, input.points, true, input.description,
-    ).await?;
+    let transaction =
+        svc::adjust_membership_points(&pool, membership_id, input.points, true, input.description)
+            .await?;
     Ok(Json(transaction))
 }
 
@@ -288,9 +299,9 @@ pub async fn redeem_points_handler(
     if input.points <= 0 {
         return Err(ApiError::BadRequest("Points must be positive".to_string()));
     }
-    let transaction = svc::adjust_membership_points(
-        &pool, membership_id, input.points, false, input.description,
-    ).await?;
+    let transaction =
+        svc::adjust_membership_points(&pool, membership_id, input.points, false, input.description)
+            .await?;
     Ok(Json(transaction))
 }
 
@@ -303,7 +314,7 @@ pub async fn get_user_loyalty_membership_handler(
 
     // Get the membership
     let membership = sqlx::query_as::<_, LoyaltyMembership>(
-        "SELECT * FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active'"
+        "SELECT * FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active'",
     )
     .bind(guest_id)
     .fetch_optional(&pool)
@@ -312,13 +323,12 @@ pub async fn get_user_loyalty_membership_handler(
     .ok_or_else(|| ApiError::NotFound("No active loyalty membership found".to_string()))?;
 
     // Get current program/tier info
-    let current_program = sqlx::query_as::<_, LoyaltyProgram>(
-        "SELECT * FROM loyalty_programs WHERE id = $1"
-    )
-    .bind(membership.program_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let current_program =
+        sqlx::query_as::<_, LoyaltyProgram>("SELECT * FROM loyalty_programs WHERE id = $1")
+            .bind(membership.program_id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Get next tier info
     let next_tier = sqlx::query_as::<_, LoyaltyProgram>(
@@ -331,7 +341,7 @@ pub async fn get_user_loyalty_membership_handler(
 
     // Get benefits from current program (benefits is a JSONB array)
     let benefits: Vec<String> = sqlx::query_scalar(
-        "SELECT jsonb_array_elements_text(benefits) FROM loyalty_programs WHERE id = $1"
+        "SELECT jsonb_array_elements_text(benefits) FROM loyalty_programs WHERE id = $1",
     )
     .bind(membership.program_id)
     .fetch_all(&pool)
@@ -359,9 +369,9 @@ pub async fn get_user_loyalty_membership_handler(
         }
     });
 
-    let points_to_next_tier = next_tier_info.as_ref().map(|tier| {
-        (tier.minimum_points - membership.lifetime_points).max(0)
-    });
+    let points_to_next_tier = next_tier_info
+        .as_ref()
+        .map(|tier| (tier.minimum_points - membership.lifetime_points).max(0));
 
     Ok(Json(UserLoyaltyMembership {
         id: membership.id,
@@ -389,7 +399,7 @@ pub async fn get_loyalty_rewards_handler(
 
     let tier_level: i32 = if let Some(gid) = guest_id {
         sqlx::query_scalar(
-            "SELECT tier_level FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active'"
+            "SELECT tier_level FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active'",
         )
         .bind(gid)
         .fetch_optional(&pool)
@@ -408,7 +418,7 @@ pub async fn get_loyalty_rewards_handler(
         AND minimum_tier_level <= $1
         AND (stock_quantity IS NULL OR stock_quantity > 0)
         ORDER BY category, points_cost
-        "#
+        "#,
     )
     .bind(tier_level)
     .fetch_all(&pool)
@@ -427,12 +437,14 @@ pub async fn redeem_reward_handler(
     let guest_id = svc::resolve_user_to_guest(&pool, user_id).await?;
 
     // Start transaction
-    let mut tx = pool.begin().await
+    let mut tx = pool
+        .begin()
+        .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Get membership
     let membership = sqlx::query_as::<_, LoyaltyMembership>(
-        "SELECT * FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active' FOR UPDATE"
+        "SELECT * FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active' FOR UPDATE",
     )
     .bind(guest_id)
     .fetch_optional(&mut *tx)
@@ -442,7 +454,7 @@ pub async fn redeem_reward_handler(
 
     // Get reward
     let reward = sqlx::query_as::<_, LoyaltyReward>(
-        "SELECT * FROM loyalty_rewards WHERE id = $1 AND is_active = true FOR UPDATE"
+        "SELECT * FROM loyalty_rewards WHERE id = $1 AND is_active = true FOR UPDATE",
     )
     .bind(input.reward_id)
     .fetch_optional(&mut *tx)
@@ -452,19 +464,24 @@ pub async fn redeem_reward_handler(
 
     // Check tier eligibility
     if membership.tier_level < reward.minimum_tier_level {
-        return Err(ApiError::BadRequest("Your tier level is not high enough for this reward".to_string()));
+        return Err(ApiError::BadRequest(
+            "Your tier level is not high enough for this reward".to_string(),
+        ));
     }
 
     // Check points balance
     if membership.points_balance < reward.points_cost {
-        return Err(ApiError::BadRequest("Insufficient points balance".to_string()));
+        return Err(ApiError::BadRequest(
+            "Insufficient points balance".to_string(),
+        ));
     }
 
     // Check stock
     if let Some(stock) = reward.stock_quantity
-        && stock <= 0 {
-            return Err(ApiError::BadRequest("Reward is out of stock".to_string()));
-        }
+        && stock <= 0
+    {
+        return Err(ApiError::BadRequest("Reward is out of stock".to_string()));
+    }
 
     // Deduct points
     let new_balance = membership.points_balance - reward.points_cost;
@@ -475,7 +492,7 @@ pub async fn redeem_reward_handler(
             last_points_activity = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $2
-        "#
+        "#,
     )
     .bind(new_balance)
     .bind(membership.id)
@@ -507,7 +524,7 @@ pub async fn redeem_reward_handler(
         INSERT INTO reward_redemptions
         (membership_id, reward_id, transaction_id, booking_id, points_spent, notes, status)
         VALUES ($1, $2, $3, $4, $5, $6, 'pending')
-        "#
+        "#,
     )
     .bind(membership.id)
     .bind(reward.id)
@@ -521,16 +538,15 @@ pub async fn redeem_reward_handler(
 
     // Update stock if applicable
     if reward.stock_quantity.is_some() {
-        sqlx::query(
-            "UPDATE loyalty_rewards SET stock_quantity = stock_quantity - 1 WHERE id = $1"
-        )
-        .bind(reward.id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        sqlx::query("UPDATE loyalty_rewards SET stock_quantity = stock_quantity - 1 WHERE id = $1")
+            .bind(reward.id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
     }
 
-    tx.commit().await
+    tx.commit()
+        .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(Json(serde_json::json!({
@@ -562,7 +578,7 @@ pub async fn get_rewards_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?
     } else {
         sqlx::query_as::<_, LoyaltyReward>(
-            "SELECT * FROM loyalty_rewards WHERE is_active = true ORDER BY category, points_cost"
+            "SELECT * FROM loyalty_rewards WHERE is_active = true ORDER BY category, points_cost",
         )
         .fetch_all(&pool)
         .await
@@ -577,14 +593,12 @@ pub async fn get_reward_handler(
     State(pool): State<DbPool>,
     Path(reward_id): Path<i64>,
 ) -> Result<Json<LoyaltyReward>, ApiError> {
-    let reward = sqlx::query_as::<_, LoyaltyReward>(
-        "SELECT * FROM loyalty_rewards WHERE id = $1"
-    )
-    .bind(reward_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("Reward not found".to_string()))?;
+    let reward = sqlx::query_as::<_, LoyaltyReward>("SELECT * FROM loyalty_rewards WHERE id = $1")
+        .bind(reward_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound("Reward not found".to_string()))?;
 
     Ok(Json(reward))
 }
@@ -595,7 +609,15 @@ pub async fn create_reward_handler(
     Json(input): Json<RewardInput>,
 ) -> Result<Json<LoyaltyReward>, ApiError> {
     // Validate category
-    let valid_categories = ["room_upgrade", "service", "discount", "gift", "dining", "spa", "experience"];
+    let valid_categories = [
+        "room_upgrade",
+        "service",
+        "discount",
+        "gift",
+        "dining",
+        "spa",
+        "experience",
+    ];
     if !valid_categories.contains(&input.category.as_str()) {
         return Err(ApiError::BadRequest(format!(
             "Invalid category. Must be one of: {}",
@@ -605,17 +627,21 @@ pub async fn create_reward_handler(
 
     // Validate tier level (1-4)
     if input.minimum_tier_level < 1 || input.minimum_tier_level > 4 {
-        return Err(ApiError::BadRequest("Minimum tier level must be between 1 and 4".to_string()));
+        return Err(ApiError::BadRequest(
+            "Minimum tier level must be between 1 and 4".to_string(),
+        ));
     }
 
     // Validate points cost
     if input.points_cost <= 0 {
-        return Err(ApiError::BadRequest("Points cost must be greater than 0".to_string()));
+        return Err(ApiError::BadRequest(
+            "Points cost must be greater than 0".to_string(),
+        ));
     }
 
-    let monetary_value = input.monetary_value.map(|v|
-        rust_decimal::Decimal::from_f64_retain(v).unwrap_or_default()
-    );
+    let monetary_value = input
+        .monetary_value
+        .map(|v| rust_decimal::Decimal::from_f64_retain(v).unwrap_or_default());
 
     let reward = sqlx::query_as::<_, LoyaltyReward>(
         r#"
@@ -624,7 +650,7 @@ pub async fn create_reward_handler(
          stock_quantity, image_url, terms_conditions)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
-        "#
+        "#,
     )
     .bind(&input.name)
     .bind(&input.description)
@@ -649,18 +675,25 @@ pub async fn update_reward_handler(
     Json(input): Json<RewardUpdateInput>,
 ) -> Result<Json<LoyaltyReward>, ApiError> {
     // Check if reward exists
-    let existing = sqlx::query_as::<_, LoyaltyReward>(
-        "SELECT * FROM loyalty_rewards WHERE id = $1"
-    )
-    .bind(reward_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("Reward not found".to_string()))?;
+    let existing =
+        sqlx::query_as::<_, LoyaltyReward>("SELECT * FROM loyalty_rewards WHERE id = $1")
+            .bind(reward_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?
+            .ok_or_else(|| ApiError::NotFound("Reward not found".to_string()))?;
 
     // Validate category if provided
     if let Some(ref category) = input.category {
-        let valid_categories = ["room_upgrade", "service", "discount", "gift", "dining", "spa", "experience"];
+        let valid_categories = [
+            "room_upgrade",
+            "service",
+            "discount",
+            "gift",
+            "dining",
+            "spa",
+            "experience",
+        ];
         if !valid_categories.contains(&category.as_str()) {
             return Err(ApiError::BadRequest(format!(
                 "Invalid category. Must be one of: {}",
@@ -671,15 +704,21 @@ pub async fn update_reward_handler(
 
     // Validate tier level if provided
     if let Some(tier_level) = input.minimum_tier_level
-        && (!(1..=4).contains(&tier_level)) {
-            return Err(ApiError::BadRequest("Minimum tier level must be between 1 and 4".to_string()));
-        }
+        && (!(1..=4).contains(&tier_level))
+    {
+        return Err(ApiError::BadRequest(
+            "Minimum tier level must be between 1 and 4".to_string(),
+        ));
+    }
 
     // Validate points cost if provided
     if let Some(points_cost) = input.points_cost
-        && points_cost <= 0 {
-            return Err(ApiError::BadRequest("Points cost must be greater than 0".to_string()));
-        }
+        && points_cost <= 0
+    {
+        return Err(ApiError::BadRequest(
+            "Points cost must be greater than 0".to_string(),
+        ));
+    }
 
     // Use provided values or keep existing ones
     let name = input.name.as_ref().unwrap_or(&existing.name);
@@ -687,11 +726,15 @@ pub async fn update_reward_handler(
     let category = input.category.as_ref().unwrap_or(&existing.category);
     let points_cost = input.points_cost.unwrap_or(existing.points_cost);
     let monetary_value = if input.monetary_value.is_some() {
-        input.monetary_value.map(|v| rust_decimal::Decimal::from_f64_retain(v).unwrap_or_default())
+        input
+            .monetary_value
+            .map(|v| rust_decimal::Decimal::from_f64_retain(v).unwrap_or_default())
     } else {
         existing.monetary_value
     };
-    let minimum_tier_level = input.minimum_tier_level.unwrap_or(existing.minimum_tier_level);
+    let minimum_tier_level = input
+        .minimum_tier_level
+        .unwrap_or(existing.minimum_tier_level);
     let is_active = input.is_active.unwrap_or(existing.is_active);
     let stock_quantity = if input.stock_quantity.is_some() {
         input.stock_quantity
@@ -699,7 +742,10 @@ pub async fn update_reward_handler(
         existing.stock_quantity
     };
     let image_url = input.image_url.as_ref().or(existing.image_url.as_ref());
-    let terms_conditions = input.terms_conditions.as_ref().or(existing.terms_conditions.as_ref());
+    let terms_conditions = input
+        .terms_conditions
+        .as_ref()
+        .or(existing.terms_conditions.as_ref());
 
     let reward = sqlx::query_as::<_, LoyaltyReward>(
         r#"
@@ -717,7 +763,7 @@ pub async fn update_reward_handler(
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $11
         RETURNING *
-        "#
+        "#,
     )
     .bind(name)
     .bind(description)
@@ -785,7 +831,7 @@ pub async fn get_reward_redemptions_handler(
         INNER JOIN guests g ON lm.guest_id = g.id
         INNER JOIN loyalty_rewards lr ON rr.reward_id = lr.id
         ORDER BY rr.created_at DESC
-        "#
+        "#,
     )
     .fetch_all(&pool)
     .await
@@ -804,12 +850,14 @@ pub async fn redeem_reward_for_user_handler(
     let guest_id = svc::resolve_user_to_guest(&pool, user_id).await?;
 
     // Start transaction
-    let mut tx = pool.begin().await
+    let mut tx = pool
+        .begin()
+        .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Get membership
     let membership = sqlx::query_as::<_, LoyaltyMembership>(
-        "SELECT * FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active' FOR UPDATE"
+        "SELECT * FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active' FOR UPDATE",
     )
     .bind(guest_id)
     .fetch_optional(&mut *tx)
@@ -819,7 +867,7 @@ pub async fn redeem_reward_for_user_handler(
 
     // Get reward
     let reward = sqlx::query_as::<_, LoyaltyReward>(
-        "SELECT * FROM loyalty_rewards WHERE id = $1 AND is_active = true FOR UPDATE"
+        "SELECT * FROM loyalty_rewards WHERE id = $1 AND is_active = true FOR UPDATE",
     )
     .bind(reward_id)
     .fetch_optional(&mut *tx)
@@ -829,7 +877,9 @@ pub async fn redeem_reward_for_user_handler(
 
     // Check tier eligibility
     if membership.tier_level < reward.minimum_tier_level {
-        return Err(ApiError::BadRequest("Your tier level is not high enough for this reward".to_string()));
+        return Err(ApiError::BadRequest(
+            "Your tier level is not high enough for this reward".to_string(),
+        ));
     }
 
     // Check points balance
@@ -842,9 +892,10 @@ pub async fn redeem_reward_for_user_handler(
 
     // Check stock
     if let Some(stock) = reward.stock_quantity
-        && stock <= 0 {
-            return Err(ApiError::BadRequest("Reward is out of stock".to_string()));
-        }
+        && stock <= 0
+    {
+        return Err(ApiError::BadRequest("Reward is out of stock".to_string()));
+    }
 
     // Deduct points
     let new_balance = membership.points_balance - reward.points_cost;
@@ -855,7 +906,7 @@ pub async fn redeem_reward_for_user_handler(
             last_points_activity = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $2
-        "#
+        "#,
     )
     .bind(new_balance)
     .bind(membership.id)
@@ -887,7 +938,7 @@ pub async fn redeem_reward_for_user_handler(
         INSERT INTO reward_redemptions
         (membership_id, reward_id, transaction_id, booking_id, points_spent, notes, status)
         VALUES ($1, $2, $3, $4, $5, $6, 'pending')
-        "#
+        "#,
     )
     .bind(membership.id)
     .bind(reward.id)
@@ -910,7 +961,8 @@ pub async fn redeem_reward_for_user_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
     }
 
-    tx.commit().await
+    tx.commit()
+        .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(Json(serde_json::json!({

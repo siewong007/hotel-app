@@ -10,17 +10,15 @@ use axum::{
     extract::{Extension, Path, State},
     response::Json,
 };
-use base64::engine::general_purpose;
 use base64::Engine;
+use base64::engine::general_purpose;
 use std::env;
 
 // Helper function to decode base64url (WebAuthn format)
 fn decode_base64url(input: &str) -> Result<Vec<u8>, String> {
     // WebAuthn uses base64url encoding without padding
     // Convert base64url to standard base64
-    let standard_b64 = input
-        .replace('-', "+")
-        .replace('_', "/");
+    let standard_b64 = input.replace('-', "+").replace('_', "/");
 
     // Add padding if needed
     let padded = match standard_b64.len() % 4 {
@@ -29,7 +27,8 @@ fn decode_base64url(input: &str) -> Result<Vec<u8>, String> {
         _ => standard_b64,
     };
 
-    general_purpose::STANDARD.decode(&padded)
+    general_purpose::STANDARD
+        .decode(&padded)
         .map_err(|e| format!("Base64 decode error: {}", e))
 }
 
@@ -44,7 +43,7 @@ pub async fn list_passkeys_handler(
         FROM passkeys
         WHERE user_id = $1
         ORDER BY created_at DESC
-        "#
+        "#,
     )
     .bind(user_id)
     .fetch_all(&pool)
@@ -66,17 +65,22 @@ pub async fn list_passkeys_handler(
         };
 
         // Encode credential_id as base64url for frontend
-        let credential_id_b64url = general_purpose::STANDARD.encode(&credential_id_bytes)
+        let credential_id_b64url = general_purpose::STANDARD
+            .encode(&credential_id_bytes)
             .replace('+', "-")
             .replace('/', "_")
             .trim_end_matches('=')
             .to_string();
 
         passkeys.push(PasskeyInfo {
-            id: row.try_get("id").map_err(|e| ApiError::Database(e.to_string()))?,
+            id: row
+                .try_get("id")
+                .map_err(|e| ApiError::Database(e.to_string()))?,
             credential_id: credential_id_b64url,
             device_name: row.try_get("device_name").ok(),
-            created_at: row.try_get("created_at").map_err(|e| ApiError::Database(e.to_string()))?,
+            created_at: row
+                .try_get("created_at")
+                .map_err(|e| ApiError::Database(e.to_string()))?,
             last_used_at: row.try_get("last_used_at").ok(),
         });
     }
@@ -89,20 +93,20 @@ pub async fn delete_passkey_handler(
     Extension(user_id): Extension<i64>,
     Path(passkey_id): Path<uuid::Uuid>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let result = sqlx::query(
-        "DELETE FROM passkeys WHERE id = $1 AND user_id = $2"
-    )
-    .bind(passkey_id)
-    .bind(user_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let result = sqlx::query("DELETE FROM passkeys WHERE id = $1 AND user_id = $2")
+        .bind(passkey_id)
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if result.rows_affected() == 0 {
         return Err(ApiError::NotFound("Passkey not found".to_string()));
     }
 
-    Ok(Json(serde_json::json!({"message": "Passkey deleted successfully"})))
+    Ok(Json(
+        serde_json::json!({"message": "Passkey deleted successfully"}),
+    ))
 }
 
 pub async fn update_passkey_handler(
@@ -111,21 +115,21 @@ pub async fn update_passkey_handler(
     Path(passkey_id): Path<uuid::Uuid>,
     Json(input): Json<PasskeyUpdateInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let result = sqlx::query(
-        "UPDATE passkeys SET device_name = $1 WHERE id = $2 AND user_id = $3"
-    )
-    .bind(&input.device_name)
-    .bind(passkey_id)
-    .bind(user_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let result = sqlx::query("UPDATE passkeys SET device_name = $1 WHERE id = $2 AND user_id = $3")
+        .bind(&input.device_name)
+        .bind(passkey_id)
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if result.rows_affected() == 0 {
         return Err(ApiError::NotFound("Passkey not found".to_string()));
     }
 
-    Ok(Json(serde_json::json!({"message": "Passkey updated successfully"})))
+    Ok(Json(
+        serde_json::json!({"message": "Passkey updated successfully"}),
+    ))
 }
 
 pub async fn passkey_register_start_handler(
@@ -143,16 +147,16 @@ pub async fn passkey_register_start_handler(
     .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
     // Check passkey limit (max 10)
-    let passkey_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM passkeys WHERE user_id = $1"
-    )
-    .bind(user.id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let passkey_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM passkeys WHERE user_id = $1")
+        .bind(user.id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if passkey_count >= 10 {
-        return Err(ApiError::BadRequest("Maximum of 10 passkeys allowed per user".to_string()));
+        return Err(ApiError::BadRequest(
+            "Maximum of 10 passkeys allowed per user".to_string(),
+        ));
     }
 
     // Generate challenge (32 random bytes)
@@ -167,10 +171,10 @@ pub async fn passkey_register_start_handler(
         r#"
         INSERT INTO passkey_challenges (user_id, challenge, challenge_type, expires_at)
         VALUES ($1, $2, $3, NOW() + INTERVAL '5 minutes')
-        "#
+        "#,
     )
     .bind(user.id)
-    .bind(&challenge_bytes[..])  // Bind as bytea
+    .bind(&challenge_bytes[..]) // Bind as bytea
     .bind("registration")
     .execute(&pool)
     .await
@@ -215,7 +219,9 @@ pub async fn passkey_register_finish_handler(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if !challenge_exists {
-        return Err(ApiError::Unauthorized("Invalid or expired challenge".to_string()));
+        return Err(ApiError::Unauthorized(
+            "Invalid or expired challenge".to_string(),
+        ));
     }
 
     // Parse credential (simplified - in production use a proper WebAuthn library)
@@ -234,7 +240,8 @@ pub async fn passkey_register_finish_handler(
     let public_key = vec![0u8; 64]; // In production, parse from attestationObject
 
     // Store passkey
-    let device_name = req.device_name
+    let device_name = req
+        .device_name
         .clone()
         .unwrap_or_else(|| format!("Passkey {}", chrono::Utc::now().format("%Y-%m-%d")));
 
@@ -242,7 +249,7 @@ pub async fn passkey_register_finish_handler(
         r#"
         INSERT INTO passkeys (user_id, credential_id, public_key, counter, device_name)
         VALUES ($1, $2, $3, 0, $4)
-        "#
+        "#,
     )
     .bind(user.id)
     .bind(&credential_id_bytes[..])
@@ -255,12 +262,18 @@ pub async fn passkey_register_finish_handler(
     // Delete used challenge
     sqlx::query("DELETE FROM passkey_challenges WHERE user_id = $1 AND challenge = $2")
         .bind(user.id)
-        .bind(general_purpose::STANDARD.decode(&req.challenge).unwrap_or_default())
+        .bind(
+            general_purpose::STANDARD
+                .decode(&req.challenge)
+                .unwrap_or_default(),
+        )
         .execute(&pool)
         .await
         .ok();
 
-    Ok(Json(serde_json::json!({"message": "Passkey registered successfully"})))
+    Ok(Json(
+        serde_json::json!({"message": "Passkey registered successfully"}),
+    ))
 }
 
 pub async fn passkey_login_start_handler(
@@ -278,16 +291,16 @@ pub async fn passkey_login_start_handler(
     .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
     // Get user's passkeys
-    let passkeys = sqlx::query_as::<_, Passkey>(
-        "SELECT * FROM passkeys WHERE user_id = $1"
-    )
-    .bind(user.id)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let passkeys = sqlx::query_as::<_, Passkey>("SELECT * FROM passkeys WHERE user_id = $1")
+        .bind(user.id)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if passkeys.is_empty() {
-        return Err(ApiError::NotFound("No passkeys found for this user".to_string()));
+        return Err(ApiError::NotFound(
+            "No passkeys found for this user".to_string(),
+        ));
     }
 
     // Generate challenge (32 random bytes)
@@ -302,10 +315,10 @@ pub async fn passkey_login_start_handler(
         r#"
         INSERT INTO passkey_challenges (user_id, challenge, challenge_type, expires_at)
         VALUES ($1, $2, $3, NOW() + INTERVAL '5 minutes')
-        "#
+        "#,
     )
     .bind(user.id)
-    .bind(&challenge_bytes[..])  // Bind as bytea
+    .bind(&challenge_bytes[..]) // Bind as bytea
     .bind("authentication")
     .execute(&pool)
     .await
@@ -315,7 +328,8 @@ pub async fn passkey_login_start_handler(
         .iter()
         .map(|pk| {
             // Encode as base64url for WebAuthn compatibility
-            let credential_id_b64url = general_purpose::STANDARD.encode(&pk.credential_id)
+            let credential_id_b64url = general_purpose::STANDARD
+                .encode(&pk.credential_id)
                 .replace('+', "-")
                 .replace('/', "_")
                 .trim_end_matches('=')
@@ -359,7 +373,9 @@ pub async fn passkey_login_finish_handler(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if !challenge_exists {
-        return Err(ApiError::Unauthorized("Invalid or expired challenge".to_string()));
+        return Err(ApiError::Unauthorized(
+            "Invalid or expired challenge".to_string(),
+        ));
     }
 
     // Decode credential_id from base64url (WebAuthn uses URL-safe base64) to bytes for BYTEA lookup
@@ -368,7 +384,7 @@ pub async fn passkey_login_finish_handler(
 
     // Verify passkey exists
     let passkey = sqlx::query_as::<_, Passkey>(
-        "SELECT * FROM passkeys WHERE user_id = $1 AND credential_id = $2"
+        "SELECT * FROM passkeys WHERE user_id = $1 AND credential_id = $2",
     )
     .bind(user.id)
     .bind(&credential_id_bytes[..])
@@ -395,9 +411,11 @@ pub async fn passkey_login_finish_handler(
         .ok();
 
     // Get roles and permissions
-    let roles = AuthService::get_user_roles(&pool, user.id).await
+    let roles = AuthService::get_user_roles(&pool, user.id)
+        .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
-    let permissions = AuthService::get_user_permissions(&pool, user.id).await
+    let permissions = AuthService::get_user_permissions(&pool, user.id)
+        .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Generate tokens
@@ -407,13 +425,12 @@ pub async fn passkey_login_finish_handler(
     let refresh_token = AuthService::generate_refresh_token();
 
     // Check if this is the first login
-    let is_first_login: bool = sqlx::query_scalar(
-        "SELECT last_login_at IS NULL FROM users WHERE id = $1"
-    )
-    .bind(user.id)
-    .fetch_one(&pool)
-    .await
-    .unwrap_or(false);
+    let is_first_login: bool =
+        sqlx::query_scalar("SELECT last_login_at IS NULL FROM users WHERE id = $1")
+            .bind(user.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap_or(false);
 
     // Store refresh token
     AuthService::store_refresh_token(&pool, user.id, &refresh_token, 30)

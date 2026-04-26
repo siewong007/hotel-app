@@ -289,7 +289,12 @@ export const UsersTab: React.FC<UsersTabProps> = ({
               </TableRow>
             ) : (
               users.map((user) => (
-                <TableRow key={user.id} hover>
+                <TableRow
+                  key={user.id}
+                  hover
+                  onClick={() => handleOpenEdit(user)}
+                  sx={{ cursor: 'pointer' }}
+                >
                   <TableCell>
                     <Typography fontWeight={500}>{user.username}</Typography>
                   </TableCell>
@@ -334,16 +339,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                       ? new Date(user.created_at).toLocaleDateString()
                       : '-'}
                   </TableCell>
-                  <TableCell align="right">
-                    <Tooltip title="Edit User">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleOpenEdit(user)}
-                        color="primary"
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                  <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                     <Tooltip title="Delete User">
                       <IconButton
                         size="small"

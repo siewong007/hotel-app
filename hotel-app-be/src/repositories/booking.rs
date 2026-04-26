@@ -1,10 +1,10 @@
 //! Booking repository for database operations
 
-use chrono::NaiveDate;
-use rust_decimal::Decimal;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{Booking, BookingWithDetails};
+use chrono::NaiveDate;
+use rust_decimal::Decimal;
 
 pub struct BookingRepository;
 
@@ -41,7 +41,7 @@ impl BookingRepository {
                    pre_checkin_token_expires_at, created_by, created_at, updated_at
             FROM bookings
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(id)
         .fetch_optional(pool)
@@ -50,7 +50,10 @@ impl BookingRepository {
     }
 
     /// Find booking with details by ID
-    pub async fn find_by_id_with_details(pool: &DbPool, id: i64) -> Result<Option<BookingWithDetails>, ApiError> {
+    pub async fn find_by_id_with_details(
+        pool: &DbPool,
+        id: i64,
+    ) -> Result<Option<BookingWithDetails>, ApiError> {
         sqlx::query_as::<_, BookingWithDetails>(
             r#"
             SELECT b.id, b.booking_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
@@ -71,7 +74,10 @@ impl BookingRepository {
     }
 
     /// Find bookings by guest ID
-    pub async fn find_by_guest_id(pool: &DbPool, guest_id: i64) -> Result<Vec<BookingWithDetails>, ApiError> {
+    pub async fn find_by_guest_id(
+        pool: &DbPool,
+        guest_id: i64,
+    ) -> Result<Vec<BookingWithDetails>, ApiError> {
         sqlx::query_as::<_, BookingWithDetails>(
             r#"
             SELECT b.id, b.booking_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
@@ -102,7 +108,11 @@ impl BookingRepository {
         total_amount: Decimal,
         created_by: i64,
     ) -> Result<Booking, ApiError> {
-        let booking_number = format!("BK-{}-{:06}", chrono::Utc::now().format("%Y%m%d"), rand::random::<u32>() % 1000000);
+        let booking_number = format!(
+            "BK-{}-{:06}",
+            chrono::Utc::now().format("%Y%m%d"),
+            rand::random::<u32>() % 1000000
+        );
         sqlx::query_as::<_, Booking>(
             r#"
             INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, total_amount, status, created_by, adults)
@@ -129,12 +139,14 @@ impl BookingRepository {
 
     /// Update booking status
     pub async fn update_status(pool: &DbPool, id: i64, status: &str) -> Result<(), ApiError> {
-        sqlx::query("UPDATE bookings SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
-            .bind(status)
-            .bind(id)
-            .execute(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+        sqlx::query(
+            "UPDATE bookings SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        )
+        .bind(status)
+        .bind(id)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
         Ok(())
     }
@@ -175,13 +187,11 @@ impl BookingRepository {
 
     /// Check if booking exists
     pub async fn exists(pool: &DbPool, id: i64) -> Result<bool, ApiError> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM bookings WHERE id = $1"
-        )
-        .bind(id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bookings WHERE id = $1")
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
         Ok(count > 0)
     }

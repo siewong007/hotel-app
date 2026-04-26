@@ -211,3 +211,51 @@ pub async fn backfill_missing_booking_invoices(pool: &DbPool) -> Result<usize, A
 
     Ok(inserted)
 }
+
+/// Backfill `customer_ledgers.due_date` for any rows where it's NULL.
+///
+/// Uses the linked company's `payment_terms_days` (default 30) and adds it to
+/// the row's `posting_date`/`invoice_date`/`created_at` (in that order of
+/// preference). Idempotent — only touches rows where `due_date IS NULL`.
+#[allow(dead_code)]
+pub async fn backfill_missing_ledger_due_dates(pool: &DbPool) -> Result<usize, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let result = sqlx::query(
+        r#"
+        UPDATE customer_ledgers
+           SET due_date = date(
+               COALESCE(posting_date, invoice_date, date(created_at)),
+               '+' || COALESCE(
+                   (SELECT payment_terms_days FROM companies WHERE companies.company_name = customer_ledgers.company_name LIMIT 1),
+                   30
+               ) || ' days'
+           )
+         WHERE due_date IS NULL
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let result = sqlx::query(
+        r#"
+        UPDATE customer_ledgers
+           SET due_date = (
+               COALESCE(posting_date, invoice_date, created_at::date)
+               + COALESCE(
+                   (SELECT payment_terms_days FROM companies
+                     WHERE company_name = customer_ledgers.company_name
+                     LIMIT 1),
+                   30
+               ) * INTERVAL '1 day'
+           )::date
+         WHERE due_date IS NULL
+        "#,
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(result.rows_affected() as usize)
+}

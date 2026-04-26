@@ -1,18 +1,18 @@
 //! Passkey (WebAuthn) authentication routes
 
+use super::extract_client_ip;
+use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::core::rate_limiter::RateLimiters;
+use crate::handlers;
+use crate::models;
 use axum::{
-    routing::post,
     Router,
     extract::{Extension, State},
     http::HeaderMap,
     response::Json,
+    routing::post,
 };
-use crate::core::db::DbPool;
-use crate::core::rate_limiter::RateLimiters;
-use crate::handlers;
-use crate::models;
-use crate::core::error::ApiError;
-use super::extract_client_ip;
 
 pub fn routes() -> Router<DbPool> {
     Router::new()
@@ -32,7 +32,10 @@ async fn register_start(
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many requests. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -49,7 +52,10 @@ async fn register_finish(
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many requests. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -66,7 +72,10 @@ async fn login_start(
     let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many login attempts. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many login attempts. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -83,7 +92,10 @@ async fn login_finish(
     let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many login attempts. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many login attempts. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }

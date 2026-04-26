@@ -22,7 +22,7 @@ pub async fn get_user_profile_handler(
             avatar_url, created_at, updated_at, last_login_at
         FROM users
         WHERE id = $1 AND is_active = true
-        "#
+        "#,
     )
     .bind(user_id)
     .fetch_optional(&pool)
@@ -40,12 +40,14 @@ pub async fn update_user_profile_handler(
 ) -> Result<Json<UserProfile>, ApiError> {
     // Use separate UPDATE statements for each field - safer than dynamic SQL construction
     if let Some(full_name) = input.full_name {
-        sqlx::query("UPDATE users SET full_name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
-            .bind(full_name)
-            .bind(user_id)
-            .execute(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+        sqlx::query(
+            "UPDATE users SET full_name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        )
+        .bind(full_name)
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
     }
 
     if let Some(email) = input.email {
@@ -67,12 +69,14 @@ pub async fn update_user_profile_handler(
     }
 
     if let Some(avatar_url) = input.avatar_url {
-        sqlx::query("UPDATE users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
-            .bind(avatar_url)
-            .bind(user_id)
-            .execute(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
+        sqlx::query(
+            "UPDATE users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        )
+        .bind(avatar_url)
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
     }
 
     // Fetch updated profile
@@ -85,13 +89,11 @@ pub async fn update_password_handler(
     Json(input): Json<PasswordUpdateInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Get current password hash
-    let current_hash: String = sqlx::query_scalar(
-        "SELECT password_hash FROM users WHERE id = $1"
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let current_hash: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Verify current password
     let valid = AuthService::verify_password(&input.current_password, &current_hash)
@@ -99,7 +101,9 @@ pub async fn update_password_handler(
         .map_err(|_| ApiError::Internal("Password verification failed".to_string()))?;
 
     if !valid {
-        return Err(ApiError::Unauthorized("Current password is incorrect".to_string()));
+        return Err(ApiError::Unauthorized(
+            "Current password is incorrect".to_string(),
+        ));
     }
 
     // Hash new password
@@ -113,7 +117,7 @@ pub async fn update_password_handler(
         UPDATE users
         SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
         WHERE id = $2
-        "#
+        "#,
     )
     .bind(&new_hash)
     .bind(user_id)
@@ -121,5 +125,7 @@ pub async fn update_password_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(serde_json::json!({"message": "Password updated successfully"})))
+    Ok(Json(
+        serde_json::json!({"message": "Password updated successfully"}),
+    ))
 }

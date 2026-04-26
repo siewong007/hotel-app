@@ -14,7 +14,7 @@ impl SettingsRepository {
             SELECT id, key, value, description, category, created_at, updated_at
             FROM system_settings
             ORDER BY category, key
-            "#
+            "#,
         )
         .fetch_all(pool)
         .await
@@ -22,14 +22,17 @@ impl SettingsRepository {
     }
 
     /// Find settings by category
-    pub async fn find_by_category(pool: &DbPool, category: &str) -> Result<Vec<SystemSetting>, ApiError> {
+    pub async fn find_by_category(
+        pool: &DbPool,
+        category: &str,
+    ) -> Result<Vec<SystemSetting>, ApiError> {
         sqlx::query_as::<_, SystemSetting>(
             r#"
             SELECT id, key, value, description, category, created_at, updated_at
             FROM system_settings
             WHERE category = $1
             ORDER BY key
-            "#
+            "#,
         )
         .bind(category)
         .fetch_all(pool)
@@ -44,7 +47,7 @@ impl SettingsRepository {
             SELECT id, key, value, description, category, created_at, updated_at
             FROM system_settings
             WHERE key = $1
-            "#
+            "#,
         )
         .bind(key)
         .fetch_optional(pool)
@@ -62,14 +65,18 @@ impl SettingsRepository {
     }
 
     /// Update setting value
-    pub async fn update_value(pool: &DbPool, key: &str, value: &str) -> Result<SystemSetting, ApiError> {
+    pub async fn update_value(
+        pool: &DbPool,
+        key: &str,
+        value: &str,
+    ) -> Result<SystemSetting, ApiError> {
         sqlx::query_as::<_, SystemSetting>(
             r#"
             UPDATE system_settings
             SET value = $1, updated_at = CURRENT_TIMESTAMP
             WHERE key = $2
             RETURNING id, key, value, description, category, created_at, updated_at
-            "#
+            "#,
         )
         .bind(value)
         .bind(key)
@@ -92,7 +99,7 @@ impl SettingsRepository {
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP
             RETURNING id, key, value, description, category, created_at, updated_at
-            "#
+            "#,
         )
         .bind(key)
         .bind(value)
@@ -106,7 +113,7 @@ impl SettingsRepository {
     /// Get rate codes from settings
     pub async fn get_rate_codes(pool: &DbPool) -> Result<Vec<String>, ApiError> {
         let codes: Vec<(String,)> = sqlx::query_as(
-            "SELECT DISTINCT code FROM rate_plans WHERE is_active = true ORDER BY code"
+            "SELECT DISTINCT code FROM rate_plans WHERE is_active = true ORDER BY code",
         )
         .fetch_all(pool)
         .await

@@ -2,46 +2,46 @@
 //!
 //! Each module contains models for a specific domain of the application.
 
+pub mod auth;
+pub mod booking;
 #[allow(dead_code)]
 pub mod common;
-#[allow(dead_code)]
-pub mod user;
-#[allow(dead_code)]
-pub mod room;
+pub mod company;
+pub mod ekyc;
 #[allow(dead_code)]
 pub mod guest;
-pub mod booking;
-pub mod auth;
-pub mod rbac;
+pub mod ledger;
 #[allow(dead_code)]
 pub mod loyalty;
-#[allow(dead_code)]
-pub mod rewards;
+pub mod night_audit;
 #[allow(dead_code)]
 pub mod payment;
 pub mod rate;
-pub mod ekyc;
-pub mod ledger;
-pub mod settings;
-pub mod company;
+pub mod rbac;
+#[allow(dead_code)]
+pub mod rewards;
+#[allow(dead_code)]
+pub mod room;
 #[allow(dead_code)]
 pub mod row_mappers;
-pub mod night_audit;
+pub mod settings;
+#[allow(dead_code)]
+pub mod user;
 
 // Re-export all models for convenience
-pub use common::*;
-pub use user::*;
-pub use room::*;
-pub use guest::*;
-pub use booking::*;
 pub use auth::*;
-pub use rbac::*;
+pub use booking::*;
+pub use common::*;
+pub use company::*;
+pub use ekyc::*;
+pub use guest::*;
+pub use ledger::*;
 pub use loyalty::*;
-pub use rewards::*;
+pub use night_audit::*;
 pub use payment::*;
 pub use rate::*;
-pub use ekyc::*;
-pub use ledger::*;
+pub use rbac::*;
+pub use rewards::*;
+pub use room::*;
 pub use settings::*;
-pub use company::*;
-pub use night_audit::*;
+pub use user::*;

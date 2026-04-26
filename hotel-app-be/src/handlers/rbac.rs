@@ -13,15 +13,11 @@ use axum::{
 };
 use sqlx::Row;
 
-pub async fn get_roles_handler(
-    State(pool): State<DbPool>,
-) -> Result<Json<Vec<Role>>, ApiError> {
-    let rows = sqlx::query(
-        "SELECT id, name, description, created_at FROM roles ORDER BY name"
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+pub async fn get_roles_handler(State(pool): State<DbPool>) -> Result<Json<Vec<Role>>, ApiError> {
+    let rows = sqlx::query("SELECT id, name, description, created_at FROM roles ORDER BY name")
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let mut roles = Vec::new();
     for row in rows {
@@ -45,7 +41,7 @@ pub async fn create_role_handler(
         INSERT INTO roles (name, description)
         VALUES ($1, $2)
         RETURNING id, name, description, created_at
-        "#
+        "#,
     )
     .bind(&input.name)
     .bind(&input.description)
@@ -95,7 +91,7 @@ pub async fn create_permission_handler(
         INSERT INTO permissions (name, resource, action, description)
         VALUES ($1, $2, $3, $4)
         RETURNING id, name, resource, action, description, created_at
-        "#
+        "#,
     )
     .bind(&input.name)
     .bind(&input.resource)
@@ -124,7 +120,7 @@ pub async fn assign_role_to_user_handler(
         INSERT INTO user_roles (user_id, role_id)
         VALUES ($1, $2)
         ON CONFLICT (user_id, role_id) DO NOTHING
-        "#
+        "#,
     )
     .bind(input.user_id)
     .bind(input.role_id)
@@ -135,7 +131,9 @@ pub async fn assign_role_to_user_handler(
     // Log role assignment (no admin_id available in this handler)
     let _ = AuditLog::log_role_assignment(&pool, 0, input.user_id, input.role_id).await;
 
-    Ok(Json(serde_json::json!({"message": "Role assigned successfully"})))
+    Ok(Json(
+        serde_json::json!({"message": "Role assigned successfully"}),
+    ))
 }
 
 pub async fn remove_role_from_user_handler(
@@ -152,7 +150,9 @@ pub async fn remove_role_from_user_handler(
     // Log role removal (no admin_id available in this handler)
     let _ = AuditLog::log_role_removal(&pool, 0, user_id, role_id).await;
 
-    Ok(Json(serde_json::json!({"message": "Role removed successfully"})))
+    Ok(Json(
+        serde_json::json!({"message": "Role removed successfully"}),
+    ))
 }
 
 pub async fn assign_permission_to_role_handler(
@@ -164,7 +164,7 @@ pub async fn assign_permission_to_role_handler(
         INSERT INTO role_permissions (role_id, permission_id)
         VALUES ($1, $2)
         ON CONFLICT (role_id, permission_id) DO NOTHING
-        "#
+        "#,
     )
     .bind(input.role_id)
     .bind(input.permission_id)
@@ -172,7 +172,9 @@ pub async fn assign_permission_to_role_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(serde_json::json!({"message": "Permission assigned successfully"})))
+    Ok(Json(
+        serde_json::json!({"message": "Permission assigned successfully"}),
+    ))
 }
 
 pub async fn remove_permission_from_role_handler(
@@ -186,21 +188,21 @@ pub async fn remove_permission_from_role_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(serde_json::json!({"message": "Permission removed successfully"})))
+    Ok(Json(
+        serde_json::json!({"message": "Permission removed successfully"}),
+    ))
 }
 
 pub async fn get_role_permissions_handler(
     State(pool): State<DbPool>,
     Path(role_id): Path<i64>,
 ) -> Result<Json<RoleWithPermissions>, ApiError> {
-    let role_row = sqlx::query(
-        "SELECT id, name, description, created_at FROM roles WHERE id = $1"
-    )
-    .bind(role_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("Role not found".to_string()))?;
+    let role_row = sqlx::query("SELECT id, name, description, created_at FROM roles WHERE id = $1")
+        .bind(role_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound("Role not found".to_string()))?;
 
     let role = Role {
         id: role_row.get(0),
@@ -216,7 +218,7 @@ pub async fn get_role_permissions_handler(
         INNER JOIN role_permissions rp ON p.id = rp.permission_id
         WHERE rp.role_id = $1
         ORDER BY p.resource, p.action
-        "#
+        "#,
     )
     .bind(role_id)
     .fetch_all(&pool)
@@ -262,30 +264,35 @@ pub async fn create_user_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if !is_super_admin {
-        return Err(ApiError::Unauthorized("Only super admins can create users".to_string()));
+        return Err(ApiError::Unauthorized(
+            "Only super admins can create users".to_string(),
+        ));
     }
 
-    AuthService::validate_password(&input.password)
-        .map_err(ApiError::BadRequest)?;
+    AuthService::validate_password(&input.password).map_err(ApiError::BadRequest)?;
 
     let password_hash = AuthService::hash_password(&input.password)
         .await
         .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?;
 
-    let existing_user: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM users WHERE username = $1 OR email = $2 LIMIT 1"
-    )
-    .bind(&input.username)
-    .bind(&input.email)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let existing_user: Option<i64> =
+        sqlx::query_scalar("SELECT id FROM users WHERE username = $1 OR email = $2 LIMIT 1")
+            .bind(&input.username)
+            .bind(&input.email)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if existing_user.is_some() {
-        return Err(ApiError::BadRequest("Username or email already exists".to_string()));
+        return Err(ApiError::BadRequest(
+            "Username or email already exists".to_string(),
+        ));
     }
 
-    let mut tx = pool.begin().await.map_err(|e| ApiError::Database(e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let user = sqlx::query_as::<_, User>(
         r#"
@@ -305,15 +312,19 @@ pub async fn create_user_handler(
 
     if let Some(role_ids) = &input.role_ids {
         for role_id in role_ids {
-            let role_exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM roles WHERE id = $1)")
-                .bind(role_id)
-                .fetch_one(&mut *tx)
-                .await
-                .map_err(|e| ApiError::Database(e.to_string()))?;
+            let role_exists: bool =
+                sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM roles WHERE id = $1)")
+                    .bind(role_id)
+                    .fetch_one(&mut *tx)
+                    .await
+                    .map_err(|e| ApiError::Database(e.to_string()))?;
 
             if !role_exists {
                 tx.rollback().await.ok();
-                return Err(ApiError::BadRequest(format!("Role with id {} does not exist", role_id)));
+                return Err(ApiError::BadRequest(format!(
+                    "Role with id {} does not exist",
+                    role_id
+                )));
             }
 
             let role_name: String = sqlx::query_scalar("SELECT name FROM roles WHERE id = $1")
@@ -324,19 +335,25 @@ pub async fn create_user_handler(
 
             if (role_name == "super_admin" || role_name == "admin") && !is_super_admin {
                 tx.rollback().await.ok();
-                return Err(ApiError::Unauthorized("Only super admins can assign admin or super_admin roles".to_string()));
+                return Err(ApiError::Unauthorized(
+                    "Only super admins can assign admin or super_admin roles".to_string(),
+                ));
             }
 
-            sqlx::query("INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING")
-                .bind(user.id)
-                .bind(role_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| ApiError::Database(e.to_string()))?;
+            sqlx::query(
+                "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            )
+            .bind(user.id)
+            .bind(role_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
         }
     }
 
-    tx.commit().await.map_err(|e| ApiError::Database(e.to_string()))?;
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Log user creation
     let _ = AuditLog::log_event(
@@ -348,7 +365,8 @@ pub async fn create_user_handler(
         Some(serde_json::json!({"username": &input.username, "email": &input.email})),
         None,
         None,
-    ).await;
+    )
+    .await;
 
     Ok(Json(user.into()))
 }
@@ -373,7 +391,7 @@ pub async fn get_user_roles_permissions_handler(
         INNER JOIN user_roles ur ON r.id = ur.role_id
         WHERE ur.user_id = $1
         ORDER BY r.name
-        "#
+        "#,
     )
     .bind(user_id)
     .fetch_all(&pool)
@@ -398,7 +416,7 @@ pub async fn get_user_roles_permissions_handler(
         INNER JOIN user_roles ur ON rp.role_id = ur.role_id
         WHERE ur.user_id = $1
         ORDER BY p.resource, p.action
-        "#
+        "#,
     )
     .bind(user_id)
     .fetch_all(&pool)
@@ -417,7 +435,11 @@ pub async fn get_user_roles_permissions_handler(
         });
     }
 
-    Ok(Json(UserWithRolesAndPermissions { user, roles, permissions }))
+    Ok(Json(UserWithRolesAndPermissions {
+        user,
+        roles,
+        permissions,
+    }))
 }
 
 /// Update an existing role
@@ -427,17 +449,20 @@ pub async fn update_role_handler(
     Json(input): Json<RoleInput>,
 ) -> Result<Json<Role>, ApiError> {
     // Check if role exists
-    let existing: Option<bool> = sqlx::query_scalar(
-        "SELECT is_system_role FROM roles WHERE id = $1"
-    )
-    .bind(role_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let existing: Option<bool> =
+        sqlx::query_scalar("SELECT is_system_role FROM roles WHERE id = $1")
+            .bind(role_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     match existing {
         None => return Err(ApiError::NotFound("Role not found".to_string())),
-        Some(true) => return Err(ApiError::BadRequest("Cannot modify system roles".to_string())),
+        Some(true) => {
+            return Err(ApiError::BadRequest(
+                "Cannot modify system roles".to_string(),
+            ));
+        }
         Some(false) => {}
     }
 
@@ -447,7 +472,7 @@ pub async fn update_role_handler(
         SET name = $1, description = $2, updated_at = NOW()
         WHERE id = $3
         RETURNING id, name, description, created_at
-        "#
+        "#,
     )
     .bind(&input.name)
     .bind(&input.description)
@@ -470,33 +495,35 @@ pub async fn delete_role_handler(
     Path(role_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Check if role exists and is not a system role
-    let existing: Option<bool> = sqlx::query_scalar(
-        "SELECT is_system_role FROM roles WHERE id = $1"
-    )
-    .bind(role_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let existing: Option<bool> =
+        sqlx::query_scalar("SELECT is_system_role FROM roles WHERE id = $1")
+            .bind(role_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     match existing {
         None => return Err(ApiError::NotFound("Role not found".to_string())),
-        Some(true) => return Err(ApiError::BadRequest("Cannot delete system roles".to_string())),
+        Some(true) => {
+            return Err(ApiError::BadRequest(
+                "Cannot delete system roles".to_string(),
+            ));
+        }
         Some(false) => {}
     }
 
     // Check if role is assigned to any users
-    let user_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM user_roles WHERE role_id = $1"
-    )
-    .bind(role_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let user_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM user_roles WHERE role_id = $1")
+        .bind(role_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if user_count > 0 {
-        return Err(ApiError::BadRequest(
-            format!("Cannot delete role: {} user(s) still have this role assigned", user_count)
-        ));
+        return Err(ApiError::BadRequest(format!(
+            "Cannot delete role: {} user(s) still have this role assigned",
+            user_count
+        )));
     }
 
     // Delete role permissions first (cascade should handle this, but being explicit)
@@ -513,7 +540,9 @@ pub async fn delete_role_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(serde_json::json!({"message": "Role deleted successfully"})))
+    Ok(Json(
+        serde_json::json!({"message": "Role deleted successfully"}),
+    ))
 }
 
 /// Update an existing permission
@@ -523,17 +552,20 @@ pub async fn update_permission_handler(
     Json(input): Json<PermissionInput>,
 ) -> Result<Json<Permission>, ApiError> {
     // Check if permission exists
-    let existing: Option<bool> = sqlx::query_scalar(
-        "SELECT is_system_permission FROM permissions WHERE id = $1"
-    )
-    .bind(permission_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let existing: Option<bool> =
+        sqlx::query_scalar("SELECT is_system_permission FROM permissions WHERE id = $1")
+            .bind(permission_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     match existing {
         None => return Err(ApiError::NotFound("Permission not found".to_string())),
-        Some(true) => return Err(ApiError::BadRequest("Cannot modify system permissions".to_string())),
+        Some(true) => {
+            return Err(ApiError::BadRequest(
+                "Cannot modify system permissions".to_string(),
+            ));
+        }
         Some(false) => {}
     }
 
@@ -543,7 +575,7 @@ pub async fn update_permission_handler(
         SET name = $1, resource = $2, action = $3, description = $4
         WHERE id = $5
         RETURNING id, name, resource, action, description, created_at
-        "#
+        "#,
     )
     .bind(&input.name)
     .bind(&input.resource)
@@ -570,33 +602,36 @@ pub async fn delete_permission_handler(
     Path(permission_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Check if permission exists and is not a system permission
-    let existing: Option<bool> = sqlx::query_scalar(
-        "SELECT is_system_permission FROM permissions WHERE id = $1"
-    )
-    .bind(permission_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let existing: Option<bool> =
+        sqlx::query_scalar("SELECT is_system_permission FROM permissions WHERE id = $1")
+            .bind(permission_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     match existing {
         None => return Err(ApiError::NotFound("Permission not found".to_string())),
-        Some(true) => return Err(ApiError::BadRequest("Cannot delete system permissions".to_string())),
+        Some(true) => {
+            return Err(ApiError::BadRequest(
+                "Cannot delete system permissions".to_string(),
+            ));
+        }
         Some(false) => {}
     }
 
     // Check if permission is assigned to any roles
-    let role_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM role_permissions WHERE permission_id = $1"
-    )
-    .bind(permission_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let role_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM role_permissions WHERE permission_id = $1")
+            .bind(permission_id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if role_count > 0 {
-        return Err(ApiError::BadRequest(
-            format!("Cannot delete permission: {} role(s) still have this permission assigned", role_count)
-        ));
+        return Err(ApiError::BadRequest(format!(
+            "Cannot delete permission: {} role(s) still have this permission assigned",
+            role_count
+        )));
     }
 
     // Delete the permission
@@ -606,5 +641,7 @@ pub async fn delete_permission_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(serde_json::json!({"message": "Permission deleted successfully"})))
+    Ok(Json(
+        serde_json::json!({"message": "Permission deleted successfully"}),
+    ))
 }

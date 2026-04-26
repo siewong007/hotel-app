@@ -1,18 +1,18 @@
 //! Two-factor authentication routes
 
+use super::extract_client_ip;
+use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::core::rate_limiter::RateLimiters;
+use crate::handlers;
+use crate::models;
 use axum::{
-    routing::{get, post},
     Router,
     extract::{Extension, State},
     http::HeaderMap,
     response::Json,
+    routing::{get, post},
 };
-use crate::core::db::DbPool;
-use crate::core::rate_limiter::RateLimiters;
-use crate::handlers;
-use crate::models;
-use crate::core::error::ApiError;
-use super::extract_client_ip;
 
 pub fn routes() -> Router<DbPool> {
     Router::new()
@@ -21,7 +21,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/auth/2fa/disable", post(disable_2fa))
         .route("/auth/2fa/status", get(get_2fa_status))
         .route("/auth/2fa/verify", post(verify_2fa))
-        .route("/auth/2fa/regenerate-backup-codes", post(regenerate_backup_codes))
+        .route(
+            "/auth/2fa/regenerate-backup-codes",
+            post(regenerate_backup_codes),
+        )
 }
 
 async fn setup_2fa(
@@ -34,7 +37,10 @@ async fn setup_2fa(
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many requests. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -51,7 +57,10 @@ async fn enable_2fa(
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many requests. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -68,7 +77,10 @@ async fn disable_2fa(
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many requests. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -92,7 +104,10 @@ async fn verify_2fa(
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many requests. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -109,7 +124,10 @@ async fn regenerate_backup_codes(
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many requests. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many requests. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }

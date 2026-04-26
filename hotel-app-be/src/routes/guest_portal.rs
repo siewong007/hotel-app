@@ -2,16 +2,16 @@
 //!
 //! Public routes for guest self-service features.
 
-use axum::{
-    routing::{get, post},
-    Router,
-    extract::{State, Path},
-    response::Json,
-};
 use crate::core::db::DbPool;
+use crate::core::error::ApiError;
 use crate::handlers;
 use crate::models;
-use crate::core::error::ApiError;
+use axum::{
+    Router,
+    extract::{Path, State},
+    response::Json,
+    routing::{get, post},
+};
 
 /// Create guest portal routes (no authentication required)
 pub fn routes() -> Router<DbPool> {

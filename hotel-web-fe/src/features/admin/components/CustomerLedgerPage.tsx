@@ -1788,7 +1788,7 @@ const CustomerLedgerPage: React.FC = () => {
     const htmlContent = `
       <html>
         <head>
-          <title>Receipt - ${entry.invoice_number || `#${entry.id}`}</title>
+          <title>Receipt - ${entry.invoice_number || entry.folio_number || `#${entry.id}`}</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
             .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 15px; }
@@ -1818,7 +1818,7 @@ const CustomerLedgerPage: React.FC = () => {
           <div class="receipt-info">
             <div class="receipt-row">
               <span class="label">Receipt / Invoice #</span>
-              <span class="value">${entry.invoice_number || `LED-${entry.id}`}</span>
+              <span class="value">${entry.invoice_number || entry.folio_number || `#${entry.id}`}</span>
             </div>
             <div class="receipt-row">
               <span class="label">Company</span>
@@ -2440,8 +2440,10 @@ const CustomerLedgerPage: React.FC = () => {
                     {formatCurrency(getLedgerBalanceDue(ledger))}
                   </Typography>
                 </TableCell>
-                <TableCell>
-                  {formatDateForDisplay(ledger.due_date)}
+                <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                  <Typography variant="body2">
+                    {ledger.due_date ? formatDateForDisplay(ledger.due_date) : '-'}
+                  </Typography>
                 </TableCell>
                 <TableCell>
                   <Chip
@@ -3297,7 +3299,7 @@ const CustomerLedgerPage: React.FC = () => {
                       <Grid size={6}>
                         <Typography variant="caption" color="text.secondary">Receipt / Invoice #</Typography>
                         <Typography variant="body1" fontWeight="bold">
-                          {entry.invoice_number || `LED-${entry.id}`}
+                          {entry.invoice_number || entry.folio_number || `#${entry.id}`}
                         </Typography>
                       </Grid>
                       <Grid size={6}>

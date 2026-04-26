@@ -31,7 +31,6 @@ import {
 } from '@mui/material';
 import {
   Add as AddIcon,
-  Edit as EditIcon,
   Delete as DeleteIcon,
   Hotel as HotelIcon,
   KingBed as BedIcon,
@@ -367,7 +366,12 @@ const RoomTypeConfigurationPage: React.FC = () => {
           </TableHead>
           <TableBody>
             {roomTypes.map((roomType) => (
-              <TableRow key={roomType.id} sx={{ opacity: roomType.is_active ? 1 : 0.6 }}>
+              <TableRow
+                key={roomType.id}
+                hover={canEdit}
+                onClick={canEdit ? () => handleEditOpen(roomType) : undefined}
+                sx={{ opacity: roomType.is_active ? 1 : 0.6, cursor: canEdit ? 'pointer' : 'default' }}
+              >
                 <TableCell>
                   <Typography fontWeight="medium">{roomType.name}</Typography>
                   {roomType.description && (
@@ -416,7 +420,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
                     <Chip label="No" size="small" color="default" />
                   )}
                 </TableCell>
-                <TableCell align="center">
+                <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                   <Tooltip title={roomType.is_active ? 'Active' : 'Inactive'}>
                     <IconButton
                       size="small"
@@ -432,10 +436,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
                   </Tooltip>
                 </TableCell>
                 {canEdit && (
-                  <TableCell align="center">
-                    <IconButton size="small" onClick={() => handleEditOpen(roomType)}>
-                      <EditIcon />
-                    </IconButton>
+                  <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                     <IconButton size="small" onClick={() => handleDeleteOpen(roomType)} color="error">
                       <DeleteIcon />
                     </IconButton>

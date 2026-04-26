@@ -16,19 +16,18 @@ pub async fn resolve_user_to_guest(pool: &DbPool, user_id: i64) -> Result<i64, A
         .map_err(|e| ApiError::Database(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
-    let guest_id: i64 = sqlx::query_scalar(
-        "SELECT id FROM guests WHERE email = $1 AND deleted_at IS NULL",
-    )
-    .bind(&email)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| {
-        ApiError::NotFound(
+    let guest_id: i64 =
+        sqlx::query_scalar("SELECT id FROM guests WHERE email = $1 AND deleted_at IS NULL")
+            .bind(&email)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?
+            .ok_or_else(|| {
+                ApiError::NotFound(
             "Guest profile not found. Please contact support to enroll in the loyalty programme."
                 .to_string(),
         )
-    })?;
+            })?;
 
     Ok(guest_id)
 }
@@ -57,12 +56,17 @@ pub async fn adjust_membership_points(
         membership.points_balance + points
     } else {
         if membership.points_balance < points {
-            return Err(ApiError::BadRequest("Insufficient points balance".to_string()));
+            return Err(ApiError::BadRequest(
+                "Insufficient points balance".to_string(),
+            ));
         }
         membership.points_balance - points
     };
 
-    let mut tx = pool.begin().await.map_err(|e| ApiError::Database(e.to_string()))?;
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if is_earn {
         sqlx::query(
@@ -120,7 +124,9 @@ pub async fn adjust_membership_points(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    tx.commit().await.map_err(|e| ApiError::Database(e.to_string()))?;
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(transaction)
 }
