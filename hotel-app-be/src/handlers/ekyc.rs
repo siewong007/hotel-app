@@ -3,11 +3,11 @@
 //! Handles identity verification and self-check-in.
 
 use axum::{
+    Json,
     extract::{Multipart, Path, State},
     http::HeaderMap,
-    Json,
 };
-use base64::{engine::general_purpose, Engine as _};
+use base64::{Engine as _, engine::general_purpose};
 use chrono::{NaiveDate, Utc};
 use std::fs;
 use std::io::Write;
@@ -22,7 +22,11 @@ use crate::models::{
 };
 
 /// Helper function to save base64 image to file system
-fn save_base64_image(base64_data: &str, user_id: i64, image_type: &str) -> Result<String, ApiError> {
+fn save_base64_image(
+    base64_data: &str,
+    user_id: i64,
+    image_type: &str,
+) -> Result<String, ApiError> {
     // Create uploads directory if it doesn't exist
     let upload_dir = PathBuf::from("uploads/ekyc");
     fs::create_dir_all(&upload_dir)
@@ -30,7 +34,11 @@ fn save_base64_image(base64_data: &str, user_id: i64, image_type: &str) -> Resul
 
     // Extract base64 data (remove data:image/jpeg;base64, prefix if present)
     let parts: Vec<&str> = base64_data.split(',').collect();
-    let data = if parts.len() == 2 { parts[1] } else { base64_data };
+    let data = if parts.len() == 2 {
+        parts[1]
+    } else {
+        base64_data
+    };
 
     // Decode base64
     let bytes = general_purpose::STANDARD
@@ -75,10 +83,9 @@ pub async fn upload_document_handler(
         let field_name = field.name().unwrap_or("").to_string();
 
         if field_name == "documentType" {
-            document_type = field
-                .text()
-                .await
-                .map_err(|e| ApiError::BadRequest(format!("Failed to read document type: {}", e)))?;
+            document_type = field.text().await.map_err(|e| {
+                ApiError::BadRequest(format!("Failed to read document type: {}", e))
+            })?;
         } else if field_name == "file" {
             let content_type = field.content_type().unwrap_or("").to_string();
 
@@ -166,9 +173,9 @@ pub async fn submit_ekyc_handler(
         ));
     }
 
-    let guest_id = user_info
-        .1
-        .ok_or_else(|| ApiError::BadRequest("User account not linked to guest profile".to_string()))?;
+    let guest_id = user_info.1.ok_or_else(|| {
+        ApiError::BadRequest("User account not linked to guest profile".to_string())
+    })?;
 
     // Check if guest already has an eKYC submission
     let existing: Option<(i64,)> =
@@ -180,21 +187,27 @@ pub async fn submit_ekyc_handler(
 
     if existing.is_some() {
         return Err(ApiError::BadRequest(
-            "You have already submitted an eKYC verification. Please check your status.".to_string(),
+            "You have already submitted an eKYC verification. Please check your status."
+                .to_string(),
         ));
     }
 
     // Parse date strings
-    let date_of_birth = NaiveDate::parse_from_str(&req.date_of_birth, "%Y-%m-%d")
-        .map_err(|_| ApiError::BadRequest("Invalid date_of_birth format. Use YYYY-MM-DD".to_string()))?;
+    let date_of_birth =
+        NaiveDate::parse_from_str(&req.date_of_birth, "%Y-%m-%d").map_err(|_| {
+            ApiError::BadRequest("Invalid date_of_birth format. Use YYYY-MM-DD".to_string())
+        })?;
 
-    let id_expiry_date = NaiveDate::parse_from_str(&req.id_expiry_date, "%Y-%m-%d")
-        .map_err(|_| ApiError::BadRequest("Invalid id_expiry_date format. Use YYYY-MM-DD".to_string()))?;
+    let id_expiry_date =
+        NaiveDate::parse_from_str(&req.id_expiry_date, "%Y-%m-%d").map_err(|_| {
+            ApiError::BadRequest("Invalid id_expiry_date format. Use YYYY-MM-DD".to_string())
+        })?;
 
     let id_issue_date = if let Some(date_str) = &req.id_issue_date {
         Some(
-            NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
-                .map_err(|_| ApiError::BadRequest("Invalid id_issue_date format. Use YYYY-MM-DD".to_string()))?,
+            NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
+                ApiError::BadRequest("Invalid id_issue_date format. Use YYYY-MM-DD".to_string())
+            })?,
         )
     } else {
         None
@@ -313,8 +326,8 @@ pub async fn get_ekyc_status_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let guest_id =
-        guest_id.ok_or_else(|| ApiError::BadRequest("User not linked to guest profile".to_string()))?;
+    let guest_id = guest_id
+        .ok_or_else(|| ApiError::BadRequest("User not linked to guest profile".to_string()))?;
 
     // Get eKYC by guest_id
     let verification: Option<EkycVerification> =
@@ -435,8 +448,7 @@ pub async fn update_ekyc_handler(
     }
 
     if let Some(score) = update.face_match_score {
-        query_builder =
-            query_builder.bind(rust_decimal::Decimal::from_f32_retain(score).unwrap());
+        query_builder = query_builder.bind(rust_decimal::Decimal::from_f32_retain(score).unwrap());
     }
 
     if let Some(passed) = update.face_match_passed {
@@ -478,8 +490,9 @@ pub async fn self_checkin_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let (ekyc_id, self_checkin_enabled) = ekyc
-        .ok_or_else(|| ApiError::Forbidden("eKYC verification required for self check-in".to_string()))?;
+    let (ekyc_id, self_checkin_enabled) = ekyc.ok_or_else(|| {
+        ApiError::Forbidden("eKYC verification required for self check-in".to_string())
+    })?;
 
     if !self_checkin_enabled {
         return Err(ApiError::Forbidden(

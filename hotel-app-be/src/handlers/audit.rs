@@ -94,7 +94,11 @@ pub async fn get_audit_logs(
         "created_at"
     };
 
-    let sort_direction = if sort_order.to_lowercase() == "asc" { "ASC" } else { "DESC" };
+    let sort_direction = if sort_order.to_lowercase() == "asc" {
+        "ASC"
+    } else {
+        "DESC"
+    };
 
     // Build dynamic query
     let mut where_clauses: Vec<String> = vec![];
@@ -271,12 +275,11 @@ pub async fn get_audit_actions(
 ) -> Result<Json<Vec<String>>, ApiError> {
     require_permission_helper(&pool, &headers, "audit:read").await?;
 
-    let actions = sqlx::query_scalar::<_, String>(
-        "SELECT DISTINCT action FROM audit_logs ORDER BY action"
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(format!("Failed to fetch actions: {}", e)))?;
+    let actions =
+        sqlx::query_scalar::<_, String>("SELECT DISTINCT action FROM audit_logs ORDER BY action")
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| ApiError::Database(format!("Failed to fetch actions: {}", e)))?;
 
     Ok(Json(actions))
 }
@@ -290,7 +293,7 @@ pub async fn get_audit_resource_types(
     require_permission_helper(&pool, &headers, "audit:read").await?;
 
     let resource_types = sqlx::query_scalar::<_, String>(
-        "SELECT DISTINCT resource_type FROM audit_logs ORDER BY resource_type"
+        "SELECT DISTINCT resource_type FROM audit_logs ORDER BY resource_type",
     )
     .fetch_all(&pool)
     .await
@@ -404,10 +407,13 @@ pub async fn export_audit_logs_csv(
         .map_err(|e| ApiError::Database(format!("Failed to fetch audit logs: {}", e)))?;
 
     // Build CSV
-    let mut csv_content = String::from("ID,Timestamp,User ID,Username,Action,Resource Type,Resource ID,IP Address,User Agent,Details\n");
+    let mut csv_content = String::from(
+        "ID,Timestamp,User ID,Username,Action,Resource Type,Resource ID,IP Address,User Agent,Details\n",
+    );
 
     for row in rows {
-        let details_str = row.details
+        let details_str = row
+            .details
             .map(|d| serde_json::to_string(&d).unwrap_or_default())
             .unwrap_or_default()
             .replace("\"", "\"\""); // Escape quotes for CSV
@@ -422,7 +428,10 @@ pub async fn export_audit_logs_csv(
             row.resource_type,
             row.resource_id.map(|id| id.to_string()).unwrap_or_default(),
             row.ip_address.unwrap_or_default(),
-            row.user_agent.as_deref().unwrap_or_default().replace(",", " "),
+            row.user_agent
+                .as_deref()
+                .unwrap_or_default()
+                .replace(",", " "),
             details_str
         ));
     }
@@ -432,7 +441,10 @@ pub async fn export_audit_logs_csv(
     Ok(axum::response::Response::builder()
         .status(axum::http::StatusCode::OK)
         .header("Content-Type", "text/csv; charset=utf-8")
-        .header("Content-Disposition", format!("attachment; filename=\"{}\"", filename))
+        .header(
+            "Content-Disposition",
+            format!("attachment; filename=\"{}\"", filename),
+        )
         .body(axum::body::Body::from(csv_content))
         .unwrap())
 }
@@ -457,7 +469,7 @@ pub async fn get_audit_users(
         FROM users u
         INNER JOIN audit_logs a ON u.id = a.user_id
         ORDER BY u.username
-        "#
+        "#,
     )
     .fetch_all(&pool)
     .await

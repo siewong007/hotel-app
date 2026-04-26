@@ -1,13 +1,10 @@
 //! Data transfer handlers for export/import/overwrite of booking-related data
 
-use axum::{
-    extract::State,
-    response::Json,
-};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use axum::{extract::State, response::Json};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// Represents all booking-related data for export/import
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,28 +55,34 @@ pub async fn export_booking_data_handler(
 ) -> Result<Json<BookingDataExport>, ApiError> {
     // Helper to query a table and return as Vec<Value>
     async fn query_table(pool: &DbPool, query: &str) -> Result<Vec<Value>, ApiError> {
-        let rows: Vec<(Value,)> = sqlx::query_as(
-            &format!("SELECT row_to_json(t) FROM ({}) t", query)
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        let rows: Vec<(Value,)> =
+            sqlx::query_as(&format!("SELECT row_to_json(t) FROM ({}) t", query))
+                .fetch_all(pool)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
         Ok(rows.into_iter().map(|r| r.0).collect())
     }
 
     let guests = query_table(&pool, "SELECT * FROM guests ORDER BY id").await?;
-    let guest_complimentary_credits = query_table(&pool, "SELECT * FROM guest_complimentary_credits ORDER BY id").await?;
+    let guest_complimentary_credits = query_table(
+        &pool,
+        "SELECT * FROM guest_complimentary_credits ORDER BY id",
+    )
+    .await?;
     let companies = query_table(&pool, "SELECT * FROM companies ORDER BY id").await?;
     let bookings = query_table(&pool, "SELECT * FROM bookings ORDER BY id").await?;
     let payments = query_table(&pool, "SELECT * FROM payments ORDER BY id").await?;
     let invoices = query_table(&pool, "SELECT * FROM invoices ORDER BY id").await?;
     let booking_guests = query_table(&pool, "SELECT * FROM booking_guests ORDER BY id").await?;
-    let booking_modifications = query_table(&pool, "SELECT * FROM booking_modifications ORDER BY id").await?;
+    let booking_modifications =
+        query_table(&pool, "SELECT * FROM booking_modifications ORDER BY id").await?;
     let booking_history = query_table(&pool, "SELECT * FROM booking_history ORDER BY id").await?;
     let night_audit_runs = query_table(&pool, "SELECT * FROM night_audit_runs ORDER BY id").await?;
-    let night_audit_details = query_table(&pool, "SELECT * FROM night_audit_details ORDER BY id").await?;
+    let night_audit_details =
+        query_table(&pool, "SELECT * FROM night_audit_details ORDER BY id").await?;
     let customer_ledgers = query_table(&pool, "SELECT * FROM customer_ledgers ORDER BY id").await?;
-    let customer_ledger_payments = query_table(&pool, "SELECT * FROM customer_ledger_payments ORDER BY id").await?;
+    let customer_ledger_payments =
+        query_table(&pool, "SELECT * FROM customer_ledger_payments ORDER BY id").await?;
     let room_changes = query_table(&pool, "SELECT * FROM room_changes ORDER BY id").await?;
     let user_guests = query_table(&pool, "SELECT * FROM user_guests ORDER BY id").await?;
     let room_types = query_table(&pool, "SELECT * FROM room_types ORDER BY id").await?;
@@ -118,12 +121,21 @@ pub async fn import_booking_data_handler(
 
     // Tables managed by this data transfer (in delete order - reverse dependency)
     let mut managed_tables = vec![
-        "night_audit_details", "night_audit_runs",
-        "customer_ledger_payments", "customer_ledgers",
-        "room_changes", "booking_history", "booking_modifications",
-        "booking_guests", "invoices", "payments", "bookings",
-        "guest_complimentary_credits", "companies",
-        "user_guests", "guests",
+        "night_audit_details",
+        "night_audit_runs",
+        "customer_ledger_payments",
+        "customer_ledgers",
+        "room_changes",
+        "booking_history",
+        "booking_modifications",
+        "booking_guests",
+        "invoices",
+        "payments",
+        "bookings",
+        "guest_complimentary_credits",
+        "companies",
+        "user_guests",
+        "guests",
     ];
     if !data.rooms.is_empty() {
         // Delete room-dependent tables before rooms
@@ -138,54 +150,84 @@ pub async fn import_booking_data_handler(
 
     if is_overwrite {
         // Phase 1: Delete all data in a transaction
-        let mut tx = pool.begin().await
+        let mut tx = pool
+            .begin()
+            .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
         for table in &managed_tables {
             sqlx::query(&format!("DELETE FROM {}", table))
-                .execute(&mut *tx).await
+                .execute(&mut *tx)
+                .await
                 .map_err(|e| ApiError::Database(e.to_string()))?;
         }
-        tx.commit().await
+        tx.commit()
+            .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
         log::info!("Phase 1: All managed tables cleared");
     }
 
     // Columns that are GENERATED ALWAYS AS in PostgreSQL and cannot be inserted
-    let generated_columns: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::from([
-        ("bookings", vec!["nights", "total_guests"]),
-        ("customer_ledgers", vec!["balance_due"]),
-    ]);
+    let generated_columns: std::collections::HashMap<&str, Vec<&str>> =
+        std::collections::HashMap::from([
+            ("bookings", vec!["nights", "total_guests"]),
+            ("customer_ledgers", vec!["balance_due"]),
+        ]);
 
     let mut counts = serde_json::Map::new();
 
     // Collect user IDs that exist in the target database so we can null out
     // FK references to users that don't exist (users are not part of the export)
-    let existing_user_ids: std::collections::HashSet<i64> = sqlx::query_scalar::<_, i64>(
-        "SELECT id FROM users"
-    )
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default()
-    .into_iter()
-    .collect();
+    let existing_user_ids: std::collections::HashSet<i64> =
+        sqlx::query_scalar::<_, i64>("SELECT id FROM users")
+            .fetch_all(&pool)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
 
     // Columns that reference users(id) — these must be nulled if the user doesn't exist
     let user_fk_columns: Vec<&str> = vec![
-        "created_by", "updated_by", "cancelled_by", "posted_by",
-        "modified_by", "run_by", "changed_by", "processed_by",
-        "cashier_id", "void_by", "delivered_by", "inspected_by",
-        "assigned_to", "reported_by", "linked_by", "verified_by",
+        "created_by",
+        "updated_by",
+        "cancelled_by",
+        "posted_by",
+        "modified_by",
+        "run_by",
+        "changed_by",
+        "processed_by",
+        "cashier_id",
+        "void_by",
+        "delivered_by",
+        "inspected_by",
+        "assigned_to",
+        "reported_by",
+        "linked_by",
+        "verified_by",
         "response_by",
     ];
 
     // Query target database for actual column names per table so we only INSERT
     // columns that exist (the export may include columns from newer migrations)
-    let mut table_columns: std::collections::HashMap<String, std::collections::HashSet<String>> = std::collections::HashMap::new();
+    let mut table_columns: std::collections::HashMap<String, std::collections::HashSet<String>> =
+        std::collections::HashMap::new();
     let all_table_names = [
-        "room_types", "rooms", "guests", "user_guests", "guest_complimentary_credits",
-        "companies", "bookings", "payments", "invoices", "booking_guests",
-        "booking_modifications", "booking_history", "night_audit_runs",
-        "night_audit_details", "customer_ledgers", "customer_ledger_payments", "room_changes",
+        "room_types",
+        "rooms",
+        "guests",
+        "user_guests",
+        "guest_complimentary_credits",
+        "companies",
+        "bookings",
+        "payments",
+        "invoices",
+        "booking_guests",
+        "booking_modifications",
+        "booking_history",
+        "night_audit_runs",
+        "night_audit_details",
+        "customer_ledgers",
+        "customer_ledger_payments",
+        "room_changes",
     ];
     for table_name in &all_table_names {
         let cols: Vec<(String,)> = sqlx::query_as(
@@ -203,10 +245,17 @@ pub async fn import_booking_data_handler(
 
     // Tables with triggers that interfere with bulk import (e.g. room status sync,
     // occupancy validation). Disable them before inserting and re-enable after.
-    let tables_with_triggers = ["bookings", "rooms", "guests", "customer_ledgers", "payments"];
+    let tables_with_triggers = [
+        "bookings",
+        "rooms",
+        "guests",
+        "customer_ledgers",
+        "payments",
+    ];
     for table in &tables_with_triggers {
         let _ = sqlx::query(&format!("ALTER TABLE {} DISABLE TRIGGER USER", table))
-            .execute(&pool).await;
+            .execute(&pool)
+            .await;
     }
 
     // Phase 2: Insert data directly on pool (auto-commit per statement)
@@ -217,7 +266,10 @@ pub async fn import_booking_data_handler(
         ("rooms", &data.rooms),
         ("guests", &data.guests),
         ("user_guests", &data.user_guests),
-        ("guest_complimentary_credits", &data.guest_complimentary_credits),
+        (
+            "guest_complimentary_credits",
+            &data.guest_complimentary_credits,
+        ),
         ("companies", &data.companies),
         ("bookings", &data.bookings),
         ("payments", &data.payments),
@@ -246,7 +298,8 @@ pub async fn import_booking_data_handler(
             };
 
             let valid_cols = table_columns.get(*table);
-            let columns: Vec<&str> = obj.keys()
+            let columns: Vec<&str> = obj
+                .keys()
                 .map(|k| k.as_str())
                 .filter(|k| !skip.contains(k))
                 .filter(|k| valid_cols.is_none_or(|vc| vc.contains(*k)))
@@ -300,11 +353,20 @@ pub async fn import_booking_data_handler(
         }
         counts.insert((*table).into(), Value::Number(inserted.into()));
         if failed > 0 {
-            errors.insert((*table).into(), serde_json::json!({
-                "failed": failed,
-                "last_error": last_error,
-            }));
-            log::warn!("Table {}: {} inserted, {} failed. Last error: {}", table, inserted, failed, last_error);
+            errors.insert(
+                (*table).into(),
+                serde_json::json!({
+                    "failed": failed,
+                    "last_error": last_error,
+                }),
+            );
+            log::warn!(
+                "Table {}: {} inserted, {} failed. Last error: {}",
+                table,
+                inserted,
+                failed,
+                last_error
+            );
         }
         if inserted > 0 {
             log::info!("Inserted {} rows into {}", inserted, table);
@@ -314,16 +376,29 @@ pub async fn import_booking_data_handler(
     // Re-enable triggers
     for table in &tables_with_triggers {
         let _ = sqlx::query(&format!("ALTER TABLE {} ENABLE TRIGGER USER", table))
-            .execute(&pool).await;
+            .execute(&pool)
+            .await;
     }
 
     // Reset sequences to max id + 1 for each table
     let tables_with_sequences = [
-        "room_types", "rooms",
-        "guests", "user_guests", "guest_complimentary_credits", "companies", "bookings",
-        "payments", "invoices", "booking_guests", "booking_modifications",
-        "booking_history", "night_audit_runs", "night_audit_details",
-        "customer_ledgers", "customer_ledger_payments", "room_changes",
+        "room_types",
+        "rooms",
+        "guests",
+        "user_guests",
+        "guest_complimentary_credits",
+        "companies",
+        "bookings",
+        "payments",
+        "invoices",
+        "booking_guests",
+        "booking_modifications",
+        "booking_history",
+        "night_audit_runs",
+        "night_audit_details",
+        "customer_ledgers",
+        "customer_ledger_payments",
+        "room_changes",
     ];
     for table in &tables_with_sequences {
         let seq_name = format!("{}_id_seq", table);

@@ -2,18 +2,18 @@
 //!
 //! Routes for room CRUD, status management, and events.
 
-use axum::{
-    routing::{get, post, patch, put, delete},
-    Router,
-    extract::{State, Path, Query},
-    http::HeaderMap,
-    response::Json,
-};
 use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::core::middleware::require_permission_helper;
 use crate::handlers;
 use crate::models;
-use crate::core::middleware::require_permission_helper;
-use crate::core::error::ApiError;
+use axum::{
+    Router,
+    extract::{Path, Query, State},
+    http::HeaderMap,
+    response::Json,
+    routing::{delete, get, patch, post, put},
+};
 
 /// Create room routes
 pub fn routes() -> Router<DbPool> {

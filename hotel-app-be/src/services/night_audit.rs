@@ -7,9 +7,7 @@ use std::collections::HashMap;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::{
-    JournalEntry, JournalSection, NightAuditRunWithUser, RevenueBreakdownItem,
-};
+use crate::models::{JournalEntry, JournalSection, NightAuditRunWithUser, RevenueBreakdownItem};
 
 /// Backfill missing `night_audit_posted_nights` rows for a booking whose stay
 /// overlaps one or more already-completed audit dates.
@@ -342,12 +340,20 @@ pub async fn fetch_breakdown_for_date(
 
     let pm_breakdown = pm_map
         .into_iter()
-        .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+        .map(|(category, (count, amount))| RevenueBreakdownItem {
+            category,
+            count,
+            amount,
+        })
         .collect();
 
     let bc_breakdown = bc_map
         .into_iter()
-        .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+        .map(|(category, (count, amount))| RevenueBreakdownItem {
+            category,
+            count,
+            amount,
+        })
         .collect();
 
     (pm_breakdown, bc_breakdown)
@@ -374,17 +380,20 @@ pub async fn generate_journal_sections(
         .and_then(|v| v.parse::<Decimal>().ok())
         .unwrap_or(Decimal::ZERO);
 
-        if raw > Decimal::ZERO { raw } else { Decimal::new(8, 0) }
+        if raw > Decimal::ZERO {
+            raw
+        } else {
+            Decimal::new(8, 0)
+        }
     };
     let divisor = Decimal::ONE + tax_rate_pct / Decimal::new(100, 0);
 
-    let hotel_timezone: String = sqlx::query_scalar::<_, String>(
-        "SELECT value FROM system_settings WHERE key = 'timezone'",
-    )
-    .fetch_optional(pool)
-    .await
-    .unwrap_or(None)
-    .unwrap_or_else(|| "UTC".to_string());
+    let hotel_timezone: String =
+        sqlx::query_scalar::<_, String>("SELECT value FROM system_settings WHERE key = 'timezone'")
+            .fetch_optional(pool)
+            .await
+            .unwrap_or(None)
+            .unwrap_or_else(|| "UTC".to_string());
 
     if is_posted {
         let query = r#"
@@ -482,7 +491,11 @@ pub async fn generate_journal_sections(
                 }
             }
             Err(e) => {
-                log::error!("Failed to fetch posted room charges for {}: {}", audit_date, e);
+                log::error!(
+                    "Failed to fetch posted room charges for {}: {}",
+                    audit_date,
+                    e
+                );
             }
         }
     } else {
@@ -603,7 +616,11 @@ pub async fn generate_journal_sections(
                 }
             }
             Err(e) => {
-                log::error!("Failed to fetch unposted room charges for {}: {}", audit_date, e);
+                log::error!(
+                    "Failed to fetch unposted room charges for {}: {}",
+                    audit_date,
+                    e
+                );
             }
         }
     }
@@ -658,7 +675,9 @@ pub async fn generate_journal_sections(
                         .map(|w| {
                             let mut chars = w.chars();
                             match chars.next() {
-                                Some(c) => c.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
+                                Some(c) => {
+                                    c.to_uppercase().to_string() + &chars.as_str().to_lowercase()
+                                }
                                 None => String::new(),
                             }
                         })
@@ -676,7 +695,11 @@ pub async fn generate_journal_sections(
                     let room_desc = if !payment_notes.is_empty() {
                         payment_notes.clone()
                     } else {
-                        format!("Book {} on {}", room_number, check_in_date.format("%d.%m.%Y"))
+                        format!(
+                            "Book {} on {}",
+                            room_number,
+                            check_in_date.format("%d.%m.%Y")
+                        )
                     };
                     Some(room_desc)
                 } else {
@@ -789,7 +812,11 @@ pub async fn generate_journal_sections(
             }
         }
         Err(e) => {
-            log::error!("Failed to fetch city ledger payments for {}: {}", audit_date, e);
+            log::error!(
+                "Failed to fetch city ledger payments for {}: {}",
+                audit_date,
+                e
+            );
         }
     }
 
@@ -805,8 +832,11 @@ pub async fn generate_journal_sections(
     let mut sections: Vec<JournalSection> = Vec::new();
 
     for (type_key, display_name) in &fixed_types {
-        let type_entries: Vec<JournalEntry> =
-            entries.iter().filter(|e| e.entry_type == *type_key).cloned().collect();
+        let type_entries: Vec<JournalEntry> = entries
+            .iter()
+            .filter(|e| e.entry_type == *type_key)
+            .cloned()
+            .collect();
         if !type_entries.is_empty() {
             let total_debit = type_entries.iter().map(|e| e.debit).sum();
             let total_credit = type_entries.iter().map(|e| e.credit).sum();
@@ -830,8 +860,11 @@ pub async fn generate_journal_sections(
     payment_types.sort();
 
     for pt in &payment_types {
-        let type_entries: Vec<JournalEntry> =
-            entries.iter().filter(|e| e.entry_type == *pt).cloned().collect();
+        let type_entries: Vec<JournalEntry> = entries
+            .iter()
+            .filter(|e| e.entry_type == *pt)
+            .cloned()
+            .collect();
         if !type_entries.is_empty() {
             let total_debit = type_entries.iter().map(|e| e.debit).sum();
             let total_credit = type_entries.iter().map(|e| e.credit).sum();
@@ -856,8 +889,11 @@ pub async fn generate_journal_sections(
     ];
 
     for (type_key, display_name) in &trailing_types {
-        let type_entries: Vec<JournalEntry> =
-            entries.iter().filter(|e| e.entry_type == *type_key).cloned().collect();
+        let type_entries: Vec<JournalEntry> = entries
+            .iter()
+            .filter(|e| e.entry_type == *type_key)
+            .cloned()
+            .collect();
         if !type_entries.is_empty() {
             let total_debit = type_entries.iter().map(|e| e.debit).sum();
             let total_credit = type_entries.iter().map(|e| e.credit).sum();

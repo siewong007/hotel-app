@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::{row_mappers, Booking};
+use crate::models::{Booking, row_mappers};
 
 /// Generate a unique booking number in the format `BK-YYYYMMDD-<8-char UUID>`.
 pub fn generate_booking_number() -> String {

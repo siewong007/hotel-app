@@ -20,9 +20,17 @@ fn booking_number_has_correct_format() {
 
     // Expected: "BK-YYYYMMDD-XXXXXXXX"
     let parts: Vec<&str> = n.splitn(3, '-').collect();
-    assert_eq!(parts.len(), 3, "number should have 3 dash-separated segments: {n}");
+    assert_eq!(
+        parts.len(),
+        3,
+        "number should have 3 dash-separated segments: {n}"
+    );
     assert_eq!(parts[0], "BK");
-    assert_eq!(parts[1].len(), 8, "date segment should be 8 digits (YYYYMMDD): {n}");
+    assert_eq!(
+        parts[1].len(),
+        8,
+        "date segment should be 8 digits (YYYYMMDD): {n}"
+    );
     assert!(
         parts[1].chars().all(|c| c.is_ascii_digit()),
         "date segment must be all digits: {n}"
@@ -36,9 +44,14 @@ fn booking_number_has_correct_format() {
 
 #[test]
 fn booking_numbers_are_unique() {
-    let numbers: std::collections::HashSet<String> =
-        (0..200).map(|_| booking::generate_booking_number()).collect();
-    assert_eq!(numbers.len(), 200, "Generated duplicate booking numbers within 200 samples");
+    let numbers: std::collections::HashSet<String> = (0..200)
+        .map(|_| booking::generate_booking_number())
+        .collect();
+    assert_eq!(
+        numbers.len(),
+        200,
+        "Generated duplicate booking numbers within 200 samples"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -85,12 +98,10 @@ mod sqlite_tests {
         .await
         .unwrap();
 
-        sqlx::query(
-            "INSERT INTO guests (id, first_name, last_name) VALUES (1, 'Test', 'Guest')",
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
+        sqlx::query("INSERT INTO guests (id, first_name, last_name) VALUES (1, 'Test', 'Guest')")
+            .execute(&pool)
+            .await
+            .unwrap();
 
         sqlx::query(
             "INSERT INTO bookings \
@@ -102,7 +113,8 @@ mod sqlite_tests {
         .await
         .unwrap();
 
-        let b = booking::fetch_booking_by_id(&pool, 1).await
+        let b = booking::fetch_booking_by_id(&pool, 1)
+            .await
             .expect("fetch_booking_by_id should succeed for existing row");
 
         assert_eq!(b.id, 1);
@@ -113,8 +125,14 @@ mod sqlite_tests {
 
         // Date fields round-trip correctly.
         use chrono::NaiveDate;
-        assert_eq!(b.check_in_date, NaiveDate::from_ymd_opt(2026, 4, 18).unwrap());
-        assert_eq!(b.check_out_date, NaiveDate::from_ymd_opt(2026, 4, 19).unwrap());
+        assert_eq!(
+            b.check_in_date,
+            NaiveDate::from_ymd_opt(2026, 4, 18).unwrap()
+        );
+        assert_eq!(
+            b.check_out_date,
+            NaiveDate::from_ymd_opt(2026, 4, 19).unwrap()
+        );
 
         // total_amount exists in the SQLite schema under the same column name.
         use rust_decimal::Decimal;

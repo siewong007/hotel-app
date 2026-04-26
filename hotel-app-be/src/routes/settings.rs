@@ -2,18 +2,18 @@
 //!
 //! Routes for system configuration and settings.
 
-use axum::{
-    routing::{get, post, patch},
-    Router,
-    extract::{State, Path},
-    http::HeaderMap,
-    response::Json,
-};
 use crate::core::db::DbPool;
+use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::handlers;
 use crate::models;
-use crate::core::error::ApiError;
+use axum::{
+    Router,
+    extract::{Path, State},
+    http::HeaderMap,
+    response::Json,
+    routing::{get, patch, post},
+};
 
 /// Create settings routes
 pub fn routes() -> Router<DbPool> {

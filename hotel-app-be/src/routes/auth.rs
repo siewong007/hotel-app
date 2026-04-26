@@ -2,19 +2,19 @@
 //!
 //! 2FA routes are in `routes::two_factor`, passkey routes in `routes::passkey`.
 
+use super::extract_client_ip;
+use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::core::rate_limiter::RateLimiters;
+use crate::handlers;
+use crate::models;
 use axum::{
-    routing::post,
     Router,
     extract::{Extension, State},
     http::HeaderMap,
     response::Json,
+    routing::post,
 };
-use crate::core::db::DbPool;
-use crate::core::rate_limiter::RateLimiters;
-use crate::handlers;
-use crate::models;
-use crate::core::error::ApiError;
-use super::extract_client_ip;
 
 pub fn routes() -> Router<DbPool> {
     Router::new()
@@ -38,7 +38,10 @@ async fn login(
     let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many login attempts. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many login attempts. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -55,7 +58,10 @@ async fn refresh(
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many refresh attempts. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many refresh attempts. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -79,7 +85,10 @@ async fn register(
     let (allowed, retry_after) = limiters.register.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
-            format!("Too many registration attempts. Please try again in {} seconds.", retry_after),
+            format!(
+                "Too many registration attempts. Please try again in {} seconds.",
+                retry_after
+            ),
             retry_after,
         ));
     }
@@ -99,4 +108,3 @@ async fn resend_verification(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     handlers::auth::resend_verification_handler(State(pool), Json(req)).await
 }
-

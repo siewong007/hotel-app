@@ -598,11 +598,13 @@ WHERE r.id = ?1
     all(feature = "postgres", not(feature = "sqlite")),
     all(feature = "sqlite", feature = "postgres")
 ))]
-pub const CHECK_BOOKING_FOR_RESERVATION: &str = "SELECT id FROM bookings WHERE id = $1 AND room_id = $2 AND status IN ('confirmed', 'pending')";
+pub const CHECK_BOOKING_FOR_RESERVATION: &str =
+    "SELECT id FROM bookings WHERE id = $1 AND room_id = $2 AND status IN ('confirmed', 'pending')";
 
 /// Check booking valid for reservation - SQLite version
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub const CHECK_BOOKING_FOR_RESERVATION: &str = "SELECT id FROM bookings WHERE id = ?1 AND room_id = ?2 AND status IN ('confirmed', 'pending')";
+pub const CHECK_BOOKING_FOR_RESERVATION: &str =
+    "SELECT id FROM bookings WHERE id = ?1 AND room_id = ?2 AND status IN ('confirmed', 'pending')";
 
 /// Update room status with dates - PostgreSQL version
 #[cfg(any(
@@ -817,33 +819,39 @@ VALUES (?1, 'cleaning', ?2, ?3, 'Cleaning completed by staff', 0)
     all(feature = "postgres", not(feature = "sqlite")),
     all(feature = "sqlite", feature = "postgres")
 ))]
-pub const UPDATE_BOOKING_ROOM: &str = "UPDATE bookings SET room_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2";
+pub const UPDATE_BOOKING_ROOM: &str =
+    "UPDATE bookings SET room_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2";
 
 /// Update booking room - SQLite version
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub const UPDATE_BOOKING_ROOM: &str = "UPDATE bookings SET room_id = ?1, updated_at = datetime('now') WHERE id = ?2";
+pub const UPDATE_BOOKING_ROOM: &str =
+    "UPDATE bookings SET room_id = ?1, updated_at = datetime('now') WHERE id = ?2";
 
 /// Set room dirty - PostgreSQL version
 #[cfg(any(
     all(feature = "postgres", not(feature = "sqlite")),
     all(feature = "sqlite", feature = "postgres")
 ))]
-pub const SET_ROOM_DIRTY: &str = "UPDATE rooms SET status = 'dirty', updated_at = CURRENT_TIMESTAMP WHERE id = $1";
+pub const SET_ROOM_DIRTY: &str =
+    "UPDATE rooms SET status = 'dirty', updated_at = CURRENT_TIMESTAMP WHERE id = $1";
 
 /// Set room dirty - SQLite version
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub const SET_ROOM_DIRTY: &str = "UPDATE rooms SET status = 'dirty', updated_at = datetime('now') WHERE id = ?1";
+pub const SET_ROOM_DIRTY: &str =
+    "UPDATE rooms SET status = 'dirty', updated_at = datetime('now') WHERE id = ?1";
 
 /// Set room occupied - PostgreSQL version
 #[cfg(any(
     all(feature = "postgres", not(feature = "sqlite")),
     all(feature = "sqlite", feature = "postgres")
 ))]
-pub const SET_ROOM_OCCUPIED: &str = "UPDATE rooms SET status = 'occupied', updated_at = CURRENT_TIMESTAMP WHERE id = $1";
+pub const SET_ROOM_OCCUPIED: &str =
+    "UPDATE rooms SET status = 'occupied', updated_at = CURRENT_TIMESTAMP WHERE id = $1";
 
 /// Set room occupied - SQLite version
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub const SET_ROOM_OCCUPIED: &str = "UPDATE rooms SET status = 'occupied', updated_at = datetime('now') WHERE id = ?1";
+pub const SET_ROOM_OCCUPIED: &str =
+    "UPDATE rooms SET status = 'occupied', updated_at = datetime('now') WHERE id = ?1";
 
 /// Insert room change - PostgreSQL version
 #[cfg(any(

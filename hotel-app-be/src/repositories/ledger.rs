@@ -1,9 +1,9 @@
 //! Customer ledger repository for database operations
 
-use rust_decimal::Decimal;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{CustomerLedger, CustomerLedgerPayment};
+use rust_decimal::Decimal;
 
 pub struct LedgerRepository;
 
@@ -32,7 +32,7 @@ impl LedgerRepository {
               AND ($3::text IS NULL OR expense_type = $3)
             ORDER BY created_at DESC
             LIMIT $4 OFFSET $5
-            "#
+            "#,
         )
         .bind(status)
         .bind(company_name)
@@ -57,7 +57,7 @@ impl LedgerRepository {
                    created_by, updated_by, created_at, updated_at
             FROM customer_ledgers
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(id)
         .fetch_optional(pool)
@@ -66,7 +66,10 @@ impl LedgerRepository {
     }
 
     /// Get payments for a ledger
-    pub async fn get_payments(pool: &DbPool, ledger_id: i64) -> Result<Vec<CustomerLedgerPayment>, ApiError> {
+    pub async fn get_payments(
+        pool: &DbPool,
+        ledger_id: i64,
+    ) -> Result<Vec<CustomerLedgerPayment>, ApiError> {
         sqlx::query_as::<_, CustomerLedgerPayment>(
             r#"
             SELECT id, ledger_id, payment_amount, payment_method, payment_reference,
@@ -74,7 +77,7 @@ impl LedgerRepository {
             FROM customer_ledger_payments
             WHERE ledger_id = $1
             ORDER BY payment_date DESC
-            "#
+            "#,
         )
         .bind(ledger_id)
         .fetch_all(pool)
@@ -125,7 +128,7 @@ impl LedgerRepository {
             UPDATE customer_ledgers
             SET paid_amount = $1, status = $2, updated_by = $3, updated_at = CURRENT_TIMESTAMP
             WHERE id = $4
-            "#
+            "#,
         )
         .bind(paid_amount)
         .bind(status)
@@ -150,7 +153,9 @@ impl LedgerRepository {
     }
 
     /// Get ledger summary statistics
-    pub async fn get_summary(pool: &DbPool) -> Result<(i64, Decimal, Decimal, Decimal, i64, i64, i64), ApiError> {
+    pub async fn get_summary(
+        pool: &DbPool,
+    ) -> Result<(i64, Decimal, Decimal, Decimal, i64, i64, i64), ApiError> {
         sqlx::query_as(
             r#"
             SELECT
@@ -163,7 +168,7 @@ impl LedgerRepository {
                 COUNT(*) FILTER (WHERE status = 'overdue') as overdue_count
             FROM customer_ledgers
             WHERE status NOT IN ('voided')
-            "#
+            "#,
         )
         .fetch_one(pool)
         .await
