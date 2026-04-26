@@ -7,7 +7,6 @@ import { BrowserRouter as Router, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { theme } from './theme';
 import { NavigationTabs } from './components/layout/NavigationTabs';
-import { BreadcrumbNav } from './components/layout/BreadcrumbNav';
 import { UnauthRoutes, AuthRoutes, FirstLoginPasskeyPrompt, LoadingFallback, MinimalLoadingFallback } from './routes';
 
 function AppContent() {
@@ -41,8 +40,6 @@ function AppContent() {
           <NavigationTabs />
         </Toolbar>
       </AppBar>
-
-      <BreadcrumbNav />
 
       <Suspense fallback={<MinimalLoadingFallback />}>
         <FirstLoginPasskeyPrompt
