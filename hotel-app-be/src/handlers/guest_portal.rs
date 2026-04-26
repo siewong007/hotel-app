@@ -3,8 +3,8 @@
 //! Handles guest self-service features including pre-check-in.
 
 use axum::{
-    extract::{Path, State},
     Json,
+    extract::{Path, State},
 };
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -208,7 +208,8 @@ pub async fn submit_precheckin_update(
             query_parts.push("email = NULL".to_string());
         } else {
             // Validate email format before updating
-            let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+            let email_regex =
+                regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
             if email_regex.is_match(trimmed) {
                 query_parts.push(format!("email = ${}", values.len() + 1));
                 values.push(trimmed.to_string());

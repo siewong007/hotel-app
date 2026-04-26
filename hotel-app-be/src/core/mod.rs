@@ -23,4 +23,6 @@ pub use db::create_pool;
 #[allow(unused_imports)]
 pub use error::ApiError;
 #[allow(unused_imports)]
-pub use middleware::{require_auth, require_permission_helper, require_admin_helper, require_super_admin_helper};
+pub use middleware::{
+    require_admin_helper, require_auth, require_permission_helper, require_super_admin_helper,
+};

@@ -2,17 +2,17 @@
 //!
 //! Routes for payments and invoices.
 
-use axum::{
-    routing::{get, post, patch, delete},
-    Router,
-    extract::{State, Path},
-    http::HeaderMap,
-    response::Json,
-};
 use crate::core::db::DbPool;
+use crate::core::error::ApiError;
 use crate::handlers;
 use crate::models;
-use crate::core::error::ApiError;
+use axum::{
+    Router,
+    extract::{Path, State},
+    http::HeaderMap,
+    response::Json,
+    routing::{delete, get, patch, post},
+};
 
 /// Create payment routes
 pub fn routes() -> Router<DbPool> {
@@ -21,7 +21,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/payments/calculate/{booking_id}", get(calculate_payment))
         .route("/payments/record-payment", post(record_payment))
         .route("/payments/all-payments/{booking_id}", get(get_all_payments))
-        .route("/payments/refund-deposit/{booking_id}", post(refund_deposit))
+        .route(
+            "/payments/refund-deposit/{booking_id}",
+            post(refund_deposit),
+        )
         .route("/payments/booking/{booking_id}", get(get_payment))
         .route("/payments/{payment_id}", patch(update_payment))
         .route("/payments/{payment_id}", delete(delete_payment))

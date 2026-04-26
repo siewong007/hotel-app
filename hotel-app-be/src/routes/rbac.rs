@@ -2,18 +2,18 @@
 //!
 //! Routes for role-based access control management.
 
-use axum::{
-    routing::{get, post, delete, put},
-    Router,
-    extract::{State, Path, Extension},
-    http::HeaderMap,
-    response::Json,
-};
 use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::core::middleware::{require_admin_helper, require_auth};
 use crate::handlers;
 use crate::models;
-use crate::core::middleware::{require_admin_helper, require_auth};
-use crate::core::error::ApiError;
+use axum::{
+    Router,
+    extract::{Extension, Path, State},
+    http::HeaderMap,
+    response::Json,
+    routing::{delete, get, post, put},
+};
 
 /// Create RBAC routes
 pub fn routes() -> Router<DbPool> {
@@ -23,18 +23,27 @@ pub fn routes() -> Router<DbPool> {
         .route("/rbac/roles", post(create_role))
         .route("/rbac/roles/{role_id}", put(update_role))
         .route("/rbac/roles/{role_id}", delete(delete_role))
-        .route("/rbac/roles/{role_id}/permissions", get(get_role_permissions))
+        .route(
+            "/rbac/roles/{role_id}/permissions",
+            get(get_role_permissions),
+        )
         // Permission management
         .route("/rbac/permissions", get(get_permissions))
         .route("/rbac/permissions", post(create_permission))
         .route("/rbac/permissions/{permission_id}", put(update_permission))
-        .route("/rbac/permissions/{permission_id}", delete(delete_permission))
+        .route(
+            "/rbac/permissions/{permission_id}",
+            delete(delete_permission),
+        )
         // User-role assignments
         .route("/rbac/users/roles", post(assign_role))
         .route("/rbac/users/{user_id}/roles/{role_id}", delete(remove_role))
         // Role-permission assignments
         .route("/rbac/roles/permissions", post(assign_permission))
-        .route("/rbac/roles/{role_id}/permissions/{permission_id}", delete(remove_permission))
+        .route(
+            "/rbac/roles/{role_id}/permissions/{permission_id}",
+            delete(remove_permission),
+        )
         // User management
         .route("/rbac/users", get(get_users))
         .route("/rbac/users", post(create_user))

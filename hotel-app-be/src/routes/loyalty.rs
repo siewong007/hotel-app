@@ -2,19 +2,19 @@
 //!
 //! Routes for loyalty points, tiers, rewards, and statistics.
 
-use axum::{
-    routing::{get, post, put, delete},
-    Router,
-    extract::{State, Path, Query, Extension},
-    http::HeaderMap,
-    response::Json,
-};
 use crate::core::db::DbPool;
-use std::collections::HashMap;
+use crate::core::error::ApiError;
+use crate::core::middleware::{require_admin_helper, require_auth, require_permission_helper};
 use crate::handlers;
 use crate::models;
-use crate::core::middleware::{require_permission_helper, require_auth, require_admin_helper};
-use crate::core::error::ApiError;
+use axum::{
+    Router,
+    extract::{Extension, Path, Query, State},
+    http::HeaderMap,
+    response::Json,
+    routing::{delete, get, post, put},
+};
+use std::collections::HashMap;
 
 /// Create loyalty routes
 pub fn routes() -> Router<DbPool> {
@@ -24,7 +24,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/loyalty/memberships", get(get_memberships))
         .route("/loyalty/statistics", get(get_statistics))
         .route("/loyalty/memberships/{id}/points/add", post(add_points))
-        .route("/loyalty/memberships/{id}/points/redeem", post(redeem_points))
+        .route(
+            "/loyalty/memberships/{id}/points/redeem",
+            post(redeem_points),
+        )
         // User loyalty routes
         .route("/loyalty/my-membership", get(get_my_membership))
         .route("/loyalty/rewards", get(get_rewards))
@@ -175,5 +178,11 @@ async fn redeem_reward_by_id(
     Json(input): Json<models::RedeemRewardInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::loyalty::redeem_reward_for_user_handler(State(pool), Extension(user_id), path, Json(input)).await
+    handlers::loyalty::redeem_reward_for_user_handler(
+        State(pool),
+        Extension(user_id),
+        path,
+        Json(input),
+    )
+    .await
 }

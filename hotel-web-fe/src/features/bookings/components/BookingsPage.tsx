@@ -34,6 +34,7 @@ import {
   alpha,
   Pagination,
   Stack,
+  Autocomplete,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -695,21 +696,72 @@ const BookingsPage: React.FC = () => {
             />
           </Grid>
 
-          {/* Room Number Filter */}
+          {/* Room Number Filter — autocomplete from active rooms */}
           <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <TextField
-              fullWidth
+            <Autocomplete
+              freeSolo
               size="small"
-              placeholder="Room number..."
-              value={roomNumberFilter}
-              onChange={(e) => setRoomNumberFilter(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
+              options={[...rooms]
+                .filter(r => r.available !== false)
+                .sort((a, b) => {
+                  const na = parseInt(a.room_number, 10);
+                  const nb = parseInt(b.room_number, 10);
+                  if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+                  return a.room_number.localeCompare(b.room_number);
+                })}
+              getOptionLabel={(opt) => typeof opt === 'string' ? opt : `Room ${opt.room_number}`}
+              isOptionEqualToValue={(opt, val) =>
+                (typeof opt === 'string' ? opt : opt.room_number) ===
+                (typeof val === 'string' ? val : val.room_number)
+              }
+              value={rooms.find(r => r.room_number === roomNumberFilter) || roomNumberFilter}
+              onChange={(_, newVal) => {
+                if (typeof newVal === 'string') {
+                  setRoomNumberFilter(newVal.replace(/^Room\s+/i, ''));
+                } else {
+                  setRoomNumberFilter(newVal?.room_number ?? '');
+                }
               }}
+              onInputChange={(_, newInput) =>
+                setRoomNumberFilter(newInput.replace(/^Room\s+/i, ''))
+              }
+              renderOption={(props, option) => {
+                const { key, ...rest } = props as React.HTMLAttributes<HTMLLIElement> & { key?: React.Key };
+                if (typeof option === 'string') {
+                  return (
+                    <Box component="li" key={key as React.Key} {...rest}>
+                      <Typography variant="body2">{option}</Typography>
+                    </Box>
+                  );
+                }
+                return (
+                  <Box component="li" key={key as React.Key} {...rest} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start !important', py: 0.75 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      Room {option.room_number}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {option.room_type}
+                    </Typography>
+                  </Box>
+                );
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  placeholder="Room number..."
+                  InputProps={{
+                    ...params.InputProps,
+                    startAdornment: (
+                      <>
+                        <InputAdornment position="start" sx={{ ml: 0.5 }}>
+                          <SearchIcon />
+                        </InputAdornment>
+                        {params.InputProps.startAdornment}
+                      </>
+                    ),
+                  }}
+                />
+              )}
             />
           </Grid>
 
@@ -885,9 +937,7 @@ const BookingsPage: React.FC = () => {
                     Status
                   </TableSortLabel>
                 </TableCell>
-                {isAdmin && <TableCell align="center">Payment</TableCell>}
-                {isAdmin && <TableCell align="center">Void</TableCell>}
-                {isAdmin && <TableCell align="center">Invoice</TableCell>}
+                {isAdmin && <TableCell align="center"><strong>Actions</strong></TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -968,42 +1018,36 @@ const BookingsPage: React.FC = () => {
                   </TableCell>
                   {isAdmin && (
                     <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      {!booking.is_complimentary && (
-                        <Tooltip title="Collect Payment">
-                          <IconButton size="small" onClick={() => handleUpdatePaymentStatus(booking)} color="info">
-                            <PaymentIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                  )}
-                  {isAdmin && (
-                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      {canVoid(booking) && (
-                        <Tooltip title="Void Booking">
-                          <IconButton size="small" onClick={() => handleVoidBooking(booking)} sx={{ color: 'text.secondary' }}>
-                            <VoidIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {canReactivate(booking) && (
-                        <Tooltip title="Reactivate">
-                          <IconButton size="small" onClick={() => handleReactivateBooking(booking)} color="success">
-                            <RestoreIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                  )}
-                  {isAdmin && (
-                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      {['checked_out', 'completed'].includes(booking.status) && (
-                        <Tooltip title="View Invoice">
-                          <IconButton size="small" onClick={() => handleViewInvoice(booking)} color="primary">
-                            <ReceiptIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
+                      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                        {!booking.is_complimentary && (
+                          <Tooltip title="Collect Payment">
+                            <IconButton size="small" onClick={() => handleUpdatePaymentStatus(booking)} color="success">
+                              <PaymentIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {['checked_out', 'completed'].includes(booking.status) && (
+                          <Tooltip title="View Invoice">
+                            <IconButton size="small" onClick={() => handleViewInvoice(booking)} color="primary">
+                              <ReceiptIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {canVoid(booking) && (
+                          <Tooltip title="Void Booking">
+                            <IconButton size="small" onClick={() => handleVoidBooking(booking)} sx={{ color: 'text.secondary' }}>
+                              <VoidIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {canReactivate(booking) && (
+                          <Tooltip title="Reactivate">
+                            <IconButton size="small" onClick={() => handleReactivateBooking(booking)} color="success">
+                              <RestoreIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Box>
                     </TableCell>
                   )}
                 </TableRow>

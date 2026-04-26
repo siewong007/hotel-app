@@ -7,10 +7,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
 use crate::services::audit::AuditLog;
-use axum::{
-    extract::State,
-    response::Json,
-};
+use axum::{extract::State, response::Json};
 
 pub async fn login_handler(
     State(pool): State<DbPool>,
@@ -27,48 +24,62 @@ pub async fn login_handler(
     let user = match user {
         Some(u) if u.is_active => u,
         Some(_) => {
-            let _ = AuditLog::log_login_failure(&pool, &req.username, "Account is inactive", None, None).await;
+            let _ = AuditLog::log_login_failure(
+                &pool,
+                &req.username,
+                "Account is inactive",
+                None,
+                None,
+            )
+            .await;
             return Err(ApiError::Unauthorized("Account is inactive".to_string()));
         }
         None => {
-            let _ = AuditLog::log_login_failure(&pool, &req.username, "User not found", None, None).await;
+            let _ = AuditLog::log_login_failure(&pool, &req.username, "User not found", None, None)
+                .await;
             return Err(ApiError::Unauthorized("Invalid credentials".to_string()));
         }
     };
 
     // Check account lockout
-    let (is_locked, locked_until, failed_attempts): (Option<bool>, Option<chrono::NaiveDateTime>, Option<i32>) =
-        sqlx::query_as(
-            "SELECT is_locked, locked_until, failed_login_attempts FROM users WHERE id = $1",
-        )
-        .bind(user.id)
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+    let (is_locked, locked_until, failed_attempts): (
+        Option<bool>,
+        Option<chrono::NaiveDateTime>,
+        Option<i32>,
+    ) = sqlx::query_as(
+        "SELECT is_locked, locked_until, failed_login_attempts FROM users WHERE id = $1",
+    )
+    .bind(user.id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if is_locked.unwrap_or(false)
-        && let Some(until) = locked_until {
-            let now = chrono::Utc::now().naive_utc();
-            if now < until {
-                let remaining_mins = (until - now).num_minutes() + 1;
-                let _ = AuditLog::log_login_failure(&pool, &req.username, "Account locked", None, None).await;
-                return Err(ApiError::TooManyRequests(format!(
-                    "Account is locked due to too many failed attempts. Try again in {} minute(s).",
-                    remaining_mins
-                )));
-            }
-            // Lock expired - unlock the account
-            sqlx::query("UPDATE users SET is_locked = false, locked_until = NULL, failed_login_attempts = 0 WHERE id = $1")
+        && let Some(until) = locked_until
+    {
+        let now = chrono::Utc::now().naive_utc();
+        if now < until {
+            let remaining_mins = (until - now).num_minutes() + 1;
+            let _ = AuditLog::log_login_failure(&pool, &req.username, "Account locked", None, None)
+                .await;
+            return Err(ApiError::TooManyRequests(format!(
+                "Account is locked due to too many failed attempts. Try again in {} minute(s).",
+                remaining_mins
+            )));
+        }
+        // Lock expired - unlock the account
+        sqlx::query("UPDATE users SET is_locked = false, locked_until = NULL, failed_login_attempts = 0 WHERE id = $1")
                 .bind(user.id)
                 .execute(&pool)
                 .await
                 .ok();
-        }
+    }
 
     // Check email verification (can be disabled in development with SKIP_EMAIL_VERIFICATION env var)
     let skip_email_verification = std::env::var("SKIP_EMAIL_VERIFICATION")
         .unwrap_or_else(|_| "false".to_string())
-        .to_lowercase() == "true";
+        .to_lowercase()
+        == "true";
 
     if !skip_email_verification && !user.is_verified {
         return Err(ApiError::Unauthorized(
@@ -77,17 +88,15 @@ pub async fn login_handler(
     }
 
     // Get password hash
-    let password_hash: String = sqlx::query_scalar(
-        "SELECT password_hash FROM users WHERE id = $1"
-    )
-    .bind(user.id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let password_hash: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
+        .bind(user.id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Max login attempts before lockout (default 5)
     let max_attempts: i32 = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT value FROM system_settings WHERE key = 'max_login_attempts'"
+        "SELECT value FROM system_settings WHERE key = 'max_login_attempts'",
     )
     .fetch_optional(&pool)
     .await
@@ -98,7 +107,8 @@ pub async fn login_handler(
     .unwrap_or(5);
 
     // Verify password
-    let valid = AuthService::verify_password(&req.password, &password_hash).await
+    let valid = AuthService::verify_password(&req.password, &password_hash)
+        .await
         .map_err(|_| ApiError::Internal("Password verification failed".to_string()))?;
 
     if !valid {
@@ -117,9 +127,17 @@ pub async fn login_handler(
             .await
             .ok();
 
-            let _ = AuditLog::log_login_failure(&pool, &req.username, "Account locked after max attempts", None, None).await;
+            let _ = AuditLog::log_login_failure(
+                &pool,
+                &req.username,
+                "Account locked after max attempts",
+                None,
+                None,
+            )
+            .await;
             return Err(ApiError::TooManyRequests(
-                "Account locked due to too many failed login attempts. Try again in 30 minutes.".to_string(),
+                "Account locked due to too many failed login attempts. Try again in 30 minutes."
+                    .to_string(),
             ));
         } else {
             sqlx::query("UPDATE users SET failed_login_attempts = $1 WHERE id = $2")
@@ -130,7 +148,8 @@ pub async fn login_handler(
         }
 
         let remaining = max_attempts - new_attempts;
-        let _ = AuditLog::log_login_failure(&pool, &req.username, "Invalid password", None, None).await;
+        let _ =
+            AuditLog::log_login_failure(&pool, &req.username, "Invalid password", None, None).await;
         return Err(ApiError::Unauthorized(format!(
             "Invalid credentials. {} attempt(s) remaining before account lockout.",
             remaining
@@ -138,29 +157,46 @@ pub async fn login_handler(
     }
 
     // Get user 2FA status and check if 2FA code is required
-    let (two_factor_enabled, two_factor_secret): (Option<bool>, Option<String>) = sqlx::query_as(
-        "SELECT two_factor_enabled, two_factor_secret FROM users WHERE id = $1"
-    )
-    .bind(user.id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let (two_factor_enabled, two_factor_secret): (Option<bool>, Option<String>) =
+        sqlx::query_as("SELECT two_factor_enabled, two_factor_secret FROM users WHERE id = $1")
+            .bind(user.id)
+            .fetch_one(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // If 2FA is enabled, verify the TOTP code
     if two_factor_enabled.unwrap_or(false) {
         if let Some(totp_code) = &req.totp_code {
             let valid_totp = AuthService::verify_totp_code(
-                &two_factor_secret.ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?,
-                totp_code
-            ).map_err(|_| ApiError::Unauthorized("Invalid 2FA code".to_string()))?;
+                &two_factor_secret
+                    .ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?,
+                totp_code,
+            )
+            .map_err(|_| ApiError::Unauthorized("Invalid 2FA code".to_string()))?;
 
             if !valid_totp {
-                let _ = AuditLog::log_login_failure(&pool, &req.username, "Invalid 2FA code", None, None).await;
+                let _ = AuditLog::log_login_failure(
+                    &pool,
+                    &req.username,
+                    "Invalid 2FA code",
+                    None,
+                    None,
+                )
+                .await;
                 return Err(ApiError::Unauthorized("Invalid 2FA code".to_string()));
             }
         } else {
-            let _ = AuditLog::log_login_failure(&pool, &req.username, "2FA code not provided", None, None).await;
-            return Err(ApiError::Unauthorized("2FA required. Please provide a TOTP code.".to_string()));
+            let _ = AuditLog::log_login_failure(
+                &pool,
+                &req.username,
+                "2FA code not provided",
+                None,
+                None,
+            )
+            .await;
+            return Err(ApiError::Unauthorized(
+                "2FA required. Please provide a TOTP code.".to_string(),
+            ));
         }
     }
 
@@ -172,9 +208,11 @@ pub async fn login_handler(
         .ok();
 
     // Get roles and permissions
-    let roles = AuthService::get_user_roles(&pool, user.id).await
+    let roles = AuthService::get_user_roles(&pool, user.id)
+        .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
-    let permissions = AuthService::get_user_permissions(&pool, user.id).await
+    let permissions = AuthService::get_user_permissions(&pool, user.id)
+        .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Generate tokens
@@ -185,13 +223,12 @@ pub async fn login_handler(
     let refresh_token = AuthService::generate_refresh_token();
 
     // Check if this is the first login
-    let is_first_login: bool = sqlx::query_scalar(
-        "SELECT last_login_at IS NULL FROM users WHERE id = $1"
-    )
-    .bind(user.id)
-    .fetch_one(&pool)
-    .await
-    .unwrap_or(false);
+    let is_first_login: bool =
+        sqlx::query_scalar("SELECT last_login_at IS NULL FROM users WHERE id = $1")
+            .bind(user.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap_or(false);
 
     // Store refresh token (expires in 30 days)
     AuthService::store_refresh_token(&pool, user.id, &refresh_token, 30)
@@ -206,7 +243,11 @@ pub async fn login_handler(
         .ok();
 
     // Log successful login
-    let login_method = if two_factor_enabled.unwrap_or(false) { "password+2fa" } else { "password" };
+    let login_method = if two_factor_enabled.unwrap_or(false) {
+        "password+2fa"
+    } else {
+        "password"
+    };
     let _ = AuditLog::log_login_success(&pool, user.id, login_method, None, None).await;
 
     let response = AuthResponse {
@@ -246,7 +287,8 @@ pub async fn refresh_token_handler(
     }
 
     // Get roles
-    let roles = AuthService::get_user_roles(&pool, user.id).await
+    let roles = AuthService::get_user_roles(&pool, user.id)
+        .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Generate new access token
@@ -283,7 +325,9 @@ pub async fn logout_handler(
         .await
         .map_err(|e| ApiError::Database(format!("Failed to revoke token: {}", e)))?;
 
-    Ok(Json(serde_json::json!({"message": "Logged out successfully"})))
+    Ok(Json(
+        serde_json::json!({"message": "Logged out successfully"}),
+    ))
 }
 
 pub async fn register_handler(
@@ -291,31 +335,34 @@ pub async fn register_handler(
     Json(req): Json<RegisterRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Validate password
-    AuthService::validate_password(&req.password)
-        .map_err(ApiError::BadRequest)?;
+    AuthService::validate_password(&req.password).map_err(ApiError::BadRequest)?;
 
     // Validate email format
-    let email_regex = regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+    let email_regex =
+        regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
     if !email_regex.is_match(&req.email) {
         return Err(ApiError::BadRequest("Invalid email format".to_string()));
     }
 
     // Check if username or email already exists
-    let existing_user: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM users WHERE username = $1 OR email = $2 LIMIT 1"
-    )
-    .bind(&req.username)
-    .bind(&req.email)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let existing_user: Option<(i64,)> =
+        sqlx::query_as("SELECT id FROM users WHERE username = $1 OR email = $2 LIMIT 1")
+            .bind(&req.username)
+            .bind(&req.email)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if existing_user.is_some() {
-        return Err(ApiError::BadRequest("Username or email already exists".to_string()));
+        return Err(ApiError::BadRequest(
+            "Username or email already exists".to_string(),
+        ));
     }
 
     // Start transaction for atomic guest + user creation
-    let mut tx = pool.begin().await
+    let mut tx = pool
+        .begin()
+        .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // 1. Create guest profile FIRST
@@ -326,7 +373,7 @@ pub async fn register_handler(
         )
         VALUES ($1, $2, $3, $4, $5, true, CURRENT_TIMESTAMP)
         RETURNING *
-        "#
+        "#,
     )
     .bind(&req.first_name)
     .bind(&req.last_name)
@@ -369,25 +416,22 @@ pub async fn register_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // 5. Automatically assign "guest" role
-    let guest_role_id: i64 = sqlx::query_scalar(
-        "SELECT id FROM roles WHERE name = 'guest' LIMIT 1"
-    )
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(format!("Guest role not found: {}", e)))?;
+    let guest_role_id: i64 =
+        sqlx::query_scalar("SELECT id FROM roles WHERE name = 'guest' LIMIT 1")
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(format!("Guest role not found: {}", e)))?;
 
-    sqlx::query(
-        "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)"
-    )
-    .bind(user.id)
-    .bind(guest_role_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    sqlx::query("INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)")
+        .bind(user.id)
+        .bind(guest_role_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // 6. Create loyalty membership using guest.id directly
     let loyalty_program_id: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM loyalty_programs WHERE tier_level = 1 ORDER BY created_at LIMIT 1"
+        "SELECT id FROM loyalty_programs WHERE tier_level = 1 ORDER BY created_at LIMIT 1",
     )
     .fetch_optional(&mut *tx)
     .await
@@ -401,7 +445,7 @@ pub async fn register_handler(
                 points_balance, lifetime_points, tier_level, status, enrolled_date
             )
             VALUES ($1, $2, $3, 0, 0, 1, 'active', CURRENT_DATE)
-            "#
+            "#,
         )
         .bind(guest.id)
         .bind(program_id)
@@ -412,7 +456,8 @@ pub async fn register_handler(
     }
 
     // 7. Commit transaction
-    tx.commit().await
+    tx.commit()
+        .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(Json(serde_json::json!({
@@ -443,7 +488,9 @@ pub async fn verify_email_handler(
             "message": "Email verified successfully",
             "user_id": id
         }))),
-        None => Err(ApiError::BadRequest("Invalid or expired verification token".to_string())),
+        None => Err(ApiError::BadRequest(
+            "Invalid or expired verification token".to_string(),
+        )),
     }
 }
 
@@ -461,7 +508,9 @@ pub async fn resend_verification_handler(
     };
 
     if user.is_verified {
-        return Err(ApiError::BadRequest("Email is already verified".to_string()));
+        return Err(ApiError::BadRequest(
+            "Email is already verified".to_string(),
+        ));
     }
 
     // Generate new verification token

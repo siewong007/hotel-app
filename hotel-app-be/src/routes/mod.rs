@@ -24,15 +24,12 @@ pub mod rooms;
 pub mod settings;
 pub mod two_factor;
 
-use axum::{http::Method, routing::get, Router};
 use crate::core::db::DbPool;
 use crate::core::rate_limiter::RateLimiters;
+use axum::{Router, http::Method, routing::get};
 use tower::ServiceBuilder;
 use tower_http::{
-    cors::CorsLayer,
-    services::ServeDir,
-    set_header::SetResponseHeaderLayer,
-    trace::TraceLayer,
+    cors::CorsLayer, services::ServeDir, set_header::SetResponseHeaderLayer, trace::TraceLayer,
 };
 
 /// Extract client IP from X-Forwarded-For or X-Real-IP headers, defaulting to localhost.

@@ -3,20 +3,12 @@ import {
   Box,
   Paper,
   Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Chip,
   CircularProgress,
   Alert,
   FormControl,
-  InputLabel,
   Select,
   MenuItem,
-  Button,
   IconButton,
   Popover,
   Divider,
@@ -25,14 +17,12 @@ import {
 import {
   ChevronLeft,
   ChevronRight,
-  CalendarMonth,
   Refresh,
   Person,
   Phone,
   Email,
   CalendarToday,
   Payment,
-  Hotel,
   CardGiftcard,
   Notes,
   AttachMoney,
@@ -44,6 +34,73 @@ import {
   getUnifiedStatusLabel,
 } from '../config';
 import { useCurrency } from '../../../hooks/useCurrency';
+
+// ── Layout ────────────────────────────────────────────────────────────────
+const ROOM_COL = 220;
+const DAY_W = 88;
+const ROW_H = 76;
+
+// ── Concept B "sketchy" palette ───────────────────────────────────────────
+const PALETTE = {
+  pageBg: '#e8e4db',
+  panelBg: '#f5f2eb',
+  headerBg: '#ede9df',
+  ink: '#1c1c1c',
+  inkMuted: '#888',
+  inkSubtle: '#555',
+  todayAccent: '#e85d3a',
+  rowDivider: '#c8c2b4',
+  zebra: 'rgba(0,0,0,0.015)',
+};
+
+// Sketchy status colors (bar fill + border). Falls back through unified status helper.
+function statusBarColors(status: string, isComplimentary?: boolean): { bg: string; border: string } {
+  if (isComplimentary) return { bg: '#55efc4', border: '#00b894' };
+  switch (status) {
+    case 'checked_in':
+    case 'auto_checked_in':
+    case 'occupied':
+      return { bg: '#ffd166', border: '#c9a100' };
+    case 'reserved':
+    case 'confirmed':
+      return { bg: '#74b9ff', border: '#1a6fc9' };
+    case 'pending':
+      return { bg: '#a29bfe', border: '#6c5ce7' };
+    default:
+      return { bg: '#dcd6ca', border: '#666' };
+  }
+}
+
+// Load Caveat handwritten font once on mount.
+function useCaveatFont() {
+  useEffect(() => {
+    const id = 'caveat-font-link';
+    if (document.getElementById(id)) return;
+    const link = document.createElement('link');
+    link.id = id;
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&display=swap';
+    document.head.appendChild(link);
+  }, []);
+}
+
+// Day-precision delta — normalises both ends to local midnight so DST and
+// the booking timestamp's time-of-day don't shift the column index.
+function dayIndex(start: Date, target: Date | string): number {
+  const a = new Date(start);
+  a.setHours(0, 0, 0, 0);
+  const b = typeof target === 'string' ? new Date(target) : new Date(target);
+  b.setHours(0, 0, 0, 0);
+  return Math.round((b.getTime() - a.getTime()) / 86400000);
+}
+
+function sameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
 
 interface TimelineBooking {
   id: number | string;
@@ -77,105 +134,62 @@ interface TimelineBooking {
   rate_code?: string;
 }
 
-interface TimelineCell {
-  booking: TimelineBooking | null;
-  isStart: boolean;
-  isEnd: boolean;
-  isContinuation: boolean;
-}
-
 const RoomReservationTimeline: React.FC = () => {
+  useCaveatFont();
   const { format: formatCurrency } = useCurrency();
+
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<TimelineBooking[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [daysToShow, setDaysToShow] = useState(14);
-  const [startDate, setStartDate] = useState(new Date());
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
   const loadingRef = useRef(false);
 
-  // Popover state for booking details
+  // Hover popover (rich booking details)
   const [popoverAnchor, setPopoverAnchor] = useState<HTMLElement | null>(null);
   const [hoveredBooking, setHoveredBooking] = useState<TimelineBooking | null>(null);
-  const popoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const popoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadData();
-    // Auto-refresh every 30 seconds to stay in sync with room management
-    const interval = setInterval(() => {
-      loadData();
-    }, 30000);
+    const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, daysToShow]);
 
   const loadData = async () => {
-    // Prevent duplicate calls
-    if (loadingRef.current) {
-      console.log('Timeline - Skipping duplicate API call');
-      return;
-    }
-
+    if (loadingRef.current) return;
     loadingRef.current = true;
     setLoading(true);
     setError(null);
-
     try {
       const [roomsData, bookingsData] = await Promise.all([
         HotelAPIService.getAllRooms(),
         HotelAPIService.getBookingsWithDetails(),
       ]);
 
-      console.log('Timeline - Loaded rooms:', roomsData.length);
-      console.log('Timeline - Loaded bookings:', bookingsData.length);
-      console.log('Timeline - Sample booking:', bookingsData[0]);
-
-      // Sort rooms by room number
-      const sortedRooms = roomsData.sort((a, b) => {
-        const numA = parseInt(a.room_number);
-        const numB = parseInt(b.room_number);
-        return numA - numB;
+      const sortedRooms = [...roomsData].sort((a, b) => {
+        const na = parseInt(a.room_number);
+        const nb = parseInt(b.room_number);
+        return na - nb;
       });
 
-      // Filter bookings to only include relevant date range and active statuses
       const endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + daysToShow);
 
-      console.log('Timeline - Date range:', startDate.toISOString().split('T')[0], 'to', endDate.toISOString().split('T')[0]);
-
-      // Debug all bookings first
-      console.log('Timeline - All bookings details:');
-      bookingsData.forEach((b: BookingWithDetails) => {
-        console.log(`  Room ${b.room_number} (ID: ${b.room_id}): ${b.guest_name}, ${b.check_in_date} to ${b.check_out_date}, status: ${b.status}`);
-      });
-
       const relevantBookings: TimelineBooking[] = bookingsData
         .filter((b: BookingWithDetails) => {
-          // Filter out inactive bookings
-          if (['checked_out', 'voided'].includes(b.status as string)) {
-            console.log(`  Filtering out ${b.guest_name} in room ${b.room_number}: ${b.status}`);
-            return false;
-          }
-
-          // Always include checked-in bookings - guest is still in the room
+          if (['checked_out', 'voided'].includes(b.status as string)) return false;
           const isCheckedIn = b.status === 'checked_in' || b.status === 'auto_checked_in';
-          if (isCheckedIn) {
-            console.log(`  Including checked-in ${b.guest_name} in room ${b.room_number}: ${b.check_in_date} to ${b.check_out_date}, status: ${b.status}`);
-            return true;
-          }
-
+          if (isCheckedIn) return true;
           const bookingEnd = new Date(b.check_out_date);
           const bookingStart = new Date(b.check_in_date);
-
-          // More lenient date filtering - include if booking overlaps with timeline at all
-          const isRelevant = bookingStart <= endDate && bookingEnd >= startDate;
-
-          if (isRelevant) {
-            console.log(`  Including ${b.guest_name} in room ${b.room_number}: ${b.check_in_date} to ${b.check_out_date}, status: ${b.status}`);
-          } else {
-            console.log(`  Excluding ${b.guest_name} in room ${b.room_number}: outside date range (${b.check_in_date} to ${b.check_out_date})`);
-          }
-
-          return isRelevant;
+          return bookingStart <= endDate && bookingEnd >= startDate;
         })
         .map((b: BookingWithDetails) => ({
           id: b.id,
@@ -209,55 +223,26 @@ const RoomReservationTimeline: React.FC = () => {
           rate_code: b.rate_code,
         }));
 
-      console.log('Timeline - Filtered bookings from API:', relevantBookings.length);
-
-      // Create synthetic bookings ONLY for rooms with "occupied" or "checked_in" status that don't have bookings
-      // Note: "reserved" rooms should ALWAYS have proper bookings with guest details now
+      // Synthetic entries for occupied/checked-in rooms with no booking record.
       const syntheticBookings: TimelineBooking[] = [];
       roomsData.forEach((room: Room) => {
-        // Skip if this room already has a booking in the date range
         const hasBooking = relevantBookings.some(b => Number(b.room_id) === Number(room.id));
         if (hasBooking) return;
-
-        // Only create synthetic entries for occupied/checked_in (not reserved - those must have bookings)
-        const occupiedStatuses = ['occupied', 'checked_in'];
-        if (room.status && occupiedStatuses.includes(room.status)) {
-          // Use reserved dates if available, otherwise show for entire timeline
-          const hasDefinedDates = room.reserved_start_date && room.reserved_end_date;
-          const syntheticStart = room.reserved_start_date || startDate.toISOString().split('T')[0];
-          const syntheticEnd = room.reserved_end_date || endDate.toISOString().split('T')[0];
-
-          // Create a descriptive name for walk-in/online/complimentary guest
-          const guestName = 'Walk-in Guest';
-
-          console.log(`  Creating synthetic booking for room ${room.room_number} (status: ${room.status}, has dates: ${hasDefinedDates})`);
-
+        if (room.status && ['occupied', 'checked_in'].includes(room.status)) {
           syntheticBookings.push({
             id: `synthetic-${room.id}`,
             room_id: room.id,
-            guest_name: guestName,
-            check_in_date: syntheticStart,
-            check_out_date: syntheticEnd,
+            guest_name: 'Walk-in Guest',
+            check_in_date: room.reserved_start_date || startDate.toISOString().split('T')[0],
+            check_out_date: room.reserved_end_date || endDate.toISOString().split('T')[0],
             status: room.status,
           });
         }
-
-        // Log warning for reserved rooms without bookings (this shouldn't happen with new logic)
-        if (room.status === 'reserved' && !hasBooking) {
-          console.warn(`  WARNING: Room ${room.room_number} is reserved but has no booking! This indicates data inconsistency.`);
-        }
       });
 
-      console.log('Timeline - Synthetic bookings created:', syntheticBookings.length);
-
-      // Merge actual and synthetic bookings
-      const allBookings = [...relevantBookings, ...syntheticBookings];
-      console.log('Timeline - Total bookings (actual + synthetic):', allBookings.length);
-
       setRooms(sortedRooms);
-      setBookings(allBookings);
+      setBookings([...relevantBookings, ...syntheticBookings]);
     } catch (err: any) {
-      console.error('Timeline - Error loading data:', err);
       setError(err.message || 'Failed to load timeline data');
     } finally {
       setLoading(false);
@@ -265,204 +250,148 @@ const RoomReservationTimeline: React.FC = () => {
     }
   };
 
-  const getDates = (): Date[] => {
-    const dates: Date[] = [];
+  const dates: Date[] = (() => {
+    const arr: Date[] = [];
     for (let i = 0; i < daysToShow; i++) {
-      const date = new Date(startDate);
-      date.setDate(date.getDate() + i);
-      dates.push(date);
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      arr.push(d);
     }
-    return dates;
-  };
-
-  const getTimelineCell = (room: Room, date: Date): TimelineCell => {
-    const dateStr = date.toISOString().split('T')[0];
-    const nextDateStr = new Date(date.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    const booking = bookings.find((b) => {
-      const roomIdMatch = Number(b.room_id) === Number(room.id);
-      if (!roomIdMatch) return false;
-
-      const checkIn = b.check_in_date.split('T')[0];
-      const checkOut = b.check_out_date.split('T')[0];
-
-      // Show colored box on check-in date, never on checkout date
-      const isCheckedIn = b.status === 'checked_in' || b.status === 'auto_checked_in';
-
-      if (isCheckedIn && checkOut <= todayStr) {
-        // Guest still in room at or past checkout date
-        // Extend display to today but always exclude the original checkout date
-        return dateStr >= checkIn && dateStr <= todayStr && dateStr !== checkOut;
-      }
-
-      // Standard: show from check-in date (inclusive) to checkout date (exclusive)
-      return dateStr >= checkIn && dateStr < checkOut;
-    });
-
-    if (!booking) {
-      return { booking: null, isStart: false, isEnd: false, isContinuation: false };
-    }
-
-    const checkIn = booking.check_in_date.split('T')[0];
-    const checkOut = booking.check_out_date.split('T')[0];
-    const isCheckoutDay = dateStr === checkOut;
-
-    return {
-      booking,
-      isStart: dateStr === checkIn,
-      isEnd: nextDateStr === checkOut || isCheckoutDay,
-      isContinuation: !!(dateStr !== checkIn && !isCheckoutDay),
-    };
-  };
-
-  // Use centralized status config for consistent colors
-  const getStatusColor = (status: string): string => {
-    return getUnifiedStatusColor(status);
-  };
-
-  // Use centralized status config for consistent labels
-  const getStatusLabel = (status: string): string => {
-    return getUnifiedStatusLabel(status);
-  };
+    return arr;
+  })();
 
   const goToPreviousWeek = () => {
-    const newDate = new Date(startDate);
-    newDate.setDate(newDate.getDate() - 7);
-    setStartDate(newDate);
+    const d = new Date(startDate);
+    d.setDate(d.getDate() - 7);
+    setStartDate(d);
   };
-
   const goToNextWeek = () => {
-    const newDate = new Date(startDate);
-    newDate.setDate(newDate.getDate() + 7);
-    setStartDate(newDate);
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + 7);
+    setStartDate(d);
   };
-
   const goToToday = () => {
-    setStartDate(new Date());
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    setStartDate(d);
   };
 
-  const dates = getDates();
-
-  // Popover handlers
-  const handleCellMouseEnter = (event: React.MouseEvent<HTMLElement>, booking: TimelineBooking) => {
-    // Clear any existing timeout
-    if (popoverTimeoutRef.current) {
-      clearTimeout(popoverTimeoutRef.current);
-    }
-    // Delay showing the popover to avoid flickering
+  const handleBarMouseEnter = (e: React.MouseEvent<HTMLElement>, booking: TimelineBooking) => {
+    if (popoverTimeoutRef.current) clearTimeout(popoverTimeoutRef.current);
+    const target = e.currentTarget;
     popoverTimeoutRef.current = setTimeout(() => {
-      setPopoverAnchor(event.currentTarget);
+      setPopoverAnchor(target);
       setHoveredBooking(booking);
-    }, 300);
+    }, 250);
   };
-
-  const handleCellMouseLeave = () => {
-    if (popoverTimeoutRef.current) {
-      clearTimeout(popoverTimeoutRef.current);
-    }
-    // Delay hiding to allow mouse to move to popover
+  const handleBarMouseLeave = () => {
+    if (popoverTimeoutRef.current) clearTimeout(popoverTimeoutRef.current);
     popoverTimeoutRef.current = setTimeout(() => {
       setPopoverAnchor(null);
       setHoveredBooking(null);
     }, 150);
   };
-
   const handlePopoverMouseEnter = () => {
-    if (popoverTimeoutRef.current) {
-      clearTimeout(popoverTimeoutRef.current);
-    }
+    if (popoverTimeoutRef.current) clearTimeout(popoverTimeoutRef.current);
   };
-
   const handlePopoverMouseLeave = () => {
     setPopoverAnchor(null);
     setHoveredBooking(null);
   };
 
-  const getPaymentStatusColor = (status?: string): string => {
-    switch (status) {
-      case 'paid': return '#4caf50';
-      case 'partial': return '#ff9800';
-      case 'unpaid': return '#f44336';
-      case 'unpaid_deposit': return '#f44336';
-      case 'paid_rate': return '#2196f3';
-      case 'refunded': return '#9c27b0';
-      default: return '#9e9e9e';
-    }
-  };
+  const totalGridWidth = ROOM_COL + DAY_W * daysToShow;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  const getPaymentStatusLabel = (status?: string): string => {
-    switch (status) {
-      case 'paid': return 'Paid';
-      case 'partial': return 'Partial';
-      case 'unpaid': return 'Unpaid';
-      case 'unpaid_deposit': return 'Deposit Pending';
-      case 'paid_rate': return 'Rate Paid';
-      case 'refunded': return 'Refunded';
-      default: return 'Unknown';
-    }
-  };
+  const rangeLabel = (() => {
+    const last = dates[dates.length - 1];
+    if (!last) return '';
+    const sameYear = startDate.getFullYear() === last.getFullYear();
+    const left = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const right = last.toLocaleDateString('en-US', sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
+    return `${left} – ${right}, ${last.getFullYear()}`;
+  })();
+
+  // Status pill colors for legend (matches statusBarColors above).
+  const LEGEND: Array<{ label: string; color: string }> = [
+    { label: 'Occupied', color: '#ffd166' },
+    { label: 'Reserved', color: '#74b9ff' },
+    { label: 'Pending', color: '#a29bfe' },
+    { label: 'Complimentary', color: '#55efc4' },
+  ];
 
   return (
-    <Box sx={{ p: 3 }}>
-      {/* Header */}
-      <Paper
-        elevation={0}
+    <Box
+      sx={{
+        p: 4,
+        bgcolor: PALETTE.pageBg,
+        minHeight: '100vh',
+        fontFamily: "'Caveat', cursive",
+      }}
+    >
+      <Box
         sx={{
-          p: 2.5,
-          mb: 3,
-          bgcolor: 'white',
-          border: '1px solid',
-          borderColor: 'divider',
-          borderRadius: 2,
+          bgcolor: PALETTE.panelBg,
+          border: `2.5px solid ${PALETTE.ink}`,
+          borderRadius: '8px',
+          boxShadow: `4px 4px 0 ${PALETTE.ink}`,
+          overflow: 'hidden',
         }}
       >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-          {/* Title Section */}
+        {/* ── Header bar ── */}
+        <Box
+          sx={{
+            bgcolor: PALETTE.headerBg,
+            borderBottom: `2px solid ${PALETTE.ink}`,
+            px: 2,
+            py: 1.25,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 2,
+            fontFamily: "'Caveat', cursive",
+          }}
+        >
           <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-              <CalendarMonth sx={{ fontSize: 28, color: 'primary.main' }} />
-              <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                Reservation Timeline
-              </Typography>
-            </Box>
-            <Typography variant="body2" color="text.secondary">
-              {rooms.length} rooms • {bookings.length} active bookings • Hover for details
+            <Typography sx={{ fontFamily: 'inherit', fontSize: 26, fontWeight: 700, color: PALETTE.ink, lineHeight: 1.1 }}>
+              Reservation Timeline
+            </Typography>
+            <Typography sx={{ fontFamily: 'inherit', fontSize: 16, color: PALETTE.inkMuted, lineHeight: 1.2 }}>
+              {rooms.length} rooms · {bookings.length} active bookings
             </Typography>
           </Box>
 
-          {/* Controls Section */}
-          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* Date Navigation */}
-            <Paper
-              elevation={0}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <SketchyBtn onClick={goToPreviousWeek}>‹</SketchyBtn>
+            <Box
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                bgcolor: 'grey.100',
-                borderRadius: 1,
-                p: 0.5,
+                fontFamily: 'inherit',
+                fontSize: 17,
+                border: `1.5px solid ${PALETTE.ink}`,
+                borderRadius: '4px',
+                px: 1.75,
+                py: 0.25,
+                color: PALETTE.ink,
+                whiteSpace: 'nowrap',
               }}
             >
-              <IconButton onClick={goToPreviousWeek} size="small">
-                <ChevronLeft />
-              </IconButton>
-              <Box sx={{ px: 1.5, minWidth: 180, textAlign: 'center' }}>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {dates[dates.length - 1]?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </Typography>
-              </Box>
-              <IconButton onClick={goToNextWeek} size="small">
-                <ChevronRight />
-              </IconButton>
-            </Paper>
+              {rangeLabel}
+            </Box>
+            <SketchyBtn onClick={goToNextWeek}>›</SketchyBtn>
+            <SketchyBtn filled onClick={goToToday}>Today</SketchyBtn>
 
-            {/* Days Selector */}
-            <FormControl size="small" sx={{ minWidth: 100 }}>
+            <FormControl size="small" sx={{ minWidth: 96 }}>
               <Select
                 value={daysToShow}
                 onChange={(e) => setDaysToShow(Number(e.target.value))}
-                sx={{ bgcolor: 'grey.100' }}
+                sx={{
+                  fontFamily: "'Caveat', cursive",
+                  fontSize: 16,
+                  bgcolor: PALETTE.panelBg,
+                  borderRadius: '4px',
+                  '& .MuiOutlinedInput-notchedOutline': { borderColor: PALETTE.ink, borderWidth: 1.5 },
+                }}
               >
                 <MenuItem value={7}>7 Days</MenuItem>
                 <MenuItem value={14}>14 Days</MenuItem>
@@ -471,415 +400,305 @@ const RoomReservationTimeline: React.FC = () => {
               </Select>
             </FormControl>
 
-            {/* Action Buttons */}
-            <Button
-              variant="outlined"
+            <IconButton
+              onClick={loadData}
               size="small"
-              onClick={goToToday}
-              sx={{ minWidth: 'auto', px: 2 }}
+              sx={{ border: `1.5px solid ${PALETTE.ink}`, borderRadius: '4px', color: PALETTE.ink }}
             >
-              Today
-            </Button>
-            <IconButton onClick={loadData} size="small" sx={{ bgcolor: 'grey.100' }}>
-              <Refresh />
+              <Refresh fontSize="small" />
             </IconButton>
+
+            <Box sx={{ display: 'flex', gap: 0.75, ml: 1, flexWrap: 'wrap' }}>
+              {LEGEND.map(({ label, color }) => (
+                <Box
+                  key={label}
+                  sx={{
+                    fontFamily: 'inherit',
+                    fontSize: 14,
+                    px: 1.25,
+                    py: 0.25,
+                    borderRadius: '20px',
+                    border: `1.5px solid ${PALETTE.ink}`,
+                    bgcolor: color,
+                    color: PALETTE.ink,
+                  }}
+                >
+                  {label}
+                </Box>
+              ))}
+            </Box>
           </Box>
         </Box>
 
-        {/* Status Legend */}
-        <Divider sx={{ my: 2 }} />
-        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-            Status:
-          </Typography>
-          {[
-            { label: 'Reserved', color: '#42a5f5' },
-            { label: 'Checked In', color: '#ffa726' },
-            { label: 'Pending', color: '#ffeb3b', textColor: '#000' },
-            { label: 'Complimentary', color: '#9c27b0' },
-          ].map((item) => (
-            <Chip
-              key={item.label}
-              label={item.label}
-              size="small"
-              sx={{
-                bgcolor: item.color,
-                color: item.textColor || 'white',
-                fontWeight: 500,
-                fontSize: '0.7rem',
-                height: 22,
-              }}
-            />
-          ))}
-        </Box>
-      </Paper>
+        {error && (
+          <Alert severity="error" onClose={() => setError(null)} sx={{ m: 2, fontFamily: 'sans-serif' }}>
+            {error}
+          </Alert>
+        )}
 
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
-
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <CircularProgress />
-        </Box>
-      ) : (
-        <TableContainer
-          component={Paper}
-          elevation={0}
-          sx={{
-            maxHeight: 'calc(100vh - 300px)',
-            overflow: 'auto',
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 2,
-          }}
-        >
-          <Table stickyHeader size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell
+        {/* ── Grid ── */}
+        {loading && rooms.length === 0 ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Box sx={{ position: 'relative', overflow: 'auto', maxHeight: 'calc(100vh - 240px)' }}>
+            <Box sx={{ width: totalGridWidth, position: 'relative' }}>
+              {/* Day header row (sticky) */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  borderBottom: `2px solid ${PALETTE.ink}`,
+                  bgcolor: PALETTE.headerBg,
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 10,
+                }}
+              >
+                <Box
                   sx={{
-                    fontWeight: 700,
-                    minWidth: 120,
+                    width: ROOM_COL,
+                    flexShrink: 0,
+                    px: 1.75,
+                    py: 1,
+                    borderRight: `2px solid ${PALETTE.ink}`,
                     position: 'sticky',
                     left: 0,
-                    bgcolor: '#fafafa',
-                    zIndex: 3,
-                    borderRight: '2px solid',
-                    borderColor: 'divider',
+                    bgcolor: PALETTE.headerBg,
+                    zIndex: 11,
                   }}
                 >
-                  Room
-                </TableCell>
-                {dates.map((date) => {
-                  const isToday =
-                    date.toDateString() === new Date().toDateString();
-                  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                  <Typography sx={{ fontFamily: 'inherit', fontSize: 16, color: PALETTE.inkMuted }}>Room</Typography>
+                </Box>
+                {dates.map((d, i) => {
+                  const isToday = sameDay(d, today);
                   return (
-                    <TableCell
-                      key={date.toISOString()}
-                      align="center"
+                    <Box
+                      key={i}
                       sx={{
-                        minWidth: 85,
-                        fontWeight: 600,
-                        bgcolor: isToday ? alpha('#1976d2', 0.08) : isWeekend ? alpha('#f5f5f5', 0.5) : '#fafafa',
-                        borderLeft: isToday ? '2px solid' : undefined,
-                        borderRight: isToday ? '2px solid' : undefined,
-                        borderColor: 'primary.main',
-                        py: 1,
+                        width: DAY_W,
+                        flexShrink: 0,
+                        textAlign: 'center',
+                        py: 0.75,
+                        borderRight: `1px solid ${PALETTE.rowDivider}`,
+                        bgcolor: isToday ? alpha(PALETTE.todayAccent, 0.1) : 'transparent',
                       }}
                     >
-                      <Box>
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{
-                            fontWeight: isWeekend ? 600 : 500,
-                            color: isWeekend ? 'error.main' : 'text.secondary',
-                            fontSize: '0.65rem',
-                          }}
-                        >
-                          {date.toLocaleDateString('en-US', { weekday: 'short' })}
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            fontWeight: 700,
-                            fontSize: '1rem',
-                            color: isToday ? 'primary.main' : 'text.primary',
-                          }}
-                        >
-                          {date.getDate()}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: 'text.secondary',
-                            fontSize: '0.6rem',
-                          }}
-                        >
-                          {date.toLocaleDateString('en-US', { month: 'short' })}
-                        </Typography>
-                      </Box>
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rooms.map((room) => (
-                <TableRow key={room.id} hover>
-                  <TableCell
-                    sx={{
-                      fontWeight: 600,
-                      position: 'sticky',
-                      left: 0,
-                      bgcolor: 'background.paper',
-                      zIndex: 2,
-                      borderRight: '2px solid',
-                      borderColor: 'divider',
-                      py: 1.5,
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Hotel sx={{ fontSize: 16, color: 'primary.main' }} />
-                        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.95rem' }}>
-                          {room.room_number}
-                        </Typography>
-                      </Box>
+                      <Typography sx={{ fontFamily: 'inherit', fontSize: 13, color: isToday ? PALETTE.todayAccent : PALETTE.inkMuted, lineHeight: 1.1 }}>
+                        {d.toLocaleDateString('en-US', { weekday: 'short' })} · {d.toLocaleDateString('en-US', { month: 'short' })}
+                      </Typography>
                       <Typography
-                        variant="caption"
                         sx={{
-                          color: 'text.secondary',
-                          fontSize: '0.7rem',
-                          bgcolor: alpha('#1976d2', 0.08),
-                          px: 0.75,
-                          py: 0.25,
-                          borderRadius: 0.5,
-                          display: 'inline-block',
-                          width: 'fit-content',
+                          fontFamily: 'inherit',
+                          fontSize: 24,
+                          lineHeight: 1.05,
+                          fontWeight: isToday ? 700 : 400,
+                          color: isToday ? PALETTE.todayAccent : PALETTE.ink,
                         }}
                       >
+                        {d.getDate()}
+                      </Typography>
+                      {isToday && (
+                        <Typography sx={{ fontFamily: 'inherit', fontSize: 12, color: PALETTE.todayAccent, mt: '-2px' }}>
+                          today
+                        </Typography>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
+
+              {/* Room rows */}
+              {rooms.map((room) => {
+                const roomBookings = bookings.filter((b) => Number(b.room_id) === Number(room.id));
+                return (
+                  <Box
+                    key={room.id}
+                    sx={{
+                      display: 'flex',
+                      borderBottom: `1px solid ${PALETTE.rowDivider}`,
+                      position: 'relative',
+                      height: ROW_H,
+                    }}
+                  >
+                    {/* Room info cell (sticky) */}
+                    <Box
+                      sx={{
+                        width: ROOM_COL,
+                        flexShrink: 0,
+                        borderRight: `2px solid ${PALETTE.ink}`,
+                        px: 1.75,
+                        py: 1.25,
+                        bgcolor: PALETTE.panelBg,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 5,
+                      }}
+                    >
+                      <Typography sx={{ fontFamily: 'inherit', fontWeight: 700, fontSize: 22, color: PALETTE.ink, lineHeight: 1.1 }}>
+                        {room.room_number}
+                      </Typography>
+                      <Typography sx={{ fontFamily: 'inherit', fontSize: 14, color: PALETTE.inkSubtle, lineHeight: 1.1 }}>
                         {room.room_type}
                       </Typography>
-                      <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600, fontSize: '0.75rem' }}>
+                      <Typography sx={{ fontFamily: 'inherit', fontSize: 14, color: PALETTE.todayAccent, fontWeight: 600, lineHeight: 1.1 }}>
                         {formatCurrency(Number(room.price_per_night))}/night
                       </Typography>
                     </Box>
-                  </TableCell>
-                  {dates.map((date) => {
-                    const cell = getTimelineCell(room, date);
-                    const isToday =
-                      date.toDateString() === new Date().toDateString();
-                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
 
-                    if (!cell.booking) {
+                    {/* Day cell backgrounds */}
+                    <Box sx={{ position: 'absolute', left: ROOM_COL, top: 0, right: 0, bottom: 0, display: 'flex' }}>
+                      {dates.map((d, i) => {
+                        const isToday = sameDay(d, today);
+                        return (
+                          <Box
+                            key={i}
+                            sx={{
+                              width: DAY_W,
+                              flexShrink: 0,
+                              height: '100%',
+                              borderRight: `1px solid ${PALETTE.rowDivider}`,
+                              bgcolor: isToday
+                                ? alpha(PALETTE.todayAccent, 0.05)
+                                : i % 2 === 0
+                                ? 'transparent'
+                                : PALETTE.zebra,
+                            }}
+                          />
+                        );
+                      })}
+                    </Box>
+
+                    {/* Booking bars */}
+                    {roomBookings.map((b) => {
+                      const startCol = Math.max(0, dayIndex(startDate, b.check_in_date));
+                      let endCol = Math.min(daysToShow, dayIndex(startDate, b.check_out_date));
+                      // For checked-in stays already past their checkout date, extend to today
+                      const isCheckedIn = b.status === 'checked_in' || b.status === 'auto_checked_in';
+                      if (isCheckedIn) {
+                        const todayCol = dayIndex(startDate, today) + 1;
+                        if (todayCol > endCol) endCol = Math.min(daysToShow, todayCol);
+                      }
+                      // Same-day stays: render as 1 day
+                      if (endCol <= startCol) endCol = Math.min(daysToShow, startCol + 1);
+                      const span = endCol - startCol;
+                      if (span <= 0) return null;
+
+                      const sc = statusBarColors(b.status, b.is_complimentary);
+                      const left = ROOM_COL + startCol * DAY_W + 4;
+                      const width = span * DAY_W - 8;
+                      const showText = width > 90;
+                      const showRate = width > 160;
+                      const isSynthetic = String(b.id).startsWith('synthetic-');
+
                       return (
-                        <TableCell
-                          key={date.toISOString()}
-                          sx={{
-                            bgcolor: isToday ? alpha('#1976d2', 0.05) : isWeekend ? alpha('#f5f5f5', 0.3) : 'background.paper',
-                            borderLeft: isToday ? '2px solid' : undefined,
-                            borderRight: isToday ? '2px solid' : undefined,
-                            borderColor: 'primary.main',
-                            transition: 'background-color 0.2s',
-                            '&:hover': {
-                              bgcolor: alpha('#66bb6a', 0.1),
-                            },
-                          }}
-                        />
-                      );
-                    }
-
-                    const isComplimentary = cell.booking.is_complimentary;
-                    // Use purple for complimentary bookings, otherwise use status color
-                    const statusColor = isComplimentary ? '#9c27b0' : getStatusColor(cell.booking.status);
-                    const statusLabel = isComplimentary
-                      ? `Comp (${cell.booking.complimentary_nights || 0}N)`
-                      : getStatusLabel(cell.booking.status);
-
-                    const isSyntheticBooking = String(cell.booking.id).startsWith('synthetic-');
-
-                    // Create gradient background for more visual appeal
-                    const gradientBg = `linear-gradient(135deg, ${statusColor} 0%, ${alpha(statusColor, 0.85)} 100%)`;
-
-                    return (
-                      <TableCell
-                        key={date.toISOString()}
-                        onMouseEnter={(e) => handleCellMouseEnter(e, cell.booking!)}
-                        onMouseLeave={handleCellMouseLeave}
-                        sx={{
-                          background: isSyntheticBooking || isComplimentary
-                            ? `repeating-linear-gradient(
-                                45deg,
-                                ${statusColor},
-                                ${statusColor} 8px,
-                                ${alpha(statusColor, 0.7)} 8px,
-                                ${alpha(statusColor, 0.7)} 16px
-                              )`
-                            : statusColor,
-                          borderLeft: cell.isStart ? '3px solid rgba(0,0,0,0.3)' : '1px solid rgba(255,255,255,0.2)',
-                          borderRight: cell.isEnd ? '3px solid rgba(0,0,0,0.3)' : '1px solid rgba(255,255,255,0.2)',
-                          borderTop: '1px solid rgba(255,255,255,0.15)',
-                          borderBottom: '1px solid rgba(255,255,255,0.15)',
-                          cursor: 'pointer',
-                          position: 'relative',
-                          padding: '6px 8px',
-                          minHeight: '60px',
-                          verticalAlign: 'top',
-                          '&:hover': {
-                            filter: 'brightness(1.08)',
-                          },
-                        }}
-                      >
                         <Box
+                          key={b.id}
+                          onMouseEnter={(e) => handleBarMouseEnter(e, b)}
+                          onMouseLeave={handleBarMouseLeave}
                           sx={{
+                            position: 'absolute',
+                            left,
+                            top: 8,
+                            bottom: 8,
+                            width,
+                            bgcolor: sc.bg,
+                            border: `2px solid ${sc.border}`,
+                            borderRadius: '5px',
+                            px: 1,
+                            py: 0.5,
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            zIndex: 4,
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: 0.25,
-                            height: '100%',
+                            justifyContent: 'center',
+                            transition: 'filter 0.15s',
+                            background: isSynthetic
+                              ? `repeating-linear-gradient(45deg, ${sc.bg} 0 8px, ${alpha(sc.bg, 0.7)} 8px 16px)`
+                              : sc.bg,
+                            '&:hover': { filter: 'brightness(1.05)' },
                           }}
                         >
-                          {/* Guest Name - shown on all cells */}
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: 'white',
-                              fontWeight: 700,
-                              fontSize: '0.7rem',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                            }}
-                          >
-                            {cell.booking.guest_name}
-                          </Typography>
-
-                          {/* Status - shown on all cells */}
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              color: 'rgba(255,255,255,0.95)',
-                              fontSize: '0.65rem',
-                              fontWeight: 600,
-                              textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                            }}
-                          >
-                            {statusLabel}
-                          </Typography>
-
-                          {/* Guest phone - shown on start cell for real bookings */}
-                          {cell.isStart && !isSyntheticBooking && cell.booking.guest_phone && (
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                color: 'rgba(255,255,255,0.9)',
-                                fontSize: '0.6rem',
-                                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                              }}
-                            >
-                              {cell.booking.guest_phone}
-                            </Typography>
-                          )}
-
-                          {/* Check-in date - shown on start cell */}
-                          {cell.isStart && !isSyntheticBooking && (
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                color: 'rgba(255,255,255,0.9)',
-                                fontSize: '0.6rem',
-                                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                              }}
-                            >
-                              In: {new Date(cell.booking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            </Typography>
-                          )}
-
-                          {/* Room rate - shown on all cells for real bookings */}
-                          {!isSyntheticBooking && cell.booking.price_per_night && (
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                color: 'rgba(255,255,255,0.9)',
-                                fontSize: '0.6rem',
-                                fontWeight: 600,
-                                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                              }}
-                            >
-                              {formatCurrency(Number(cell.booking.price_per_night))}/night
-                            </Typography>
-                          )}
-
-                          {/* Complimentary date range - shown on start cell for complimentary bookings */}
-                          {cell.isStart && isComplimentary && cell.booking.complimentary_start_date && cell.booking.complimentary_end_date && (
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                color: 'rgba(255,255,255,0.95)',
-                                fontSize: '0.55rem',
-                                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                                fontWeight: 600,
-                              }}
-                            >
-                              Free: {new Date(cell.booking.complimentary_start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(cell.booking.complimentary_end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            </Typography>
-                          )}
-
-                          {/* Check-out date - shown on end cell */}
-                          {cell.isEnd && !isSyntheticBooking && (
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                color: 'rgba(255,255,255,0.9)',
-                                fontSize: '0.6rem',
-                                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                              }}
-                            >
-                              Out: {new Date(cell.booking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            </Typography>
-                          )}
-
-                          {/* Walk-in/Online/Complimentary guest indicator */}
-                          {isSyntheticBooking && (
-                            <Typography
-                              variant="caption"
-                              sx={{
-                                color: 'rgba(255,255,255,0.85)',
-                                fontSize: '0.6rem',
-                                fontStyle: 'italic',
-                                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                              }}
-                            >
-                              Direct check-in
-                            </Typography>
+                          {showText && (
+                            <>
+                              <Typography
+                                sx={{
+                                  fontFamily: "'Caveat', cursive",
+                                  fontSize: 18,
+                                  fontWeight: 700,
+                                  color: PALETTE.ink,
+                                  lineHeight: 1.05,
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {b.guest_name}
+                              </Typography>
+                              <Typography
+                                sx={{
+                                  fontFamily: "'Caveat', cursive",
+                                  fontSize: 14,
+                                  color: PALETTE.inkSubtle,
+                                  lineHeight: 1.1,
+                                }}
+                              >
+                                {b.is_complimentary ? `Complimentary (${b.complimentary_nights || 0}N)` : getUnifiedStatusLabel(b.status)}
+                              </Typography>
+                              {showRate && b.price_per_night && !b.is_complimentary && (
+                                <Typography
+                                  sx={{
+                                    fontFamily: "'Caveat', cursive",
+                                    fontSize: 14,
+                                    color: PALETTE.inkSubtle,
+                                    lineHeight: 1.1,
+                                  }}
+                                >
+                                  {formatCurrency(Number(b.price_per_night))}/night
+                                </Typography>
+                              )}
+                            </>
                           )}
                         </Box>
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
+                      );
+                    })}
+                  </Box>
+                );
+              })}
 
-      {rooms.length === 0 && !loading && (
-        <Box sx={{ textAlign: 'center', py: 4 }}>
-          <Typography variant="body1" color="text.secondary">
-            No rooms found
-          </Typography>
-        </Box>
-      )}
+              {rooms.length === 0 && !loading && (
+                <Box sx={{ p: 6, textAlign: 'center' }}>
+                  <Typography sx={{ fontFamily: "'Caveat', cursive", fontSize: 20, color: PALETTE.inkMuted }}>
+                    No rooms found
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Box>
+        )}
+      </Box>
 
-      {/* Booking Details Popover */}
+      {/* ── Booking detail popover ── */}
       <Popover
         open={Boolean(popoverAnchor) && Boolean(hoveredBooking)}
         anchorEl={popoverAnchor}
         onClose={handlePopoverMouseLeave}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'center',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'center' }}
         disableRestoreFocus
         sx={{
           pointerEvents: 'none',
           '& .MuiPopover-paper': {
             pointerEvents: 'auto',
-            borderRadius: 2,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-            border: '1px solid',
-            borderColor: 'divider',
-            maxWidth: 340,
+            border: `2px solid ${PALETTE.ink}`,
+            borderRadius: '6px',
+            boxShadow: `4px 4px 0 ${PALETTE.ink}`,
+            maxWidth: 360,
+            bgcolor: PALETTE.panelBg,
           },
         }}
         slotProps={{
@@ -891,13 +710,10 @@ const RoomReservationTimeline: React.FC = () => {
       >
         {hoveredBooking && (
           <Box sx={{ p: 2 }}>
-            {/* Header */}
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Person sx={{ fontSize: 20, color: 'primary.main' }} />
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                  {hoveredBooking.guest_name}
-                </Typography>
+                <Person sx={{ fontSize: 20, color: PALETTE.ink }} />
+                <Typography sx={{ fontWeight: 700, fontSize: 17 }}>{hoveredBooking.guest_name}</Typography>
               </Box>
               {hoveredBooking.booking_number && (
                 <Chip
@@ -906,48 +722,47 @@ const RoomReservationTimeline: React.FC = () => {
                   sx={{
                     fontSize: '0.65rem',
                     height: 20,
-                    bgcolor: alpha('#1976d2', 0.1),
-                    color: 'primary.main',
+                    bgcolor: alpha(PALETTE.ink, 0.08),
+                    color: PALETTE.ink,
                     fontWeight: 600,
                   }}
                 />
               )}
             </Box>
 
-            <Divider sx={{ my: 1.5 }} />
+            <Divider sx={{ my: 1, borderColor: PALETTE.rowDivider }} />
 
-            {/* Contact Info */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mb: 1.5 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1 }}>
               {hoveredBooking.guest_email && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Email sx={{ fontSize: 16, color: 'text.secondary' }} />
-                  <Typography variant="body2" color="text.secondary">
+                  <Email sx={{ fontSize: 16, color: PALETTE.inkMuted }} />
+                  <Typography variant="body2" sx={{ color: PALETTE.inkSubtle }}>
                     {hoveredBooking.guest_email}
                   </Typography>
                 </Box>
               )}
               {hoveredBooking.guest_phone && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Phone sx={{ fontSize: 16, color: 'text.secondary' }} />
-                  <Typography variant="body2" color="text.secondary">
+                  <Phone sx={{ fontSize: 16, color: PALETTE.inkMuted }} />
+                  <Typography variant="body2" sx={{ color: PALETTE.inkSubtle }}>
                     {hoveredBooking.guest_phone}
                   </Typography>
                 </Box>
               )}
             </Box>
 
-            {/* Booking Details */}
             <Paper
               elevation={0}
               sx={{
-                p: 1.5,
-                bgcolor: alpha('#f5f5f5', 0.5),
-                borderRadius: 1.5,
-                mb: 1.5,
+                p: 1.25,
+                bgcolor: PALETTE.headerBg,
+                border: `1px solid ${PALETTE.rowDivider}`,
+                borderRadius: '4px',
+                mb: 1,
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <CalendarToday sx={{ fontSize: 16, color: 'primary.main' }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+                <CalendarToday sx={{ fontSize: 16, color: PALETTE.ink }} />
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {new Date(hoveredBooking.check_in_date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                   {' → '}
@@ -958,7 +773,7 @@ const RoomReservationTimeline: React.FC = () => {
                 <Box>
                   <Typography variant="caption" color="text.secondary">Nights</Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {hoveredBooking.number_of_nights || Math.ceil((new Date(hoveredBooking.check_out_date).getTime() - new Date(hoveredBooking.check_in_date).getTime()) / (1000 * 60 * 60 * 24))}
+                    {hoveredBooking.number_of_nights || Math.ceil((new Date(hoveredBooking.check_out_date).getTime() - new Date(hoveredBooking.check_in_date).getTime()) / 86400000)}
                   </Typography>
                 </Box>
                 {hoveredBooking.number_of_guests && (
@@ -969,7 +784,7 @@ const RoomReservationTimeline: React.FC = () => {
                     </Typography>
                   </Box>
                 )}
-                {hoveredBooking.extra_bed_count && hoveredBooking.extra_bed_count > 0 && (
+                {!!hoveredBooking.extra_bed_count && hoveredBooking.extra_bed_count > 0 && (
                   <Box>
                     <Typography variant="caption" color="text.secondary">Extra Beds</Typography>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -980,8 +795,7 @@ const RoomReservationTimeline: React.FC = () => {
               </Box>
             </Paper>
 
-            {/* Payment Info */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.75 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <AttachMoney sx={{ fontSize: 18, color: 'success.main' }} />
                 <Box>
@@ -997,10 +811,10 @@ const RoomReservationTimeline: React.FC = () => {
               </Box>
               <Box sx={{ display: 'flex', gap: 0.5 }}>
                 <Chip
-                  label={getStatusLabel(hoveredBooking.status)}
+                  label={getUnifiedStatusLabel(hoveredBooking.status)}
                   size="small"
                   sx={{
-                    bgcolor: getStatusColor(hoveredBooking.status),
+                    bgcolor: getUnifiedStatusColor(hoveredBooking.status),
                     color: 'white',
                     fontWeight: 600,
                     fontSize: '0.65rem',
@@ -1010,26 +824,22 @@ const RoomReservationTimeline: React.FC = () => {
                 {hoveredBooking.payment_status && (
                   <Chip
                     icon={<Payment sx={{ fontSize: 14, color: 'inherit !important' }} />}
-                    label={getPaymentStatusLabel(hoveredBooking.payment_status)}
+                    label={hoveredBooking.payment_status}
                     size="small"
                     sx={{
-                      bgcolor: alpha(getPaymentStatusColor(hoveredBooking.payment_status), 0.15),
-                      color: getPaymentStatusColor(hoveredBooking.payment_status),
+                      bgcolor: alpha(PALETTE.ink, 0.08),
+                      color: PALETTE.ink,
                       fontWeight: 600,
                       fontSize: '0.65rem',
                       height: 22,
-                      '& .MuiChip-icon': {
-                        color: 'inherit',
-                      },
                     }}
                   />
                 )}
               </Box>
             </Box>
 
-            {/* Deposit Info */}
             {(hoveredBooking.deposit_amount || hoveredBooking.deposit_paid) && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
                 <Typography variant="caption" color="text.secondary">Deposit:</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   {formatCurrency(Number(hoveredBooking.deposit_amount || 0))}
@@ -1040,9 +850,8 @@ const RoomReservationTimeline: React.FC = () => {
               </Box>
             )}
 
-            {/* Company */}
             {hoveredBooking.company_name && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
                 <Typography variant="caption" color="text.secondary">Company:</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                   {hoveredBooking.company_name}
@@ -1050,21 +859,21 @@ const RoomReservationTimeline: React.FC = () => {
               </Box>
             )}
 
-            {/* Complimentary Info */}
             {hoveredBooking.is_complimentary && (
               <Paper
                 elevation={0}
                 sx={{
-                  p: 1,
-                  bgcolor: alpha('#9c27b0', 0.1),
-                  borderRadius: 1,
-                  mb: 1,
+                  p: 0.75,
+                  bgcolor: alpha('#00b894', 0.12),
+                  border: `1px solid #00b894`,
+                  borderRadius: '4px',
+                  mb: 0.75,
                 }}
               >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <CardGiftcard sx={{ fontSize: 16, color: '#9c27b0' }} />
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#9c27b0' }}>
-                    Complimentary: {hoveredBooking.complimentary_nights} nights
+                  <CardGiftcard sx={{ fontSize: 16, color: '#00b894' }} />
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#00b894' }}>
+                    Complimentary: {hoveredBooking.complimentary_nights || 0} nights
                   </Typography>
                 </Box>
                 {hoveredBooking.complimentary_reason && (
@@ -1075,9 +884,8 @@ const RoomReservationTimeline: React.FC = () => {
               </Paper>
             )}
 
-            {/* Special Requests */}
             {hoveredBooking.special_requests && (
-              <Box sx={{ mt: 1 }}>
+              <Box sx={{ mt: 0.75 }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
                   <Notes sx={{ fontSize: 16, color: 'warning.main', mt: 0.25 }} />
                   <Box>
@@ -1095,5 +903,33 @@ const RoomReservationTimeline: React.FC = () => {
     </Box>
   );
 };
+
+// Small "sketchy" pill button matching the reference's nav controls.
+const SketchyBtn: React.FC<{
+  children: React.ReactNode;
+  onClick?: () => void;
+  filled?: boolean;
+}> = ({ children, onClick, filled }) => (
+  <Box
+    onClick={onClick}
+    sx={{
+      fontFamily: "'Caveat', cursive",
+      fontSize: 17,
+      px: 1.5,
+      py: 0.25,
+      borderRadius: '4px',
+      cursor: 'pointer',
+      border: `1.5px solid ${PALETTE.ink}`,
+      bgcolor: filled ? PALETTE.ink : 'transparent',
+      color: filled ? PALETTE.panelBg : PALETTE.ink,
+      lineHeight: 1.2,
+      userSelect: 'none',
+      whiteSpace: 'nowrap',
+      '&:hover': { bgcolor: filled ? '#000' : alpha(PALETTE.ink, 0.05) },
+    }}
+  >
+    {children}
+  </Box>
+);
 
 export default RoomReservationTimeline;

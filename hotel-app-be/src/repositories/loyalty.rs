@@ -2,7 +2,9 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::{LoyaltyMembership, LoyaltyMembershipWithDetails, PointsTransaction, LoyaltyReward};
+use crate::models::{
+    LoyaltyMembership, LoyaltyMembershipWithDetails, LoyaltyReward, PointsTransaction,
+};
 
 pub struct LoyaltyRepository;
 
@@ -22,7 +24,7 @@ impl LoyaltyRepository {
             JOIN guests g ON m.guest_id = g.id
             JOIN loyalty_programs p ON m.program_id = p.id
             WHERE m.guest_id = $1
-            "#
+            "#,
         )
         .bind(guest_id)
         .fetch_optional(pool)
@@ -42,7 +44,7 @@ impl LoyaltyRepository {
                    created_at, updated_at
             FROM loyalty_memberships
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(id)
         .fetch_optional(pool)
@@ -64,7 +66,7 @@ impl LoyaltyRepository {
             WHERE membership_id = $1
             ORDER BY created_at DESC
             LIMIT $2
-            "#
+            "#,
         )
         .bind(membership_id)
         .bind(limit)
@@ -81,13 +83,12 @@ impl LoyaltyRepository {
         description: Option<&str>,
     ) -> Result<PointsTransaction, ApiError> {
         // Get current balance
-        let current_balance: i32 = sqlx::query_scalar(
-            "SELECT points_balance FROM loyalty_memberships WHERE id = $1"
-        )
-        .bind(membership_id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        let current_balance: i32 =
+            sqlx::query_scalar("SELECT points_balance FROM loyalty_memberships WHERE id = $1")
+                .bind(membership_id)
+                .fetch_one(pool)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
 
         let new_balance = current_balance + points;
 
@@ -134,16 +135,17 @@ impl LoyaltyRepository {
         description: Option<&str>,
     ) -> Result<PointsTransaction, ApiError> {
         // Get current balance
-        let current_balance: i32 = sqlx::query_scalar(
-            "SELECT points_balance FROM loyalty_memberships WHERE id = $1"
-        )
-        .bind(membership_id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        let current_balance: i32 =
+            sqlx::query_scalar("SELECT points_balance FROM loyalty_memberships WHERE id = $1")
+                .bind(membership_id)
+                .fetch_one(pool)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
 
         if current_balance < points {
-            return Err(ApiError::BadRequest("Insufficient points balance".to_string()));
+            return Err(ApiError::BadRequest(
+                "Insufficient points balance".to_string(),
+            ));
         }
 
         let new_balance = current_balance - points;
@@ -177,7 +179,10 @@ impl LoyaltyRepository {
     }
 
     /// Get available rewards
-    pub async fn get_rewards(pool: &DbPool, tier_level: i32) -> Result<Vec<LoyaltyReward>, ApiError> {
+    pub async fn get_rewards(
+        pool: &DbPool,
+        tier_level: i32,
+    ) -> Result<Vec<LoyaltyReward>, ApiError> {
         sqlx::query_as::<_, LoyaltyReward>(
             r#"
             SELECT id, name, description, category, points_cost, monetary_value,
@@ -186,7 +191,7 @@ impl LoyaltyRepository {
             FROM loyalty_rewards
             WHERE is_active = true AND minimum_tier_level <= $1
             ORDER BY points_cost
-            "#
+            "#,
         )
         .bind(tier_level)
         .fetch_all(pool)

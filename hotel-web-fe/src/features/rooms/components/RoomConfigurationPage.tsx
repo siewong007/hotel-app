@@ -29,7 +29,6 @@ import {
 } from '@mui/material';
 import {
   Add as AddIcon,
-  Edit as EditIcon,
   Delete as DeleteIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
@@ -344,7 +343,12 @@ const RoomConfigurationPage: React.FC = () => {
             </TableHead>
             <TableBody>
               {rooms.map((room) => (
-                <TableRow key={room.id}>
+                <TableRow
+                  key={room.id}
+                  hover
+                  onClick={() => handleEditClick(room)}
+                  sx={{ cursor: 'pointer' }}
+                >
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {room.room_number}
@@ -366,14 +370,7 @@ const RoomConfigurationPage: React.FC = () => {
                       color={room.available ? 'success' : 'default'}
                     />
                   </TableCell>
-                  <TableCell align="right">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleEditClick(room)}
-                      color="primary"
-                    >
-                      <EditIcon />
-                    </IconButton>
+                  <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                     <IconButton
                       size="small"
                       onClick={() => handleDeleteClick(room)}
