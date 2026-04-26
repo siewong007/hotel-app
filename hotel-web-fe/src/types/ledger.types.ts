@@ -1,4 +1,4 @@
-// Customer Ledger type definitions with PAT-style support
+// Customer Ledger type definitions
 
 export type FolioType = 'guest_folio' | 'master_folio' | 'city_ledger' | 'group_folio' | 'ar_ledger';
 export type TransactionType = 'debit' | 'credit';
@@ -26,7 +26,7 @@ export interface CustomerLedger {
   expense_type: string;
   amount: number | string;
   currency?: string;
-  status: 'pending' | 'partial' | 'paid' | 'overdue';
+  status: 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled';
   paid_amount: number | string;
   balance_due: number | string;
   payment_method?: string;
@@ -43,7 +43,7 @@ export interface CustomerLedger {
   updated_by?: number;
   created_at: string;
   updated_at: string;
-  // PAT-style fields
+  // Ledger accounting fields
   folio_number?: string;
   folio_type?: FolioType;
   transaction_type?: TransactionType;
@@ -89,7 +89,7 @@ export interface CustomerLedgerCreateRequest {
   due_date?: string;
   notes?: string;
   internal_notes?: string;
-  // PAT-style fields
+  // Ledger accounting fields
   folio_type?: FolioType;
   transaction_type?: TransactionType;
   post_type?: PostType;
@@ -125,7 +125,7 @@ export interface CustomerLedgerUpdateRequest {
   due_date?: string;
   notes?: string;
   internal_notes?: string;
-  // PAT-style fields
+  // Ledger accounting fields
   folio_type?: FolioType;
   transaction_type?: TransactionType;
   post_type?: PostType;
@@ -176,33 +176,6 @@ export interface CustomerLedgerSummary {
   pending_count: number;
   partial_count: number;
   overdue_count: number;
-}
-
-// PAT Transaction Code
-export interface PatTransactionCode {
-  id: number;
-  code: string;
-  name: string;
-  post_type: PostType;
-  department_code?: string;
-  default_amount?: number | string;
-  is_taxable: boolean;
-  is_service_chargeable: boolean;
-  gl_account_code?: string;
-  is_active: boolean;
-  sort_order: number;
-  created_at: string;
-}
-
-// PAT Department Code
-export interface PatDepartmentCode {
-  id: number;
-  code: string;
-  name: string;
-  description?: string;
-  is_active: boolean;
-  sort_order: number;
-  created_at: string;
 }
 
 // Void request
