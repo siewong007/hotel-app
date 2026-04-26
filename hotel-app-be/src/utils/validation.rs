@@ -1,9 +1,9 @@
-use validator::{Validate, ValidationError};
 use crate::models::*;
+use validator::{Validate, ValidationError};
 
 /// Validates phone numbers in E.164 format
 fn validate_phone(phone: &str) -> Result<(), ValidationError> {
-    let re = regex::Regex::new(r"^\+?[1-9]\d{1,14}$").unwrap();
+    let re = regex::Regex::new(r"^\+?[1-9]\d{7,14}$").unwrap();
     if re.is_match(phone) {
         Ok(())
     } else {
@@ -97,11 +97,13 @@ impl ValidatedGuestInput {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use validator::Validate;
 
     #[test]
     fn test_validate_phone_valid() {
         assert!(validate_phone("+14155552671").is_ok());
         assert!(validate_phone("+442071234567").is_ok());
+        assert!(validate_phone("14155552671").is_ok());
     }
 
     #[test]
@@ -109,6 +111,8 @@ mod tests {
         assert!(validate_phone("123").is_err());
         assert!(validate_phone("invalid").is_err());
         assert!(validate_phone("").is_err());
+        assert!(validate_phone("+0123456789").is_err());
+        assert!(validate_phone("+1415555267123456").is_err());
     }
 
     #[test]
@@ -116,5 +120,62 @@ mod tests {
         assert!(validate_not_empty("test").is_ok());
         assert!(validate_not_empty("   ").is_err());
         assert!(validate_not_empty("").is_err());
+    }
+
+    #[test]
+    fn test_guest_input_validation_accepts_valid_optional_fields() {
+        let input = ValidatedGuestInput {
+            first_name: "Ada".to_string(),
+            last_name: "Lovelace".to_string(),
+            email: Some("ada@example.com".to_string()),
+            phone: Some("+14155552671".to_string()),
+            address_line1: None,
+            city: None,
+            state_province: None,
+            postal_code: None,
+            country: None,
+        };
+
+        assert!(input.validate().is_ok());
+    }
+
+    #[test]
+    fn test_guest_input_validation_rejects_blank_names_and_bad_contact_fields() {
+        let input = ValidatedGuestInput {
+            first_name: "   ".to_string(),
+            last_name: "".to_string(),
+            email: Some("not-an-email".to_string()),
+            phone: Some("123".to_string()),
+            address_line1: None,
+            city: None,
+            state_province: None,
+            postal_code: None,
+            country: None,
+        };
+
+        let errors = input
+            .validate()
+            .expect_err("invalid guest input should fail validation");
+
+        assert!(errors.field_errors().contains_key("first_name"));
+        assert!(errors.field_errors().contains_key("last_name"));
+        assert!(errors.field_errors().contains_key("email"));
+        assert!(errors.field_errors().contains_key("phone"));
+    }
+
+    #[test]
+    fn test_room_event_validation_rejects_overlong_notes() {
+        let input = ValidatedRoomEventInput {
+            event_type: "maintenance".to_string(),
+            status: "open".to_string(),
+            priority: Some("high".to_string()),
+            notes: Some("x".repeat(1001)),
+        };
+
+        let errors = input
+            .validate()
+            .expect_err("notes over 1000 chars should fail");
+
+        assert!(errors.field_errors().contains_key("notes"));
     }
 }

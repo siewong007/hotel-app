@@ -169,6 +169,8 @@ LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = true
   AND r.status NOT IN ('maintenance', 'out_of_order')
   AND cb.room_id IS NULL
+  AND ($4::text IS NULL OR LOWER(rt.name) = LOWER($4) OR LOWER(rt.code) = LOWER($4))
+  AND ($5::DOUBLE PRECISION IS NULL OR COALESCE(r.custom_price, rt.base_price) <= $5)
 ORDER BY COALESCE(r.custom_price, rt.base_price)
 "#;
 
@@ -208,6 +210,8 @@ LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = 1
   AND r.status NOT IN ('maintenance', 'out_of_order')
   AND cb.room_id IS NULL
+  AND (?4 IS NULL OR LOWER(rt.name) = LOWER(?4) OR LOWER(rt.code) = LOWER(?4))
+  AND (?5 IS NULL OR COALESCE(r.custom_price, rt.base_price) <= ?5)
 ORDER BY COALESCE(r.custom_price, rt.base_price)
 "#;
 
@@ -262,6 +266,8 @@ WHERE r.is_active = true
       cb.booking_status IN ('checked_in', 'auto_checked_in') OR
       (cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= CURRENT_DATE)
   ))
+  AND ($1::text IS NULL OR LOWER(rt.name) = LOWER($1) OR LOWER(rt.code) = LOWER($1))
+  AND ($2::DOUBLE PRECISION IS NULL OR COALESCE(r.custom_price, rt.base_price) <= $2)
 ORDER BY COALESCE(r.custom_price, rt.base_price)
 "#;
 
@@ -320,6 +326,8 @@ WHERE r.is_active = 1
       cb.booking_status IN ('checked_in', 'auto_checked_in') OR
       (cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= date('now'))
   ))
+  AND (?1 IS NULL OR LOWER(rt.name) = LOWER(?1) OR LOWER(rt.code) = LOWER(?1))
+  AND (?2 IS NULL OR COALESCE(r.custom_price, rt.base_price) <= ?2)
 ORDER BY COALESCE(r.custom_price, rt.base_price)
 "#;
 

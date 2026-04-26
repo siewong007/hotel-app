@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { HotelAPIService } from '../../../api';
 import { BookingWithDetails, Room, Guest } from '../../../types';
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 
 export type SortField = 'check_in_date' | 'check_out_date' | 'guest_name' | 'room_number' | 'status' | 'folio_number';
 export type SortOrder = 'asc' | 'desc';
@@ -35,6 +36,14 @@ export function useBookings() {
   const [customEndDate, setCustomEndDate] = useState('');
   const [searchDate, setSearchDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 700);
+  const debouncedRoomNumberFilter = useDebouncedValue(roomNumberFilter, 700);
+  const bookingsRequestId = useRef(0);
+  const previousDebouncedTextFilters = useRef({
+    searchQuery: debouncedSearchQuery,
+    roomNumberFilter: debouncedRoomNumberFilter,
+  });
+  const skipNextLoadForPageReset = useRef(false);
 
   const loadRooms = useCallback(async () => {
     try {
@@ -75,6 +84,9 @@ export function useBookings() {
     custom_end?: string;
     date_search?: string;
   }) => {
+    const requestId = bookingsRequestId.current + 1;
+    bookingsRequestId.current = requestId;
+
     try {
       setLoading(true);
 
@@ -89,8 +101,8 @@ export function useBookings() {
       const resolvedPage = p.page ?? currentPage;
       const resolvedSort = p.sort_by ?? sortField;
       const resolvedOrder = p.sort_order ?? sortOrder;
-      const resolvedSearch = p.search ?? searchQuery;
-      const resolvedRoom = p.room_number ?? roomNumberFilter;
+      const resolvedSearch = p.search ?? debouncedSearchQuery;
+      const resolvedRoom = p.room_number ?? debouncedRoomNumberFilter;
       const resolvedStatus = p.status ?? statusFilter;
       const resolvedDateFilter = p.date_filter ?? dateFilter;
       const resolvedCustomStart = p.custom_start ?? customStartDate;
@@ -103,8 +115,8 @@ export function useBookings() {
         sort_by: resolvedSort,
         sort_order: resolvedOrder,
       };
-      if (resolvedSearch) apiParams.search = resolvedSearch;
-      if (resolvedRoom) apiParams.room_number = resolvedRoom;
+      if (resolvedSearch.trim()) apiParams.search = resolvedSearch.trim();
+      if (resolvedRoom.trim()) apiParams.room_number = resolvedRoom.trim();
       apiParams.status = resolvedStatus;
       if (resolvedDateFilter === 'today') { apiParams.check_in_from = today; apiParams.check_in_to = today; }
       else if (resolvedDateFilter === 'week') { apiParams.check_in_from = today; apiParams.check_in_to = addDays(today, 7); }
@@ -113,16 +125,22 @@ export function useBookings() {
       else if (resolvedDateFilter === 'date_search' && resolvedSearchDate) { apiParams.date_search = resolvedSearchDate; }
 
       const resp = await HotelAPIService.getBookingsPage(apiParams);
+      if (bookingsRequestId.current !== requestId) return;
+
       setBookings(resp.data);
       setTotalBookings(resp.total);
       setError(null);
     } catch (err: any) {
+      if (bookingsRequestId.current !== requestId) return;
+
       console.error('Failed to load bookings:', err);
       setError(err.message || 'Failed to load bookings. Please check your connection and try again.');
     } finally {
-      setLoading(false);
+      if (bookingsRequestId.current === requestId) {
+        setLoading(false);
+      }
     }
-  }, [currentPage, sortField, sortOrder, searchQuery, roomNumberFilter, statusFilter, dateFilter, customStartDate, customEndDate, searchDate]);
+  }, [currentPage, sortField, sortOrder, debouncedSearchQuery, debouncedRoomNumberFilter, statusFilter, dateFilter, customStartDate, customEndDate, searchDate]);
 
   const reload = useCallback(async () => {
     await Promise.all([loadBookings(), loadStats()]);
@@ -158,12 +176,31 @@ export function useBookings() {
     return () => clearTimeout(timer);
   }, [loadRooms, loadStats, loadGuests]);
 
-  // Reload bookings on filter/page changes with debounce for text inputs
   useEffect(() => {
-    const isText = !!(searchQuery || roomNumberFilter);
-    const timer = setTimeout(() => loadBookings(), isText ? 400 : 0);
-    return () => clearTimeout(timer);
-  }, [currentPage, sortField, sortOrder, searchQuery, roomNumberFilter, statusFilter, dateFilter, customStartDate, customEndDate, searchDate]);
+    const textFiltersChanged =
+      previousDebouncedTextFilters.current.searchQuery !== debouncedSearchQuery ||
+      previousDebouncedTextFilters.current.roomNumberFilter !== debouncedRoomNumberFilter;
+
+    previousDebouncedTextFilters.current = {
+      searchQuery: debouncedSearchQuery,
+      roomNumberFilter: debouncedRoomNumberFilter,
+    };
+
+    if (textFiltersChanged && currentPage !== 1) {
+      skipNextLoadForPageReset.current = true;
+      setCurrentPage(1);
+    }
+  }, [debouncedSearchQuery, debouncedRoomNumberFilter, currentPage]);
+
+  // Reload bookings on committed filter/page changes. Text inputs commit via debounce.
+  useEffect(() => {
+    if (skipNextLoadForPageReset.current) {
+      skipNextLoadForPageReset.current = false;
+      return;
+    }
+
+    loadBookings();
+  }, [currentPage, sortField, sortOrder, debouncedSearchQuery, debouncedRoomNumberFilter, statusFilter, dateFilter, customStartDate, customEndDate, searchDate]);
 
   return {
     bookings,

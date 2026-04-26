@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { HotelAPIService } from '../../../api';
 import { CustomerLedger, CustomerLedgerSummary } from '../../../types';
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 
 export type SortField = 'company_name' | 'amount' | 'balance_due' | 'status' | 'due_date' | 'created_at';
 export type SortOrder = 'asc' | 'desc';
@@ -21,28 +22,41 @@ export function useLedgers() {
   const [expenseTypeFilter, setExpenseTypeFilter] = useState('all');
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 700);
+  const ledgersRequestId = useRef(0);
+  const previousDebouncedSearchQuery = useRef(debouncedSearchQuery);
+  const skipNextLoadForPageReset = useRef(false);
 
   const loadLedgers = useCallback(async () => {
+    const requestId = ledgersRequestId.current + 1;
+    ledgersRequestId.current = requestId;
+
     setLoading(true);
     try {
       const resp = await HotelAPIService.getLedgersPage({
         page: currentPage,
         page_size: PAGE_SIZE,
-        ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
+        ...(debouncedSearchQuery.trim() ? { search: debouncedSearchQuery.trim() } : {}),
         ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
         ...(expenseTypeFilter !== 'all' ? { expense_type: expenseTypeFilter } : {}),
         sort_by: sortField,
         sort_order: sortOrder,
       });
+      if (ledgersRequestId.current !== requestId) return;
+
       setLedgers(resp.data);
       setTotalLedgers(resp.total);
       setError(null);
     } catch (err: any) {
+      if (ledgersRequestId.current !== requestId) return;
+
       setError(err.message || 'Failed to load ledger data. Please check your connection and try again.');
     } finally {
-      setLoading(false);
+      if (ledgersRequestId.current === requestId) {
+        setLoading(false);
+      }
     }
-  }, [currentPage, searchQuery, statusFilter, expenseTypeFilter, sortField, sortOrder]);
+  }, [currentPage, debouncedSearchQuery, statusFilter, expenseTypeFilter, sortField, sortOrder]);
 
   const loadSummary = useCallback(async () => {
     try {
@@ -62,12 +76,25 @@ export function useLedgers() {
     loadSummary();
   }, [loadSummary]);
 
-  // Reload on page/filter/sort changes; debounce text search
   useEffect(() => {
-    const delay = searchQuery ? 400 : 0;
-    const timer = setTimeout(() => loadLedgers(), delay);
-    return () => clearTimeout(timer);
-  }, [currentPage, searchQuery, statusFilter, expenseTypeFilter, sortField, sortOrder]);
+    const searchChanged = previousDebouncedSearchQuery.current !== debouncedSearchQuery;
+    previousDebouncedSearchQuery.current = debouncedSearchQuery;
+
+    if (searchChanged && currentPage !== 1) {
+      skipNextLoadForPageReset.current = true;
+      setCurrentPage(1);
+    }
+  }, [debouncedSearchQuery, currentPage]);
+
+  // Reload on committed page/filter/sort changes. Text search commits via debounce.
+  useEffect(() => {
+    if (skipNextLoadForPageReset.current) {
+      skipNextLoadForPageReset.current = false;
+      return;
+    }
+
+    loadLedgers();
+  }, [currentPage, debouncedSearchQuery, statusFilter, expenseTypeFilter, sortField, sortOrder]);
 
   const handleSort = useCallback((field: SortField) => {
     setSortField(prev => {
@@ -89,7 +116,6 @@ export function useLedgers() {
 
   const handleSearchChange = useCallback((value: string) => {
     setSearchQuery(value);
-    setCurrentPage(1);
   }, []);
 
   const handleStatusChange = useCallback((value: string) => {
