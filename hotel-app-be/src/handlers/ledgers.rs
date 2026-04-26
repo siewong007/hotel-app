@@ -67,60 +67,6 @@ const LEDGER_SELECT_FIELDS: &str = r#"
     is_posted, posted_at, void_at, void_by, void_reason
 "#;
 
-// SQLite query for listing ledgers
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-const LIST_LEDGERS_QUERY: &str = r#"
-    SELECT id, company_name, company_registration_number, contact_person,
-        contact_email, contact_phone, billing_address_line1, billing_city,
-        billing_state, billing_postal_code, billing_country, description,
-        expense_type, amount, currency, status, paid_amount, balance_due,
-        payment_method, payment_reference, payment_date, booking_id, guest_id,
-        invoice_number, invoice_date, due_date, notes, internal_notes,
-        created_by, updated_by, created_at, updated_at,
-        folio_number, folio_type, transaction_type, post_type, department_code,
-        transaction_code, room_number, posting_date, transaction_date,
-        reference_number, cashier_id, is_reversal, original_transaction_id,
-        reversal_reason, tax_amount, service_charge, net_amount,
-        is_posted, posted_at, void_at, void_by, void_reason
-    FROM customer_ledgers
-    WHERE (?1 IS NULL OR status = ?1)
-      AND (?2 IS NULL OR company_name LIKE '%' || ?2 || '%')
-      AND (?3 IS NULL OR expense_type = ?3)
-      AND (?4 IS NULL OR folio_type = ?4)
-      AND (?5 IS NULL OR post_type = ?5)
-      AND (?6 IS NULL OR department_code = ?6)
-      AND (?7 IS NULL OR room_number = ?7)
-    ORDER BY created_at DESC
-    LIMIT ?8 OFFSET ?9
-"#;
-
-// PostgreSQL query for listing ledgers
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-const LIST_LEDGERS_QUERY: &str = r#"
-    SELECT id, company_name, company_registration_number, contact_person,
-        contact_email, contact_phone, billing_address_line1, billing_city,
-        billing_state, billing_postal_code, billing_country, description,
-        expense_type, amount, currency, status, paid_amount, balance_due,
-        payment_method, payment_reference, payment_date, booking_id, guest_id,
-        invoice_number, invoice_date, due_date, notes, internal_notes,
-        created_by, updated_by, created_at, updated_at,
-        folio_number, folio_type, transaction_type, post_type, department_code,
-        transaction_code, room_number, posting_date, transaction_date,
-        reference_number, cashier_id, is_reversal, original_transaction_id,
-        reversal_reason, tax_amount, service_charge, net_amount,
-        is_posted, posted_at, void_at, void_by, void_reason
-    FROM customer_ledgers
-    WHERE ($1::text IS NULL OR status = $1)
-      AND ($2::text IS NULL OR company_name ILIKE '%' || $2 || '%')
-      AND ($3::text IS NULL OR expense_type = $3)
-      AND ($4::text IS NULL OR folio_type = $4)
-      AND ($5::text IS NULL OR post_type = $5)
-      AND ($6::text IS NULL OR department_code = $6)
-      AND ($7::text IS NULL OR room_number = $7)
-    ORDER BY created_at DESC
-    LIMIT $8 OFFSET $9
-"#;
-
 // SQLite query for getting ledger by ID
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 const GET_LEDGER_BY_ID_QUERY: &str = r#"

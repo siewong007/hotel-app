@@ -80,13 +80,21 @@ impl Sanitizer {
     /// * Option<String> - Some(url) if valid, None if dangerous
     pub fn sanitize_url(input: &str) -> Option<String> {
         let trimmed = input.trim();
+        let lower = trimmed.to_ascii_lowercase();
+
+        if trimmed.is_empty() {
+            return None;
+        }
 
         // Check for allowed schemes
-        if trimmed.starts_with("http://") ||
-           trimmed.starts_with("https://") ||
-           trimmed.starts_with("mailto:") {
+        if lower.starts_with("http://")
+            || lower.starts_with("https://")
+            || lower.starts_with("mailto:")
+        {
             Some(trimmed.to_string())
-        } else if !trimmed.contains("://") {
+        } else if lower.starts_with("//") {
+            None
+        } else if !trimmed.contains(':') {
             // Assume https if no scheme provided
             Some(format!("https://{}", trimmed))
         } else {
@@ -163,6 +171,16 @@ mod tests {
     }
 
     #[test]
+    fn test_sanitize_html_removes_event_handlers_and_dangerous_links() {
+        let malicious = r#"<a href="javascript:alert(1)" onclick="steal()">Profile</a>"#;
+        let sanitized = Sanitizer::sanitize_html(malicious);
+
+        assert!(!sanitized.contains("javascript:"));
+        assert!(!sanitized.contains("onclick"));
+        assert!(sanitized.contains("Profile"));
+    }
+
+    #[test]
     fn test_sanitize_text() {
         let input = "Hello\x00World\x1FTest";
         let sanitized = Sanitizer::sanitize_text(input);
@@ -170,33 +188,74 @@ mod tests {
     }
 
     #[test]
+    fn test_sanitize_text_preserves_allowed_whitespace() {
+        let input = "Line 1\nLine 2\tTabbed\rReturn";
+        let sanitized = Sanitizer::sanitize_text(input);
+        assert_eq!(sanitized, input);
+    }
+
+    #[test]
     fn test_sanitize_email() {
-        assert_eq!(Sanitizer::sanitize_email("  Test@Example.COM  "), "test@example.com");
+        assert_eq!(
+            Sanitizer::sanitize_email("  Test@Example.COM  "),
+            "test@example.com"
+        );
     }
 
     #[test]
     fn test_sanitize_phone() {
-        assert_eq!(Sanitizer::sanitize_phone("+1 (415) 555-2671"), "+14155552671");
+        assert_eq!(
+            Sanitizer::sanitize_phone("+1 (415) 555-2671"),
+            "+14155552671"
+        );
         assert_eq!(Sanitizer::sanitize_phone("415-555-2671"), "4155552671");
     }
 
     #[test]
     fn test_sanitize_url() {
-        assert_eq!(Sanitizer::sanitize_url("https://example.com"), Some("https://example.com".to_string()));
+        assert_eq!(
+            Sanitizer::sanitize_url("https://example.com"),
+            Some("https://example.com".to_string())
+        );
+        assert_eq!(
+            Sanitizer::sanitize_url("HTTP://example.com"),
+            Some("HTTP://example.com".to_string())
+        );
         assert_eq!(Sanitizer::sanitize_url("javascript:alert('XSS')"), None);
-        assert_eq!(Sanitizer::sanitize_url("example.com"), Some("https://example.com".to_string()));
+        assert_eq!(
+            Sanitizer::sanitize_url("data:text/html,<script>alert(1)</script>"),
+            None
+        );
+        assert_eq!(Sanitizer::sanitize_url("//example.com/path"), None);
+        assert_eq!(Sanitizer::sanitize_url("   "), None);
+        assert_eq!(
+            Sanitizer::sanitize_url("example.com"),
+            Some("https://example.com".to_string())
+        );
     }
 
     #[test]
     fn test_sanitize_file_path() {
-        assert_eq!(Sanitizer::sanitize_file_path("../../../etc/passwd"), "etc/passwd");
-        assert_eq!(Sanitizer::sanitize_file_path("/safe/path/file.txt"), "safe/path/file.txt");
+        assert_eq!(
+            Sanitizer::sanitize_file_path("../../../etc/passwd"),
+            "etc/passwd"
+        );
+        assert_eq!(
+            Sanitizer::sanitize_file_path("/safe/path/file.txt"),
+            "safe/path/file.txt"
+        );
     }
 
     #[test]
     fn test_sanitize_sql_identifier() {
-        assert_eq!(Sanitizer::sanitize_sql_identifier("valid_table_name"), Some("valid_table_name".to_string()));
+        assert_eq!(
+            Sanitizer::sanitize_sql_identifier("valid_table_name"),
+            Some("valid_table_name".to_string())
+        );
         assert_eq!(Sanitizer::sanitize_sql_identifier("invalid-name"), None);
-        assert_eq!(Sanitizer::sanitize_sql_identifier("table; DROP TABLE users;"), None);
+        assert_eq!(
+            Sanitizer::sanitize_sql_identifier("table; DROP TABLE users;"),
+            None
+        );
     }
 }

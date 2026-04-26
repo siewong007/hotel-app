@@ -136,10 +136,16 @@ pub async fn search_rooms_handler(
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<Vec<RoomWithRating>>, ApiError> {
     // Parse date range if provided for availability check
-    let check_in: Option<NaiveDate> = query.check_in_date.as_ref()
+    let check_in: Option<NaiveDate> = query
+        .check_in_date
+        .as_ref()
         .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
-    let check_out: Option<NaiveDate> = query.check_out_date.as_ref()
+    let check_out: Option<NaiveDate> = query
+        .check_out_date
+        .as_ref()
         .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
+    let room_type = query.room_type.as_deref().filter(|s| !s.trim().is_empty());
+    let max_price = query.max_price;
 
     // Use database-specific queries
     let rows = if let (Some(ci), Some(co)) = (check_in, check_out) {
@@ -147,10 +153,14 @@ pub async fn search_rooms_handler(
             .bind(ci)
             .bind(co)
             .bind(query.exclude_booking_id)
+            .bind(room_type.map(str::trim))
+            .bind(max_price)
             .fetch_all(&pool)
             .await
     } else {
         sqlx::query(SEARCH_ROOMS_NO_DATES_QUERY)
+            .bind(room_type.map(str::trim))
+            .bind(max_price)
             .fetch_all(&pool)
             .await
     }
