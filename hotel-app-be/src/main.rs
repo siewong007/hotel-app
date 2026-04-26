@@ -91,6 +91,13 @@ async fn main() {
         Err(e) => log::warn!("Invoice backfill failed: {}", e),
     }
 
+    // One-shot backfill: ensure every customer ledger has a due_date.
+    match hotel_app_be::services::invoice_numbers::backfill_missing_ledger_due_dates(&pool).await {
+        Ok(0) => {}
+        Ok(n) => log::info!("✓ Backfilled due_date for {} ledger(s)", n),
+        Err(e) => log::warn!("Ledger due_date backfill failed: {}", e),
+    }
+
     // Create router with all routes and middleware
     let app = create_router(pool);
 

@@ -1,24 +1,24 @@
 //! Night Audit handlers for posting daily data for reporting
 
 use axum::{
+    Json,
     extract::{Path, Query, State},
     http::HeaderMap,
-    Json,
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::Row;
 
 use crate::core::db::DbPool;
-use crate::core::middleware::require_permission_helper;
 use crate::core::error::ApiError;
-use crate::services::audit::AuditLog;
-use crate::services::night_audit as svc;
+use crate::core::middleware::require_permission_helper;
 use crate::models::{
     AuditDetailsResponse, ListAuditsQuery, NightAuditPreview, NightAuditResponse,
     NightAuditRunWithUser, PostedBookingDetail, RevenueBreakdownItem, RoomSnapshot,
     RunNightAuditRequest, UnpostedBooking,
 };
+use crate::services::audit::AuditLog;
+use crate::services::night_audit as svc;
 use std::collections::HashMap;
 
 /// Get preview of what will be posted for a given date
@@ -37,9 +37,9 @@ pub async fn get_night_audit_preview(
         }
     };
 
-    let audit_date_str = params.get("date").ok_or_else(|| {
-        ApiError::BadRequest("date parameter is required".to_string())
-    })?;
+    let audit_date_str = params
+        .get("date")
+        .ok_or_else(|| ApiError::BadRequest("date parameter is required".to_string()))?;
 
     let audit_date = NaiveDate::parse_from_str(audit_date_str, "%Y-%m-%d")
         .map_err(|_| ApiError::BadRequest("Invalid date format. Use YYYY-MM-DD".to_string()))?;
@@ -111,13 +111,19 @@ pub async fn get_night_audit_preview(
         let status: String = row.get("status");
 
         let night_total = room_rate + extra_bed_charge;
-        let pm_key = payment_method.clone().unwrap_or_else(|| "Unknown".to_string());
-        let pm_entry = payment_method_map.entry(pm_key).or_insert((0, Decimal::ZERO));
+        let pm_key = payment_method
+            .clone()
+            .unwrap_or_else(|| "Unknown".to_string());
+        let pm_entry = payment_method_map
+            .entry(pm_key)
+            .or_insert((0, Decimal::ZERO));
         pm_entry.0 += 1;
         pm_entry.1 += night_total;
 
         let bc_key = source.clone().unwrap_or_else(|| "Unknown".to_string());
-        let bc_entry = booking_channel_map.entry(bc_key).or_insert((0, Decimal::ZERO));
+        let bc_entry = booking_channel_map
+            .entry(bc_key)
+            .or_insert((0, Decimal::ZERO));
         bc_entry.0 += 1;
         bc_entry.1 += night_total;
 
@@ -139,18 +145,29 @@ pub async fn get_night_audit_preview(
 
     let payment_method_breakdown: Vec<RevenueBreakdownItem> = payment_method_map
         .into_iter()
-        .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+        .map(|(category, (count, amount))| RevenueBreakdownItem {
+            category,
+            count,
+            amount,
+        })
         .collect();
 
     let booking_channel_breakdown: Vec<RevenueBreakdownItem> = booking_channel_map
         .into_iter()
-        .map(|(category, (count, amount))| RevenueBreakdownItem { category, count, amount })
+        .map(|(category, (count, amount))| RevenueBreakdownItem {
+            category,
+            count,
+            amount,
+        })
         .collect();
 
     let total_unposted = unposted_bookings.len() as i32;
     let estimated_revenue: Decimal = unposted_bookings.iter().map(|b| b.total_amount).sum();
 
-    log::info!("Estimated revenue: {}, fetching room snapshot", estimated_revenue);
+    log::info!(
+        "Estimated revenue: {}, fetching room snapshot",
+        estimated_revenue
+    );
 
     let room_row = sqlx::query(
         r#"
@@ -227,22 +244,35 @@ pub async fn run_night_audit(
     headers: HeaderMap,
     Json(input): Json<RunNightAuditRequest>,
 ) -> Result<Json<NightAuditResponse>, ApiError> {
-    log::info!("Run night audit called for date: {}, force: {}", input.audit_date, input.force);
+    log::info!(
+        "Run night audit called for date: {}, force: {}",
+        input.audit_date,
+        input.force
+    );
     let user_id = require_permission_helper(&pool, &headers, "night_audit:execute").await?;
     log::info!("User {} authorized for night audit", user_id);
 
-    let audit_date = NaiveDate::parse_from_str(&input.audit_date, "%Y-%m-%d")
-        .map_err(|e| {
-            log::error!("Invalid date format: {} - error: {}", input.audit_date, e);
-            ApiError::BadRequest(format!("Invalid date format '{}'. Use YYYY-MM-DD", input.audit_date))
-        })?;
+    let audit_date = NaiveDate::parse_from_str(&input.audit_date, "%Y-%m-%d").map_err(|e| {
+        log::error!("Invalid date format: {} - error: {}", input.audit_date, e);
+        ApiError::BadRequest(format!(
+            "Invalid date format '{}'. Use YYYY-MM-DD",
+            input.audit_date
+        ))
+    })?;
 
     let already_run = svc::is_audit_completed(&pool, audit_date).await;
-    log::info!("Checking if audit already run for {}: {}", audit_date, already_run);
+    log::info!(
+        "Checking if audit already run for {}: {}",
+        audit_date,
+        already_run
+    );
 
     if already_run {
         if input.force {
-            log::info!("Force rerun requested for {}. Resetting previous audit.", audit_date);
+            log::info!(
+                "Force rerun requested for {}. Resetting previous audit.",
+                audit_date
+            );
             svc::reset_audit(&pool, audit_date).await?;
             log::info!("Previous audit for {} has been reset", audit_date);
         } else {
@@ -280,7 +310,8 @@ pub async fn run_night_audit(
         })),
         None,
         None,
-    ).await;
+    )
+    .await;
 
     Ok(Json(NightAuditResponse {
         success: true,

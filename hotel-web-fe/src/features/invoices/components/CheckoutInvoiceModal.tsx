@@ -317,7 +317,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Invoice - ${booking?.folio_number || `#${booking?.id}`}</title>
+          <title>Invoice - ${booking?.invoice_number || booking?.folio_number || `#${booking?.id}`}</title>
           <style>
             * {
               margin: 0;
@@ -582,7 +582,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     Invoice Number:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
-                    {booking?.folio_number || `#${booking?.id}`}
+                    {booking?.invoice_number || booking?.folio_number || `#${booking?.id}`}
                   </Box>
                 </Typography>
                 <Typography variant="body2" sx={{ mb: 0.5 }}>
@@ -1799,7 +1799,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             <h3>Invoice Details</h3>
             <p>
               <span className="label">Invoice Number:</span>
-              <span className="value">{booking?.folio_number || `#${booking?.id}`}</span>
+              <span className="value">{booking?.invoice_number || booking?.folio_number || `#${booking?.id}`}</span>
             </p>
             <p>
               <span className="label">Date:</span>

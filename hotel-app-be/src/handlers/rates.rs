@@ -13,11 +13,11 @@ use serde_json::json;
 
 use crate::core::db::{DbPool, DbRow};
 use crate::core::error::ApiError;
+use crate::models::row_mappers;
 use crate::models::{
     RatePlan, RatePlanInput, RatePlanUpdateInput, RatePlanWithRates, RoomRate, RoomRateInput,
     RoomRateUpdateInput, RoomRateWithDetails, RoomType,
 };
-use crate::models::row_mappers;
 use crate::services::audit::AuditLog;
 use sqlx::Row;
 
@@ -38,7 +38,7 @@ impl IntoResponse for RateError {
             }
             RateError::NotFound => (StatusCode::NOT_FOUND, "Resource not found"),
             RateError::BadRequest(msg) => {
-                return (StatusCode::BAD_REQUEST, Json(json!({"error": msg}))).into_response()
+                return (StatusCode::BAD_REQUEST, Json(json!({"error": msg}))).into_response();
             }
             RateError::Api(err) => return err.into_response(),
         };
@@ -117,20 +117,36 @@ async fn log_room_rate_event(pool: &DbPool, user_id: i64, action: &str, room_rat
 /// This avoids using FromRow which doesn't work for Decimal in SQLite
 fn row_to_room_type(row: DbRow) -> RoomType {
     // Read Decimal fields as String and parse (works for both PostgreSQL and SQLite)
-    let base_price: String = row.try_get::<String, _>("base_price")
+    let base_price: String = row
+        .try_get::<String, _>("base_price")
         .or_else(|_| row.try_get::<f64, _>("base_price").map(|f| f.to_string()))
         .unwrap_or_else(|_| "0".to_string());
-    let weekday_rate: Option<String> = row.try_get::<String, _>("weekday_rate").ok()
-        .or_else(|| row.try_get::<f64, _>("weekday_rate").ok().map(|f| f.to_string()));
-    let weekend_rate: Option<String> = row.try_get::<String, _>("weekend_rate").ok()
-        .or_else(|| row.try_get::<f64, _>("weekend_rate").ok().map(|f| f.to_string()));
-    let extra_bed_charge: String = row.try_get::<String, _>("extra_bed_charge")
-        .or_else(|_| row.try_get::<f64, _>("extra_bed_charge").map(|f| f.to_string()))
+    let weekday_rate: Option<String> =
+        row.try_get::<String, _>("weekday_rate").ok().or_else(|| {
+            row.try_get::<f64, _>("weekday_rate")
+                .ok()
+                .map(|f| f.to_string())
+        });
+    let weekend_rate: Option<String> =
+        row.try_get::<String, _>("weekend_rate").ok().or_else(|| {
+            row.try_get::<f64, _>("weekend_rate")
+                .ok()
+                .map(|f| f.to_string())
+        });
+    let extra_bed_charge: String = row
+        .try_get::<String, _>("extra_bed_charge")
+        .or_else(|_| {
+            row.try_get::<f64, _>("extra_bed_charge")
+                .map(|f| f.to_string())
+        })
         .unwrap_or_else(|_| "0".to_string());
 
     // Handle boolean fields for SQLite (returns 0/1)
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let allows_extra_bed: bool = row.try_get::<i32, _>("allows_extra_bed").map(|v| v != 0).unwrap_or(false);
+    let allows_extra_bed: bool = row
+        .try_get::<i32, _>("allows_extra_bed")
+        .map(|v| v != 0)
+        .unwrap_or(false);
     #[cfg(any(
         all(feature = "postgres", not(feature = "sqlite")),
         all(feature = "sqlite", feature = "postgres")
@@ -138,7 +154,10 @@ fn row_to_room_type(row: DbRow) -> RoomType {
     let allows_extra_bed: bool = row.try_get("allows_extra_bed").unwrap_or(false);
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let is_active: bool = row.try_get::<i32, _>("is_active").map(|v| v != 0).unwrap_or(true);
+    let is_active: bool = row
+        .try_get::<i32, _>("is_active")
+        .map(|v| v != 0)
+        .unwrap_or(true);
     #[cfg(any(
         all(feature = "postgres", not(feature = "sqlite")),
         all(feature = "sqlite", feature = "postgres")
@@ -411,25 +430,28 @@ pub async fn update_rate_plan(
     }
 
     if let Some(adjustment_value) = input.adjustment_value
-        && let Some(val) = Decimal::from_f64_retain(adjustment_value) {
-            query_builder.push(", adjustment_value = ");
-            query_builder.push_bind(val);
-            has_updates = true;
-        }
+        && let Some(val) = Decimal::from_f64_retain(adjustment_value)
+    {
+        query_builder.push(", adjustment_value = ");
+        query_builder.push_bind(val);
+        has_updates = true;
+    }
 
     if let Some(valid_from) = &input.valid_from
-        && let Ok(date) = NaiveDate::parse_from_str(valid_from, "%Y-%m-%d") {
-            query_builder.push(", valid_from = ");
-            query_builder.push_bind(date);
-            has_updates = true;
-        }
+        && let Ok(date) = NaiveDate::parse_from_str(valid_from, "%Y-%m-%d")
+    {
+        query_builder.push(", valid_from = ");
+        query_builder.push_bind(date);
+        has_updates = true;
+    }
 
     if let Some(valid_to) = &input.valid_to
-        && let Ok(date) = NaiveDate::parse_from_str(valid_to, "%Y-%m-%d") {
-            query_builder.push(", valid_to = ");
-            query_builder.push_bind(date);
-            has_updates = true;
-        }
+        && let Ok(date) = NaiveDate::parse_from_str(valid_to, "%Y-%m-%d")
+    {
+        query_builder.push(", valid_to = ");
+        query_builder.push_bind(date);
+        has_updates = true;
+    }
 
     if let Some(v) = input.applies_monday {
         query_builder.push(", applies_monday = ");
@@ -574,9 +596,10 @@ pub async fn create_room_rate(
     user_id: i64,
     Json(input): Json<RoomRateInput>,
 ) -> Result<impl IntoResponse, RateError> {
-    let effective_from = NaiveDate::parse_from_str(&input.effective_from, "%Y-%m-%d").map_err(
-        |_| RateError::BadRequest("Invalid effective_from date format. Use YYYY-MM-DD".to_string()),
-    )?;
+    let effective_from =
+        NaiveDate::parse_from_str(&input.effective_from, "%Y-%m-%d").map_err(|_| {
+            RateError::BadRequest("Invalid effective_from date format. Use YYYY-MM-DD".to_string())
+        })?;
 
     let effective_to = input
         .effective_to
@@ -719,34 +742,37 @@ pub async fn update_room_rate(
     let mut has_updates = false;
 
     if let Some(price) = input.price
-        && let Some(price_decimal) = Decimal::from_f64_retain(price) {
-            if has_updates {
-                query_builder.push(", ");
-            }
-            query_builder.push("price = ");
-            query_builder.push_bind(price_decimal);
-            has_updates = true;
+        && let Some(price_decimal) = Decimal::from_f64_retain(price)
+    {
+        if has_updates {
+            query_builder.push(", ");
         }
+        query_builder.push("price = ");
+        query_builder.push_bind(price_decimal);
+        has_updates = true;
+    }
 
     if let Some(effective_from) = &input.effective_from
-        && let Ok(date) = NaiveDate::parse_from_str(effective_from, "%Y-%m-%d") {
-            if has_updates {
-                query_builder.push(", ");
-            }
-            query_builder.push("effective_from = ");
-            query_builder.push_bind(date);
-            has_updates = true;
+        && let Ok(date) = NaiveDate::parse_from_str(effective_from, "%Y-%m-%d")
+    {
+        if has_updates {
+            query_builder.push(", ");
         }
+        query_builder.push("effective_from = ");
+        query_builder.push_bind(date);
+        has_updates = true;
+    }
 
     if let Some(effective_to) = &input.effective_to
-        && let Ok(date) = NaiveDate::parse_from_str(effective_to, "%Y-%m-%d") {
-            if has_updates {
-                query_builder.push(", ");
-            }
-            query_builder.push("effective_to = ");
-            query_builder.push_bind(Some(date));
-            has_updates = true;
+        && let Ok(date) = NaiveDate::parse_from_str(effective_to, "%Y-%m-%d")
+    {
+        if has_updates {
+            query_builder.push(", ");
         }
+        query_builder.push("effective_to = ");
+        query_builder.push_bind(Some(date));
+        has_updates = true;
+    }
 
     if !has_updates {
         return Err(RateError::BadRequest(

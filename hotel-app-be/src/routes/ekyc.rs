@@ -2,18 +2,18 @@
 //!
 //! Routes for electronic Know Your Customer verification.
 
-use axum::{
-    routing::{get, post, patch},
-    Router,
-    extract::{State, Path, Multipart},
-    http::HeaderMap,
-    response::Json,
-};
 use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::core::middleware::require_permission_helper;
 use crate::handlers;
 use crate::models;
-use crate::core::middleware::require_permission_helper;
-use crate::core::error::ApiError;
+use axum::{
+    Router,
+    extract::{Multipart, Path, State},
+    http::HeaderMap,
+    response::Json,
+    routing::{get, patch, post},
+};
 
 /// Create eKYC routes
 pub fn routes() -> Router<DbPool> {

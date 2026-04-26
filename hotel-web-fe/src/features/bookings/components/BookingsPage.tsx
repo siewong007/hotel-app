@@ -885,9 +885,7 @@ const BookingsPage: React.FC = () => {
                     Status
                   </TableSortLabel>
                 </TableCell>
-                {isAdmin && <TableCell align="center">Payment</TableCell>}
-                {isAdmin && <TableCell align="center">Void</TableCell>}
-                {isAdmin && <TableCell align="center">Invoice</TableCell>}
+                {isAdmin && <TableCell align="center"><strong>Actions</strong></TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -968,42 +966,36 @@ const BookingsPage: React.FC = () => {
                   </TableCell>
                   {isAdmin && (
                     <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      {!booking.is_complimentary && (
-                        <Tooltip title="Collect Payment">
-                          <IconButton size="small" onClick={() => handleUpdatePaymentStatus(booking)} color="info">
-                            <PaymentIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                  )}
-                  {isAdmin && (
-                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      {canVoid(booking) && (
-                        <Tooltip title="Void Booking">
-                          <IconButton size="small" onClick={() => handleVoidBooking(booking)} sx={{ color: 'text.secondary' }}>
-                            <VoidIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {canReactivate(booking) && (
-                        <Tooltip title="Reactivate">
-                          <IconButton size="small" onClick={() => handleReactivateBooking(booking)} color="success">
-                            <RestoreIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </TableCell>
-                  )}
-                  {isAdmin && (
-                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      {['checked_out', 'completed'].includes(booking.status) && (
-                        <Tooltip title="View Invoice">
-                          <IconButton size="small" onClick={() => handleViewInvoice(booking)} color="primary">
-                            <ReceiptIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
+                      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                        {!booking.is_complimentary && (
+                          <Tooltip title="Collect Payment">
+                            <IconButton size="small" onClick={() => handleUpdatePaymentStatus(booking)} color="success">
+                              <PaymentIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {['checked_out', 'completed'].includes(booking.status) && (
+                          <Tooltip title="View Invoice">
+                            <IconButton size="small" onClick={() => handleViewInvoice(booking)} color="primary">
+                              <ReceiptIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {canVoid(booking) && (
+                          <Tooltip title="Void Booking">
+                            <IconButton size="small" onClick={() => handleVoidBooking(booking)} sx={{ color: 'text.secondary' }}>
+                              <VoidIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {canReactivate(booking) && (
+                          <Tooltip title="Reactivate">
+                            <IconButton size="small" onClick={() => handleReactivateBooking(booking)} color="success">
+                              <RestoreIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </Box>
                     </TableCell>
                   )}
                 </TableRow>

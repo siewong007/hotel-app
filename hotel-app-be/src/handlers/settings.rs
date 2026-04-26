@@ -21,12 +21,11 @@ pub async fn get_system_settings_handler(
     // Require admin permission
     require_permission_helper(&pool, &headers, "settings:read").await?;
 
-    let settings = sqlx::query_as::<_, SystemSetting>(
-        "SELECT * FROM system_settings ORDER BY category, key"
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let settings =
+        sqlx::query_as::<_, SystemSetting>("SELECT * FROM system_settings ORDER BY category, key")
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(Json(settings))
 }
@@ -47,7 +46,7 @@ pub async fn update_system_setting_handler(
         SET value = $1, updated_at = CURRENT_TIMESTAMP, updated_by = $2
         WHERE key = $3
         RETURNING *
-        "#
+        "#,
     )
     .bind(&input.value)
     .bind(user_id)
@@ -105,7 +104,7 @@ pub async fn process_auto_checkin_checkout_handler(
               AND check_in_date = CURRENT_DATE
               AND CURRENT_TIME >= $1::TIME
               AND CURRENT_TIME < $2::TIME
-            "#
+            "#,
         )
         .bind(&check_in_time)
         .bind(&check_out_time)
@@ -126,7 +125,7 @@ pub async fn process_auto_checkin_checkout_handler(
                     WHERE status = 'auto_checked_in'
                       AND check_in_date = CURRENT_DATE
                 )
-                "#
+                "#,
             )
             .execute(&pool)
             .await;
@@ -142,7 +141,7 @@ pub async fn process_auto_checkin_checkout_handler(
             WHERE status IN ('checked_in', 'auto_checked_in')
               AND check_out_date = CURRENT_DATE
               AND CURRENT_TIME > $1::TIME
-            "#
+            "#,
         )
         .bind(&check_out_time)
         .execute(&pool)

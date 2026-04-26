@@ -2,17 +2,17 @@
 //!
 //! Routes for rate plans and room rates management.
 
-use axum::{
-    routing::{get, post, patch, delete},
-    Router,
-    extract::{State, Path, Query},
-    http::HeaderMap,
-    response::{IntoResponse, Json},
-};
 use crate::core::db::DbPool;
 use crate::core::middleware::require_permission_helper;
 use crate::handlers;
 use crate::models;
+use axum::{
+    Router,
+    extract::{Path, Query, State},
+    http::HeaderMap,
+    response::{IntoResponse, Json},
+    routing::{delete, get, patch, post},
+};
 
 /// Create rate routes
 pub fn routes() -> Router<DbPool> {
@@ -27,7 +27,10 @@ pub fn routes() -> Router<DbPool> {
         // Room rate routes
         .route("/room-rates", get(get_room_rates))
         .route("/room-rates", post(create_room_rate))
-        .route("/room-rates/by-plan/{rate_plan_id}", get(get_room_rates_by_plan))
+        .route(
+            "/room-rates/by-plan/{rate_plan_id}",
+            get(get_room_rates_by_plan),
+        )
         .route("/room-rates/{id}", get(get_room_rate))
         .route("/room-rates/{id}", patch(update_room_rate))
         .route("/room-rates/{id}", delete(delete_room_rate))

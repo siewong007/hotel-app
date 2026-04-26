@@ -2,18 +2,18 @@
 //!
 //! Routes for booking CRUD, check-in/out, and history.
 
-use axum::{
-    routing::{get, post, patch, put, delete},
-    Router,
-    extract::{State, Path, Extension, Query},
-    http::HeaderMap,
-    response::Json,
-};
 use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::core::middleware::require_permission_helper;
 use crate::handlers;
 use crate::models;
-use crate::core::middleware::require_permission_helper;
-use crate::core::error::ApiError;
+use axum::{
+    Router,
+    extract::{Extension, Path, Query, State},
+    http::HeaderMap,
+    response::Json,
+    routing::{delete, get, patch, post, put},
+};
 
 /// Create booking routes
 pub fn routes() -> Router<DbPool> {
@@ -28,8 +28,14 @@ pub fn routes() -> Router<DbPool> {
         .route("/bookings/void", post(void_booking))
         // Complimentary management routes (static paths)
         .route("/complimentary/summary", get(get_complimentary_summary))
-        .route("/guests/credits", get(get_guests_with_credits).post(add_guest_credits))
-        .route("/guests/{guest_id}/credits/{room_type_id}", patch(update_guest_credits).delete(delete_guest_credits))
+        .route(
+            "/guests/credits",
+            get(get_guests_with_credits).post(add_guest_credits),
+        )
+        .route(
+            "/guests/{guest_id}/credits/{room_type_id}",
+            patch(update_guest_credits).delete(delete_guest_credits),
+        )
         // Code lookup routes
         .route("/rate-codes", get(get_rate_codes))
         .route("/market-codes", get(get_market_codes))
@@ -40,7 +46,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/bookings/{id}/complimentary", post(mark_complimentary))
         .route("/bookings/{id}/complimentary", patch(update_complimentary))
         .route("/bookings/{id}/complimentary", delete(remove_complimentary))
-        .route("/bookings/{id}/convert-credits", post(convert_complimentary_to_credits))
+        .route(
+            "/bookings/{id}/convert-credits",
+            post(convert_complimentary_to_credits),
+        )
         // Generic parameterized routes come AFTER specific ones
         .route("/bookings/{id}", get(get_booking))
         .route("/bookings/{id}", patch(update_booking))
@@ -52,7 +61,8 @@ async fn get_bookings(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     query: Query<handlers::bookings::PaginationParams>,
-) -> Result<Json<handlers::bookings::PaginatedResponse<Vec<models::BookingWithDetails>>>, ApiError> {
+) -> Result<Json<handlers::bookings::PaginatedResponse<Vec<models::BookingWithDetails>>>, ApiError>
+{
     require_permission_helper(&pool, &headers, "bookings:read").await?;
     handlers::bookings::get_bookings_handler(State(pool), query).await
 }
@@ -98,7 +108,8 @@ async fn update_booking(
     Json(input): Json<models::BookingUpdateInput>,
 ) -> Result<Json<models::Booking>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
-    handlers::bookings::update_booking_handler(State(pool), Extension(user_id), path, Json(input)).await
+    handlers::bookings::update_booking_handler(State(pool), Extension(user_id), path, Json(input))
+        .await
 }
 
 async fn delete_booking(
@@ -116,7 +127,12 @@ async fn void_booking(
     Json(input): Json<models::BookingCancellationRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
-    handlers::bookings::delete_booking_handler(State(pool), Extension(user_id), Path(input.booking_id)).await
+    handlers::bookings::delete_booking_handler(
+        State(pool),
+        Extension(user_id),
+        Path(input.booking_id),
+    )
+    .await
 }
 
 async fn manual_checkin(
@@ -126,7 +142,8 @@ async fn manual_checkin(
     Json(data): Json<Option<models::CheckInRequest>>,
 ) -> Result<Json<models::Booking>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
-    handlers::bookings::manual_checkin_handler(State(pool), Extension(user_id), path, Json(data)).await
+    handlers::bookings::manual_checkin_handler(State(pool), Extension(user_id), path, Json(data))
+        .await
 }
 
 async fn pre_checkin_update(
@@ -159,7 +176,13 @@ async fn mark_complimentary(
     Json(input): Json<models::MarkComplimentaryRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
-    handlers::bookings::mark_complimentary_handler(State(pool), Extension(user_id), path, Json(input)).await
+    handlers::bookings::mark_complimentary_handler(
+        State(pool),
+        Extension(user_id),
+        path,
+        Json(input),
+    )
+    .await
 }
 
 async fn convert_complimentary_to_credits(
@@ -168,7 +191,12 @@ async fn convert_complimentary_to_credits(
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
-    handlers::bookings::convert_complimentary_to_credits_handler(State(pool), Extension(user_id), path).await
+    handlers::bookings::convert_complimentary_to_credits_handler(
+        State(pool),
+        Extension(user_id),
+        path,
+    )
+    .await
 }
 
 async fn book_with_credits(
@@ -203,7 +231,13 @@ async fn update_complimentary(
     Json(input): Json<handlers::bookings::UpdateComplimentaryRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
-    handlers::bookings::update_complimentary_handler(State(pool), Extension(user_id), path, Json(input)).await
+    handlers::bookings::update_complimentary_handler(
+        State(pool),
+        Extension(user_id),
+        path,
+        Json(input),
+    )
+    .await
 }
 
 async fn remove_complimentary(

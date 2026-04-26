@@ -357,10 +357,6 @@ pub async fn create_customer_ledger_handler(
         .invoice_date
         .as_ref()
         .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
-    let due_date = request
-        .due_date
-        .as_ref()
-        .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
     let posting_date = request
         .posting_date
         .as_ref()
@@ -369,6 +365,31 @@ pub async fn create_customer_ledger_handler(
         .transaction_date
         .as_ref()
         .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+    // due_date: prefer the caller's value; otherwise look up the company's
+    // payment_terms_days; otherwise fall back to 30 days from posting/today.
+    // Without this, auto-created ledgers (company check-in / checkout) leave
+    // due_date NULL and the UI shows "-".
+    let due_date = match request
+        .due_date
+        .as_ref()
+        .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+    {
+        Some(d) => Some(d),
+        None => {
+            let terms_days: i64 = sqlx::query_scalar::<_, Option<i64>>(
+                "SELECT payment_terms_days FROM companies WHERE company_name = ?1 LIMIT 1",
+            )
+            .bind(&request.company_name)
+            .fetch_optional(&pool)
+            .await
+            .ok()
+            .flatten()
+            .flatten()
+            .unwrap_or(30);
+            let base = posting_date.unwrap_or_else(|| chrono::Local::now().date_naive());
+            Some(base + chrono::Duration::days(terms_days))
+        }
+    };
 
     let amount = Decimal::from_f64_retain(request.amount)
         .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
@@ -466,10 +487,6 @@ pub async fn create_customer_ledger_handler(
         .invoice_date
         .as_ref()
         .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
-    let due_date = request
-        .due_date
-        .as_ref()
-        .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
     let posting_date = request
         .posting_date
         .as_ref()
@@ -478,6 +495,31 @@ pub async fn create_customer_ledger_handler(
         .transaction_date
         .as_ref()
         .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+    // due_date: prefer the caller's value; otherwise look up the company's
+    // payment_terms_days; otherwise fall back to 30 days from posting/today.
+    // Without this, auto-created ledgers (company check-in / checkout) leave
+    // due_date NULL and the UI shows "-".
+    let due_date = match request
+        .due_date
+        .as_ref()
+        .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+    {
+        Some(d) => Some(d),
+        None => {
+            let terms_days: i32 = sqlx::query_scalar::<_, Option<i32>>(
+                "SELECT payment_terms_days FROM companies WHERE company_name = $1 LIMIT 1",
+            )
+            .bind(&request.company_name)
+            .fetch_optional(&pool)
+            .await
+            .ok()
+            .flatten()
+            .flatten()
+            .unwrap_or(30);
+            let base = posting_date.unwrap_or_else(|| chrono::Local::now().date_naive());
+            Some(base + chrono::Duration::days(terms_days as i64))
+        }
+    };
 
     let amount = Decimal::from_f64_retain(request.amount)
         .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
@@ -635,6 +677,14 @@ pub async fn update_customer_ledger_handler(
         updates.push(format!("status = ?{}", param_index));
         param_index += 1;
     }
+    if request.invoice_date.is_some() {
+        updates.push(format!("invoice_date = ?{}", param_index));
+        param_index += 1;
+    }
+    if request.due_date.is_some() {
+        updates.push(format!("due_date = ?{}", param_index));
+        param_index += 1;
+    }
     if request.notes.is_some() {
         updates.push(format!("notes = ?{}", param_index));
         param_index += 1;
@@ -710,6 +760,16 @@ pub async fn update_customer_ledger_handler(
     }
     if let Some(ref v) = request.status {
         query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.invoice_date {
+        let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d")
+            .map_err(|_| ApiError::BadRequest("Invalid invoice_date format".to_string()))?;
+        query_builder = query_builder.bind(parsed);
+    }
+    if let Some(ref v) = request.due_date {
+        let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d")
+            .map_err(|_| ApiError::BadRequest("Invalid due_date format".to_string()))?;
+        query_builder = query_builder.bind(parsed);
     }
     if let Some(ref v) = request.notes {
         query_builder = query_builder.bind(v);
@@ -822,6 +882,14 @@ pub async fn update_customer_ledger_handler(
         updates.push(format!("status = ${}", param_index));
         param_index += 1;
     }
+    if request.invoice_date.is_some() {
+        updates.push(format!("invoice_date = ${}", param_index));
+        param_index += 1;
+    }
+    if request.due_date.is_some() {
+        updates.push(format!("due_date = ${}", param_index));
+        param_index += 1;
+    }
     if request.notes.is_some() {
         updates.push(format!("notes = ${}", param_index));
         param_index += 1;
@@ -899,6 +967,16 @@ pub async fn update_customer_ledger_handler(
     }
     if let Some(ref v) = request.status {
         query_builder = query_builder.bind(v);
+    }
+    if let Some(ref v) = request.invoice_date {
+        let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d")
+            .map_err(|_| ApiError::BadRequest("Invalid invoice_date format".to_string()))?;
+        query_builder = query_builder.bind(parsed);
+    }
+    if let Some(ref v) = request.due_date {
+        let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d")
+            .map_err(|_| ApiError::BadRequest("Invalid due_date format".to_string()))?;
+        query_builder = query_builder.bind(parsed);
     }
     if let Some(ref v) = request.notes {
         query_builder = query_builder.bind(v);

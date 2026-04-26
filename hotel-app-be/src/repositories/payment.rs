@@ -1,15 +1,18 @@
 //! Payment repository for database operations
 
-use rust_decimal::Decimal;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::{Payment, Invoice};
+use crate::models::{Invoice, Payment};
+use rust_decimal::Decimal;
 
 pub struct PaymentRepository;
 
 impl PaymentRepository {
     /// Find payment by booking ID
-    pub async fn find_by_booking_id(pool: &DbPool, booking_id: i64) -> Result<Option<Payment>, ApiError> {
+    pub async fn find_by_booking_id(
+        pool: &DbPool,
+        booking_id: i64,
+    ) -> Result<Option<Payment>, ApiError> {
         sqlx::query_as::<_, Payment>(
             r#"
             SELECT id, booking_id, user_id, payment_method, payment_status,
@@ -20,7 +23,7 @@ impl PaymentRepository {
             WHERE booking_id = $1
             ORDER BY created_at DESC
             LIMIT 1
-            "#
+            "#,
         )
         .bind(booking_id)
         .fetch_optional(pool)
@@ -29,7 +32,10 @@ impl PaymentRepository {
     }
 
     /// Find all payments for a booking
-    pub async fn find_all_by_booking_id(pool: &DbPool, booking_id: i64) -> Result<Vec<Payment>, ApiError> {
+    pub async fn find_all_by_booking_id(
+        pool: &DbPool,
+        booking_id: i64,
+    ) -> Result<Vec<Payment>, ApiError> {
         sqlx::query_as::<_, Payment>(
             r#"
             SELECT id, booking_id, user_id, payment_method, payment_status,
@@ -39,7 +45,7 @@ impl PaymentRepository {
             FROM payments
             WHERE booking_id = $1
             ORDER BY created_at DESC
-            "#
+            "#,
         )
         .bind(booking_id)
         .fetch_all(pool)
@@ -71,7 +77,7 @@ impl PaymentRepository {
                       subtotal, service_charge, tax_amount, keycard_deposit, total_amount,
                       transaction_reference, payment_gateway, card_last_four, card_brand,
                       bank_name, account_reference, notes, created_at
-            "#
+            "#,
         )
         .bind(booking_id)
         .bind(user_id)
@@ -99,7 +105,10 @@ impl PaymentRepository {
     }
 
     /// Find invoice by booking ID
-    pub async fn find_invoice_by_booking_id(pool: &DbPool, booking_id: i64) -> Result<Option<Invoice>, ApiError> {
+    pub async fn find_invoice_by_booking_id(
+        pool: &DbPool,
+        booking_id: i64,
+    ) -> Result<Option<Invoice>, ApiError> {
         sqlx::query_as::<_, Invoice>(
             r#"
             SELECT id, uuid, invoice_number, booking_id, user_id,
@@ -113,7 +122,7 @@ impl PaymentRepository {
             WHERE booking_id = $1
             ORDER BY created_at DESC
             LIMIT 1
-            "#
+            "#,
         )
         .bind(booking_id)
         .fetch_optional(pool)
@@ -122,7 +131,10 @@ impl PaymentRepository {
     }
 
     /// Find invoice by invoice number
-    pub async fn find_invoice_by_number(pool: &DbPool, invoice_number: &str) -> Result<Option<Invoice>, ApiError> {
+    pub async fn find_invoice_by_number(
+        pool: &DbPool,
+        invoice_number: &str,
+    ) -> Result<Option<Invoice>, ApiError> {
         sqlx::query_as::<_, Invoice>(
             r#"
             SELECT id, uuid, invoice_number, booking_id, user_id,
@@ -134,7 +146,7 @@ impl PaymentRepository {
                    currency, status, notes, created_at, updated_at
             FROM invoices
             WHERE invoice_number = $1
-            "#
+            "#,
         )
         .bind(invoice_number)
         .fetch_optional(pool)

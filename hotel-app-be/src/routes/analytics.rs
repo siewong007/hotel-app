@@ -2,18 +2,18 @@
 //!
 //! Routes for reports and analytics dashboards.
 
+use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::core::middleware::require_permission_helper;
+use crate::handlers;
 use axum::{
-    routing::get,
     Router,
-    extract::{State, Query},
+    extract::{Query, State},
     http::HeaderMap,
     response::Json,
+    routing::get,
 };
-use crate::core::db::DbPool;
 use std::collections::HashMap;
-use crate::handlers;
-use crate::core::middleware::require_permission_helper;
-use crate::core::error::ApiError;
 
 /// Create analytics routes
 pub fn routes() -> Router<DbPool> {
@@ -60,11 +60,17 @@ async fn generate_report(
     query: Query<handlers::analytics::ReportQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Allow users with either analytics:read OR reports:execute permission
-    let has_analytics = require_permission_helper(&pool, &headers, "analytics:read").await.is_ok();
-    let has_reports = require_permission_helper(&pool, &headers, "reports:execute").await.is_ok();
+    let has_analytics = require_permission_helper(&pool, &headers, "analytics:read")
+        .await
+        .is_ok();
+    let has_reports = require_permission_helper(&pool, &headers, "reports:execute")
+        .await
+        .is_ok();
 
     if !has_analytics && !has_reports {
-        return Err(ApiError::Forbidden("reports:execute or analytics:read permission required".to_string()));
+        return Err(ApiError::Forbidden(
+            "reports:execute or analytics:read permission required".to_string(),
+        ));
     }
 
     handlers::analytics::generate_report_handler(State(pool), query).await

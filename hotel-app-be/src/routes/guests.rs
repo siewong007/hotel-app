@@ -2,18 +2,18 @@
 //!
 //! Routes for guest CRUD and management.
 
-use axum::{
-    routing::{get, post, patch, delete},
-    Router,
-    extract::{State, Path, Extension, Query},
-    http::HeaderMap,
-    response::Json,
-};
 use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::core::middleware::{require_auth, require_permission_helper};
 use crate::handlers;
 use crate::models;
-use crate::core::middleware::{require_permission_helper, require_auth};
-use crate::core::error::ApiError;
+use axum::{
+    Router,
+    extract::{Extension, Path, Query, State},
+    http::HeaderMap,
+    response::Json,
+    routing::{delete, get, patch, post},
+};
 
 /// Create guest routes
 pub fn routes() -> Router<DbPool> {
@@ -21,7 +21,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/guests", get(get_guests))
         .route("/guests", post(create_guest))
         .route("/guests/my-guests", get(get_my_guests))
-        .route("/guests/my-guests-with-credits", get(get_my_guests_with_credits))
+        .route(
+            "/guests/my-guests-with-credits",
+            get(get_my_guests_with_credits),
+        )
         .route("/guests/link", post(link_guest))
         .route("/guests/unlink/{guest_id}", delete(unlink_guest))
         .route("/guests/upgrade", post(upgrade_guest))
@@ -78,7 +81,8 @@ async fn upgrade_guest(
     Json(input): Json<models::UpgradeGuestInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::guests::upgrade_guest_to_user_handler(State(pool), Extension(user_id), Json(input)).await
+    handlers::guests::upgrade_guest_to_user_handler(State(pool), Extension(user_id), Json(input))
+        .await
 }
 
 async fn update_guest(

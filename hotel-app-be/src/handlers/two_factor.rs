@@ -7,11 +7,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::*;
-use axum::{
-    extract::State,
-    http::HeaderMap,
-    response::Json,
-};
+use axum::{extract::State, http::HeaderMap, response::Json};
 
 pub async fn setup_2fa_handler(
     State(pool): State<DbPool>,
@@ -38,17 +34,18 @@ pub async fn setup_2fa_handler(
     log::info!("User fetched successfully: {}", user.username);
 
     if user.two_factor_enabled.unwrap_or(false) {
-        return Err(ApiError::BadRequest("2FA is already enabled for this account".to_string()));
+        return Err(ApiError::BadRequest(
+            "2FA is already enabled for this account".to_string(),
+        ));
     }
 
     // Generate TOTP secret and QR code
     log::info!("Generating TOTP secret");
     let username = user.username.clone();
-    let (secret, qr_code_url) = AuthService::generate_totp_secret(&username)
-        .map_err(|e| {
-            log::error!("Failed to generate TOTP secret: {}", e);
-            ApiError::Internal(format!("Failed to generate TOTP secret: {}", e))
-        })?;
+    let (secret, qr_code_url) = AuthService::generate_totp_secret(&username).map_err(|e| {
+        log::error!("Failed to generate TOTP secret: {}", e);
+        ApiError::Internal(format!("Failed to generate TOTP secret: {}", e))
+    })?;
     log::info!("TOTP secret generated successfully");
 
     // Generate backup codes
@@ -68,17 +65,15 @@ pub async fn setup_2fa_handler(
 
     // Store the secret temporarily in the user record (not enabled yet)
     log::info!("Storing 2FA secret temporarily");
-    sqlx::query(
-        "UPDATE users SET two_factor_secret = $1 WHERE id = $2"
-    )
-    .bind(&secret)
-    .bind(user_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| {
-        log::error!("Failed to store 2FA secret: {}", e);
-        ApiError::Database(e.to_string())
-    })?;
+    sqlx::query("UPDATE users SET two_factor_secret = $1 WHERE id = $2")
+        .bind(&secret)
+        .bind(user_id)
+        .execute(&pool)
+        .await
+        .map_err(|e| {
+            log::error!("Failed to store 2FA secret: {}", e);
+            ApiError::Database(e.to_string())
+        })?;
     log::info!("2FA secret stored successfully");
 
     Ok(Json(serde_json::json!({
@@ -113,22 +108,23 @@ pub async fn enable_2fa_handler(
 
     log::info!("User fetched for 2FA enable");
 
-    let two_factor_secret = user.two_factor_secret
-        .ok_or_else(|| {
-            log::error!("2FA secret not found for user {}", user_id);
-            ApiError::BadRequest("2FA setup not initiated. Call /auth/2fa/setup first.".to_string())
-        })?;
+    let two_factor_secret = user.two_factor_secret.ok_or_else(|| {
+        log::error!("2FA secret not found for user {}", user_id);
+        ApiError::BadRequest("2FA setup not initiated. Call /auth/2fa/setup first.".to_string())
+    })?;
 
     log::info!("2FA secret found, verifying TOTP code: {}", &req.code);
-    log::debug!("Secret (first 10 chars): {}", &two_factor_secret[..10.min(two_factor_secret.len())]);
+    log::debug!(
+        "Secret (first 10 chars): {}",
+        &two_factor_secret[..10.min(two_factor_secret.len())]
+    );
     log::debug!("Secret length: {}", two_factor_secret.len());
 
     // Verify the code
-    let valid = AuthService::verify_totp_code(&two_factor_secret, &req.code)
-        .map_err(|e| {
-            log::error!("TOTP verification error: {}", e);
-            ApiError::BadRequest(format!("Invalid TOTP code: {}", e))
-        })?;
+    let valid = AuthService::verify_totp_code(&two_factor_secret, &req.code).map_err(|e| {
+        log::error!("TOTP verification error: {}", e);
+        ApiError::BadRequest(format!("Invalid TOTP code: {}", e))
+    })?;
 
     log::info!("TOTP verification result: {}", valid);
 
@@ -177,18 +173,21 @@ pub async fn disable_2fa_handler(
     log::info!("User fetched for 2FA disable");
 
     if !user.two_factor_enabled.unwrap_or(false) {
-        return Err(ApiError::BadRequest("2FA is not enabled for this account".to_string()));
+        return Err(ApiError::BadRequest(
+            "2FA is not enabled for this account".to_string(),
+        ));
     }
 
     // Verify the code (either TOTP or recovery code)
-    let totp_secret = user.two_factor_secret.ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?;
+    let totp_secret = user
+        .two_factor_secret
+        .ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?;
     let recovery_codes: Vec<String> = user.two_factor_recovery_codes.unwrap_or_default();
 
     let mut code_valid = false;
 
     // Check if it's a TOTP code
-    if AuthService::verify_totp_code(&totp_secret, &req.code)
-        .unwrap_or(false) {
+    if AuthService::verify_totp_code(&totp_secret, &req.code).unwrap_or(false) {
         code_valid = true;
     } else {
         // Check if it's a recovery code
@@ -205,7 +204,9 @@ pub async fn disable_2fa_handler(
     }
 
     if !code_valid {
-        return Err(ApiError::BadRequest("Invalid code. Use a valid TOTP code or recovery code.".to_string()));
+        return Err(ApiError::BadRequest(
+            "Invalid code. Use a valid TOTP code or recovery code.".to_string(),
+        ));
     }
 
     // Disable 2FA
@@ -273,11 +274,15 @@ pub async fn regenerate_backup_codes_handler(
     .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
 
     if !user.two_factor_enabled.unwrap_or(false) {
-        return Err(ApiError::BadRequest("2FA is not enabled for this account".to_string()));
+        return Err(ApiError::BadRequest(
+            "2FA is not enabled for this account".to_string(),
+        ));
     }
 
     // Verify the current TOTP code
-    let totp_secret = user.two_factor_secret.ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?;
+    let totp_secret = user
+        .two_factor_secret
+        .ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?;
     let valid = AuthService::verify_totp_code(&totp_secret, &req.code)
         .map_err(|e| ApiError::BadRequest(format!("Invalid TOTP code: {}", e)))?;
 

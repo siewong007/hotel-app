@@ -2,27 +2,43 @@
 
 use crate::core::db::{DbPool, DbRow};
 use crate::core::error::ApiError;
-use crate::models::{Room, RoomWithRating, RoomType, RoomEvent, GuestReview};
+use crate::models::{GuestReview, Room, RoomEvent, RoomType, RoomWithRating};
 use sqlx::Row;
 
 /// Helper function to map a database row to RoomType
 /// This avoids using FromRow which doesn't work for Decimal in SQLite
 fn row_to_room_type(row: DbRow) -> RoomType {
     // Read Decimal fields as String and parse (works for both PostgreSQL and SQLite)
-    let base_price: String = row.try_get::<String, _>("base_price")
+    let base_price: String = row
+        .try_get::<String, _>("base_price")
         .or_else(|_| row.try_get::<f64, _>("base_price").map(|f| f.to_string()))
         .unwrap_or_else(|_| "0".to_string());
-    let weekday_rate: Option<String> = row.try_get::<String, _>("weekday_rate").ok()
-        .or_else(|| row.try_get::<f64, _>("weekday_rate").ok().map(|f| f.to_string()));
-    let weekend_rate: Option<String> = row.try_get::<String, _>("weekend_rate").ok()
-        .or_else(|| row.try_get::<f64, _>("weekend_rate").ok().map(|f| f.to_string()));
-    let extra_bed_charge: String = row.try_get::<String, _>("extra_bed_charge")
-        .or_else(|_| row.try_get::<f64, _>("extra_bed_charge").map(|f| f.to_string()))
+    let weekday_rate: Option<String> =
+        row.try_get::<String, _>("weekday_rate").ok().or_else(|| {
+            row.try_get::<f64, _>("weekday_rate")
+                .ok()
+                .map(|f| f.to_string())
+        });
+    let weekend_rate: Option<String> =
+        row.try_get::<String, _>("weekend_rate").ok().or_else(|| {
+            row.try_get::<f64, _>("weekend_rate")
+                .ok()
+                .map(|f| f.to_string())
+        });
+    let extra_bed_charge: String = row
+        .try_get::<String, _>("extra_bed_charge")
+        .or_else(|_| {
+            row.try_get::<f64, _>("extra_bed_charge")
+                .map(|f| f.to_string())
+        })
         .unwrap_or_else(|_| "0".to_string());
 
     // Handle boolean fields for SQLite (returns 0/1)
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let allows_extra_bed: bool = row.try_get::<i32, _>("allows_extra_bed").map(|v| v != 0).unwrap_or(false);
+    let allows_extra_bed: bool = row
+        .try_get::<i32, _>("allows_extra_bed")
+        .map(|v| v != 0)
+        .unwrap_or(false);
     #[cfg(any(
         all(feature = "postgres", not(feature = "sqlite")),
         all(feature = "sqlite", feature = "postgres")
@@ -30,7 +46,10 @@ fn row_to_room_type(row: DbRow) -> RoomType {
     let allows_extra_bed: bool = row.try_get("allows_extra_bed").unwrap_or(false);
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let is_active: bool = row.try_get::<i32, _>("is_active").map(|v| v != 0).unwrap_or(true);
+    let is_active: bool = row
+        .try_get::<i32, _>("is_active")
+        .map(|v| v != 0)
+        .unwrap_or(true);
     #[cfg(any(
         all(feature = "postgres", not(feature = "sqlite")),
         all(feature = "sqlite", feature = "postgres")
@@ -79,7 +98,7 @@ impl RoomRepository {
             WHERE r.deleted_at IS NULL
             GROUP BY r.id
             ORDER BY r.room_number
-            "#
+            "#,
         )
         .fetch_all(pool)
         .await
@@ -94,7 +113,7 @@ impl RoomRepository {
                    description, max_occupancy, created_at, updated_at
             FROM rooms
             WHERE id = $1 AND deleted_at IS NULL
-            "#
+            "#,
         )
         .bind(id)
         .fetch_optional(pool)
@@ -103,14 +122,17 @@ impl RoomRepository {
     }
 
     /// Find room by room number
-    pub async fn find_by_room_number(pool: &DbPool, room_number: &str) -> Result<Option<Room>, ApiError> {
+    pub async fn find_by_room_number(
+        pool: &DbPool,
+        room_number: &str,
+    ) -> Result<Option<Room>, ApiError> {
         sqlx::query_as::<_, Room>(
             r#"
             SELECT id, room_number, room_type, price_per_night, available, status,
                    description, max_occupancy, created_at, updated_at
             FROM rooms
             WHERE room_number = $1 AND deleted_at IS NULL
-            "#
+            "#,
         )
         .bind(room_number)
         .fetch_optional(pool)
@@ -125,7 +147,7 @@ impl RoomRepository {
             SELECT * FROM room_types
             WHERE is_active = true
             ORDER BY name
-            "#
+            "#,
         )
         .fetch_all(pool)
         .await
@@ -145,7 +167,7 @@ impl RoomRepository {
             FROM room_events
             WHERE room_id = $1
             ORDER BY created_at DESC
-            "#
+            "#,
         )
         .bind(room_id)
         .fetch_all(pool)
@@ -167,7 +189,7 @@ impl RoomRepository {
             JOIN room_types rt ON gr.room_type_id = rt.id
             WHERE LOWER(rt.name) = LOWER($1)
             ORDER BY gr.created_at DESC
-            "#
+            "#,
         )
         .bind(room_type)
         .fetch_all(pool)
@@ -187,7 +209,7 @@ impl RoomRepository {
             UPDATE rooms
             SET status = $1, available = $2, updated_at = CURRENT_TIMESTAMP
             WHERE id = $3
-            "#
+            "#,
         )
         .bind(status)
         .bind(available)
@@ -201,13 +223,12 @@ impl RoomRepository {
 
     /// Check if room exists
     pub async fn exists(pool: &DbPool, id: i64) -> Result<bool, ApiError> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM rooms WHERE id = $1 AND deleted_at IS NULL"
-        )
-        .bind(id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM rooms WHERE id = $1 AND deleted_at IS NULL")
+                .bind(id)
+                .fetch_one(pool)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
 
         Ok(count > 0)
     }

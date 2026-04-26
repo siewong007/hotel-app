@@ -16,7 +16,7 @@ impl UserRepository {
                    created_at, updated_at
             FROM users
             WHERE id = $1 AND deleted_at IS NULL
-            "#
+            "#,
         )
         .bind(id)
         .fetch_optional(pool)
@@ -25,7 +25,10 @@ impl UserRepository {
     }
 
     /// Find a user by username or email
-    pub async fn find_by_username_or_email(pool: &DbPool, identifier: &str) -> Result<Option<User>, ApiError> {
+    pub async fn find_by_username_or_email(
+        pool: &DbPool,
+        identifier: &str,
+    ) -> Result<Option<User>, ApiError> {
         sqlx::query_as::<_, User>(
             r#"
             SELECT id, username, email, full_name, phone, is_active, is_verified, user_type,
@@ -33,7 +36,7 @@ impl UserRepository {
                    created_at, updated_at
             FROM users
             WHERE (username = $1 OR email = $1) AND deleted_at IS NULL
-            "#
+            "#,
         )
         .bind(identifier)
         .fetch_optional(pool)
@@ -49,7 +52,7 @@ impl UserRepository {
                    created_at, updated_at, last_login_at
             FROM users
             WHERE id = $1 AND deleted_at IS NULL
-            "#
+            "#,
         )
         .bind(user_id)
         .fetch_optional(pool)
@@ -93,7 +96,7 @@ impl UserRepository {
             FROM roles r
             JOIN user_roles ur ON r.id = ur.role_id
             WHERE ur.user_id = $1
-            "#
+            "#,
         )
         .bind(user_id)
         .fetch_all(pool)
@@ -112,7 +115,7 @@ impl UserRepository {
             JOIN role_permissions rp ON p.id = rp.permission_id
             JOIN user_roles ur ON rp.role_id = ur.role_id
             WHERE ur.user_id = $1
-            "#
+            "#,
         )
         .bind(user_id)
         .fetch_all(pool)
@@ -123,7 +126,11 @@ impl UserRepository {
     }
 
     /// Check if user has a specific permission
-    pub async fn has_permission(pool: &DbPool, user_id: i64, permission: &str) -> Result<bool, ApiError> {
+    pub async fn has_permission(
+        pool: &DbPool,
+        user_id: i64,
+        permission: &str,
+    ) -> Result<bool, ApiError> {
         let count: i64 = sqlx::query_scalar(
             r#"
             SELECT COUNT(*)
@@ -131,7 +138,7 @@ impl UserRepository {
             JOIN role_permissions rp ON p.id = rp.permission_id
             JOIN user_roles ur ON rp.role_id = ur.role_id
             WHERE ur.user_id = $1 AND p.name = $2
-            "#
+            "#,
         )
         .bind(user_id)
         .bind(permission)

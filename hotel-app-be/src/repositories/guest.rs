@@ -17,7 +17,7 @@ impl GuestRepository {
             FROM guests
             WHERE deleted_at IS NULL
             ORDER BY full_name
-            "#
+            "#,
         )
         .fetch_all(pool)
         .await
@@ -33,7 +33,7 @@ impl GuestRepository {
                    title, alt_phone, is_active, created_at, updated_at
             FROM guests
             WHERE id = $1 AND deleted_at IS NULL
-            "#
+            "#,
         )
         .bind(id)
         .fetch_optional(pool)
@@ -50,7 +50,7 @@ impl GuestRepository {
                    title, alt_phone, is_active, created_at, updated_at
             FROM guests
             WHERE email = $1 AND deleted_at IS NULL
-            "#
+            "#,
         )
         .bind(email)
         .fetch_optional(pool)
@@ -69,7 +69,7 @@ impl GuestRepository {
             JOIN user_guests ug ON g.id = ug.guest_id
             WHERE ug.user_id = $1 AND g.deleted_at IS NULL
             ORDER BY g.full_name
-            "#
+            "#,
         )
         .bind(user_id)
         .fetch_all(pool)
@@ -93,7 +93,7 @@ impl GuestRepository {
             RETURNING id, full_name, email, phone, ic_number, nationality,
                       address_line1, city, state_province, postal_code, country,
                       title, alt_phone, is_active, created_at, updated_at
-            "#
+            "#,
         )
         .bind(full_name)
         .bind(email)
@@ -130,7 +130,11 @@ impl GuestRepository {
     }
 
     /// Unlink guest from user
-    pub async fn unlink_from_user(pool: &DbPool, user_id: i64, guest_id: i64) -> Result<(), ApiError> {
+    pub async fn unlink_from_user(
+        pool: &DbPool,
+        user_id: i64,
+        guest_id: i64,
+    ) -> Result<(), ApiError> {
         sqlx::query("DELETE FROM user_guests WHERE user_id = $1 AND guest_id = $2")
             .bind(user_id)
             .bind(guest_id)
@@ -143,13 +147,12 @@ impl GuestRepository {
 
     /// Check if guest exists
     pub async fn exists(pool: &DbPool, id: i64) -> Result<bool, ApiError> {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM guests WHERE id = $1 AND deleted_at IS NULL"
-        )
-        .bind(id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM guests WHERE id = $1 AND deleted_at IS NULL")
+                .bind(id)
+                .fetch_one(pool)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
 
         Ok(count > 0)
     }

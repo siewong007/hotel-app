@@ -33,7 +33,6 @@ import {
 } from '@mui/material';
 import {
   Add as AddIcon,
-  Edit as EditIcon,
   Delete as DeleteIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
@@ -508,20 +507,19 @@ const GuestConfigurationPage: React.FC = () => {
                 <TableCell>Discount</TableCell>
                 <TableCell align="center">Credits</TableCell>
                 <TableCell align="center">Bookings</TableCell>
-                <TableCell align="center">Edit</TableCell>
                 <TableCell align="center">Delete</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={12} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={11} align="center" sx={{ py: 6 }}>
                     <CircularProgress size={32} />
                   </TableCell>
                 </TableRow>
               ) : guests.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={12} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={11} align="center" sx={{ py: 6 }}>
                     <Typography variant="body1" color="text.secondary">
                       {searchTerm || filterType !== 'all'
                         ? 'No guests match the current filters'
@@ -531,7 +529,12 @@ const GuestConfigurationPage: React.FC = () => {
                 </TableRow>
               ) : null}
               {!loading && guests.map((guest) => (
-                <TableRow key={guest.id} hover>
+                <TableRow
+                  key={guest.id}
+                  hover
+                  onClick={() => handleEditClick(guest)}
+                  sx={{ cursor: 'pointer' }}
+                >
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {guest.full_name}
@@ -587,28 +590,21 @@ const GuestConfigurationPage: React.FC = () => {
                       <Typography variant="body2" color="text.disabled">-</Typography>
                     )}
                   </TableCell>
-                  <TableCell align="center">
+                  <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                     <Tooltip title="View credits">
                       <IconButton size="small" onClick={() => handleViewCredits(guest)} color="secondary">
                         <GiftIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   </TableCell>
-                  <TableCell align="center">
+                  <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                     <Tooltip title="View Bookings">
                       <IconButton size="small" onClick={() => handleViewBookings(guest)} color="info">
                         <HistoryIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   </TableCell>
-                  <TableCell align="center">
-                    <Tooltip title="Edit">
-                      <IconButton size="small" onClick={() => handleEditClick(guest)} color="primary">
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell align="center">
+                  <TableCell align="center" onClick={(e) => e.stopPropagation()}>
                     <Tooltip title="Delete">
                       <IconButton size="small" onClick={() => handleDeleteClick(guest)} color="error">
                         <DeleteIcon fontSize="small" />
