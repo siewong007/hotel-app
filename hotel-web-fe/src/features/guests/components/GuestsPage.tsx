@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Box,
   Typography,
@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { Guest } from '../../../types';
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 
 const PAGE_SIZE = 50;
 
@@ -35,34 +36,60 @@ const GuestsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalGuests, setTotalGuests] = useState(0);
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 700);
+  const guestsRequestId = useRef(0);
+  const previousDebouncedSearchQuery = useRef(debouncedSearchQuery);
+  const skipNextLoadForPageReset = useRef(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => loadGuests(currentPage, searchQuery), searchQuery ? 400 : 0);
-    return () => clearTimeout(timer);
-  }, [currentPage, searchQuery]);
+    const searchChanged = previousDebouncedSearchQuery.current !== debouncedSearchQuery;
+    previousDebouncedSearchQuery.current = debouncedSearchQuery;
+
+    if (searchChanged && currentPage !== 1) {
+      skipNextLoadForPageReset.current = true;
+      setCurrentPage(1);
+    }
+  }, [debouncedSearchQuery, currentPage]);
+
+  useEffect(() => {
+    if (skipNextLoadForPageReset.current) {
+      skipNextLoadForPageReset.current = false;
+      return;
+    }
+
+    loadGuests(currentPage, debouncedSearchQuery);
+  }, [currentPage, debouncedSearchQuery]);
 
   const loadGuests = async (page: number, search?: string) => {
+    const requestId = guestsRequestId.current + 1;
+    guestsRequestId.current = requestId;
+
     try {
       setLoading(true);
       const resp = await HotelAPIService.getGuestsPage({
         page,
         page_size: PAGE_SIZE,
-        ...(search ? { search } : {}),
+        ...(search?.trim() ? { search: search.trim() } : {}),
       });
+      if (guestsRequestId.current !== requestId) return;
+
       setGuests(resp.data);
       setTotalGuests(resp.total);
       setError(null);
     } catch (err: any) {
+      if (guestsRequestId.current !== requestId) return;
+
       console.error('Failed to load guests:', err);
       setError(err.message || 'Failed to load guests. Please check your connection and try again.');
     } finally {
-      setLoading(false);
+      if (guestsRequestId.current === requestId) {
+        setLoading(false);
+      }
     }
   };
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
-    setCurrentPage(1);
   };
 
   return (

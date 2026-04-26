@@ -26,8 +26,7 @@ pub type DbRow = sqlx::postgres::PgRow;
 pub async fn create_pool() -> Result<DbPool, sqlx::Error> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     {
-        let db_path = env::var("DATABASE_PATH")
-            .unwrap_or_else(|_| "./hotel_data.db".to_string());
+        let db_path = env::var("DATABASE_PATH").unwrap_or_else(|_| "./hotel_data.db".to_string());
 
         // Create database file if it doesn't exist
         let db_url = format!("sqlite:{}?mode=rwc", db_path);
@@ -48,11 +47,11 @@ pub async fn create_pool() -> Result<DbPool, sqlx::Error> {
         all(feature = "sqlite", feature = "postgres")
     ))]
     {
-        use sqlx::postgres::PgPoolOptions;
         use sqlx::Executor;
+        use sqlx::postgres::PgPoolOptions;
 
-        let database_url = env::var("DATABASE_URL")
-            .expect("DATABASE_URL must be set in environment variables");
+        let database_url =
+            env::var("DATABASE_URL").expect("DATABASE_URL must be set in environment variables");
 
         log::info!("Connecting to PostgreSQL database");
 
@@ -63,20 +62,23 @@ pub async fn create_pool() -> Result<DbPool, sqlx::Error> {
             .after_connect(|conn, _meta| {
                 Box::pin(async move {
                     let tz: Option<String> = sqlx::query_scalar(
-                        "SELECT value FROM system_settings WHERE key = 'timezone'"
+                        "SELECT value FROM system_settings WHERE key = 'timezone'",
                     )
                     .fetch_optional(&mut *conn)
                     .await?;
                     let tz = tz.unwrap_or_else(|| "UTC".to_string());
                     // Validate timezone is a safe identifier (alphanumeric, underscores, slashes, +/-)
                     // to prevent SQL injection via the system_settings table
-                    if !tz.chars().all(|c| c.is_alphanumeric() || c == '/' || c == '_' || c == '+' || c == '-') {
+                    if !tz.chars().all(|c| {
+                        c.is_alphanumeric() || c == '/' || c == '_' || c == '+' || c == '-'
+                    }) {
                         log::warn!("Invalid timezone value in system_settings: {}", tz);
                         conn.execute("SET timezone = 'UTC'").await?;
                     } else {
                         // Use sqlx::query to parameterize - PostgreSQL SET doesn't support $1 params,
                         // so we validate the input above and use format! safely
-                        conn.execute(format!("SET timezone = '{}'", tz).as_str()).await?;
+                        conn.execute(format!("SET timezone = '{}'", tz).as_str())
+                            .await?;
                     }
                     Ok(())
                 })
@@ -153,4 +155,66 @@ pub fn f64_to_decimal(f: f64) -> rust_decimal::Decimal {
 /// Helper to parse Option<f64> to Option<Decimal>
 pub fn opt_f64_to_decimal(f: Option<f64>) -> Option<rust_decimal::Decimal> {
     f.and_then(rust_decimal::Decimal::from_f64_retain)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rust_decimal::Decimal;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, PartialEq, Serialize, Deserialize)]
+    struct TestCode {
+        code: String,
+    }
+
+    #[test]
+    fn array_json_helpers_round_trip_serializable_values() {
+        let values = vec![
+            TestCode {
+                code: "ABCD-1234".to_string(),
+            },
+            TestCode {
+                code: "WXYZ-9876".to_string(),
+            },
+        ];
+
+        let json = array_to_json(&values);
+        let decoded: Vec<TestCode> = json_to_array(&json);
+
+        assert_eq!(decoded, values);
+    }
+
+    #[test]
+    fn json_to_array_returns_empty_vec_for_invalid_json() {
+        let decoded: Vec<String> = json_to_array("not json");
+
+        assert!(decoded.is_empty());
+    }
+
+    #[test]
+    fn decimal_parsers_fall_back_safely_for_invalid_values() {
+        assert_eq!(parse_decimal("12.34"), Decimal::new(1234, 2));
+        assert_eq!(parse_decimal("not-a-decimal"), Decimal::ZERO);
+        assert_eq!(
+            parse_opt_decimal(Some("9.99".to_string())),
+            Some(Decimal::new(999, 2))
+        );
+        assert_eq!(parse_opt_decimal(Some("invalid".to_string())), None);
+        assert_eq!(parse_opt_decimal(None), None);
+    }
+
+    #[test]
+    fn float_decimal_helpers_preserve_valid_values_and_ignore_none() {
+        assert_eq!(f64_to_decimal(12.5), Decimal::new(125, 1));
+        assert_eq!(opt_f64_to_decimal(Some(1.25)), Some(Decimal::new(125, 2)));
+        assert_eq!(opt_f64_to_decimal(None), None);
+    }
+
+    #[test]
+    fn generate_uuid_returns_parseable_uuid_string() {
+        let uuid = generate_uuid();
+
+        assert!(uuid::Uuid::parse_str(&uuid).is_ok());
+    }
 }

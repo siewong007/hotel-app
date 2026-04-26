@@ -61,7 +61,10 @@ impl RateLimitEntry {
         } else {
             // Calculate how long until the oldest entry expires
             let oldest = self.timestamps.first().unwrap();
-            let retry_after = config.window.as_secs().saturating_sub(now.duration_since(*oldest).as_secs());
+            let retry_after = config
+                .window
+                .as_secs()
+                .saturating_sub(now.duration_since(*oldest).as_secs());
             (false, retry_after.max(1))
         }
     }
@@ -149,5 +152,48 @@ impl RateLimiters {
             sensitive: RateLimiter::new(RateLimitConfig::new(10, 300)),
             api: RateLimiter::new(RateLimitConfig::new(200, 60)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::{IpAddr, Ipv4Addr};
+
+    fn ip(last_octet: u8) -> IpAddr {
+        IpAddr::V4(Ipv4Addr::new(127, 0, 0, last_octet))
+    }
+
+    #[tokio::test]
+    async fn rate_limiter_allows_requests_up_to_configured_limit() {
+        let limiter = RateLimiter::new(RateLimitConfig::new(2, 60));
+
+        assert_eq!(limiter.check_with_retry(ip(1)).await, (true, 0));
+        assert_eq!(limiter.check_with_retry(ip(1)).await, (true, 0));
+
+        let (allowed, retry_after) = limiter.check_with_retry(ip(1)).await;
+        assert!(!allowed);
+        assert!(retry_after > 0);
+    }
+
+    #[tokio::test]
+    async fn rate_limiter_tracks_ips_independently() {
+        let limiter = RateLimiter::new(RateLimitConfig::new(1, 60));
+
+        assert!(limiter.check(ip(1)).await);
+        assert!(!limiter.check(ip(1)).await);
+        assert!(limiter.check(ip(2)).await);
+    }
+
+    #[tokio::test]
+    async fn rate_limiter_reopens_slot_after_window_expires() {
+        let limiter = RateLimiter::new(RateLimitConfig::new(1, 1));
+
+        assert!(limiter.check(ip(1)).await);
+        assert!(!limiter.check(ip(1)).await);
+
+        tokio::time::sleep(Duration::from_millis(1_100)).await;
+
+        assert!(limiter.check(ip(1)).await);
     }
 }

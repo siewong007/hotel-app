@@ -1,16 +1,16 @@
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
-use serde::{Deserialize, Serialize};
 use super::db::{DbPool, array_to_json};
-use sqlx::Row;
+use bcrypt::{DEFAULT_COST, hash, verify};
 use chrono::{Duration, Utc};
-use bcrypt::{hash, verify, DEFAULT_COST};
+use hex;
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use rand::Rng;
+use regex::Regex;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use sqlx::Row;
 use std::env;
 use std::sync::OnceLock;
-use regex::Regex;
-use rand::Rng;
-use sha2::{Sha256, Digest};
-use hex;
-use totp_rs::{TOTP, Algorithm, Secret};
+use totp_rs::{Algorithm, Secret, TOTP};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
@@ -60,7 +60,11 @@ const WEAK_PASSWORDS: &[&str] = &[
 ];
 
 impl AuthService {
-    pub fn generate_jwt(user_id: i64, username: String, roles: Vec<String>) -> Result<String, jsonwebtoken::errors::Error> {
+    pub fn generate_jwt(
+        user_id: i64,
+        username: String,
+        roles: Vec<String>,
+    ) -> Result<String, jsonwebtoken::errors::Error> {
         let secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
         let now = Utc::now();
         let exp = (now + Duration::hours(24)).timestamp() as usize;
@@ -174,7 +178,7 @@ impl AuthService {
             r#"
             INSERT INTO refresh_tokens (user_id, token_hash, expires_at)
             VALUES ($1, $2, $3)
-            "#
+            "#,
         )
         .bind(user_id)
         .bind(token_hash)
@@ -199,7 +203,7 @@ impl AuthService {
             WHERE token_hash = $1
               AND expires_at > NOW()
               AND revoked_at IS NULL
-            "#
+            "#,
         )
         .bind(token_hash)
         .fetch_optional(pool)
@@ -209,10 +213,7 @@ impl AuthService {
     }
 
     /// Revokes a refresh token
-    pub async fn revoke_refresh_token(
-        pool: &DbPool,
-        token: &str,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn revoke_refresh_token(pool: &DbPool, token: &str) -> Result<(), sqlx::Error> {
         let token_hash = Self::hash_refresh_token(token);
 
         sqlx::query(
@@ -220,7 +221,7 @@ impl AuthService {
             UPDATE refresh_tokens
             SET revoked_at = NOW()
             WHERE token_hash = $1
-            "#
+            "#,
         )
         .bind(token_hash)
         .execute(pool)
@@ -230,16 +231,13 @@ impl AuthService {
     }
 
     /// Revokes all refresh tokens for a user
-    pub async fn revoke_all_user_tokens(
-        pool: &DbPool,
-        user_id: i64,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn revoke_all_user_tokens(pool: &DbPool, user_id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
             UPDATE refresh_tokens
             SET revoked_at = NOW()
             WHERE user_id = $1 AND revoked_at IS NULL
-            "#
+            "#,
         )
         .bind(user_id)
         .execute(pool)
@@ -248,7 +246,10 @@ impl AuthService {
         Ok(())
     }
 
-    pub async fn get_user_permissions(pool: &DbPool, user_id: i64) -> Result<Vec<String>, sqlx::Error> {
+    pub async fn get_user_permissions(
+        pool: &DbPool,
+        user_id: i64,
+    ) -> Result<Vec<String>, sqlx::Error> {
         let permissions = sqlx::query_scalar::<_, String>(
             r#"
             SELECT DISTINCT p.name
@@ -256,7 +257,7 @@ impl AuthService {
             INNER JOIN role_permissions rp ON p.id = rp.permission_id
             INNER JOIN user_roles ur ON rp.role_id = ur.role_id
             WHERE ur.user_id = $1
-            "#
+            "#,
         )
         .bind(user_id)
         .fetch_all(pool)
@@ -272,7 +273,7 @@ impl AuthService {
             FROM roles r
             INNER JOIN user_roles ur ON r.id = ur.role_id
             WHERE ur.user_id = $1
-            "#
+            "#,
         )
         .bind(user_id)
         .fetch_all(pool)
@@ -281,7 +282,11 @@ impl AuthService {
         Ok(roles)
     }
 
-    pub async fn check_permission(pool: &DbPool, user_id: i64, permission: &str) -> Result<bool, sqlx::Error> {
+    pub async fn check_permission(
+        pool: &DbPool,
+        user_id: i64,
+        permission: &str,
+    ) -> Result<bool, sqlx::Error> {
         let manage_permission = permission
             .split_once(':')
             .map(|(resource, _)| format!("{resource}:manage"))
@@ -297,7 +302,7 @@ impl AuthService {
                 WHERE ur.user_id = $1
                   AND (p.name = $2 OR p.name = $3)
             )
-            "#
+            "#,
         )
         .bind(user_id)
         .bind(permission)
@@ -308,7 +313,11 @@ impl AuthService {
         Ok(has_permission)
     }
 
-    pub async fn check_role(pool: &DbPool, user_id: i64, role_name: &str) -> Result<bool, sqlx::Error> {
+    pub async fn check_role(
+        pool: &DbPool,
+        user_id: i64,
+        role_name: &str,
+    ) -> Result<bool, sqlx::Error> {
         let has_role = sqlx::query_scalar::<_, bool>(
             r#"
             SELECT EXISTS(
@@ -317,7 +326,7 @@ impl AuthService {
                 INNER JOIN user_roles ur ON r.id = ur.role_id
                 WHERE ur.user_id = $1 AND r.name = $2
             )
-            "#
+            "#,
         )
         .bind(user_id)
         .bind(role_name)
@@ -349,7 +358,7 @@ impl AuthService {
                 email_token_expires_at = $2,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $3
-            "#
+            "#,
         )
         .bind(&token)
         .bind(expires_at)
@@ -376,7 +385,7 @@ impl AuthService {
               AND email_token_expires_at > CURRENT_TIMESTAMP
               AND is_verified = false
             RETURNING id
-            "#
+            "#,
         )
         .bind(token)
         .fetch_optional(pool)
@@ -398,7 +407,7 @@ impl AuthService {
                    created_at, updated_at
             FROM users
             WHERE email = $1 AND deleted_at IS NULL
-            "#
+            "#,
         )
         .bind(email)
         .fetch_optional(pool)
@@ -412,7 +421,9 @@ impl AuthService {
     // ============================================================================
 
     /// Generate a new TOTP secret and QR code URL for Google Authenticator setup
-    pub fn generate_totp_secret(username: &str) -> Result<(String, String), Box<dyn std::error::Error>> {
+    pub fn generate_totp_secret(
+        username: &str,
+    ) -> Result<(String, String), Box<dyn std::error::Error>> {
         // Generate random secret bytes (20 bytes = 160 bits for SHA1)
         let mut rng = rand::rng();
         let secret_bytes: Vec<u8> = (0..20).map(|_| rng.random::<u8>()).collect();
@@ -422,8 +433,8 @@ impl AuthService {
 
         let totp = TOTP::new(
             Algorithm::SHA1,
-            6, // 6 digits
-            1, // 1 step (30 second window)
+            6,  // 6 digits
+            1,  // 1 step (30 second window)
             30, // 30 second period
             secret_bytes,
             Some("Hotel Management System".to_string()),
@@ -514,7 +525,7 @@ impl AuthService {
                 challenge_code = EXCLUDED.challenge_code,
                 expires_at = EXCLUDED.expires_at,
                 created_at = CURRENT_TIMESTAMP
-            "#
+            "#,
         )
         .bind(user_id)
         .bind(&challenge_code)
@@ -544,7 +555,7 @@ impl AuthService {
                 two_factor_recovery_codes = $3,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(user_id)
         .bind(secret)
@@ -556,10 +567,7 @@ impl AuthService {
     }
 
     /// Disable 2FA for a user
-    pub async fn disable_2fa(
-        pool: &DbPool,
-        user_id: i64,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn disable_2fa(pool: &DbPool, user_id: i64) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
             UPDATE users
@@ -568,7 +576,7 @@ impl AuthService {
                 two_factor_recovery_codes = NULL,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(user_id)
         .execute(pool)
@@ -592,7 +600,7 @@ impl AuthService {
             SET two_factor_recovery_codes = $2,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(user_id)
         .bind(&codes_json)
@@ -612,7 +620,7 @@ impl AuthService {
             SELECT two_factor_enabled, array_length(two_factor_recovery_codes, 1) as recovery_count
             FROM users
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(user_id)
         .fetch_optional(pool)
@@ -626,5 +634,100 @@ impl AuthService {
             }
             None => Ok((false, 0)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AuthService;
+
+    #[test]
+    fn validate_password_accepts_strong_password() {
+        assert!(AuthService::validate_password("S3cure_Rooms!").is_ok());
+    }
+
+    #[test]
+    fn validate_password_rejects_each_complexity_gap() {
+        let cases = [
+            ("Short1!", "at least 8 characters"),
+            ("lowercase1!", "uppercase"),
+            ("UPPERCASE1!", "lowercase"),
+            ("NoDigits!", "number"),
+            ("NoSpecial1", "special character"),
+            ("Password123!", "too common"),
+        ];
+
+        for (password, expected_message) in cases {
+            let error = AuthService::validate_password(password)
+                .expect_err("weak password should be rejected");
+
+            assert!(
+                error.contains(expected_message),
+                "expected '{error}' to contain '{expected_message}'"
+            );
+        }
+    }
+
+    #[test]
+    fn validate_password_rejects_excessively_long_passwords() {
+        let password = format!("A1!{}", "a".repeat(126));
+        let error = AuthService::validate_password(&password)
+            .expect_err("password longer than 128 chars should be rejected");
+
+        assert!(error.contains("must not exceed 128 characters"));
+    }
+
+    #[test]
+    fn refresh_tokens_are_hex_encoded_and_hashed_deterministically() {
+        let token = AuthService::generate_refresh_token();
+
+        assert_eq!(token.len(), 64);
+        assert!(token.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_eq!(
+            AuthService::hash_refresh_token(&token),
+            AuthService::hash_refresh_token(&token)
+        );
+        assert_ne!(AuthService::hash_refresh_token(&token), token);
+    }
+
+    #[test]
+    fn email_verification_tokens_are_hex_encoded() {
+        let token = AuthService::generate_email_verification_token();
+
+        assert_eq!(token.len(), 64);
+        assert!(token.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn backup_codes_have_expected_count_format_and_uniqueness() {
+        let codes = AuthService::generate_backup_codes();
+        let unique: std::collections::HashSet<_> = codes.iter().collect();
+
+        assert_eq!(codes.len(), 10);
+        assert_eq!(unique.len(), codes.len());
+        assert!(codes.iter().all(|code| {
+            code.len() == 9
+                && code.as_bytes()[4] == b'-'
+                && code
+                    .chars()
+                    .filter(|c| *c != '-')
+                    .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_lowercase())
+        }));
+    }
+
+    #[test]
+    fn recovery_code_lookup_returns_matching_index_only() {
+        let codes = vec![
+            "AAAA-1111".to_string(),
+            "BBBB-2222".to_string(),
+            "CCCC-3333".to_string(),
+        ];
+
+        assert_eq!(
+            AuthService::check_recovery_code("BBBB-2222", &codes),
+            Some(1)
+        );
+        assert_eq!(AuthService::check_recovery_code("bbbb-2222", &codes), None);
+        assert_eq!(AuthService::check_recovery_code("DDDD-4444", &codes), None);
     }
 }

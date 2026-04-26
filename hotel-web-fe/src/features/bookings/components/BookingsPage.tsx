@@ -685,7 +685,7 @@ const BookingsPage: React.FC = () => {
               size="small"
               placeholder="Search by guest, folio..."
               value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => setSearchQuery(e.target.value)}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -703,7 +703,7 @@ const BookingsPage: React.FC = () => {
               size="small"
               placeholder="Room number..."
               value={roomNumberFilter}
-              onChange={(e) => { setRoomNumberFilter(e.target.value); setCurrentPage(1); }}
+              onChange={(e) => setRoomNumberFilter(e.target.value)}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
