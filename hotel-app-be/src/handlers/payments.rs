@@ -886,7 +886,33 @@ pub async fn ensure_invoice_for_booking(
         return Ok(num);
     }
 
-    let invoice_number = crate::services::invoice_numbers::next_invoice_number(pool).await?;
+    // Fall back to a city-ledger invoice number for the same booking before
+    // minting a new one — keeps a single booking on a single invoice number.
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let ledger_existing: Option<String> = sqlx::query_scalar(
+        "SELECT invoice_number FROM customer_ledgers \
+         WHERE booking_id = ?1 AND invoice_number IS NOT NULL \
+         ORDER BY id LIMIT 1",
+    )
+    .bind(booking_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let ledger_existing: Option<String> = sqlx::query_scalar(
+        "SELECT invoice_number FROM customer_ledgers \
+         WHERE booking_id = $1 AND invoice_number IS NOT NULL \
+         ORDER BY id LIMIT 1",
+    )
+    .bind(booking_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let invoice_number = match ledger_existing {
+        Some(n) => n,
+        None => crate::services::invoice_numbers::next_invoice_number(pool).await?,
+    };
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     {
