@@ -1,31 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { HotelAPIService } from '../../../api';
 import { CustomerLedger, CustomerLedgerSummary } from '../../../types';
-import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
-
-export type SortField = 'company_name' | 'amount' | 'balance_due' | 'status' | 'due_date' | 'created_at';
-export type SortOrder = 'asc' | 'desc';
-
-export const PAGE_SIZE = 50;
 
 export function useLedgers() {
   const [ledgers, setLedgers] = useState<CustomerLedger[]>([]);
   const [summary, setSummary] = useState<CustomerLedgerSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [totalLedgers, setTotalLedgers] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
 
-  // Filter & sort state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [expenseTypeFilter, setExpenseTypeFilter] = useState('all');
-  const [sortField, setSortField] = useState<SortField>('created_at');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
-  const debouncedSearchQuery = useDebouncedValue(searchQuery, 700);
   const ledgersRequestId = useRef(0);
-  const previousDebouncedSearchQuery = useRef(debouncedSearchQuery);
-  const skipNextLoadForPageReset = useRef(false);
 
   const loadLedgers = useCallback(async () => {
     const requestId = ledgersRequestId.current + 1;
@@ -33,19 +16,10 @@ export function useLedgers() {
 
     setLoading(true);
     try {
-      const resp = await HotelAPIService.getLedgersPage({
-        page: currentPage,
-        page_size: PAGE_SIZE,
-        ...(debouncedSearchQuery.trim() ? { search: debouncedSearchQuery.trim() } : {}),
-        ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
-        ...(expenseTypeFilter !== 'all' ? { expense_type: expenseTypeFilter } : {}),
-        sort_by: sortField,
-        sort_order: sortOrder,
-      });
+      const data = await HotelAPIService.getCustomerLedgers();
       if (ledgersRequestId.current !== requestId) return;
 
-      setLedgers(resp.data);
-      setTotalLedgers(resp.total);
+      setLedgers(data);
       setError(null);
     } catch (err: any) {
       if (ledgersRequestId.current !== requestId) return;
@@ -56,7 +30,7 @@ export function useLedgers() {
         setLoading(false);
       }
     }
-  }, [currentPage, debouncedSearchQuery, statusFilter, expenseTypeFilter, sortField, sortOrder]);
+  }, []);
 
   const loadSummary = useCallback(async () => {
     try {
@@ -76,57 +50,10 @@ export function useLedgers() {
     loadSummary();
   }, [loadSummary]);
 
+  // Initial ledger load.
   useEffect(() => {
-    const searchChanged = previousDebouncedSearchQuery.current !== debouncedSearchQuery;
-    previousDebouncedSearchQuery.current = debouncedSearchQuery;
-
-    if (searchChanged && currentPage !== 1) {
-      skipNextLoadForPageReset.current = true;
-      setCurrentPage(1);
-    }
-  }, [debouncedSearchQuery, currentPage]);
-
-  // Reload on committed page/filter/sort changes. Text search commits via debounce.
-  useEffect(() => {
-    if (skipNextLoadForPageReset.current) {
-      skipNextLoadForPageReset.current = false;
-      return;
-    }
-
     loadLedgers();
-  }, [currentPage, debouncedSearchQuery, statusFilter, expenseTypeFilter, sortField, sortOrder]);
-
-  const handleSort = useCallback((field: SortField) => {
-    setSortField(prev => {
-      if (prev === field) setSortOrder(o => o === 'asc' ? 'desc' : 'asc');
-      else setSortOrder('asc');
-      return field;
-    });
-    setCurrentPage(1);
-  }, []);
-
-  const clearFilters = useCallback(() => {
-    setSearchQuery('');
-    setStatusFilter('all');
-    setExpenseTypeFilter('all');
-    setSortField('created_at');
-    setSortOrder('desc');
-    setCurrentPage(1);
-  }, []);
-
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value);
-  }, []);
-
-  const handleStatusChange = useCallback((value: string) => {
-    setStatusFilter(value);
-    setCurrentPage(1);
-  }, []);
-
-  const handleExpenseTypeChange = useCallback((value: string) => {
-    setExpenseTypeFilter(value);
-    setCurrentPage(1);
-  }, []);
+  }, [loadLedgers]);
 
   return {
     ledgers,
@@ -134,19 +61,6 @@ export function useLedgers() {
     loading,
     error,
     setError,
-    totalLedgers,
-    currentPage,
-    setCurrentPage,
-    searchQuery,
-    setSearchQuery: handleSearchChange,
-    statusFilter,
-    setStatusFilter: handleStatusChange,
-    expenseTypeFilter,
-    setExpenseTypeFilter: handleExpenseTypeChange,
-    sortField,
-    sortOrder,
-    handleSort,
-    clearFilters,
     reload,
     loadLedgers,
   };

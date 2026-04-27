@@ -26,7 +26,7 @@ use sqlx::Row;
 pub struct PaginationParams {
     pub page: Option<i64>,
     pub page_size: Option<i64>,
-    /// General text search: guest name, booking number, folio number, room number
+    /// General text search: guest name, booking fields, invoices, and linked ledger fields
     pub search: Option<String>,
     /// Filter by exact booking status (e.g. "checked_in", "confirmed"). Pass "all" to include every status (including voided). Omit to exclude voided.
     pub status: Option<String>,
@@ -334,7 +334,27 @@ pub async fn get_bookings_handler(
         param_idx += 1;
         let p = param_placeholder(param_idx);
         conditions.push(format!(
-            "(g.full_name {like_op} {p} OR b.booking_number {like_op} {p} OR b.folio_number {like_op} {p} OR r.room_number {like_op} {p} OR EXISTS (SELECT 1 FROM invoices inv WHERE inv.booking_id = b.id AND inv.invoice_number {like_op} {p}))"
+            "(g.full_name {like_op} {p} \
+              OR b.booking_number {like_op} {p} \
+              OR b.folio_number {like_op} {p} \
+              OR r.room_number {like_op} {p} \
+              OR EXISTS (SELECT 1 FROM invoices inv WHERE inv.booking_id = b.id AND inv.invoice_number {like_op} {p}) \
+              OR EXISTS ( \
+                  SELECT 1 FROM customer_ledgers cl \
+                  WHERE cl.booking_id = b.id \
+                    AND ( \
+                        CAST(cl.id AS TEXT) {like_op} {p} \
+                        OR COALESCE(cl.invoice_number, '') {like_op} {p} \
+                        OR COALESCE(cl.folio_number, '') {like_op} {p} \
+                        OR COALESCE(cl.reference_number, '') {like_op} {p} \
+                        OR COALESCE(cl.transaction_code, '') {like_op} {p} \
+                        OR COALESCE(cl.payment_reference, '') {like_op} {p} \
+                        OR COALESCE(cl.company_name, '') {like_op} {p} \
+                        OR COALESCE(cl.contact_person, '') {like_op} {p} \
+                        OR COALESCE(cl.description, '') {like_op} {p} \
+                        OR COALESCE(cl.room_number, '') {like_op} {p} \
+                    ) \
+              ))"
         ));
         bind_search = Some(format!("%{}%", s.trim()));
     }
@@ -1438,9 +1458,7 @@ pub async fn update_booking_handler(
                 // Generate an invoice number for this checked-out booking. Best-effort:
                 // failure here must not block the checkout itself.
                 if let Err(e) = crate::handlers::payments::ensure_invoice_for_booking(
-                    &pool,
-                    booking_id,
-                    user_id,
+                    &pool, booking_id, user_id,
                 )
                 .await
                 {
@@ -1468,12 +1486,7 @@ pub async fn update_booking_handler(
                     && !co_name.trim().is_empty()
                     && booking.total_amount > rust_decimal::Decimal::ZERO
                     && let Err(e) = auto_post_company_ledger(
-                        &pool,
-                        &booking,
-                        co_name,
-                        check_in,
-                        check_out,
-                        user_id,
+                        &pool, &booking, co_name, check_in, check_out, user_id,
                     )
                     .await
                 {

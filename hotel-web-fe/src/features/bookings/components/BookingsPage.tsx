@@ -683,7 +683,7 @@ const BookingsPage: React.FC = () => {
             <TextField
               fullWidth
               size="small"
-              placeholder="Search by guest, invoice, folio..."
+              placeholder="Search guest, invoice, folio, ledger..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               InputProps={{
