@@ -503,6 +503,13 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     return today < scheduledCheckout;
   };
 
+  const formatBookingStatus = (status?: string) => {
+    if (!status) return 'Unknown';
+    return status
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>
@@ -598,7 +605,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     Status:
                   </Box>
                   <Box component="span" sx={{ fontWeight: 600 }}>
-                    Pending Checkout
+                    {formatBookingStatus(booking.status)}
                   </Box>
                 </Typography>
               </Grid>
@@ -1807,7 +1814,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             </p>
             <p>
               <span className="label">Status:</span>
-              <span className="value">Checked Out</span>
+              <span className="value">{formatBookingStatus(booking.status)}</span>
             </p>
           </div>
 
