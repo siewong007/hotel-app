@@ -1089,46 +1089,8 @@ const RoomManagementPage: React.FC = () => {
         notes: checkoutNotes,
       });
 
-      // Auto-post room charges to company ledger if booking has company billing
-      if (selectedBooking.company_id && selectedBooking.company_name) {
-        try {
-          // Calculate total amount including late checkout penalty
-          const roomAmount = typeof selectedBooking.total_amount === 'string'
-            ? parseFloat(selectedBooking.total_amount)
-            : (selectedBooking.total_amount || 0);
-          const lateCheckoutPenalty = lateCheckoutData?.penalty || 0;
-          const totalAmount = roomAmount + lateCheckoutPenalty;
-
-          // Calculate number of nights
-          const checkIn = new Date(selectedBooking.check_in_date);
-          const checkOut = new Date(selectedBooking.check_out_date);
-          const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-
-          // Build description
-          let description = `Room ${selectedBooking.room_number} - ${selectedBooking.guest_name}`;
-          description += ` (${nights} night${nights > 1 ? 's' : ''}: ${selectedBooking.check_in_date} to ${selectedBooking.check_out_date})`;
-          if (lateCheckoutPenalty > 0) {
-            description += ` + Late checkout penalty`;
-          }
-
-          // Create ledger entry
-          await HotelAPIService.createCustomerLedger({
-            company_name: selectedBooking.company_name,
-            description: description,
-            expense_type: 'accommodation',
-            amount: totalAmount,
-            booking_id: parseInt(selectedBooking.id),
-            room_number: selectedBooking.room_number,
-            posting_date: new Date().toISOString().split('T')[0],
-            transaction_date: new Date().toISOString().split('T')[0],
-            post_type: 'room_charge',
-            notes: lateCheckoutData?.notes ? `Late checkout: ${lateCheckoutData.notes}` : undefined,
-          });
-        } catch (ledgerError) {
-          console.error('Failed to post room charges to company ledger:', ledgerError);
-          // Don't fail the checkout if ledger posting fails, just log the error
-        }
-      }
+      // Company room charges are auto-posted to customer_ledgers by the
+      // backend's update_booking_handler on the checked_out transition.
 
       const successMessage = lateCheckoutData
         ? `Room ${selectedRoom?.room_number} checked out (late checkout penalty: RM ${lateCheckoutData.penalty})`
