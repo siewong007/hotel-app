@@ -94,6 +94,173 @@ fn parse_date_flexible(date_str: &str) -> Result<NaiveDate, String> {
     }
 }
 
+/// Auto-create a `customer_ledgers` room-charge row for a company-billing
+/// booking on checkout. Idempotent: returns Ok(()) without inserting if a
+/// non-reversal `room_charge` row already exists for the booking.
+async fn auto_post_company_ledger(
+    pool: &DbPool,
+    booking: &Booking,
+    company_name: &str,
+    check_in: NaiveDate,
+    check_out: NaiveDate,
+    user_id: i64,
+) -> Result<(), ApiError> {
+    let booking_id = booking.id;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM customer_ledgers \
+         WHERE booking_id = $1 AND post_type = 'room_charge' \
+         AND COALESCE(is_reversal, false) = false)",
+    )
+    .bind(booking_id)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(false);
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let exists: bool = sqlx::query_scalar::<_, i32>(
+        "SELECT EXISTS(SELECT 1 FROM customer_ledgers \
+         WHERE booking_id = ?1 AND post_type = 'room_charge' \
+         AND COALESCE(is_reversal, 0) = 0)",
+    )
+    .bind(booking_id)
+    .fetch_one(pool)
+    .await
+    .map(|v| v != 0)
+    .unwrap_or(false);
+
+    if exists {
+        return Ok(());
+    }
+
+    let nights = std::cmp::max((check_out - check_in).num_days(), 1);
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let detail: Option<(Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT r.room_number, g.full_name FROM bookings b \
+         LEFT JOIN rooms r ON b.room_id = r.id \
+         LEFT JOIN guests g ON b.guest_id = g.id WHERE b.id = $1",
+    )
+    .bind(booking_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let detail: Option<(Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT r.room_number, g.full_name FROM bookings b \
+         LEFT JOIN rooms r ON b.room_id = r.id \
+         LEFT JOIN guests g ON b.guest_id = g.id WHERE b.id = ?1",
+    )
+    .bind(booking_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+    let (room_number, guest_name) = detail.unwrap_or((None, None));
+
+    let description = format!(
+        "Room {} - {} ({} night{}: {} to {})",
+        room_number.as_deref().unwrap_or(""),
+        guest_name.as_deref().unwrap_or(""),
+        nights,
+        if nights > 1 { "s" } else { "" },
+        check_in,
+        check_out,
+    );
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let terms_days: i64 = sqlx::query_scalar::<_, Option<i32>>(
+        "SELECT payment_terms_days FROM companies WHERE company_name = $1 LIMIT 1",
+    )
+    .bind(company_name)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()
+    .flatten()
+    .unwrap_or(30) as i64;
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let terms_days: i64 = 30;
+
+    let today = chrono::Local::now().date_naive();
+    let due_date = today + chrono::Duration::days(terms_days);
+
+    let invoice_number = crate::services::invoice_numbers::next_invoice_number(pool)
+        .await
+        .ok();
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    sqlx::query(
+        r#"
+        INSERT INTO customer_ledgers (
+            company_name, description, expense_type, amount,
+            booking_id, post_type, posting_date, transaction_date,
+            invoice_date, due_date, room_number,
+            folio_type, transaction_type,
+            created_by, updated_by, cashier_id,
+            invoice_number
+        )
+        VALUES ($1, $2, 'accommodation', $3,
+                $4, 'room_charge', CURRENT_DATE, CURRENT_DATE,
+                CURRENT_DATE, $5, $6,
+                'city_ledger', 'debit',
+                $7, $7, $7,
+                $8)
+        "#,
+    )
+    .bind(company_name)
+    .bind(&description)
+    .bind(booking.total_amount)
+    .bind(booking_id)
+    .bind(due_date)
+    .bind(&room_number)
+    .bind(user_id)
+    .bind(&invoice_number)
+    .execute(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    sqlx::query(
+        r#"
+        INSERT INTO customer_ledgers (
+            company_name, description, expense_type, amount,
+            booking_id, post_type, posting_date, transaction_date,
+            invoice_date, due_date, room_number,
+            folio_type, transaction_type,
+            created_by, updated_by, cashier_id,
+            invoice_number
+        )
+        VALUES (?1, ?2, 'accommodation', ?3,
+                ?4, 'room_charge', date('now'), date('now'),
+                date('now'), ?5, ?6,
+                'city_ledger', 'debit',
+                ?7, ?7, ?7,
+                ?8)
+        "#,
+    )
+    .bind(company_name)
+    .bind(&description)
+    .bind(booking.total_amount.to_string())
+    .bind(booking_id)
+    .bind(due_date.to_string())
+    .bind(&room_number)
+    .bind(user_id)
+    .bind(&invoice_number)
+    .execute(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    log::info!(
+        "Auto-posted company ledger for booking {} ({}, amount {})",
+        booking_id,
+        company_name,
+        booking.total_amount
+    );
+    Ok(())
+}
+
 pub async fn get_bookings_handler(
     State(pool): State<DbPool>,
     Query(params): Query<PaginationParams>,
@@ -877,12 +1044,55 @@ pub async fn update_booking_handler(
     let deposit_paid = input.deposit_paid;
     let deposit_amount_f64 = input.deposit_amount;
 
-    // Handle daily_rates, room rate override, or date change - recalculate totals
-    let daily_rates_json = input.daily_rates.clone();
-    let (new_room_rate, new_subtotal, new_total_amount) = if let Some(ref dr) = input.daily_rates {
-        // Daily rates provided - sum them for subtotal
+    // Handle daily_rates, room rate override, or date change - recalculate totals.
+    //
+    // When dates change without an explicit daily_rates payload, rebuild
+    // daily_rates to match the new [check_in, check_out) range, preserving any
+    // existing per-night values and filling new nights with the booking's
+    // room_rate. Without this, shrinking a stay leaves orphan keys (over-charge
+    // on the invoice) and extending leaves missing keys (under-charge).
+    let mut daily_rates_json = input.daily_rates.clone();
+    if daily_rates_json.is_none()
+        && (input.check_in_date.is_some() || input.check_out_date.is_some())
+        && check_in < check_out
+        && let Some(existing_dr) = existing_booking
+            .daily_rates
+            .as_ref()
+            .and_then(|v| v.as_object())
+        && !existing_dr.is_empty()
+    {
+        let fallback_rate: f64 = existing_booking
+            .room_rate
+            .to_string()
+            .parse()
+            .unwrap_or(0.0);
+        let mut new_dr = serde_json::Map::new();
+        let mut date = check_in;
+        while date < check_out {
+            let key = date.format("%Y-%m-%d").to_string();
+            let value = existing_dr
+                .get(&key)
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!(fallback_rate));
+            new_dr.insert(key, value);
+            match date.succ_opt() {
+                Some(next) => date = next,
+                None => break,
+            }
+        }
+        daily_rates_json = Some(serde_json::Value::Object(new_dr));
+    }
+
+    let (new_room_rate, new_subtotal, new_total_amount) = if let Some(ref dr) = daily_rates_json {
+        // Daily rates available (caller-supplied or rebuilt) - sum them for subtotal
         if let Some(obj) = dr.as_object() {
-            let sum: f64 = obj.values().filter_map(|v| v.as_f64()).sum();
+            let sum: f64 = obj
+                .values()
+                .filter_map(|v| {
+                    v.as_f64()
+                        .or_else(|| v.as_str().and_then(|s| s.parse::<f64>().ok()))
+                })
+                .sum();
             let subtotal = Decimal::from_f64_retain(sum).unwrap_or(Decimal::ZERO);
             let room_rate = if let Some(rate_override) = input.room_rate_override {
                 Decimal::from_f64_retain(rate_override).unwrap_or(existing_booking.room_rate)
@@ -1211,6 +1421,39 @@ pub async fn update_booking_handler(
                         e
                     );
                 }
+
+                // Auto-post company room charges to customer_ledgers on checkout.
+                //
+                // Why: when a booking with company billing transitions to
+                // checked_out, the receivable must land on the city ledger so
+                // it shows on the company's account. Doing this server-side
+                // ensures every checkout path (Bookings page, Rooms grid,
+                // future paths) gets the same behavior — prior to this only
+                // the Rooms-grid frontend handler created the row, so checkouts
+                // initiated from the Bookings page silently skipped it.
+                //
+                // Idempotent: skip if a non-reversal room_charge row already
+                // exists for this booking. Skip silently when company info is
+                // missing or total_amount is non-positive.
+                if let Some(co_name) = booking.company_name.as_deref()
+                    && !co_name.trim().is_empty()
+                    && booking.total_amount > rust_decimal::Decimal::ZERO
+                    && let Err(e) = auto_post_company_ledger(
+                        &pool,
+                        &booking,
+                        co_name,
+                        check_in,
+                        check_out,
+                        user_id,
+                    )
+                    .await
+                {
+                    log::warn!(
+                        "Failed to auto-post company ledger for booking {}: {}",
+                        booking_id,
+                        e
+                    );
+                }
             }
             "checked_in" | "auto_checked_in" => {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
@@ -1242,6 +1485,67 @@ pub async fn update_booking_handler(
                 booking_id,
                 e
             );
+        }
+    }
+
+    // Sync customer_ledgers.amount when the booking total changes.
+    //
+    // Why: company-billing bookings auto-create a room-charge ledger row at
+    // checkout (RoomManagementPage.handleCheckOut) using the booking's
+    // total_amount at that moment. If the booking is later edited (dates,
+    // daily_rates, rate override), the ledger row's amount drifts and the
+    // ledger UI shows a balance that no longer matches the receipt. We apply
+    // the delta — not the raw new total — so any extras already on the row
+    // (e.g. late-checkout penalty) are preserved. Skip rows that are paid,
+    // partial-with-too-much-already-paid, or cancelled to respect DB
+    // constraints (positive_amount, paid_amount <= amount).
+    if let Some(new_total) = new_total_amount {
+        let delta = new_total - existing_booking.total_amount;
+        if !delta.is_zero() {
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            let sync_res = sqlx::query(
+                r#"UPDATE customer_ledgers
+                    SET amount = amount + CAST(?1 AS REAL)
+                  WHERE booking_id = ?2
+                    AND status IN ('pending', 'partial')
+                    AND post_type = 'room_charge'
+                    AND amount + CAST(?1 AS REAL) > 0
+                    AND amount + CAST(?1 AS REAL) >= paid_amount"#,
+            )
+            .bind(delta.to_string())
+            .bind(booking_id)
+            .execute(&pool)
+            .await;
+
+            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+            let sync_res = sqlx::query(
+                r#"UPDATE customer_ledgers
+                    SET amount = amount + $1
+                  WHERE booking_id = $2
+                    AND status IN ('pending', 'partial')
+                    AND post_type = 'room_charge'
+                    AND amount + $1 > 0
+                    AND amount + $1 >= paid_amount"#,
+            )
+            .bind(delta)
+            .bind(booking_id)
+            .execute(&pool)
+            .await;
+
+            match sync_res {
+                Ok(r) if r.rows_affected() > 0 => log::info!(
+                    "Synced customer_ledgers.amount by delta {} on {} row(s) for booking {}",
+                    delta,
+                    r.rows_affected(),
+                    booking_id
+                ),
+                Ok(_) => {}
+                Err(e) => log::warn!(
+                    "Failed to sync customer_ledgers.amount for booking {}: {}",
+                    booking_id,
+                    e
+                ),
+            }
         }
     }
 
