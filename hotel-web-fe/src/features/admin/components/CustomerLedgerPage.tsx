@@ -28,7 +28,6 @@ import {
   InputLabel,
   Select,
   InputAdornment,
-  TableSortLabel,
   Tabs,
   Tab,
   Divider,
@@ -38,17 +37,12 @@ import {
   Autocomplete,
   Checkbox,
   FormControlLabel,
-  Pagination,
-  Stack,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Search as SearchIcon,
-  FilterList as FilterIcon,
-  Clear as ClearIcon,
   Payment as PaymentIcon,
   Receipt as ReceiptIcon,
   Business as BusinessIcon,
@@ -88,7 +82,7 @@ import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
 import { enhanceBookingDetails } from '../../../utils/bookingUtils';
-import { useLedgers, SortField, SortOrder, PAGE_SIZE } from '../hooks/useLedgers';
+import { useLedgers } from '../hooks/useLedgers';
 
 // Company option for autocomplete
 interface CompanyOption {
@@ -195,19 +189,6 @@ const CustomerLedgerPage: React.FC = () => {
     error,
     setError,
     reload: loadData,
-    totalLedgers,
-    currentPage,
-    setCurrentPage,
-    searchQuery,
-    setSearchQuery,
-    statusFilter,
-    setStatusFilter,
-    expenseTypeFilter,
-    setExpenseTypeFilter,
-    sortField,
-    sortOrder,
-    handleSort,
-    clearFilters,
   } = useLedgers();
 
   // Create dialog state
@@ -2237,292 +2218,6 @@ const CustomerLedgerPage: React.FC = () => {
           </Grid>
         )}
       </Card>
-
-      {/* Filters and Search */}
-      <Card sx={{ mb: 3, p: 2 }}>
-        <Box display="flex" alignItems="center" gap={1} mb={2}>
-          <FilterIcon color="action" />
-          <Typography variant="h6">Filters & Search</Typography>
-        </Box>
-
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, md: 4 }}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Search by company, description, invoice..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </Grid>
-
-          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={statusFilter}
-                label="Status"
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <MenuItem value="all">All Status</MenuItem>
-                <MenuItem value="pending">Pending</MenuItem>
-                <MenuItem value="partial">Partial</MenuItem>
-                <MenuItem value="paid">Paid</MenuItem>
-                <MenuItem value="overdue">Overdue</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-
-          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Expense Type</InputLabel>
-              <Select
-                value={expenseTypeFilter}
-                label="Expense Type"
-                onChange={(e) => setExpenseTypeFilter(e.target.value)}
-              >
-                <MenuItem value="all">All Types</MenuItem>
-                {EXPENSE_TYPES.map((type) => (
-                  <MenuItem key={type.value} value={type.value}>
-                    {type.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          <Grid size={{ xs: 12, md: 2 }}>
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<ClearIcon />}
-              onClick={clearFilters}
-              size="small"
-            >
-              Clear Filters
-            </Button>
-          </Grid>
-        </Grid>
-
-        {/* Active Filters Info */}
-        <Box mt={2} display="flex" gap={1} flexWrap="wrap">
-          {searchQuery && (
-            <Chip
-              size="small"
-              label={`Search: ${searchQuery}`}
-              onDelete={() => setSearchQuery('')}
-            />
-          )}
-          {statusFilter !== 'all' && (
-            <Chip
-              size="small"
-              label={`Status: ${statusFilter}`}
-              onDelete={() => setStatusFilter('all')}
-            />
-          )}
-          {expenseTypeFilter !== 'all' && (
-            <Chip
-              size="small"
-              label={`Type: ${expenseTypeFilter}`}
-              onDelete={() => setExpenseTypeFilter('all')}
-            />
-          )}
-          {totalLedgers > 0 && (
-            <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto', alignSelf: 'center' }}>
-              Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalLedgers)} of {totalLedgers} entries
-            </Typography>
-          )}
-        </Box>
-      </Card>
-
-      {/* Ledger Table */}
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
-              <TableCell>
-                <strong>Invoice #</strong>
-              </TableCell>
-              <TableCell>
-                <TableSortLabel
-                  active={sortField === 'company_name'}
-                  direction={sortField === 'company_name' ? sortOrder : 'asc'}
-                  onClick={() => handleSort('company_name')}
-                >
-                  <strong>Company</strong>
-                </TableSortLabel>
-              </TableCell>
-              <TableCell><strong>Description</strong></TableCell>
-              <TableCell><strong>Type</strong></TableCell>
-              <TableCell>
-                <TableSortLabel
-                  active={sortField === 'amount'}
-                  direction={sortField === 'amount' ? sortOrder : 'asc'}
-                  onClick={() => handleSort('amount')}
-                >
-                  <strong>Amount</strong>
-                </TableSortLabel>
-              </TableCell>
-              <TableCell>
-                <TableSortLabel
-                  active={sortField === 'balance_due'}
-                  direction={sortField === 'balance_due' ? sortOrder : 'asc'}
-                  onClick={() => handleSort('balance_due')}
-                >
-                  <strong>Balance Due</strong>
-                </TableSortLabel>
-              </TableCell>
-              <TableCell>
-                <TableSortLabel
-                  active={sortField === 'due_date'}
-                  direction={sortField === 'due_date' ? sortOrder : 'asc'}
-                  onClick={() => handleSort('due_date')}
-                >
-                  <strong>Due Date</strong>
-                </TableSortLabel>
-              </TableCell>
-              <TableCell>
-                <TableSortLabel
-                  active={sortField === 'status'}
-                  direction={sortField === 'status' ? sortOrder : 'asc'}
-                  onClick={() => handleSort('status')}
-                >
-                  <strong>Status</strong>
-                </TableSortLabel>
-              </TableCell>
-              <TableCell><strong>Actions</strong></TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {ledgers.map((ledger) => (
-              <TableRow
-                key={ledger.id}
-                hover
-                onClick={() => handleEditLedger(ledger)}
-                sx={{ cursor: 'pointer' }}
-              >
-                <TableCell>{ledger.invoice_number || '-'}</TableCell>
-                <TableCell>
-                  <Box>
-                    <Typography variant="body2">{ledger.company_name}</Typography>
-                    {ledger.contact_person && (
-                      <Typography variant="caption" color="text.secondary">
-                        {ledger.contact_person}
-                      </Typography>
-                    )}
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {ledger.description}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={EXPENSE_TYPES.find(t => t.value === ledger.expense_type)?.label || ledger.expense_type}
-                    size="small"
-                    variant="outlined"
-                  />
-                </TableCell>
-                <TableCell>{formatCurrency(parseFloat(String(ledger.amount)))}</TableCell>
-                <TableCell>
-                  <Typography
-                    color={getLedgerBalanceDue(ledger) > 0 ? 'error.main' : 'success.main'}
-                    fontWeight="medium"
-                  >
-                    {formatCurrency(getLedgerBalanceDue(ledger))}
-                  </Typography>
-                </TableCell>
-                <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                  <Typography variant="body2">
-                    {ledger.due_date ? formatDateForDisplay(ledger.due_date) : '-'}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={getStatusText(ledger.status)}
-                    color={getStatusColor(ledger.status)}
-                    size="small"
-                  />
-                </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <Box sx={{ display: 'flex', gap: 0.5 }}>
-                    {canRecordPayment(ledger) && (
-                      <IconButton
-                        size="small"
-                        onClick={() => handleOpenPaymentDialog(ledger)}
-                        color="success"
-                        title="Record Payment"
-                      >
-                        <PaymentIcon />
-                      </IconButton>
-                    )}
-                    {canViewInvoice(ledger) && (
-                      <IconButton
-                        size="small"
-                        onClick={() => handleViewLedgerInvoice(ledger)}
-                        color="primary"
-                        title="View Invoice"
-                        disabled={loadingLedgerInvoice}
-                      >
-                        <ReceiptIcon />
-                      </IconButton>
-                    )}
-                    {canVoid(ledger) && (
-                      <IconButton
-                        size="small"
-                        onClick={() => handleVoidLedger(ledger)}
-                        sx={{ color: 'text.secondary' }}
-                        title="Void Entry"
-                      >
-                        <VoidIcon />
-                      </IconButton>
-                    )}
-                  </Box>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {totalLedgers > PAGE_SIZE && (
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2, px: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalLedgers)} of {totalLedgers} entries
-          </Typography>
-          <Pagination
-            count={Math.ceil(totalLedgers / PAGE_SIZE)}
-            page={currentPage}
-            onChange={(_, page) => setCurrentPage(page)}
-            color="primary"
-            size="small"
-            showFirstButton
-            showLastButton
-          />
-        </Stack>
-      )}
-
-      {ledgers.length === 0 && !loading && (
-        <Box textAlign="center" py={4}>
-          <Typography variant="h6" color="text.secondary">
-            {totalLedgers === 0 ? 'No ledger entries yet' : 'No entries match your filters'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            {totalLedgers === 0
-              ? 'Create your first ledger entry using the "New Entry" button above'
-              : 'Try adjusting your search or filter criteria'
-            }
-          </Typography>
-        </Box>
-      )}
 
       {/* Create Ledger Dialog */}
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>

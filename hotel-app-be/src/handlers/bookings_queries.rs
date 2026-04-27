@@ -21,7 +21,10 @@ pub const GET_BOOKINGS_BASE_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
@@ -43,7 +46,10 @@ pub const GET_BOOKINGS_BASE_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
@@ -69,7 +75,10 @@ pub const GET_BOOKINGS_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
@@ -92,7 +101,10 @@ pub const GET_BOOKINGS_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
@@ -119,7 +131,10 @@ pub const GET_USER_BOOKINGS_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
@@ -143,7 +158,10 @@ pub const GET_USER_BOOKINGS_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
@@ -171,7 +189,10 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
@@ -194,7 +215,10 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
@@ -231,7 +255,10 @@ pub const GET_TODAYS_CHECKINS_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
@@ -255,7 +282,10 @@ pub const GET_TODAYS_CHECKINS_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
@@ -283,7 +313,10 @@ pub const GET_TODAYS_CHECKOUTS_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
@@ -307,7 +340,10 @@ pub const GET_TODAYS_CHECKOUTS_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
@@ -335,7 +371,10 @@ pub const GET_ACTIVE_BOOKINGS_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
@@ -359,7 +398,10 @@ pub const GET_ACTIVE_BOOKINGS_QUERY: &str = r#"
         b.created_at, b.is_posted, b.posted_date,
         b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
         b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out, b.daily_rates,
-        (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
+        COALESCE(
+            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1),
+            (SELECT cl.invoice_number FROM customer_ledgers cl WHERE cl.booking_id = b.id AND cl.invoice_number IS NOT NULL ORDER BY cl.created_at DESC LIMIT 1)
+        ) AS invoice_number
     FROM bookings b
     INNER JOIN guests g ON b.guest_id = g.id
     INNER JOIN rooms r ON b.room_id = r.id
