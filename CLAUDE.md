@@ -114,3 +114,39 @@ Required env vars (see `hotel-app-be/.env.example`):
 ## MCP Servers
 
 `hotel-app-be/README.md` references two MCP servers under `hotel-app-be/mcp-server/` (analytics-server, hotel-search-server) that wrap the REST API for Claude Desktop / Cursor integration. They authenticate via JWT and read from the same backend; no separate database access.
+
+## Booking Workflow
+
+**Routes** (`hotel-app-be/src/routes/bookings.rs`) — gated by `bookings:<read|create|update|delete|manage>`, except `pre-checkin`, `my-bookings`, and code lookups (`/rate-codes`, `/market-codes`) which are public/auth-only. Lifecycle status: `pending` → `confirmed` → `checked_in` → `checked_out`/`completed`; off-paths `voided`, `late_checkout`.
+
+Key handlers in `handlers/bookings.rs`:
+
+- **`create_booking_handler`** (bookings.rs:537) — opens a tx, locks the room with `SELECT … FOR UPDATE`, checks for overlapping active bookings, derives `is_tourist` from the guest's `tourism_type` (does NOT trust the request), computes `subtotal` from `daily_rates` if present otherwise `room_rate × nights` (1 night for same-day "hourly" bookings), inserts with status `confirmed`, sets the room `occupied` (today) or `reserved` (future), and optionally records a deposit `payment` row. All inside the tx.
+- **`update_booking_handler`** (bookings.rs:915) — RBAC + ownership check, room/date conflict re-check; when only dates change, **rebuilds `daily_rates`** to span the new range, preserving existing per-night values and filling new nights with `room_rate` (without this, shrinking leaves orphan keys → over-charge; extending leaves missing keys → under-charge). On `checked_out`/`completed` transition: marks room `dirty`, calls `payments::ensure_invoice_for_booking`, and (if company-billed) calls `auto_post_company_ledger`. Also **syncs existing `customer_ledgers.amount` by delta** when the booking total changes (preserves user-added extras; skips paid/cancelled rows).
+- **`auto_post_company_ledger`** (bookings.rs:100) — idempotent: skips if a non-reversal `room_charge` row already exists for the booking. Reuses the booking's existing `invoices.invoice_number` if present so a single booking has one invoice number across `invoices` and `customer_ledgers`.
+- **`manual_checkin_handler`** (bookings.rs:1787) — verifies status is `confirmed`/`pending` and room not under maintenance, applies optional `guest_update`/`booking_update`, sets `checked_in` + `actual_check_in`, records optional `payment_record`, sets room `occupied`, back-fills night-audit postings (covers same-day walk-ins after their own audit ran).
+- **`delete_booking_handler`** (bookings.rs:1640) — soft-void: status → `voided`, frees the room, cancels linked payments (so they don't appear in night audit), and refunds complimentary nights into `guest_complimentary_credits`.
+
+**Frontend**: `hotel-web-fe/src/api/bookings.service.ts` (`BookingsService`) wraps the endpoints; `features/bookings/hooks/useBookings.ts` does server-side pagination/filter/sort with debounced text inputs (700 ms) and a request-id guard against stale responses; `features/bookings/components/BookingsPage.tsx` orchestrates UI. `handleConfirmCheckout` (BookingsPage.tsx:543) just sends `updateBooking({status:'checked_out'})` — the backend handles invoice creation and company-ledger auto-post.
+
+## Ledger Workflow
+
+**Routes** (`hotel-app-be/src/routes/ledgers.rs`) — gated by `require_auth` **only**, no permission scope. Any authenticated user can read/create/void/reverse ledger entries.
+
+**Data model** (`models/ledger.rs`):
+- `customer_ledgers` — company info, `description`, `expense_type`, `amount`, `paid_amount`, `balance_due` (DB-derived), `status` ∈ {pending, partial, paid, overdue, cancelled}, `due_date`, `invoice_number`, optional `booking_id`/`guest_id`, accounting fields (`folio_type`, `transaction_type`, `post_type`, `is_reversal`, `original_transaction_id`, `void_at/by/reason`).
+- `customer_ledger_payments` — running payment history per ledger.
+
+Key handlers in `handlers/ledgers.rs`:
+
+- **`create_customer_ledger_handler`** (ledgers.rs:479) — resolves `due_date` (caller → company `payment_terms_days` → 30-day fallback from posting date/today), allocates next `invoice_number` via `services::invoice_numbers::next_invoice_number`, inserts with status `pending`.
+- **`create_ledger_payment_handler`** (ledgers.rs:1188) — validates positive amount + non-cancelled ledger, inserts payment row, updates ledger's `paid_amount` + `payment_method`/`payment_reference`, recomputes status: `paid_amount ≥ amount` → `paid`, > 0 → `partial`, else `pending`.
+- **`update_ledger_payment_handler`** (ledgers.rs:1801) — patches payment date and re-syncs ledger's `payment_date` to `MAX(payments.payment_date)`.
+- **`void_ledger_handler`** (ledgers.rs:1479) — stamps `void_at/by/reason` + status `cancelled`. Refuses if already voided.
+- **`create_ledger_reversal_handler`** (ledgers.rs:1640) — inserts a sibling row with `is_reversal=TRUE`, `original_transaction_id` back-pointer, opposite `transaction_type` (debit↔credit), description prefixed `REVERSAL:`, status `paid`. Refuses to reverse a reversal.
+
+**Booking → Ledger integration**: When a company-billed booking transitions to `checked_out`/`completed`, the backend calls `auto_post_company_ledger` to insert a `room_charge` row with `folio_type='city_ledger'`, `transaction_type='debit'`, `due_date = today + payment_terms_days`. Subsequent edits to the booking total propagate as a *delta* to that ledger row's `amount` (bookings.rs:1531) — preserving extras, skipping cancelled/over-paid rows.
+
+**Two paths create company ledger rows**: the backend on checkout (`auto_post_company_ledger`) AND the frontend on company-section checkouts (`CustomerLedgerPage.handleConfirmCompanyCheckout`, CustomerLedgerPage.tsx:693). The frontend duplicates the work, but the backend's existence check de-dupes it.
+
+**Frontend**: `hotel-web-fe/src/api/ledger.service.ts` wraps endpoints; `features/admin/hooks/useLedgers.ts` mirrors `useBookings` (server pagination, debounced search, request-id guard); `features/admin/hooks/useLedgerData.ts` is the older non-paginated variant — `CustomerLedgerPage.tsx` uses `useLedgers`.
