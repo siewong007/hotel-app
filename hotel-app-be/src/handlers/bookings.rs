@@ -186,9 +186,38 @@ async fn auto_post_company_ledger(
     let today = chrono::Local::now().date_naive();
     let due_date = today + chrono::Duration::days(terms_days);
 
-    let invoice_number = crate::services::invoice_numbers::next_invoice_number(pool)
-        .await
-        .ok();
+    // Reuse the booking's existing invoice number when one already exists,
+    // so a single booking has a single invoice number across `invoices` and
+    // `customer_ledgers`. Only generate a new one if neither table has one yet.
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let existing_invoice: Option<String> = sqlx::query_scalar(
+        "SELECT invoice_number FROM invoices \
+         WHERE booking_id = $1 AND invoice_number IS NOT NULL \
+         ORDER BY created_at LIMIT 1",
+    )
+    .bind(booking_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let existing_invoice: Option<String> = sqlx::query_scalar(
+        "SELECT invoice_number FROM invoices \
+         WHERE booking_id = ?1 AND invoice_number IS NOT NULL \
+         ORDER BY created_at LIMIT 1",
+    )
+    .bind(booking_id)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten();
+
+    let invoice_number = match existing_invoice {
+        Some(n) => Some(n),
+        None => crate::services::invoice_numbers::next_invoice_number(pool)
+            .await
+            .ok(),
+    };
 
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     sqlx::query(
