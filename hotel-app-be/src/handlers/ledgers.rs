@@ -398,6 +398,54 @@ pub async fn create_customer_ledger_handler(
         .service_charge
         .and_then(|v| Decimal::from_f64_retain(v));
 
+    if let Some(booking_id) = request.booking_id {
+        let existing = sqlx::query(
+            r#"
+            SELECT id, company_name, company_registration_number, contact_person,
+                contact_email, contact_phone, billing_address_line1, billing_city,
+                billing_state, billing_postal_code, billing_country, description,
+                expense_type, amount, currency, status, paid_amount, balance_due,
+                payment_method, payment_reference, payment_date, booking_id, guest_id,
+                invoice_number, invoice_date, due_date, notes, internal_notes,
+                created_by, updated_by, created_at, updated_at,
+                folio_number, folio_type, transaction_type, post_type, department_code,
+                transaction_code, room_number, posting_date, transaction_date,
+                reference_number, cashier_id, is_reversal, original_transaction_id,
+                reversal_reason, tax_amount, service_charge, net_amount,
+                is_posted, posted_at, void_at, void_by, void_reason
+            FROM customer_ledgers
+            WHERE booking_id = ?1
+              AND company_name = ?2
+              AND description = ?3
+              AND expense_type = ?4
+              AND amount = ?5
+              AND ((post_type IS NULL AND ?6 IS NULL) OR post_type = ?6)
+              AND ((room_number IS NULL AND ?7 IS NULL) OR room_number = ?7)
+              AND ((posting_date IS NULL AND ?8 IS NULL) OR posting_date = ?8)
+              AND ((transaction_date IS NULL AND ?9 IS NULL) OR transaction_date = ?9)
+              AND void_at IS NULL
+            ORDER BY id DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(booking_id)
+        .bind(&request.company_name)
+        .bind(&request.description)
+        .bind(&request.expense_type)
+        .bind(decimal_to_db(amount))
+        .bind(&request.post_type)
+        .bind(&request.room_number)
+        .bind(posting_date)
+        .bind(transaction_date)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if let Some(row) = existing {
+            return Ok(Json(row_to_customer_ledger(&row)));
+        }
+    }
+
     let invoice_number = crate::services::invoice_numbers::next_invoice_number(&pool).await?;
 
     // SQLite INSERT without RETURNING
@@ -525,6 +573,46 @@ pub async fn create_customer_ledger_handler(
         .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
     let tax_amount = request.tax_amount.and_then(Decimal::from_f64_retain);
     let service_charge = request.service_charge.and_then(Decimal::from_f64_retain);
+
+    if let Some(booking_id) = request.booking_id {
+        let existing_query = format!(
+            r#"
+            SELECT {}
+            FROM customer_ledgers
+            WHERE booking_id = $1
+              AND company_name = $2
+              AND description = $3
+              AND expense_type = $4
+              AND amount = $5
+              AND post_type IS NOT DISTINCT FROM $6
+              AND room_number IS NOT DISTINCT FROM $7
+              AND posting_date IS NOT DISTINCT FROM $8
+              AND transaction_date IS NOT DISTINCT FROM $9
+              AND void_at IS NULL
+            ORDER BY id DESC
+            LIMIT 1
+            "#,
+            LEDGER_SELECT_FIELDS
+        );
+
+        let existing = sqlx::query(&existing_query)
+            .bind(booking_id)
+            .bind(&request.company_name)
+            .bind(&request.description)
+            .bind(&request.expense_type)
+            .bind(amount)
+            .bind(&request.post_type)
+            .bind(&request.room_number)
+            .bind(posting_date)
+            .bind(transaction_date)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if let Some(row) = existing {
+            return Ok(Json(row_to_customer_ledger(&row)));
+        }
+    }
 
     let invoice_number = crate::services::invoice_numbers::next_invoice_number(&pool).await?;
 
