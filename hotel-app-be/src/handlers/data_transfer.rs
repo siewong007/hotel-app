@@ -170,6 +170,7 @@ pub async fn import_booking_data_handler(
     let generated_columns: std::collections::HashMap<&str, Vec<&str>> =
         std::collections::HashMap::from([
             ("bookings", vec!["nights", "total_guests"]),
+            ("invoices", vec!["balance_due"]),
             ("customer_ledgers", vec!["balance_due"]),
         ]);
 
