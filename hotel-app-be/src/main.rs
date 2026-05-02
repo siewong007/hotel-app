@@ -14,10 +14,92 @@ use core::create_pool;
 use routes::create_router;
 use std::io::Write;
 use std::net::TcpListener as StdTcpListener;
+use std::path::PathBuf;
 
 /// Check if we're running in desktop mode
 fn is_desktop_mode() -> bool {
     std::env::var("HOTEL_DESKTOP_MODE").is_ok()
+}
+
+/// Resolve the directory log files should be written to.
+///
+/// Order: `HOTEL_LOG_DIR` env override → desktop data dir (`HotelApp/logs/`) →
+/// fallback `./logs/`. The desktop UI's `get_logs` Tauri command reads from
+/// `<data_local>/HotelApp/logs/`, so writing there makes logs visible in-app.
+fn resolve_log_dir() -> PathBuf {
+    if let Ok(dir) = std::env::var("HOTEL_LOG_DIR") {
+        return PathBuf::from(dir);
+    }
+    if is_desktop_mode()
+        && let Some(base) = dirs::data_local_dir()
+    {
+        return base.join("HotelApp").join("logs");
+    }
+    PathBuf::from("logs")
+}
+
+/// Initialize logging: stderr + a per-day rolling file under the log dir.
+///
+/// Falls back to stderr-only if the log dir / file can't be created so a
+/// permission issue never prevents the process from starting.
+fn init_logging() {
+    use simplelog::{
+        ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode,
+        WriteLogger,
+    };
+
+    let level = match std::env::var("RUST_LOG").ok().as_deref() {
+        Some("trace") => LevelFilter::Trace,
+        Some("debug") => LevelFilter::Debug,
+        Some("warn") => LevelFilter::Warn,
+        Some("error") => LevelFilter::Error,
+        _ => LevelFilter::Info,
+    };
+
+    let config = ConfigBuilder::new()
+        .set_time_format_rfc3339()
+        .set_target_level(LevelFilter::Error)
+        .build();
+
+    let term_logger: Box<dyn simplelog::SharedLogger> = TermLogger::new(
+        level,
+        config.clone(),
+        TerminalMode::Stderr,
+        ColorChoice::Auto,
+    );
+
+    let log_dir = resolve_log_dir();
+    let mut loggers: Vec<Box<dyn simplelog::SharedLogger>> = vec![term_logger];
+
+    if let Err(e) = std::fs::create_dir_all(&log_dir) {
+        eprintln!(
+            "warning: could not create log dir {}: {} — logging stderr only",
+            log_dir.display(),
+            e
+        );
+    } else {
+        let date = chrono::Local::now().format("%Y-%m-%d");
+        let file_path = log_dir.join(format!("backend-{}.log", date));
+        match std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&file_path)
+        {
+            Ok(file) => loggers.push(WriteLogger::new(level, config, file)),
+            Err(e) => eprintln!(
+                "warning: could not open log file {}: {} — logging stderr only",
+                file_path.display(),
+                e
+            ),
+        }
+    }
+
+    if CombinedLogger::init(loggers).is_err() {
+        // Logger already set (e.g. test harness). Not fatal.
+        eprintln!("warning: logger already initialized");
+    }
+
+    log::info!("Logging initialized — file sink: {}", log_dir.display());
 }
 
 /// Find an available port, starting from the preferred port
@@ -56,14 +138,12 @@ async fn main() {
     std::io::stdout().flush().ok();
     std::io::stderr().flush().ok();
 
-    // Initialize logging
-    if std::env::var("RUST_LOG").is_err() {
-        // SAFETY: Called before any other threads are spawned (single-threaded at startup)
-        unsafe { std::env::set_var("RUST_LOG", "info") };
-    }
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    // Initialize logging — writes to stderr (captured by Tauri sidecar runner)
+    // AND to a per-day file under the resolved log dir, so warn/error events
+    // from swallowed Result paths (e.g. ensure_invoice_for_booking) survive
+    // a process exit.
+    init_logging();
 
-    println!("Logging initialized");
     log::info!("Starting Hotel Management API server...");
     if desktop_mode {
         log::info!("Desktop mode enabled");
