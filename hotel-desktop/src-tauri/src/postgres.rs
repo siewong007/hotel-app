@@ -107,22 +107,27 @@ pub async fn init_postgres_data_dir(app_handle: &AppHandle) -> Result<(), Postgr
 
     // Get current PATH and prepend pgsql/bin so initdb can find postgres.exe
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
+    let new_path = format!(
+        "{}{}{}",
+        pgsql_bin.to_string_lossy(),
+        PATH_SEP,
+        current_path
+    );
 
     let mut cmd = tokio::process::Command::new(&initdb_path);
     cmd.args([
-            "-D",
-            &pgdata.to_string_lossy(),
-            "-U",
-            POSTGRES_USER,
-            "-E",
-            "UTF8",
-            "--locale=C",
-        ])
-        .env("PATH", &new_path)
-        .current_dir(&pgsql_bin)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        "-D",
+        &pgdata.to_string_lossy(),
+        "-U",
+        POSTGRES_USER,
+        "-E",
+        "UTF8",
+        "--locale=C",
+    ])
+    .env("PATH", &new_path)
+    .current_dir(&pgsql_bin)
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
 
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -200,22 +205,27 @@ pub async fn start_postgres(app_handle: &AppHandle) -> Result<(), PostgresError>
 
     // Get current PATH and prepend pgsql/bin
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
+    let new_path = format!(
+        "{}{}{}",
+        pgsql_bin.to_string_lossy(),
+        PATH_SEP,
+        current_path
+    );
 
     // Start PostgreSQL without waiting (-w flag causes issues with CREATE_NO_WINDOW on Windows)
     // Use Stdio::null() to prevent child process from blocking on pipe
     let mut cmd = tokio::process::Command::new(&pg_ctl_path);
     cmd.args([
-            "start",
-            "-D",
-            &pgdata.to_string_lossy(),
-            "-l",
-            &log_file.to_string_lossy(),
-        ])
-        .env("PATH", &new_path)
-        .current_dir(&pgsql_bin)
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        "start",
+        "-D",
+        &pgdata.to_string_lossy(),
+        "-l",
+        &log_file.to_string_lossy(),
+    ])
+    .env("PATH", &new_path)
+    .current_dir(&pgsql_bin)
+    .stdout(Stdio::null())
+    .stderr(Stdio::null());
 
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -223,7 +233,10 @@ pub async fn start_postgres(app_handle: &AppHandle) -> Result<(), PostgresError>
     let status = cmd.status().await?;
 
     if !status.success() {
-        return Err(PostgresError::StartFailed(format!("pg_ctl exited with code: {:?}", status.code())));
+        return Err(PostgresError::StartFailed(format!(
+            "pg_ctl exited with code: {:?}",
+            status.code()
+        )));
     }
 
     // Wait for PostgreSQL to be ready by polling pg_isready
@@ -255,20 +268,25 @@ pub async fn stop_postgres(app_handle: &AppHandle) -> Result<(), PostgresError> 
 
     // Get current PATH and prepend pgsql/bin
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
+    let new_path = format!(
+        "{}{}{}",
+        pgsql_bin.to_string_lossy(),
+        PATH_SEP,
+        current_path
+    );
 
     let mut cmd = tokio::process::Command::new(&pg_ctl_path);
     cmd.args([
-            "stop",
-            "-D",
-            &pgdata.to_string_lossy(),
-            "-m",
-            "fast", // Fast shutdown mode
-        ])
-        .env("PATH", &new_path)
-        .current_dir(&pgsql_bin)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        "stop",
+        "-D",
+        &pgdata.to_string_lossy(),
+        "-m",
+        "fast", // Fast shutdown mode
+    ])
+    .env("PATH", &new_path)
+    .current_dir(&pgsql_bin)
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
 
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -277,7 +295,10 @@ pub async fn stop_postgres(app_handle: &AppHandle) -> Result<(), PostgresError> 
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        log::warn!("Failed to stop PostgreSQL (may already be stopped): {}", stderr);
+        log::warn!(
+            "Failed to stop PostgreSQL (may already be stopped): {}",
+            stderr
+        );
     } else {
         log::info!("PostgreSQL server stopped successfully");
     }
@@ -296,7 +317,12 @@ pub async fn is_postgres_running(app_handle: &AppHandle) -> bool {
 
     // Get current PATH and prepend pgsql/bin
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
+    let new_path = format!(
+        "{}{}{}",
+        pgsql_bin.to_string_lossy(),
+        PATH_SEP,
+        current_path
+    );
 
     let mut cmd = tokio::process::Command::new(&pg_isready_path);
     cmd.args(["-h", "localhost", "-p", &POSTGRES_PORT.to_string()])
@@ -341,11 +367,17 @@ pub async fn create_database_if_needed(app_handle: &AppHandle) -> Result<(), Pos
 
     // Get current PATH and prepend pgsql/bin
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
+    let new_path = format!(
+        "{}{}{}",
+        pgsql_bin.to_string_lossy(),
+        PATH_SEP,
+        current_path
+    );
 
     // Check if database exists
     let mut check_cmd = tokio::process::Command::new(&psql_path);
-    check_cmd.args([
+    check_cmd
+        .args([
             "-h",
             "localhost",
             "-p",
@@ -379,7 +411,8 @@ pub async fn create_database_if_needed(app_handle: &AppHandle) -> Result<(), Pos
     // Create database
     log::info!("Creating database '{}'...", POSTGRES_DB);
     let mut create_cmd = tokio::process::Command::new(&psql_path);
-    create_cmd.args([
+    create_cmd
+        .args([
             "-h",
             "localhost",
             "-p",
@@ -441,21 +474,30 @@ async fn is_database_initialized(app_handle: &AppHandle) -> Result<bool, Postgre
     let psql_path = pgsql_bin.join(format!("psql{}", EXE_SUFFIX));
 
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
+    let new_path = format!(
+        "{}{}{}",
+        pgsql_bin.to_string_lossy(),
+        PATH_SEP,
+        current_path
+    );
 
     let mut cmd = tokio::process::Command::new(&psql_path);
     cmd.args([
-            "-h", "localhost",
-            "-p", &POSTGRES_PORT.to_string(),
-            "-U", POSTGRES_USER,
-            "-d", POSTGRES_DB,
-            "-tAc",
-            "SELECT 1 FROM information_schema.tables WHERE table_name = 'users' LIMIT 1",
-        ])
-        .env("PATH", &new_path)
-        .current_dir(&pgsql_bin)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        "-h",
+        "localhost",
+        "-p",
+        &POSTGRES_PORT.to_string(),
+        "-U",
+        POSTGRES_USER,
+        "-d",
+        POSTGRES_DB,
+        "-tAc",
+        "SELECT 1 FROM information_schema.tables WHERE table_name = 'users' LIMIT 1",
+    ])
+    .env("PATH", &new_path)
+    .current_dir(&pgsql_bin)
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
 
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -498,7 +540,12 @@ async fn run_sql_files(app_handle: &AppHandle, dir_name: &str) -> Result<(), Pos
     let pgsql_bin = get_pgsql_bin_dir(app_handle);
     let psql_path = pgsql_bin.join(format!("psql{}", EXE_SUFFIX));
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = format!("{}{}{}", pgsql_bin.to_string_lossy(), PATH_SEP, current_path);
+    let new_path = format!(
+        "{}{}{}",
+        pgsql_bin.to_string_lossy(),
+        PATH_SEP,
+        current_path
+    );
 
     for entry in sql_files {
         let file_path = entry.path();
@@ -506,16 +553,21 @@ async fn run_sql_files(app_handle: &AppHandle, dir_name: &str) -> Result<(), Pos
 
         let mut cmd = tokio::process::Command::new(&psql_path);
         cmd.args([
-                "-h", "localhost",
-                "-p", &POSTGRES_PORT.to_string(),
-                "-U", POSTGRES_USER,
-                "-d", POSTGRES_DB,
-                "-f", &file_path.to_string_lossy(),
-            ])
-            .env("PATH", &new_path)
-            .current_dir(&pgsql_bin)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+            "-h",
+            "localhost",
+            "-p",
+            &POSTGRES_PORT.to_string(),
+            "-U",
+            POSTGRES_USER,
+            "-d",
+            POSTGRES_DB,
+            "-f",
+            &file_path.to_string_lossy(),
+        ])
+        .env("PATH", &new_path)
+        .current_dir(&pgsql_bin)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 
         #[cfg(windows)]
         cmd.creation_flags(CREATE_NO_WINDOW);
@@ -524,8 +576,16 @@ async fn run_sql_files(app_handle: &AppHandle, dir_name: &str) -> Result<(), Pos
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            log::error!("Failed to run SQL file {:?}: {}", file_path.file_name(), stderr);
-            // Continue with other files even if one fails
+            log::error!(
+                "Failed to run SQL file {:?}: {}",
+                file_path.file_name(),
+                stderr
+            );
+            return Err(PostgresError::MigrationFailed(format!(
+                "Failed to run SQL file {:?}: {}",
+                file_path.file_name(),
+                stderr
+            )));
         }
     }
 

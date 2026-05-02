@@ -105,3 +105,39 @@ The backend also exposes MCP-compatible analytics endpoints that can be called d
 - `GET /analytics/benchmark` - Performance benchmarking
 
 *These endpoints require authentication and the `analytics:read` permission.*
+
+### 🖥️ Rebuild the Desktop App
+
+Run these commands from the repository root to rebuild the Tauri desktop application:
+
+```bash
+cd hotel-desktop
+npm install
+npm run desktop:prepare
+npm run build
+```
+
+`desktop:prepare` refreshes the desktop bundle before Tauri builds it:
+
+- syncs backend PostgreSQL migrations and seed data into `hotel-desktop/src-tauri/database/`
+- builds the React frontend in `hotel-web-fe`
+- builds the backend release binary from `hotel-app-be`
+- copies the backend sidecar into `hotel-desktop/src-tauri/binaries/` with the target-triple filename Tauri expects
+
+For a debug desktop build:
+
+```bash
+cd hotel-desktop
+npm run desktop:prepare
+npm run build:debug
+```
+
+For local desktop development:
+
+```bash
+cd hotel-desktop
+npm run desktop:prepare
+npm run dev
+```
+
+`npm run build` already invokes `desktop:prepare` through Tauri's `beforeBuildCommand`, but running it manually first is useful when diagnosing build failures.

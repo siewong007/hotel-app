@@ -6,6 +6,8 @@
 pub mod commands;
 pub mod postgres;
 
+use tauri::{Emitter, Manager};
+
 /// Initialize and run the Tauri application
 pub fn run() {
     // Initialize logging
@@ -25,8 +27,11 @@ pub fn run() {
 
             // Start backend in background
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = start_services(app_handle).await {
+                if let Err(e) = start_services(app_handle.clone()).await {
                     log::error!("Failed to start services: {}", e);
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.emit("desktop-services-error", e);
+                    }
                 }
             });
 
@@ -83,7 +88,9 @@ async fn start_services(app_handle: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| format!("Failed to run migrations: {}", e))?;
 
     // Start the backend sidecar
-    commands::start_backend_sidecar(&app_handle).await.map_err(|e| e.to_string())?;
+    commands::start_backend_sidecar(&app_handle)
+        .await
+        .map_err(|e| e.to_string())?;
 
     log::info!("All services started successfully");
     Ok(())

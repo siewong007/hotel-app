@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import ky from 'ky';
 import { HotelAPIService } from '../api';
 import { storage } from '../utils/storage';
+import { apiUrl } from '../desktop/runtimeApi';
 
 export interface User {
   id: string;
@@ -161,7 +162,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (username: string, password: string, totpCode?: string): Promise<boolean> => {
     try {
-      const data = await ky.post(`${import.meta.env.VITE_API_URL || 'http://localhost:3030'}/auth/login`, {
+      const data = await ky.post(apiUrl('/auth/login'), {
         json: { username, password, totp_code: totpCode },
       }).json<{ access_token: string; refresh_token: string; user: User; roles: string[]; permissions: string[]; is_first_login: boolean }>();
 
@@ -251,7 +252,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const registerPasskey = async (username: string) => {
     try {
       // Start passkey registration
-      const startResponse = await ky.post(`${import.meta.env.VITE_API_URL || 'http://localhost:3030'}/auth/passkey/register/start`, {
+      const startResponse = await ky.post(apiUrl('/auth/passkey/register/start'), {
         json: { username },
       }).json<{ challenge: string; rp: any; user: any }>();
 
@@ -306,7 +307,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       };
 
       // Finish passkey registration
-      await ky.post(`${import.meta.env.VITE_API_URL || 'http://localhost:3030'}/auth/passkey/register/finish`, {
+      await ky.post(apiUrl('/auth/passkey/register/finish'), {
         json: {
           username,
           credential: JSON.stringify(credentialJson),
@@ -352,7 +353,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const loginWithPasskey = async (username: string): Promise<boolean> => {
     try {
       // Start passkey authentication
-      const startResponse = await ky.post(`${import.meta.env.VITE_API_URL || 'http://localhost:3030'}/auth/passkey/login/start`, {
+      const startResponse = await ky.post(apiUrl('/auth/passkey/login/start'), {
         json: { username },
       }).json<{ challenge: string; allowCredentials: any[] }>();
 
@@ -419,8 +420,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       };
 
       // Finish passkey authentication
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3030';
-      const finishResponse = await ky.post(`${apiUrl}/auth/passkey/login/finish`, {
+      const finishResponse = await ky.post(apiUrl('/auth/passkey/login/finish'), {
         json: {
           username,
           credential_id: assertion.id,

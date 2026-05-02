@@ -1,6 +1,7 @@
 // Base API client configuration
 import ky from 'ky';
 import { storage } from '../utils/storage';
+import { getApiBaseUrl } from '../desktop/runtimeApi';
 
 // API Error class for better error handling
 export class APIError extends Error {
@@ -16,7 +17,7 @@ export class APIError extends Error {
 
 // In development, use empty string to leverage the proxy in package.json
 // In production, use the full API URL
-export const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'http://localhost:3030' : '');
+export const API_BASE_URL = getApiBaseUrl();
 
 // Create ky instance with hooks for auth and error handling
 export const api = ky.create({
