@@ -545,6 +545,12 @@ export default function EnhancedCheckInModal({
       return;
     }
 
+    if (depositChoice === 'receive' && Number(depositAmount) <= 0) {
+      setError('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.');
+      setActiveTab(2);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 

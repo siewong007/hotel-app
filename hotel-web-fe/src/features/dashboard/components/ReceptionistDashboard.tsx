@@ -329,6 +329,10 @@ const ReceptionistDashboard: React.FC = () => {
 
   const handleConfirmCheckIn = async () => {
     if (!checkinBooking) return;
+    if (ciDepositChoice === 'receive' && Number(ciDepositAmount) <= 0) {
+      setError('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.');
+      return;
+    }
     try {
       setProcessingCheckIn(true);
       const updateData: any = {};
