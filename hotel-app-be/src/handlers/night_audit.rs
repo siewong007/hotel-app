@@ -287,6 +287,15 @@ pub async fn run_night_audit(
     let audit_run_id = svc::run_audit_procedure(&pool, audit_date, user_id).await?;
     log::info!("Night audit completed, run ID: {}", audit_run_id);
 
+    // Catch up any checked-out bookings that didn't get an invoice row at
+    // checkout time. The startup-only backfill leaves a gap whenever the
+    // backend isn't restarted; running here gives us at least one daily pass.
+    match crate::services::invoice_numbers::backfill_missing_booking_invoices(&pool).await {
+        Ok(0) => {}
+        Ok(n) => log::info!("Night audit backfilled invoice numbers for {} booking(s)", n),
+        Err(e) => log::warn!("Night audit invoice backfill failed: {}", e),
+    }
+
     if let Some(notes) = &input.notes {
         let _ = sqlx::query("UPDATE night_audit_runs SET notes = $1 WHERE id = $2")
             .bind(notes)
