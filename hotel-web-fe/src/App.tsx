@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext';
 import { theme } from './theme';
 import { NavigationTabs } from './components/layout/NavigationTabs';
 import { UnauthRoutes, AuthRoutes, FirstLoginPasskeyPrompt, LoadingFallback, MinimalLoadingFallback } from './routes';
+import { DesktopServiceGate } from './desktop/DesktopServiceGate';
 
 function AppContent() {
   const { isAuthenticated, isLoading, shouldPromptPasskey, user, dismissPasskeyPrompt } = useAuth();
@@ -60,13 +61,15 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider>
-        <Router>
-          <Suspense fallback={<LoadingFallback />}>
-            <AppContent />
-          </Suspense>
-        </Router>
-      </AuthProvider>
+      <DesktopServiceGate>
+        <AuthProvider>
+          <Router>
+            <Suspense fallback={<LoadingFallback />}>
+              <AppContent />
+            </Suspense>
+          </Router>
+        </AuthProvider>
+      </DesktopServiceGate>
     </ThemeProvider>
   );
 }

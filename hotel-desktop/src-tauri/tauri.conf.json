@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "identifier": "com.hotelapp.desktop",
   "build": {
-    "beforeBuildCommand": "",
+    "beforeBuildCommand": "npm run desktop:prepare",
     "frontendDist": "../../hotel-web-fe/dist"
   },
   "app": {
