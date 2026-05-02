@@ -750,6 +750,11 @@ const RoomManagementPage: React.FC = () => {
       return;
     }
 
+    if (rcDepositChoice === 'receive' && Number(rcDepositAmount) <= 0) {
+      showSnackbar('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.', 'error');
+      return;
+    }
+
     try {
       setProcessingReservedCheckIn(true);
       console.log('Processing check-in for booking ID:', reservedCheckInBooking.id);
