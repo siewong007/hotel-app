@@ -141,3 +141,26 @@ npm run dev
 ```
 
 `npm run build` already invokes `desktop:prepare` through Tauri's `beforeBuildCommand`, but running it manually first is useful when diagnosing build failures.
+
+### 🛑 Stop Previous FE/BE Startup
+
+If the frontend or backend is running in a terminal tab, stop it with:
+
+```bash
+Ctrl+C
+```
+
+If a detached or leftover process is still holding a port on macOS, stop it by port:
+
+```bash
+kill $(lsof -ti tcp:3000)  # frontend Vite server
+kill $(lsof -ti tcp:3030)  # backend API default port
+kill $(lsof -ti tcp:3031)  # alternate backend port, if used
+```
+
+For a desktop-app startup, close the Tauri app first. If bundled desktop PostgreSQL is still running, stop it with:
+
+```bash
+cd hotel-desktop/src-tauri
+./pgsql/bin/pg_ctl stop -D "$HOME/Library/Application Support/HotelApp/pgdata" -m fast
+```
