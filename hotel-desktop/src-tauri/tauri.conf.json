@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "identifier": "com.hotelapp.desktop",
   "build": {
+    "beforeDevCommand": "npm --prefix ../hotel-web-fe run start:tauri",
+    "devUrl": "http://127.0.0.1:3000",
     "beforeBuildCommand": "npm run desktop:prepare",
     "frontendDist": "../../hotel-web-fe/dist"
   },

@@ -29,7 +29,10 @@
   },
   "scripts": {
     "start": "vite",
+    "start:tauri": "vite --mode tauri --host 127.0.0.1 --strictPort",
     "build": "vite build",
+    "build:web": "vite build --mode web",
+    "build:tauri": "vite build --mode tauri",
     "preview": "vite preview"
   },
   "devDependencies": {

@@ -3,6 +3,12 @@
   "identifier": "default",
   "description": "Default capabilities for the Hotel Management System",
   "windows": ["main"],
+  "remote": {
+    "urls": [
+      "http://localhost:3000/*",
+      "http://127.0.0.1:3000/*"
+    ]
+  },
   "permissions": [
     "core:default",
     "shell:default",

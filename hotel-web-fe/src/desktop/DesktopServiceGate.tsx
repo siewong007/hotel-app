@@ -14,8 +14,10 @@ import StorageIcon from '@mui/icons-material/Storage';
 import {
   DesktopAppStatus,
   getDesktopStatus,
-  isTauriRuntime,
+  getTauriCoreApi,
+  getTauriEventApi,
   setRuntimeApiBaseUrl,
+  shouldUseDesktopRuntime,
 } from './runtimeApi';
 
 interface DesktopServiceGateProps {
@@ -23,7 +25,7 @@ interface DesktopServiceGateProps {
 }
 
 export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
-  const [isDesktop] = useState(() => isTauriRuntime());
+  const [isDesktop] = useState(() => shouldUseDesktopRuntime());
   const [status, setStatus] = useState<DesktopAppStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRestarting, setIsRestarting] = useState(false);
@@ -60,7 +62,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
     };
 
     const setupEvents = async () => {
-      const { listen } = await import('@tauri-apps/api/event');
+      const { listen } = getTauriEventApi();
 
       unlistenReady = await listen<string>('backend-ready', (event) => {
         setRuntimeApiBaseUrl(event.payload);
@@ -99,7 +101,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
     setError(null);
 
     try {
-      const { invoke } = await import('@tauri-apps/api/core');
+      const { invoke } = getTauriCoreApi();
       await invoke('restart_backend');
       const nextStatus = await getDesktopStatus();
       setStatus(nextStatus);
@@ -112,7 +114,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
 
   const openDataFolder = async () => {
     try {
-      const { invoke } = await import('@tauri-apps/api/core');
+      const { invoke } = getTauriCoreApi();
       await invoke('open_data_folder');
     } catch (folderError) {
       setError(folderError instanceof Error ? folderError.message : 'Unable to open data folder');

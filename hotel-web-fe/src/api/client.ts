@@ -1,7 +1,7 @@
 // Base API client configuration
 import ky from 'ky';
 import { storage } from '../utils/storage';
-import { getApiBaseUrl } from '../desktop/runtimeApi';
+import { getApiBaseUrl, resolveApiRequestUrl } from '../desktop/runtimeApi';
 
 // API Error class for better error handling
 export class APIError extends Error {
@@ -15,13 +15,12 @@ export class APIError extends Error {
   }
 }
 
-// In development, use empty string to leverage the proxy in package.json
-// In production, use the full API URL
+// Legacy snapshot for code that only needs to display/debug the current startup base URL.
+// Requests resolve the API base dynamically so Tauri can update it after boot.
 export const API_BASE_URL = getApiBaseUrl();
 
 // Create ky instance with hooks for auth and error handling
 export const api = ky.create({
-  prefixUrl: API_BASE_URL,
   timeout: 30000, // 30 second timeout
   retry: {
     limit: 2,
@@ -31,12 +30,16 @@ export const api = ky.create({
   hooks: {
     beforeRequest: [
       request => {
+        const nextUrl = resolveApiRequestUrl(request.url);
+        const apiRequest = nextUrl === request.url ? request : new Request(nextUrl, request);
         const token = storage.getItem<string>('accessToken');
         if (token) {
-          request.headers.set('Authorization', `Bearer ${token}`);
+          apiRequest.headers.set('Authorization', `Bearer ${token}`);
         } else {
-          console.warn('API Request:', request.method, request.url, 'WITHOUT TOKEN');
+          console.warn('API Request:', apiRequest.method, apiRequest.url, 'WITHOUT TOKEN');
         }
+
+        return apiRequest;
       }
     ],
     afterResponse: [

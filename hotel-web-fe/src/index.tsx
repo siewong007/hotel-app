@@ -5,7 +5,10 @@ import { logWebVitals } from './reportWebVitals';
 import { initializeDesktopBackendUrl } from './desktop/runtimeApi';
 
 async function bootstrap() {
-  await initializeDesktopBackendUrl();
+  initializeDesktopBackendUrl().catch((error) => {
+    console.warn('Desktop backend URL initialization failed:', error);
+  });
+
   const { default: App } = await import('./App');
 
   const root = ReactDOM.createRoot(
