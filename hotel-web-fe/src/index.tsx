@@ -5,7 +5,7 @@ import { logWebVitals } from './reportWebVitals';
 import { initializeDesktopBackendUrl } from './desktop/runtimeApi';
 
 async function bootstrap() {
-  initializeDesktopBackendUrl().catch((error) => {
+  await initializeDesktopBackendUrl().catch((error) => {
     console.warn('Desktop backend URL initialization failed:', error);
   });
 
