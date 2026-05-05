@@ -39,10 +39,10 @@ pub async fn next_invoice_number(pool: &DbPool) -> Result<String, ApiError> {
     let max_seq: Option<i64> = sqlx::query_scalar(
         r#"
         SELECT MAX(seq) FROM (
-            SELECT CAST(SUBSTRING(invoice_number FROM 12) AS INTEGER) AS seq
+            SELECT CAST(SUBSTRING(invoice_number FROM 12) AS BIGINT) AS seq
             FROM invoices WHERE invoice_number LIKE $1
             UNION ALL
-            SELECT CAST(SUBSTRING(invoice_number FROM 12) AS INTEGER) AS seq
+            SELECT CAST(SUBSTRING(invoice_number FROM 12) AS BIGINT) AS seq
             FROM customer_ledgers WHERE invoice_number LIKE $1
         ) combined
         "#,
@@ -130,10 +130,10 @@ pub async fn backfill_missing_booking_invoices(pool: &DbPool) -> Result<usize, A
             let max_seq: Option<i64> = sqlx::query_scalar(
                 r#"
                 SELECT MAX(seq) FROM (
-                    SELECT CAST(SUBSTRING(invoice_number FROM 12) AS INTEGER) AS seq
+                    SELECT CAST(SUBSTRING(invoice_number FROM 12) AS BIGINT) AS seq
                     FROM invoices WHERE invoice_number LIKE $1
                     UNION ALL
-                    SELECT CAST(SUBSTRING(invoice_number FROM 12) AS INTEGER) AS seq
+                    SELECT CAST(SUBSTRING(invoice_number FROM 12) AS BIGINT) AS seq
                     FROM customer_ledgers WHERE invoice_number LIKE $1
                 ) combined
                 "#,
