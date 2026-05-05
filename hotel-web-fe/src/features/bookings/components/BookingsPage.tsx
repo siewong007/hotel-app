@@ -1040,9 +1040,10 @@ const BookingsPage: React.FC = () => {
           { title: 'Arrivals / Check-in', value: arrivingBookings.length, detail: `${arrivingBookings.filter(canCheckIn).length} ready to check in`, subValue: arrivingBookings.length || stats.todayCheckIns || 1, color: '#2f6f52', icon: <ArrowForwardIcon fontSize="small" />, view: 'arriving' as const },
           { title: 'In-house guests', value: totalGuestsInHouse, detail: `across ${inHouseBookings.length} rooms`, subValue: Math.max(totalGuestsInHouse, roomCount || 1), color: '#2f64b3', icon: <BedIcon fontSize="small" />, view: 'in_house' as const },
           { title: 'Departures / Check-out', value: departingBookings.length, detail: `${departingBookings.length} ready to check out`, subValue: departingBookings.length || 1, color: '#c47b1e', icon: <ArrowBackIcon fontSize="small" />, view: 'departing' as const },
+          { title: 'Upcoming bookings', value: upcomingBookings.length, detail: `${upcomingBookings.length} future reservations`, subValue: upcomingBookings.length || 1, color: '#7c4dff', icon: <BookIcon fontSize="small" />, view: 'upcoming' as const },
           { title: 'Outstanding due', value: formatCurrency(outstandingDue), detail: `${dueBookings.length} bookings`, color: '#c43d32', icon: <PaymentIcon fontSize="small" />, view: 'balance' as const, alert: true },
         ].map((stat) => (
-          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={stat.title}>
+          <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2.4 }} key={stat.title}>
             <Card
               elevation={0}
               onClick={() => selectBookingView(stat.view)}
