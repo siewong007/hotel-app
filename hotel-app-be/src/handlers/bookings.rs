@@ -1126,6 +1126,12 @@ pub async fn create_booking_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    // If a deposit row was inserted above, recompute payment_status so the
+    // stored column reflects the new running total (e.g. partial vs unpaid).
+    if matches!(input.amount_paid, Some(a) if a > 0.0) {
+        crate::handlers::payments::recompute_payment_status(&pool, booking.id).await?;
+    }
+
     // Log booking creation (outside transaction - non-critical)
     let _ =
         AuditLog::log_booking_created(&pool, user_id, booking.id, input.guest_id, input.room_id)
@@ -1700,6 +1706,13 @@ pub async fn update_booking_handler(
                         booking_id,
                         e
                     );
+                } else {
+                    // Cancelled payments no longer count toward total_paid —
+                    // resync so the stored chip flips back to 'voided'/'unpaid'.
+                    let _ = crate::handlers::payments::recompute_payment_status(
+                        &pool, booking_id,
+                    )
+                    .await;
                 }
             }
             "checked_out" | "completed" => {
@@ -1921,6 +1934,11 @@ pub async fn update_booking_handler(
     .await
     .ok();
 
+    // total_amount may have changed (rate override, dates, daily_rates rebuild,
+    // tourism tax, extra bed) — re-derive payment_status against the unchanged
+    // sum of completed payments so the chip reflects reality.
+    let _ = crate::handlers::payments::recompute_payment_status(&pool, booking_id).await;
+
     Ok(Json(booking))
 }
 
@@ -2008,6 +2026,9 @@ pub async fn delete_booking_handler(
             booking_id,
             e
         );
+    } else {
+        // Cancelled payments drop out of total_paid — keep payment_status fresh.
+        let _ = crate::handlers::payments::recompute_payment_status(&pool, booking_id).await;
     }
 
     // If the booking was complimentary, convert the nights to room-type specific credits
@@ -2299,6 +2320,11 @@ pub async fn manual_checkin_handler(
                 .await
                 {
                     log::warn!("Failed to record check-in payment for booking {}: {}", booking_id, e);
+                } else {
+                    let _ = crate::handlers::payments::recompute_payment_status(
+                        &pool, booking_id,
+                    )
+                    .await;
                 }
     }
 

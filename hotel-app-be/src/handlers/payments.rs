@@ -17,6 +17,76 @@ use crate::core::middleware::require_auth;
 use crate::models::row_mappers;
 use crate::models::*;
 
+/// Recompute and persist `bookings.payment_status` for a single booking,
+/// bringing the stored column back in sync with the live sum of completed
+/// non-refund payment rows. Call this from every code path that mutates the
+/// `payments` table or `bookings.total_amount`.
+///
+/// The CASE expression below is mirrored verbatim in `bookings_queries.rs`
+/// (the SELECT-time override). Keep them in sync — the SELECT override
+/// guarantees correct list output even if a write path forgets to call this
+/// helper, and this helper guarantees correctness for callers that read
+/// `b.payment_status` directly.
+///
+/// Skips complimentary bookings (and 'voided' bookings) — their stored value
+/// isn't backed by a `payments` row.
+pub async fn recompute_payment_status(
+    pool: &DbPool,
+    booking_id: i64,
+) -> Result<(), ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let sql = r#"
+        UPDATE bookings AS b
+        SET payment_status = CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, 0) = 1 THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
+                    WHERE p.booking_id = b.id
+                      AND p.status = 'completed'
+                      AND COALESCE(p.payment_type, 'booking') != 'refund'), 0)
+                 >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
+                    WHERE p.booking_id = b.id
+                      AND p.status = 'completed'
+                      AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
+                THEN 'partial'
+            ELSE 'unpaid'
+        END,
+        updated_at = CURRENT_TIMESTAMP
+        WHERE b.id = ?1
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let sql = r#"
+        UPDATE bookings AS b
+        SET payment_status = CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, false) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
+                    WHERE p.booking_id = b.id
+                      AND p.status = 'completed'
+                      AND COALESCE(p.payment_type, 'booking') != 'refund'), 0)
+                 >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
+                    WHERE p.booking_id = b.id
+                      AND p.status = 'completed'
+                      AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
+                THEN 'partial'
+            ELSE 'unpaid'
+        END,
+        updated_at = CURRENT_TIMESTAMP
+        WHERE b.id = $1
+    "#;
+
+    sqlx::query(sql)
+        .bind(booking_id)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    Ok(())
+}
+
 /// Create a payment for a booking
 pub async fn create_payment_handler(
     State(pool): State<DbPool>,
@@ -246,6 +316,9 @@ pub async fn record_payment_handler(
     tx.commit()
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Resync bookings.payment_status with the new payment row.
+    recompute_payment_status(&pool, request.booking_id).await?;
 
     let payment = serde_json::json!({
         "id": row.get::<i64, _>("id"),
@@ -491,6 +564,9 @@ pub async fn refund_deposit_handler(
     tx.commit()
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Refund changes the running paid total — keep payment_status in sync.
+    recompute_payment_status(&pool, booking_id).await?;
 
     let refund = serde_json::json!({
         "id": row.get::<i64, _>("id"),
@@ -906,6 +982,10 @@ pub async fn update_payment_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    // Amount may have changed — resync the booking's payment_status.
+    let updated_booking_id: i64 = row.get("booking_id");
+    recompute_payment_status(&pool, updated_booking_id).await?;
+
     let payment = serde_json::json!({
         "id": row.get::<i64, _>("id"),
         "booking_id": row.get::<i64, _>("booking_id"),
@@ -956,6 +1036,15 @@ pub async fn delete_payment_handler(
         ));
     }
 
+    // Capture booking_id BEFORE the row is gone so we can recompute after the
+    // delete commits.
+    let affected_booking_id: Option<i64> =
+        sqlx::query_scalar("SELECT booking_id FROM payments WHERE id = $1")
+            .bind(payment_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
     // Delete the payment
     sqlx::query("DELETE FROM payments WHERE id = $1")
         .bind(payment_id)
@@ -967,6 +1056,10 @@ pub async fn delete_payment_handler(
     tx.commit()
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if let Some(bid) = affected_booking_id {
+        recompute_payment_status(&pool, bid).await?;
+    }
 
     Ok(Json(serde_json::json!({
         "success": true,

@@ -15,7 +15,18 @@ pub const GET_BOOKINGS_BASE_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -45,7 +56,18 @@ pub const GET_BOOKINGS_BASE_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -79,7 +101,18 @@ pub const GET_BOOKINGS_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -110,7 +143,18 @@ pub const GET_BOOKINGS_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -145,7 +189,18 @@ pub const GET_USER_BOOKINGS_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -177,7 +232,18 @@ pub const GET_USER_BOOKINGS_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -213,7 +279,18 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -244,7 +321,18 @@ pub const GET_BOOKING_BY_ID_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -289,7 +377,18 @@ pub const GET_TODAYS_CHECKINS_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -321,7 +420,18 @@ pub const GET_TODAYS_CHECKINS_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -357,7 +467,18 @@ pub const GET_TODAYS_CHECKOUTS_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -389,7 +510,18 @@ pub const GET_TODAYS_CHECKOUTS_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -425,7 +557,18 @@ pub const GET_ACTIVE_BOOKINGS_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -457,7 +600,18 @@ pub const GET_ACTIVE_BOOKINGS_QUERY: &str = r#"
         b.check_in_date, b.check_out_date,
         COALESCE(NULLIF(b.room_rate, 0), COALESCE(r.custom_price, rt.base_price)) as room_rate,
         b.total_amount, b.status,
-        b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
+        -- payment_status is derived live from the payments table so the chip
+        -- never goes out of sync with the live total_paid / balance_due
+        -- subqueries below. Stored bookings.payment_status is intentionally
+        -- ignored unless the booking is voided or complimentary.
+        CASE
+            WHEN b.status = 'voided' THEN 'voided'
+            WHEN COALESCE(b.is_complimentary, FALSE) THEN COALESCE(b.payment_status, 'paid')
+            WHEN b.total_amount <= 0 THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) >= b.total_amount THEN 'paid'
+            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0 THEN 'partial'
+            ELSE 'unpaid'
+        END AS payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
         b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
         b.deposit_paid, b.deposit_amount, b.room_card_deposit,
         COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.booking_id = b.id AND p.status = 'completed' AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
