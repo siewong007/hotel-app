@@ -413,6 +413,34 @@ CREATE TABLE IF NOT EXISTS booking_guests (
     created_at TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS booking_modifications (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    modification_type TEXT NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    reason TEXT,
+    price_adjustment REAL DEFAULT 0,
+    modified_at TEXT DEFAULT (datetime('now')),
+    modified_by INTEGER REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS booking_history (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    booking_id INTEGER NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    previous_status TEXT,
+    new_status TEXT NOT NULL,
+    changed_by INTEGER REFERENCES users(id),
+    change_reason TEXT,
+    metadata TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_booking_modifications_booking ON booking_modifications(booking_id);
+CREATE INDEX IF NOT EXISTS idx_booking_modifications_modified_at ON booking_modifications(modified_at);
+CREATE INDEX IF NOT EXISTS idx_booking_history_booking ON booking_history(booking_id);
+CREATE INDEX IF NOT EXISTS idx_booking_history_created_at ON booking_history(created_at);
+
 -- ============================================================================
 -- PAYMENTS & INVOICES
 -- ============================================================================

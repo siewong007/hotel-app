@@ -94,6 +94,232 @@ fn parse_date_flexible(date_str: &str) -> Result<NaiveDate, String> {
     }
 }
 
+async fn record_booking_history(
+    pool: &DbPool,
+    booking_id: i64,
+    previous_status: Option<&str>,
+    new_status: &str,
+    changed_by: Option<i64>,
+    change_reason: Option<&str>,
+    metadata: serde_json::Value,
+) {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let result = sqlx::query(
+        r#"
+        INSERT INTO booking_history (
+            booking_id, previous_status, new_status, changed_by, change_reason, metadata
+        )
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "#,
+    )
+    .bind(booking_id)
+    .bind(previous_status)
+    .bind(new_status)
+    .bind(changed_by)
+    .bind(change_reason)
+    .bind(metadata.to_string())
+    .execute(pool)
+    .await;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let result = sqlx::query(
+        r#"
+        INSERT INTO booking_history (
+            booking_id, previous_status, new_status, changed_by, change_reason, metadata
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+    )
+    .bind(booking_id)
+    .bind(previous_status)
+    .bind(new_status)
+    .bind(changed_by)
+    .bind(change_reason)
+    .bind(metadata)
+    .execute(pool)
+    .await;
+
+    if let Err(e) = result {
+        log::warn!(
+            "Failed to record booking history for booking {}: {}",
+            booking_id,
+            e
+        );
+    }
+}
+
+pub async fn get_booking_timeline_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(booking_id): Path<i64>,
+) -> Result<Json<Vec<BookingTimelineEntry>>, ApiError> {
+    let booking = booking_svc::fetch_booking_by_id(&pool, booking_id).await?;
+
+    let has_booking_access = AuthService::check_permission(&pool, user_id, "bookings:read")
+        .await
+        .unwrap_or(false)
+        || AuthService::check_permission(&pool, user_id, "bookings:manage")
+            .await
+            .unwrap_or(false);
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let owns_booking_query =
+        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = ?1 AND ug.guest_id = ?2)";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let owns_booking_query =
+        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = $1 AND ug.guest_id = $2)";
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let owns_booking: bool = sqlx::query_scalar::<_, i32>(owns_booking_query)
+        .bind(user_id)
+        .bind(booking.guest_id)
+        .fetch_one(&pool)
+        .await
+        .map(|v| v != 0)
+        .unwrap_or(false);
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let owns_booking: bool = sqlx::query_scalar::<_, bool>(owns_booking_query)
+        .bind(user_id)
+        .bind(booking.guest_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap_or(false);
+
+    if !has_booking_access && !owns_booking {
+        return Err(ApiError::Forbidden(
+            "You don't have permission to view this booking timeline".to_string(),
+        ));
+    }
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let timeline_sql = r#"
+        SELECT CAST(id AS TEXT) AS id, 'booking_history' AS source, 'status_change' AS event_type,
+               'Status changed to ' || new_status AS title,
+               change_reason AS description, previous_status AS status_from, new_status AS status_to,
+               NULL AS amount, changed_by AS actor_id, metadata, created_at
+        FROM booking_history
+        WHERE booking_id = ?1
+        UNION ALL
+        SELECT CAST(id AS TEXT) AS id, 'booking_modifications' AS source, modification_type AS event_type,
+               CASE modification_type
+                   WHEN 'rate_change' THEN 'Rate updated'
+                   WHEN 'date_change' THEN 'Dates updated'
+                   WHEN 'room_change' THEN 'Room changed'
+                   WHEN 'check_in' THEN 'Guest checked in'
+                   WHEN 'voided' THEN 'Booking voided'
+                   ELSE 'Booking updated'
+               END AS title,
+               reason AS description, NULL AS status_from, NULL AS status_to,
+               CAST(price_adjustment AS TEXT) AS amount, modified_by AS actor_id, new_value AS metadata, modified_at AS created_at
+        FROM booking_modifications
+        WHERE booking_id = ?1
+        UNION ALL
+        SELECT CAST(id AS TEXT) AS id, 'payments' AS source, COALESCE(payment_type, 'booking') AS event_type,
+               CASE
+                   WHEN COALESCE(payment_type, '') = 'refund' THEN 'Refund recorded'
+                   WHEN status = 'failed' THEN 'Payment failed'
+                   ELSE 'Payment recorded'
+               END AS title,
+               notes AS description, NULL AS status_from, status AS status_to,
+               CAST(amount AS TEXT) AS amount, processed_by AS actor_id, NULL AS metadata, created_at
+        FROM payments
+        WHERE booking_id = ?1
+        UNION ALL
+        SELECT CAST(id AS TEXT) AS id, 'invoices' AS source, 'invoice' AS event_type,
+               'Invoice ' || invoice_number AS title,
+               notes AS description, NULL AS status_from, status AS status_to,
+               CAST(total_amount AS TEXT) AS amount, created_by AS actor_id, NULL AS metadata, created_at
+        FROM invoices
+        WHERE booking_id = ?1
+        ORDER BY created_at ASC
+    "#;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let timeline_sql = r#"
+        SELECT id::text AS id, 'booking_history' AS source, 'status_change' AS event_type,
+               'Status changed to ' || new_status AS title,
+               change_reason AS description, previous_status AS status_from, new_status AS status_to,
+               NULL::text AS amount, changed_by AS actor_id, metadata, created_at
+        FROM booking_history
+        WHERE booking_id = $1
+        UNION ALL
+        SELECT id::text AS id, 'booking_modifications' AS source, modification_type AS event_type,
+               CASE modification_type
+                   WHEN 'rate_change' THEN 'Rate updated'
+                   WHEN 'date_change' THEN 'Dates updated'
+                   WHEN 'room_change' THEN 'Room changed'
+                   WHEN 'check_in' THEN 'Guest checked in'
+                   WHEN 'voided' THEN 'Booking voided'
+                   ELSE 'Booking updated'
+               END AS title,
+               reason AS description, NULL::text AS status_from, NULL::text AS status_to,
+               price_adjustment::text AS amount, modified_by AS actor_id, new_value AS metadata, modified_at AS created_at
+        FROM booking_modifications
+        WHERE booking_id = $1
+        UNION ALL
+        SELECT id::text AS id, 'payments' AS source, COALESCE(payment_type, 'booking') AS event_type,
+               CASE
+                   WHEN COALESCE(payment_type, '') = 'refund' THEN 'Refund recorded'
+                   WHEN status = 'failed' THEN 'Payment failed'
+                   ELSE 'Payment recorded'
+               END AS title,
+               notes AS description, NULL::text AS status_from, status AS status_to,
+               amount::text AS amount, created_by AS actor_id, metadata, created_at
+        FROM payments
+        WHERE booking_id = $1
+        UNION ALL
+        SELECT id::text AS id, 'invoices' AS source, 'invoice' AS event_type,
+               'Invoice ' || invoice_number AS title,
+               notes AS description, NULL::text AS status_from, status AS status_to,
+               total_amount::text AS amount, created_by AS actor_id, NULL::jsonb AS metadata, created_at
+        FROM invoices
+        WHERE booking_id = $1
+        ORDER BY created_at ASC
+    "#;
+
+    let rows = sqlx::query(timeline_sql)
+        .bind(booking_id)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let timeline = rows
+        .iter()
+        .map(|row| {
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            let metadata = row
+                .try_get::<Option<String>, _>("metadata")
+                .ok()
+                .flatten()
+                .and_then(|s| serde_json::from_str(&s).ok());
+            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+            let metadata = row
+                .try_get::<Option<serde_json::Value>, _>("metadata")
+                .ok()
+                .flatten();
+
+            BookingTimelineEntry {
+                id: row.try_get("id").unwrap_or_default(),
+                source: row.try_get("source").unwrap_or_default(),
+                event_type: row.try_get("event_type").unwrap_or_default(),
+                title: row.try_get("title").unwrap_or_default(),
+                description: row.try_get("description").ok(),
+                status_from: row.try_get("status_from").ok(),
+                status_to: row.try_get("status_to").ok(),
+                amount: row.try_get("amount").ok(),
+                actor_id: row.try_get("actor_id").ok(),
+                metadata,
+                created_at: row
+                    .try_get("created_at")
+                    .unwrap_or_else(|_| chrono::Utc::now()),
+            }
+        })
+        .collect();
+
+    Ok(Json(timeline))
+}
+
 /// Auto-create a `customer_ledgers` room-charge row for a company-billing
 /// booking on checkout. Idempotent: returns Ok(()) without inserting if a
 /// non-reversal `room_charge` row already exists for the booking.
@@ -904,6 +1130,24 @@ pub async fn create_booking_handler(
     let _ =
         AuditLog::log_booking_created(&pool, user_id, booking.id, input.guest_id, input.room_id)
             .await;
+    record_booking_history(
+        &pool,
+        booking.id,
+        None,
+        &booking.status,
+        Some(user_id),
+        Some("Booking created"),
+        serde_json::json!({
+            "guest_id": booking.guest_id,
+            "room_id": booking.room_id,
+            "check_in_date": booking.check_in_date.to_string(),
+            "check_out_date": booking.check_out_date.to_string(),
+            "total_amount": booking.total_amount.to_string(),
+            "source": &booking.source,
+            "payment_status": &booking.payment_status,
+        }),
+    )
+    .await;
 
     Ok(Json(booking))
 }
@@ -1383,6 +1627,21 @@ pub async fn update_booking_handler(
     }
 
     if old_status != updated_status {
+        record_booking_history(
+            &pool,
+            booking_id,
+            Some(old_status),
+            updated_status,
+            Some(user_id),
+            input.remarks.as_deref().or(input.payment_note.as_deref()),
+            serde_json::json!({
+                "room_id": booking.room_id,
+                "payment_status": &booking.payment_status,
+                "balance_affecting_total": booking.total_amount.to_string(),
+            }),
+        )
+        .await;
+
         match updated_status {
             "voided" => {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
@@ -1791,6 +2050,21 @@ pub async fn delete_booking_handler(
 
     // Log booking cancellation
     let _ = AuditLog::log_booking_cancelled(&pool, user_id, booking_id).await;
+    record_booking_history(
+        &pool,
+        booking_id,
+        Some(&status),
+        "voided",
+        Some(user_id),
+        Some("Booking voided"),
+        serde_json::json!({
+            "room_id": room_id,
+            "guest_id": guest_id,
+            "check_in_date": check_in_date.to_string(),
+            "check_out_date": check_out_date.to_string(),
+        }),
+    )
+    .await;
 
     // Record in booking_modifications audit trail
     sqlx::query(
@@ -2067,6 +2341,24 @@ pub async fn manual_checkin_handler(
         Some(serde_json::json!({"guest_id": booking.guest_id, "room_id": booking.room_id})),
         None,
         None,
+    )
+    .await;
+    record_booking_history(
+        &pool,
+        booking_id,
+        Some(&booking.status),
+        "checked_in",
+        Some(user_id),
+        Some("Guest checked in"),
+        serde_json::json!({
+            "guest_id": booking.guest_id,
+            "room_id": booking.room_id,
+            "payment_recorded": checkin_data
+                .as_ref()
+                .and_then(|data| data.payment_record.as_ref())
+                .map(|p| p.amount)
+                .unwrap_or(0.0),
+        }),
     )
     .await;
 
@@ -3454,6 +3746,21 @@ pub async fn reactivate_booking_handler(
         None,
         None,
     ).await;
+    record_booking_history(
+        &pool,
+        booking_id,
+        Some("voided"),
+        "confirmed",
+        Some(user_id),
+        Some("Booking reactivated"),
+        serde_json::json!({
+            "guest_id": guest_id,
+            "room_id": room_id,
+            "check_in_date": check_in.to_string(),
+            "check_out_date": check_out.to_string(),
+        }),
+    )
+    .await;
 
     // Record in booking_modifications audit trail
     sqlx::query(

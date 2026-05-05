@@ -1,5 +1,6 @@
 import { HTTPError } from 'ky';
 import { api, APIError } from './client';
+import type { PaymentWorkflowSummary } from '../types';
 
 export class InvoicesService {
   static async getInvoicePreview(bookingId: string): Promise<any> {
@@ -78,6 +79,22 @@ export class InvoicesService {
         );
       }
       throw new APIError('Failed to fetch payments');
+    }
+  }
+
+  static async getPaymentWorkflowSummary(bookingId: string | number): Promise<PaymentWorkflowSummary> {
+    try {
+      return await api.get(`payments/workflow-summary/${bookingId}`).json<PaymentWorkflowSummary>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to fetch payment workflow summary',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to fetch payment workflow summary');
     }
   }
 

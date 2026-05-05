@@ -34,6 +34,7 @@ export type {
   BookingCreateRequest,
   BookingUpdateRequest,
   BookingCancellationRequest,
+  BookingTimelineEntry,
   CheckInRequest,
   PreCheckInUpdateRequest,
   RateCodesResponse,
