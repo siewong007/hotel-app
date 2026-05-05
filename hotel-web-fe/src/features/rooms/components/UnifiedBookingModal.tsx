@@ -42,6 +42,7 @@ import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useRoomAvailabilityCheck } from '../../../hooks/useRoomAvailabilityCheck';
 import { getHotelSettings } from '../../../utils/hotelSettings';
+import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../utils/date';
 import { useUnifiedBookingData } from '../hooks/useUnifiedBookingData';
 import { isValidEmail } from '../../../utils/validation';
 import GuestSelector, { NewGuestForm, GuestWithCredits, emptyNewGuestForm } from './GuestSelector';
@@ -226,8 +227,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       isInitializingRef.current = true;
 
       // Set defaults for new modal session
-      const today = new Date().toISOString().split('T')[0];
-      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      const today = formatLocalDate();
+      const tomorrow = formatLocalDate(addLocalDays(today, 1));
 
       // Batch all state resets together using functional updates
       setActiveStep(0);
@@ -345,9 +346,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     } else {
       // Reset to next day
       if (checkInDate) {
-        const nextDay = new Date(checkInDate);
-        nextDay.setDate(nextDay.getDate() + 1);
-        const nextDayStr = nextDay.toISOString().split('T')[0];
+        const nextDayStr = formatLocalDate(addLocalDays(checkInDate, 1));
         setCheckOutDate(nextDayStr);
         setNumberOfNights(1);
       }
@@ -814,10 +813,10 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
           // Generate complimentary dates
           const complimentaryDates: string[] = [];
-          const start = new Date(checkInDate);
-          const end = new Date(checkOutDate);
+          const start = parseLocalDate(checkInDate);
+          const end = parseLocalDate(checkOutDate);
           for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-            complimentaryDates.push(d.toISOString().split('T')[0]);
+            complimentaryDates.push(formatLocalDate(d));
           }
 
           const bookingResult = await HotelAPIService.bookWithCredits({

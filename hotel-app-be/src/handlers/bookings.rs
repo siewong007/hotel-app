@@ -678,6 +678,22 @@ pub async fn create_booking_handler(
             .unwrap_or(None);
     let is_tourist = guest_tourism_type.as_deref() == Some("foreign");
 
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let hotel_today: NaiveDate = {
+        let today_str: String = sqlx::query_scalar("SELECT date('now', 'localtime')")
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+        NaiveDate::parse_from_str(&today_str, "%Y-%m-%d")
+            .map_err(|e| ApiError::Database(e.to_string()))?
+    };
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let hotel_today: NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE")
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
     let nights = (check_out - check_in).num_days() as i32;
     let is_hourly = nights == 0; // Same-day check-in/check-out = hourly booking
     let billable_nights = if is_hourly { 1 } else { nights }; // Charge 1 night for hourly
@@ -706,7 +722,7 @@ pub async fn create_booking_handler(
     // Use provided booking_number for online bookings, or auto-generate for walk-ins
     let booking_number = match &input.booking_number {
         Some(bn) if !bn.trim().is_empty() => bn.trim().to_string(),
-        _ => booking_svc::generate_booking_number(),
+        _ => booking_svc::generate_booking_number_for_date(hotel_today),
     };
 
     let source = input
@@ -833,8 +849,7 @@ pub async fn create_booking_handler(
     // Set room status based on check-in date:
     // - If check-in is today: set to 'occupied' (guest arriving today)
     // - If check-in is in the future: set to 'reserved'
-    let today = chrono::Local::now().date_naive();
-    let room_status = if check_in == today {
+    let room_status = if check_in == hotel_today {
         "occupied"
     } else {
         "reserved"
@@ -849,7 +864,7 @@ pub async fn create_booking_handler(
         .bind(format!(
             "Booking #{} - {}",
             booking.booking_number,
-            if check_in == today {
+            if check_in == hotel_today {
                 "Guest arriving today"
             } else {
                 "Future reservation"

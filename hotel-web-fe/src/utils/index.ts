@@ -27,6 +27,7 @@ export {
 export type { BookingStats } from './bookingUtils';
 
 export * from './hotelSettings';
+export * from './date';
 export * from './retry';
 export * from './storage';
 export * from './validation';
