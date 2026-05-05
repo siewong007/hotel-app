@@ -839,6 +839,18 @@ const GuestConfigurationPage: React.FC = () => {
                       </Box>
 
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
+                        <Box sx={{ textAlign: 'right', lineHeight: 1.2 }}>
+                          <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: GUEST_DESIGN.ink, fontVariantNumeric: 'tabular-nums' }}>
+                            {(g.bookings_count ?? 0) === 0
+                              ? 'No stays'
+                              : `${g.bookings_count} ${g.bookings_count === 1 ? 'stay' : 'stays'}`}
+                          </Typography>
+                          <Typography sx={{ fontSize: 11.5, color: GUEST_DESIGN.ink3, mt: 0.25 }}>
+                            {g.last_stay_date
+                              ? `Last: ${new Date(g.last_stay_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
+                              : 'Never stayed'}
+                          </Typography>
+                        </Box>
                         <ArrowRightIcon sx={{ fontSize: 16, color: GUEST_DESIGN.green700, opacity: isSelected ? 1 : 0.35 }} />
                       </Box>
                     </Box>
@@ -1033,9 +1045,22 @@ const GuestConfigurationPage: React.FC = () => {
 
                   {/* Stays + perks */}
                   <Box sx={{ p: '16px 20px', borderBottom: `1px solid ${GUEST_DESIGN.rule}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25 }}>
+                    <StatTile
+                      label="Stays"
+                      value={(g.bookings_count ?? 0) === 0 ? '—' : String(g.bookings_count)}
+                      accent={(g.bookings_count ?? 0) > 0 ? 'green' : undefined}
+                      onClick={() => handleViewBookings(g)}
+                    />
+                    <StatTile
+                      label="Last visit"
+                      value={
+                        g.last_stay_date
+                          ? new Date(g.last_stay_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                          : '—'
+                      }
+                      small
+                    />
                     <StatTile label="Discount" value={g.discount_percentage ? `${g.discount_percentage}%` : '—'} accent={g.discount_percentage ? 'gold' : undefined} />
-                    <StatTile label="Tourism" value={g.tourism_type ? TOURISM_TYPE_CONFIG[g.tourism_type].label : '—'} small />
-                    <StatTile label="Stays" value={'View'} accent="green" onClick={() => handleViewBookings(g)} />
                     <StatTile label="Credits" value={'View'} accent="green" onClick={() => handleViewCredits(g)} />
                   </Box>
 

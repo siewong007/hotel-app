@@ -82,13 +82,24 @@ pub async fn get_guests_handler(
         _ => "",
     };
 
+    // Add aggregate columns from bookings: total non-voided stay count and the
+    // most recent check-in date. We count *all* non-voided bookings (including
+    // upcoming ones) so the list reflects "interactions with this guest"
+    // rather than just historical stays — matches what the badges in the
+    // detail panel imply.
     let select_cols = r#"id, full_name, email, phone, ic_number, nationality,
         address_line_1 as address_line1, city, state as state_province,
         postal_code, country, title, alt_phone, true as is_active,
         guest_type, tourism_type,
         COALESCE(discount_percentage, 0) as discount_percentage, company_name,
         COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
-        created_at, updated_at"#;
+        created_at, updated_at,
+        (SELECT COUNT(*) FROM bookings b
+            WHERE b.guest_id = guests.id AND b.status != 'voided') AS bookings_count,
+        (SELECT MAX(b.check_in_date) FROM bookings b
+            WHERE b.guest_id = guests.id
+              AND b.status IN ('checked_in', 'auto_checked_in', 'checked_out', 'completed')
+        ) AS last_stay_date"#;
 
     let (total, guests) = if let Some(q) = search {
         let pattern = format!("%{}%", q.trim());

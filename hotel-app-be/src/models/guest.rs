@@ -47,6 +47,15 @@ pub struct Guest {
     pub complimentary_nights_credit: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Aggregate counters populated by the list endpoint (subqueries against
+    /// the bookings table). These stay `None` for endpoints that don't compute
+    /// them so we don't pay the cost on every per-guest fetch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub bookings_count: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub last_stay_date: Option<chrono::NaiveDate>,
 }
 
 /// Input for creating a guest
