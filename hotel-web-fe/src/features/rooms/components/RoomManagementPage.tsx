@@ -74,6 +74,7 @@ import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, Boo
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useRoomData } from '../hooks/useRoomData';
 import { getHotelSettings } from '../../../utils/hotelSettings';
+import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../utils/date';
 import { isValidEmail } from '../../../utils/validation';
 import {
   getUnifiedStatusColor,
@@ -253,8 +254,8 @@ const RoomManagementPage: React.FC = () => {
   const [availableRoomsForCredits, setAvailableRoomsForCredits] = useState<Room[]>([]);
   const [creditsBookingForm, setCreditsBookingForm] = useState({
     room_id: '',
-    check_in_date: new Date().toISOString().split('T')[0],
-    check_out_date: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    check_in_date: formatLocalDate(),
+    check_out_date: formatLocalDate(addLocalDays(new Date(), 1)),
     adults: 1,
     children: 0,
     special_requests: '',
@@ -489,10 +490,10 @@ const RoomManagementPage: React.FC = () => {
 
       // Generate list of complimentary dates (all dates in the range)
       const complimentaryDates: string[] = [];
-      const start = new Date(complimentaryCheckInDate);
-      const end = new Date(complimentaryCheckOutDate);
+      const start = parseLocalDate(complimentaryCheckInDate);
+      const end = parseLocalDate(complimentaryCheckOutDate);
       for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-        complimentaryDates.push(d.toISOString().split('T')[0]);
+        complimentaryDates.push(formatLocalDate(d));
       }
 
       // Use bookWithCredits API which properly deducts credits - creates a RESERVATION (not check-in)
@@ -599,8 +600,8 @@ const RoomManagementPage: React.FC = () => {
       }
 
       // Create a real booking in the database
-      const today = new Date().toISOString().split('T')[0];
-      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      const today = formatLocalDate();
+      const tomorrow = formatLocalDate(addLocalDays(today, 1));
 
       // Double-check that we have valid data
       if (!selectedRoom || !selectedRoom.id) {
@@ -934,8 +935,8 @@ const RoomManagementPage: React.FC = () => {
       }
 
       // Create a real booking in the database
-      const today = new Date().toISOString().split('T')[0];
-      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+      const today = formatLocalDate();
+      const tomorrow = formatLocalDate(addLocalDays(today, 1));
 
       // Double-check that we have valid data
       if (!selectedRoom || !selectedRoom.id) {
@@ -1338,18 +1339,18 @@ const RoomManagementPage: React.FC = () => {
   };
 
   const getMinCheckInDate = (): string => {
-    return new Date().toISOString().split('T')[0];
+    return formatLocalDate();
   };
 
   const getNextAvailableDate = (fromDate: string): string => {
-    let date = new Date(fromDate);
+    let date = parseLocalDate(fromDate);
     date.setHours(0, 0, 0, 0);
 
     // Find the next available date
-    while (isDateBlocked(date.toISOString().split('T')[0])) {
+    while (isDateBlocked(formatLocalDate(date))) {
       date.setDate(date.getDate() + 1);
     }
-    return date.toISOString().split('T')[0];
+    return formatLocalDate(date);
   };
 
   const validateDateSelection = (): { valid: boolean; message: string } => {
@@ -1366,7 +1367,7 @@ const RoomManagementPage: React.FC = () => {
 
     // Check if any date in the range is blocked
     for (let d = new Date(checkIn); d < checkOut; d.setDate(d.getDate() + 1)) {
-      if (isDateBlocked(d.toISOString().split('T')[0])) {
+      if (isDateBlocked(formatLocalDate(d))) {
         return { valid: false, message: `Date ${d.toLocaleDateString()} is already reserved` };
       }
     }
@@ -1376,10 +1377,10 @@ const RoomManagementPage: React.FC = () => {
 
   const getCreditsBookingDates = (): string[] => {
     const dates: string[] = [];
-    const start = new Date(creditsBookingForm.check_in_date);
-    const end = new Date(creditsBookingForm.check_out_date);
+    const start = parseLocalDate(creditsBookingForm.check_in_date);
+    const end = parseLocalDate(creditsBookingForm.check_out_date);
     for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-      dates.push(d.toISOString().split('T')[0]);
+      dates.push(formatLocalDate(d));
     }
     return dates;
   };

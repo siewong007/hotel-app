@@ -29,6 +29,7 @@ import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useRoomAvailabilityCheck } from '../../../hooks/useRoomAvailabilityCheck';
 import { getHotelSettings } from '../../../utils/hotelSettings';
+import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../utils/date';
 
 interface QuickBookingModalProps {
   open: boolean;
@@ -122,8 +123,8 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
         loadGuests();
       }
       // Set default dates
-      const today = new Date().toISOString().split('T')[0];
-      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const today = formatLocalDate();
+      const tomorrow = formatLocalDate(addLocalDays(today, 1));
       setCheckInDate(today);
       setCheckOutDate(tomorrow);
       // Set default times from props
@@ -365,11 +366,11 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   const getStayDates = (): string[] => {
     if (!checkInDate || !checkOutDate) return [];
     const dates: string[] = [];
-    const start = new Date(checkInDate);
-    const end = new Date(checkOutDate);
+    const start = parseLocalDate(checkInDate);
+    const end = parseLocalDate(checkOutDate);
     const current = new Date(start);
     while (current < end) {
-      dates.push(current.toISOString().split('T')[0]);
+      dates.push(formatLocalDate(current));
       current.setDate(current.getDate() + 1);
     }
     return dates;
