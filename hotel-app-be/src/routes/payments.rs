@@ -22,6 +22,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/payments/record-payment", post(record_payment))
         .route("/payments/all-payments/{booking_id}", get(get_all_payments))
         .route(
+            "/payments/workflow-summary/{booking_id}",
+            get(get_payment_workflow_summary),
+        )
+        .route(
             "/payments/refund-deposit/{booking_id}",
             post(refund_deposit),
         )
@@ -73,6 +77,14 @@ async fn get_all_payments(
     path: Path<i64>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
     handlers::payments::get_all_payments_handler(State(pool), headers, path).await
+}
+
+async fn get_payment_workflow_summary(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::PaymentWorkflowSummary>, ApiError> {
+    handlers::payments::get_payment_workflow_summary_handler(State(pool), headers, path).await
 }
 
 async fn refund_deposit(

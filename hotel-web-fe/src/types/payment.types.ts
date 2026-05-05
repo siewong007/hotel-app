@@ -45,3 +45,18 @@ export interface InvoicePreview {
   payment?: any;
   booking_details: any;
 }
+
+export interface PaymentWorkflowSummary {
+  booking_id: number;
+  booking_status: string;
+  payment_status: string;
+  total_amount: number | string;
+  total_paid: number | string;
+  total_refunded: number | string;
+  balance_due: number | string;
+  deposit_collected: number | string;
+  deposit_refunded: number | string;
+  has_failed_payment: boolean;
+  next_action: string;
+  warnings: string[];
+}

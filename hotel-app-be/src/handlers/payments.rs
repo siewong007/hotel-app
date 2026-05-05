@@ -300,6 +300,129 @@ pub async fn get_all_payments_handler(
     Ok(Json(payments))
 }
 
+/// Get booking-level payment workflow totals and next action.
+pub async fn get_payment_workflow_summary_handler(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Path(booking_id): Path<i64>,
+) -> Result<Json<PaymentWorkflowSummary>, ApiError> {
+    let _user_id = require_auth(&headers).await?;
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let summary_sql = r#"
+        SELECT
+            b.id AS booking_id,
+            b.status AS booking_status,
+            COALESCE(b.payment_status, 'unpaid') AS payment_status,
+            b.total_amount,
+            COALESCE((SELECT SUM(p.amount) FROM payments p
+                WHERE p.booking_id = b.id AND p.status = 'completed'
+                  AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
+            COALESCE((SELECT SUM(p.amount) FROM payments p
+                WHERE p.booking_id = b.id
+                  AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS total_refunded,
+            COALESCE((SELECT SUM(p.amount) FROM payments p
+                WHERE p.booking_id = b.id AND p.status = 'completed'
+                  AND COALESCE(p.payment_type, 'booking') = 'deposit'), 0) AS deposit_collected,
+            COALESCE((SELECT SUM(p.amount) FROM payments p
+                WHERE p.booking_id = b.id
+                  AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS deposit_refunded,
+            EXISTS(SELECT 1 FROM payments p WHERE p.booking_id = b.id AND p.status = 'failed') AS has_failed_payment
+        FROM bookings b
+        WHERE b.id = ?1
+    "#;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let summary_sql = r#"
+        SELECT
+            b.id AS booking_id,
+            b.status AS booking_status,
+            COALESCE(b.payment_status, 'unpaid') AS payment_status,
+            b.total_amount,
+            COALESCE((SELECT SUM(p.amount) FROM payments p
+                WHERE p.booking_id = b.id AND p.status = 'completed'
+                  AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
+            COALESCE((SELECT SUM(p.amount) FROM payments p
+                WHERE p.booking_id = b.id
+                  AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS total_refunded,
+            COALESCE((SELECT SUM(p.amount) FROM payments p
+                WHERE p.booking_id = b.id AND p.status = 'completed'
+                  AND COALESCE(p.payment_type, 'booking') = 'deposit'), 0) AS deposit_collected,
+            COALESCE((SELECT SUM(p.amount) FROM payments p
+                WHERE p.booking_id = b.id
+                  AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS deposit_refunded,
+            EXISTS(SELECT 1 FROM payments p WHERE p.booking_id = b.id AND p.status = 'failed') AS has_failed_payment
+        FROM bookings b
+        WHERE b.id = $1
+    "#;
+
+    let row = sqlx::query(summary_sql)
+        .bind(booking_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+
+    let total_amount = row_mappers::get_decimal(&row, "total_amount");
+    let total_paid = row_mappers::get_decimal(&row, "total_paid");
+    let total_refunded = row_mappers::get_decimal(&row, "total_refunded");
+    let deposit_collected = row_mappers::get_decimal(&row, "deposit_collected");
+    let deposit_refunded = row_mappers::get_decimal(&row, "deposit_refunded");
+    let balance_due = if total_amount > total_paid {
+        total_amount - total_paid
+    } else {
+        Decimal::ZERO
+    };
+    let booking_status: String = row.get("booking_status");
+    let payment_status: String = row.get("payment_status");
+    let has_failed_payment = row_mappers::get_bool(&row, "has_failed_payment");
+
+    let mut warnings = Vec::new();
+    if has_failed_payment {
+        warnings.push("One or more payments failed and need review".to_string());
+    }
+    if balance_due > Decimal::ZERO {
+        warnings.push(format!("Outstanding balance: {}", balance_due));
+    }
+    if deposit_collected > deposit_refunded
+        && matches!(booking_status.as_str(), "checked_out" | "completed")
+    {
+        warnings.push("Collected deposit has not been fully refunded".to_string());
+    }
+    if total_refunded > total_paid {
+        warnings.push("Refund total is greater than collected payments".to_string());
+    }
+
+    let next_action = if booking_status == "voided" {
+        "No payment action - booking is voided".to_string()
+    } else if has_failed_payment {
+        "Review failed payment".to_string()
+    } else if balance_due > Decimal::ZERO {
+        "Collect balance due".to_string()
+    } else if deposit_collected > deposit_refunded
+        && matches!(booking_status.as_str(), "checked_out" | "completed")
+    {
+        "Refund deposit".to_string()
+    } else {
+        "Settled".to_string()
+    };
+
+    Ok(Json(PaymentWorkflowSummary {
+        booking_id,
+        booking_status,
+        payment_status,
+        total_amount,
+        total_paid,
+        total_refunded,
+        balance_due,
+        deposit_collected,
+        deposit_refunded,
+        has_failed_payment,
+        next_action,
+        warnings,
+    }))
+}
+
 /// Refund keycard deposit for a booking
 pub async fn refund_deposit_handler(
     State(pool): State<DbPool>,

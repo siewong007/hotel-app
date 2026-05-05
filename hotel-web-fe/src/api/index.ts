@@ -112,6 +112,7 @@ export class HotelAPIService {
   static preCheckInUpdate = BookingsService.preCheckInUpdate;
   static voidBooking = BookingsService.voidBooking;
   static getBookingById = BookingsService.getBookingById;
+  static getBookingTimeline = BookingsService.getBookingTimeline;
   static getBookingsWithDetails = BookingsService.getBookingsWithDetails;
   static markBookingComplimentary = BookingsService.markBookingComplimentary;
   static convertComplimentaryToCredits = BookingsService.convertComplimentaryToCredits;
@@ -134,6 +135,7 @@ export class HotelAPIService {
   static getInvoicePreview = InvoicesService.getInvoicePreview;
   static generateInvoice = InvoicesService.generateInvoice;
   static getUserInvoices = InvoicesService.getUserInvoices;
+  static getPaymentWorkflowSummary = InvoicesService.getPaymentWorkflowSummary;
 
   // RBAC operations
   static getAllRoles = AdminService.getAllRoles;

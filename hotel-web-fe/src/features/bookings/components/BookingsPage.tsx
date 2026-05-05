@@ -35,6 +35,7 @@ import {
   Pagination,
   Stack,
   Autocomplete,
+  Divider,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -42,6 +43,8 @@ import {
   Hotel as HotelIcon,
   CheckCircle as CheckCircleIcon,
   ExitToApp as CheckOutIcon,
+  ArrowForward as ArrowForwardIcon,
+  ArrowBack as ArrowBackIcon,
   Search as SearchIcon,
   FilterList as FilterIcon,
   Today as TodayIcon,
@@ -53,11 +56,18 @@ import {
   MoneyOff as MoneyOffIcon,
   Login as LoginIcon,
   Restore as RestoreIcon,
+  History as HistoryIcon,
+  Edit as EditIcon,
+  Close as CloseIcon,
+  Bed as BedIcon,
+  MeetingRoom as RoomIcon,
+  Add as AddIcon,
+  DirectionsWalk as WalkInIcon,
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
 import { HotelAPIService } from '../../../api';
 
-import { BookingWithDetails, Room, Guest, RoomType } from '../../../types';
+import { BookingTimelineEntry, BookingWithDetails, PaymentWorkflowSummary, Room, Guest, RoomType } from '../../../types';
 import { getBookingStatusColor, getBookingStatusText, getPaymentStatusColor, getPaymentStatusText } from '../../../utils/bookingUtils';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
@@ -123,6 +133,13 @@ const BookingsPage: React.FC = () => {
   const [ciWaiveReason, setCiWaiveReason] = useState('');
   const [invoiceBooking, setInvoiceBooking] = useState<BookingWithDetails | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [workflowDialogOpen, setWorkflowDialogOpen] = useState(false);
+  const [workflowBooking, setWorkflowBooking] = useState<BookingWithDetails | null>(null);
+  const [workflowSummary, setWorkflowSummary] = useState<PaymentWorkflowSummary | null>(null);
+  const [workflowTimeline, setWorkflowTimeline] = useState<BookingTimelineEntry[]>([]);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
+  const [bookingView, setBookingView] = useState<'all' | 'arriving' | 'in_house' | 'departing' | 'upcoming' | 'balance'>('all');
 
   // Create booking dialog (using UnifiedBookingModal)
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -538,6 +555,85 @@ const BookingsPage: React.FC = () => {
     setShowInvoiceModal(true);
   };
 
+  const handleViewWorkflow = async (booking: BookingWithDetails) => {
+    setWorkflowBooking(booking);
+    setWorkflowDialogOpen(true);
+    setWorkflowLoading(true);
+    setWorkflowSummary(null);
+    setWorkflowTimeline([]);
+
+    try {
+      const [summary, timeline] = await Promise.all([
+        HotelAPIService.getPaymentWorkflowSummary(booking.id),
+        HotelAPIService.getBookingTimeline(booking.id),
+      ]);
+      setWorkflowSummary(summary);
+      setWorkflowTimeline(timeline);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load booking workflow');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  };
+
+  const getWorkflowEventIndicator = (event: BookingTimelineEntry) => {
+    const source = (event.source || '').toLowerCase();
+    const eventType = (event.event_type || '').toLowerCase();
+    const statusTo = (event.status_to || '').toLowerCase();
+    const title = (event.title || '').toLowerCase();
+
+    if (
+      eventType.includes('void') ||
+      eventType.includes('checkout') ||
+      statusTo === 'voided' ||
+      statusTo === 'checked_out' ||
+      statusTo === 'completed' ||
+      title.includes('void') ||
+      title.includes('checked out')
+    ) {
+      return {
+        label: statusTo === 'voided' || eventType.includes('void') || title.includes('void') ? 'Void' : 'Checkout',
+        color: '#d32f2f',
+        backgroundColor: 'rgba(211, 47, 47, 0.12)',
+        borderColor: 'rgba(211, 47, 47, 0.35)',
+        icon: eventType.includes('void') || statusTo === 'voided' ? <VoidIcon fontSize="small" /> : <CheckOutIcon fontSize="small" />,
+      };
+    }
+
+    if (
+      eventType.includes('check_in') ||
+      eventType.includes('check-in') ||
+      statusTo === 'checked_in' ||
+      title.includes('checked in')
+    ) {
+      return {
+        label: 'Check-in',
+        color: '#ed6c02',
+        backgroundColor: 'rgba(237, 108, 2, 0.12)',
+        borderColor: 'rgba(237, 108, 2, 0.35)',
+        icon: <LoginIcon fontSize="small" />,
+      };
+    }
+
+    if (source === 'payments') {
+      return {
+        label: 'Payment',
+        color: '#2e7d32',
+        backgroundColor: 'rgba(46, 125, 50, 0.12)',
+        borderColor: 'rgba(46, 125, 50, 0.35)',
+        icon: <PaymentIcon fontSize="small" />,
+      };
+    }
+
+    return {
+      label: 'Update',
+      color: '#1976d2',
+      backgroundColor: 'rgba(25, 118, 210, 0.12)',
+      borderColor: 'rgba(25, 118, 210, 0.35)',
+      icon: <EditIcon fontSize="small" />,
+    };
+  };
+
   // Check-out functions
   const handleCheckOut = (booking: BookingWithDetails) => {
     setCheckoutBooking(booking);
@@ -606,6 +702,127 @@ const BookingsPage: React.FC = () => {
     availableRooms: rooms.filter(r => r.available).length,
   }), [statsData, rooms]);
 
+  const todayIso = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  const getDateOnly = (value?: string) => (value || '').split('T')[0];
+
+  const getNights = (booking: BookingWithDetails | null) => {
+    if (!booking?.check_in_date || !booking?.check_out_date) return 0;
+    const checkIn = new Date(booking.check_in_date);
+    const checkOut = new Date(booking.check_out_date);
+    return Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+  };
+
+  const formatShortDate = (value?: string) => {
+    if (!value) return '-';
+    return new Date(value).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  const formatOperationalDate = () => {
+    return new Date().toLocaleDateString(undefined, {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).toUpperCase();
+  };
+
+  const getGuestInitials = (name?: string) => {
+    if (!name) return 'G';
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  };
+
+  const getBookingBalance = (booking: BookingWithDetails | null) => Number(booking?.balance_due ?? 0);
+  const getBookingTotal = (booking: BookingWithDetails | null) => Number(booking?.total_amount ?? 0);
+
+  const dueBookings = useMemo(
+    () => bookings.filter((booking) => getBookingBalance(booking) > 0),
+    [bookings]
+  );
+  const arrivingBookings = useMemo(
+    () => bookings.filter((booking) => getDateOnly(booking.check_in_date) === todayIso && !['checked_in', 'checked_out', 'completed', 'voided'].includes(booking.status)),
+    [bookings, todayIso]
+  );
+  const departingBookings = useMemo(
+    () => bookings.filter((booking) => getDateOnly(booking.check_out_date) === todayIso && !['checked_out', 'completed', 'voided'].includes(booking.status)),
+    [bookings, todayIso]
+  );
+  const inHouseBookings = useMemo(
+    () => bookings.filter((booking) => booking.status === 'checked_in'),
+    [bookings]
+  );
+  const visibleBookings = useMemo(() => {
+    if (bookingView === 'arriving') return arrivingBookings;
+    if (bookingView === 'in_house') return inHouseBookings;
+    if (bookingView === 'departing') return departingBookings;
+    if (bookingView === 'upcoming') {
+      return bookings.filter((booking) =>
+        ['pending', 'confirmed'].includes(booking.status) &&
+        getDateOnly(booking.check_in_date) > todayIso
+      );
+    }
+    if (bookingView === 'balance') return dueBookings;
+    return filteredAndSortedBookings;
+  }, [arrivingBookings, bookingView, bookings, departingBookings, dueBookings, filteredAndSortedBookings, inHouseBookings, todayIso]);
+
+  const selectedBooking = useMemo(() => {
+    if (selectedBookingId == null) return visibleBookings[0] || null;
+    return visibleBookings.find((booking) => String(booking.id) === String(selectedBookingId)) || visibleBookings[0] || null;
+  }, [selectedBookingId, visibleBookings]);
+
+  useEffect(() => {
+    if (visibleBookings.length === 0) {
+      setSelectedBookingId(null);
+      return;
+    }
+    if (!selectedBookingId || !visibleBookings.some((booking) => String(booking.id) === String(selectedBookingId))) {
+      setSelectedBookingId(visibleBookings[0].id);
+    }
+  }, [selectedBookingId, visibleBookings]);
+
+  const totalGuestsInHouse = inHouseBookings.reduce((sum, booking) => sum + Number((booking as any).adults || 1) + Number((booking as any).children || 0), 0);
+  const roomCount = rooms.length || 0;
+  const occupancyPercent = roomCount > 0 ? Math.round((inHouseBookings.length / roomCount) * 100) : 0;
+  const outstandingDue = dueBookings.reduce((sum, booking) => sum + getBookingBalance(booking), 0);
+
+  const selectBookingView = (view: typeof bookingView) => {
+    setBookingView(view);
+    setCurrentPage(1);
+    if (view === 'all') {
+      clearFilters();
+    } else if (view === 'arriving') {
+      setDateFilter('today');
+      setStatusFilter('all');
+      setSearchDate('');
+    } else if (view === 'in_house') {
+      setStatusFilter('checked_in');
+      setDateFilter('all');
+      setSearchDate('');
+    } else if (view === 'departing') {
+      setStatusFilter('checked_in');
+      setDateFilter('date_search');
+      setSearchDate(todayIso);
+    } else if (view === 'upcoming') {
+      setStatusFilter('confirmed');
+      setDateFilter('month');
+      setSearchDate('');
+    } else if (view === 'balance') {
+      setStatusFilter('all');
+      setDateFilter('all');
+      setSearchDate('');
+    }
+  };
+
+  const statusDotColor = (status?: string) => {
+    if (status === 'checked_in') return '#2f64b3';
+    if (status === 'pending') return '#c47b1e';
+    if (status === 'voided') return '#c43d32';
+    if (status === 'checked_out' || status === 'completed') return '#6b7280';
+    return '#3d8f6b';
+  };
+
   if (loading) {
     return (
       <MuiBox sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
@@ -615,30 +832,35 @@ const BookingsPage: React.FC = () => {
   }
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+    <Box sx={{ pb: 4 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, gap: 2, mb: 3, flexDirection: { xs: 'column', md: 'row' } }}>
         <Box>
-          <Typography variant="h5" sx={{ fontWeight: 600, color: '#103931' }}>Booking Management</Typography>
+          <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900, letterSpacing: 2 }}>
+            Front Desk · {formatOperationalDate()}
+          </Typography>
+          <Typography variant="h4" sx={{ fontWeight: 900, color: 'text.primary', lineHeight: 1.05 }}>
+            Bookings
+          </Typography>
         </Box>
-        <Box display="flex" gap={2}>
+        <Stack direction="row" spacing={1}>
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
             onClick={loadData}
-            sx={{ borderRadius: 2, textTransform: 'none', boxShadow: 'none' }}
+            sx={{ minHeight: 44 }}
           >
             Refresh
           </Button>
           <Button
             variant="contained"
-            startIcon={<BookIcon />}
+            startIcon={<AddIcon />}
             onClick={() => setCreateDialogOpen(true)}
             disabled={rooms.length === 0}
-            sx={{ borderRadius: 2, bgcolor: '#009688', textTransform: 'none', boxShadow: 'none', '&:hover': { bgcolor: '#00796b' } }}
+            sx={{ minHeight: 44, px: 2.5, bgcolor: '#2f6f52', '&:hover': { bgcolor: '#255a42' } }}
           >
-            New Booking
+            New booking
           </Button>
-        </Box>
+        </Stack>
       </Box>
 
       {error && (
@@ -655,443 +877,544 @@ const BookingsPage: React.FC = () => {
         </Alert>
       )}
 
-      {/* Statistics Cards */}
-      <Grid container spacing={2} mb={3}>
+      <Grid container spacing={2} mb={2.5}>
         {[
-          { title: 'Total Bookings', value: stats.total, color: '#009688', icon: <BookIcon sx={{ fontSize: 18, color: '#103931' }} /> },
-          { title: 'Checked In', value: stats.checkedIn, color: '#4caf50', icon: <CheckCircleIcon sx={{ fontSize: 18, color: '#103931' }} /> },
-          { title: "Today's Check-ins", value: stats.todayCheckIns, color: '#ff9800', icon: <TodayIcon sx={{ fontSize: 18, color: '#103931' }} /> },
-          { title: 'Available Rooms', value: stats.availableRooms, color: '#00bcd4', icon: <HotelIcon sx={{ fontSize: 18, color: '#103931' }} /> },
+          { title: 'Arriving today', value: arrivingBookings.length, detail: `${stats.todayCheckIns} expected`, subValue: departingBookings.length || stats.todayCheckIns || 1, color: '#2f6f52', icon: <ArrowForwardIcon fontSize="small" />, view: 'arriving' as const },
+          { title: 'In-house guests', value: totalGuestsInHouse, detail: `across ${inHouseBookings.length} rooms`, subValue: Math.max(totalGuestsInHouse, roomCount || 1), color: '#2f64b3', icon: <BedIcon fontSize="small" />, view: 'in_house' as const },
+          { title: 'Departing today', value: departingBookings.length, detail: `${departingBookings.filter((booking) => booking.status === 'checked_in').length} still in room`, subValue: departingBookings.length || 1, color: '#c47b1e', icon: <ArrowBackIcon fontSize="small" />, view: 'departing' as const },
+          { title: 'Occupancy', value: `${occupancyPercent}%`, detail: `${inHouseBookings.length} of ${roomCount || 0} rooms`, color: '#7c56c2', icon: <HotelIcon fontSize="small" />, view: 'in_house' as const },
+          { title: 'Outstanding due', value: formatCurrency(outstandingDue), detail: `${dueBookings.length} bookings`, color: '#c43d32', icon: <PaymentIcon fontSize="small" />, view: 'balance' as const, alert: true },
         ].map((stat, idx) => (
-          <Grid size={{ xs: 6, sm: 3 }} key={idx}>
-            <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid #edf2f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-              <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  {stat.icon}
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#103931' }}>{stat.title}</Typography>
+          <Grid size={{ xs: 12, sm: 6, md: stat.alert ? 4 : 2 }} key={stat.title}>
+            <Card
+              elevation={0}
+              onClick={() => selectBookingView(stat.view)}
+              sx={{
+                height: '100%',
+                cursor: 'pointer',
+                borderLeft: stat.alert ? `4px solid ${stat.color}` : '1px solid',
+                borderColor: stat.alert ? stat.color : 'divider',
+                bgcolor: bookingView === stat.view ? alpha(stat.color, 0.08) : 'background.paper',
+              }}
+            >
+              <CardContent sx={{ p: 2.25, '&:last-child': { pb: 2.25 } }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 800, color: 'text.secondary' }}>{stat.title}</Typography>
+                  <Box sx={{ width: 34, height: 34, borderRadius: 2, bgcolor: alpha(stat.color, 0.12), color: stat.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {stat.icon}
+                  </Box>
                 </Box>
-                <Typography variant="h5" sx={{ fontWeight: 600, color: stat.color }}>{stat.value}</Typography>
+                <Typography variant="h4" sx={{ fontWeight: 900, color: 'text.primary', lineHeight: 1 }}>
+                  {stat.value}
+                  {'subValue' in stat && typeof stat.value === 'number' && (
+                    <Typography component="span" variant="h6" color="text.secondary">/{stat.subValue}</Typography>
+                  )}
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>{stat.detail}</Typography>
               </CardContent>
             </Card>
           </Grid>
         ))}
       </Grid>
 
-      {/* Filters and Search */}
-      <Card elevation={0} sx={{ mb: 3, borderRadius: 2, border: '1px solid #edf2f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-
-        <Grid container spacing={2}>
-          {/* Search */}
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Search guest, invoice, folio, ledger..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
+      <Grid container spacing={2} mb={2.5}>
+        {[
+          { title: 'Check in guest', detail: `${arrivingBookings.length} arrival pending`, color: '#2f6f52', icon: <ArrowForwardIcon />, action: () => selectBookingView('arriving'), primary: true },
+          { title: 'Check out', detail: `${departingBookings.length} due today`, color: '#c47b1e', icon: <ArrowBackIcon />, action: () => selectBookingView('departing') },
+          { title: 'Take payment', detail: `${dueBookings.length} with balance`, color: '#c43d32', icon: <PaymentIcon />, action: () => selectBookingView('balance') },
+          { title: 'Walk-in booking', detail: `${stats.availableRooms} rooms free`, color: '#7c56c2', icon: <WalkInIcon />, action: () => setCreateDialogOpen(true) },
+        ].map((action) => (
+          <Grid size={{ xs: 12, md: 3 }} key={action.title}>
+            <Card
+              elevation={0}
+              onClick={action.action}
+              // Use `&.MuiCard-root` to match the specificity of the global
+              // `.hotel-board-skin .MuiCard-root` theme rule; without this the
+              // primary background gets overridden back to plain paper white.
+              sx={{
+                cursor: 'pointer',
+                color: action.primary ? 'white' : 'text.primary',
+                '&.MuiCard-root': {
+                  bgcolor: action.primary ? action.color : 'background.paper',
+                  borderColor: action.primary ? action.color : 'divider',
+                },
               }}
-            />
+            >
+              <CardContent sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, '&:last-child': { pb: 2 } }}>
+                <Box sx={{ width: 42, height: 42, borderRadius: 2, bgcolor: action.primary ? 'rgba(255,255,255,0.18)' : alpha(action.color, 0.12), color: action.primary ? 'white' : action.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {action.icon}
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.1, color: 'inherit' }}>{action.title}</Typography>
+                  <Typography variant="body2" sx={{ color: action.primary ? 'rgba(255,255,255,0.85)' : 'text.secondary' }}>{action.detail}</Typography>
+                </Box>
+                <ArrowForwardIcon sx={{ color: action.primary ? 'white' : 'text.secondary' }} />
+              </CardContent>
+            </Card>
           </Grid>
+        ))}
+      </Grid>
 
-          {/* Room Number Filter — autocomplete from active rooms */}
-          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <Autocomplete
-              freeSolo
-              size="small"
-              options={[...rooms]
-                .filter(r => r.available !== false)
-                .sort((a, b) => {
-                  const na = parseInt(a.room_number, 10);
-                  const nb = parseInt(b.room_number, 10);
-                  if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
-                  return a.room_number.localeCompare(b.room_number);
-                })}
-              getOptionLabel={(opt) => typeof opt === 'string' ? opt : `Room ${opt.room_number}`}
-              isOptionEqualToValue={(opt, val) =>
-                (typeof opt === 'string' ? opt : opt.room_number) ===
-                (typeof val === 'string' ? val : val.room_number)
-              }
-              value={rooms.find(r => r.room_number === roomNumberFilter) || roomNumberFilter}
-              onChange={(_, newVal) => {
-                if (typeof newVal === 'string') {
-                  setRoomNumberFilter(newVal.replace(/^Room\s+/i, ''));
-                } else {
-                  setRoomNumberFilter(newVal?.room_number ?? '');
-                }
-              }}
-              onInputChange={(_, newInput) =>
-                setRoomNumberFilter(newInput.replace(/^Room\s+/i, ''))
-              }
-              renderOption={(props, option) => {
-                const { key, ...rest } = props as React.HTMLAttributes<HTMLLIElement> & { key?: React.Key };
-                if (typeof option === 'string') {
-                  return (
-                    <Box component="li" key={key as React.Key} {...rest}>
-                      <Typography variant="body2">{option}</Typography>
-                    </Box>
-                  );
-                }
-                return (
-                  <Box component="li" key={key as React.Key} {...rest} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start !important', py: 0.75 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      Room {option.room_number}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {option.room_type}
-                    </Typography>
-                  </Box>
-                );
-              }}
-              renderInput={(params) => (
+      <Grid container spacing={2.5} alignItems="stretch">
+        <Grid size={{ xs: 12, lg: 8 }}>
+          <Card elevation={0} sx={{ overflow: 'hidden', height: '100%' }}>
+            <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 220px' }, gap: 1.25 }}>
                 <TextField
-                  {...params}
-                  placeholder="Room number..."
+                  fullWidth
+                  size="medium"
+                  placeholder="Search guest, invoice, or room number..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   InputProps={{
-                    ...params.InputProps,
                     startAdornment: (
-                      <>
-                        <InputAdornment position="start" sx={{ ml: 0.5 }}>
-                          <SearchIcon />
-                        </InputAdornment>
-                        {params.InputProps.startAdornment}
-                      </>
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
                     ),
                   }}
                 />
-              )}
-            />
-          </Grid>
-
-          {/* Date Search */}
-          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Search Date"
-              type="date"
-              value={searchDate}
-              onChange={(e) => {
-                setSearchDate(e.target.value);
-                setDateFilter(e.target.value ? 'date_search' : 'all');
-                setCurrentPage(1);
-              }}
-              InputLabelProps={{ shrink: true }}
-            />
-          </Grid>
-
-          {/* Status Filter */}
-          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={statusFilter}
-                label="Status"
-                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
-              >
-                <MenuItem value="all">All Status</MenuItem>
-                <MenuItem value="pending">Pending</MenuItem>
-                <MenuItem value="confirmed">Confirmed</MenuItem>
-                <MenuItem value="checked_in">Checked In</MenuItem>
-                <MenuItem value="checked_out">Checked Out</MenuItem>
-                <MenuItem value="voided">Voided</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-
-          {/* Date Filter Buttons */}
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <ToggleButtonGroup
-              value={dateFilter === 'date_search' ? null : dateFilter}
-              exclusive
-              onChange={(e, newValue) => {
-                if (newValue) {
-                  setDateFilter(newValue);
-                  setSearchDate('');
-                  setCurrentPage(1);
-                }
-              }}
-              size="small"
-              fullWidth
-            >
-              <ToggleButton value="all">All</ToggleButton>
-              <ToggleButton value="today">Today</ToggleButton>
-              <ToggleButton value="week">Week</ToggleButton>
-              <ToggleButton value="month">Month</ToggleButton>
-              <ToggleButton value="custom">Custom</ToggleButton>
-            </ToggleButtonGroup>
-          </Grid>
-
-          {/* Clear Filters */}
-          <Grid size={{ xs: 12, md: 2 }}>
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<ClearIcon />}
-              onClick={clearFilters}
-              size="small"
-            >
-              Clear Filters
-            </Button>
-          </Grid>
-
-          {/* Custom Date Range */}
-          {dateFilter === 'custom' && (
-            <>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <TextField
                   fullWidth
-                  size="small"
-                  label="Start Date"
+                  size="medium"
+                  label="Search date"
                   type="date"
-                  value={customStartDate}
-                  onChange={(e) => setCustomStartDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="End Date"
-                  type="date"
-                  value={customEndDate}
-                  onChange={(e) => setCustomEndDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-            </>
-          )}
-        </Grid>
-
-        {/* Active Filters Info */}
-        <Box mt={2} display="flex" gap={1} flexWrap="wrap">
-          {searchQuery && (
-            <Chip
-              size="small"
-              label={`Search: ${searchQuery}`}
-              onDelete={() => setSearchQuery('')}
-            />
-          )}
-          {statusFilter !== 'all' && (
-            <Chip
-              size="small"
-              label={`Status: ${statusFilter}`}
-              onDelete={() => setStatusFilter('all')}
-            />
-          )}
-          {dateFilter !== 'all' && (
-            <Chip
-              size="small"
-              label={`Date: ${dateFilter}`}
-              onDelete={() => setDateFilter('all')}
-            />
-          )}
-          {filteredAndSortedBookings.length !== bookings.length && (
-            <Typography variant="body2" color="text.secondary" sx={{ ml: 'auto', alignSelf: 'center' }}>
-              Showing {filteredAndSortedBookings.length} of {bookings.length} bookings
-            </Typography>
-          )}
-        </Box>
-        </CardContent>
-      </Card>
-
-      {/* Bookings Table */}
-      <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid #edf2f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
-        <TableContainer sx={{ overflowX: 'hidden' }}>
-          <Table size="small" sx={{ width: '100%' }}>
-            <TableHead>
-              <TableRow sx={{ bgcolor: '#fbfcfc' }}>
-                <TableCell>
-                  <TableSortLabel active={sortField === 'invoice_number'} direction={sortField === 'invoice_number' ? sortOrder : 'asc'} onClick={() => handleSort('invoice_number')}>
-                    Invoice #
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>
-                  <TableSortLabel active={sortField === 'guest_name'} direction={sortField === 'guest_name' ? sortOrder : 'asc'} onClick={() => handleSort('guest_name')}>
-                    Guest
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>
-                  <TableSortLabel active={sortField === 'room_number'} direction={sortField === 'room_number' ? sortOrder : 'asc'} onClick={() => handleSort('room_number')}>
-                    Room
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>
-                  <TableSortLabel active={sortField === 'check_in_date'} direction={sortField === 'check_in_date' ? sortOrder : 'asc'} onClick={() => handleSort('check_in_date')}>
-                    Check-in
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>
-                  <TableSortLabel active={sortField === 'check_out_date'} direction={sortField === 'check_out_date' ? sortOrder : 'asc'} onClick={() => handleSort('check_out_date')}>
-                    Check-out
-                  </TableSortLabel>
-                </TableCell>
-                <TableCell>Rate</TableCell>
-                <TableCell>Channel</TableCell>
-                <TableCell>Payment</TableCell>
-                <TableCell>
-                  <TableSortLabel active={sortField === 'status'} direction={sortField === 'status' ? sortOrder : 'asc'} onClick={() => handleSort('status')}>
-                    Status
-                  </TableSortLabel>
-                </TableCell>
-                {isAdmin && <TableCell align="center"><strong>Actions</strong></TableCell>}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredAndSortedBookings.map((booking) => (
-                <TableRow
-                  key={booking.id}
-                  hover
-                  onClick={isAdmin ? () => handleEditBooking(booking) : undefined}
-                  sx={{
-                    cursor: isAdmin ? 'pointer' : 'default',
-                    opacity: booking.status === 'voided' ? 0.55 : 1,
-                    bgcolor: booking.status === 'voided' ? 'grey.50' : 'inherit',
-                    '& td': {
-                      textDecoration: booking.status === 'voided' ? 'line-through' : 'none',
-                    }
+                  value={searchDate}
+                  onChange={(e) => {
+                    setSearchDate(e.target.value);
+                    setDateFilter(e.target.value ? 'date_search' : 'all');
+                    setBookingView('all');
+                    setCurrentPage(1);
                   }}
-                >
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                      {booking.invoice_number || '-'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{booking.guest_name}</Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2">{booking.room_type}</Typography>
-                    <Typography variant="caption" color="text.secondary">Rm {booking.room_number}</Typography>
-                  </TableCell>
-                  <TableCell>{booking.formatted_check_in || booking.check_in_date.split('T')[0]}</TableCell>
-                  <TableCell>
-                    {(() => {
-                      const scheduledCheckout = booking.formatted_check_out || booking.check_out_date.split('T')[0];
-                      const actualCheckout = booking.actual_check_out ? booking.actual_check_out.split('T')[0] : null;
-                      const isEarlyCheckout = actualCheckout && actualCheckout < booking.check_out_date.split('T')[0];
-                      if (isEarlyCheckout) {
-                        return (
-                          <Tooltip title={`Originally scheduled: ${scheduledCheckout}`}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Typography variant="body2">{actualCheckout}</Typography>
-                              <Chip label="Early" size="small" color="info" sx={{ height: 16, fontSize: '0.6rem' }} />
-                            </Box>
-                          </Tooltip>
-                        );
-                      }
-                      return scheduledCheckout;
-                    })()}
-                  </TableCell>
-                  <TableCell>{formatCurrency(Number(booking.price_per_night) || 0)}</TableCell>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
-                      {booking.source?.replace(/_/g, ' ') || '-'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
-                      <Chip
-                        label={getPaymentStatusText(booking.payment_status)}
-                        color={getPaymentStatusColor(booking.payment_status)}
-                        size="small"
-                        variant="outlined"
-                        sx={{ height: 18, fontSize: '0.65rem' }}
-                      />
-                      {booking.payment_method && (
-                        <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'capitalize' }}>
-                          {booking.payment_method.replace(/_/g, ' ')}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Box>
+              <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1.5 }}>
+                {[
+                  { key: 'all', label: 'All', count: totalBookings || bookings.length },
+                  { key: 'arriving', label: 'Arriving', count: arrivingBookings.length },
+                  { key: 'in_house', label: 'In House', count: inHouseBookings.length },
+                  { key: 'upcoming', label: 'Upcoming', count: bookings.filter((booking) => ['pending', 'confirmed'].includes(booking.status) && getDateOnly(booking.check_in_date) > todayIso).length },
+                  { key: 'balance', label: 'With Balance', count: dueBookings.length },
+                ].map((filter) => (
+                  <Chip
+                    key={filter.key}
+                    label={`${filter.label}  ${filter.count}`}
+                    onClick={() => selectBookingView(filter.key as typeof bookingView)}
+                    sx={{
+                      height: 34,
+                      px: 0.5,
+                      fontWeight: 900,
+                      bgcolor: bookingView === filter.key ? 'text.primary' : 'background.paper',
+                      color: bookingView === filter.key ? 'background.paper' : 'text.primary',
+                    }}
+                  />
+                ))}
+                {(searchQuery || roomNumberFilter || statusFilter !== 'all' || dateFilter !== 'all') && (
+                  <Chip
+                    icon={<ClearIcon />}
+                    label="Clear"
+                    variant="outlined"
+                    onClick={() => {
+                      setBookingView('all');
+                      clearFilters();
+                    }}
+                    sx={{ height: 34, fontWeight: 800 }}
+                  />
+                )}
+                {searchDate && (
+                  <Chip
+                    label={`Date ${formatShortDate(searchDate)}`}
+                    onDelete={() => {
+                      setSearchDate('');
+                      setDateFilter('all');
+                      setCurrentPage(1);
+                    }}
+                    sx={{ height: 34, fontWeight: 800 }}
+                  />
+                )}
+              </Stack>
+            </Box>
+
+            <Box sx={{ px: 2, py: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 800 }}>
+                {visibleBookings.length} bookings
+              </Typography>
+              <Button size="small" endIcon={<FilterIcon />} onClick={() => handleSort(sortField === 'check_in_date' ? 'guest_name' : 'check_in_date')} sx={{ color: 'text.primary' }}>
+                Sort: {sortField === 'guest_name' ? 'Guest' : 'Priority'}
+              </Button>
+            </Box>
+
+            {visibleBookings.length === 0 && !loading ? (
+              <Box textAlign="center" py={6}>
+                <Typography variant="h6" color="text.secondary">
+                  {totalBookings === 0 ? 'No bookings yet' : 'No bookings match your filters'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  {totalBookings === 0 ? 'Create your first booking using the New booking button above' : 'Try adjusting your search or filter criteria'}
+                </Typography>
+              </Box>
+            ) : (
+              <Stack divider={<Divider />} sx={{ maxHeight: { lg: 'calc(100vh - 430px)' }, minHeight: 420, overflow: 'auto' }}>
+                {visibleBookings.map((booking) => {
+                  const isSelected = selectedBooking && String(selectedBooking.id) === String(booking.id);
+                  const balance = getBookingBalance(booking);
+                  const isPaid = balance <= 0 && ['paid', 'paid_rate'].includes(String(booking.payment_status || '').toLowerCase());
+
+                  return (
+                    <Box
+                      key={booking.id}
+                      onClick={() => setSelectedBookingId(booking.id)}
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: '44px 1fr', md: '54px 1fr auto auto' },
+                        gap: 1.75,
+                        alignItems: 'center',
+                        px: 2,
+                        py: 1.75,
+                        cursor: 'pointer',
+                        bgcolor: isSelected ? alpha('#2f6f52', 0.1) : 'background.paper',
+                        borderLeft: isSelected ? '4px solid #2f6f52' : '4px solid transparent',
+                        opacity: booking.status === 'voided' ? 0.55 : 1,
+                      }}
+                    >
+                      <Box sx={{ width: 46, height: 46, borderRadius: '50%', bgcolor: alpha('#2f6f52', 0.12), color: '#245a42', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>
+                        {getGuestInitials(booking.guest_name)}
+                      </Box>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.15 }}>{booking.guest_name}</Typography>
+                          {booking.guest_type && <Chip size="small" label={booking.guest_type.replace(/_/g, ' ').slice(0, 8)} sx={{ height: 22, fontWeight: 800 }} />}
+                          <Typography variant="body2" sx={{ color: statusDotColor(booking.status), fontWeight: 800 }}>
+                            • {getBookingStatusText(booking.status)}
+                          </Typography>
+                        </Stack>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
+                          <BedIcon sx={{ fontSize: 16, verticalAlign: 'text-bottom', mr: 0.5 }} />
+                          Rm {booking.room_number || '-'} · {booking.room_type || 'Room'} · {formatShortDate(booking.check_in_date)} {'->'} {formatShortDate(booking.check_out_date)} · {getNights(booking)}N
                         </Typography>
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={getBookingStatusText(booking.status)}
-                      color={getBookingStatusColor(booking.status)}
-                      size="small"
-                      sx={{ height: 20, fontSize: '0.68rem' }}
-                    />
-                  </TableCell>
-                  {isAdmin && (
-                    <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-                        {!booking.is_complimentary && (
-                          <Tooltip title="Collect Payment">
-                            <IconButton size="small" onClick={() => handleUpdatePaymentStatus(booking)} color="success">
-                              <PaymentIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        {['checked_out', 'completed'].includes(booking.status) && (
-                          <Tooltip title="View Invoice">
-                            <IconButton size="small" onClick={() => handleViewInvoice(booking)} color="primary">
-                              <ReceiptIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        {canVoid(booking) && (
-                          <Tooltip title="Void Booking">
-                            <IconButton size="small" onClick={() => handleVoidBooking(booking)} sx={{ color: 'text.secondary' }}>
-                              <VoidIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        {canReactivate(booking) && (
-                          <Tooltip title="Reactivate">
-                            <IconButton size="small" onClick={() => handleReactivateBooking(booking)} color="success">
-                              <RestoreIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
+                      </Box>
+                      <Box sx={{ textAlign: { xs: 'left', md: 'right' }, gridColumn: { xs: '2 / span 1', md: 'auto' } }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatCurrency(getBookingTotal(booking))}</Typography>
+                        {balance > 0 ? (
+                          <Typography variant="body2" color="error.main" sx={{ fontWeight: 800 }}>Due {formatCurrency(balance)}</Typography>
+                        ) : (
+                          <Typography variant="body2" color="success.main" sx={{ fontWeight: 800 }}>✓ {isPaid ? 'Paid' : getPaymentStatusText(booking.payment_status)}</Typography>
                         )}
                       </Box>
-                    </TableCell>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace', textAlign: { xs: 'left', md: 'right' }, gridColumn: { xs: '2 / span 1', md: 'auto' } }}>
+                        {booking.invoice_number || booking.folio_number || `#${booking.id}`}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Stack>
+            )}
+
+            {totalBookings > PAGE_SIZE && (
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2, py: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Showing {((currentPage - 1) * PAGE_SIZE) + 1}-{Math.min(currentPage * PAGE_SIZE, totalBookings)} of {totalBookings}
+                </Typography>
+                <Pagination
+                  count={Math.ceil(totalBookings / PAGE_SIZE)}
+                  page={currentPage}
+                  onChange={(_, page) => setCurrentPage(page)}
+                  color="primary"
+                  size="small"
+                  showFirstButton
+                  showLastButton
+                />
+              </Stack>
+            )}
+          </Card>
+        </Grid>
+
+        <Grid size={{ xs: 12, lg: 4 }}>
+          <Card elevation={0} sx={{ height: '100%', minHeight: 520, overflow: 'hidden' }}>
+            {selectedBooking ? (
+              <>
+                <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                    <Chip
+                      size="small"
+                      label={getBookingStatusText(selectedBooking.status)}
+                      sx={{ bgcolor: alpha(statusDotColor(selectedBooking.status), 0.12), color: statusDotColor(selectedBooking.status), fontWeight: 900 }}
+                    />
+                    <IconButton size="small" onClick={() => setSelectedBookingId(null)}>
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
+                  <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 3 }}>
+                    <Box sx={{ width: 58, height: 58, borderRadius: '50%', bgcolor: alpha('#2f6f52', 0.14), color: '#245a42', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.1rem' }}>
+                      {getGuestInitials(selectedBooking.guest_name)}
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.1 }}>{selectedBooking.guest_name}</Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                        {selectedBooking.invoice_number || selectedBooking.folio_number || selectedBooking.booking_number || `#${selectedBooking.id}`}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Box>
+
+                <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Stay</Typography>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 2, alignItems: 'center', mt: 1 }}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Check-in</Typography>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatShortDate(selectedBooking.check_in_date)}</Typography>
+                    </Box>
+                    <Box sx={{ textAlign: 'center', color: 'text.secondary' }}>
+                      <Typography variant="body2" sx={{ fontWeight: 900 }}>{getNights(selectedBooking)}N</Typography>
+                      <ArrowForwardIcon fontSize="small" />
+                    </Box>
+                    <Box sx={{ textAlign: 'right' }}>
+                      <Typography variant="caption" color="text.secondary">Check-out</Typography>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatShortDate(selectedBooking.check_out_date)}</Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ mt: 2, p: 1.5, borderRadius: 2, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Box sx={{ width: 38, height: 38, borderRadius: 1.5, bgcolor: 'background.paper', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <RoomIcon fontSize="small" />
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>{selectedBooking.room_type || 'Room'}</Typography>
+                      <Typography variant="body2" color="text.secondary">Room {selectedBooking.room_number || '-'}</Typography>
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                  <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Charges</Typography>
+                  <Stack spacing={1.2} sx={{ mt: 1 }}>
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography color="text.secondary">Room · {getNights(selectedBooking)} x {formatCurrency(Number(selectedBooking.price_per_night || 0))}</Typography>
+                      <Typography sx={{ fontWeight: 800 }}>{formatCurrency(getBookingTotal(selectedBooking))}</Typography>
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography color="text.secondary">Tax & fees</Typography>
+                      <Typography color="text.secondary">Included</Typography>
+                    </Stack>
+                    <Divider />
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="subtitle1">Total</Typography>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatCurrency(getBookingTotal(selectedBooking))}</Typography>
+                    </Stack>
+                    <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: getBookingBalance(selectedBooking) > 0 ? alpha('#c43d32', 0.08) : alpha('#2f6f52', 0.1), color: getBookingBalance(selectedBooking) > 0 ? '#c43d32' : '#2f6f52', fontWeight: 900 }}>
+                      {getBookingBalance(selectedBooking) > 0
+                        ? `Due ${formatCurrency(getBookingBalance(selectedBooking))}`
+                        : `✓ Fully paid${selectedBooking.payment_method ? ` via ${selectedBooking.payment_method.replace(/_/g, ' ')}` : ''}`}
+                    </Box>
+                  </Stack>
+                </Box>
+
+                <Box sx={{ p: 2.5 }}>
+                  <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Actions</Typography>
+                  <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
+                    {canCheckIn(selectedBooking) && (
+                      <Button variant="contained" color="success" startIcon={<LoginIcon />} onClick={() => handleCheckIn(String(selectedBooking.id))}>Check in</Button>
+                    )}
+                    {canCheckOut(selectedBooking) && (
+                      <Button variant="contained" color="warning" startIcon={<CheckOutIcon />} onClick={() => handleCheckOut(selectedBooking)}>Check out</Button>
+                    )}
+                    {!selectedBooking.is_complimentary && (
+                      <Button variant="outlined" color="success" startIcon={<PaymentIcon />} onClick={() => handleUpdatePaymentStatus(selectedBooking)}>Payment</Button>
+                    )}
+                    <Button variant="outlined" startIcon={<HistoryIcon />} onClick={() => handleViewWorkflow(selectedBooking)}>Workflow</Button>
+                    {isAdmin && <Button variant="outlined" startIcon={<EditIcon />} onClick={() => handleEditBooking(selectedBooking)}>Edit</Button>}
+                    {['checked_out', 'completed'].includes(selectedBooking.status) && (
+                      <Button variant="outlined" startIcon={<ReceiptIcon />} onClick={() => handleViewInvoice(selectedBooking)}>Invoice</Button>
+                    )}
+                    {canVoid(selectedBooking) && (
+                      <Button variant="outlined" color="error" startIcon={<VoidIcon />} onClick={() => handleVoidBooking(selectedBooking)}>Void</Button>
+                    )}
+                    {canReactivate(selectedBooking) && (
+                      <Button variant="outlined" color="success" startIcon={<RestoreIcon />} onClick={() => handleReactivateBooking(selectedBooking)}>Reactivate</Button>
+                    )}
+                  </Stack>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2.5 }}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Booked via</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 800, textTransform: 'capitalize' }}>{selectedBooking.source?.replace(/_/g, ' ') || 'Direct'}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Payment</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 800 }}>{getPaymentStatusText(selectedBooking.payment_status)}</Typography>
+                    </Box>
+                  </Box>
+                </Box>
+              </>
+            ) : (
+              <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
+                <Typography variant="h6">Select a booking</Typography>
+                <Typography variant="body2">Booking details and actions will appear here.</Typography>
+              </Box>
+            )}
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Booking Workflow Dialog */}
+      <Dialog
+        open={workflowDialogOpen}
+        onClose={() => setWorkflowDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Workflow - {workflowBooking?.booking_number || workflowBooking?.folio_number || `#${workflowBooking?.id}`}
+        </DialogTitle>
+        <DialogContent dividers>
+          {workflowLoading ? (
+            <Box sx={{ py: 5, display: 'flex', justifyContent: 'center' }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <Stack spacing={2.5}>
+              {workflowSummary && (
+                <Box>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5 }}>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Total</Typography>
+                      <Typography variant="subtitle2">{formatCurrency(Number(workflowSummary.total_amount || 0))}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Paid</Typography>
+                      <Typography variant="subtitle2" color="success.main">{formatCurrency(Number(workflowSummary.total_paid || 0))}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Balance</Typography>
+                      <Typography variant="subtitle2" color={Number(workflowSummary.balance_due || 0) > 0 ? 'warning.main' : 'success.main'}>
+                        {formatCurrency(Number(workflowSummary.balance_due || 0))}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" color="text.secondary">Refunded</Typography>
+                      <Typography variant="subtitle2" color="info.main">{formatCurrency(Number(workflowSummary.total_refunded || 0))}</Typography>
+                    </Box>
+                  </Box>
+                  <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <Chip size="small" color="primary" label={workflowSummary.next_action} />
+                    <Chip size="small" variant="outlined" label={getPaymentStatusText(workflowSummary.payment_status)} />
+                  </Box>
+                  {workflowSummary.warnings.length > 0 && (
+                    <Alert severity="warning" sx={{ mt: 1.5 }}>
+                      {workflowSummary.warnings.join(' / ')}
+                    </Alert>
                   )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Card>
+                </Box>
+              )}
 
-      {filteredAndSortedBookings.length === 0 && !loading && (
-        <Box textAlign="center" py={4}>
-          <Typography variant="h6" color="text.secondary">
-            {totalBookings === 0 ? 'No bookings yet' : 'No bookings match your filters'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-            {totalBookings === 0
-              ? 'Create your first booking using the "New Booking" button above'
-              : 'Try adjusting your search or filter criteria'
-            }
-          </Typography>
-        </Box>
-      )}
+              <Divider />
 
-      {/* Pagination */}
-      {totalBookings > PAGE_SIZE && (
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2, px: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalBookings)} of {totalBookings} bookings
-          </Typography>
-          <Pagination
-            count={Math.ceil(totalBookings / PAGE_SIZE)}
-            page={currentPage}
-            onChange={(_, page) => setCurrentPage(page)}
-            color="primary"
-            size="small"
-            showFirstButton
-            showLastButton
-          />
-        </Stack>
-      )}
+              <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 1, flexDirection: { xs: 'column', sm: 'row' }, mb: 1 }}>
+                  <Typography variant="subtitle2">Timeline</Typography>
+                  <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                    {[
+                      { label: 'Update', color: '#1976d2' },
+                      { label: 'Payment', color: '#2e7d32' },
+                      { label: 'Check-in', color: '#ed6c02' },
+                      { label: 'Checkout / Void', color: '#d32f2f' },
+                    ].map((item) => (
+                      <Chip
+                        key={item.label}
+                        size="small"
+                        variant="outlined"
+                        label={item.label}
+                        sx={{
+                          height: 24,
+                          fontWeight: 700,
+                          borderColor: item.color,
+                          color: item.color,
+                          bgcolor: `${item.color}14`,
+                          '& .MuiChip-label': { px: 1 },
+                        }}
+                      />
+                    ))}
+                  </Stack>
+                </Box>
+                {workflowTimeline.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">No workflow events recorded yet.</Typography>
+                ) : (
+                  <Stack spacing={1.25}>
+                    {workflowTimeline.map((event) => {
+                      const indicator = getWorkflowEventIndicator(event);
+
+                      return (
+                        <Box
+                          key={`${event.source}-${event.id}`}
+                          sx={{
+                            display: 'flex',
+                            gap: 1.5,
+                            p: 1.25,
+                            border: '1px solid',
+                            borderColor: indicator.borderColor,
+                            borderRadius: 1.5,
+                            bgcolor: indicator.backgroundColor,
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: 30,
+                              height: 30,
+                              borderRadius: '50%',
+                              bgcolor: indicator.color,
+                              color: 'white',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flex: '0 0 auto',
+                            }}
+                          >
+                            {indicator.icon}
+                          </Box>
+                          <Box sx={{ minWidth: 0, flex: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                              <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                                {event.title}
+                                {event.amount && Number(event.amount) !== 0 && (
+                                  <Typography component="span" variant="body2" color="text.secondary">
+                                    {' '}({formatCurrency(Number(event.amount))})
+                                  </Typography>
+                                )}
+                              </Typography>
+                              <Chip
+                                size="small"
+                                label={indicator.label}
+                                sx={{
+                                  height: 22,
+                                  bgcolor: indicator.color,
+                                  color: 'white',
+                                  fontWeight: 800,
+                                  '& .MuiChip-label': { px: 0.9 },
+                                }}
+                              />
+                            </Box>
+                            <Typography variant="caption" color="text.secondary">
+                              {new Date(event.created_at).toLocaleString()}
+                              {event.status_from && event.status_to ? ` / ${event.status_from} -> ${event.status_to}` : ''}
+                            </Typography>
+                            {event.description && (
+                              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                                {event.description}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </Box>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setWorkflowDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Create Booking Modal (Unified) */}
       <UnifiedBookingModal

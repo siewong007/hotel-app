@@ -42,6 +42,7 @@ pub fn routes() -> Router<DbPool> {
         // Specific parameterized routes (MUST come before generic /bookings/:id routes)
         .route("/bookings/{id}/reactivate", post(reactivate_booking))
         .route("/bookings/{id}/checkin", post(manual_checkin))
+        .route("/bookings/{id}/timeline", get(get_booking_timeline))
         .route("/bookings/{id}/pre-checkin", patch(pre_checkin_update))
         .route("/bookings/{id}/complimentary", post(mark_complimentary))
         .route("/bookings/{id}/complimentary", patch(update_complimentary))
@@ -99,6 +100,15 @@ async fn get_booking(
 ) -> Result<Json<models::BookingWithDetails>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:read").await?;
     handlers::bookings::get_booking_handler(State(pool), Extension(user_id), path).await
+}
+
+async fn get_booking_timeline(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<Vec<models::BookingTimelineEntry>>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "bookings:read").await?;
+    handlers::bookings::get_booking_timeline_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn update_booking(

@@ -38,8 +38,8 @@ import {
   ToggleButtonGroup,
   InputAdornment,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
-  MoreVert as MoreVertIcon,
   CleaningServices as CleaningIcon,
   Build as MaintenanceIcon,
   CheckCircle as CheckCircleIcon,
@@ -67,6 +67,7 @@ import {
   Notes as NotesIcon,
   Payment as PaymentIcon,
   MoneyOff as MoneyOffIcon,
+  MoreHoriz as MoreHorizIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 
@@ -92,6 +93,24 @@ interface RoomAction {
   icon: React.ReactNode;
   color?: string;
   onClick: (room: Room) => void;
+  secondary?: string;
+  badge?: string | number;
+}
+
+interface MenuSection {
+  title: string;
+  actions: RoomAction[];
+}
+
+interface MenuLayout {
+  primary?: {
+    label: string;
+    icon: React.ReactNode;
+    onClick: (room: Room) => void;
+    color?: 'primary' | 'success' | 'error' | 'warning' | 'info';
+    dark?: boolean;
+  };
+  sections: MenuSection[];
 }
 
 interface GuestWithCredits {
@@ -301,6 +320,7 @@ const RoomManagementPage: React.FC = () => {
   const [paymentBooking, setPaymentBooking] = useState<BookingWithDetails | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [roomStatusFilter, setRoomStatusFilter] = useState<RoomStatusType | 'all'>('all');
 
   // Get configurable booking channels and payment methods from hotel settings
   // Can be modified in Settings page or by editing hotelSettings.ts
@@ -1615,113 +1635,82 @@ const RoomManagementPage: React.FC = () => {
     }
   };
 
-  const getMenuActions = (room: Room | null): RoomAction[] => {
-    if (!room) return [];
+  const getMenuLayout = (room: Room | null): MenuLayout => {
+    if (!room) return { sections: [] };
 
-    const { computedStatus, booking, reservedBooking, hasFutureReservation, isOccupied, isReserved, isComplimentary } = getRoomStatusInfo(room);
+    const { computedStatus, booking, reservedBooking, isOccupied, isReserved, isComplimentary } = getRoomStatusInfo(room);
     const isMaintenance = computedStatus === 'maintenance';
-    const actions: RoomAction[] = [];
+    const layout: MenuLayout = { sections: [] };
 
-    // View Upcoming Bookings button - available for ALL non-maintenance rooms
-    if (!isMaintenance) {
-      actions.push(
-        { id: 'upcoming', label: 'View Upcoming Bookings', icon: <CalendarIcon />, color: 'info', onClick: handleViewUpcomingBookings }
-      );
-      actions.push({ id: 'divider-upcoming', label: '-', icon: <></>, onClick: () => {} });
-    }
-
-    // Show complimentary info at the top if applicable
-    if (isComplimentary) {
-      actions.push(
-        {
-          id: 'complimentary-info',
-          label: '🎁 Free Gift Booking - No Cancellation',
-          icon: <GiftIcon />,
-          color: 'secondary',
-          onClick: () => {
-            showSnackbar('This is a complimentary (Free Gift) booking. Cancellation is not recommended as the guest has used their free credits.', 'success');
-          }
-        }
-      );
-      actions.push({ id: 'divider-comp', label: '-', icon: <></>, onClick: () => {} });
-    }
-
-    // Check-in options (only if room is not occupied and not in maintenance)
-    if (!isOccupied && !isMaintenance) {
-      // For reserved rooms - always allow check-in
-      if (isReserved && reservedBooking) {
-        actions.push(
-          { id: 'reserved-checkin', label: 'Check-in Guest', icon: <LoginIcon />, color: 'primary', onClick: handleCheckIn }
-        );
-        // Allow marking as dirty for cleaning (e.g. after checkout with upcoming reservation)
-        actions.push(
-          { id: 'dirty-reserved', label: 'Mark as Dirty', icon: <CleaningIcon />, color: 'warning', onClick: handleMakeDirty }
-        );
-        // Mark as Complimentary option for reserved bookings
-        if (!reservedBooking.is_complimentary) {
-          actions.push(
-            { id: 'complimentary', label: 'Mark as Complimentary', icon: <GiftIcon />, color: 'secondary', onClick: handleMarkComplimentary }
-          );
-        }
-      } else {
-        // For available/dirty rooms - show unified booking option
-        actions.push(
-          { id: 'new-booking', label: 'New Booking', icon: <PersonAddIcon />, onClick: openUnifiedBooking }
-        );
-      }
-    }
-
-    // View Guest Details (only for OCCUPIED rooms with booking - not reserved)
-    if (isOccupied && booking?.guest_id) {
-      actions.push(
-        { id: 'guest-details', label: 'View Guest Details', icon: <PersonIcon />, color: 'info', onClick: (r) => handleViewGuestDetails(booking.guest_id) }
-      );
-    }
-
-    // Change Room option (only if room is occupied)
-    if (isOccupied && booking) {
-      actions.push(
-        { id: 'change-room', label: 'Change Room', icon: <HotelIcon />, color: 'warning', onClick: handleChangeRoom }
-      );
-      actions.push(
-        { id: 'update-checkout', label: 'Update Checkout Date', icon: <CalendarIcon />, color: 'info', onClick: handleUpdateCheckoutDate }
-      );
-    }
-
-    // Check-out option (only if room is occupied)
+    // Primary action — anchors the menu with the most likely next step for this room state
     if (isOccupied) {
-      actions.push(
-        { id: 'checkout', label: 'Check Out', icon: <LogoutIcon />, color: 'error', onClick: handleCheckOut }
-      );
+      layout.primary = { label: 'Check out', icon: <LogoutIcon />, onClick: handleCheckOut, color: 'error' };
+    } else if (isReserved && reservedBooking) {
+      layout.primary = { label: 'Check-in guest', icon: <LoginIcon />, onClick: handleCheckIn, color: 'primary', dark: true };
+    } else if (!isMaintenance) {
+      layout.primary = { label: 'New booking', icon: <PersonAddIcon />, onClick: openUnifiedBooking, dark: true };
     }
 
-    // Divider
-    if (actions.length > 0) {
-      actions.push({ id: 'divider1', label: '-', icon: <></>, onClick: () => {} });
+    // BOOKING section
+    const bookingActions: RoomAction[] = [];
+    if (!isMaintenance) {
+      bookingActions.push({
+        id: 'upcoming',
+        label: 'Upcoming bookings',
+        icon: <CalendarIcon />,
+        onClick: handleViewUpcomingBookings,
+      });
+    }
+    if (isOccupied && booking) {
+      bookingActions.push({ id: 'change-room', label: 'Change room', icon: <SwapIcon />, onClick: handleChangeRoom });
+      bookingActions.push({ id: 'update-checkout', label: 'Update checkout', icon: <ExtendIcon />, onClick: handleUpdateCheckoutDate });
+    }
+    if (isOccupied && booking?.guest_id) {
+      bookingActions.push({ id: 'guest-details', label: 'Guest details', icon: <PersonIcon />, onClick: () => handleViewGuestDetails(booking.guest_id) });
+    }
+    if (isComplimentary) {
+      bookingActions.push({
+        id: 'complimentary-info',
+        label: 'Free gift booking',
+        icon: <GiftIcon />,
+        color: '#7b1fa2',
+        secondary: 'No cancellation',
+        onClick: () => {
+          showSnackbar('This is a complimentary (Free Gift) booking. Cancellation is not recommended as the guest has used their free credits.', 'success');
+        },
+      });
+    }
+    if (isReserved && reservedBooking && !reservedBooking.is_complimentary) {
+      bookingActions.push({ id: 'mark-complimentary', label: 'Mark as complimentary', icon: <GiftIcon />, color: '#7b1fa2', onClick: handleMarkComplimentary });
+    }
+    if (bookingActions.length > 0) {
+      layout.sections.push({ title: 'Booking', actions: bookingActions });
     }
 
-    // Make Vacant/Clean (only if room is NOT occupied)
-    if (!isOccupied) {
-      actions.push(
-        { id: 'clean', label: 'Make Vacant/Clean', icon: <CheckCircleIcon />, color: 'success', onClick: handleMakeClean }
-      );
+    // HOUSEKEEPING section
+    const hkActions: RoomAction[] = [];
+    if (!isOccupied && computedStatus !== 'available') {
+      hkActions.push({ id: 'clean', label: 'Mark as clean', icon: <CheckCircleIcon />, color: '#43A047', onClick: handleMakeClean });
     }
+    hkActions.push({ id: 'dirty', label: 'Mark as dirty', icon: <CleaningIcon />, onClick: handleMakeDirty });
+    if (!isMaintenance) {
+      hkActions.push({ id: 'maintenance', label: 'Set maintenance', icon: <MaintenanceIcon />, onClick: handleMaintenance });
+    } else {
+      hkActions.push({ id: 'clear-maintenance', label: 'Clear maintenance', icon: <CheckCircleIcon />, color: '#43A047', onClick: handleMakeClean });
+    }
+    layout.sections.push({ title: 'Housekeeping', actions: hkActions });
 
-    // Make Dirty (always available)
-    actions.push(
-      { id: 'dirty', label: 'Make Dirty', icon: <CleaningIcon />, color: 'warning', onClick: handleMakeDirty }
-    );
+    // ROOM section
+    layout.sections.push({
+      title: 'Room',
+      actions: [
+        { id: 'history', label: 'Room history', icon: <HistoryIcon />, onClick: handleShowHistory },
+        { id: 'edit-notes', label: 'Edit notes', icon: <NotesIcon />, onClick: handleEditNotes },
+        { id: 'properties', label: 'Properties...', icon: <SettingsIcon />, onClick: handleRoomProperties },
+      ],
+    });
 
-    // Maintenance and history options
-    actions.push(
-      { id: 'maintenance', label: 'Set Maintenance', icon: <MaintenanceIcon />, color: 'warning', onClick: handleMaintenance },
-      { id: 'divider2', label: '-', icon: <></>, onClick: () => {} },
-      { id: 'history', label: 'Show Room History', icon: <HistoryIcon />, onClick: handleShowHistory },
-      { id: 'edit-notes', label: 'Edit Room Notes', icon: <EditIcon />, onClick: handleEditNotes },
-      { id: 'properties', label: 'Room Properties...', icon: <SettingsIcon />, onClick: handleRoomProperties }
-    );
-
-    return actions;
+    return layout;
   };
 
   if (loading) {
@@ -1784,158 +1773,205 @@ const RoomManagementPage: React.FC = () => {
   const dirtyCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'dirty').length;
   const maintenanceCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'maintenance').length;
   const occupancyRate = rooms.length > 0 ? Math.round((occupiedCount / rooms.length) * 100) : 0;
+  const filteredRooms = roomStatusFilter === 'all'
+    ? rooms
+    : rooms.filter(r => getRoomStatusInfo(r).computedStatus === roomStatusFilter);
+  const filterOptions: Array<{ value: RoomStatusType | 'all'; label: string; count: number; color: string; textColor?: string }> = [
+    { value: 'all', label: 'All', count: rooms.length, color: 'transparent' },
+    { value: 'occupied', label: 'Occupied', count: occupiedCount, color: '#ec7c32' },
+    { value: 'available', label: 'Vacant', count: availableCount, color: '#3f8f5b' },
+    { value: 'reserved', label: 'Reserved', count: reservedCount, color: '#3f7fbd' },
+    { value: 'dirty', label: 'Dirty', count: dirtyCount, color: '#b8942f' },
+    { value: 'maintenance', label: 'Maintenance', count: maintenanceCount, color: '#8d9691' },
+  ];
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: { xs: 1.5, md: 2.5 } }}>
       {/* Header */}
       <Paper
         elevation={0}
         sx={{
-          p: 2.5,
-          mb: 3,
-          bgcolor: 'white',
+          mb: 0,
+          bgcolor: 'background.paper',
           border: '1px solid',
           borderColor: 'divider',
           borderRadius: 2,
+          overflow: 'hidden',
         }}
       >
         {/* Title and Stats Row */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-          {/* Title Section */}
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-              <HotelIcon sx={{ fontSize: 28, color: 'primary.main' }} />
-              <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                Room Management
+        <Box sx={{
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 2,
+          px: 2.5,
+          py: 2,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+        }}>
+          {/* Title Section with icon badge */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+            <Box
+              sx={{
+                width: 44,
+                height: 44,
+                borderRadius: 1.5,
+                bgcolor: alpha('#c69a5b', 0.18),
+                color: '#a06a2c',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <HotelIcon sx={{ fontSize: 24 }} />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 800, fontSize: '1.25rem', lineHeight: 1.15, letterSpacing: '-0.01em' }}>
+                Hotel Manager — Rooms
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                {filteredRooms.length} rooms
+                {(() => {
+                  const floors = Array.from(
+                    new Set(filteredRooms.map((r) => r.floor).filter((f): f is number => f != null))
+                  ).sort((a, b) => a - b);
+                  if (floors.length === 0) return '';
+                  if (floors.length === 1) return ` · floor ${floors[0]}`;
+                  return ` · floors ${floors[0]}–${floors[floors.length - 1]}`;
+                })()}
+                {' · '}
+                {occupancyRate}% occupied
               </Typography>
             </Box>
-            <Typography variant="body2" color="text.secondary">
-              {rooms.length} total rooms • {occupancyRate}% occupancy • Click room for actions
+          </Box>
+
+          {/* Center: today's date */}
+          <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600 }}>
+              {new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
             </Typography>
           </Box>
 
-          {/* Quick Stats */}
-          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-            <Paper
-              elevation={0}
-              sx={{
-                px: 2,
-                py: 1,
-                bgcolor: '#66BB6A',
-                color: 'white',
-                borderRadius: 1.5,
-                textAlign: 'center',
-                minWidth: 80,
-              }}
-            >
-              <Typography variant="h5" fontWeight={700}>{availableCount}</Typography>
-              <Typography variant="caption">Available</Typography>
-            </Paper>
-            <Paper
-              elevation={0}
-              sx={{
-                px: 2,
-                py: 1,
-                bgcolor: '#FFA726',
-                color: 'white',
-                borderRadius: 1.5,
-                textAlign: 'center',
-                minWidth: 80,
-              }}
-            >
-              <Typography variant="h5" fontWeight={700}>{occupiedCount}</Typography>
-              <Typography variant="caption">Occupied</Typography>
-            </Paper>
-            <Paper
-              elevation={0}
-              sx={{
-                px: 2,
-                py: 1,
-                bgcolor: '#42A5F5',
-                color: 'white',
-                borderRadius: 1.5,
-                textAlign: 'center',
-                minWidth: 80,
-              }}
-            >
-              <Typography variant="h5" fontWeight={700}>{reservedCount}</Typography>
-              <Typography variant="caption">Reserved</Typography>
-            </Paper>
-            {dirtyCount > 0 && (
-              <Paper
-                elevation={0}
-                sx={{
-                  px: 2,
-                  py: 1,
-                  bgcolor: '#FDD835',
-                  color: '#333',
-                  borderRadius: 1.5,
-                  textAlign: 'center',
-                  minWidth: 80,
-                }}
-              >
-                <Typography variant="h5" fontWeight={700}>{dirtyCount}</Typography>
-                <Typography variant="caption">Dirty</Typography>
-              </Paper>
-            )}
-            {maintenanceCount > 0 && (
-              <Paper
-                elevation={0}
-                sx={{
-                  px: 2,
-                  py: 1,
-                  bgcolor: '#757575',
-                  color: 'white',
-                  borderRadius: 1.5,
-                  textAlign: 'center',
-                  minWidth: 80,
-                }}
-              >
-                <Typography variant="h5" fontWeight={700}>{maintenanceCount}</Typography>
-                <Typography variant="caption">Maintenance</Typography>
-              </Paper>
-            )}
+          {/* Quick Stats - soft tinted tiles */}
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {[
+              { count: availableCount, label: 'Available', color: '#43A047', show: true },
+              { count: occupiedCount, label: 'Occupied', color: '#FB8C00', show: true },
+              { count: reservedCount, label: 'Reserved', color: '#1E88E5', show: true },
+              { count: dirtyCount, label: 'Dirty', color: '#C9A227', show: dirtyCount > 0 },
+              { count: maintenanceCount, label: 'Maintenance', color: '#616161', show: maintenanceCount > 0 },
+            ]
+              .filter((s) => s.show)
+              .map((s) => (
+                <Box
+                  key={s.label}
+                  sx={{
+                    px: 1.75,
+                    py: 0.85,
+                    minWidth: 64,
+                    borderRadius: 1.5,
+                    textAlign: 'center',
+                    bgcolor: alpha(s.color, 0.12),
+                    border: '1px solid',
+                    borderColor: alpha(s.color, 0.4),
+                    color: s.color,
+                  }}
+                >
+                  <Typography sx={{ fontWeight: 800, fontSize: '1.1rem', lineHeight: 1 }}>
+                    {s.count}
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.65rem', letterSpacing: 0.3 }}>
+                    {s.label}
+                  </Typography>
+                </Box>
+              ))}
           </Box>
         </Box>
 
-        {/* Status Legend */}
-        <Divider sx={{ my: 2 }} />
-        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
-            Status:
+        {/* Status Filters */}
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', px: 2.5, py: 1.25 }}>
+          <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', mr: 0.5 }}>
+            Filter:
           </Typography>
-          {[
-            { label: 'Available', color: '#66BB6A' },
-            { label: 'Occupied', color: '#FFA726' },
-            { label: 'Reserved', color: '#42A5F5' },
-            { label: 'Dirty', color: '#FDD835', textColor: '#333' },
-            { label: 'Maintenance', color: '#757575' },
-          ].map((item) => (
-            <Chip
-              key={item.label}
-              label={item.label}
-              size="small"
-              sx={{
-                bgcolor: item.color,
-                color: ('textColor' in item) ? item.textColor : 'white',
-                fontWeight: 500,
-                fontSize: '0.7rem',
-                height: 22,
-              }}
-            />
-          ))}
+          <ToggleButtonGroup
+            exclusive
+            size="small"
+            value={roomStatusFilter}
+            onChange={(_, value) => {
+              if (value) setRoomStatusFilter(value);
+            }}
+            sx={{ gap: 0.75, flexWrap: 'wrap' }}
+          >
+            {filterOptions.map((item) => {
+              const selected = roomStatusFilter === item.value;
+              return (
+                <ToggleButton
+                  key={item.value}
+                  value={item.value}
+                  sx={{
+                    border: '1px solid !important',
+                    borderColor: selected ? `${alpha(item.color === 'transparent' ? '#000' : item.color, 0.55)} !important` : 'divider',
+                    borderRadius: '999px !important',
+                    px: 1.5,
+                    py: 0.4,
+                    gap: 0.75,
+                    color: 'text.primary',
+                    bgcolor: selected
+                      ? (item.color === 'transparent' ? 'action.selected' : alpha(item.color, 0.12))
+                      : 'background.paper',
+                    textTransform: 'none',
+                    '&:hover': { bgcolor: item.color === 'transparent' ? 'action.hover' : alpha(item.color, 0.08) },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 9,
+                      height: 9,
+                      borderRadius: '50%',
+                      bgcolor: item.color,
+                      border: item.value === 'all' ? '1px solid' : 0,
+                      borderColor: 'divider',
+                    }}
+                  />
+                  <Typography variant="caption" sx={{ fontWeight: 700 }}>{item.label}</Typography>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                    {item.count}
+                  </Typography>
+                </ToggleButton>
+              );
+            })}
+          </ToggleButtonGroup>
         </Box>
       </Paper>
 
       {/* Room Grid */}
+      <Paper
+        elevation={0}
+        sx={{
+          bgcolor: 'background.default',
+          border: '1px solid',
+          borderTop: 0,
+          borderColor: 'divider',
+          borderRadius: '0 0 12px 12px',
+          p: { xs: 1.25, md: 2 },
+        }}
+      >
       <Box 
         sx={{ 
           display: 'grid', 
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)', md: 'repeat(7, 1fr)', lg: 'repeat(7, 1fr)', xl: 'repeat(7, 1fr)' }, 
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, minmax(0, 1fr))',
+            md: 'repeat(3, minmax(0, 1fr))',
+            lg: 'repeat(5, minmax(0, 1fr))',
+            xl: 'repeat(7, minmax(0, 1fr))',
+          }, 
           gap: 1.5 
         }}
       >
-        {rooms.map((room) => {
+        {filteredRooms.map((room) => {
           const { computedStatus, booking, reservedBooking, hasReservationForToday, hasFutureReservation, futureCheckInDate, isOccupied, isReserved, isReservedToday, isComplimentary } = getRoomStatusInfo(room);
           const compCancelledBooking = compCancelledBookings.get(room.id);
 
@@ -1947,20 +1983,25 @@ const RoomManagementPage: React.FC = () => {
           return (
             <Box key={room.id} sx={{ minWidth: 0 }}>
               <Card
-                elevation={2}
+                elevation={0}
                 sx={{
-                  bgcolor: statusColor,
-                  color: computedStatus === 'dirty' ? '#333' : 'white',
+                  bgcolor: 'background.paper',
+                  color: 'text.primary',
                   cursor: 'pointer',
-                  '&:hover': {
-                    boxShadow: 4,
-                  },
                   position: 'relative',
-                  height: 240,
+                  height: 250,
                   maxWidth: '100%',
                   display: 'flex',
                   flexDirection: 'column',
                   borderRadius: 2,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  transition: 'box-shadow 150ms ease, border-color 150ms ease, transform 150ms ease',
+                  '&:hover': {
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
+                    borderColor: alpha(statusColor, 0.55),
+                    transform: 'translateY(-1px)',
+                  },
                   overflow: 'hidden',
                 }}
                 onClick={(e) => {
@@ -1968,91 +2009,119 @@ const RoomManagementPage: React.FC = () => {
                   handleMenuOpen(e, room);
                 }}
               >
-                <CardContent sx={{ p: 1.5, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                  {/* Booking Indicator for Reserved Rooms */}
-                  {isReservedToday && (
-                    <BookingIcon
+                {/* Top status accent bar */}
+                <Box sx={{ height: 3, bgcolor: statusColor, opacity: 0.85 }} />
+
+                <CardContent sx={{ p: 1.5, pt: 1.25, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  {/* Header row: room number + type code on the left, status pill on the right */}
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, minWidth: 0 }}>
+                      <Typography
+                        sx={{
+                          fontSize: '1.75rem',
+                          fontWeight: 900,
+                          lineHeight: 1,
+                          letterSpacing: '-0.02em',
+                        }}
+                      >
+                        {room.room_number}
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.25 }}>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: 800,
+                            color: 'text.secondary',
+                            letterSpacing: 0.6,
+                            fontSize: '0.7rem',
+                            lineHeight: 1,
+                          }}
+                        >
+                          {getRoomTypeCode(room.room_type)}
+                        </Typography>
+                        <Box
+                          component="svg"
+                          viewBox="0 0 36 6"
+                          sx={{ width: 36, height: 6, display: 'block', overflow: 'visible' }}
+                          aria-hidden
+                        >
+                          <path
+                            d="M1 4 Q5 1 9 3 T17 3 T25 3 T35 3"
+                            fill="none"
+                            stroke={statusColor}
+                            strokeWidth={1.6}
+                            strokeLinecap="round"
+                          />
+                        </Box>
+                      </Box>
+                    </Box>
+
+                    {(() => {
+                      const dirtyPillBg = '#a89436';
+                      const pillBg = computedStatus === 'dirty' ? dirtyPillBg : statusColor;
+                      return (
+                        <Box
+                          sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            px: 1.1,
+                            py: 0.35,
+                            borderRadius: 1,
+                            bgcolor: pillBg,
+                            color: '#fff',
+                            fontSize: '0.62rem',
+                            fontWeight: 800,
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.8,
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                            boxShadow: `0 1px 0 ${alpha(pillBg, 0.35)}`,
+                          }}
+                        >
+                          {getRoomStatusLabel(displayRoom)}
+                        </Box>
+                      );
+                    })()}
+                  </Box>
+
+                  {/* Empty-state placeholder for dirty / maintenance rooms with no booking */}
+                  {!isOccupied && !isReservedToday && (computedStatus === 'dirty' || computedStatus === 'maintenance') && (
+                    <Typography
                       sx={{
-                        position: 'absolute',
-                        top: 8,
-                        left: 8,
-                        fontSize: 24,
-                        color: 'inherit',
-                        opacity: 0.9,
+                        mt: 1.25,
+                        fontStyle: 'italic',
+                        color: 'text.secondary',
+                        fontSize: '0.85rem',
+                        fontWeight: 500,
                       }}
-                    />
+                    >
+                      {computedStatus === 'dirty' ? 'Awaiting cleaning' : 'Under maintenance'}
+                    </Typography>
                   )}
 
-                  {/* Complimentary Indicator */}
                   {isComplimentary && (
                     <Box
                       sx={{
-                        position: 'absolute',
-                        top: 8,
-                        left: isReservedToday ? 36 : 8,
-                        display: 'flex',
+                        display: 'inline-flex',
+                        alignSelf: 'flex-start',
                         alignItems: 'center',
-                        gap: 0.3,
-                        bgcolor: 'rgba(156, 39, 176, 0.9)',
-                        borderRadius: 1,
-                        px: 0.5,
-                        py: 0.2,
+                        gap: 0.4,
+                        mt: 0.75,
+                        px: 0.75,
+                        py: 0.15,
+                        borderRadius: 999,
+                        bgcolor: alpha('#9c27b0', 0.12),
+                        color: '#7b1fa2',
                       }}
                     >
-                      <GiftIcon sx={{ fontSize: 14 }} />
-                      <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 600 }}>
-                        FREE
+                      <GiftIcon sx={{ fontSize: 12 }} />
+                      <Typography variant="caption" sx={{ fontSize: '0.55rem', fontWeight: 800, letterSpacing: 0.5 }}>
+                        FREE GIFT
                       </Typography>
                     </Box>
                   )}
 
-                  {/* Room Number */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: isReservedToday || isComplimentary ? 3 : 0 }}>
-                    <HotelIcon sx={{ fontSize: 20, opacity: 0.9 }} />
-                    <Typography variant="h5" fontWeight={700}>
-                      {room.room_number}
-                    </Typography>
-                  </Box>
-
-                  {/* Room Type Code */}
-                  <Chip
-                    label={getRoomTypeCode(room.room_type)}
-                    size="small"
-                    sx={{
-                      fontSize: '0.7rem',
-                      fontWeight: 600,
-                      mt: 0.5,
-                      mb: 1,
-                      bgcolor: 'rgba(0,0,0,0.15)',
-                      color: 'inherit',
-                    }}
-                  />
-
-                  {/* Status Indicator */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                    <Chip
-                      label={getRoomStatusLabel(displayRoom)}
-                      size="small"
-                      icon={
-                        computedStatus === 'occupied' ? <BlockIcon sx={{ fontSize: '14px !important' }} /> :
-                        computedStatus === 'reserved' ? <BookingIcon sx={{ fontSize: '14px !important' }} /> :
-                        computedStatus === 'dirty' ? <CleaningIcon sx={{ fontSize: '14px !important' }} /> :
-                        computedStatus === 'maintenance' ? <MaintenanceIcon sx={{ fontSize: '14px !important' }} /> :
-                        <CheckCircleIcon sx={{ fontSize: '14px !important' }} />
-                      }
-                      sx={{
-                        height: 22,
-                        fontSize: '0.65rem',
-                        fontWeight: 700,
-                        bgcolor: computedStatus === 'dirty' ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.25)',
-                        color: 'inherit',
-                        '& .MuiChip-icon': { color: 'inherit' },
-                      }}
-                    />
-                    {isComplimentary && (
-                      <Chip label="FREE GIFT" size="small" sx={{ height: 18, fontSize: '0.55rem', fontWeight: 600, bgcolor: 'rgba(156, 39, 176, 0.8)', color: 'white' }} />
-                    )}
-                  </Box>
+                  <Divider sx={{ my: 1, borderStyle: 'dashed' }} />
 
                   {/* Room Notes */}
                   {!isOccupied && !isReservedToday && (
@@ -2079,40 +2148,33 @@ const RoomManagementPage: React.FC = () => {
                     </Typography>
                   )}
 
-{/* Staying Time for Occupied/Dirty Rooms */}
-                  {isOccupied && booking && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                      <TimeIcon sx={{ fontSize: 14 }} />
-                      <Typography
-                        variant="caption"
-                        display="block"
-                        sx={{
-                          fontSize: '0.65rem',
-                          fontWeight: 500,
-                        }}
-                      >
-                        {new Date(booking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(booking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      </Typography>
-                    </Box>
-                  )}
-
                   {/* Guest Details for Occupied Rooms */}
                   {booking?.guest_name && isOccupied ? (
-                    <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+                    <Box sx={{ mt: 1 }}>
                       <Typography
                         variant="body2"
                         sx={{
-                          fontWeight: 700,
-                          mb: 0.25,
+                          fontWeight: 800,
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
-                          fontSize: '0.85rem',
+                          fontSize: '0.95rem',
+                          lineHeight: 1.2,
                         }}
                       >
                         {booking.guest_name}
                       </Typography>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+                      <Typography
+                        sx={{
+                          mt: 0.4,
+                          color: 'text.secondary',
+                          fontSize: '0.75rem',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {new Date(booking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(booking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, mt: 0.4 }}>
                         {booking.guest_phone && (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                             <PhoneIcon sx={{ fontSize: 12, opacity: 0.8 }} />
@@ -2142,11 +2204,11 @@ const RoomManagementPage: React.FC = () => {
                             gap: 0.5,
                             mt: 0.5,
                             p: 0.5,
-                            bgcolor: 'rgba(255,255,255,0.1)',
+                            bgcolor: 'action.hover',
                             borderRadius: 0.5,
                             cursor: 'pointer',
                             '&:hover': {
-                              bgcolor: 'rgba(255,255,255,0.2)',
+                              bgcolor: 'action.selected',
                             },
                             minHeight: 24,
                           }}
@@ -2172,94 +2234,77 @@ const RoomManagementPage: React.FC = () => {
                         </Box>
                       </Tooltip>
 
-                      {/* Quick Action Buttons for Occupied Rooms */}
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          gap: 0.5,
-                          mt: 1,
-                        }}
-                      >
-                        <Tooltip title="Check Out" arrow>
-                          <Box
+                      {/* Action row: Check out, Move, More */}
+                      <Box sx={{ display: 'flex', gap: 0.75, mt: 1, alignItems: 'center' }}>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCheckOut(room);
+                          }}
+                          sx={{
+                            flex: 1,
+                            minWidth: 0,
+                            py: 0.4,
+                            px: 1,
+                            borderRadius: 999,
+                            borderColor: 'divider',
+                            color: 'text.primary',
+                            bgcolor: 'background.paper',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            textTransform: 'none',
+                            whiteSpace: 'nowrap',
+                            '&:hover': { borderColor: 'text.primary', bgcolor: 'action.hover' },
+                          }}
+                        >
+                          Check out
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleChangeRoom(room);
+                          }}
+                          sx={{
+                            flex: 1,
+                            minWidth: 0,
+                            py: 0.4,
+                            px: 1,
+                            borderRadius: 999,
+                            borderColor: 'divider',
+                            color: 'text.primary',
+                            bgcolor: 'background.paper',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            textTransform: 'none',
+                            whiteSpace: 'nowrap',
+                            '&:hover': { borderColor: 'text.primary', bgcolor: 'action.hover' },
+                          }}
+                        >
+                          Move
+                        </Button>
+                        <Tooltip title="More actions" arrow>
+                          <IconButton
+                            size="small"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleCheckOut(room);
+                              handleMenuOpen(e, room);
                             }}
                             sx={{
-                              flex: 1,
-                              bgcolor: 'rgba(255,255,255,0.2)',
-                              borderRadius: 1,
-                              p: 0.5,
-                              cursor: 'pointer',
-                              '&:hover': {
-                                bgcolor: 'rgba(255,255,255,0.35)',
-                              },
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 0.3,
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              borderRadius: 1.5,
+                              width: 30,
+                              height: 26,
+                              color: 'text.secondary',
+                              '&:hover': { borderColor: 'text.primary', color: 'text.primary' },
                             }}
                           >
-                            <LogoutIcon sx={{ fontSize: 14 }} />
-                            <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 600 }}>
-                              Out
-                            </Typography>
-                          </Box>
-                        </Tooltip>
-                        <Tooltip title="Change Room" arrow>
-                          <Box
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleChangeRoom(room);
-                            }}
-                            sx={{
-                              flex: 1,
-                              bgcolor: 'rgba(255,255,255,0.2)',
-                              borderRadius: 1,
-                              p: 0.5,
-                              cursor: 'pointer',
-                              '&:hover': {
-                                bgcolor: 'rgba(255,255,255,0.35)',
-                              },
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 0.3,
-                            }}
-                          >
-                            <SwapIcon sx={{ fontSize: 14 }} />
-                            <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 600 }}>
-                              Move
-                            </Typography>
-                          </Box>
-                        </Tooltip>
-                        <Tooltip title="View Guest" arrow>
-                          <Box
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewGuestDetails(booking.guest_id);
-                            }}
-                            sx={{
-                              flex: 1,
-                              bgcolor: 'rgba(255,255,255,0.2)',
-                              borderRadius: 1,
-                              p: 0.5,
-                              cursor: 'pointer',
-                              '&:hover': {
-                                bgcolor: 'rgba(255,255,255,0.35)',
-                              },
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 0.3,
-                            }}
-                          >
-                            <PersonIcon sx={{ fontSize: 14 }} />
-                            <Typography variant="caption" sx={{ fontSize: '0.6rem', fontWeight: 600 }}>
-                              Guest
-                            </Typography>
-                          </Box>
+                            <MoreHorizIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
                         </Tooltip>
                       </Box>
                       {/* Booking remarks for occupied rooms */}
@@ -2286,66 +2331,106 @@ const RoomManagementPage: React.FC = () => {
                   {/* Reserved Room Guest Details - styled like Occupied room */}
                   {isReservedToday && reservedBooking && (
                     <>
-                      {/* Date Range */}
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                        <CalendarIcon sx={{ fontSize: 14 }} />
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{
-                            fontSize: '0.65rem',
-                            fontWeight: 500,
-                          }}
-                        >
-                          {new Date(reservedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(reservedBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </Typography>
-                      </Box>
-
-                      {/* Guest Name */}
-                      {reservedBooking.guest_name && (
-                        <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
+                      <Box sx={{ mt: 1 }}>
+                        {reservedBooking.guest_name && (
                           <Typography
                             variant="body2"
                             sx={{
-                              fontWeight: 700,
-                              mb: 0.25,
+                              fontWeight: 800,
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
                               whiteSpace: 'nowrap',
-                              fontSize: '0.85rem',
+                              fontSize: '0.95rem',
+                              lineHeight: 1.2,
                             }}
                           >
                             {reservedBooking.guest_name}
                           </Typography>
-                        </Box>
-                      )}
+                        )}
+                        <Typography
+                          sx={{
+                            mt: 0.4,
+                            color: 'text.secondary',
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                          }}
+                        >
+                          {new Date(reservedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(reservedBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </Typography>
+                      </Box>
 
-                      {/* Check-in Button */}
-                      <Box sx={{ mt: 1 }}>
-                        <Box
+                      {/* Action row: Check in (primary), Edit, More */}
+                      <Box sx={{ display: 'flex', gap: 0.75, mt: 1, alignItems: 'center' }}>
+                        <Button
+                          size="small"
+                          variant="contained"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleCheckIn(room);
                           }}
                           sx={{
-                            bgcolor: 'rgba(255,255,255,0.2)',
-                            borderRadius: 1,
-                            p: 0.5,
-                            cursor: 'pointer',
-                            '&:hover': {
-                              bgcolor: 'rgba(255,255,255,0.35)',
-                            },
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 0.5,
+                            flex: 1,
+                            minWidth: 0,
+                            py: 0.4,
+                            px: 1,
+                            borderRadius: 999,
+                            bgcolor: 'text.primary',
+                            color: 'background.paper',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            textTransform: 'none',
+                            whiteSpace: 'nowrap',
+                            boxShadow: 'none',
+                            '&:hover': { bgcolor: 'text.secondary', boxShadow: 'none' },
                           }}
                         >
-                          <LoginIcon sx={{ fontSize: 16 }} />
-                          <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
-                            Check-in
-                          </Typography>
-                        </Box>
+                          Check in
+                        </Button>
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditBookingNotes(reservedBooking);
+                          }}
+                          sx={{
+                            flex: 1,
+                            minWidth: 0,
+                            py: 0.4,
+                            px: 1,
+                            borderRadius: 999,
+                            borderColor: 'divider',
+                            color: 'text.primary',
+                            bgcolor: 'background.paper',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            textTransform: 'none',
+                            whiteSpace: 'nowrap',
+                            '&:hover': { borderColor: 'text.primary', bgcolor: 'action.hover' },
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Tooltip title="More actions" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMenuOpen(e, room);
+                            }}
+                            sx={{
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              borderRadius: 1.5,
+                              width: 30,
+                              height: 26,
+                              color: 'text.secondary',
+                              '&:hover': { borderColor: 'text.primary', color: 'text.primary' },
+                            }}
+                          >
+                            <MoreHorizIcon sx={{ fontSize: 16 }} />
+                          </IconButton>
+                        </Tooltip>
                       </Box>
                       {/* Booking remarks for reserved rooms */}
                       {(reservedBooking.remarks || reservedBooking.booking_remarks) && (
@@ -2403,7 +2488,7 @@ const RoomManagementPage: React.FC = () => {
                     </Box>
                   )}
 
-                  {/* Quick Action Button for Available Rooms */}
+                  {/* Action row for Available Rooms: + New booking (primary) + More */}
                   {computedStatus === 'available' && (
                     <Box
                       sx={{
@@ -2411,65 +2496,67 @@ const RoomManagementPage: React.FC = () => {
                         bottom: 12,
                         left: 12,
                         right: 12,
+                        display: 'flex',
+                        gap: 0.75,
+                        alignItems: 'center',
                       }}
                     >
-                      <Tooltip title="Create new booking" arrow>
-                        <Box
+                      <Button
+                        size="small"
+                        variant="contained"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openUnifiedBooking(room);
+                        }}
+                        sx={{
+                          flex: 1,
+                          minWidth: 0,
+                          py: 0.6,
+                          px: 1.25,
+                          borderRadius: 999,
+                          bgcolor: 'text.primary',
+                          color: 'background.paper',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          textTransform: 'none',
+                          whiteSpace: 'nowrap',
+                          boxShadow: 'none',
+                          '&:hover': { bgcolor: 'text.secondary', boxShadow: 'none' },
+                        }}
+                      >
+                        + New booking
+                      </Button>
+                      <Tooltip title="More actions" arrow>
+                        <IconButton
+                          size="small"
                           onClick={(e) => {
                             e.stopPropagation();
-                            openUnifiedBooking(room); // No type pre-selected - user chooses
+                            handleMenuOpen(e, room);
                           }}
                           sx={{
-                            bgcolor: 'rgba(255,255,255,0.3)',
-                            borderRadius: 1,
-                            py: 0.75,
-                            cursor: 'pointer',
-                            '&:hover': {
-                              bgcolor: 'rgba(255,255,255,0.45)',
-                            },
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 0.5,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            borderRadius: 1.5,
+                            width: 32,
+                            height: 28,
+                            color: 'text.secondary',
+                            bgcolor: 'background.paper',
+                            '&:hover': { borderColor: 'text.primary', color: 'text.primary' },
                           }}
                         >
-                          <BookingIcon sx={{ fontSize: 16 }} />
-                          <Typography variant="caption" sx={{ fontSize: '0.7rem', fontWeight: 600 }}>
-                            New Booking
-                          </Typography>
-                        </Box>
+                          <MoreHorizIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
                       </Tooltip>
                     </Box>
                   )}
 
-                  {/* More Icon */}
-                  <Tooltip title="More actions" arrow placement="top">
-                    <IconButton
-                      size="small"
-                      sx={{
-                        position: 'absolute',
-                        top: 8,
-                        right: 8,
-                        color: 'inherit',
-                        bgcolor: 'rgba(0,0,0,0.15)',
-                        '&:hover': {
-                          bgcolor: 'rgba(0,0,0,0.25)',
-                        },
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleMenuOpen(e, room);
-                      }}
-                    >
-                      <MoreVertIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
                 </CardContent>
               </Card>
             </Box>
           );
         })}
       </Box>
+      </Paper>
 
       {/* Context Menu */}
       <Menu
@@ -2477,39 +2564,198 @@ const RoomManagementPage: React.FC = () => {
         onClose={handleMenuClose}
         anchorReference="anchorPosition"
         anchorPosition={menuPosition ? { top: menuPosition.top, left: menuPosition.left } : undefined}
-        PaperProps={{
-          sx: { minWidth: 240 },
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: 2,
+              overflow: 'hidden',
+              boxShadow: '0 12px 32px rgba(0,0,0,0.14)',
+              border: '1px solid',
+              borderColor: 'divider',
+            },
+          },
         }}
+        MenuListProps={{ sx: { py: 0 } }}
       >
-        {selectedRoom && (
-          <Box sx={{ px: 2, py: 1, bgcolor: 'grey.100' }}>
-            <Typography variant="subtitle2" fontWeight={600}>
-              Room {selectedRoom.room_number}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {selectedRoom.room_type} • Status: {selectedRoom.status?.toUpperCase() || 'UNKNOWN'}
-            </Typography>
-          </Box>
-        )}
-        <Divider />
-        {getMenuActions(selectedRoom).map((action) =>
-          action.label === '-' ? (
-            <Divider key={action.id} sx={{ my: 1 }} />
-          ) : (
-            <MenuItem
-              key={action.id}
-              onClick={() => selectedRoom && action.onClick(selectedRoom)}
-            >
-              <ListItemIcon sx={{ color: action.color || 'inherit' }}>
-                {action.icon}
-              </ListItemIcon>
-              <ListItemText
-                primary={action.label}
-                sx={{ color: action.color || 'inherit' }}
-              />
-            </MenuItem>
-          )
-        )}
+        {selectedRoom && (() => {
+          const info = getRoomStatusInfo(selectedRoom);
+          const layout = getMenuLayout(selectedRoom);
+          const displayRoom = { ...selectedRoom, status: info.computedStatus };
+          const statusColor = getRoomStatusColor(displayRoom);
+          const activeBooking = info.booking || info.reservedBooking || null;
+          const showAside = info.isOccupied || info.isReservedToday;
+
+          const formatDate = (d: string) =>
+            new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+          const ratePerNight = (() => {
+            const n = Number((activeBooking as any)?.price_per_night ?? (activeBooking as any)?.room_rate);
+            return Number.isFinite(n) && n > 0 ? n : null;
+          })();
+
+          return (
+            <Box sx={{ display: 'flex', minWidth: showAside ? 460 : 280, maxWidth: 520 }}>
+              <Box sx={{ flex: 1, py: 1, minWidth: 260 }}>
+                {/* Header */}
+                <Box sx={{ px: 2, pt: 0.5, pb: 1.25 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '1.05rem' }}>
+                      Room {selectedRoom.room_number}
+                    </Typography>
+                    <Box
+                      sx={{
+                        px: 0.85,
+                        py: 0.2,
+                        borderRadius: 999,
+                        bgcolor: alpha(statusColor, 0.14),
+                        color: info.computedStatus === 'dirty' ? '#8a6d00' : statusColor,
+                        border: '1px solid',
+                        borderColor: alpha(statusColor, 0.35),
+                        fontSize: '0.6rem',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.6,
+                      }}
+                    >
+                      {getRoomStatusLabel(displayRoom)}
+                    </Box>
+                  </Box>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.25 }}>
+                    {selectedRoom.room_type}
+                    {info.isOccupied && info.booking?.guest_name && ` · ${info.booking.guest_name}`}
+                  </Typography>
+                </Box>
+
+                {/* Primary action */}
+                {layout.primary && (
+                  <Box sx={{ px: 2, pb: 1.25 }}>
+                    <Button
+                      fullWidth
+                      variant="contained"
+                      color={layout.primary.dark ? 'inherit' : layout.primary.color || 'primary'}
+                      startIcon={layout.primary.icon}
+                      onClick={() => selectedRoom && layout.primary!.onClick(selectedRoom)}
+                      sx={{
+                        borderRadius: 1.5,
+                        py: 1,
+                        fontWeight: 700,
+                        textTransform: 'none',
+                        fontSize: '0.85rem',
+                        boxShadow: 'none',
+                        ...(layout.primary.dark && {
+                          bgcolor: 'text.primary',
+                          color: 'background.paper',
+                          '&:hover': { bgcolor: 'text.secondary', boxShadow: 'none' },
+                        }),
+                      }}
+                    >
+                      {layout.primary.label}
+                    </Button>
+                  </Box>
+                )}
+
+                {/* Sectioned actions */}
+                {layout.sections.map((section, sIdx) => (
+                  <Box key={section.title}>
+                    {sIdx > 0 && <Divider sx={{ my: 0.5 }} />}
+                    <Typography
+                      variant="overline"
+                      sx={{
+                        display: 'block',
+                        px: 2,
+                        pt: 0.75,
+                        pb: 0.25,
+                        color: 'text.secondary',
+                        fontWeight: 700,
+                        fontSize: '0.62rem',
+                        letterSpacing: 1.2,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      {section.title}
+                    </Typography>
+                    {section.actions.map((action) => (
+                      <MenuItem
+                        key={action.id}
+                        onClick={() => selectedRoom && action.onClick(selectedRoom)}
+                        sx={{ py: 0.75, px: 2 }}
+                      >
+                        <ListItemIcon sx={{ color: action.color || 'text.secondary', minWidth: 32 }}>
+                          {action.icon}
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={action.label}
+                          secondary={action.secondary}
+                          slotProps={{
+                            primary: { sx: { color: action.color || 'inherit', fontSize: '0.875rem' } },
+                            secondary: { sx: { fontSize: '0.7rem' } },
+                          }}
+                        />
+                        {action.badge != null && (
+                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, ml: 1 }}>
+                            {action.badge}
+                          </Typography>
+                        )}
+                      </MenuItem>
+                    ))}
+                  </Box>
+                ))}
+              </Box>
+
+              {/* At-a-glance side panel for occupied / arriving rooms */}
+              {showAside && activeBooking && (
+                <Box
+                  sx={{
+                    width: 180,
+                    flexShrink: 0,
+                    bgcolor: 'action.hover',
+                    borderLeft: '1px solid',
+                    borderColor: 'divider',
+                    p: 2,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1.5,
+                  }}
+                >
+                  {ratePerNight != null && (
+                    <Box>
+                      <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '0.6rem', letterSpacing: 1.2, lineHeight: 1.4 }}>
+                        Rate
+                      </Typography>
+                      <Typography sx={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1.2 }}>
+                        {formatCurrency(ratePerNight)}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem' }}>
+                        per night
+                      </Typography>
+                    </Box>
+                  )}
+
+                  <Box>
+                    <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '0.6rem', letterSpacing: 1.2, lineHeight: 1.4 }}>
+                      {info.isOccupied ? 'Current Booking' : 'Next Booking'}
+                    </Typography>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', lineHeight: 1.3 }}>
+                      {formatDate(activeBooking.check_in_date)} – {formatDate(activeBooking.check_out_date)}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {[activeBooking.source, activeBooking.guest_name].filter(Boolean).join(' · ')}
+                    </Typography>
+                  </Box>
+
+                  <Box>
+                    <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 700, fontSize: '0.6rem', letterSpacing: 1.2, lineHeight: 1.4 }}>
+                      Housekeeping
+                    </Typography>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: statusColor, lineHeight: 1.3 }}>
+                      {getRoomStatusLabel(displayRoom)}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+            </Box>
+          );
+        })()}
       </Menu>
 
       {/* Walk-in Guest Dialog */}

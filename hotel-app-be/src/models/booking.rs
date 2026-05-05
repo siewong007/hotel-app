@@ -192,6 +192,10 @@ pub struct BookingWithDetails {
     pub deposit_paid: Option<bool>,
     pub deposit_amount: Option<Decimal>,
     pub room_card_deposit: Option<Decimal>,
+    pub total_paid: Option<Decimal>,
+    pub total_refunded: Option<Decimal>,
+    pub balance_due: Option<Decimal>,
+    pub deposit_refunded: Option<bool>,
     pub company_id: Option<i64>,
     pub company_name: Option<String>,
     pub payment_note: Option<String>,
@@ -213,4 +217,20 @@ pub struct BookingWithDetails {
     pub daily_rates: Option<serde_json::Value>,
     // Joined from invoices table (set after checkout)
     pub invoice_number: Option<String>,
+}
+
+/// Timeline event for a booking workflow.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BookingTimelineEntry {
+    pub id: String,
+    pub source: String,
+    pub event_type: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub status_from: Option<String>,
+    pub status_to: Option<String>,
+    pub amount: Option<String>,
+    pub actor_id: Option<i64>,
+    pub metadata: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
 }

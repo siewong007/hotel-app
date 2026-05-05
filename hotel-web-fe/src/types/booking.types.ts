@@ -57,6 +57,10 @@ export interface Booking {
   deposit_paid?: boolean;
   deposit_amount?: number | string;
   deposit_paid_at?: string;
+  total_paid?: number | string;
+  total_refunded?: number | string;
+  balance_due?: number | string;
+  deposit_refunded?: boolean;
   company_id?: number;
   company_name?: string;
   payment_note?: string;
@@ -106,6 +110,10 @@ export interface BookingWithDetails extends Booking {
   payment_note?: string;
   deposit_amount?: number | string;
   deposit_paid?: boolean;
+  total_paid?: number | string;
+  total_refunded?: number | string;
+  balance_due?: number | string;
+  deposit_refunded?: boolean;
   remarks?: string;
   actual_check_out?: string;
   daily_rates?: Record<string, number>;
@@ -194,6 +202,20 @@ export interface PreCheckInUpdateRequest {
   guest_update: GuestUpdateRequest;
   market_code?: string;
   special_requests?: string;
+}
+
+export interface BookingTimelineEntry {
+  id: string;
+  source: string;
+  event_type: string;
+  title: string;
+  description?: string;
+  status_from?: string;
+  status_to?: string;
+  amount?: string;
+  actor_id?: number;
+  metadata?: Record<string, any>;
+  created_at: string;
 }
 
 export interface RateCodesResponse {

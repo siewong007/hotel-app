@@ -5,6 +5,7 @@ import {
   BookingCreateRequest,
   BookingUpdateRequest,
   BookingCancellationRequest,
+  BookingTimelineEntry,
   BookingWithDetails,
   CheckInRequest,
   PreCheckInUpdateRequest,
@@ -190,6 +191,22 @@ export class BookingsService {
         );
       }
       throw new APIError('Failed to fetch booking');
+    }
+  }
+
+  static async getBookingTimeline(bookingId: string | number): Promise<BookingTimelineEntry[]> {
+    try {
+      return await api.get(`bookings/${bookingId}/timeline`).json<BookingTimelineEntry[]>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to fetch booking timeline',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to fetch booking timeline');
     }
   }
 

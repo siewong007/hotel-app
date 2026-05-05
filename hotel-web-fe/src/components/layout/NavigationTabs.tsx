@@ -10,7 +10,11 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { canAccessNavigationRoute, navigationRouteDefinitions, preloadRoute } from '../../navigation/routeRegistry';
 
-export const NavigationTabs = React.memo(function NavigationTabs() {
+interface NavigationTabsProps {
+  darkBg?: boolean;
+}
+
+export const NavigationTabs = React.memo(function NavigationTabs({ darkBg = false }: NavigationTabsProps = {}) {
   const location = useLocation();
   const navigate = useNavigate();
   const { hasPermission, hasRole, logout, user } = useAuth();
@@ -46,6 +50,10 @@ export const NavigationTabs = React.memo(function NavigationTabs() {
   const currentTab = visibleTabs.indexOf(location.pathname);
   const isMoreMenuActive = moreMenuItems.some((item) => item.path === location.pathname);
   const activeTab = currentTab >= 0 ? currentTab : false;
+  // When darkBg is true, the AppBar is colored (dark) and tabs/user must use light-on-dark styling
+  // regardless of route. Otherwise fall back to the legacy route-based heuristic for the
+  // light/board-skin AppBar variant.
+  const boardSkinActive = darkBg ? false : !location.pathname.startsWith('/timeline');
 
   const getUserInitials = () => {
     if (user?.full_name) {
@@ -95,17 +103,17 @@ export const NavigationTabs = React.memo(function NavigationTabs() {
           flexGrow: 1,
           minHeight: 56,
           '& .MuiTab-root': {
-            color: 'rgba(255, 255, 255, 0.75)',
-            fontWeight: 500,
+            color: boardSkinActive ? 'text.secondary' : 'rgba(255, 255, 255, 0.75)',
+            fontWeight: 800,
             minHeight: 56,
             px: 2,
             fontSize: '0.85rem',
             textTransform: 'none',
-            '&.Mui-selected': { color: 'white', fontWeight: 600 },
-            '&:hover': { backgroundColor: 'rgba(255, 255, 255, 0.08)', color: 'white' },
+            '&.Mui-selected': { color: boardSkinActive ? 'text.primary' : 'white', fontWeight: 900 },
+            '&:hover': { backgroundColor: boardSkinActive ? 'action.selected' : 'rgba(255, 255, 255, 0.08)', color: boardSkinActive ? 'text.primary' : 'white' },
           },
-          '& .MuiTabs-indicator': { backgroundColor: 'white', height: 3, borderRadius: '3px 3px 0 0' },
-          '& .MuiTabs-scrollButtons': { color: 'white', '&.Mui-disabled': { opacity: 0.3 } },
+          '& .MuiTabs-indicator': { backgroundColor: boardSkinActive ? 'text.primary' : 'white', height: 3, borderRadius: '3px 3px 0 0' },
+          '& .MuiTabs-scrollButtons': { color: boardSkinActive ? 'text.primary' : 'white', '&.Mui-disabled': { opacity: 0.3 } },
         }}
       >
         {mainNavItems.map(item => (
@@ -129,11 +137,13 @@ export const NavigationTabs = React.memo(function NavigationTabs() {
             <IconButton
               onClick={handleMoreMenuOpen}
               sx={{
-                color: isMoreMenuActive ? 'white' : 'rgba(255, 255, 255, 0.75)',
-                bgcolor: isMoreMenuActive || moreMenuOpen ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
+                color: isMoreMenuActive ? (boardSkinActive ? 'text.primary' : 'white') : (boardSkinActive ? 'text.secondary' : 'rgba(255, 255, 255, 0.75)'),
+                bgcolor: isMoreMenuActive || moreMenuOpen ? (boardSkinActive ? 'action.selected' : 'rgba(255, 255, 255, 0.15)') : 'transparent',
                 borderRadius: 2,
                 px: 1.5,
-                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.15)', color: 'white' },
+                border: boardSkinActive ? '2px solid' : 'none',
+                borderColor: boardSkinActive ? 'text.primary' : 'transparent',
+                '&:hover': { bgcolor: boardSkinActive ? 'action.selected' : 'rgba(255, 255, 255, 0.15)', color: boardSkinActive ? 'text.primary' : 'white' },
               }}
             >
               <MoreHorizIcon sx={{ fontSize: 20 }} />
@@ -197,27 +207,28 @@ export const NavigationTabs = React.memo(function NavigationTabs() {
           onClick={handleUserMenuOpen}
           sx={{
             display: 'flex', alignItems: 'center', gap: 1, pl: 0.75, pr: 1.5, py: 0.5, borderRadius: 3,
-            backgroundColor: userMenuOpen ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.08)',
-            border: '1px solid', borderColor: userMenuOpen ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.12)',
+            backgroundColor: userMenuOpen ? (boardSkinActive ? 'action.selected' : 'rgba(255,255,255,0.15)') : (boardSkinActive ? 'background.paper' : 'rgba(255,255,255,0.08)'),
+            border: boardSkinActive ? '2px solid' : '1px solid',
+            borderColor: boardSkinActive ? 'text.primary' : (userMenuOpen ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.12)'),
             cursor: 'pointer', userSelect: 'none',
-            '&:hover': { backgroundColor: 'rgba(255,255,255,0.15)', borderColor: 'rgba(255,255,255,0.25)' },
+            '&:hover': { backgroundColor: boardSkinActive ? 'action.selected' : 'rgba(255,255,255,0.15)', borderColor: boardSkinActive ? 'text.primary' : 'rgba(255,255,255,0.25)' },
           }}
         >
           <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Avatar sx={{ width: 32, height: 32, fontSize: '0.8rem', fontWeight: 700, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', boxShadow: '0 2px 8px rgba(102,126,234,0.4)' }}>
+            <Avatar sx={{ width: 32, height: 32, fontSize: '0.8rem', fontWeight: 900, background: boardSkinActive ? 'background.default' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: boardSkinActive ? 'text.primary' : 'white', border: boardSkinActive ? '2px solid' : 'none', borderColor: 'text.primary', boxShadow: boardSkinActive ? 'none' : '0 2px 8px rgba(102,126,234,0.4)' }}>
               {getUserInitials()}
             </Avatar>
-            <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderRadius: '50%', bgcolor: '#4caf50', border: '2px solid #1a1a2e' }} />
+            <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderRadius: '50%', bgcolor: '#4caf50', border: '2px solid', borderColor: boardSkinActive ? 'background.paper' : '#1a1a2e' }} />
           </Box>
           <Box sx={{ display: { xs: 'none', md: 'flex' }, flexDirection: 'column', alignItems: 'flex-start' }}>
-            <Typography variant="body2" sx={{ color: 'white', fontWeight: 600, fontSize: '0.8rem', lineHeight: 1.2 }}>
+            <Typography variant="body2" sx={{ color: boardSkinActive ? 'text.primary' : 'white', fontWeight: 800, fontSize: '0.8rem', lineHeight: 1.2 }}>
               {user?.full_name || user?.username}
             </Typography>
-            <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.65rem', lineHeight: 1, textTransform: 'capitalize' }}>
+            <Typography variant="caption" sx={{ color: boardSkinActive ? 'text.secondary' : 'rgba(255,255,255,0.6)', fontSize: '0.65rem', lineHeight: 1, textTransform: 'capitalize', fontWeight: 700 }}>
               {user?.username || 'Staff'}
             </Typography>
           </Box>
-          <KeyboardArrowDownIcon sx={{ fontSize: 18, color: 'rgba(255,255,255,0.6)', transition: 'transform 0.2s', transform: userMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+          <KeyboardArrowDownIcon sx={{ fontSize: 18, color: boardSkinActive ? 'text.secondary' : 'rgba(255,255,255,0.6)', transition: 'transform 0.2s', transform: userMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
         </Box>
 
         <Menu

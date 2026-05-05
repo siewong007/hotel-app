@@ -108,6 +108,23 @@ pub struct PaymentSummary {
     pub payment_method: Option<String>,
 }
 
+/// Booking-level payment workflow summary.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PaymentWorkflowSummary {
+    pub booking_id: i64,
+    pub booking_status: String,
+    pub payment_status: String,
+    pub total_amount: Decimal,
+    pub total_paid: Decimal,
+    pub total_refunded: Decimal,
+    pub balance_due: Decimal,
+    pub deposit_collected: Decimal,
+    pub deposit_refunded: Decimal,
+    pub has_failed_payment: bool,
+    pub next_action: String,
+    pub warnings: Vec<String>,
+}
+
 /// Invoice record
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Invoice {
