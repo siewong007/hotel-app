@@ -19,6 +19,26 @@ export class APIError extends Error {
 // Requests resolve the API base dynamically so Tauri can update it after boot.
 export const API_BASE_URL = getApiBaseUrl();
 
+async function createRequestWithUrl(request: Request, url: string): Promise<Request> {
+  const hasBody = request.method !== 'GET' && request.method !== 'HEAD' && request.body !== null;
+  const body = hasBody ? await request.clone().blob() : undefined;
+
+  return new Request(url, {
+    method: request.method,
+    headers: new Headers(request.headers),
+    body,
+    cache: request.cache,
+    credentials: request.credentials,
+    integrity: request.integrity,
+    keepalive: request.keepalive,
+    mode: request.mode,
+    redirect: request.redirect,
+    referrer: request.referrer,
+    referrerPolicy: request.referrerPolicy,
+    signal: request.signal,
+  });
+}
+
 // Create ky instance with hooks for auth and error handling
 export const api = ky.create({
   timeout: 30000, // 30 second timeout
@@ -29,9 +49,9 @@ export const api = ky.create({
   },
   hooks: {
     beforeRequest: [
-      request => {
+      async request => {
         const nextUrl = resolveApiRequestUrl(request.url);
-        const apiRequest = nextUrl === request.url ? request : new Request(nextUrl, request);
+        const apiRequest = nextUrl === request.url ? request : await createRequestWithUrl(request, nextUrl);
         const token = storage.getItem<string>('accessToken');
         if (token) {
           apiRequest.headers.set('Authorization', `Bearer ${token}`);

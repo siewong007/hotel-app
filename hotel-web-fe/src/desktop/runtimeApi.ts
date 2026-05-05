@@ -1,5 +1,6 @@
 const RUNTIME_API_BASE_URL_KEY = 'hotelRuntimeApiBaseUrl';
 const TAURI_MODES = new Set(['tauri', 'desktop']);
+let runtimeApiBaseUrl: string | null = null;
 
 type TauriCoreApi = {
   invoke: <T = unknown>(command: string, args?: Record<string, unknown>) => Promise<T>;
@@ -77,13 +78,22 @@ export function getTauriEventApi(): TauriEventApi {
 
 export function setRuntimeApiBaseUrl(url: string): void {
   const normalizedUrl = url.replace(/\/+$/, '');
-  window.sessionStorage.setItem(RUNTIME_API_BASE_URL_KEY, normalizedUrl);
+  runtimeApiBaseUrl = normalizedUrl;
+
+  if (typeof window !== 'undefined') {
+    window.sessionStorage.setItem(RUNTIME_API_BASE_URL_KEY, normalizedUrl);
+  }
 }
 
 export function getApiBaseUrl(): string {
+  if (runtimeApiBaseUrl) {
+    return runtimeApiBaseUrl;
+  }
+
   if (typeof window !== 'undefined') {
     const runtimeUrl = window.sessionStorage.getItem(RUNTIME_API_BASE_URL_KEY);
     if (runtimeUrl) {
+      runtimeApiBaseUrl = runtimeUrl;
       return runtimeUrl;
     }
   }
