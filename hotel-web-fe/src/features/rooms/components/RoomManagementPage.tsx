@@ -2899,8 +2899,8 @@ const RoomManagementPage: React.FC = () => {
                   label="Booking Channel"
                 >
                   {BOOKING_CHANNELS.map((channel) => (
-                    <MenuItem key={channel} value={channel}>
-                      {channel}
+                    <MenuItem key={channel.name} value={channel.name}>
+                      {channel.abbreviation ? `${channel.name} (${channel.abbreviation})` : channel.name}
                     </MenuItem>
                   ))}
                 </Select>

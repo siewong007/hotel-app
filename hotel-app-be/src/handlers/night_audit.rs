@@ -451,6 +451,7 @@ pub async fn get_night_audit_details(
             napn.total_posted as total_amount,
             b.payment_status,
             b.source,
+            b.remarks as booking_remarks,
             COALESCE(b.payment_method, 'Unknown') as payment_method
         FROM night_audit_posted_nights napn
         JOIN bookings b ON napn.booking_id = b.id
@@ -488,6 +489,7 @@ pub async fn get_night_audit_details(
                 payment_status: row.get("payment_status"),
                 payment_method: Some(pm),
                 source,
+                booking_remarks: row.get("booking_remarks"),
             }
         })
         .collect();
