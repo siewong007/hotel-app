@@ -49,10 +49,11 @@ import {
   CheckCircleOutline as CheckCircleIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
-import { Guest, GuestCreateRequest, GuestType, GUEST_TYPE_CONFIG, TourismType, TOURISM_TYPE_CONFIG } from '../../../types';
+import { Guest, GuestCreateRequest, GuestType, GUEST_TYPE_CONFIG, Room, TourismType, TOURISM_TYPE_CONFIG } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail } from '../../../utils/validation';
 import { useCurrency } from '../../../hooks/useCurrency';
+import UnifiedBookingModal from '../../rooms/components/UnifiedBookingModal';
 import {
   Star as MemberIcon,
   PersonOutline as NonMemberIcon,
@@ -112,6 +113,7 @@ const GuestConfigurationPage: React.FC = () => {
   const hasAccess = hasRole('admin') || hasRole('receptionist') || hasRole('manager') || hasPermission('guests:read') || hasPermission('guests:manage');
 
   const [guests, setGuests] = useState<Guest[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -125,6 +127,7 @@ const GuestConfigurationPage: React.FC = () => {
   const [statsMembers, setStatsMembers] = useState(0);
   // Currently selected guest in the right detail pane.
   const [selectedGuestId, setSelectedGuestId] = useState<number | null>(null);
+  const [guestDetailsOpen, setGuestDetailsOpen] = useState(true);
 
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -132,6 +135,8 @@ const GuestConfigurationPage: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bookingsDialogOpen, setBookingsDialogOpen] = useState(false);
   const [creditsDialogOpen, setCreditsDialogOpen] = useState(false);
+  const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
+  const [bookingGuest, setBookingGuest] = useState<Guest | null>(null);
 
   // Credits state
   interface GuestCredits {
@@ -202,6 +207,15 @@ const GuestConfigurationPage: React.FC = () => {
     }
   }, [currentPage, searchTerm, filterType]);
 
+  const loadRooms = useCallback(async () => {
+    try {
+      const data = await HotelAPIService.getAllRooms();
+      setRooms(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load rooms');
+    }
+  }, []);
+
   // Fetch global stats once on mount (total + member count, independent of active filters)
   useEffect(() => {
     if (!hasAccess) return;
@@ -247,12 +261,13 @@ const GuestConfigurationPage: React.FC = () => {
 
   // Default-select the first guest on the page when nothing is selected.
   useEffect(() => {
+    if (!guestDetailsOpen) return;
     if (selectedGuestId == null && visibleGuests.length > 0) {
       setSelectedGuestId(visibleGuests[0].id);
     }
-  }, [selectedGuestId, visibleGuests]);
+  }, [guestDetailsOpen, selectedGuestId, visibleGuests]);
 
-  const selectedGuest = guests.find((g) => g.id === selectedGuestId) || null;
+  const selectedGuest = guestDetailsOpen ? guests.find((g) => g.id === selectedGuestId) || null : null;
 
   const handleFilterTypeChange = (_: React.MouseEvent<HTMLElement>, value: 'all' | GuestType | null) => {
     if (!value) return;
@@ -342,6 +357,14 @@ const GuestConfigurationPage: React.FC = () => {
       setError(err.message || 'Failed to load credits');
     } finally {
       setCreditsLoading(false);
+    }
+  };
+
+  const handleCreateBookingForGuest = async (guest: Guest) => {
+    setBookingGuest(guest);
+    setBookingDialogOpen(true);
+    if (rooms.length === 0) {
+      await loadRooms();
     }
   };
 
@@ -574,7 +597,7 @@ const GuestConfigurationPage: React.FC = () => {
       </Box>
 
       {/* Two-pane layout: list (flex) + sticky detail (400px) */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 400px' }, gap: 1.75, alignItems: 'flex-start' }}>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: selectedGuest ? '1fr 400px' : '1fr' }, gap: 1.75, alignItems: 'flex-start' }}>
         {/* LEFT: list */}
         <Box sx={{ bgcolor: '#fff', border: `1px solid ${GUEST_DESIGN.rule}`, borderRadius: 1.5, overflow: 'hidden' }}>
           {/* Search */}
@@ -711,7 +734,10 @@ const GuestConfigurationPage: React.FC = () => {
                     <Box
                       key={g.id}
                       component="button"
-                      onClick={() => setSelectedGuestId(g.id)}
+                      onClick={() => {
+                        setSelectedGuestId(g.id);
+                        setGuestDetailsOpen(true);
+                      }}
                       sx={{
                         width: '100%',
                         display: 'grid',
@@ -883,32 +909,9 @@ const GuestConfigurationPage: React.FC = () => {
         </Box>
 
         {/* RIGHT: detail panel */}
-        <Box sx={{ position: { lg: 'sticky' }, top: { lg: 24 } }}>
-          {!selectedGuest ? (
-            <Box sx={{
-              bgcolor: '#fff',
-              border: `1px solid ${GUEST_DESIGN.rule}`,
-              borderRadius: 1.5,
-              p: 4,
-              minHeight: 520,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 1.25,
-              textAlign: 'center',
-              color: GUEST_DESIGN.ink3,
-            }}>
-              <Box sx={{ width: 54, height: 54, borderRadius: '50%', bgcolor: GUEST_DESIGN.paper2, display: 'grid', placeItems: 'center', color: GUEST_DESIGN.ink4 }}>
-                <PersonIcon sx={{ fontSize: 26 }} />
-              </Box>
-              <Typography sx={{ fontSize: 14, fontWeight: 600, color: GUEST_DESIGN.ink2 }}>Select a guest</Typography>
-              <Typography sx={{ fontSize: 12.5, maxWidth: 240 }}>
-                Tap any name in the list to view contact details, stay history, and quick actions.
-              </Typography>
-            </Box>
-          ) : (
-            (() => {
+        {selectedGuest && (
+          <Box sx={{ position: { lg: 'sticky' }, top: { lg: 24 } }}>
+            {(() => {
               const g = selectedGuest;
               const av = avatarFor(g.id);
               const isMember = g.guest_type === 'member';
@@ -931,9 +934,13 @@ const GuestConfigurationPage: React.FC = () => {
                   {/* Header */}
                   <Box sx={{ p: '20px 20px 18px', borderBottom: `1px solid ${GUEST_DESIGN.rule}`, position: 'relative' }}>
                     <IconButton
-                      onClick={() => setSelectedGuestId(null)}
+                      onClick={() => {
+                        setSelectedGuestId(null);
+                        setGuestDetailsOpen(false);
+                      }}
                       size="small"
                       sx={{ position: 'absolute', top: 14, right: 14, color: GUEST_DESIGN.ink3 }}
+                      title="Close details"
                     >
                       <CloseIcon sx={{ fontSize: 18 }} />
                     </IconButton>
@@ -1068,7 +1075,7 @@ const GuestConfigurationPage: React.FC = () => {
                   <Box sx={{ p: '14px 20px 20px', display: 'flex', flexDirection: 'column', gap: 1 }}>
                     <Button
                       startIcon={<AddIcon />}
-                      onClick={handleCreateClick}
+                      onClick={() => handleCreateBookingForGuest(g)}
                       sx={{
                         py: 1.5,
                         borderRadius: 1.25,
@@ -1154,10 +1161,33 @@ const GuestConfigurationPage: React.FC = () => {
                   </Box>
                 </Box>
               );
-            })()
-          )}
-        </Box>
+            })()}
+          </Box>
+        )}
       </Box>
+
+      <UnifiedBookingModal
+        open={bookingDialogOpen}
+        onClose={() => {
+          setBookingDialogOpen(false);
+          setBookingGuest(null);
+        }}
+        room={null}
+        rooms={rooms}
+        guests={guests}
+        initialGuest={bookingGuest}
+        onSuccess={async (message) => {
+          setSnackbarMessage(message);
+          setSnackbarOpen(true);
+          await loadGuests();
+        }}
+        onError={(message) => {
+          setError(message);
+        }}
+        onRefreshData={async () => {
+          await Promise.all([loadGuests(), loadRooms()]);
+        }}
+      />
 
       <GuestProfileDialog
         open={createDialogOpen}

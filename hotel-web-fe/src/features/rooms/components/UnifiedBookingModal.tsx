@@ -63,6 +63,7 @@ interface UnifiedBookingModalProps {
   room?: Room | null;  // Optional - if not provided, room selection step will be shown
   rooms?: Room[];      // List of rooms for selection when room is not pre-selected
   guests: Guest[];
+  initialGuest?: Guest | null;
   initialBookingType?: BookingType;
   onSuccess: (message: string) => void;
   onError: (message: string) => void;
@@ -114,6 +115,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   room: roomProp,
   rooms = [],
   guests,
+  initialGuest = null,
   initialBookingType,
   onSuccess,
   onError,
@@ -242,7 +244,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setActiveStep(0);
       setBookingMode('reservation');
       setReservationType('online');
-      setSelectedGuest(null);
+      setSelectedGuest(initialGuest);
       setNewGuestForm(emptyNewGuestForm);
       setIsCreatingNewGuest(false);
       setSelectedGuestWithCredits(null);
