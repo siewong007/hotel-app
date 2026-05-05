@@ -1664,22 +1664,16 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     return 'Create reservation';
   })();
 
-  // Per-section validity check for whole-form submission
+  // Lenient submit gate — only block on truly impossible state. The downstream
+  // submit handlers (createBookingAndHandOff / handleSubmit) already validate
+  // guest, channel, etc. and surface precise errors via onError(), so we don't
+  // need to disable the button for those cases.
   const formIsValid = (() => {
     if (!room) return false;
     if (!bookingMode) return false;
     if (bookingMode === 'reservation' && !reservationType) return false;
-    if (effectiveType === 'online' && !bookingChannel) return false;
     if (!checkInDate || !checkOutDate) return false;
     if (!isHourlyBooking && new Date(checkOutDate) <= new Date(checkInDate)) return false;
-    if (effectiveType === 'complimentary') {
-      if (!selectedGuestWithCredits) return false;
-    } else {
-      if (isCreatingNewGuest) {
-        if (!newGuestForm.first_name || !newGuestForm.last_name) return false;
-      } else if (!selectedGuest) return false;
-    }
-    if (roomIsAvailable === false) return false;
     return true;
   })();
 
