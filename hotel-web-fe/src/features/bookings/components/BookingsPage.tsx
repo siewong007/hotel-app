@@ -62,6 +62,7 @@ import {
   Bed as BedIcon,
   MeetingRoom as RoomIcon,
   Add as AddIcon,
+  Public as PublicIcon,
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
 import { HotelAPIService } from '../../../api';
@@ -74,6 +75,112 @@ import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal
 import UnifiedBookingModal from '../../rooms/components/UnifiedBookingModal';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { useBookings, PAGE_SIZE, SortField, DateFilter } from '../hooks/useBookings';
+
+type BookingChannelInfo = {
+  name: string;
+  abbreviation: string;
+  background: string;
+  color: string;
+};
+
+type BookingChannelStyle = Pick<BookingChannelInfo, 'background' | 'color'> & { patterns: RegExp[] };
+
+const KNOWN_ONLINE_CHANNEL_STYLES: BookingChannelStyle[] = [
+  { background: '#e81f45', color: '#fff', patterns: [/agoda/i] },
+  { background: '#003b95', color: '#fff', patterns: [/booking\.com/i] },
+  { background: '#087ce4', color: '#fff', patterns: [/traveloka/i] },
+  { background: '#ffc72c', color: '#172033', patterns: [/expedia/i] },
+  { background: '#ff5a5f', color: '#fff', patterns: [/airbnb/i] },
+  { background: '#1976d2', color: '#fff', patterns: [/\bwebsite\b/i, /\bweb\b/i] },
+  { background: '#00796b', color: '#fff', patterns: [/\bota\b/i, /\bonline\b/i] },
+];
+
+const toChannelAbbreviation = (name: string) => {
+  const compact = name.replace(/\.com/gi, '').trim();
+  const words = compact.match(/[A-Za-z0-9]+/g) || [];
+
+  if (words.length > 1) {
+    return words.map((word) => word[0]).join('').slice(0, 3).toUpperCase();
+  }
+
+  return (compact.replace(/[^A-Za-z0-9]/g, '').slice(0, 3) || 'WEB').toUpperCase();
+};
+
+const cleanChannelName = (value: string) => value
+  .replace(/\s*-\s*Ref:.*$/i, '')
+  .replace(/\s*Reference:.*$/i, '')
+  .replace(/\s*Booking$/i, '')
+  .trim();
+
+const normalizeChannelToken = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const getChannelStyle = (name: string): Pick<BookingChannelInfo, 'background' | 'color'> => {
+  const style = KNOWN_ONLINE_CHANNEL_STYLES.find((channel) => channel.patterns.some((pattern) => pattern.test(name)));
+  return style ? { background: style.background, color: style.color } : { background: '#455a64', color: '#fff' };
+};
+
+const buildChannelInfo = (name: string, abbreviation?: string): BookingChannelInfo => ({
+  name,
+  abbreviation: abbreviation?.trim() || toChannelAbbreviation(name),
+  ...getChannelStyle(name),
+});
+
+const findConfiguredChannel = (sourceKey: string, haystack: string, parsedName: string) => {
+  const configuredChannels = getHotelSettings().booking_channels.filter((channel) => channel.name.trim());
+  const normalizedHaystack = normalizeChannelToken(haystack);
+  const normalizedParsed = normalizeChannelToken(parsedName);
+
+  const exactMatch = configuredChannels.find((channel) => {
+    const normalizedName = normalizeChannelToken(channel.name);
+    return normalizedName && (normalizedParsed === normalizedName || normalizedHaystack.includes(normalizedName));
+  });
+  if (exactMatch) return exactMatch;
+
+  if (sourceKey.includes('website') || sourceKey.includes('web')) {
+    return configuredChannels.find((channel) => /\b(web|website)\b/i.test(channel.name));
+  }
+
+  if (sourceKey.includes('ota')) {
+    return configuredChannels.find((channel) => /\b(ota|online)\b/i.test(channel.name));
+  }
+
+  return undefined;
+};
+
+const getBookingChannelInfo = (booking: Pick<BookingWithDetails, 'source' | 'remarks' | 'booking_remarks'>): BookingChannelInfo | null => {
+  const source = String(booking.source || '').trim();
+  const sourceKey = source.toLowerCase();
+  const remarks = [booking.booking_remarks, booking.remarks]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join(' | ');
+  const haystack = `${source} ${remarks}`.trim();
+  const firstRemark = remarks.split('|')[0]?.trim() || '';
+  const parsedName = /-\s*Ref:|Reference:|\sBooking$/i.test(firstRemark) ? cleanChannelName(firstRemark) : '';
+  const configuredChannel = findConfiguredChannel(sourceKey, haystack, parsedName);
+  const styleMatch = KNOWN_ONLINE_CHANNEL_STYLES.find((channel) => channel.patterns.some((pattern) => pattern.test(parsedName || haystack)));
+  const looksOnline = ['online', 'ota', 'website', 'web', 'channel_manager'].some((key) => sourceKey.includes(key)) || Boolean(configuredChannel || styleMatch);
+
+  if (!looksOnline) {
+    return null;
+  }
+
+  if (configuredChannel) {
+    return buildChannelInfo(configuredChannel.name, configuredChannel.abbreviation);
+  }
+
+  const fallbackName = parsedName || (sourceKey.includes('website') || sourceKey.includes('web') ? 'Website' : 'Online');
+  return buildChannelInfo(fallbackName);
+};
+
+const getBookedViaText = (booking: Pick<BookingWithDetails, 'source' | 'remarks' | 'booking_remarks'>) => {
+  const channel = getBookingChannelInfo(booking);
+  if (channel) {
+    return `${channel.name} (${channel.abbreviation})`;
+  }
+
+  return booking.source?.replace(/_/g, ' ') || 'Direct';
+};
 
 const BookingsPage: React.FC = () => {
   const { hasRole, hasPermission } = useAuth();
@@ -138,6 +245,7 @@ const BookingsPage: React.FC = () => {
   const [workflowTimeline, setWorkflowTimeline] = useState<BookingTimelineEntry[]>([]);
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
+  const [bookingDetailsOpen, setBookingDetailsOpen] = useState(true);
   const [bookingView, setBookingView] = useState<'all' | 'arriving' | 'in_house' | 'departing' | 'upcoming' | 'balance'>('all');
   const [summaryBookings, setSummaryBookings] = useState<BookingWithDetails[]>([]);
   const [summaryLoaded, setSummaryLoaded] = useState(false);
@@ -808,11 +916,13 @@ const BookingsPage: React.FC = () => {
   }, [arrivingBookings, bookingView, departingBookings, dueBookings, filteredAndSortedBookings, inHouseBookings, upcomingBookings]);
 
   const selectedBooking = useMemo(() => {
+    if (!bookingDetailsOpen) return null;
     if (selectedBookingId == null) return visibleBookings[0] || null;
     return visibleBookings.find((booking) => String(booking.id) === String(selectedBookingId)) || visibleBookings[0] || null;
-  }, [selectedBookingId, visibleBookings]);
+  }, [bookingDetailsOpen, selectedBookingId, visibleBookings]);
 
   useEffect(() => {
+    if (!bookingDetailsOpen) return;
     if (visibleBookings.length === 0) {
       setSelectedBookingId(null);
       return;
@@ -820,7 +930,7 @@ const BookingsPage: React.FC = () => {
     if (!selectedBookingId || !visibleBookings.some((booking) => String(booking.id) === String(selectedBookingId))) {
       setSelectedBookingId(visibleBookings[0].id);
     }
-  }, [selectedBookingId, visibleBookings]);
+  }, [bookingDetailsOpen, selectedBookingId, visibleBookings]);
 
   const totalGuestsInHouse = inHouseBookings.reduce((sum, booking) => sum + Number((booking as any).adults || 1) + Number((booking as any).children || 0), 0);
   const roomCount = rooms.length || 0;
@@ -859,6 +969,7 @@ const BookingsPage: React.FC = () => {
     selectBookingView('balance');
     if (dueBookings.length > 0) {
       setSelectedBookingId(dueBookings[0].id);
+      setBookingDetailsOpen(true);
     }
   };
 
@@ -999,7 +1110,7 @@ const BookingsPage: React.FC = () => {
       </Grid>
 
       <Grid container spacing={2.5} alignItems="stretch">
-        <Grid size={{ xs: 12, lg: 8 }}>
+        <Grid size={{ xs: 12, lg: selectedBooking ? 8 : 12 }}>
           <Card elevation={0} sx={{ overflow: 'hidden', height: '100%' }}>
             <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 220px' }, gap: 1.25 }}>
@@ -1103,11 +1214,15 @@ const BookingsPage: React.FC = () => {
                   const isSelected = selectedBooking && String(selectedBooking.id) === String(booking.id);
                   const balance = getBookingBalance(booking);
                   const isPaid = balance <= 0 && ['paid', 'paid_rate'].includes(String(booking.payment_status || '').toLowerCase());
+                  const channelInfo = getBookingChannelInfo(booking);
 
                   return (
                     <Box
                       key={booking.id}
-                      onClick={() => setSelectedBookingId(booking.id)}
+                      onClick={() => {
+                        setSelectedBookingId(booking.id);
+                        setBookingDetailsOpen(true);
+                      }}
                       sx={{
                         display: 'grid',
                         gridTemplateColumns: { xs: '44px 1fr', md: '54px 1fr auto auto' },
@@ -1127,6 +1242,35 @@ const BookingsPage: React.FC = () => {
                       <Box sx={{ minWidth: 0 }}>
                         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                           <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.15 }}>{booking.guest_name}</Typography>
+                          {channelInfo && (
+                            <Tooltip title={`Online booking via ${channelInfo.name}`} arrow>
+                              <Chip
+                                size="small"
+                                icon={<PublicIcon />}
+                                label={channelInfo.abbreviation}
+                                sx={{
+                                  height: 22,
+                                  minWidth: 60,
+                                  maxWidth: 'none',
+                                  flexShrink: 0,
+                                  fontWeight: 900,
+                                  bgcolor: channelInfo.background,
+                                  color: channelInfo.color,
+                                  border: `1px solid ${alpha(channelInfo.color, 0.2)}`,
+                                  '& .MuiChip-icon': {
+                                    color: channelInfo.color,
+                                    fontSize: 14,
+                                    ml: 0.65,
+                                    mr: -0.35,
+                                  },
+                                  '& .MuiChip-label': {
+                                    px: 0.8,
+                                    overflow: 'visible',
+                                  },
+                                }}
+                              />
+                            </Tooltip>
+                          )}
                           {booking.guest_type && <Chip size="small" label={booking.guest_type.replace(/_/g, ' ').slice(0, 8)} sx={{ height: 22, fontWeight: 800 }} />}
                           <Typography variant="body2" sx={{ color: statusDotColor(booking.status), fontWeight: 800 }}>
                             • {getBookingStatusText(booking.status)}
@@ -1173,34 +1317,43 @@ const BookingsPage: React.FC = () => {
           </Card>
         </Grid>
 
+        {selectedBooking && (
         <Grid size={{ xs: 12, lg: 4 }}>
           <Card elevation={0} sx={{ height: '100%', minHeight: 520, overflow: 'hidden' }}>
-            {selectedBooking ? (
-              <>
-                <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
-                    <Chip
+            <>
+              <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+                  <Chip
+                    size="small"
+                    label={getBookingStatusText(selectedBooking.status)}
+                    sx={{ bgcolor: alpha(statusDotColor(selectedBooking.status), 0.12), color: statusDotColor(selectedBooking.status), fontWeight: 900 }}
+                  />
+                  <Tooltip title="Close details" arrow>
+                    <IconButton
                       size="small"
-                      label={getBookingStatusText(selectedBooking.status)}
-                      sx={{ bgcolor: alpha(statusDotColor(selectedBooking.status), 0.12), color: statusDotColor(selectedBooking.status), fontWeight: 900 }}
-                    />
-                    <IconButton size="small" onClick={() => setSelectedBookingId(null)}>
+                      onClick={() => {
+                        setSelectedBookingId(null);
+                        setBookingDetailsOpen(false);
+                      }}
+                    >
                       <CloseIcon fontSize="small" />
                     </IconButton>
-                  </Stack>
-                  <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 3 }}>
-                    <Box sx={{ width: 58, height: 58, borderRadius: '50%', bgcolor: alpha('#2f6f52', 0.14), color: '#245a42', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.1rem' }}>
-                      {getGuestInitials(selectedBooking.guest_name)}
-                    </Box>
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.1 }}>{selectedBooking.guest_name}</Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                        {selectedBooking.invoice_number || selectedBooking.folio_number || selectedBooking.booking_number || `#${selectedBooking.id}`}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                </Box>
+                  </Tooltip>
+                </Stack>
+                <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 3 }}>
+                  <Box sx={{ width: 58, height: 58, borderRadius: '50%', bgcolor: alpha('#2f6f52', 0.14), color: '#245a42', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '1.1rem' }}>
+                    {getGuestInitials(selectedBooking.guest_name)}
+                  </Box>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 900, lineHeight: 1.1 }}>{selectedBooking.guest_name}</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                      {selectedBooking.invoice_number || selectedBooking.folio_number || selectedBooking.booking_number || `#${selectedBooking.id}`}
+                    </Typography>
+                  </Box>
+                </Stack>
+              </Box>
 
+              <>
                 <Box sx={{ p: 2.5, borderBottom: '1px solid', borderColor: 'divider' }}>
                   <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Stay</Typography>
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 2, alignItems: 'center', mt: 1 }}>
@@ -1279,7 +1432,7 @@ const BookingsPage: React.FC = () => {
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2.5 }}>
                     <Box>
                       <Typography variant="caption" color="text.secondary">Booked via</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 800, textTransform: 'capitalize' }}>{selectedBooking.source?.replace(/_/g, ' ') || 'Direct'}</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 800, textTransform: 'capitalize' }}>{getBookedViaText(selectedBooking)}</Typography>
                     </Box>
                     <Box>
                       <Typography variant="caption" color="text.secondary">Payment</Typography>
@@ -1288,14 +1441,10 @@ const BookingsPage: React.FC = () => {
                   </Box>
                 </Box>
               </>
-            ) : (
-              <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary' }}>
-                <Typography variant="h6">Select a booking</Typography>
-                <Typography variant="body2">Booking details and actions will appear here.</Typography>
-              </Box>
-            )}
+            </>
           </Card>
         </Grid>
+        )}
       </Grid>
 
       {/* Booking Workflow Dialog */}
