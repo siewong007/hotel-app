@@ -2359,9 +2359,47 @@ const RoomManagementPage: React.FC = () => {
                         >
                           {new Date(reservedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(reservedBooking.check_out_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </Typography>
+
+                        {/* Editable booking notes — same affordance as occupied rooms */}
+                        <Tooltip title={reservedBooking.remarks || reservedBooking.special_requests ? 'Click to edit notes' : 'Click to add notes'} arrow>
+                          <Box
+                            onClick={(e) => handleEditBookingNotes(reservedBooking, e)}
+                            sx={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: 0.5,
+                              mt: 0.75,
+                              p: 0.5,
+                              bgcolor: 'action.hover',
+                              borderRadius: 0.5,
+                              cursor: 'pointer',
+                              '&:hover': { bgcolor: 'action.selected' },
+                              minHeight: 24,
+                            }}
+                          >
+                            <NotesIcon sx={{ fontSize: 12, opacity: 0.8, mt: 0.25 }} />
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                fontSize: '0.6rem',
+                                opacity: 0.9,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                flex: 1,
+                                fontStyle: (reservedBooking.remarks || reservedBooking.special_requests) ? 'normal' : 'italic',
+                              }}
+                            >
+                              {reservedBooking.remarks || reservedBooking.special_requests || 'Add notes...'}
+                            </Typography>
+                            <EditIcon sx={{ fontSize: 10, opacity: 0.6 }} />
+                          </Box>
+                        </Tooltip>
                       </Box>
 
-                      {/* Action row: Check in (primary), Edit, More — pinned to card bottom */}
+                      {/* Action row: Check in (primary) + More — pinned to card bottom */}
                       <Box sx={{ position: 'absolute', bottom: 12, left: 12, right: 12, display: 'flex', gap: 0.4, alignItems: 'center', minWidth: 0 }}>
                         <Button
                           size="small"
@@ -2390,34 +2428,6 @@ const RoomManagementPage: React.FC = () => {
                           }}
                         >
                           Check in
-                        </Button>
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEditBookingNotes(reservedBooking);
-                          }}
-                          sx={{
-                            flex: 1,
-                            color: 'text.primary',
-                            bgcolor: 'background.paper',
-                            fontSize: '0.62rem',
-                            fontWeight: 700,
-                            textTransform: 'none',
-                            whiteSpace: 'nowrap',
-                            '&.MuiButton-root': {
-                              minWidth: 0,
-                              py: 0.35,
-                              px: 0.5,
-                              borderRadius: 999,
-                              borderColor: 'divider',
-                              borderWidth: 1,
-                            },
-                            '&:hover': { borderColor: 'text.primary', bgcolor: 'action.hover' },
-                          }}
-                        >
-                          Edit
                         </Button>
                         <Tooltip title="More actions" arrow>
                           <IconButton
