@@ -136,6 +136,7 @@ export class HotelAPIService {
   static generateInvoice = InvoicesService.generateInvoice;
   static getUserInvoices = InvoicesService.getUserInvoices;
   static getPaymentWorkflowSummary = InvoicesService.getPaymentWorkflowSummary;
+  static recordPayment = InvoicesService.recordPayment;
 
   // RBAC operations
   static getAllRoles = AdminService.getAllRoles;
