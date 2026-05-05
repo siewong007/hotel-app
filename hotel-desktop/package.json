@@ -8,7 +8,7 @@
     "build": "tauri build",
     "build:debug": "tauri build --debug",
     "sync:resources": "node scripts/sync-desktop-resources.mjs",
-    "build:frontend": "npm --prefix ../hotel-web-fe run build",
+    "build:frontend": "npm --prefix ../hotel-web-fe run build:tauri",
     "build:backend": "cargo build --manifest-path ../hotel-app-be/Cargo.toml --release",
     "copy:backend": "node scripts/copy-backend-sidecar.mjs",
     "desktop:prepare": "npm run sync:resources && npm run build:frontend && npm run build:backend && npm run copy:backend"

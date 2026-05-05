@@ -40,7 +40,7 @@ import {
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { EkycService } from '../../../api/ekyc.service';
-import { API_BASE_URL } from '../../../api/client';
+import { apiUrl } from '../../../desktop/runtimeApi';
 
 interface EkycVerification {
   id: number;
@@ -161,8 +161,7 @@ const EkycManagementPage: React.FC = () => {
 
   // Build image URL using the centralized API base URL
   const getImageUrl = (path: string) => {
-    const base = API_BASE_URL || window.location.origin;
-    return `${base}/${path}`;
+    return apiUrl(path);
   };
 
   if (loading) {
