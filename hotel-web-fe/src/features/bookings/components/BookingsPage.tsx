@@ -177,11 +177,10 @@ const BookingsPage: React.FC = () => {
   // Payment status update dialog
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentBooking, setPaymentBooking] = useState<BookingWithDetails | null>(null);
-  // Collect Deposit dialog now records a real payments row instead of toggling
-  // bookings.payment_status (which is derived). These two pieces of state drive
-  // amount + payment method instead of the old status dropdown.
-  const [depositAmount, setDepositAmount] = useState<number>(0);
-  const [depositMethod, setDepositMethod] = useState<string>('Cash');
+  // Payment dialog records a real payments row instead of toggling
+  // bookings.payment_status (which is derived from recorded payments).
+  const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [paymentMethod, setPaymentMethod] = useState<string>('Cash');
   const [paymentNote, setPaymentNote] = useState<string>('');
   const [updatingPayment, setUpdatingPayment] = useState(false);
 
@@ -471,46 +470,43 @@ const BookingsPage: React.FC = () => {
   // Payment status handlers
   const handleUpdatePaymentStatus = (booking: BookingWithDetails) => {
     setPaymentBooking(booking);
-    // Default to the configured deposit amount unless the booking already
-    // carries one (e.g. set during booking creation).
-    const presetDeposit = Number(booking.deposit_amount || 0) > 0
-      ? Number(booking.deposit_amount)
-      : getHotelSettings().deposit_amount;
-    setDepositAmount(presetDeposit);
-    setDepositMethod('Cash');
+    const balanceDue = Number(booking.balance_due || 0);
+    const totalAmount = Number(booking.total_amount || 0);
+    setPaymentAmount(balanceDue > 0 ? balanceDue : totalAmount);
+    setPaymentMethod(booking.payment_method || 'Cash');
     setPaymentNote('');
     setPaymentDialogOpen(true);
   };
 
   const handleConfirmPaymentUpdate = async () => {
     if (!paymentBooking) return;
-    if (!Number.isFinite(depositAmount) || depositAmount <= 0) {
-      setError('Deposit amount must be greater than 0.');
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      setError('Payment amount must be greater than 0.');
       return;
     }
 
     try {
       setUpdatingPayment(true);
-      // Insert a real `payments` row (payment_type='deposit'). The backend
+      // Insert a real `payments` row (payment_type='booking'). The backend
       // recompute_payment_status helper will flip the chip automatically.
       await HotelAPIService.recordPayment({
         booking_id: Number(paymentBooking.id),
-        amount: depositAmount,
-        payment_method: depositMethod,
-        payment_type: 'deposit',
-        notes: paymentNote.trim() || `Deposit collected (${depositMethod})`,
+        amount: paymentAmount,
+        payment_method: paymentMethod,
+        payment_type: 'booking',
+        notes: paymentNote.trim() || `Payment accepted (${paymentMethod})`,
       });
 
-      setSnackbarMessage(`Deposit of ${formatCurrency(depositAmount)} collected via ${depositMethod}`);
+      setSnackbarMessage(`Payment of ${formatCurrency(paymentAmount)} accepted via ${paymentMethod}`);
       setSnackbarOpen(true);
       setPaymentDialogOpen(false);
       setPaymentBooking(null);
-      setDepositAmount(0);
-      setDepositMethod('Cash');
+      setPaymentAmount(0);
+      setPaymentMethod('Cash');
       setPaymentNote('');
       await reloadBookingData();
     } catch (err: any) {
-      setError(err.message || 'Failed to collect deposit');
+      setError(err.message || 'Failed to accept payment');
     } finally {
       setUpdatingPayment(false);
     }
@@ -1579,7 +1575,7 @@ const BookingsPage: React.FC = () => {
                 live from the payments table on every list query, and any
                 override the user types in this form is wiped on the next
                 payment touch (record/refund/void/total change). Use the
-                "Collect Deposit" or "Take Payment" actions to record real
+                "Accept Payment" or "Take Payment" actions to record real
                 payment rows — those flip the chip automatically. */}
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
@@ -1775,66 +1771,100 @@ const BookingsPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Collect Deposit Dialog — records a real payments row; the backend
+      {/* Accept Payment Dialog — records a real payments row; the backend
           recompute then flips bookings.payment_status automatically. */}
       <Dialog
         open={paymentDialogOpen}
         onClose={() => {
           setPaymentDialogOpen(false);
           setPaymentBooking(null);
-          setDepositAmount(0);
-          setDepositMethod('Cash');
+          setPaymentAmount(0);
+          setPaymentMethod('Cash');
           setPaymentNote('');
         }}
         maxWidth="sm"
         fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: 'hidden',
+          },
+        }}
       >
-        <DialogTitle>Collect Deposit</DialogTitle>
-        <DialogContent>
+        <DialogTitle sx={{ p: 0 }}>
+          <Box sx={{ px: 3, py: 2.5, display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
+            <Box sx={{ width: 44, height: 44, borderRadius: 2, bgcolor: alpha('#2aa198', 0.12), color: '#16877f', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <PaymentIcon />
+            </Box>
+            <Box>
+              <Typography variant="h5" sx={{ fontWeight: 900, lineHeight: 1.15 }}>
+                Accept Payment
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Record a room charge payment and update the booking balance automatically.
+              </Typography>
+            </Box>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers sx={{ px: 3, py: 2.5 }}>
           {paymentBooking && (
-            <Box sx={{ mt: 1 }}>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Booking: {paymentBooking.booking_number || paymentBooking.folio_number || `#${paymentBooking.id}`}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Guest: {paymentBooking.guest_name}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Room: {paymentBooking.room_number}
-              </Typography>
-              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                <Typography variant="body2" color="text.secondary">
-                  Current status:
-                </Typography>
-                <Chip
-                  label={getPaymentStatusText(paymentBooking.payment_status)}
-                  color={getPaymentStatusColor(paymentBooking.payment_status)}
-                  size="small"
-                />
-                {Number(paymentBooking.balance_due ?? 0) > 0 && (
-                  <Typography variant="body2" color="error">
-                    · {formatCurrency(Number(paymentBooking.balance_due))} outstanding
-                  </Typography>
-                )}
+            <Stack spacing={2.25}>
+              <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
+                <Stack direction="row" justifyContent="space-between" spacing={2} alignItems="flex-start">
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 900 }}>
+                      Booking
+                    </Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 900, fontFamily: 'monospace', lineHeight: 1.25 }}>
+                      {paymentBooking.booking_number || paymentBooking.folio_number || `#${paymentBooking.id}`}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                      {paymentBooking.guest_name} · Room {paymentBooking.room_number}
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label={getPaymentStatusText(paymentBooking.payment_status)}
+                    color={getPaymentStatusColor(paymentBooking.payment_status)}
+                    size="small"
+                    sx={{ fontWeight: 800 }}
+                  />
+                </Stack>
               </Box>
 
-              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 2 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.25 }}>
+                {[
+                  { label: 'Total', value: formatCurrency(Number(paymentBooking.total_amount || 0)), color: 'text.primary' },
+                  { label: 'Paid', value: formatCurrency(Number(paymentBooking.total_paid || 0)), color: 'success.main' },
+                  { label: 'Balance', value: formatCurrency(Number(paymentBooking.balance_due || 0)), color: Number(paymentBooking.balance_due || 0) > 0 ? 'error.main' : 'success.main' },
+                ].map((item) => (
+                  <Box key={item.label} sx={{ p: 1.5, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
+                      {item.label}
+                    </Typography>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 900, color: item.color }}>
+                      {item.value}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
                 <TextField
                   fullWidth
                   type="number"
-                  label="Deposit Amount"
-                  value={depositAmount || ''}
-                  onChange={(e) => setDepositAmount(parseFloat(e.target.value) || 0)}
-                  InputProps={{ startAdornment: <Box sx={{ pr: 1, color: 'text.secondary' }}>{currencySymbol}</Box> }}
-                  inputProps={{ min: 0, step: 1 }}
+                  label="Payment Amount"
+                  value={paymentAmount || ''}
+                  onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
+                  InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
+                  inputProps={{ min: 0, step: 0.01 }}
                   required
                 />
                 <FormControl fullWidth>
                   <InputLabel>Payment Method</InputLabel>
                   <Select
-                    value={depositMethod}
+                    value={paymentMethod}
                     label="Payment Method"
-                    onChange={(e) => setDepositMethod(e.target.value)}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
                   >
                     {PAYMENT_METHODS.map((m) => (
                       <MenuItem key={m} value={m}>{m}</MenuItem>
@@ -1850,18 +1880,18 @@ const BookingsPage: React.FC = () => {
                 label="Payment Note (Optional)"
                 value={paymentNote}
                 onChange={(e) => setPaymentNote(e.target.value)}
-                placeholder="e.g., Receipt #12345, Cash from front desk drawer..."
-                helperText="Recorded as a payments row of type 'deposit'. Status updates automatically."
+                placeholder="e.g., Receipt #12345, card terminal approval, bank transfer reference..."
+                helperText="Recorded as a booking payment. Status and balance update automatically."
               />
-            </Box>
+            </Stack>
           )}
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'background.paper' }}>
           <Button onClick={() => {
             setPaymentDialogOpen(false);
             setPaymentBooking(null);
-            setDepositAmount(0);
-            setDepositMethod('Cash');
+            setPaymentAmount(0);
+            setPaymentMethod('Cash');
             setPaymentNote('');
           }}>
             Cancel
@@ -1870,9 +1900,9 @@ const BookingsPage: React.FC = () => {
             onClick={handleConfirmPaymentUpdate}
             variant="contained"
             color="primary"
-            disabled={depositAmount <= 0 || updatingPayment}
+            disabled={paymentAmount <= 0 || updatingPayment}
           >
-            {updatingPayment ? 'Processing...' : 'Collect Deposit'}
+            {updatingPayment ? 'Processing...' : 'Accept Payment'}
           </Button>
         </DialogActions>
       </Dialog>
