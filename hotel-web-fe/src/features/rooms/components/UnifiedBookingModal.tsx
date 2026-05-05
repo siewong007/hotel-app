@@ -1779,6 +1779,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const subtotal = ratePerNight * billableNights;
   const total = calculateTotal();
 
+  // Step glyphs auto-shift down when the Room picker section is rendered up
+  // top — keeps the labels in sync without needing per-call offsets.
+  const STEP_GLYPHS = ['①', '②', '③', '④', '⑤', '⑥', '⑦'];
+  const step = (i: number) => STEP_GLYPHS[i - 1 + (needsRoomSelection ? 1 : 0)] ?? '·';
+
   // SECTION header used throughout the form
   const sectionHeader = (number: string, label: React.ReactNode) => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
@@ -1877,9 +1882,80 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         {/* LEFT — FORM */}
         <Box sx={{ p: '22px 24px', overflowY: 'auto' }}>
 
+          {/* Room picker — only when opened without a pre-selected room
+             (e.g. the "Add booking" CTA on the Bookings page). */}
+          {needsRoomSelection && (
+            <Box sx={{ mb: 2.75 }}>
+              {sectionHeader('①', 'Room')}
+              <Autocomplete
+                size="small"
+                value={selectedRoom}
+                onChange={(_, value) => setSelectedRoom(value)}
+                options={
+                  // Prefer date-filtered availability list when dates are set;
+                  // otherwise fall back to the full rooms array.
+                  availableRooms.length > 0
+                    ? availableRooms
+                    : sortRoomsByNumber(rooms)
+                }
+                loading={loadingAvailableRooms}
+                getOptionLabel={(o) => o ? `Room ${o.room_number} · ${o.room_type}` : ''}
+                isOptionEqualToValue={(o, v) => String(o.id) === String(v?.id)}
+                renderOption={(props, option) => {
+                  const { key, ...rest } = props;
+                  const price = typeof option.price_per_night === 'string'
+                    ? parseFloat(option.price_per_night)
+                    : (option.price_per_night || 0);
+                  return (
+                    <Box component="li" key={key} {...rest} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <Box sx={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.5px', color: D.ink, minWidth: 38 }}>
+                        {option.room_number}
+                      </Box>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Box sx={{ fontSize: 13, fontWeight: 600, color: D.ink, textTransform: 'capitalize' }}>
+                          {option.room_type}
+                        </Box>
+                        <Box sx={{ fontSize: 11, color: D.ink3 }}>
+                          {price > 0 ? `${currencySymbol} ${price.toFixed(2)} / night` : 'Rate not set'}
+                          {option.floor != null ? ` · Floor ${option.floor}` : ''}
+                        </Box>
+                      </Box>
+                    </Box>
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder={
+                      !checkInDate || !checkOutDate
+                        ? 'Pick a room (set dates below to filter by availability)'
+                        : loadingAvailableRooms
+                          ? 'Loading available rooms…'
+                          : 'Select a room'
+                    }
+                    sx={{ bgcolor: '#fff' }}
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <Box sx={{ pl: 0.5, pr: 0.75, color: D.ink3, display: 'inline-flex' }}>
+                          <SearchIcon sx={{ fontSize: 16 }} />
+                        </Box>
+                      ),
+                    }}
+                  />
+                )}
+              />
+              {checkInDate && checkOutDate && availableRooms.length === 0 && !loadingAvailableRooms && (
+                <Typography sx={{ mt: 0.75, fontSize: 11, color: D.ink3, fontStyle: 'italic' }}>
+                  No rooms available for the selected dates — pick different dates below.
+                </Typography>
+              )}
+            </Box>
+          )}
+
           {/* ① Mode */}
           <Box sx={{ mb: 2.75 }}>
-            {sectionHeader('①', 'Mode')}
+            {sectionHeader(step(1), 'Mode')}
             <Box sx={{
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
@@ -1937,7 +2013,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           {/* ② Reservation type — only when mode === reservation */}
           {bookingMode === 'reservation' && (
             <Box sx={{ mb: 2.75 }}>
-              {sectionHeader('②', 'Reservation type')}
+              {sectionHeader(step(2), 'Reservation type')}
               <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.25 }}>
                 {TYPE_TILES.map((t) => {
                   const on = reservationType === t.k;
@@ -2063,7 +2139,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
           {/* ③ Guest */}
           <Box sx={{ mb: 2.75 }}>
-            {sectionHeader('③', 'Guest')}
+            {sectionHeader(step(3), 'Guest')}
             <GuestSelector
               guests={guests}
               selectedGuest={selectedGuest}
@@ -2082,7 +2158,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
           {/* ④ Stay */}
           <Box sx={{ mb: 2.75 }}>
-            {sectionHeader('④', 'Stay')}
+            {sectionHeader(step(4), 'Stay')}
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 1.5, alignItems: 'flex-end' }}>
               <Box>
                 <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Check-in</Typography>
@@ -2179,7 +2255,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
           {/* ⑤ Rate & payment */}
           <Box sx={{ mb: 2.75 }}>
-            {sectionHeader('⑤', 'Rate & payment')}
+            {sectionHeader(step(5), 'Rate & payment')}
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
               <Box>
                 <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Rate per night</Typography>
@@ -2237,11 +2313,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             </Box>
           </Box>
 
-          {/* ⑥ Notes */}
+          {/* Notes */}
           <Box sx={{ mb: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
               <Typography sx={{ m: 0, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: D.ink3, textTransform: 'uppercase' }}>
-                ⑥ Notes
+                {step(6)} Notes
               </Typography>
               <Typography sx={{ fontSize: 11, color: D.ink3, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
                 · optional
