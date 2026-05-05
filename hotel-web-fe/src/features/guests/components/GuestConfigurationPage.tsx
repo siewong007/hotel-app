@@ -40,6 +40,16 @@ import {
   Search as SearchIcon,
   History as HistoryIcon,
   CardGiftcard as GiftIcon,
+  PhoneOutlined as PhoneIcon,
+  MailOutline as MailIcon,
+  BadgeOutlined as IdIcon,
+  ApartmentOutlined as CompanyIcon,
+  ArrowForward as ArrowRightIcon,
+  Close as CloseIcon,
+  Edit as EditIcon,
+  FileDownloadOutlined as ExportIcon,
+  FileUploadOutlined as ImportIcon,
+  AutoAwesome as ConvertIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { Guest, GuestCreateRequest, GuestType, GUEST_TYPE_CONFIG, TourismType, TOURISM_TYPE_CONFIG } from '../../../types';
@@ -50,6 +60,48 @@ import {
   Star as MemberIcon,
   PersonOutline as NonMemberIcon,
 } from '@mui/icons-material';
+
+// Design tokens from the Guest Configuration Redesign mock.
+const GUEST_DESIGN = {
+  green700: '#1a6b50',
+  green600: '#1f8163',
+  green500: '#2aa078',
+  green50: '#ebf7f1',
+  ink: '#0c1f17',
+  ink2: '#36473e',
+  ink3: '#6a7a72',
+  ink4: '#9aa7a0',
+  paper2: '#f6f8f6',
+  paper3: '#eef2ef',
+  rule: '#e3e8e4',
+  amber: '#b9700e',
+  amberBg: '#fdf3e3',
+  rose: '#b1342c',
+  blue: '#1e5fa8',
+  blueBg: '#e3eef9',
+  gold: '#a17c1a',
+  goldBg: '#faf2dc',
+};
+const AVATAR_PALETTE: Array<[string, string]> = [
+  ['#d3eee0', '#0f3a2e'],
+  ['#e3eef9', '#1e5fa8'],
+  ['#ece4f9', '#5b3aa8'],
+  ['#fdf3e3', '#a17c1a'],
+  ['#fbe7e3', '#b1342c'],
+  ['#d8eef2', '#1c6478'],
+];
+const initialsOf = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0])
+    .join('')
+    .toUpperCase();
+const avatarFor = (id: number) => {
+  const [bg, fg] = AVATAR_PALETTE[id % AVATAR_PALETTE.length];
+  return { bg, fg };
+};
 
 interface GuestFormData extends GuestCreateRequest {
   id?: number;
@@ -67,11 +119,15 @@ const GuestConfigurationPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | GuestType>('all');
+  // Extra client-side segment narrowing on top of `filterType` (which drives the API call).
+  const [segment, setSegment] = useState<'all' | 'member' | 'non' | 'incomplete' | 'tourist'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalGuests, setTotalGuests] = useState(0);
   // Stats counts fetched once on mount, independent of filters
   const [statsTotal, setStatsTotal] = useState(0);
   const [statsMembers, setStatsMembers] = useState(0);
+  // Currently selected guest in the right detail pane.
+  const [selectedGuestId, setSelectedGuestId] = useState<number | null>(null);
 
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -168,6 +224,38 @@ const GuestConfigurationPage: React.FC = () => {
     const timer = setTimeout(() => loadGuests(), delay);
     return () => clearTimeout(timer);
   }, [currentPage, searchTerm, filterType, hasAccess]);
+
+  // Apply segment narrowing on the loaded page (extra client-side filter
+  // for "incomplete"/"tourist" — the API itself only knows guest_type).
+  const visibleGuests = React.useMemo(() => {
+    return guests.filter((g) => {
+      if (segment === 'member' && g.guest_type !== 'member') return false;
+      if (segment === 'non' && g.guest_type !== 'non_member') return false;
+      if (segment === 'incomplete' && g.email && g.phone) return false;
+      if (segment === 'tourist' && g.tourism_type !== 'foreign') return false;
+      return true;
+    });
+  }, [guests, segment]);
+
+  // Group visible guests A→Z for the section headers in the list.
+  const guestsByLetter = React.useMemo(() => {
+    const groups = new Map<string, Guest[]>();
+    visibleGuests.forEach((g) => {
+      const letter = (g.full_name?.[0] || '#').toUpperCase();
+      if (!groups.has(letter)) groups.set(letter, []);
+      groups.get(letter)!.push(g);
+    });
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [visibleGuests]);
+
+  // Default-select the first guest on the page when nothing is selected.
+  useEffect(() => {
+    if (selectedGuestId == null && visibleGuests.length > 0) {
+      setSelectedGuestId(visibleGuests[0].id);
+    }
+  }, [selectedGuestId, visibleGuests]);
+
+  const selectedGuest = guests.find((g) => g.id === selectedGuestId) || null;
 
   const handleFilterTypeChange = (_: React.MouseEvent<HTMLElement>, value: 'all' | GuestType | null) => {
     if (!value) return;
@@ -357,9 +445,44 @@ const GuestConfigurationPage: React.FC = () => {
   }
 
   const nonMemberStats = statsTotal - statsMembers;
+  const incompleteCount = visibleGuests.filter((g) => !g.email || !g.phone).length;
+  const touristCount = visibleGuests.filter((g) => g.tourism_type === 'foreign').length;
+  const memberCountOnPage = visibleGuests.filter((g) => g.guest_type === 'member').length;
+  const nonMemberCountOnPage = visibleGuests.filter((g) => g.guest_type === 'non_member').length;
+
+  // Map a segment key to a config used to render the chip. Counts come from the
+  // currently-loaded page; for "All" we show the API total so the user gets a
+  // sense of full data set size.
+  const segmentChips: Array<{
+    k: typeof segment;
+    label: string;
+    count: number;
+    icon?: React.ReactNode;
+    tone?: string;
+  }> = [
+    { k: 'all', label: 'All guests', count: statsTotal || guests.length },
+    { k: 'member', label: 'Members', count: memberCountOnPage, icon: <MemberIcon sx={{ fontSize: 14 }} />, tone: GUEST_DESIGN.gold },
+    { k: 'non', label: 'Non-members', count: nonMemberCountOnPage },
+    { k: 'incomplete', label: 'Missing info', count: incompleteCount, tone: GUEST_DESIGN.amber },
+    { k: 'tourist', label: 'Tourists', count: touristCount, tone: GUEST_DESIGN.blue },
+  ];
+
+  // The API exposes `guest_type` filtering; map our local segment onto it so the
+  // server-side counts stay accurate.
+  const onSegmentChange = (next: typeof segment) => {
+    setSegment(next);
+    setCurrentPage(1);
+    if (next === 'member') setFilterType('member');
+    else if (next === 'non') setFilterType('non_member');
+    else setFilterType('all');
+  };
+
+  const totalPages = Math.max(1, Math.ceil(totalGuests / PAGE_SIZE));
+  const today = new Date();
+  const dateLabel = today.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
-    <Box sx={{ p: 3 }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, color: GUEST_DESIGN.ink }}>
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={6000}
@@ -367,274 +490,649 @@ const GuestConfigurationPage: React.FC = () => {
         message={snackbarMessage}
       />
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 600, color: '#103931' }}>
-            Guest Configuration
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreateClick}
-          sx={{ borderRadius: 2, bgcolor: '#009688', textTransform: 'none', boxShadow: 'none', '&:hover': { bgcolor: '#00796b'} }}
-        >
-          Add New Guest
-        </Button>
-      </Box>
-
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
 
-      {/* Statistics Cards */}
-      <Grid container spacing={2} sx={{ mb: 4 }}>
-        {[
-          { title: 'Total Guests', value: statsTotal, color: '#009688', icon: <PersonIcon sx={{ fontSize: 18, color: '#103931' }} /> },
-          { title: 'Members', value: statsMembers, color: '#00bcd4', icon: <MemberIcon sx={{ fontSize: 18, color: '#103931' }} /> },
-          { title: 'Non-Members', value: nonMemberStats, color: '#4caf50', icon: <NonMemberIcon sx={{ fontSize: 18, color: '#103931' }} /> },
-          { title: 'Showing', value: `${totalGuests}${filterType !== 'all' || searchTerm ? ' filtered' : ''}`, color: '#ff9800', icon: <PersonIcon sx={{ fontSize: 18, color: '#103931' }} /> }
-        ].map((stat, idx) => (
-          <Grid size={{ xs: 6, sm: 4, md: 3 }} key={idx}>
-            <Card 
-              elevation={0}
-              sx={{ 
-                borderRadius: 2,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                border: '1px solid #edf2f0',
-              }}
-            >
-              <CardContent sx={{ p: 2.5, '&:last-child': { pb: 2.5 } }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  {stat.icon}
-                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#103931' }}>
-                    {stat.title}
-                  </Typography>
-                </Box>
-                <Typography variant="h5" sx={{ fontWeight: 600, color: stat.color }}>
-                  {stat.value}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      {/* Search Bar and Filter */}
-      <Card 
-        elevation={0}
-        sx={{ 
-          mb: 3, 
-          borderRadius: 2, 
-          border: '1px solid #edf2f0',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-        }}
-      >
-        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-            <TextField
-              placeholder="Search by name, email, phone, or IC number..."
-              value={searchTerm}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ color: '#103931' }} />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ flex: 1, minWidth: 280 }}
-            />
-            <ToggleButtonGroup
-              value={filterType}
-              exclusive
-              onChange={handleFilterTypeChange}
-              size="small"
-            >
-              <ToggleButton value="all">
-                All
-              </ToggleButton>
-              <ToggleButton
-                value="member"
-                sx={{
-                  '&.Mui-selected': {
-                    backgroundColor: alpha(GUEST_TYPE_CONFIG.member.color, 0.15),
-                    color: GUEST_TYPE_CONFIG.member.color,
-                    '&:hover': {
-                      backgroundColor: alpha(GUEST_TYPE_CONFIG.member.color, 0.25),
-                    },
-                  },
-                }}
-              >
-                <MemberIcon sx={{ mr: 0.5, fontSize: 18 }} />
-                Members
-              </ToggleButton>
-              <ToggleButton
-                value="non_member"
-                sx={{
-                  '&.Mui-selected': {
-                    backgroundColor: alpha(GUEST_TYPE_CONFIG.non_member.color, 0.15),
-                    color: GUEST_TYPE_CONFIG.non_member.color,
-                    '&:hover': {
-                      backgroundColor: alpha(GUEST_TYPE_CONFIG.non_member.color, 0.25),
-                    },
-                  },
-                }}
-              >
-                <NonMemberIcon sx={{ mr: 0.5, fontSize: 18 }} />
-                Non-Members
-              </ToggleButton>
-            </ToggleButtonGroup>
-          </Box>
-        </CardContent>
-      </Card>
-
-      {/* Guests Table */}
-      <Card elevation={0} sx={{ borderRadius: 2, border: '1px solid #edf2f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
-        <TableContainer>
-          <Table size="small" sx={{ minWidth: 800 }}>
-            <TableHead>
-              <TableRow sx={{ bgcolor: '#fbfcfc' }}>
-                <TableCell>Name</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell>Tourism</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Phone</TableCell>
-                <TableCell>IC Number</TableCell>
-                <TableCell>Company</TableCell>
-                <TableCell>Discount</TableCell>
-                <TableCell align="center">Credits</TableCell>
-                <TableCell align="center">Bookings</TableCell>
-                <TableCell align="center">Delete</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={11} align="center" sx={{ py: 6 }}>
-                    <CircularProgress size={32} />
-                  </TableCell>
-                </TableRow>
-              ) : guests.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={11} align="center" sx={{ py: 6 }}>
-                    <Typography variant="body1" color="text.secondary">
-                      {searchTerm || filterType !== 'all'
-                        ? 'No guests match the current filters'
-                        : 'No guests registered yet'}
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              ) : null}
-              {!loading && guests.map((guest) => (
-                <TableRow
-                  key={guest.id}
-                  hover
-                  onClick={() => handleEditClick(guest)}
-                  sx={{ cursor: 'pointer' }}
-                >
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {guest.full_name}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    {(() => {
-                      const guestType = guest.guest_type || 'non_member';
-                      const config = GUEST_TYPE_CONFIG[guestType];
-                      return (
-                        <Chip
-                          icon={guestType === 'member' ? <MemberIcon sx={{ fontSize: 16 }} /> : <NonMemberIcon sx={{ fontSize: 16 }} />}
-                          label={config.label}
-                          size="small"
-                          sx={{
-                            backgroundColor: alpha(config.color, 0.1),
-                            color: config.color,
-                            fontWeight: 500,
-                            '& .MuiChip-icon': { color: 'inherit' },
-                          }}
-                        />
-                      );
-                    })()}
-                  </TableCell>
-                  <TableCell>
-                    {guest.tourism_type ? (
-                      <Chip
-                        label={TOURISM_TYPE_CONFIG[guest.tourism_type].label}
-                        size="small"
-                        sx={{
-                          backgroundColor: alpha(TOURISM_TYPE_CONFIG[guest.tourism_type].color, 0.1),
-                          color: TOURISM_TYPE_CONFIG[guest.tourism_type].color,
-                          fontWeight: 500,
-                        }}
-                      />
-                    ) : (
-                      <Typography variant="body2" color="text.disabled">-</Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>{guest.email || '-'}</TableCell>
-                  <TableCell>{guest.phone || '-'}</TableCell>
-                  <TableCell>{guest.ic_number || '-'}</TableCell>
-                  <TableCell>{guest.company_name || '-'}</TableCell>
-                  <TableCell>
-                    {guest.discount_percentage && guest.discount_percentage > 0 ? (
-                      <Chip
-                        label={`${guest.discount_percentage}% off`}
-                        size="small"
-                        color="success"
-                        variant="outlined"
-                      />
-                    ) : (
-                      <Typography variant="body2" color="text.disabled">-</Typography>
-                    )}
-                  </TableCell>
-                  <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                    <Tooltip title="View credits">
-                      <IconButton size="small" onClick={() => handleViewCredits(guest)} color="secondary">
-                        <GiftIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                    <Tooltip title="View Bookings">
-                      <IconButton size="small" onClick={() => handleViewBookings(guest)} color="info">
-                        <HistoryIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell align="center" onClick={(e) => e.stopPropagation()}>
-                    <Tooltip title="Delete">
-                      <IconButton size="small" onClick={() => handleDeleteClick(guest)} color="error">
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Card>
-
-      {/* Pagination */}
-      {totalGuests > PAGE_SIZE && (
-        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2, px: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalGuests)} of {totalGuests} guests
+      {/* Page header */}
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+        <Box>
+          <Typography sx={{ fontSize: 11, color: GUEST_DESIGN.ink3, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            People · {dateLabel}
           </Typography>
-          <Pagination
-            count={Math.ceil(totalGuests / PAGE_SIZE)}
-            page={currentPage}
-            onChange={(_, page) => setCurrentPage(page)}
-            color="primary"
-            size="small"
-            showFirstButton
-            showLastButton
-          />
-        </Stack>
-      )}
+          <Typography sx={{ m: 0, fontSize: 24, fontWeight: 700, letterSpacing: '-0.02em', mt: 0.5 }}>
+            Guests
+          </Typography>
+          <Typography sx={{ m: 0, mt: 0.4, fontSize: 13, color: GUEST_DESIGN.ink3 }}>
+            <Box component="strong" sx={{ color: GUEST_DESIGN.ink, fontVariantNumeric: 'tabular-nums' }}>{statsTotal}</Box> total
+            {' · '}
+            <Box component="strong" sx={{ color: GUEST_DESIGN.gold, fontVariantNumeric: 'tabular-nums' }}>{statsMembers}</Box> members
+            {' · '}
+            <Box component="strong" sx={{ color: GUEST_DESIGN.ink3, fontVariantNumeric: 'tabular-nums' }}>{nonMemberStats}</Box> non-members
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            startIcon={<ImportIcon />}
+            sx={{
+              px: 1.75,
+              py: 1.1,
+              borderRadius: 1.5,
+              border: `1px solid ${GUEST_DESIGN.rule}`,
+              bgcolor: '#fff',
+              color: GUEST_DESIGN.ink2,
+              fontSize: 13,
+              fontWeight: 600,
+              textTransform: 'none',
+              '&:hover': { bgcolor: GUEST_DESIGN.paper2 },
+            }}
+            disabled
+            title="Import guests (coming soon)"
+          >
+            Import
+          </Button>
+          <Button
+            startIcon={<ExportIcon />}
+            sx={{
+              px: 1.75,
+              py: 1.1,
+              borderRadius: 1.5,
+              border: `1px solid ${GUEST_DESIGN.rule}`,
+              bgcolor: '#fff',
+              color: GUEST_DESIGN.ink2,
+              fontSize: 13,
+              fontWeight: 600,
+              textTransform: 'none',
+              '&:hover': { bgcolor: GUEST_DESIGN.paper2 },
+            }}
+            disabled
+            title="Export guests (coming soon)"
+          >
+            Export
+          </Button>
+          <Button
+            startIcon={<AddIcon />}
+            onClick={handleCreateClick}
+            sx={{
+              px: 2,
+              py: 1.1,
+              borderRadius: 1.5,
+              bgcolor: GUEST_DESIGN.green700,
+              color: '#fff',
+              fontSize: 13,
+              fontWeight: 700,
+              textTransform: 'none',
+              boxShadow: '0 4px 14px -8px rgba(31,129,99,0.5)',
+              '&:hover': { bgcolor: GUEST_DESIGN.green600 },
+            }}
+          >
+            Add guest
+          </Button>
+        </Box>
+      </Box>
+
+      {/* Two-pane layout: list (flex) + sticky detail (400px) */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 400px' }, gap: 1.75, alignItems: 'flex-start' }}>
+        {/* LEFT: list */}
+        <Box sx={{ bgcolor: '#fff', border: `1px solid ${GUEST_DESIGN.rule}`, borderRadius: 1.5, overflow: 'hidden' }}>
+          {/* Search */}
+          <Box sx={{ p: '14px 16px 0' }}>
+            <Box
+              component="label"
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.25,
+                px: 1.75,
+                py: 1.25,
+                bgcolor: GUEST_DESIGN.paper2,
+                border: `1px solid ${GUEST_DESIGN.rule}`,
+                borderRadius: 1.25,
+              }}
+            >
+              <SearchIcon sx={{ color: GUEST_DESIGN.ink4, fontSize: 18 }} />
+              <Box
+                component="input"
+                value={searchTerm}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSearchChange(e.target.value)}
+                placeholder="Search by name, phone, email, IC number, or company…"
+                sx={{
+                  border: 0,
+                  background: 'transparent',
+                  outline: 'none',
+                  flex: 1,
+                  fontSize: 14,
+                  fontFamily: 'inherit',
+                  color: 'inherit',
+                  '::placeholder': { color: GUEST_DESIGN.ink4 },
+                }}
+              />
+              {searchTerm && (
+                <IconButton
+                  size="small"
+                  onClick={() => handleSearchChange('')}
+                  sx={{ color: GUEST_DESIGN.ink4 }}
+                >
+                  <CloseIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              )}
+            </Box>
+          </Box>
+
+          {/* Segment chips */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, p: '12px 16px', borderBottom: `1px solid ${GUEST_DESIGN.rule}` }}>
+            {segmentChips.map((f) => {
+              const active = segment === f.k;
+              return (
+                <Box
+                  key={f.k}
+                  component="button"
+                  onClick={() => onSegmentChange(f.k)}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.75,
+                    px: 1.5,
+                    py: 0.85,
+                    borderRadius: 999,
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: active ? `1px solid ${GUEST_DESIGN.ink}` : `1px solid ${GUEST_DESIGN.rule}`,
+                    bgcolor: active ? GUEST_DESIGN.ink : '#fff',
+                    color: active ? '#fff' : GUEST_DESIGN.ink2,
+                    fontFamily: 'inherit',
+                    transition: 'background-color 120ms',
+                    '&:hover': { bgcolor: active ? GUEST_DESIGN.ink : GUEST_DESIGN.paper2 },
+                  }}
+                >
+                  {f.icon && (
+                    <Box sx={{ display: 'inline-flex', color: active ? '#fff' : (f.tone || GUEST_DESIGN.ink3) }}>
+                      {f.icon}
+                    </Box>
+                  )}
+                  {f.label}
+                  <Box
+                    component="span"
+                    sx={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      px: 0.85,
+                      py: '1px',
+                      borderRadius: 999,
+                      minWidth: 18,
+                      textAlign: 'center',
+                      bgcolor: active ? 'rgba(255,255,255,0.18)' : (f.tone ? alpha(f.tone, 0.12) : GUEST_DESIGN.paper3),
+                      color: active ? '#fff' : (f.tone || GUEST_DESIGN.ink3),
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {f.count}
+                  </Box>
+                </Box>
+              );
+            })}
+          </Box>
+
+          {/* Count + sort row */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2, py: 1.25, bgcolor: GUEST_DESIGN.paper2, borderBottom: `1px solid ${GUEST_DESIGN.rule}`, fontSize: 11.5, color: GUEST_DESIGN.ink3 }}>
+            <Box>
+              {visibleGuests.length} of {totalGuests || statsTotal} guests
+              {(searchTerm || segment !== 'all') && ' (filtered)'}
+            </Box>
+            <Box sx={{ fontSize: 11.5, color: GUEST_DESIGN.ink2, fontWeight: 600 }}>
+              Sort: A–Z
+            </Box>
+          </Box>
+
+          {/* List body */}
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+              <CircularProgress size={28} />
+            </Box>
+          ) : visibleGuests.length === 0 ? (
+            <Box sx={{ p: '48px 20px', textAlign: 'center', color: GUEST_DESIGN.ink3 }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 600 }}>No guests match</Typography>
+              <Typography sx={{ fontSize: 12.5, mt: 0.5 }}>Try clearing the search or selecting a different filter.</Typography>
+            </Box>
+          ) : (
+            guestsByLetter.map(([letter, group]) => (
+              <Box key={letter}>
+                <Box sx={{ px: 2, py: 1, bgcolor: GUEST_DESIGN.paper2, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: GUEST_DESIGN.ink3, borderBottom: `1px solid ${GUEST_DESIGN.rule}` }}>
+                  {letter}
+                </Box>
+                {group.map((g) => {
+                  const av = avatarFor(g.id);
+                  const isMember = g.guest_type === 'member';
+                  const isSelected = selectedGuestId === g.id;
+                  return (
+                    <Box
+                      key={g.id}
+                      component="button"
+                      onClick={() => setSelectedGuestId(g.id)}
+                      sx={{
+                        width: '100%',
+                        display: 'grid',
+                        gridTemplateColumns: 'auto 1fr auto',
+                        gap: 1.75,
+                        px: '13px',
+                        py: '14px',
+                        alignItems: 'center',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        border: 0,
+                        borderBottom: `1px solid ${GUEST_DESIGN.rule}`,
+                        borderLeft: `3px solid ${isSelected ? GUEST_DESIGN.green600 : 'transparent'}`,
+                        bgcolor: isSelected ? GUEST_DESIGN.green50 : 'transparent',
+                        fontFamily: 'inherit',
+                        color: 'inherit',
+                        transition: 'background-color 120ms',
+                        '&:hover': { bgcolor: isSelected ? GUEST_DESIGN.green50 : GUEST_DESIGN.paper2 },
+                      }}
+                    >
+                      <Box sx={{ position: 'relative', flexShrink: 0 }}>
+                        <Box sx={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: '50%',
+                          bgcolor: av.bg,
+                          color: av.fg,
+                          display: 'grid',
+                          placeItems: 'center',
+                          fontWeight: 700,
+                          fontSize: 13,
+                          border: '1px solid rgba(0,0,0,0.05)',
+                        }}>
+                          {initialsOf(g.full_name)}
+                        </Box>
+                        {isMember && (
+                          <Box sx={{
+                            position: 'absolute',
+                            bottom: -2,
+                            right: -2,
+                            width: 18,
+                            height: 18,
+                            borderRadius: '50%',
+                            bgcolor: GUEST_DESIGN.goldBg,
+                            border: '2px solid #fff',
+                            display: 'grid',
+                            placeItems: 'center',
+                            color: GUEST_DESIGN.gold,
+                          }}>
+                            <MemberIcon sx={{ fontSize: 10 }} />
+                          </Box>
+                        )}
+                      </Box>
+
+                      <Box sx={{ minWidth: 0 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.4 }}>
+                          <Typography sx={{ fontSize: 14.5, fontWeight: 700, color: GUEST_DESIGN.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {g.full_name}
+                          </Typography>
+                          {isMember && (
+                            <Box sx={{
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              color: GUEST_DESIGN.gold,
+                              px: 0.85,
+                              py: '2px',
+                              bgcolor: GUEST_DESIGN.goldBg,
+                              borderRadius: 999,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 0.4,
+                              flexShrink: 0,
+                            }}>
+                              <MemberIcon sx={{ fontSize: 10 }} /> Member
+                            </Box>
+                          )}
+                          {g.tourism_type === 'foreign' && (
+                            <Box sx={{
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              color: GUEST_DESIGN.blue,
+                              px: 0.85,
+                              py: '2px',
+                              bgcolor: GUEST_DESIGN.blueBg,
+                              borderRadius: 999,
+                              flexShrink: 0,
+                            }}>
+                              Tourist
+                            </Box>
+                          )}
+                          {g.tourism_type === 'local' && (
+                            <Box sx={{
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              color: GUEST_DESIGN.green700,
+                              px: 0.85,
+                              py: '2px',
+                              bgcolor: GUEST_DESIGN.green50,
+                              borderRadius: 999,
+                              flexShrink: 0,
+                            }}>
+                              Local
+                            </Box>
+                          )}
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, fontSize: 12.5, color: GUEST_DESIGN.ink3, flexWrap: 'wrap' }}>
+                          {g.phone ? (
+                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, fontVariantNumeric: 'tabular-nums' }}>
+                              <PhoneIcon sx={{ fontSize: 12 }} /> {g.phone}
+                            </Box>
+                          ) : (
+                            <Box sx={{ color: GUEST_DESIGN.ink4, fontStyle: 'italic' }}>No phone on file</Box>
+                          )}
+                          {g.email && (
+                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <MailIcon sx={{ fontSize: 12, flexShrink: 0 }} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.email}</span>
+                            </Box>
+                          )}
+                          {g.company_name && (
+                            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.6 }}>
+                              <CompanyIcon sx={{ fontSize: 12 }} /> {g.company_name}
+                            </Box>
+                          )}
+                        </Box>
+                      </Box>
+
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
+                        <ArrowRightIcon sx={{ fontSize: 16, color: GUEST_DESIGN.green700, opacity: isSelected ? 1 : 0.35 }} />
+                      </Box>
+                    </Box>
+                  );
+                })}
+              </Box>
+            ))
+          )}
+
+          {/* Pagination footer */}
+          {totalGuests > PAGE_SIZE && (
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2, py: 1.5, bgcolor: GUEST_DESIGN.paper2, borderTop: `1px solid ${GUEST_DESIGN.rule}`, fontSize: 12, color: GUEST_DESIGN.ink3 }}>
+              <Box>
+                Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalGuests)} of {totalGuests}
+              </Box>
+              <Pagination
+                count={totalPages}
+                page={currentPage}
+                onChange={(_, page) => setCurrentPage(page)}
+                size="small"
+                showFirstButton
+                showLastButton
+                sx={{
+                  '& .MuiPaginationItem-root': { fontSize: 12, fontWeight: 600 },
+                  '& .Mui-selected': { bgcolor: `${GUEST_DESIGN.green700} !important`, color: '#fff' },
+                }}
+              />
+            </Box>
+          )}
+        </Box>
+
+        {/* RIGHT: detail panel */}
+        <Box sx={{ position: { lg: 'sticky' }, top: { lg: 24 } }}>
+          {!selectedGuest ? (
+            <Box sx={{
+              bgcolor: '#fff',
+              border: `1px solid ${GUEST_DESIGN.rule}`,
+              borderRadius: 1.5,
+              p: 4,
+              minHeight: 520,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 1.25,
+              textAlign: 'center',
+              color: GUEST_DESIGN.ink3,
+            }}>
+              <Box sx={{ width: 54, height: 54, borderRadius: '50%', bgcolor: GUEST_DESIGN.paper2, display: 'grid', placeItems: 'center', color: GUEST_DESIGN.ink4 }}>
+                <PersonIcon sx={{ fontSize: 26 }} />
+              </Box>
+              <Typography sx={{ fontSize: 14, fontWeight: 600, color: GUEST_DESIGN.ink2 }}>Select a guest</Typography>
+              <Typography sx={{ fontSize: 12.5, maxWidth: 240 }}>
+                Tap any name in the list to view contact details, stay history, and quick actions.
+              </Typography>
+            </Box>
+          ) : (
+            (() => {
+              const g = selectedGuest;
+              const av = avatarFor(g.id);
+              const isMember = g.guest_type === 'member';
+              const completion = [g.email, g.phone, g.ic_number, g.company_name].filter(Boolean).length;
+              const completionPct = Math.round((completion / 4) * 100);
+              const completionColor = completionPct >= 75
+                ? GUEST_DESIGN.green700
+                : completionPct >= 50
+                  ? GUEST_DESIGN.amber
+                  : GUEST_DESIGN.rose;
+              const firstName = g.full_name.split(' ')[0];
+              return (
+                <Box sx={{
+                  bgcolor: '#fff',
+                  border: `1px solid ${GUEST_DESIGN.rule}`,
+                  borderRadius: 1.5,
+                  overflow: 'auto',
+                  maxHeight: { lg: 'calc(100vh - 88px)' },
+                }}>
+                  {/* Header */}
+                  <Box sx={{ p: '20px 20px 18px', borderBottom: `1px solid ${GUEST_DESIGN.rule}`, position: 'relative' }}>
+                    <IconButton
+                      onClick={() => setSelectedGuestId(null)}
+                      size="small"
+                      sx={{ position: 'absolute', top: 14, right: 14, color: GUEST_DESIGN.ink3 }}
+                    >
+                      <CloseIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, mb: 1.75 }}>
+                      <Box sx={{ position: 'relative' }}>
+                        <Box sx={{
+                          width: 60,
+                          height: 60,
+                          borderRadius: '50%',
+                          bgcolor: av.bg,
+                          color: av.fg,
+                          display: 'grid',
+                          placeItems: 'center',
+                          fontWeight: 700,
+                          fontSize: 18,
+                        }}>
+                          {initialsOf(g.full_name)}
+                        </Box>
+                        {isMember && (
+                          <Box sx={{
+                            position: 'absolute',
+                            bottom: -2,
+                            right: -2,
+                            width: 24,
+                            height: 24,
+                            borderRadius: '50%',
+                            bgcolor: GUEST_DESIGN.goldBg,
+                            border: '2px solid #fff',
+                            display: 'grid',
+                            placeItems: 'center',
+                            color: GUEST_DESIGN.gold,
+                          }}>
+                            <MemberIcon sx={{ fontSize: 14 }} />
+                          </Box>
+                        )}
+                      </Box>
+                      <Box sx={{ minWidth: 0, flex: 1 }}>
+                        <Typography sx={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.2 }}>
+                          {g.full_name}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.6, flexWrap: 'wrap' }}>
+                          {isMember ? (
+                            <Box sx={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: GUEST_DESIGN.gold,
+                              px: 1,
+                              py: '2px',
+                              bgcolor: GUEST_DESIGN.goldBg,
+                              borderRadius: 999,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 0.4,
+                            }}>
+                              <MemberIcon sx={{ fontSize: 11 }} /> Loyalty Member
+                            </Box>
+                          ) : (
+                            <Box sx={{
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: GUEST_DESIGN.ink3,
+                              px: 1,
+                              py: '2px',
+                              bgcolor: GUEST_DESIGN.paper3,
+                              borderRadius: 999,
+                            }}>
+                              Non-member
+                            </Box>
+                          )}
+                          {g.tourism_type && (
+                            <Box sx={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: g.tourism_type === 'foreign' ? GUEST_DESIGN.blue : GUEST_DESIGN.green700,
+                              px: 1,
+                              py: '2px',
+                              bgcolor: g.tourism_type === 'foreign' ? GUEST_DESIGN.blueBg : GUEST_DESIGN.green50,
+                              borderRadius: 999,
+                            }}>
+                              {g.tourism_type === 'foreign' ? 'Tourist' : 'Local'}
+                            </Box>
+                          )}
+                        </Box>
+                      </Box>
+                    </Box>
+
+                    {/* Profile completeness */}
+                    <Box sx={{ bgcolor: GUEST_DESIGN.paper2, borderRadius: 1, px: 1.5, py: 1.25 }}>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75, fontSize: 11.5 }}>
+                        <Box sx={{ fontWeight: 600, color: GUEST_DESIGN.ink2 }}>Profile completeness</Box>
+                        <Box sx={{ fontWeight: 700, color: completionColor, fontVariantNumeric: 'tabular-nums' }}>{completionPct}%</Box>
+                      </Box>
+                      <Box sx={{ height: 6, bgcolor: '#fff', borderRadius: 3, overflow: 'hidden' }}>
+                        <Box sx={{ width: `${completionPct}%`, height: '100%', bgcolor: completionColor, borderRadius: 3 }} />
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  {/* Contact */}
+                  <Box sx={{ p: '16px 20px', borderBottom: `1px solid ${GUEST_DESIGN.rule}` }}>
+                    <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: GUEST_DESIGN.ink3, mb: 1.5 }}>
+                      Contact
+                    </Typography>
+                    <ContactRow icon={<PhoneIcon />} label="Phone" value={g.phone} placeholder="Add phone number" onAdd={() => handleEditClick(g)} />
+                    <ContactRow icon={<MailIcon />} label="Email" value={g.email} placeholder="Add email address" onAdd={() => handleEditClick(g)} />
+                    <ContactRow icon={<IdIcon />} label="IC / Passport" value={g.ic_number} placeholder="Add ID document" onAdd={() => handleEditClick(g)} />
+                    <ContactRow icon={<CompanyIcon />} label="Company" value={g.company_name} placeholder="Add company" onAdd={() => handleEditClick(g)} />
+                  </Box>
+
+                  {/* Stays + perks */}
+                  <Box sx={{ p: '16px 20px', borderBottom: `1px solid ${GUEST_DESIGN.rule}`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.25 }}>
+                    <StatTile label="Discount" value={g.discount_percentage ? `${g.discount_percentage}%` : '—'} accent={g.discount_percentage ? 'gold' : undefined} />
+                    <StatTile label="Tourism" value={g.tourism_type ? TOURISM_TYPE_CONFIG[g.tourism_type].label : '—'} small />
+                    <StatTile label="Stays" value={'View'} accent="green" onClick={() => handleViewBookings(g)} />
+                    <StatTile label="Credits" value={'View'} accent="green" onClick={() => handleViewCredits(g)} />
+                  </Box>
+
+                  {/* Actions */}
+                  <Box sx={{ p: '14px 20px 20px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Button
+                      startIcon={<AddIcon />}
+                      onClick={handleCreateClick}
+                      sx={{
+                        py: 1.5,
+                        borderRadius: 1.25,
+                        bgcolor: GUEST_DESIGN.green700,
+                        color: '#fff',
+                        fontWeight: 700,
+                        fontSize: 13.5,
+                        textTransform: 'none',
+                        boxShadow: '0 4px 14px -8px rgba(31,129,99,0.5)',
+                        '&:hover': { bgcolor: GUEST_DESIGN.green600 },
+                      }}
+                    >
+                      New booking for {firstName}
+                    </Button>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                      <Button
+                        startIcon={<HistoryIcon sx={{ fontSize: 16 }} />}
+                        onClick={() => handleViewBookings(g)}
+                        sx={{
+                          py: 1.25,
+                          borderRadius: 1.25,
+                          border: `1px solid ${GUEST_DESIGN.rule}`,
+                          fontWeight: 600,
+                          fontSize: 12.5,
+                          color: GUEST_DESIGN.ink2,
+                          textTransform: 'none',
+                          '&:hover': { bgcolor: GUEST_DESIGN.paper2 },
+                        }}
+                      >
+                        Stay history
+                      </Button>
+                      <Button
+                        startIcon={<EditIcon sx={{ fontSize: 16 }} />}
+                        onClick={() => handleEditClick(g)}
+                        sx={{
+                          py: 1.25,
+                          borderRadius: 1.25,
+                          border: `1px solid ${GUEST_DESIGN.rule}`,
+                          fontWeight: 600,
+                          fontSize: 12.5,
+                          color: GUEST_DESIGN.ink2,
+                          textTransform: 'none',
+                          '&:hover': { bgcolor: GUEST_DESIGN.paper2 },
+                        }}
+                      >
+                        Edit profile
+                      </Button>
+                    </Box>
+                    {!isMember && (
+                      <Button
+                        startIcon={<ConvertIcon sx={{ fontSize: 16 }} />}
+                        onClick={() => handleEditClick(g)}
+                        sx={{
+                          py: 1.25,
+                          borderRadius: 1.25,
+                          bgcolor: GUEST_DESIGN.goldBg,
+                          color: GUEST_DESIGN.gold,
+                          fontWeight: 700,
+                          fontSize: 12.5,
+                          textTransform: 'none',
+                          '&:hover': { bgcolor: alpha(GUEST_DESIGN.gold, 0.18) },
+                        }}
+                      >
+                        Convert to Member
+                      </Button>
+                    )}
+                    <Button
+                      startIcon={<DeleteIcon sx={{ fontSize: 16 }} />}
+                      onClick={() => handleDeleteClick(g)}
+                      sx={{
+                        py: 1.25,
+                        borderRadius: 1.25,
+                        color: GUEST_DESIGN.rose,
+                        fontWeight: 600,
+                        fontSize: 12.5,
+                        mt: 0.5,
+                        textTransform: 'none',
+                        '&:hover': { bgcolor: alpha(GUEST_DESIGN.rose, 0.08) },
+                      }}
+                    >
+                      Delete guest
+                    </Button>
+                  </Box>
+                </Box>
+              );
+            })()
+          )}
+        </Box>
+      </Box>
 
       {/* Create Dialog */}
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>
@@ -1262,6 +1760,101 @@ const GuestConfigurationPage: React.FC = () => {
           <Button onClick={() => setCreditsDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+    </Box>
+  );
+};
+
+interface ContactRowProps {
+  icon: React.ReactNode;
+  label: string;
+  value?: string | null;
+  placeholder: string;
+  onAdd: () => void;
+}
+
+const ContactRow: React.FC<ContactRowProps> = ({ icon, label, value, placeholder, onAdd }) => {
+  const empty = !value;
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1, borderBottom: `1px dashed ${GUEST_DESIGN.rule}` }}>
+      <Box sx={{
+        width: 30,
+        height: 30,
+        borderRadius: 1,
+        bgcolor: empty ? GUEST_DESIGN.paper3 : GUEST_DESIGN.green50,
+        color: empty ? GUEST_DESIGN.ink4 : GUEST_DESIGN.green700,
+        display: 'grid',
+        placeItems: 'center',
+        flexShrink: 0,
+      }}>
+        <Box sx={{ display: 'inline-flex', '& svg': { fontSize: 16 } }}>{icon}</Box>
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: 11, color: GUEST_DESIGN.ink3, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+          {label}
+        </Typography>
+        {empty ? (
+          <Box
+            component="button"
+            onClick={onAdd}
+            sx={{
+              fontSize: 13,
+              color: GUEST_DESIGN.green700,
+              fontWeight: 600,
+              border: 0,
+              background: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              '&:hover': { textDecoration: 'underline' },
+            }}
+          >
+            + {placeholder}
+          </Box>
+        ) : (
+          <Typography sx={{ fontSize: 13.5, color: GUEST_DESIGN.ink, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontVariantNumeric: 'tabular-nums' }}>
+            {value}
+          </Typography>
+        )}
+      </Box>
+    </Box>
+  );
+};
+
+interface StatTileProps {
+  label: string;
+  value: React.ReactNode;
+  small?: boolean;
+  accent?: 'green' | 'gold';
+  onClick?: () => void;
+}
+
+const StatTile: React.FC<StatTileProps> = ({ label, value, small, accent, onClick }) => {
+  const tones = {
+    green: { bg: GUEST_DESIGN.green50, fg: GUEST_DESIGN.green700 },
+    gold: { bg: GUEST_DESIGN.goldBg, fg: GUEST_DESIGN.gold },
+  } as const;
+  const c = accent ? tones[accent] : { bg: GUEST_DESIGN.paper2, fg: GUEST_DESIGN.ink };
+  return (
+    <Box
+      component={onClick ? 'button' : 'div'}
+      onClick={onClick}
+      sx={{
+        bgcolor: c.bg,
+        borderRadius: 1,
+        px: 1.5,
+        py: 1.25,
+        textAlign: 'left',
+        border: 0,
+        fontFamily: 'inherit',
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'transform 120ms',
+        '&:hover': onClick ? { transform: 'translateY(-1px)' } : undefined,
+      }}
+    >
+      <Typography sx={{ fontSize: 11, color: GUEST_DESIGN.ink3, fontWeight: 600, mb: 0.25 }}>{label}</Typography>
+      <Typography sx={{ fontSize: small ? 13 : 18, fontWeight: 700, color: c.fg, letterSpacing: '-0.01em', fontVariantNumeric: 'tabular-nums' }}>
+        {value}
+      </Typography>
     </Box>
   );
 };

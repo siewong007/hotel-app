@@ -2012,7 +2012,20 @@ const RoomManagementPage: React.FC = () => {
                 {/* Top status accent bar */}
                 <Box sx={{ height: 3, bgcolor: statusColor, opacity: 0.85 }} />
 
-                <CardContent sx={{ p: 1.5, pt: 1.25, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <CardContent
+                  sx={{
+                    p: 1.5,
+                    pt: 1.25,
+                    // Reserve bottom space (~36px) so the absolutely-positioned
+                    // action row pinned at bottom: 12 doesn't overlap inline content.
+                    pb: '44px',
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    '&:last-child': { pb: '44px' },
+                  }}
+                >
                   {/* Header row: room number + type code on the left, status pill on the right */}
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1 }}>
                     <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, minWidth: 0 }}>
@@ -2234,8 +2247,8 @@ const RoomManagementPage: React.FC = () => {
                         </Box>
                       </Tooltip>
 
-                      {/* Action row: Check out, Move, More */}
-                      <Box sx={{ display: 'flex', gap: 0.75, mt: 1, alignItems: 'center' }}>
+                      {/* Action row: Check out, Move, More — pinned to card bottom for cross-card alignment */}
+                      <Box sx={{ position: 'absolute', bottom: 12, left: 12, right: 12, display: 'flex', gap: 0.4, alignItems: 'center', minWidth: 0 }}>
                         <Button
                           size="small"
                           variant="outlined"
@@ -2245,17 +2258,20 @@ const RoomManagementPage: React.FC = () => {
                           }}
                           sx={{
                             flex: 1,
-                            minWidth: 0,
-                            py: 0.4,
-                            px: 1,
-                            borderRadius: 999,
-                            borderColor: 'divider',
                             color: 'text.primary',
                             bgcolor: 'background.paper',
-                            fontSize: '0.7rem',
+                            fontSize: '0.62rem',
                             fontWeight: 700,
                             textTransform: 'none',
                             whiteSpace: 'nowrap',
+                            '&.MuiButton-root': {
+                              minWidth: 0,
+                              py: 0.35,
+                              px: 0.5,
+                              borderRadius: 999,
+                              borderColor: 'divider',
+                              borderWidth: 1,
+                            },
                             '&:hover': { borderColor: 'text.primary', bgcolor: 'action.hover' },
                           }}
                         >
@@ -2270,17 +2286,20 @@ const RoomManagementPage: React.FC = () => {
                           }}
                           sx={{
                             flex: 1,
-                            minWidth: 0,
-                            py: 0.4,
-                            px: 1,
-                            borderRadius: 999,
-                            borderColor: 'divider',
                             color: 'text.primary',
                             bgcolor: 'background.paper',
-                            fontSize: '0.7rem',
+                            fontSize: '0.62rem',
                             fontWeight: 700,
                             textTransform: 'none',
                             whiteSpace: 'nowrap',
+                            '&.MuiButton-root': {
+                              minWidth: 0,
+                              py: 0.35,
+                              px: 0.5,
+                              borderRadius: 999,
+                              borderColor: 'divider',
+                              borderWidth: 1,
+                            },
                             '&:hover': { borderColor: 'text.primary', bgcolor: 'action.hover' },
                           }}
                         >
@@ -2296,35 +2315,18 @@ const RoomManagementPage: React.FC = () => {
                             sx={{
                               border: '1px solid',
                               borderColor: 'divider',
-                              borderRadius: 1.5,
-                              width: 30,
-                              height: 26,
+                              borderRadius: 999,
+                              width: 22,
+                              height: 22,
+                              flexShrink: 0,
                               color: 'text.secondary',
                               '&:hover': { borderColor: 'text.primary', color: 'text.primary' },
                             }}
                           >
-                            <MoreHorizIcon sx={{ fontSize: 16 }} />
+                            <MoreHorizIcon sx={{ fontSize: 14 }} />
                           </IconButton>
                         </Tooltip>
                       </Box>
-                      {/* Booking remarks for occupied rooms */}
-                      {(booking.remarks || booking.booking_remarks) && (
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{
-                            fontSize: '0.6rem',
-                            fontStyle: 'italic',
-                            opacity: 0.8,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            mt: 0.5,
-                          }}
-                        >
-                          {booking.remarks || booking.booking_remarks}
-                        </Typography>
-                      )}
                     </Box>
                   ) : null}
 
@@ -2359,8 +2361,8 @@ const RoomManagementPage: React.FC = () => {
                         </Typography>
                       </Box>
 
-                      {/* Action row: Check in (primary), Edit, More */}
-                      <Box sx={{ display: 'flex', gap: 0.75, mt: 1, alignItems: 'center' }}>
+                      {/* Action row: Check in (primary), Edit, More — pinned to card bottom */}
+                      <Box sx={{ position: 'absolute', bottom: 12, left: 12, right: 12, display: 'flex', gap: 0.4, alignItems: 'center', minWidth: 0 }}>
                         <Button
                           size="small"
                           variant="contained"
@@ -2370,17 +2372,20 @@ const RoomManagementPage: React.FC = () => {
                           }}
                           sx={{
                             flex: 1,
-                            minWidth: 0,
-                            py: 0.4,
-                            px: 1,
-                            borderRadius: 999,
-                            bgcolor: 'text.primary',
                             color: 'background.paper',
-                            fontSize: '0.7rem',
+                            fontSize: '0.62rem',
                             fontWeight: 700,
                             textTransform: 'none',
                             whiteSpace: 'nowrap',
                             boxShadow: 'none',
+                            '&.MuiButton-root': {
+                              minWidth: 0,
+                              py: 0.35,
+                              px: 0.5,
+                              borderRadius: 999,
+                              bgcolor: 'text.primary',
+                              borderWidth: 0,
+                            },
                             '&:hover': { bgcolor: 'text.secondary', boxShadow: 'none' },
                           }}
                         >
@@ -2395,17 +2400,20 @@ const RoomManagementPage: React.FC = () => {
                           }}
                           sx={{
                             flex: 1,
-                            minWidth: 0,
-                            py: 0.4,
-                            px: 1,
-                            borderRadius: 999,
-                            borderColor: 'divider',
                             color: 'text.primary',
                             bgcolor: 'background.paper',
-                            fontSize: '0.7rem',
+                            fontSize: '0.62rem',
                             fontWeight: 700,
                             textTransform: 'none',
                             whiteSpace: 'nowrap',
+                            '&.MuiButton-root': {
+                              minWidth: 0,
+                              py: 0.35,
+                              px: 0.5,
+                              borderRadius: 999,
+                              borderColor: 'divider',
+                              borderWidth: 1,
+                            },
                             '&:hover': { borderColor: 'text.primary', bgcolor: 'action.hover' },
                           }}
                         >
@@ -2421,35 +2429,18 @@ const RoomManagementPage: React.FC = () => {
                             sx={{
                               border: '1px solid',
                               borderColor: 'divider',
-                              borderRadius: 1.5,
-                              width: 30,
-                              height: 26,
+                              borderRadius: 999,
+                              width: 22,
+                              height: 22,
+                              flexShrink: 0,
                               color: 'text.secondary',
                               '&:hover': { borderColor: 'text.primary', color: 'text.primary' },
                             }}
                           >
-                            <MoreHorizIcon sx={{ fontSize: 16 }} />
+                            <MoreHorizIcon sx={{ fontSize: 14 }} />
                           </IconButton>
                         </Tooltip>
                       </Box>
-                      {/* Booking remarks for reserved rooms */}
-                      {(reservedBooking.remarks || reservedBooking.booking_remarks) && (
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{
-                            fontSize: '0.6rem',
-                            fontStyle: 'italic',
-                            opacity: 0.8,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            mt: 0.5,
-                          }}
-                        >
-                          {reservedBooking.remarks || reservedBooking.booking_remarks}
-                        </Typography>
-                      )}
                     </>
                   )}
 
@@ -2488,7 +2479,7 @@ const RoomManagementPage: React.FC = () => {
                     </Box>
                   )}
 
-                  {/* Action row for Available Rooms: + New booking (primary) + More */}
+                  {/* Action row for Available Rooms: + New booking (primary) + More — pinned to card bottom */}
                   {computedStatus === 'available' && (
                     <Box
                       sx={{
@@ -2497,8 +2488,9 @@ const RoomManagementPage: React.FC = () => {
                         left: 12,
                         right: 12,
                         display: 'flex',
-                        gap: 0.75,
+                        gap: 0.4,
                         alignItems: 'center',
+                        minWidth: 0,
                       }}
                     >
                       <Button
@@ -2510,17 +2502,20 @@ const RoomManagementPage: React.FC = () => {
                         }}
                         sx={{
                           flex: 1,
-                          minWidth: 0,
-                          py: 0.6,
-                          px: 1.25,
-                          borderRadius: 999,
-                          bgcolor: 'text.primary',
                           color: 'background.paper',
-                          fontSize: '0.75rem',
+                          fontSize: '0.68rem',
                           fontWeight: 700,
                           textTransform: 'none',
                           whiteSpace: 'nowrap',
                           boxShadow: 'none',
+                          '&.MuiButton-root': {
+                            minWidth: 0,
+                            py: 0.5,
+                            px: 0.75,
+                            borderRadius: 999,
+                            bgcolor: 'text.primary',
+                            borderWidth: 0,
+                          },
                           '&:hover': { bgcolor: 'text.secondary', boxShadow: 'none' },
                         }}
                       >
@@ -2536,15 +2531,16 @@ const RoomManagementPage: React.FC = () => {
                           sx={{
                             border: '1px solid',
                             borderColor: 'divider',
-                            borderRadius: 1.5,
-                            width: 32,
-                            height: 28,
+                            borderRadius: 999,
+                            width: 24,
+                            height: 24,
+                            flexShrink: 0,
                             color: 'text.secondary',
                             bgcolor: 'background.paper',
                             '&:hover': { borderColor: 'text.primary', color: 'text.primary' },
                           }}
                         >
-                          <MoreHorizIcon sx={{ fontSize: 16 }} />
+                          <MoreHorizIcon sx={{ fontSize: 14 }} />
                         </IconButton>
                       </Tooltip>
                     </Box>
