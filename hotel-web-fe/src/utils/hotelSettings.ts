@@ -1,5 +1,10 @@
 // Hotel settings utility functions
 
+export interface BookingChannel {
+  name: string;
+  abbreviation: string;
+}
+
 export interface HotelSettings {
   hotel_name: string;
   hotel_address: string;
@@ -13,7 +18,7 @@ export interface HotelSettings {
   deposit_amount: number; // Default deposit amount for check-in
   service_tax_rate: number; // Percentage (e.g., 8 for 8%)
   tourism_tax_rate: number; // Per night tourism tax
-  booking_channels: string[]; // Configurable online booking channels
+  booking_channels: BookingChannel[]; // Configurable online booking channels (name + abbreviation)
   payment_methods: string[]; // Configurable payment methods for walk-in
 }
 
@@ -31,15 +36,15 @@ const DEFAULT_SETTINGS: HotelSettings = {
   service_tax_rate: 8, // 8% service tax
   tourism_tax_rate: 10, // RM 10 per night for tourists (Malaysia standard)
   booking_channels: [
-    'Agoda',
-    'Booking.com',
-    'Traveloka',
-    'Expedia',
-    'Hotels.com',
-    'Airbnb',
-    'Trip.com',
-    'Direct Website',
-    'Other OTA',
+    { name: 'Booking.com', abbreviation: 'B.C' },
+    { name: 'Agoda', abbreviation: 'A.C' },
+    { name: 'Traveloka', abbreviation: 'T.C' },
+    { name: 'Expedia', abbreviation: 'E.C' },
+    { name: 'Hotels.com', abbreviation: 'H.C' },
+    { name: 'Airbnb', abbreviation: 'AB' },
+    { name: 'Trip.com', abbreviation: 'TR' },
+    { name: 'Direct Website', abbreviation: 'DW' },
+    { name: 'Other OTA', abbreviation: 'OT' },
   ],
   payment_methods: [
     'Cash',
@@ -55,6 +60,26 @@ const DEFAULT_SETTINGS: HotelSettings = {
 
 const STORAGE_KEY = 'hotelSettings';
 
+// Migrate legacy string[] booking_channels (or anything malformed) to {name, abbreviation}[].
+const normalizeBookingChannels = (raw: unknown): BookingChannel[] => {
+  if (!Array.isArray(raw)) return DEFAULT_SETTINGS.booking_channels;
+  const lookup = new Map(DEFAULT_SETTINGS.booking_channels.map(c => [c.name.toLowerCase(), c.abbreviation]));
+  const result: BookingChannel[] = [];
+  for (const item of raw) {
+    if (typeof item === 'string') {
+      const name = item.trim();
+      if (!name) continue;
+      result.push({ name, abbreviation: lookup.get(name.toLowerCase()) ?? '' });
+    } else if (item && typeof item === 'object') {
+      const name = typeof (item as any).name === 'string' ? (item as any).name.trim() : '';
+      if (!name) continue;
+      const abbreviation = typeof (item as any).abbreviation === 'string' ? (item as any).abbreviation.trim() : '';
+      result.push({ name, abbreviation });
+    }
+  }
+  return result.length > 0 ? result : DEFAULT_SETTINGS.booking_channels;
+};
+
 // Get hotel settings from localStorage or return defaults
 export const getHotelSettings = (): HotelSettings => {
   try {
@@ -69,6 +94,7 @@ export const getHotelSettings = (): HotelSettings => {
         deposit_amount: Number(merged.deposit_amount) || DEFAULT_SETTINGS.deposit_amount,
         service_tax_rate: Number(merged.service_tax_rate) || DEFAULT_SETTINGS.service_tax_rate,
         tourism_tax_rate: Number(merged.tourism_tax_rate) || DEFAULT_SETTINGS.tourism_tax_rate,
+        booking_channels: normalizeBookingChannels(merged.booking_channels),
       };
     }
   } catch (error) {

@@ -47,6 +47,7 @@ import {
 } from '@mui/icons-material';
 import { NightAuditService, NightAuditPreview, NightAuditRun, UnpostedBooking, JournalSection, AuditDetailsResponse } from '../../../api';
 import { formatCurrency } from '../../../utils/currency';
+import { getHotelSettings } from '../../../utils/hotelSettings';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -591,11 +592,26 @@ const NightAuditPage: React.FC = () => {
       doc.setFont('helvetica', 'normal');
       currentY += 8;
 
-      const roomSoldRows: string[][] = bookings.map(b => [
-        b.room_number,
-        b.room_type_code || b.room_type || '',
-        b.guest_name,
-      ]);
+      const configuredChannels = getHotelSettings().booking_channels.filter(c => c.abbreviation);
+      // Online bookings store source='online' and bury the channel name in booking_remarks
+      // (formatted as "<Channel> - Ref: <ref>" or "<Channel> Booking" by UnifiedBookingModal).
+      // Match by checking whether any configured channel name appears in either field.
+      const findAbbreviation = (b: typeof bookings[number]): string | undefined => {
+        const haystacks = [b.source ?? '', b.booking_remarks ?? ''].map(s => s.toLowerCase());
+        for (const ch of configuredChannels) {
+          const needle = ch.name.toLowerCase();
+          if (haystacks.some(h => h.includes(needle))) return ch.abbreviation;
+        }
+        return undefined;
+      };
+      const roomSoldRows: string[][] = bookings.map(b => {
+        const abbr = findAbbreviation(b);
+        return [
+          b.room_number,
+          b.room_type_code || b.room_type || '',
+          abbr ? `${b.guest_name} (${abbr})` : b.guest_name,
+        ];
+      });
       roomSoldRows.push([
         'Total Room Sold',
         bookings.length.toString(),

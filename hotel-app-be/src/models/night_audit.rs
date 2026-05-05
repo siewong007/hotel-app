@@ -130,6 +130,7 @@ pub struct PostedBookingDetail {
     pub payment_status: Option<String>,
     pub payment_method: Option<String>,
     pub source: Option<String>,
+    pub booking_remarks: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

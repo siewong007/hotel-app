@@ -115,6 +115,7 @@ export interface PostedBookingDetail {
   payment_status: string | null;
   payment_method: string | null;
   source: string | null;
+  booking_remarks: string | null;
 }
 
 export interface AuditDetailsResponse {

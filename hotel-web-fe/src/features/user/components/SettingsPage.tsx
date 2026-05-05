@@ -26,7 +26,7 @@ import {
 import { useAuth } from '../../../auth/AuthContext';
 import { setCurrentCurrency, SUPPORTED_CURRENCIES } from '../../../utils/currency';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { getHotelSettings, saveHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
+import { getHotelSettings, saveHotelSettings, HotelSettings, BookingChannel } from '../../../utils/hotelSettings';
 
 // Common timezones for hotels
 const TIMEZONES = [
@@ -76,10 +76,20 @@ const SettingsPage: React.FC = () => {
   const [tourismTaxRate, setTourismTaxRate] = useState(10);
 
   // System Configuration
-  const [bookingChannels, setBookingChannels] = useState<string[]>([]);
+  const [bookingChannels, setBookingChannels] = useState<BookingChannel[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
-  const [newChannel, setNewChannel] = useState('');
+  const [newChannelName, setNewChannelName] = useState('');
+  const [newChannelAbbreviation, setNewChannelAbbreviation] = useState('');
   const [newPaymentMethod, setNewPaymentMethod] = useState('');
+
+  const addBookingChannel = () => {
+    const name = newChannelName.trim();
+    const abbreviation = newChannelAbbreviation.trim();
+    if (!name) return;
+    setBookingChannels([...bookingChannels, { name, abbreviation }]);
+    setNewChannelName('');
+    setNewChannelAbbreviation('');
+  };
 
   useEffect(() => {
     loadSettings();
@@ -478,14 +488,14 @@ const SettingsPage: React.FC = () => {
                 Online Booking Channels
               </Typography>
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                Configure available booking channels for online check-in
+                Configure channel name + abbreviation pairs (e.g., Booking.com / B.C). Abbreviations appear next to guest names in the Room Sold Detail by Date report.
               </Typography>
 
               <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 2, mb: 2 }}>
                 {bookingChannels.map((channel, index) => (
                   <Chip
                     key={index}
-                    label={channel}
+                    label={channel.abbreviation ? `${channel.name} (${channel.abbreviation})` : channel.name}
                     onDelete={() => {
                       setBookingChannels(bookingChannels.filter((_, i) => i !== index));
                     }}
@@ -497,13 +507,26 @@ const SettingsPage: React.FC = () => {
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <TextField
                   size="small"
-                  placeholder="Add new booking channel (e.g., Airbnb)"
-                  value={newChannel}
-                  onChange={(e) => setNewChannel(e.target.value)}
+                  placeholder="Channel name (e.g., Booking.com)"
+                  value={newChannelName}
+                  onChange={(e) => setNewChannelName(e.target.value)}
                   onKeyPress={(e) => {
-                    if (e.key === 'Enter' && newChannel.trim()) {
-                      setBookingChannels([...bookingChannels, newChannel.trim()]);
-                      setNewChannel('');
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addBookingChannel();
+                    }
+                  }}
+                  sx={{ flex: 2 }}
+                />
+                <TextField
+                  size="small"
+                  placeholder="Abbr. (e.g., B.C)"
+                  value={newChannelAbbreviation}
+                  onChange={(e) => setNewChannelAbbreviation(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addBookingChannel();
                     }
                   }}
                   sx={{ flex: 1 }}
@@ -511,13 +534,8 @@ const SettingsPage: React.FC = () => {
                 <Button
                   variant="outlined"
                   startIcon={<AddIcon />}
-                  onClick={() => {
-                    if (newChannel.trim()) {
-                      setBookingChannels([...bookingChannels, newChannel.trim()]);
-                      setNewChannel('');
-                    }
-                  }}
-                  disabled={!newChannel.trim()}
+                  onClick={addBookingChannel}
+                  disabled={!newChannelName.trim()}
                 >
                   Add
                 </Button>
