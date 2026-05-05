@@ -555,14 +555,13 @@ export default function EnhancedCheckInModal({
     setError(null);
 
     try {
-      // Build payment/deposit fields
+      // Build payment/deposit fields. Don't send payment_status — the backend
+      // derives it from the payments table on every read and recomputes after
+      // each payment row mutation, so any value sent here would be overridden.
       const paymentFields: Record<string, any> = {};
       if (paymentChoice === 'pay_now') {
-        paymentFields.payment_status = 'paid';
         paymentFields.amount_paid = amountPaid;
         paymentFields.payment_method = paymentType;
-      } else {
-        paymentFields.payment_status = 'unpaid';
       }
       if (depositChoice === 'receive') {
         paymentFields.deposit_paid = true;

@@ -1343,16 +1343,17 @@ pub async fn update_booking_handler(
         None // Normal stay
     };
 
-    let new_payment_status = input
+    // bookings.payment_status is now derived from the payments table — every
+    // SELECT in bookings_queries.rs overrides it, and recompute_payment_status
+    // is called at the end of this handler to keep the stored copy in sync.
+    // Ignore any caller-supplied payment_status (used to be a manual dropdown
+    // that drifted from reality). Preserve the existing stored value verbatim
+    // so the UPDATE below is a no-op for this column; the recompute at the
+    // bottom of the handler will replace it with the canonical value.
+    let new_payment_status = existing_booking
         .payment_status
-        .as_ref()
-        .unwrap_or(
-            &existing_booking
-                .payment_status
-                .clone()
-                .unwrap_or_else(|| "unpaid".to_string()),
-        )
-        .clone();
+        .clone()
+        .unwrap_or_else(|| "unpaid".to_string());
 
     // Handle deposit fields
     let deposit_paid = input.deposit_paid;

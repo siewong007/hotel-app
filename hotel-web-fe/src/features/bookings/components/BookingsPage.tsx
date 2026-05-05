@@ -62,7 +62,6 @@ import {
   Bed as BedIcon,
   MeetingRoom as RoomIcon,
   Add as AddIcon,
-  DirectionsWalk as WalkInIcon,
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
 import { HotelAPIService } from '../../../api';
@@ -140,6 +139,8 @@ const BookingsPage: React.FC = () => {
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
   const [bookingView, setBookingView] = useState<'all' | 'arriving' | 'in_house' | 'departing' | 'upcoming' | 'balance'>('all');
+  const [summaryBookings, setSummaryBookings] = useState<BookingWithDetails[]>([]);
+  const [summaryLoaded, setSummaryLoaded] = useState(false);
 
   // Create booking dialog (using UnifiedBookingModal)
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -176,7 +177,11 @@ const BookingsPage: React.FC = () => {
   // Payment status update dialog
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentBooking, setPaymentBooking] = useState<BookingWithDetails | null>(null);
-  const [newPaymentStatus, setNewPaymentStatus] = useState<string>('');
+  // Collect Deposit dialog now records a real payments row instead of toggling
+  // bookings.payment_status (which is derived). These two pieces of state drive
+  // amount + payment method instead of the old status dropdown.
+  const [depositAmount, setDepositAmount] = useState<number>(0);
+  const [depositMethod, setDepositMethod] = useState<string>('Cash');
   const [paymentNote, setPaymentNote] = useState<string>('');
   const [updatingPayment, setUpdatingPayment] = useState(false);
 
@@ -192,6 +197,25 @@ const BookingsPage: React.FC = () => {
       return a.room_number.localeCompare(b.room_number);
     });
   };
+
+  const loadBookingSummary = async () => {
+    try {
+      const data = await HotelAPIService.getBookingsWithDetails();
+      setSummaryBookings(data);
+      setSummaryLoaded(true);
+    } catch (err: any) {
+      console.error('Failed to load booking summary:', err);
+      setSummaryLoaded(false);
+    }
+  };
+
+  const reloadBookingData = async () => {
+    await Promise.all([loadData(), loadBookingSummary()]);
+  };
+
+  useEffect(() => {
+    loadBookingSummary();
+  }, []);
 
   // Server handles all filtering and sorting — bookings is already the correct page
   const filteredAndSortedBookings = bookings;
@@ -310,7 +334,7 @@ const BookingsPage: React.FC = () => {
       setSnackbarMessage('Booking updated successfully!');
       setSnackbarOpen(true);
       setEditDialogOpen(false);
-      await loadData();
+      await reloadBookingData();
     } catch (err: any) {
       setError(err.message || 'Failed to update booking');
     } finally {
@@ -339,7 +363,7 @@ const BookingsPage: React.FC = () => {
       setVoidDialogOpen(false);
       setVoidingBooking(null);
       setVoidReason('');
-      await loadData();
+      await reloadBookingData();
     } catch (err: any) {
       setError(err.message || 'Failed to void booking');
     } finally {
@@ -362,7 +386,7 @@ const BookingsPage: React.FC = () => {
       setSnackbarOpen(true);
       setReactivateDialogOpen(false);
       setReactivatingBooking(null);
-      await loadData();
+      await reloadBookingData();
     } catch (err: any) {
       setError(err.message || 'Failed to reactivate booking');
     } finally {
@@ -436,7 +460,7 @@ const BookingsPage: React.FC = () => {
       setComplimentaryReason('');
       setComplimentaryStartDate('');
       setComplimentaryEndDate('');
-      await loadData();
+      await reloadBookingData();
     } catch (err: any) {
       setError(err.message || 'Failed to mark booking as complimentary');
     } finally {
@@ -447,28 +471,44 @@ const BookingsPage: React.FC = () => {
   // Payment status handlers
   const handleUpdatePaymentStatus = (booking: BookingWithDetails) => {
     setPaymentBooking(booking);
-    setNewPaymentStatus(booking.payment_status || 'unpaid');
+    // Default to the configured deposit amount unless the booking already
+    // carries one (e.g. set during booking creation).
+    const presetDeposit = Number(booking.deposit_amount || 0) > 0
+      ? Number(booking.deposit_amount)
+      : getHotelSettings().deposit_amount;
+    setDepositAmount(presetDeposit);
+    setDepositMethod('Cash');
     setPaymentNote('');
     setPaymentDialogOpen(true);
   };
 
   const handleConfirmPaymentUpdate = async () => {
-    if (!paymentBooking || !newPaymentStatus) return;
+    if (!paymentBooking) return;
+    if (!Number.isFinite(depositAmount) || depositAmount <= 0) {
+      setError('Deposit amount must be greater than 0.');
+      return;
+    }
 
     try {
       setUpdatingPayment(true);
-      await HotelAPIService.updateBooking(paymentBooking.id, {
-        payment_status: newPaymentStatus,
-        payment_note: paymentNote.trim() || undefined,
+      // Insert a real `payments` row (payment_type='deposit'). The backend
+      // recompute_payment_status helper will flip the chip automatically.
+      await HotelAPIService.recordPayment({
+        booking_id: Number(paymentBooking.id),
+        amount: depositAmount,
+        payment_method: depositMethod,
+        payment_type: 'deposit',
+        notes: paymentNote.trim() || `Deposit collected (${depositMethod})`,
       });
 
-      setSnackbarMessage(`Deposit collected. Status updated to "${getPaymentStatusText(newPaymentStatus)}"`);
+      setSnackbarMessage(`Deposit of ${formatCurrency(depositAmount)} collected via ${depositMethod}`);
       setSnackbarOpen(true);
       setPaymentDialogOpen(false);
       setPaymentBooking(null);
-      setNewPaymentStatus('');
+      setDepositAmount(0);
+      setDepositMethod('Cash');
       setPaymentNote('');
-      await loadData();
+      await reloadBookingData();
     } catch (err: any) {
       setError(err.message || 'Failed to collect deposit');
     } finally {
@@ -479,7 +519,8 @@ const BookingsPage: React.FC = () => {
   // Check-in functions
   const handleCheckIn = async (bookingId: string) => {
     try {
-      const booking = bookings.find(b => b.id === bookingId);
+      const booking = bookings.find(b => String(b.id) === String(bookingId)) ||
+        summaryBookings.find(b => String(b.id) === String(bookingId));
       if (!booking) {
         setError('Booking not found');
         return;
@@ -508,13 +549,13 @@ const BookingsPage: React.FC = () => {
     }
     try {
       setProcessingCheckIn(true);
+      // Don't push payment_status here — recording the payments row below is
+      // what flips the derived status. Sending an override would just be
+      // overwritten by recompute_payment_status on the backend.
       const updateData: any = {};
       if (ciPaymentChoice === 'pay_now') {
-        updateData.payment_status = 'paid';
         updateData.amount_paid = ciAmountPaid;
         updateData.payment_method = ciPaymentMethod;
-      } else {
-        updateData.payment_status = 'unpaid';
       }
       if (ciDepositChoice === 'receive') {
         updateData.deposit_paid = true;
@@ -541,7 +582,7 @@ const BookingsPage: React.FC = () => {
       setCheckinBooking(null);
       setSnackbarMessage('Guest checked in successfully!');
       setSnackbarOpen(true);
-      loadData();
+      await reloadBookingData();
     } catch (err: any) {
       setError(err.message || 'Failed to check in guest');
     } finally {
@@ -653,7 +694,7 @@ const BookingsPage: React.FC = () => {
       setSnackbarOpen(true);
       setShowCheckoutModal(false);
       setCheckoutBooking(null);
-      await loadData();
+      await reloadBookingData();
     } catch (err: any) {
       throw err; // Let the modal handle the error display
     }
@@ -736,36 +777,39 @@ const BookingsPage: React.FC = () => {
 
   const getBookingBalance = (booking: BookingWithDetails | null) => Number(booking?.balance_due ?? 0);
   const getBookingTotal = (booking: BookingWithDetails | null) => Number(booking?.total_amount ?? 0);
+  const operationsBookings = summaryLoaded ? summaryBookings : bookings;
 
   const dueBookings = useMemo(
-    () => bookings.filter((booking) => getBookingBalance(booking) > 0),
-    [bookings]
+    () => operationsBookings.filter((booking) => booking.status !== 'voided' && getBookingBalance(booking) > 0),
+    [operationsBookings]
   );
   const arrivingBookings = useMemo(
-    () => bookings.filter((booking) => getDateOnly(booking.check_in_date) === todayIso && !['checked_in', 'checked_out', 'completed', 'voided'].includes(booking.status)),
-    [bookings, todayIso]
+    () => operationsBookings.filter((booking) => getDateOnly(booking.check_in_date) === todayIso && !['checked_in', 'checked_out', 'completed', 'voided'].includes(booking.status)),
+    [operationsBookings, todayIso]
   );
   const departingBookings = useMemo(
-    () => bookings.filter((booking) => getDateOnly(booking.check_out_date) === todayIso && !['checked_out', 'completed', 'voided'].includes(booking.status)),
-    [bookings, todayIso]
+    () => operationsBookings.filter((booking) => getDateOnly(booking.check_out_date) === todayIso && canCheckOut(booking)),
+    [operationsBookings, todayIso]
   );
   const inHouseBookings = useMemo(
-    () => bookings.filter((booking) => booking.status === 'checked_in'),
-    [bookings]
+    () => operationsBookings.filter((booking) => booking.status === 'checked_in'),
+    [operationsBookings]
+  );
+  const upcomingBookings = useMemo(
+    () => operationsBookings.filter((booking) =>
+      ['pending', 'confirmed'].includes(booking.status) &&
+      getDateOnly(booking.check_in_date) > todayIso
+    ),
+    [operationsBookings, todayIso]
   );
   const visibleBookings = useMemo(() => {
     if (bookingView === 'arriving') return arrivingBookings;
     if (bookingView === 'in_house') return inHouseBookings;
     if (bookingView === 'departing') return departingBookings;
-    if (bookingView === 'upcoming') {
-      return bookings.filter((booking) =>
-        ['pending', 'confirmed'].includes(booking.status) &&
-        getDateOnly(booking.check_in_date) > todayIso
-      );
-    }
+    if (bookingView === 'upcoming') return upcomingBookings;
     if (bookingView === 'balance') return dueBookings;
     return filteredAndSortedBookings;
-  }, [arrivingBookings, bookingView, bookings, departingBookings, dueBookings, filteredAndSortedBookings, inHouseBookings, todayIso]);
+  }, [arrivingBookings, bookingView, departingBookings, dueBookings, filteredAndSortedBookings, inHouseBookings, upcomingBookings]);
 
   const selectedBooking = useMemo(() => {
     if (selectedBookingId == null) return visibleBookings[0] || null;
@@ -784,8 +828,8 @@ const BookingsPage: React.FC = () => {
 
   const totalGuestsInHouse = inHouseBookings.reduce((sum, booking) => sum + Number((booking as any).adults || 1) + Number((booking as any).children || 0), 0);
   const roomCount = rooms.length || 0;
-  const occupancyPercent = roomCount > 0 ? Math.round((inHouseBookings.length / roomCount) * 100) : 0;
   const outstandingDue = dueBookings.reduce((sum, booking) => sum + getBookingBalance(booking), 0);
+  const paymentActionDetail = summaryLoaded ? `${dueBookings.length} with balance` : `${dueBookings.length} with balance on this page`;
 
   const selectBookingView = (view: typeof bookingView) => {
     setBookingView(view);
@@ -812,6 +856,13 @@ const BookingsPage: React.FC = () => {
       setStatusFilter('all');
       setDateFilter('all');
       setSearchDate('');
+    }
+  };
+
+  const handleTakePaymentAction = () => {
+    selectBookingView('balance');
+    if (dueBookings.length > 0) {
+      setSelectedBookingId(dueBookings[0].id);
     }
   };
 
@@ -846,7 +897,7 @@ const BookingsPage: React.FC = () => {
           <Button
             variant="outlined"
             startIcon={<RefreshIcon />}
-            onClick={loadData}
+            onClick={reloadBookingData}
             sx={{ minHeight: 44 }}
           >
             Refresh
@@ -868,7 +919,7 @@ const BookingsPage: React.FC = () => {
           severity="error"
           sx={{ mb: 3 }}
           action={
-            <Button color="inherit" size="small" onClick={loadData}>
+            <Button color="inherit" size="small" onClick={reloadBookingData}>
               Retry
             </Button>
           }
@@ -879,13 +930,12 @@ const BookingsPage: React.FC = () => {
 
       <Grid container spacing={2} mb={2.5}>
         {[
-          { title: 'Arriving today', value: arrivingBookings.length, detail: `${stats.todayCheckIns} expected`, subValue: departingBookings.length || stats.todayCheckIns || 1, color: '#2f6f52', icon: <ArrowForwardIcon fontSize="small" />, view: 'arriving' as const },
+          { title: 'Arrivals / Check-in', value: arrivingBookings.length, detail: `${arrivingBookings.filter(canCheckIn).length} ready to check in`, subValue: arrivingBookings.length || stats.todayCheckIns || 1, color: '#2f6f52', icon: <ArrowForwardIcon fontSize="small" />, view: 'arriving' as const },
           { title: 'In-house guests', value: totalGuestsInHouse, detail: `across ${inHouseBookings.length} rooms`, subValue: Math.max(totalGuestsInHouse, roomCount || 1), color: '#2f64b3', icon: <BedIcon fontSize="small" />, view: 'in_house' as const },
-          { title: 'Departing today', value: departingBookings.length, detail: `${departingBookings.filter((booking) => booking.status === 'checked_in').length} still in room`, subValue: departingBookings.length || 1, color: '#c47b1e', icon: <ArrowBackIcon fontSize="small" />, view: 'departing' as const },
-          { title: 'Occupancy', value: `${occupancyPercent}%`, detail: `${inHouseBookings.length} of ${roomCount || 0} rooms`, color: '#7c56c2', icon: <HotelIcon fontSize="small" />, view: 'in_house' as const },
+          { title: 'Departures / Check-out', value: departingBookings.length, detail: `${departingBookings.length} ready to check out`, subValue: departingBookings.length || 1, color: '#c47b1e', icon: <ArrowBackIcon fontSize="small" />, view: 'departing' as const },
           { title: 'Outstanding due', value: formatCurrency(outstandingDue), detail: `${dueBookings.length} bookings`, color: '#c43d32', icon: <PaymentIcon fontSize="small" />, view: 'balance' as const, alert: true },
-        ].map((stat, idx) => (
-          <Grid size={{ xs: 12, sm: 6, md: stat.alert ? 4 : 2 }} key={stat.title}>
+        ].map((stat) => (
+          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={stat.title}>
             <Card
               elevation={0}
               onClick={() => selectBookingView(stat.view)}
@@ -919,12 +969,9 @@ const BookingsPage: React.FC = () => {
 
       <Grid container spacing={2} mb={2.5}>
         {[
-          { title: 'Check in guest', detail: `${arrivingBookings.length} arrival pending`, color: '#2f6f52', icon: <ArrowForwardIcon />, action: () => selectBookingView('arriving'), primary: true },
-          { title: 'Check out', detail: `${departingBookings.length} due today`, color: '#c47b1e', icon: <ArrowBackIcon />, action: () => selectBookingView('departing') },
-          { title: 'Take payment', detail: `${dueBookings.length} with balance`, color: '#c43d32', icon: <PaymentIcon />, action: () => selectBookingView('balance') },
-          { title: 'Walk-in booking', detail: `${stats.availableRooms} rooms free`, color: '#7c56c2', icon: <WalkInIcon />, action: () => setCreateDialogOpen(true) },
+          { title: 'Take payment', detail: paymentActionDetail, color: '#c43d32', icon: <PaymentIcon />, action: handleTakePaymentAction, primary: dueBookings.length > 0 },
         ].map((action) => (
-          <Grid size={{ xs: 12, md: 3 }} key={action.title}>
+          <Grid size={{ xs: 12 }} key={action.title}>
             <Card
               elevation={0}
               onClick={action.action}
@@ -994,7 +1041,7 @@ const BookingsPage: React.FC = () => {
                   { key: 'all', label: 'All', count: totalBookings || bookings.length },
                   { key: 'arriving', label: 'Arriving', count: arrivingBookings.length },
                   { key: 'in_house', label: 'In House', count: inHouseBookings.length },
-                  { key: 'upcoming', label: 'Upcoming', count: bookings.filter((booking) => ['pending', 'confirmed'].includes(booking.status) && getDateOnly(booking.check_in_date) > todayIso).length },
+                  { key: 'upcoming', label: 'Upcoming', count: upcomingBookings.length },
                   { key: 'balance', label: 'With Balance', count: dueBookings.length },
                 ].map((filter) => (
                   <Chip
@@ -1111,7 +1158,7 @@ const BookingsPage: React.FC = () => {
               </Stack>
             )}
 
-            {totalBookings > PAGE_SIZE && (
+            {bookingView === 'all' && totalBookings > PAGE_SIZE && (
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2, py: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
                 <Typography variant="body2" color="text.secondary">
                   Showing {((currentPage - 1) * PAGE_SIZE) + 1}-{Math.min(currentPage * PAGE_SIZE, totalBookings)} of {totalBookings}
@@ -1430,7 +1477,7 @@ const BookingsPage: React.FC = () => {
         onError={(message) => {
           setError(message);
         }}
-        onRefreshData={loadData}
+        onRefreshData={reloadBookingData}
         onBookingCreated={(booking, guest) => {
           // Direct booking: open Enhanced Check-In modal
           const selectedRoom = rooms.find(r => r.id === booking.room_id);
@@ -1528,22 +1575,12 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="corporate">Corporate</MenuItem>
               </TextField>
             </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                select
-                fullWidth
-                label="Payment Status"
-                value={editFormData.payment_status || 'unpaid'}
-                onChange={(e) => setEditFormData((prev: any) => ({ ...prev, payment_status: e.target.value }))}
-              >
-                <MenuItem value="unpaid">Unpaid</MenuItem>
-                <MenuItem value="paid">Paid</MenuItem>
-                <MenuItem value="partial">Partial</MenuItem>
-                <MenuItem value="unpaid_deposit">Unpaid (Deposit)</MenuItem>
-                <MenuItem value="paid_rate">Paid (Rate Only)</MenuItem>
-                <MenuItem value="refunded">Refunded</MenuItem>
-              </TextField>
-            </Grid>
+            {/* Payment Status is intentionally read-only here. It's derived
+                live from the payments table on every list query, and any
+                override the user types in this form is wiped on the next
+                payment touch (record/refund/void/total change). Use the
+                "Collect Deposit" or "Take Payment" actions to record real
+                payment rows — those flip the chip automatically. */}
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
@@ -1738,13 +1775,15 @@ const BookingsPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Collect Deposit Dialog */}
+      {/* Collect Deposit Dialog — records a real payments row; the backend
+          recompute then flips bookings.payment_status automatically. */}
       <Dialog
         open={paymentDialogOpen}
         onClose={() => {
           setPaymentDialogOpen(false);
           setPaymentBooking(null);
-          setNewPaymentStatus('');
+          setDepositAmount(0);
+          setDepositMethod('Cash');
           setPaymentNote('');
         }}
         maxWidth="sm"
@@ -1763,35 +1802,46 @@ const BookingsPage: React.FC = () => {
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Room: {paymentBooking.room_number}
               </Typography>
-              {paymentBooking.deposit_amount && Number(paymentBooking.deposit_amount) > 0 && (
-                <Typography variant="body2" color="success.main" gutterBottom>
-                  Deposit Already Paid: {formatCurrency(Number(paymentBooking.deposit_amount))}
-                </Typography>
-              )}
-              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 <Typography variant="body2" color="text.secondary">
-                  Current Status:
+                  Current status:
                 </Typography>
                 <Chip
                   label={getPaymentStatusText(paymentBooking.payment_status)}
                   color={getPaymentStatusColor(paymentBooking.payment_status)}
                   size="small"
                 />
+                {Number(paymentBooking.balance_due ?? 0) > 0 && (
+                  <Typography variant="body2" color="error">
+                    · {formatCurrency(Number(paymentBooking.balance_due))} outstanding
+                  </Typography>
+                )}
               </Box>
 
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Payment Status</InputLabel>
-                <Select
-                  value={newPaymentStatus}
-                  label="Payment Status"
-                  onChange={(e) => setNewPaymentStatus(e.target.value)}
-                >
-                  <MenuItem value="unpaid">Unpaid</MenuItem>
-                  <MenuItem value="partial">Partial Payment</MenuItem>
-                  <MenuItem value="paid">Fully Paid</MenuItem>
-                  <MenuItem value="refunded">Refunded</MenuItem>
-                </Select>
-              </FormControl>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 2 }}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="Deposit Amount"
+                  value={depositAmount || ''}
+                  onChange={(e) => setDepositAmount(parseFloat(e.target.value) || 0)}
+                  InputProps={{ startAdornment: <Box sx={{ pr: 1, color: 'text.secondary' }}>{currencySymbol}</Box> }}
+                  inputProps={{ min: 0, step: 1 }}
+                  required
+                />
+                <FormControl fullWidth>
+                  <InputLabel>Payment Method</InputLabel>
+                  <Select
+                    value={depositMethod}
+                    label="Payment Method"
+                    onChange={(e) => setDepositMethod(e.target.value)}
+                  >
+                    {PAYMENT_METHODS.map((m) => (
+                      <MenuItem key={m} value={m}>{m}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
 
               <TextField
                 fullWidth
@@ -1800,8 +1850,8 @@ const BookingsPage: React.FC = () => {
                 label="Payment Note (Optional)"
                 value={paymentNote}
                 onChange={(e) => setPaymentNote(e.target.value)}
-                placeholder="e.g., Paid via cash/card, Receipt #12345, Remaining balance RM100..."
-                helperText="Add a note about this payment"
+                placeholder="e.g., Receipt #12345, Cash from front desk drawer..."
+                helperText="Recorded as a payments row of type 'deposit'. Status updates automatically."
               />
             </Box>
           )}
@@ -1810,7 +1860,8 @@ const BookingsPage: React.FC = () => {
           <Button onClick={() => {
             setPaymentDialogOpen(false);
             setPaymentBooking(null);
-            setNewPaymentStatus('');
+            setDepositAmount(0);
+            setDepositMethod('Cash');
             setPaymentNote('');
           }}>
             Cancel
@@ -1819,7 +1870,7 @@ const BookingsPage: React.FC = () => {
             onClick={handleConfirmPaymentUpdate}
             variant="contained"
             color="primary"
-            disabled={!newPaymentStatus || updatingPayment}
+            disabled={depositAmount <= 0 || updatingPayment}
           >
             {updatingPayment ? 'Processing...' : 'Collect Deposit'}
           </Button>
