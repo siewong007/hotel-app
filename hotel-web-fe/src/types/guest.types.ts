@@ -29,6 +29,14 @@ export interface Guest {
   company_name?: string; // Company the guest is tied to
   created_at: string;
   updated_at: string;
+  /**
+   * Aggregate counters returned by the list endpoint
+   * (`GET /guests`) — populated via subqueries against the bookings table,
+   * so they remain undefined for endpoints that fetch guests by id.
+   */
+  bookings_count?: number;
+  /** ISO date (YYYY-MM-DD) of the most recent checked-in/-out stay. */
+  last_stay_date?: string;
 }
 
 export interface GuestCreateRequest {
