@@ -20,15 +20,9 @@ import {
   IconButton,
   Chip,
   Grid,
-  Card,
-  CardContent,
   InputAdornment,
   Pagination,
-  Stack,
-  Tooltip,
   MenuItem,
-  ToggleButton,
-  ToggleButtonGroup,
   alpha,
 } from '@mui/material';
 import {
@@ -50,6 +44,9 @@ import {
   FileDownloadOutlined as ExportIcon,
   FileUploadOutlined as ImportIcon,
   AutoAwesome as ConvertIcon,
+  LocationOnOutlined as LocationIcon,
+  PublicOutlined as PublicIcon,
+  CheckCircleOutline as CheckCircleIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { Guest, GuestCreateRequest, GuestType, GUEST_TYPE_CONFIG, TourismType, TOURISM_TYPE_CONFIG } from '../../../types';
@@ -290,6 +287,7 @@ const GuestConfigurationPage: React.FC = () => {
 
   const handleCreateClick = () => {
     resetForm();
+    setDialogError(null);
     setCreateDialogOpen(true);
   };
 
@@ -349,7 +347,7 @@ const GuestConfigurationPage: React.FC = () => {
 
   const handleCreateGuest = async () => {
     if (!formData.first_name || !formData.last_name) {
-      setError('Please fill in all required fields (First Name and Last Name)');
+      setDialogError('First name and last name are required');
       return;
     }
 
@@ -357,13 +355,14 @@ const GuestConfigurationPage: React.FC = () => {
     if (formData.email && formData.email.trim()) {
       const emailError = validateEmail(formData.email);
       if (emailError) {
-        setError(emailError);
+        setDialogError(emailError);
         return;
       }
     }
 
     try {
       setFormLoading(true);
+      setDialogError(null);
       // Sanitize form data - convert empty strings to undefined
       const sanitizedData = {
         ...formData,
@@ -382,10 +381,11 @@ const GuestConfigurationPage: React.FC = () => {
       setSnackbarMessage('Guest created successfully');
       setSnackbarOpen(true);
       setCreateDialogOpen(false);
+      setDialogError(null);
       resetForm();
       await loadGuests();
     } catch (err: any) {
-      setError(err.message || 'Failed to create guest');
+      setDialogError(err.message || 'Failed to create guest');
     } finally {
       setFormLoading(false);
     }
@@ -1159,469 +1159,30 @@ const GuestConfigurationPage: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Create Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Create New Guest</DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="First Name"
-                value={formData.first_name}
-                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                required
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Last Name"
-                value={formData.last_name}
-                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                required
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="IC Number / Passport"
-                value={formData.ic_number}
-                onChange={(e) => setFormData({ ...formData, ic_number: e.target.value })}
-                helperText="Identity card or passport number"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Nationality"
-                value={formData.nationality}
-                onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Company Name"
-                value={formData.company_name}
-                onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Address"
-                value={formData.address_line1}
-                onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="City"
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="State/Province"
-                value={formData.state_province}
-                onChange={(e) => setFormData({ ...formData, state_province: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Postal Code"
-                value={formData.postal_code}
-                onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Country"
-                value={formData.country}
-                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-              />
-            </Grid>
+      <GuestProfileDialog
+        open={createDialogOpen}
+        mode="create"
+        formData={formData}
+        setFormData={setFormData}
+        error={dialogError}
+        loading={formLoading}
+        onErrorClose={() => setDialogError(null)}
+        onClose={() => { setCreateDialogOpen(false); setDialogError(null); }}
+        onSubmit={handleCreateGuest}
+      />
 
-            {/* Membership Section */}
-            <Grid size={12}>
-              <Box
-                sx={{
-                  p: 2,
-                  mt: 1,
-                  bgcolor: formData.guest_type === 'member' ? alpha(GUEST_TYPE_CONFIG.member.color, 0.1) : 'grey.100',
-                  borderRadius: 1,
-                  border: 1,
-                  borderColor: formData.guest_type === 'member' ? GUEST_TYPE_CONFIG.member.color : 'divider',
-                }}
-              >
-                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
-                  Membership & Pricing
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      select
-                      fullWidth
-                      label="Guest Type"
-                      value={formData.guest_type || 'non_member'}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        guest_type: e.target.value as GuestType,
-                        discount_percentage: e.target.value === 'member' ? (formData.discount_percentage || 10) : 0,
-                      })}
-                    >
-                      <MenuItem value="non_member">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <NonMemberIcon sx={{ fontSize: 18, color: GUEST_TYPE_CONFIG.non_member.color }} />
-                          Non-Member (Standard Rate)
-                        </Box>
-                      </MenuItem>
-                      <MenuItem value="member">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <MemberIcon sx={{ fontSize: 18, color: GUEST_TYPE_CONFIG.member.color }} />
-                          Member (Discounted Rate)
-                        </Box>
-                      </MenuItem>
-                    </TextField>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Discount Percentage"
-                      type="number"
-                      value={formData.discount_percentage || 0}
-                      onChange={(e) => setFormData({ ...formData, discount_percentage: parseInt(e.target.value) || 0 })}
-                      disabled={formData.guest_type !== 'member'}
-                      InputProps={{
-                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                      }}
-                      inputProps={{ min: 0, max: 100 }}
-                      helperText={formData.guest_type === 'member' ? 'Discount applied to room rates' : 'Only available for members'}
-                    />
-                  </Grid>
-                </Grid>
-              </Box>
-            </Grid>
-
-            {/* Tourism Type Section */}
-            <Grid size={12}>
-              <Box
-                sx={{
-                  p: 2,
-                  bgcolor: formData.tourism_type === 'foreign' ? alpha(TOURISM_TYPE_CONFIG.foreign.color, 0.1) : 'grey.100',
-                  borderRadius: 1,
-                  border: 1,
-                  borderColor: formData.tourism_type === 'foreign' ? TOURISM_TYPE_CONFIG.foreign.color : 'divider',
-                }}
-              >
-                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
-                  Tourism Classification
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      select
-                      fullWidth
-                      label="Tourism Type"
-                      value={formData.tourism_type || ''}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        tourism_type: e.target.value as TourismType || undefined,
-                      })}
-                      helperText="Determines if tourism tax is charged"
-                    >
-                      <MenuItem value="">
-                        <em>Not specified</em>
-                      </MenuItem>
-                      <MenuItem value="local">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Chip label="Local" size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.local.color, color: 'white' }} />
-                          <Typography variant="body2" color="text.secondary">{TOURISM_TYPE_CONFIG.local.taxLabel}</Typography>
-                        </Box>
-                      </MenuItem>
-                      <MenuItem value="foreign">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Chip label="Foreign" size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.foreign.color, color: 'white' }} />
-                          <Typography variant="body2" color="text.secondary">{TOURISM_TYPE_CONFIG.foreign.taxLabel}</Typography>
-                        </Box>
-                      </MenuItem>
-                    </TextField>
-                  </Grid>
-                </Grid>
-              </Box>
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)} startIcon={<CancelIcon />}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCreateGuest}
-            variant="contained"
-            startIcon={<SaveIcon />}
-            disabled={formLoading}
-          >
-            {formLoading ? <CircularProgress size={20} /> : 'Create Guest'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => { setEditDialogOpen(false); setDialogError(null); }} maxWidth="md" fullWidth>
-        <DialogTitle>Edit Guest: {editingGuest?.full_name}</DialogTitle>
-        <DialogContent>
-          {dialogError && (
-            <Alert severity="error" sx={{ mb: 2, mt: 1 }} onClose={() => setDialogError(null)}>
-              {dialogError}
-            </Alert>
-          )}
-          <Grid container spacing={2} sx={{ mt: dialogError ? 0 : 1 }}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="First Name"
-                value={formData.first_name}
-                onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Last Name"
-                value={formData.last_name}
-                onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="IC Number / Passport"
-                value={formData.ic_number}
-                onChange={(e) => setFormData({ ...formData, ic_number: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Nationality"
-                value={formData.nationality}
-                onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Company Name"
-                value={formData.company_name}
-                onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Address"
-                value={formData.address_line1}
-                onChange={(e) => setFormData({ ...formData, address_line1: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="City"
-                value={formData.city}
-                onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="State/Province"
-                value={formData.state_province}
-                onChange={(e) => setFormData({ ...formData, state_province: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Postal Code"
-                value={formData.postal_code}
-                onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Country"
-                value={formData.country}
-                onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-              />
-            </Grid>
-
-            {/* Membership Section */}
-            <Grid size={12}>
-              <Box
-                sx={{
-                  p: 2,
-                  mt: 1,
-                  bgcolor: formData.guest_type === 'member' ? alpha(GUEST_TYPE_CONFIG.member.color, 0.1) : 'grey.100',
-                  borderRadius: 1,
-                  border: 1,
-                  borderColor: formData.guest_type === 'member' ? GUEST_TYPE_CONFIG.member.color : 'divider',
-                }}
-              >
-                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
-                  Membership & Pricing
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      select
-                      fullWidth
-                      label="Guest Type"
-                      value={formData.guest_type || 'non_member'}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        guest_type: e.target.value as GuestType,
-                        discount_percentage: e.target.value === 'member' ? (formData.discount_percentage || 10) : 0,
-                      })}
-                    >
-                      <MenuItem value="non_member">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <NonMemberIcon sx={{ fontSize: 18, color: GUEST_TYPE_CONFIG.non_member.color }} />
-                          Non-Member (Standard Rate)
-                        </Box>
-                      </MenuItem>
-                      <MenuItem value="member">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <MemberIcon sx={{ fontSize: 18, color: GUEST_TYPE_CONFIG.member.color }} />
-                          Member (Discounted Rate)
-                        </Box>
-                      </MenuItem>
-                    </TextField>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Discount Percentage"
-                      type="number"
-                      value={formData.discount_percentage || 0}
-                      onChange={(e) => setFormData({ ...formData, discount_percentage: parseInt(e.target.value) || 0 })}
-                      disabled={formData.guest_type !== 'member'}
-                      InputProps={{
-                        endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                      }}
-                      inputProps={{ min: 0, max: 100 }}
-                      helperText={formData.guest_type === 'member' ? 'Discount applied to room rates' : 'Only available for members'}
-                    />
-                  </Grid>
-                </Grid>
-              </Box>
-            </Grid>
-
-            {/* Tourism Type Section */}
-            <Grid size={12}>
-              <Box
-                sx={{
-                  p: 2,
-                  bgcolor: formData.tourism_type === 'foreign' ? alpha(TOURISM_TYPE_CONFIG.foreign.color, 0.1) : 'grey.100',
-                  borderRadius: 1,
-                  border: 1,
-                  borderColor: formData.tourism_type === 'foreign' ? TOURISM_TYPE_CONFIG.foreign.color : 'divider',
-                }}
-              >
-                <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
-                  Tourism Classification
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      select
-                      fullWidth
-                      label="Tourism Type"
-                      value={formData.tourism_type || ''}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        tourism_type: e.target.value as TourismType || undefined,
-                      })}
-                      helperText="Determines if tourism tax is charged"
-                    >
-                      <MenuItem value="">
-                        <em>Not specified</em>
-                      </MenuItem>
-                      <MenuItem value="local">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Chip label="Local" size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.local.color, color: 'white' }} />
-                          <Typography variant="body2" color="text.secondary">{TOURISM_TYPE_CONFIG.local.taxLabel}</Typography>
-                        </Box>
-                      </MenuItem>
-                      <MenuItem value="foreign">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Chip label="Foreign" size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.foreign.color, color: 'white' }} />
-                          <Typography variant="body2" color="text.secondary">{TOURISM_TYPE_CONFIG.foreign.taxLabel}</Typography>
-                        </Box>
-                      </MenuItem>
-                    </TextField>
-                  </Grid>
-                </Grid>
-              </Box>
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setEditDialogOpen(false); setDialogError(null); }} startIcon={<CancelIcon />}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleUpdateGuest}
-            variant="contained"
-            startIcon={<SaveIcon />}
-            disabled={formLoading}
-          >
-            {formLoading ? <CircularProgress size={20} /> : 'Save Changes'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <GuestProfileDialog
+        open={editDialogOpen}
+        mode="edit"
+        guestName={editingGuest?.full_name}
+        formData={formData}
+        setFormData={setFormData}
+        error={dialogError}
+        loading={formLoading}
+        onErrorClose={() => setDialogError(null)}
+        onClose={() => { setEditDialogOpen(false); setDialogError(null); }}
+        onSubmit={handleUpdateGuest}
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="sm" fullWidth>
@@ -1883,5 +1444,444 @@ const StatTile: React.FC<StatTileProps> = ({ label, value, small, accent, onClic
     </Box>
   );
 };
+
+interface GuestProfileDialogProps {
+  open: boolean;
+  mode: 'create' | 'edit';
+  guestName?: string;
+  formData: GuestFormData;
+  setFormData: React.Dispatch<React.SetStateAction<GuestFormData>>;
+  error: string | null;
+  loading: boolean;
+  onErrorClose: () => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}
+
+const guestInputSx = {
+  '& .MuiOutlinedInput-root': {
+    minHeight: 52,
+    borderRadius: 1.1,
+    bgcolor: '#fff',
+    fontSize: 16,
+    color: '#111827',
+    '& fieldset': { borderColor: '#d6dde2' },
+    '&:hover fieldset': { borderColor: '#aeb9bf' },
+    '&.Mui-focused fieldset': {
+      borderColor: GUEST_DESIGN.green600,
+      borderWidth: 1,
+    },
+    '&.Mui-disabled': {
+      bgcolor: '#f8faf9',
+    },
+  },
+  '& .MuiInputBase-input': {
+    py: 1.45,
+  },
+  '& .MuiInputBase-input::placeholder': {
+    color: '#7b8490',
+    opacity: 1,
+  },
+  '& .MuiInputAdornment-root .MuiSvgIcon-root': {
+    color: '#7b8490',
+    fontSize: 22,
+  },
+  '& .MuiFormHelperText-root': {
+    ml: 0,
+    mt: 0.75,
+    fontSize: 12.5,
+    color: '#7b8490',
+  },
+};
+
+const GuestProfileDialog: React.FC<GuestProfileDialogProps> = ({
+  open,
+  mode,
+  guestName,
+  formData,
+  setFormData,
+  error,
+  loading,
+  onErrorClose,
+  onClose,
+  onSubmit,
+}) => {
+  const isEdit = mode === 'edit';
+  const title = isEdit ? `Edit Guest · ${guestName || 'Guest'}` : 'Create Guest';
+  const subtitle = isEdit
+    ? 'Update guest profile, membership and tourism details.'
+    : 'Add guest profile, membership and tourism details.';
+  const primaryLabel = isEdit ? 'Save Changes' : 'Create Guest';
+
+  const updateField = <K extends keyof GuestFormData,>(key: K, value: GuestFormData[K]) => {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth={false}
+      fullWidth
+      PaperProps={{
+        sx: {
+          width: 'min(1112px, calc(100vw - 48px))',
+          maxHeight: 'calc(100vh - 48px)',
+          borderRadius: 3,
+          overflow: 'hidden',
+          bgcolor: '#fff',
+          boxShadow: '0 26px 70px rgba(15, 23, 42, 0.28)',
+        },
+      }}
+      BackdropProps={{
+        sx: { bgcolor: 'rgba(17, 24, 39, 0.62)', backdropFilter: 'blur(4px)' },
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2.25, px: { xs: 3, md: 3.25 }, pt: { xs: 2.75, md: 3 }, pb: 1.75 }}>
+        <Box sx={{
+          width: 72,
+          height: 72,
+          borderRadius: '50%',
+          bgcolor: '#eff5f4',
+          color: '#108279',
+          display: { xs: 'none', sm: 'grid' },
+          placeItems: 'center',
+          flexShrink: 0,
+        }}>
+          <PersonIcon sx={{ fontSize: 38, strokeWidth: 1.2 }} />
+        </Box>
+        <Box sx={{ minWidth: 0, flex: 1, pt: 0.35 }}>
+          <Typography sx={{ color: '#111827', fontSize: { xs: 24, sm: 30 }, fontWeight: 800, lineHeight: 1.12, letterSpacing: 0 }}>
+            {title}
+          </Typography>
+          <Typography sx={{ mt: 0.8, color: '#697583', fontSize: { xs: 15, sm: 18 }, lineHeight: 1.35 }}>
+            {subtitle}
+          </Typography>
+        </Box>
+        <IconButton
+          onClick={onClose}
+          aria-label="Close guest dialog"
+          sx={{
+            width: 48,
+            height: 48,
+            borderRadius: 1.25,
+            border: '1px solid #d8dee4',
+            color: '#4b5563',
+            flexShrink: 0,
+            '&:hover': { bgcolor: '#f6f8f9' },
+          }}
+        >
+          <CloseIcon sx={{ fontSize: 28 }} />
+        </IconButton>
+      </Box>
+
+      <DialogContent sx={{ px: { xs: 3, md: 3.25 }, pt: 0.5, pb: 2.25, overflowY: 'auto' }}>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={onErrorClose}>
+            {error}
+          </Alert>
+        )}
+
+        <Grid container spacing={{ xs: 1.8, md: 2.2 }}>
+          <GuestDialogField
+            label="First Name"
+            placeholder="First Name"
+            value={formData.first_name}
+            onChange={(value) => updateField('first_name', value)}
+            required
+          />
+          <GuestDialogField
+            label="Last Name"
+            placeholder="Last Name"
+            value={formData.last_name}
+            onChange={(value) => updateField('last_name', value)}
+            required
+          />
+          <GuestDialogField
+            label="Email"
+            placeholder="Email"
+            value={formData.email || ''}
+            onChange={(value) => updateField('email', value)}
+            type="email"
+          />
+          <GuestDialogField
+            label="Phone"
+            placeholder="Phone"
+            value={formData.phone || ''}
+            onChange={(value) => updateField('phone', value)}
+            icon={<PhoneIcon />}
+          />
+          <GuestDialogField
+            label="IC Number / Passport"
+            placeholder="IC Number / Passport"
+            value={formData.ic_number || ''}
+            onChange={(value) => updateField('ic_number', value)}
+            icon={<IdIcon />}
+          />
+          <GuestDialogField
+            label="Nationality"
+            placeholder="Nationality"
+            value={formData.nationality || ''}
+            onChange={(value) => updateField('nationality', value)}
+            icon={<PublicIcon />}
+          />
+          <GuestDialogField
+            label="Company Name"
+            placeholder="Company Name"
+            value={formData.company_name || ''}
+            onChange={(value) => updateField('company_name', value)}
+          />
+          <GuestDialogField
+            label="Address"
+            placeholder="Address"
+            value={formData.address_line1 || ''}
+            onChange={(value) => updateField('address_line1', value)}
+            icon={<LocationIcon />}
+            size={{ xs: 12 }}
+          />
+          <GuestDialogField
+            label="City"
+            placeholder="City"
+            value={formData.city || ''}
+            onChange={(value) => updateField('city', value)}
+            icon={<CompanyIcon />}
+          />
+          <GuestDialogField
+            label="State/Province"
+            placeholder="State/Province"
+            value={formData.state_province || ''}
+            onChange={(value) => updateField('state_province', value)}
+            icon={<CompanyIcon />}
+          />
+          <GuestDialogField
+            label="Postal Code"
+            placeholder="Postal Code"
+            value={formData.postal_code || ''}
+            onChange={(value) => updateField('postal_code', value)}
+            icon={<MailIcon />}
+          />
+          <GuestDialogField
+            label="Country"
+            placeholder="Country"
+            value={formData.country || ''}
+            onChange={(value) => updateField('country', value)}
+            icon={<PublicIcon />}
+          />
+
+          <Grid size={12}>
+            <GuestDialogSection
+              icon={<CheckCircleIcon />}
+              title="Membership & Pricing"
+              tint={formData.guest_type === 'member' ? GUEST_DESIGN.gold : GUEST_DESIGN.green700}
+            >
+              <Grid container spacing={2.2}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <GuestDialogLabel>Guest Type</GuestDialogLabel>
+                  <TextField
+                    select
+                    fullWidth
+                    value={formData.guest_type || 'non_member'}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      guest_type: e.target.value as GuestType,
+                      discount_percentage: e.target.value === 'member' ? (formData.discount_percentage || 10) : 0,
+                    })}
+                    sx={guestInputSx}
+                  >
+                    <MenuItem value="non_member">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                        <NonMemberIcon sx={{ fontSize: 22, color: GUEST_TYPE_CONFIG.non_member.color }} />
+                        Non-Member (Standard Rate)
+                      </Box>
+                    </MenuItem>
+                    <MenuItem value="member">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                        <MemberIcon sx={{ fontSize: 22, color: GUEST_DESIGN.gold }} />
+                        Member (Discounted Rate)
+                      </Box>
+                    </MenuItem>
+                  </TextField>
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <GuestDialogLabel>Discount Percentage</GuestDialogLabel>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    value={formData.discount_percentage || 0}
+                    onChange={(e) => updateField('discount_percentage', parseInt(e.target.value, 10) || 0)}
+                    disabled={formData.guest_type !== 'member'}
+                    sx={guestInputSx}
+                    InputProps={{
+                      endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                    }}
+                    inputProps={{ min: 0, max: 100 }}
+                    helperText={formData.guest_type === 'member' ? 'Discount applied to room rates' : 'Only available for members'}
+                  />
+                </Grid>
+              </Grid>
+            </GuestDialogSection>
+          </Grid>
+
+          <Grid size={12}>
+            <GuestDialogSection
+              icon={<PublicIcon />}
+              title="Tourism Classification"
+              tint={formData.tourism_type === 'foreign' ? TOURISM_TYPE_CONFIG.foreign.color : GUEST_DESIGN.green700}
+            >
+              <Grid container spacing={2.2}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <GuestDialogLabel>Tourism Type</GuestDialogLabel>
+                  <TextField
+                    select
+                    fullWidth
+                    value={formData.tourism_type || ''}
+                    onChange={(e) => updateField('tourism_type', e.target.value as TourismType || undefined)}
+                    sx={guestInputSx}
+                  >
+                    <MenuItem value="">
+                      <Box sx={{ color: '#7b8490' }}>Not specified</Box>
+                    </MenuItem>
+                    <MenuItem value="local">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                        <Chip label="Local" size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.local.color, color: '#fff', fontWeight: 700, height: 24 }} />
+                        {TOURISM_TYPE_CONFIG.local.taxLabel}
+                      </Box>
+                    </MenuItem>
+                    <MenuItem value="foreign">
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
+                        <Chip label="Foreign" size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.foreign.color, color: '#fff', fontWeight: 700, height: 24 }} />
+                        {TOURISM_TYPE_CONFIG.foreign.taxLabel}
+                      </Box>
+                    </MenuItem>
+                  </TextField>
+                </Grid>
+              </Grid>
+            </GuestDialogSection>
+          </Grid>
+        </Grid>
+      </DialogContent>
+
+      <Box sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column-reverse', sm: 'row' },
+        justifyContent: 'flex-end',
+        gap: { xs: 1, sm: 2.5 },
+        px: { xs: 3, md: 3.25 },
+        py: 2,
+        borderTop: '1px solid #e4e8ec',
+        bgcolor: 'rgba(255,255,255,0.96)',
+      }}>
+        <Button
+          onClick={onClose}
+          startIcon={<CancelIcon />}
+          sx={{
+            minWidth: 140,
+            width: { xs: '100%', sm: 'auto' },
+            height: 52,
+            borderRadius: 1.25,
+            border: '1px solid #62b8b7',
+            color: '#108279',
+            fontWeight: 700,
+            textTransform: 'none',
+            '&:hover': { bgcolor: alpha(GUEST_DESIGN.green600, 0.06), borderColor: '#108279' },
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={onSubmit}
+          startIcon={loading ? undefined : <SaveIcon />}
+          disabled={loading}
+          sx={{
+            minWidth: 194,
+            width: { xs: '100%', sm: 'auto' },
+            height: 52,
+            borderRadius: 1.25,
+            bgcolor: '#119b91',
+            color: '#fff',
+            fontWeight: 800,
+            textTransform: 'none',
+            boxShadow: '0 10px 24px rgba(17, 155, 145, 0.24)',
+            '&:hover': { bgcolor: '#0e817a' },
+            '&.Mui-disabled': { bgcolor: alpha('#119b91', 0.55), color: '#fff' },
+          }}
+        >
+          {loading ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : primaryLabel}
+        </Button>
+      </Box>
+    </Dialog>
+  );
+};
+
+interface GuestDialogFieldProps {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+  type?: string;
+  icon?: React.ReactNode;
+  required?: boolean;
+  size?: any;
+}
+
+const GuestDialogField: React.FC<GuestDialogFieldProps> = ({
+  label,
+  value,
+  placeholder,
+  onChange,
+  type = 'text',
+  icon,
+  required,
+  size = { xs: 12, md: 6 },
+}) => (
+  <Grid size={size}>
+    <GuestDialogLabel>{label}</GuestDialogLabel>
+    <TextField
+      fullWidth
+      required={required}
+      type={type}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      sx={guestInputSx}
+      InputProps={icon ? {
+        endAdornment: <InputAdornment position="end">{icon}</InputAdornment>,
+      } : undefined}
+    />
+  </Grid>
+);
+
+const GuestDialogLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <Typography sx={{ mb: 0.7, color: '#111827', fontSize: 14.5, fontWeight: 500, lineHeight: 1.2 }}>
+    {children}
+  </Typography>
+);
+
+interface GuestDialogSectionProps {
+  icon: React.ReactNode;
+  title: string;
+  tint: string;
+  children: React.ReactNode;
+}
+
+const GuestDialogSection: React.FC<GuestDialogSectionProps> = ({ icon, title, tint, children }) => (
+  <Box sx={{
+    mt: 0.35,
+    p: { xs: 1.75, md: 2 },
+    borderRadius: 1.25,
+    border: '1px solid #d7e0e0',
+    bgcolor: alpha(tint, 0.035),
+  }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mb: 1.35 }}>
+      <Box sx={{ color: tint, display: 'inline-flex', '& svg': { fontSize: 26 } }}>
+        {icon}
+      </Box>
+      <Typography sx={{ color: '#087b75', fontWeight: 800, fontSize: 18, lineHeight: 1.2 }}>
+        {title}
+      </Typography>
+    </Box>
+    {children}
+  </Box>
+);
 
 export default GuestConfigurationPage;
