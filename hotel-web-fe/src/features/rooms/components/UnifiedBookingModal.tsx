@@ -29,7 +29,7 @@ import {
   Checkbox,
   IconButton,
 } from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import {
   PersonAdd as PersonAddIcon,
   EventAvailable as BookingIcon,
@@ -122,6 +122,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   onBookingCreated,
   onRefreshData,
 }) => {
+  const theme = useTheme();
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
 
   // Memoize hotel settings to prevent unnecessary re-renders
@@ -1754,29 +1755,37 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     return true;
   })();
 
-  // Design tokens borrowed from Salim Inn — New Booking · Light
-  const D = {
-    bg: '#F4F6F8',
-    surface: '#FFFFFF',
-    surface2: '#F8FAFB',
-    surface3: '#EFF2F5',
-    border: '#E2E6EC',
-    borderHi: '#CBD2DA',
-    ink: '#0F172A',
-    ink2: '#475569',
-    ink3: '#7B8794',
-    emerald: '#10A47C',
-    emeraldDeep: '#0E8C6A',
-    emeraldSoft: '#E7F5EF',
-    blue: '#2F7DE1',
-    blueSoft: '#E8F1FB',
-    green: '#2BA068',
-    amber: '#C8941D',
-    purple: '#8C4FCF',
-    purpleSoft: '#F2EAFB',
-    orange: '#D97757',
-    orangeSoft: '#FBEFE9',
-  };
+  const D = useMemo(() => {
+    const isDark = theme.palette.mode === 'dark';
+    const primary = theme.palette.primary.main;
+    const secondary = theme.palette.secondary.main;
+    const info = theme.palette.info.main;
+    const warning = theme.palette.warning.main;
+    const success = theme.palette.success.main;
+
+    return {
+      bg: theme.palette.background.default,
+      surface: theme.palette.background.paper,
+      surface2: isDark ? 'var(--hotel-popup-muted-bg)' : '#F8FAFB',
+      surface3: isDark ? 'var(--hotel-subtle-bg)' : '#EFF2F5',
+      border: isDark ? 'var(--hotel-popup-border)' : '#E2E6EC',
+      borderHi: isDark ? theme.palette.grey[400] : '#CBD2DA',
+      ink: theme.palette.text.primary,
+      ink2: theme.palette.text.secondary,
+      ink3: isDark ? theme.palette.grey[500] : '#7B8794',
+      emerald: primary,
+      emeraldDeep: theme.palette.primary.dark,
+      emeraldSoft: alpha(primary, isDark ? 0.18 : 0.12),
+      blue: info,
+      blueSoft: alpha(info, isDark ? 0.18 : 0.10),
+      green: success,
+      amber: warning,
+      purple: secondary,
+      purpleSoft: alpha(secondary, isDark ? 0.18 : 0.12),
+      orange: isDark ? '#fb9a73' : '#D97757',
+      orangeSoft: alpha(isDark ? '#fb9a73' : '#D97757', isDark ? 0.18 : 0.12),
+    };
+  }, [theme]);
 
   // Style preset for the Mode segmented control
   const MODE_OPTIONS: Array<{ k: BookingMode; label: string; desc: string; icon: React.ReactNode }> = [
@@ -1881,7 +1890,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // KBD chip
   const kbd = (txt: string) => (
-    <Box component="kbd" sx={{ bgcolor: '#fff', border: `1px solid ${D.border}`, px: 0.75, py: '1px', borderRadius: 0.5, fontSize: 10, fontFamily: 'inherit', color: D.ink2 }}>{txt}</Box>
+    <Box component="kbd" sx={{ bgcolor: D.surface, border: `1px solid ${D.border}`, px: 0.75, py: '1px', borderRadius: 0.5, fontSize: 10, fontFamily: 'inherit', color: D.ink2 }}>{txt}</Box>
   );
 
   return (
@@ -2022,7 +2031,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                           ? 'Loading available rooms…'
                           : 'Select one or more rooms'
                     }
-                    sx={{ bgcolor: '#fff' }}
+                    sx={{ bgcolor: D.surface }}
                     InputProps={{
                       ...params.InputProps,
                       startAdornment: (
@@ -2070,7 +2079,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                     component="button"
                     onClick={() => handleModeSelect(m.k)}
                     sx={{
-                      bgcolor: on ? '#fff' : 'transparent',
+                      bgcolor: on ? D.surface : 'transparent',
                       border: on ? `1px solid ${D.emerald}` : '1px solid transparent',
                       borderRadius: 1,
                       px: 1.5,
@@ -2120,7 +2129,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                       component="button"
                       onClick={() => handleReservationTypeSelect(t.k)}
                       sx={{
-                        bgcolor: on ? t.soft : '#fff',
+                        bgcolor: on ? t.soft : D.surface,
                         border: `1.5px solid ${on ? t.color : D.border}`,
                         borderRadius: 1.5,
                         p: '14px 12px',
@@ -2144,7 +2153,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                         <Typography sx={{ fontSize: 11, color: D.ink3, lineHeight: 1.35 }}>{t.desc}</Typography>
                       </Box>
                       {on && (
-                        <Box sx={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.6, color: t.color, bgcolor: '#fff', border: `1px solid ${t.color}`, px: 0.85, py: '2px', borderRadius: 999 }}>
+                        <Box sx={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.6, color: t.color, bgcolor: D.surface, border: `1px solid ${t.color}`, px: 0.85, py: '2px', borderRadius: 999 }}>
                           SELECTED
                         </Box>
                       )}
@@ -2172,7 +2181,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: 1,
-                            bgcolor: on ? D.blue : '#fff',
+                            bgcolor: on ? D.blue : D.surface,
                             border: `1px solid ${on ? D.blue : D.border}`,
                             borderRadius: 999,
                             pl: '5px',
@@ -2214,7 +2223,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                         placeholder="e.g. 2004721892"
                         value={bookingReference}
                         onChange={(e) => setBookingReference(e.target.value)}
-                        sx={{ bgcolor: '#fff' }}
+                        sx={{ bgcolor: D.surface }}
                       />
                     </Box>
                     <Box>
@@ -2223,7 +2232,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                         fullWidth
                         size="small"
                         placeholder={`${currencySymbol} 0.00`}
-                        sx={{ bgcolor: '#fff' }}
+                        sx={{ bgcolor: D.surface }}
                         disabled
                         helperText="Tracked at check-in"
                       />
@@ -2266,7 +2275,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                   value={checkInDate}
                   onChange={(e) => handleDateChange('checkIn', e.target.value)}
                   helperText={formatHumanDate(checkInDate)}
-                  sx={{ bgcolor: '#fff' }}
+                  sx={{ bgcolor: D.surface }}
                 />
               </Box>
               <Box sx={{ pb: 4, color: D.ink3 }}>
@@ -2282,7 +2291,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                   onChange={(e) => handleDateChange('checkOut', e.target.value)}
                   disabled={isHourlyBooking}
                   helperText={formatHumanDate(checkOutDate)}
-                  sx={{ bgcolor: '#fff' }}
+                  sx={{ bgcolor: D.surface }}
                 />
               </Box>
             </Box>
@@ -2316,7 +2325,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                     component="button"
                     onClick={() => setNights(q.n)}
                     sx={{
-                      bgcolor: '#fff',
+                      bgcolor: D.surface,
                       border: `1px solid ${D.border}`,
                       color: D.ink2,
                       borderRadius: 999,
@@ -2366,7 +2375,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                     setUseCustomRate(true);
                   }}
                   InputProps={{ startAdornment: <Box sx={{ color: D.ink3, mr: 1, fontSize: 13 }}>{currencySymbol}</Box> }}
-                  sx={{ bgcolor: '#fff' }}
+                  sx={{ bgcolor: D.surface }}
                 />
               </Box>
               <Box>
@@ -2377,7 +2386,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                   value={isTourist ? `Foreign guest (${currencySymbol} ${hotelSettings.tourism_tax_rate}/night)` : 'Local — no tourism tax'}
                   disabled
                   helperText="Set on the guest profile"
-                  sx={{ bgcolor: '#fff' }}
+                  sx={{ bgcolor: D.surface }}
                 />
               </Box>
             </Box>
@@ -2391,7 +2400,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                 p: 1.5,
                 border: `1px solid ${useCustomRate ? D.emerald : D.border}`,
                 borderRadius: 1.25,
-                bgcolor: useCustomRate ? D.emeraldSoft : '#fff',
+                bgcolor: useCustomRate ? D.emeraldSoft : D.surface,
                 cursor: 'pointer',
               }}
             >
@@ -2429,7 +2438,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               placeholder="Special requests, deposit info, payment notes…"
               value={bookingNotes}
               onChange={(e) => setBookingNotes(e.target.value)}
-              sx={{ bgcolor: '#fff' }}
+              sx={{ bgcolor: D.surface }}
             />
           </Box>
         </Box>
@@ -2454,7 +2463,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               alignItems: 'center',
               gap: 1.5,
               p: 1.75,
-              bgcolor: '#fff',
+              bgcolor: D.surface,
               border: `1px solid ${D.border}`,
               borderRadius: 1.5,
               borderLeft: `4px solid ${D.green}`,
@@ -2491,7 +2500,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             </Box>
           )}
 
-          <Box sx={{ bgcolor: '#fff', border: `1px solid ${D.border}`, borderRadius: 1.5, p: 1.75 }}>
+          <Box sx={{ bgcolor: D.surface, border: `1px solid ${D.border}`, borderRadius: 1.5, p: 1.75 }}>
             {[
               { k: 'Guest',     v: summaryGuestName },
               { k: 'Rooms',     v: selectedRoomNumbers || '—' },
@@ -2507,7 +2516,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             ))}
           </Box>
 
-          <Box sx={{ bgcolor: '#fff', border: `1px solid ${D.border}`, borderRadius: 1.5, p: 1.75 }}>
+          <Box sx={{ bgcolor: D.surface, border: `1px solid ${D.border}`, borderRadius: 1.5, p: 1.75 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, fontSize: 12.5 }}>
               <Box sx={{ color: D.ink3 }}>{roomCount > 1 ? 'Room rates' : 'Rate'}</Box>
               <Box sx={{ color: D.ink, fontWeight: 600 }}>
@@ -2548,7 +2557,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           </Box>
 
           <Box sx={{
-            bgcolor: '#fff',
+            bgcolor: D.surface,
             border: `1px solid ${D.border}`,
             borderRadius: 1.5,
             p: 1.5,
