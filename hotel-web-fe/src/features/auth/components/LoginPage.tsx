@@ -235,14 +235,14 @@ const LoginPage: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'linear-gradient(135deg, #26C6DA 0%, #66BB6A 100%)',
+          background: 'var(--hotel-page-bg)',
         }}
       >
         <Container maxWidth="sm">
           <Fade in timeout={800}>
             <Paper elevation={24} sx={{ p: 5, borderRadius: 3 }}>
               <Box sx={{ textAlign: 'center', mb: 4 }}>
-                <VpnKeyIcon sx={{ fontSize: 60, color: '#00ACC1', mb: 2 }} />
+                <VpnKeyIcon sx={{ fontSize: 60, color: 'var(--hotel-primary)', mb: 2 }} />
                 <Typography variant="h4" gutterBottom fontWeight="bold">
                   Two-Factor Authentication
                 </Typography>
@@ -283,9 +283,9 @@ const LoginPage: React.FC = () => {
                   disabled={loading || totpCode.length !== 6}
                   sx={{
                     mb: 2,
-                    background: 'linear-gradient(135deg, #00BCD4 0%, #26C6DA 100%)',
+                    background: 'var(--hotel-action-gradient)',
                     '&:hover': {
-                      background: 'linear-gradient(135deg, #00ACC1 0%, #00BCD4 100%)',
+                      background: 'var(--hotel-action-gradient-hover)',
                     },
                   }}
                 >
@@ -301,11 +301,11 @@ const LoginPage: React.FC = () => {
                     setError('');
                   }}
                   sx={{
-                    borderColor: '#00BCD4',
-                    color: '#00BCD4',
+                    borderColor: 'var(--hotel-primary)',
+                    color: 'var(--hotel-primary)',
                     '&:hover': {
-                      borderColor: '#00ACC1',
-                      backgroundColor: 'rgba(0, 188, 212, 0.1)',
+                      borderColor: 'var(--hotel-primary-dark)',
+                      backgroundColor: 'var(--hotel-muted-bg)',
                     },
                   }}
                 >
@@ -326,7 +326,7 @@ const LoginPage: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #E0F2F1 0%, #B2DFDB 50%, #80CBC4 100%)',
+        background: 'var(--hotel-page-bg)',
         position: 'relative',
         overflow: 'hidden',
         '&::before': {
@@ -336,7 +336,7 @@ const LoginPage: React.FC = () => {
           left: '-50%',
           width: '200%',
           height: '200%',
-          background: 'radial-gradient(circle at 50% 50%, rgba(0, 188, 212, 0.15) 0%, transparent 50%)',
+          background: 'var(--hotel-soft-glow)',
           animation: 'rotate 20s linear infinite',
         },
         '@keyframes rotate': {
@@ -353,11 +353,11 @@ const LoginPage: React.FC = () => {
               p: { xs: 4, sm: 6 },
               width: '100%',
               borderRadius: 4,
-              background: 'rgba(255, 255, 255, 0.95)',
+              background: 'var(--hotel-panel-bg)',
               backdropFilter: 'blur(20px)',
-              border: '2px solid rgba(0, 188, 212, 0.2)',
+              border: '1px solid var(--hotel-divider)',
               overflow: 'hidden',
-              boxShadow: '0 20px 60px rgba(0, 188, 212, 0.3)',
+              boxShadow: '0 20px 60px var(--hotel-shadow-color)',
             }}
           >
             {/* Header - Modern Bold Typography */}
@@ -371,7 +371,7 @@ const LoginPage: React.FC = () => {
                   lineHeight: 0.9,
                   mb: 1,
                   textTransform: 'uppercase',
-                  background: 'linear-gradient(135deg, #00BCD4 0%, #81C784 100%)',
+                  background: 'var(--hotel-action-gradient)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text',
@@ -382,7 +382,7 @@ const LoginPage: React.FC = () => {
               <Box sx={{
                 width: '60px',
                 height: '4px',
-                background: 'linear-gradient(90deg, #00BCD4 0%, #66BB6A 100%)',
+                background: 'var(--hotel-action-gradient)',
                 mb: 2,
               }} />
               <Typography
@@ -390,7 +390,7 @@ const LoginPage: React.FC = () => {
                 sx={{
                   fontWeight: 600,
                   letterSpacing: '0.1em',
-                  color: '#00897B',
+                  color: 'var(--hotel-accent-text)',
                   textTransform: 'uppercase',
                   fontSize: '0.9rem',
                   mb: 1,
@@ -401,7 +401,7 @@ const LoginPage: React.FC = () => {
               <Typography
                 variant="body2"
                 sx={{
-                  color: 'rgba(0, 137, 123, 0.7)',
+                  color: 'var(--hotel-text-secondary)',
                   fontSize: '0.875rem',
                   letterSpacing: '0.02em',
                 }}
@@ -418,11 +418,11 @@ const LoginPage: React.FC = () => {
                   <IconButton
                     onClick={handleBackToUserType}
                     sx={{
-                      color: '#00BCD4',
+                      color: 'var(--hotel-primary)',
                       transition: 'all 0.3s',
                       '&:hover': {
                         transform: 'translateX(-4px)',
-                        backgroundColor: 'rgba(0, 188, 212, 0.1)',
+                        backgroundColor: 'var(--hotel-muted-bg)',
                       },
                     }}
                   >
@@ -452,8 +452,8 @@ const LoginPage: React.FC = () => {
                       border: '2px solid transparent',
                       '&:hover': {
                         transform: 'translateY(-4px)',
-                        boxShadow: '0 12px 32px rgba(0, 188, 212, 0.3)',
-                        border: '2px solid #00BCD4',
+                        boxShadow: '0 12px 32px var(--hotel-shadow-color)',
+                        border: '2px solid var(--hotel-primary)',
                       },
                     }}
                   >
@@ -463,13 +463,13 @@ const LoginPage: React.FC = () => {
                           sx={{
                             p: 2,
                             borderRadius: 2,
-                            background: 'linear-gradient(135deg, #00BCD4 0%, #26C6DA 100%)',
+                            background: 'var(--hotel-action-gradient)',
                           }}
                         >
                           <PersonIcon sx={{ fontSize: 40, color: 'white' }} />
                         </Box>
                         <Box sx={{ flex: 1 }}>
-                          <Typography variant="h5" fontWeight={700} gutterBottom color="#00897B">
+                          <Typography variant="h5" fontWeight={700} gutterBottom color="var(--hotel-accent-text)">
                             Guest
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
@@ -488,8 +488,8 @@ const LoginPage: React.FC = () => {
                       border: '2px solid transparent',
                       '&:hover': {
                         transform: 'translateY(-4px)',
-                        boxShadow: '0 12px 32px rgba(102, 187, 106, 0.3)',
-                        border: '2px solid #66BB6A',
+                        boxShadow: '0 12px 32px var(--hotel-shadow-color)',
+                        border: '2px solid var(--hotel-secondary)',
                       },
                     }}
                   >
@@ -499,13 +499,13 @@ const LoginPage: React.FC = () => {
                           sx={{
                             p: 2,
                             borderRadius: 2,
-                            background: 'linear-gradient(135deg, #66BB6A 0%, #81C784 100%)',
+                            background: 'linear-gradient(135deg, var(--hotel-secondary) 0%, var(--hotel-primary-light) 100%)',
                           }}
                         >
                           <AdminIcon sx={{ fontSize: 40, color: 'white' }} />
                         </Box>
                         <Box sx={{ flex: 1 }}>
-                          <Typography variant="h5" fontWeight={700} gutterBottom color="#00897B">
+                          <Typography variant="h5" fontWeight={700} gutterBottom color="var(--hotel-accent-text)">
                             Admin
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
@@ -527,7 +527,7 @@ const LoginPage: React.FC = () => {
                           fontSize: 'inherit',
                           textTransform: 'none',
                           fontWeight: 600,
-                          color: '#00BCD4',
+                          color: 'var(--hotel-primary)',
                           '&:hover': {
                             background: 'transparent',
                             textDecoration: 'underline',
@@ -554,8 +554,8 @@ const LoginPage: React.FC = () => {
                         p: 2,
                         borderRadius: '50%',
                         background: passkeyCheckInProgress
-                          ? 'linear-gradient(135deg, #00BCD4 0%, #26C6DA 100%)'
-                          : 'linear-gradient(135deg, #00BCD4 0%, #81C784 100%)',
+                          ? 'linear-gradient(135deg, var(--hotel-primary) 0%, var(--hotel-secondary) 100%)'
+                          : 'var(--hotel-action-gradient)',
                         mb: 2,
                         animation: passkeyCheckInProgress ? 'pulse 1.5s ease-in-out infinite' : 'none',
                         '@keyframes pulse': {
@@ -572,7 +572,7 @@ const LoginPage: React.FC = () => {
                         <LockIcon sx={{ fontSize: 32, color: 'white' }} />
                       )}
                     </Box>
-                    <Typography variant="h6" fontWeight={600} color="#00897B">
+                    <Typography variant="h6" fontWeight={600} color="var(--hotel-accent-text)">
                       {passkeyCheckInProgress ? 'Authenticating...' : 'Sign In'}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
@@ -600,12 +600,12 @@ const LoginPage: React.FC = () => {
                               transform: 'translateY(-2px)',
                             },
                             '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                              borderColor: '#00BCD4',
+                              borderColor: 'var(--hotel-primary)',
                               borderWidth: '2px',
                             },
                           },
                           '& .MuiInputLabel-root.Mui-focused': {
-                            color: '#00BCD4',
+                            color: 'var(--hotel-primary)',
                           },
                         }}
                       />
@@ -618,14 +618,14 @@ const LoginPage: React.FC = () => {
                           mt: 3,
                           mb: 2,
                           py: 1.5,
-                          background: 'linear-gradient(135deg, #00BCD4 0%, #26C6DA 100%)',
+                          background: 'var(--hotel-action-gradient)',
                           fontWeight: 600,
                           fontSize: '1rem',
                           transition: 'all 0.3s',
                           '&:hover': {
-                            background: 'linear-gradient(135deg, #00ACC1 0%, #00BCD4 100%)',
+                            background: 'var(--hotel-action-gradient-hover)',
                             transform: 'translateY(-2px)',
-                            boxShadow: '0 8px 24px rgba(0, 188, 212, 0.4)',
+                            boxShadow: '0 8px 24px var(--hotel-shadow-color)',
                           },
                           '&:active': {
                             transform: 'translateY(0)',
@@ -648,14 +648,14 @@ const LoginPage: React.FC = () => {
                             flex: 1,
                             p: 2,
                             borderRadius: 2,
-                            background: 'rgba(0, 188, 212, 0.1)',
-                            border: '1px solid rgba(0, 188, 212, 0.3)',
+                            background: 'var(--hotel-muted-bg)',
+                            border: '1px solid var(--hotel-divider)',
                           }}
                         >
                           <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
                             Username
                           </Typography>
-                          <Typography variant="body1" fontWeight={600} color="#00897B">
+                          <Typography variant="body1" fontWeight={600} color="var(--hotel-accent-text)">
                             {username}
                           </Typography>
                         </Box>
@@ -667,11 +667,11 @@ const LoginPage: React.FC = () => {
                             sx={{
                               minWidth: 'auto',
                               px: 2,
-                              borderColor: '#00BCD4',
-                              color: '#00BCD4',
+                              borderColor: 'var(--hotel-primary)',
+                              color: 'var(--hotel-primary)',
                               '&:hover': {
-                                borderColor: '#00ACC1',
-                                backgroundColor: 'rgba(0, 188, 212, 0.1)',
+                                borderColor: 'var(--hotel-primary-dark)',
+                                backgroundColor: 'var(--hotel-muted-bg)',
                               },
                             }}
                           >
@@ -713,12 +713,12 @@ const LoginPage: React.FC = () => {
                                     transform: 'translateY(-2px)',
                                   },
                                   '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                    borderColor: '#00BCD4',
+                                    borderColor: 'var(--hotel-primary)',
                                     borderWidth: '2px',
                                   },
                                 },
                                 '& .MuiInputLabel-root.Mui-focused': {
-                                  color: '#00BCD4',
+                                  color: 'var(--hotel-primary)',
                                 },
                               }}
                             />
@@ -731,14 +731,14 @@ const LoginPage: React.FC = () => {
                                 mt: 3,
                                 mb: 2,
                                 py: 1.5,
-                                background: 'linear-gradient(135deg, #00BCD4 0%, #26C6DA 100%)',
+                                background: 'var(--hotel-action-gradient)',
                                 fontWeight: 600,
                                 fontSize: '1rem',
                                 transition: 'all 0.3s',
                                 '&:hover': {
-                                  background: 'linear-gradient(135deg, #00ACC1 0%, #00BCD4 100%)',
+                                  background: 'var(--hotel-action-gradient-hover)',
                                   transform: 'translateY(-2px)',
-                                  boxShadow: '0 8px 24px rgba(0, 188, 212, 0.4)',
+                                  boxShadow: '0 8px 24px var(--hotel-shadow-color)',
                                 },
                                 '&:active': {
                                   transform: 'translateY(0)',

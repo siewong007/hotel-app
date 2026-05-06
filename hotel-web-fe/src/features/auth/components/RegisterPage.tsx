@@ -119,7 +119,7 @@ const RegisterPage: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#0a0a0a',
+        background: 'var(--hotel-page-bg)',
         position: 'relative',
         overflow: 'hidden',
         '&::before': {
@@ -129,7 +129,7 @@ const RegisterPage: React.FC = () => {
           left: '-50%',
           width: '200%',
           height: '200%',
-          background: 'radial-gradient(circle at 50% 50%, rgba(212, 175, 55, 0.1) 0%, transparent 50%)',
+          background: 'var(--hotel-soft-glow)',
           animation: 'rotate 20s linear infinite',
         },
         '@keyframes rotate': {
@@ -145,11 +145,12 @@ const RegisterPage: React.FC = () => {
             sx={{
               p: { xs: 4, sm: 6 },
               width: '100%',
-              borderRadius: 0,
-              background: 'rgba(18, 18, 18, 0.8)',
+              borderRadius: 4,
+              background: 'var(--hotel-panel-bg)',
               backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(212, 175, 55, 0.2)',
+              border: '1px solid var(--hotel-divider)',
               overflow: 'hidden',
+              boxShadow: '0 20px 60px var(--hotel-shadow-color)',
             }}
           >
             {/* Header - Modern Bold Typography */}
@@ -161,10 +162,10 @@ const RegisterPage: React.FC = () => {
                   fontWeight: 900,
                   letterSpacing: '-0.02em',
                   lineHeight: 0.9,
-                  color: '#ffffff',
+                  color: 'var(--hotel-text-primary)',
                   mb: 1,
                   textTransform: 'uppercase',
-                  background: 'linear-gradient(135deg, #d4af37 0%, #f4d03f 100%)',
+                  background: 'var(--hotel-action-gradient)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   backgroundClip: 'text',
@@ -175,7 +176,7 @@ const RegisterPage: React.FC = () => {
               <Box sx={{
                 width: '60px',
                 height: '4px',
-                background: 'linear-gradient(90deg, #d4af37 0%, #f4d03f 100%)',
+                background: 'var(--hotel-action-gradient)',
                 mb: 2,
               }} />
               <Typography
@@ -183,7 +184,7 @@ const RegisterPage: React.FC = () => {
                 sx={{
                   fontWeight: 600,
                   letterSpacing: '0.1em',
-                  color: 'rgba(255, 255, 255, 0.7)',
+                  color: 'var(--hotel-accent-text)',
                   textTransform: 'uppercase',
                   fontSize: '0.9rem',
                   mb: 1,
@@ -194,7 +195,7 @@ const RegisterPage: React.FC = () => {
               <Typography
                 variant="body2"
                 sx={{
-                  color: 'rgba(255, 255, 255, 0.5)',
+                  color: 'var(--hotel-text-secondary)',
                   fontSize: '0.875rem',
                   letterSpacing: '0.02em',
                 }}
@@ -370,15 +371,15 @@ const RegisterPage: React.FC = () => {
                 mt: 3,
                 mb: 2,
                 py: 1.5,
-                background: 'linear-gradient(135deg, #d4af37 0%, #f4d03f 100%)',
-                color: '#0a0a0a',
+                background: 'var(--hotel-action-gradient)',
+                color: 'var(--hotel-on-accent)',
                 fontWeight: 600,
                 fontSize: '1rem',
                 transition: 'all 0.3s',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #f4d03f 0%, #d4af37 100%)',
+                  background: 'var(--hotel-action-gradient-hover)',
                   transform: 'translateY(-2px)',
-                  boxShadow: '0 8px 16px rgba(212, 175, 55, 0.3)',
+                  boxShadow: '0 8px 16px var(--hotel-shadow-color)',
                 },
                 '&:active': {
                   transform: 'translateY(0)',
@@ -391,7 +392,7 @@ const RegisterPage: React.FC = () => {
           </form>
 
           <Box sx={{ mt: 3, textAlign: 'center' }}>
-            <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.6)' }}>
+            <Typography variant="body2" sx={{ color: 'var(--hotel-text-secondary)' }}>
               Already have an account?{' '}
               <Button
                 variant="text"
@@ -401,11 +402,11 @@ const RegisterPage: React.FC = () => {
                   fontSize: 'inherit',
                   textTransform: 'none',
                   fontWeight: 600,
-                  color: '#d4af37',
+                  color: 'var(--hotel-primary)',
                   '&:hover': {
                     background: 'transparent',
                     textDecoration: 'underline',
-                    color: '#f4d03f',
+                    color: 'var(--hotel-primary-light)',
                   },
                 }}
                 onClick={() => navigate('/login')}

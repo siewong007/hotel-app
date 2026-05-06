@@ -71,8 +71,9 @@ const LandingPage: React.FC = () => {
         minHeight: '100vh',
         width: '100%',
         overflow: 'hidden',
-        background: 'linear-gradient(135deg, #E0F2F1 0%, #B2DFDB 50%, #80CBC4 100%)',
+        background: 'var(--hotel-page-bg)',
         position: 'relative',
+        color: 'var(--hotel-text-primary)',
       }}
     >
       {/* Animated background overlay */}
@@ -83,10 +84,7 @@ const LandingPage: React.FC = () => {
           left: 0,
           right: 0,
           bottom: 0,
-          background: `
-            radial-gradient(ellipse at top, rgba(0, 188, 212, 0.2) 0%, transparent 50%),
-            radial-gradient(ellipse at bottom, rgba(102, 187, 106, 0.15) 0%, transparent 50%)
-          `,
+          background: 'var(--hotel-soft-glow)',
           animation: `${parallaxFloat} 20s ease-in-out infinite`,
           pointerEvents: 'none',
           zIndex: 0,
@@ -102,10 +100,10 @@ const LandingPage: React.FC = () => {
           right: 0,
           zIndex: 1000,
           transition: 'all 0.5s cubic-bezier(0.65, 0.05, 0, 1)',
-          backgroundColor: scrolled ? 'rgba(255, 255, 255, 0.95)' : 'transparent',
+          backgroundColor: scrolled ? 'var(--hotel-panel-bg)' : 'transparent',
           backdropFilter: scrolled ? 'blur(20px)' : 'none',
-          borderBottom: scrolled ? '1px solid rgba(0, 188, 212, 0.2)' : 'none',
-          boxShadow: scrolled ? '0 4px 20px rgba(0, 188, 212, 0.1)' : 'none',
+          borderBottom: scrolled ? '1px solid var(--hotel-divider)' : 'none',
+          boxShadow: scrolled ? '0 4px 20px var(--hotel-shadow-color)' : 'none',
           py: 2,
         }}
       >
@@ -118,7 +116,7 @@ const LandingPage: React.FC = () => {
                 sx={{
                   fontWeight: 900,
                   letterSpacing: '-0.02em',
-                  background: 'linear-gradient(135deg, #00BCD4 0%, #81C784 100%)',
+                  background: 'var(--hotel-action-gradient)',
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
@@ -131,7 +129,7 @@ const LandingPage: React.FC = () => {
                 variant="body1"
                 sx={{
                   fontWeight: 600,
-                  color: '#00897B',
+                  color: 'var(--hotel-accent-text)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.1em',
                   fontSize: '0.9rem',
@@ -145,15 +143,15 @@ const LandingPage: React.FC = () => {
                 variant="outlined"
                 onClick={() => navigate('/login')}
                 sx={{
-                  borderColor: '#00BCD4',
-                  color: '#00BCD4',
+                  borderColor: 'var(--hotel-primary)',
+                  color: 'var(--hotel-primary)',
                   fontWeight: 600,
                   px: 3,
                   py: 1,
                   transition: 'all 0.3s ease',
                   '&:hover': {
-                    borderColor: '#00ACC1',
-                    backgroundColor: 'rgba(0, 188, 212, 0.1)',
+                    borderColor: 'var(--hotel-primary-dark)',
+                    backgroundColor: 'var(--hotel-muted-bg)',
                     transform: 'translateY(-2px)',
                   },
                 }}
@@ -164,16 +162,16 @@ const LandingPage: React.FC = () => {
                 variant="contained"
                 onClick={() => navigate('/register')}
                 sx={{
-                  background: 'linear-gradient(135deg, #00BCD4 0%, #26C6DA 100%)',
-                  color: 'white',
+                  background: 'var(--hotel-action-gradient)',
+                  color: 'var(--hotel-on-accent)',
                   fontWeight: 700,
                   px: 3,
                   py: 1,
                   transition: 'all 0.3s ease',
                   '&:hover': {
-                    background: 'linear-gradient(135deg, #00ACC1 0%, #00BCD4 100%)',
+                    background: 'var(--hotel-action-gradient-hover)',
                     transform: 'translateY(-2px)',
-                    boxShadow: '0 8px 24px rgba(0, 188, 212, 0.4)',
+                    boxShadow: '0 8px 24px var(--hotel-shadow-color)',
                   },
                 }}
               >
@@ -203,7 +201,7 @@ const LandingPage: React.FC = () => {
                 <Typography
                   variant="overline"
                   sx={{
-                    color: '#00897B',
+                    color: 'var(--hotel-accent-text)',
                     fontSize: '1.2rem',
                     fontWeight: 600,
                     letterSpacing: '0.3em',
@@ -225,7 +223,7 @@ const LandingPage: React.FC = () => {
                   fontWeight: 900,
                   lineHeight: 1.1,
                   mb: 4,
-                  background: 'linear-gradient(135deg, #00BCD4 0%, #66BB6A 50%, #00BCD4 100%)',
+                  background: 'linear-gradient(135deg, var(--hotel-primary) 0%, var(--hotel-secondary) 50%, var(--hotel-primary) 100%)',
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
@@ -241,7 +239,7 @@ const LandingPage: React.FC = () => {
               <Typography
                 variant="h4"
                 sx={{
-                  color: '#00897B',
+                  color: 'var(--hotel-accent-text)',
                   fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' },
                   fontWeight: 400,
                   mb: 6,
@@ -270,8 +268,8 @@ const LandingPage: React.FC = () => {
                   endIcon={<ArrowForwardIcon />}
                   onClick={() => navigate('/register')}
                   sx={{
-                    background: 'linear-gradient(135deg, #00BCD4 0%, #26C6DA 100%)',
-                    color: 'white',
+                    background: 'var(--hotel-action-gradient)',
+                    color: 'var(--hotel-on-accent)',
                     fontSize: '1.1rem',
                     fontWeight: 700,
                     px: 5,
@@ -279,9 +277,9 @@ const LandingPage: React.FC = () => {
                     borderRadius: 2,
                     transition: 'all 0.4s cubic-bezier(0.65, 0.05, 0, 1)',
                     '&:hover': {
-                      background: 'linear-gradient(135deg, #00ACC1 0%, #00BCD4 100%)',
+                      background: 'var(--hotel-action-gradient-hover)',
                       transform: 'translateY(-4px) scale(1.05)',
-                      boxShadow: '0 12px 32px rgba(0, 188, 212, 0.5)',
+                      boxShadow: '0 12px 32px var(--hotel-shadow-color)',
                     },
                   }}
                 >
@@ -292,8 +290,8 @@ const LandingPage: React.FC = () => {
                   size="large"
                   onClick={() => navigate('/login')}
                   sx={{
-                    borderColor: '#66BB6A',
-                    color: '#66BB6A',
+                    borderColor: 'var(--hotel-secondary)',
+                    color: 'var(--hotel-secondary)',
                     fontSize: '1.1rem',
                     fontWeight: 600,
                     px: 5,
@@ -302,8 +300,8 @@ const LandingPage: React.FC = () => {
                     borderWidth: 2,
                     transition: 'all 0.4s cubic-bezier(0.65, 0.05, 0, 1)',
                     '&:hover': {
-                      borderColor: '#4CAF50',
-                      backgroundColor: 'rgba(102, 187, 106, 0.15)',
+                      borderColor: 'var(--hotel-secondary-dark)',
+                      backgroundColor: 'var(--hotel-muted-bg)',
                       transform: 'translateY(-4px)',
                       borderWidth: 2,
                     },
@@ -326,7 +324,7 @@ const LandingPage: React.FC = () => {
                 <Typography
                   variant="caption"
                   sx={{
-                    color: '#00897B',
+                    color: 'var(--hotel-accent-text)',
                     letterSpacing: '0.2em',
                     textTransform: 'uppercase',
                     display: 'block',
@@ -340,7 +338,7 @@ const LandingPage: React.FC = () => {
                   sx={{
                     width: 2,
                     height: 40,
-                    background: 'linear-gradient(to bottom, #00BCD4, transparent)',
+                    background: 'linear-gradient(to bottom, var(--hotel-primary), transparent)',
                     mx: 'auto',
                   }}
                 />
@@ -356,8 +354,8 @@ const LandingPage: React.FC = () => {
           py: 15,
           position: 'relative',
           zIndex: 1,
-          borderTop: '1px solid rgba(0, 188, 212, 0.3)',
-          backgroundColor: 'rgba(255, 255, 255, 0.5)',
+          borderTop: '1px solid var(--hotel-divider)',
+          backgroundColor: 'var(--hotel-panel-bg)',
         }}
       >
         <Container maxWidth="xl">
@@ -368,7 +366,7 @@ const LandingPage: React.FC = () => {
               fontSize: { xs: '2.5rem', md: '4rem' },
               fontWeight: 700,
               mb: 8,
-              background: 'linear-gradient(135deg, #00BCD4 0%, #66BB6A 100%)',
+              background: 'var(--hotel-action-gradient)',
               backgroundClip: 'text',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
@@ -392,24 +390,24 @@ const LandingPage: React.FC = () => {
                   textAlign: 'center',
                   p: 4,
                   borderRadius: 3,
-                  background: 'linear-gradient(135deg, rgba(0, 188, 212, 0.05) 0%, rgba(102, 187, 106, 0.1) 100%)',
-                  border: '2px solid rgba(0, 188, 212, 0.2)',
+                  background: 'var(--hotel-muted-bg)',
+                  border: '1px solid var(--hotel-divider)',
                   transition: 'all 0.4s cubic-bezier(0.65, 0.05, 0, 1)',
                   cursor: 'pointer',
                   '&:hover': {
                     transform: 'translateY(-12px)',
-                    background: 'linear-gradient(135deg, rgba(0, 188, 212, 0.15) 0%, rgba(102, 187, 106, 0.2) 100%)',
-                    border: '2px solid rgba(0, 188, 212, 0.5)',
-                    boxShadow: '0 16px 48px rgba(0, 188, 212, 0.3)',
+                    background: 'var(--hotel-subtle-bg)',
+                    border: '1px solid var(--hotel-primary)',
+                    boxShadow: '0 16px 48px var(--hotel-shadow-color)',
                   },
                 }}
               >
-                <Box sx={{ color: '#00BCD4', mb: 2 }}>{amenity.icon}</Box>
+                <Box sx={{ color: 'var(--hotel-primary)', mb: 2 }}>{amenity.icon}</Box>
                 <Typography
                   variant="h5"
                   sx={{
                     fontWeight: 700,
-                    color: '#00897B',
+                    color: 'var(--hotel-accent-text)',
                     mb: 1,
                   }}
                 >
@@ -418,7 +416,7 @@ const LandingPage: React.FC = () => {
                 <Typography
                   variant="body1"
                   sx={{
-                    color: 'rgba(0, 137, 123, 0.7)',
+                    color: 'var(--hotel-text-secondary)',
                   }}
                 >
                   {amenity.desc}
@@ -435,7 +433,7 @@ const LandingPage: React.FC = () => {
           py: 15,
           position: 'relative',
           zIndex: 1,
-          borderTop: '1px solid rgba(0, 188, 212, 0.3)',
+          borderTop: '1px solid var(--hotel-divider)',
         }}
       >
         <Container maxWidth="md">
@@ -446,7 +444,7 @@ const LandingPage: React.FC = () => {
                 fontSize: { xs: '2.5rem', md: '4.5rem' },
                 fontWeight: 700,
                 mb: 3,
-                background: 'linear-gradient(135deg, #00BCD4 0%, #66BB6A 100%)',
+                background: 'var(--hotel-action-gradient)',
                 backgroundClip: 'text',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
@@ -458,7 +456,7 @@ const LandingPage: React.FC = () => {
             <Typography
               variant="h5"
               sx={{
-                color: '#00897B',
+                color: 'var(--hotel-accent-text)',
                 mb: 6,
                 fontWeight: 400,
               }}
@@ -471,8 +469,8 @@ const LandingPage: React.FC = () => {
               endIcon={<ArrowForwardIcon />}
               onClick={() => navigate('/register')}
               sx={{
-                background: 'linear-gradient(135deg, #00BCD4 0%, #26C6DA 100%)',
-                color: 'white',
+                background: 'var(--hotel-action-gradient)',
+                color: 'var(--hotel-on-accent)',
                 fontSize: '1.2rem',
                 fontWeight: 700,
                 px: 6,
@@ -480,9 +478,9 @@ const LandingPage: React.FC = () => {
                 borderRadius: 2,
                 transition: 'all 0.4s cubic-bezier(0.65, 0.05, 0, 1)',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #00ACC1 0%, #00BCD4 100%)',
+                  background: 'var(--hotel-action-gradient-hover)',
                   transform: 'translateY(-4px) scale(1.05)',
-                  boxShadow: '0 16px 48px rgba(0, 188, 212, 0.6)',
+                  boxShadow: '0 16px 48px var(--hotel-shadow-color)',
                 },
               }}
             >
@@ -496,10 +494,10 @@ const LandingPage: React.FC = () => {
       <Box
         sx={{
           py: 6,
-          borderTop: '1px solid rgba(0, 188, 212, 0.3)',
+          borderTop: '1px solid var(--hotel-divider)',
           position: 'relative',
           zIndex: 1,
-          backgroundColor: 'rgba(255, 255, 255, 0.7)',
+          backgroundColor: 'var(--hotel-panel-bg)',
         }}
       >
         <Container maxWidth="xl">
@@ -518,7 +516,7 @@ const LandingPage: React.FC = () => {
                 sx={{
                   fontWeight: 900,
                   letterSpacing: '-0.02em',
-                  background: 'linear-gradient(135deg, #00BCD4 0%, #81C784 100%)',
+                  background: 'var(--hotel-action-gradient)',
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
@@ -531,7 +529,7 @@ const LandingPage: React.FC = () => {
                 variant="body2"
                 sx={{
                   fontWeight: 600,
-                  color: '#00897B',
+                  color: 'var(--hotel-accent-text)',
                   textTransform: 'uppercase',
                   letterSpacing: '0.1em',
                 }}
@@ -539,7 +537,7 @@ const LandingPage: React.FC = () => {
                 {hotelSettings.hotel_name}
               </Typography>
             </Box>
-            <Typography variant="body2" sx={{ color: 'rgba(0, 137, 123, 0.7)' }}>
+            <Typography variant="body2" sx={{ color: 'var(--hotel-text-secondary)' }}>
               © 2025 {hotelSettings.hotel_name}. All rights reserved. | Crafted with excellence
             </Typography>
           </Box>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Typography, keyframes } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 
 const rotate = keyframes`
   from {
@@ -24,8 +25,9 @@ interface HotelSpinnerProps {
 }
 
 const HotelSpinner: React.FC<HotelSpinnerProps> = ({ size = 120 }) => {
-  const primaryColor = '#26a69a'; // Comfortable teal-green
-  const secondaryColor = '#00bcd4'; // Bright cyan
+  const theme = useTheme();
+  const primaryColor = theme.palette.primary.main;
+  const secondaryColor = theme.palette.secondary.main;
 
   return (
     <Box
@@ -55,7 +57,7 @@ const HotelSpinner: React.FC<HotelSpinnerProps> = ({ size = 120 }) => {
             borderRadius: '50%',
             border: `${size * 0.06}px solid transparent`,
             borderTopColor: primaryColor,
-            borderRightColor: `${primaryColor}40`,
+            borderRightColor: alpha(primaryColor, 0.25),
             animation: `${rotate} 0.8s linear infinite`,
             transform: 'translateZ(0)',
           }}
@@ -70,7 +72,7 @@ const HotelSpinner: React.FC<HotelSpinnerProps> = ({ size = 120 }) => {
             top: '20%',
             left: '20%',
             borderRadius: '50%',
-            background: `linear-gradient(135deg, ${primaryColor}30, ${secondaryColor}20)`,
+            background: `linear-gradient(135deg, ${alpha(primaryColor, 0.18)}, ${alpha(secondaryColor, 0.12)})`,
             animation: `${pulse} 1.2s ease-in-out infinite`,
           }}
         />
@@ -80,7 +82,7 @@ const HotelSpinner: React.FC<HotelSpinnerProps> = ({ size = 120 }) => {
       <Typography
         sx={{
           fontSize: Math.max(size * 0.11, 12),
-          color: '#1a4d42',
+          color: 'text.secondary',
           fontWeight: 500,
           letterSpacing: '0.03em',
         }}

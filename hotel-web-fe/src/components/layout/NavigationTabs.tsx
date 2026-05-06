@@ -215,10 +215,10 @@ export const NavigationTabs = React.memo(function NavigationTabs({ darkBg = fals
           }}
         >
           <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Avatar sx={{ width: 32, height: 32, fontSize: '0.8rem', fontWeight: 900, background: boardSkinActive ? 'background.default' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: boardSkinActive ? 'text.primary' : 'white', border: boardSkinActive ? '2px solid' : 'none', borderColor: 'text.primary', boxShadow: boardSkinActive ? 'none' : '0 2px 8px rgba(102,126,234,0.4)' }}>
+            <Avatar sx={{ width: 32, height: 32, fontSize: '0.8rem', fontWeight: 900, background: boardSkinActive ? 'background.default' : 'var(--hotel-action-gradient)', color: boardSkinActive ? 'text.primary' : 'var(--hotel-on-accent)', border: boardSkinActive ? '2px solid' : 'none', borderColor: 'text.primary', boxShadow: boardSkinActive ? 'none' : '0 2px 8px var(--hotel-shadow-color)' }}>
               {getUserInitials()}
             </Avatar>
-            <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderRadius: '50%', bgcolor: '#4caf50', border: '2px solid', borderColor: boardSkinActive ? 'background.paper' : '#1a1a2e' }} />
+            <Box sx={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderRadius: '50%', bgcolor: 'success.main', border: '2px solid', borderColor: boardSkinActive ? 'background.paper' : 'var(--hotel-bg)' }} />
           </Box>
           <Box sx={{ display: { xs: 'none', md: 'flex' }, flexDirection: 'column', alignItems: 'flex-start' }}>
             <Typography variant="body2" sx={{ color: boardSkinActive ? 'text.primary' : 'white', fontWeight: 800, fontSize: '0.8rem', lineHeight: 1.2 }}>
@@ -272,7 +272,7 @@ export const NavigationTabs = React.memo(function NavigationTabs({ darkBg = fals
             <ListItemText>Help & Support</ListItemText>
           </MenuItem>
           <Divider sx={{ my: 1 }} />
-          <MenuItem onClick={handleLogout} sx={{ py: 1.25, color: 'error.main', '&:hover': { backgroundColor: 'error.lighter' } }}>
+          <MenuItem onClick={handleLogout} sx={{ py: 1.25, color: 'error.main', '&:hover': { backgroundColor: 'action.hover' } }}>
             <ListItemIcon><LogoutIcon fontSize="small" sx={{ color: 'error.main' }} /></ListItemIcon>
             <ListItemText>Sign Out</ListItemText>
           </MenuItem>

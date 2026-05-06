@@ -32,11 +32,68 @@ const paletteByMode = {
 export const createAppTheme = (themeMode: ThemeMode = 'light') => {
   const selected = paletteByMode[themeMode];
   const darkSurface = themeMode === 'night' ? '#10192a' : '#26312d';
-  const appBarBackground = themeMode === 'light'
-    ? 'linear-gradient(135deg, #26a69a 0%, #00796b 100%)'
+  const isLight = themeMode === 'light';
+  const appBarBackground = isLight
+    ? 'linear-gradient(135deg, #2f8d66 0%, #1f6f52 100%)'
     : themeMode === 'night'
-      ? 'linear-gradient(135deg, #0b1220 0%, #172554 100%)'
+      ? 'linear-gradient(135deg, #0b1220 0%, #17243a 100%)'
       : 'linear-gradient(135deg, #202523 0%, #111614 100%)';
+  const appBackground = isLight
+    ? 'linear-gradient(135deg, #eef8f5 0%, #dff2ed 48%, #ccebe5 100%)'
+    : themeMode === 'night'
+      ? 'linear-gradient(135deg, #060914 0%, #0e1422 48%, #17243a 100%)'
+      : 'linear-gradient(135deg, #151817 0%, #1c2421 50%, #26312d 100%)';
+  const panelBackground = isLight ? 'rgba(255, 255, 255, 0.94)' : themeMode === 'night' ? 'rgba(14, 20, 34, 0.94)' : 'rgba(32, 37, 35, 0.94)';
+  const mutedBackground = isLight ? '#eef7f3' : themeMode === 'night' ? '#17243a' : '#26312d';
+  const subtleBackground = isLight ? '#f7fbf8' : themeMode === 'night' ? '#101a2d' : '#252d29';
+  const neutralGrey = isLight
+    ? {
+        50: '#f7fbf8',
+        100: '#eef7f3',
+        200: '#d9ded9',
+        300: '#c5ccc6',
+        400: '#9aa6a0',
+        500: '#69716d',
+        600: '#555e59',
+        700: '#3f4742',
+        800: '#2d3530',
+        900: '#202124',
+      }
+    : themeMode === 'night'
+      ? {
+          50: '#101a2d',
+          100: '#17243a',
+          200: '#223047',
+          300: '#34435b',
+          400: '#5f7088',
+          500: '#95a3b8',
+          600: '#b7c2d2',
+          700: '#d1dae8',
+          800: '#e3ebf7',
+          900: '#f2f7ff',
+        }
+      : {
+          50: '#252d29',
+          100: '#2d3833',
+          200: '#34413c',
+          300: '#46544f',
+          400: '#70817a',
+          500: '#aebbb6',
+          600: '#c7d1cd',
+          700: '#dbe7e1',
+          800: '#e7f0ec',
+          900: '#edf3f0',
+        };
+  const softGlow = isLight
+    ? 'radial-gradient(circle at 50% 50%, rgba(38, 166, 154, 0.14) 0%, transparent 52%)'
+    : themeMode === 'night'
+      ? 'radial-gradient(circle at 50% 50%, rgba(125, 211, 252, 0.12) 0%, transparent 52%)'
+      : 'radial-gradient(circle at 50% 50%, rgba(77, 182, 172, 0.12) 0%, transparent 52%)';
+  const actionGradient = `linear-gradient(135deg, ${selected.primary.main} 0%, ${selected.secondary.main} 100%)`;
+  const actionGradientHover = `linear-gradient(135deg, ${selected.primary.dark} 0%, ${selected.primary.main} 100%)`;
+  const accentText = isLight ? selected.primary.dark : selected.primary.light;
+  const onAccent = isLight ? '#ffffff' : selected.primary.contrastText;
+  const shadowColor = isLight ? 'rgba(38, 166, 154, 0.24)' : 'rgba(0, 0, 0, 0.44)';
   const boardBorder = themeMode === 'light' ? '#202124' : '#dbe7e1';
   const boardShadow = themeMode === 'light' ? '4px 4px 0 rgba(32,33,36,0.22)' : '4px 4px 0 rgba(0,0,0,0.55)';
   const boardLargeShadow = themeMode === 'light' ? '8px 8px 0 rgba(32,33,36,0.18)' : '8px 8px 0 rgba(0,0,0,0.58)';
@@ -47,6 +104,15 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
   return createTheme({
     palette: {
       ...selected,
+      grey: neutralGrey,
+      action: {
+        active: selected.text.secondary,
+        hover: mutedBackground,
+        selected: subtleBackground,
+        disabled: isLight ? 'rgba(32, 33, 36, 0.38)' : 'rgba(237, 243, 240, 0.35)',
+        disabledBackground: isLight ? 'rgba(32, 33, 36, 0.12)' : 'rgba(237, 243, 240, 0.12)',
+        focus: subtleBackground,
+      },
       success: {
         main: themeMode === 'light' ? '#2e8b57' : '#5cc98b',
         light: '#80d8a4',
@@ -108,8 +174,44 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
     components: {
       MuiCssBaseline: {
         styleOverrides: {
+          ':root': {
+            '--hotel-bg': selected.background.default,
+            '--hotel-paper': selected.background.paper,
+            '--hotel-text-primary': selected.text.primary,
+            '--hotel-text-secondary': selected.text.secondary,
+            '--hotel-divider': selected.divider,
+            '--hotel-primary': selected.primary.main,
+            '--hotel-primary-light': selected.primary.light,
+            '--hotel-primary-dark': selected.primary.dark,
+            '--hotel-secondary': selected.secondary.main,
+            '--hotel-secondary-light': selected.secondary.light,
+            '--hotel-secondary-dark': selected.secondary.dark,
+            '--hotel-on-accent': onAccent,
+            '--hotel-appbar-bg': appBarBackground,
+            '--hotel-page-bg': appBackground,
+            '--hotel-panel-bg': panelBackground,
+            '--hotel-muted-bg': mutedBackground,
+            '--hotel-subtle-bg': subtleBackground,
+            '--hotel-soft-glow': softGlow,
+            '--hotel-action-gradient': actionGradient,
+            '--hotel-action-gradient-hover': actionGradientHover,
+            '--hotel-accent-text': accentText,
+            '--hotel-shadow-color': shadowColor,
+            '--hotel-scrollbar-track': mutedBackground,
+            '--hotel-scrollbar-thumb': selected.primary.light,
+            '--hotel-scrollbar-thumb-hover': selected.primary.main,
+          },
+          'html, body, #root': {
+            minHeight: '100%',
+            backgroundColor: selected.background.default,
+            color: selected.text.primary,
+          },
           body: {
             visibility: 'visible',
+            backgroundColor: selected.background.default,
+            color: selected.text.primary,
+          },
+          '#root': {
             backgroundColor: selected.background.default,
           },
           '.hotel-board-shell': {

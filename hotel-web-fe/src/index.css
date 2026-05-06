@@ -7,7 +7,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f1f8f6;
+  background-color: var(--hotel-bg, #f4f7f4);
+  color: var(--hotel-text-primary, #202124);
 }
 
 code {
@@ -24,23 +25,23 @@ html {
   scroll-behavior: smooth;
 }
 
-/* Custom scrollbar - Green/Cyan theme */
+/* Custom scrollbar - follows the active app theme */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #e0f2f1;
+  background: var(--hotel-scrollbar-track, #e0f2f1);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #80cbc4;
+  background: var(--hotel-scrollbar-thumb, #80cbc4);
   border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #26a69a;
+  background: var(--hotel-scrollbar-thumb-hover, #26a69a);
 }
 
 /* ===================================

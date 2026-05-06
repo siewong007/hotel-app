@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, keyframes } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 
 const rotate = keyframes`
   0% {
@@ -40,9 +41,21 @@ interface LoadingSpinnerProps {
 
 const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   size = 40,
-  color = '#26a69a', // Comfortable teal-green color
+  color,
   variant = 'circular'
 }) => {
+  const theme = useTheme();
+  const spinnerColor = color || theme.palette.primary.main;
+  const translucentColor = spinnerColor === 'inherit' || spinnerColor === 'currentColor'
+    ? spinnerColor
+    : alpha(spinnerColor, 0.38);
+  const glowStart = spinnerColor === 'inherit' || spinnerColor === 'currentColor'
+    ? alpha(theme.palette.primary.main, 0.24)
+    : alpha(spinnerColor, 0.24);
+  const glowEnd = spinnerColor === 'inherit' || spinnerColor === 'currentColor'
+    ? alpha(theme.palette.primary.main, 0.12)
+    : alpha(spinnerColor, 0.12);
+
   if (variant === 'dots') {
     return (
       <Box
@@ -60,7 +73,7 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
               width: size * 0.25,
               height: size * 0.25,
               borderRadius: '50%',
-              backgroundColor: color,
+              backgroundColor: spinnerColor,
               animation: `${dotPulse} 1.4s ease-in-out infinite`,
               animationDelay: `${index * 0.16}s`,
             }}
@@ -89,8 +102,8 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
           height: '100%',
           borderRadius: '50%',
           border: `${Math.max(2, size * 0.08)}px solid transparent`,
-          borderTopColor: color,
-          borderRightColor: `${color}60`,
+          borderTopColor: spinnerColor,
+          borderRightColor: translucentColor,
           animation: `${rotate} 1s linear infinite`,
         }}
       />
@@ -101,7 +114,7 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
           width: '50%',
           height: '50%',
           borderRadius: '50%',
-          background: `linear-gradient(135deg, ${color}40, ${color}20)`,
+          background: `linear-gradient(135deg, ${glowStart}, ${glowEnd})`,
           animation: `${pulse} 1.5s ease-in-out infinite`,
         }}
       />
