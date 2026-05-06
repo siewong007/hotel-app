@@ -12,9 +12,6 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tokio::time::sleep;
 
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
-
 use crate::get_data_directory;
 
 #[cfg(windows)]
