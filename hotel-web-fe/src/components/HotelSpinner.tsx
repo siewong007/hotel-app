@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Typography, keyframes } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 
 const rotate = keyframes`
   0% {
@@ -35,7 +36,8 @@ interface HotelSpinnerProps {
 }
 
 const HotelSpinner: React.FC<HotelSpinnerProps> = ({ size = 120 }) => {
-  const color = '#e07856'; // Warm terracotta
+  const theme = useTheme();
+  const color = theme.palette.primary.main;
 
   return (
     <Box
@@ -65,7 +67,7 @@ const HotelSpinner: React.FC<HotelSpinnerProps> = ({ size = 120 }) => {
             borderRadius: '50%',
             border: `${size * 0.08}px solid transparent`,
             borderTopColor: color,
-            borderRightColor: `${color}60`,
+            borderRightColor: alpha(color, 0.38),
             animation: `${rotate} 1s linear infinite`,
           }}
         />
@@ -80,8 +82,8 @@ const HotelSpinner: React.FC<HotelSpinnerProps> = ({ size = 120 }) => {
             left: '12.5%',
             borderRadius: '50%',
             border: `${size * 0.06}px solid transparent`,
-            borderBottomColor: `${color}80`,
-            borderLeftColor: `${color}40`,
+            borderBottomColor: alpha(color, 0.5),
+            borderLeftColor: alpha(color, 0.25),
             animation: `${rotate} 1.5s linear infinite reverse`,
           }}
         />
@@ -95,7 +97,7 @@ const HotelSpinner: React.FC<HotelSpinnerProps> = ({ size = 120 }) => {
             top: '25%',
             left: '25%',
             borderRadius: '50%',
-            background: `linear-gradient(135deg, ${color}40, ${color}20)`,
+            background: `linear-gradient(135deg, ${alpha(color, 0.25)}, ${alpha(color, 0.12)})`,
             animation: `${pulse} 1.5s ease-in-out infinite`,
           }}
         />
@@ -105,7 +107,7 @@ const HotelSpinner: React.FC<HotelSpinnerProps> = ({ size = 120 }) => {
       <Typography
         sx={{
           fontSize: size * 0.12,
-          color: '#6b7280',
+          color: 'text.secondary',
           fontWeight: 500,
           letterSpacing: '0.05em',
           animation: `${fadeIn} 0.5s ease-in`,

@@ -52,7 +52,7 @@ function AppContent({ themeMode, onThemeModeChange }: { themeMode: ThemeMode; on
         elevation={0}
         className={appBarSkinActive ? 'hotel-board-appbar' : undefined}
         sx={appBarSkinActive ? {
-          background: '#3f8f5b',
+          background: 'var(--hotel-appbar-bg)',
           color: '#ffffff',
           borderBottom: '1px solid rgba(0,0,0,0.12)',
           boxShadow: '0 1px 0 rgba(0,0,0,0.08)',
@@ -80,8 +80,8 @@ function AppContent({ themeMode, onThemeModeChange }: { themeMode: ThemeMode; on
                 width: 38,
                 height: 38,
                 borderRadius: 1.5,
-                bgcolor: appBarSkinActive ? 'rgba(255,247,225,0.96)' : 'rgba(255,255,255,0.15)',
-                color: appBarSkinActive ? '#a06a2c' : 'white',
+                bgcolor: appBarSkinActive ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.15)',
+                color: appBarSkinActive ? 'var(--hotel-primary-dark)' : 'white',
                 mr: 1.5,
                 boxShadow: appBarSkinActive ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
               }}

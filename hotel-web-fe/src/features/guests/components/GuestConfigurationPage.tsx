@@ -61,32 +61,32 @@ import {
 
 // Design tokens from the Guest Configuration Redesign mock.
 const GUEST_DESIGN = {
-  green700: '#1a6b50',
+  green700: 'var(--hotel-primary)',
   green600: '#1f8163',
   green500: '#2aa078',
-  green50: '#ebf7f1',
-  ink: '#0c1f17',
-  ink2: '#36473e',
-  ink3: '#6a7a72',
-  ink4: '#9aa7a0',
-  paper2: '#f6f8f6',
-  paper3: '#eef2ef',
-  rule: '#e3e8e4',
+  green50: 'var(--hotel-muted-bg)',
+  ink: 'var(--hotel-text-primary)',
+  ink2: 'var(--hotel-text-primary)',
+  ink3: 'var(--hotel-text-secondary)',
+  ink4: 'var(--hotel-text-secondary)',
+  paper2: 'var(--hotel-muted-bg)',
+  paper3: 'var(--hotel-subtle-bg)',
+  rule: 'var(--hotel-divider)',
   amber: '#b9700e',
-  amberBg: '#fdf3e3',
+  amberBg: 'color-mix(in srgb, #b9700e 16%, var(--hotel-paper))',
   rose: '#b1342c',
   blue: '#1e5fa8',
-  blueBg: '#e3eef9',
+  blueBg: 'color-mix(in srgb, #1e5fa8 14%, var(--hotel-paper))',
   gold: '#a17c1a',
-  goldBg: '#faf2dc',
+  goldBg: 'color-mix(in srgb, #a17c1a 16%, var(--hotel-paper))',
 };
 const AVATAR_PALETTE: Array<[string, string]> = [
-  ['#d3eee0', '#0f3a2e'],
-  ['#e3eef9', '#1e5fa8'],
-  ['#ece4f9', '#5b3aa8'],
-  ['#fdf3e3', '#a17c1a'],
-  ['#fbe7e3', '#b1342c'],
-  ['#d8eef2', '#1c6478'],
+  ['color-mix(in srgb, var(--hotel-primary) 18%, var(--hotel-paper))', 'var(--hotel-accent-text)'],
+  ['color-mix(in srgb, #1e5fa8 16%, var(--hotel-paper))', '#1e5fa8'],
+  ['color-mix(in srgb, #5b3aa8 16%, var(--hotel-paper))', '#5b3aa8'],
+  ['color-mix(in srgb, #a17c1a 16%, var(--hotel-paper))', '#a17c1a'],
+  ['color-mix(in srgb, #b1342c 16%, var(--hotel-paper))', '#b1342c'],
+  ['color-mix(in srgb, var(--hotel-secondary) 16%, var(--hotel-paper))', 'var(--hotel-secondary-dark)'],
 ];
 const initialsOf = (name: string) =>
   name
@@ -544,7 +544,7 @@ const GuestConfigurationPage: React.FC = () => {
               py: 1.1,
               borderRadius: 1.5,
               border: `1px solid ${GUEST_DESIGN.rule}`,
-              bgcolor: '#fff',
+              bgcolor: 'background.paper',
               color: GUEST_DESIGN.ink2,
               fontSize: 13,
               fontWeight: 600,
@@ -563,7 +563,7 @@ const GuestConfigurationPage: React.FC = () => {
               py: 1.1,
               borderRadius: 1.5,
               border: `1px solid ${GUEST_DESIGN.rule}`,
-              bgcolor: '#fff',
+              bgcolor: 'background.paper',
               color: GUEST_DESIGN.ink2,
               fontSize: 13,
               fontWeight: 600,
@@ -599,7 +599,7 @@ const GuestConfigurationPage: React.FC = () => {
       {/* Two-pane layout: list (flex) + sticky detail (400px) */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: selectedGuest ? '1fr 400px' : '1fr' }, gap: 1.75, alignItems: 'flex-start' }}>
         {/* LEFT: list */}
-        <Box sx={{ bgcolor: '#fff', border: `1px solid ${GUEST_DESIGN.rule}`, borderRadius: 1.5, overflow: 'hidden' }}>
+        <Box sx={{ bgcolor: 'background.paper', border: `1px solid ${GUEST_DESIGN.rule}`, borderRadius: 1.5, overflow: 'hidden' }}>
           {/* Search */}
           <Box sx={{ p: '14px 16px 0' }}>
             <Box
@@ -664,7 +664,7 @@ const GuestConfigurationPage: React.FC = () => {
                     fontWeight: 600,
                     cursor: 'pointer',
                     border: active ? `1px solid ${GUEST_DESIGN.ink}` : `1px solid ${GUEST_DESIGN.rule}`,
-                    bgcolor: active ? GUEST_DESIGN.ink : '#fff',
+                    bgcolor: active ? GUEST_DESIGN.ink : 'background.paper',
                     color: active ? '#fff' : GUEST_DESIGN.ink2,
                     fontFamily: 'inherit',
                     transition: 'background-color 120ms',
@@ -782,7 +782,8 @@ const GuestConfigurationPage: React.FC = () => {
                             height: 18,
                             borderRadius: '50%',
                             bgcolor: GUEST_DESIGN.goldBg,
-                            border: '2px solid #fff',
+                            border: '2px solid',
+                            borderColor: 'background.paper',
                             display: 'grid',
                             placeItems: 'center',
                             color: GUEST_DESIGN.gold,
@@ -925,7 +926,7 @@ const GuestConfigurationPage: React.FC = () => {
               const firstName = g.full_name.split(' ')[0];
               return (
                 <Box sx={{
-                  bgcolor: '#fff',
+                  bgcolor: 'background.paper',
                   border: `1px solid ${GUEST_DESIGN.rule}`,
                   borderRadius: 1.5,
                   overflow: 'auto',
@@ -968,7 +969,8 @@ const GuestConfigurationPage: React.FC = () => {
                             height: 24,
                             borderRadius: '50%',
                             bgcolor: GUEST_DESIGN.goldBg,
-                            border: '2px solid #fff',
+                            border: '2px solid',
+                            borderColor: 'background.paper',
                             display: 'grid',
                             placeItems: 'center',
                             color: GUEST_DESIGN.gold,
@@ -1033,7 +1035,7 @@ const GuestConfigurationPage: React.FC = () => {
                         <Box sx={{ fontWeight: 600, color: GUEST_DESIGN.ink2 }}>Profile completeness</Box>
                         <Box sx={{ fontWeight: 700, color: completionColor, fontVariantNumeric: 'tabular-nums' }}>{completionPct}%</Box>
                       </Box>
-                      <Box sx={{ height: 6, bgcolor: '#fff', borderRadius: 3, overflow: 'hidden' }}>
+                      <Box sx={{ height: 6, bgcolor: 'background.paper', borderRadius: 3, overflow: 'hidden' }}>
                         <Box sx={{ width: `${completionPct}%`, height: '100%', bgcolor: completionColor, borderRadius: 3 }} />
                       </Box>
                     </Box>
@@ -1492,9 +1494,9 @@ const guestInputSx = {
   '& .MuiOutlinedInput-root': {
     minHeight: 52,
     borderRadius: 1.1,
-    bgcolor: '#fff',
+    bgcolor: 'background.paper',
     fontSize: 16,
-    color: '#111827',
+    color: 'text.primary',
     '& fieldset': { borderColor: '#d6dde2' },
     '&:hover fieldset': { borderColor: '#aeb9bf' },
     '&.Mui-focused fieldset': {
@@ -1502,25 +1504,25 @@ const guestInputSx = {
       borderWidth: 1,
     },
     '&.Mui-disabled': {
-      bgcolor: '#f8faf9',
+      bgcolor: 'action.disabledBackground',
     },
   },
   '& .MuiInputBase-input': {
     py: 1.45,
   },
   '& .MuiInputBase-input::placeholder': {
-    color: '#7b8490',
+    color: 'text.secondary',
     opacity: 1,
   },
   '& .MuiInputAdornment-root .MuiSvgIcon-root': {
-    color: '#7b8490',
+    color: 'text.secondary',
     fontSize: 22,
   },
   '& .MuiFormHelperText-root': {
     ml: 0,
     mt: 0.75,
     fontSize: 12.5,
-    color: '#7b8490',
+    color: 'text.secondary',
   },
 };
 
@@ -1559,7 +1561,7 @@ const GuestProfileDialog: React.FC<GuestProfileDialogProps> = ({
           maxHeight: 'calc(100vh - 48px)',
           borderRadius: 3,
           overflow: 'hidden',
-          bgcolor: '#fff',
+          bgcolor: 'background.paper',
           boxShadow: '0 26px 70px rgba(15, 23, 42, 0.28)',
         },
       }}
@@ -1572,8 +1574,8 @@ const GuestProfileDialog: React.FC<GuestProfileDialogProps> = ({
           width: 72,
           height: 72,
           borderRadius: '50%',
-          bgcolor: '#eff5f4',
-          color: '#108279',
+          bgcolor: 'var(--hotel-muted-bg)',
+          color: 'var(--hotel-primary)',
           display: { xs: 'none', sm: 'grid' },
           placeItems: 'center',
           flexShrink: 0,
@@ -1581,10 +1583,10 @@ const GuestProfileDialog: React.FC<GuestProfileDialogProps> = ({
           <PersonIcon sx={{ fontSize: 38, strokeWidth: 1.2 }} />
         </Box>
         <Box sx={{ minWidth: 0, flex: 1, pt: 0.35 }}>
-          <Typography sx={{ color: '#111827', fontSize: { xs: 24, sm: 30 }, fontWeight: 800, lineHeight: 1.12, letterSpacing: 0 }}>
+          <Typography sx={{ color: 'text.primary', fontSize: { xs: 24, sm: 30 }, fontWeight: 800, lineHeight: 1.12, letterSpacing: 0 }}>
             {title}
           </Typography>
-          <Typography sx={{ mt: 0.8, color: '#697583', fontSize: { xs: 15, sm: 18 }, lineHeight: 1.35 }}>
+          <Typography sx={{ mt: 0.8, color: 'text.secondary', fontSize: { xs: 15, sm: 18 }, lineHeight: 1.35 }}>
             {subtitle}
           </Typography>
         </Box>
@@ -1595,8 +1597,9 @@ const GuestProfileDialog: React.FC<GuestProfileDialogProps> = ({
             width: 48,
             height: 48,
             borderRadius: 1.25,
-            border: '1px solid #d8dee4',
-            color: '#4b5563',
+            border: '1px solid',
+            borderColor: 'divider',
+            color: 'text.secondary',
             flexShrink: 0,
             '&:hover': { bgcolor: '#f6f8f9' },
           }}
@@ -1769,7 +1772,7 @@ const GuestProfileDialog: React.FC<GuestProfileDialogProps> = ({
                     sx={guestInputSx}
                   >
                     <MenuItem value="">
-                      <Box sx={{ color: '#7b8490' }}>Not specified</Box>
+                      <Box sx={{ color: 'text.secondary' }}>Not specified</Box>
                     </MenuItem>
                     <MenuItem value="local">
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
@@ -1798,8 +1801,9 @@ const GuestProfileDialog: React.FC<GuestProfileDialogProps> = ({
         gap: { xs: 1, sm: 2.5 },
         px: { xs: 3, md: 3.25 },
         py: 2,
-        borderTop: '1px solid #e4e8ec',
-        bgcolor: 'rgba(255,255,255,0.96)',
+        borderTop: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
       }}>
         <Button
           onClick={onClose}
@@ -1810,10 +1814,10 @@ const GuestProfileDialog: React.FC<GuestProfileDialogProps> = ({
             height: 52,
             borderRadius: 1.25,
             border: '1px solid #62b8b7',
-            color: '#108279',
+            color: 'var(--hotel-primary)',
             fontWeight: 700,
             textTransform: 'none',
-            '&:hover': { bgcolor: alpha(GUEST_DESIGN.green600, 0.06), borderColor: '#108279' },
+            '&:hover': { bgcolor: alpha(GUEST_DESIGN.green600, 0.06), borderColor: 'var(--hotel-primary)' },
           }}
         >
           Cancel
@@ -1827,13 +1831,13 @@ const GuestProfileDialog: React.FC<GuestProfileDialogProps> = ({
             width: { xs: '100%', sm: 'auto' },
             height: 52,
             borderRadius: 1.25,
-            bgcolor: '#119b91',
+            bgcolor: 'var(--hotel-primary)',
             color: '#fff',
             fontWeight: 800,
             textTransform: 'none',
             boxShadow: '0 10px 24px rgba(17, 155, 145, 0.24)',
-            '&:hover': { bgcolor: '#0e817a' },
-            '&.Mui-disabled': { bgcolor: alpha('#119b91', 0.55), color: '#fff' },
+            '&:hover': { bgcolor: 'var(--hotel-primary-dark)' },
+            '&.Mui-disabled': { bgcolor: 'action.disabledBackground', color: 'text.secondary' },
           }}
         >
           {loading ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : primaryLabel}
@@ -1882,7 +1886,7 @@ const GuestDialogField: React.FC<GuestDialogFieldProps> = ({
 );
 
 const GuestDialogLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <Typography sx={{ mb: 0.7, color: '#111827', fontSize: 14.5, fontWeight: 500, lineHeight: 1.2 }}>
+  <Typography sx={{ mb: 0.7, color: 'text.primary', fontSize: 14.5, fontWeight: 500, lineHeight: 1.2 }}>
     {children}
   </Typography>
 );
@@ -1900,7 +1904,7 @@ const GuestDialogSection: React.FC<GuestDialogSectionProps> = ({ icon, title, ti
     p: { xs: 1.75, md: 2 },
     borderRadius: 1.25,
     border: '1px solid #d7e0e0',
-    bgcolor: alpha(tint, 0.035),
+    bgcolor: `color-mix(in srgb, ${tint} 4%, var(--hotel-paper))`,
   }}>
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mb: 1.35 }}>
       <Box sx={{ color: tint, display: 'inline-flex', '& svg': { fontSize: 26 } }}>

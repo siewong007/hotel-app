@@ -42,15 +42,17 @@ const ROW_H = 76;
 
 // ── Concept B "sketchy" palette ───────────────────────────────────────────
 const PALETTE = {
-  pageBg: '#e8e4db',
-  panelBg: '#f5f2eb',
-  headerBg: '#ede9df',
-  ink: '#1c1c1c',
-  inkMuted: '#888',
-  inkSubtle: '#555',
-  todayAccent: '#e85d3a',
-  rowDivider: '#c8c2b4',
-  zebra: 'rgba(0,0,0,0.015)',
+  pageBg: 'var(--hotel-bg)',
+  panelBg: 'var(--hotel-paper)',
+  headerBg: 'var(--hotel-muted-bg)',
+  ink: 'var(--hotel-text-primary)',
+  inkMuted: 'var(--hotel-text-secondary)',
+  inkSubtle: 'var(--hotel-text-secondary)',
+  todayAccent: 'var(--hotel-primary)',
+  rowDivider: 'var(--hotel-divider)',
+  zebra: 'var(--hotel-subtle-bg)',
+  inkWash: 'color-mix(in srgb, var(--hotel-text-primary) 8%, transparent)',
+  inkHover: 'color-mix(in srgb, var(--hotel-text-primary) 5%, transparent)',
 };
 
 // Sketchy status colors (bar fill + border). Falls back through unified status helper.
@@ -481,7 +483,7 @@ const RoomReservationTimeline: React.FC = () => {
                         textAlign: 'center',
                         py: 0.75,
                         borderRight: `1px solid ${PALETTE.rowDivider}`,
-                        bgcolor: isToday ? alpha(PALETTE.todayAccent, 0.1) : 'transparent',
+                        bgcolor: isToday ? 'color-mix(in srgb, var(--hotel-primary) 10%, transparent)' : 'transparent',
                       }}
                     >
                       <Typography sx={{ fontFamily: 'inherit', fontSize: 13, color: isToday ? PALETTE.todayAccent : PALETTE.inkMuted, lineHeight: 1.1 }}>
@@ -562,7 +564,7 @@ const RoomReservationTimeline: React.FC = () => {
                               height: '100%',
                               borderRight: `1px solid ${PALETTE.rowDivider}`,
                               bgcolor: isToday
-                                ? alpha(PALETTE.todayAccent, 0.05)
+                                ? 'color-mix(in srgb, var(--hotel-primary) 5%, transparent)'
                                 : i % 2 === 0
                                 ? 'transparent'
                                 : PALETTE.zebra,
@@ -722,7 +724,7 @@ const RoomReservationTimeline: React.FC = () => {
                   sx={{
                     fontSize: '0.65rem',
                     height: 20,
-                    bgcolor: alpha(PALETTE.ink, 0.08),
+                    bgcolor: PALETTE.inkWash,
                     color: PALETTE.ink,
                     fontWeight: 600,
                   }}
@@ -827,7 +829,7 @@ const RoomReservationTimeline: React.FC = () => {
                     label={hoveredBooking.payment_status}
                     size="small"
                     sx={{
-                      bgcolor: alpha(PALETTE.ink, 0.08),
+                      bgcolor: PALETTE.inkWash,
                       color: PALETTE.ink,
                       fontWeight: 600,
                       fontSize: '0.65rem',
@@ -925,7 +927,7 @@ const SketchyBtn: React.FC<{
       lineHeight: 1.2,
       userSelect: 'none',
       whiteSpace: 'nowrap',
-      '&:hover': { bgcolor: filled ? '#000' : alpha(PALETTE.ink, 0.05) },
+      '&:hover': { bgcolor: filled ? 'var(--hotel-primary-dark)' : PALETTE.inkHover },
     }}
   >
     {children}
