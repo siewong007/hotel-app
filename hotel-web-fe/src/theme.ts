@@ -46,6 +46,11 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
   const panelBackground = isLight ? 'rgba(255, 255, 255, 0.94)' : themeMode === 'night' ? 'rgba(14, 20, 34, 0.94)' : 'rgba(32, 37, 35, 0.94)';
   const mutedBackground = isLight ? '#eef7f3' : themeMode === 'night' ? '#17243a' : '#26312d';
   const subtleBackground = isLight ? '#f7fbf8' : themeMode === 'night' ? '#101a2d' : '#252d29';
+  const popupBackground = selected.background.paper;
+  const popupMutedBackground = isLight ? '#f7fbf8' : themeMode === 'night' ? '#111c30' : '#252e2a';
+  const popupBorder = isLight ? selected.divider : themeMode === 'night' ? '#2d3d59' : '#46544f';
+  const popupShadow = isLight ? '0 20px 50px rgba(15,23,42,0.16)' : '0 22px 56px rgba(0,0,0,0.54)';
+  const popupBackdrop = isLight ? 'rgba(15,23,42,0.34)' : 'rgba(0,0,0,0.64)';
   const neutralGrey = isLight
     ? {
         50: '#f7fbf8',
@@ -192,6 +197,11 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
             '--hotel-panel-bg': panelBackground,
             '--hotel-muted-bg': mutedBackground,
             '--hotel-subtle-bg': subtleBackground,
+            '--hotel-popup-bg': popupBackground,
+            '--hotel-popup-muted-bg': popupMutedBackground,
+            '--hotel-popup-border': popupBorder,
+            '--hotel-popup-shadow': popupShadow,
+            '--hotel-popup-backdrop': popupBackdrop,
             '--hotel-soft-glow': softGlow,
             '--hotel-action-gradient': actionGradient,
             '--hotel-action-gradient-hover': actionGradientHover,
@@ -227,6 +237,42 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
             borderRadius: 8,
             boxShadow: boardShadow,
           },
+          'body .MuiDialog-paper, body .MuiPopover-paper, body .MuiMenu-paper, body .MuiPopper-root .MuiPaper-root, body .MuiAutocomplete-paper, body .MuiPickersPopper-paper': {
+            backgroundColor: `${popupBackground} !important`,
+            color: selected.text.primary,
+            backgroundImage: 'none',
+            borderColor: popupBorder,
+          },
+          'body .MuiDialog-paper': {
+            boxShadow: popupShadow,
+          },
+          'body .MuiDialogTitle-root, body .MuiDialogContent-root, body .MuiDialogActions-root': {
+            color: selected.text.primary,
+          },
+          ...(isLight ? {} : {
+            'body .MuiDialogContent-root, body .MuiDialogActions-root': {
+              backgroundColor: `${popupBackground} !important`,
+            },
+            'body .MuiDialogActions-root': {
+              borderTopColor: `${selected.divider} !important`,
+            },
+            'body .MuiPaper-root .MuiPaper-root, body .MuiDialog-paper .MuiPaper-root:not(.MuiAppBar-root)': {
+              backgroundColor: `${popupMutedBackground} !important`,
+              color: selected.text.primary,
+              borderColor: popupBorder,
+            },
+            'body .MuiMenuItem-root, body .MuiAutocomplete-option': {
+              color: selected.text.primary,
+            },
+            'body .MuiMenuItem-root.Mui-selected, body .MuiMenuItem-root:hover, body .MuiAutocomplete-option[aria-selected="true"], body .MuiAutocomplete-option.Mui-focused': {
+              backgroundColor: `${subtleBackground} !important`,
+            },
+            'body .MuiSnackbarContent-root': {
+              backgroundColor: `${popupMutedBackground} !important`,
+              color: selected.text.primary,
+              border: `1px solid ${popupBorder}`,
+            },
+          }),
           '.hotel-board-skin .MuiCard-root': {
             backgroundColor: selected.background.paper,
             border: `2px solid ${boardBorder}`,
@@ -401,10 +447,60 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
           },
         },
       },
+      MuiDialog: {
+        styleOverrides: {
+          paper: {
+            backgroundColor: popupBackground,
+            color: selected.text.primary,
+            border: `1px solid ${popupBorder}`,
+            backgroundImage: 'none',
+            boxShadow: popupShadow,
+          },
+        },
+      },
+      MuiDialogContent: {
+        styleOverrides: {
+          root: {
+            backgroundColor: popupBackground,
+          },
+        },
+      },
+      MuiDialogActions: {
+        styleOverrides: {
+          root: {
+            backgroundColor: popupBackground,
+            borderTop: `1px solid ${selected.divider}`,
+          },
+        },
+      },
+      MuiPopover: {
+        styleOverrides: {
+          paper: {
+            backgroundColor: popupBackground,
+            color: selected.text.primary,
+            border: `1px solid ${popupBorder}`,
+            boxShadow: popupShadow,
+          },
+        },
+      },
       MuiMenu: {
         styleOverrides: {
           paper: {
             backgroundColor: themeMode === 'light' ? '#fff' : darkSurface,
+            color: selected.text.primary,
+            border: `1px solid ${popupBorder}`,
+          },
+        },
+      },
+      MuiAutocomplete: {
+        styleOverrides: {
+          paper: {
+            backgroundColor: popupBackground,
+            color: selected.text.primary,
+            border: `1px solid ${popupBorder}`,
+          },
+          option: {
+            color: selected.text.primary,
           },
         },
       },
@@ -412,6 +508,7 @@ export const createAppTheme = (themeMode: ThemeMode = 'light') => {
         styleOverrides: {
           root: {
             '& .MuiBackdrop-root': {
+              backgroundColor: popupBackdrop,
               transition: 'opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
             },
           },
