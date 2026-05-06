@@ -143,8 +143,8 @@ export function useBookings() {
   }, [currentPage, sortField, sortOrder, debouncedSearchQuery, debouncedRoomNumberFilter, statusFilter, dateFilter, customStartDate, customEndDate, searchDate]);
 
   const reload = useCallback(async () => {
-    await Promise.all([loadBookings(), loadStats()]);
-  }, [loadBookings, loadStats]);
+    await Promise.all([loadBookings(), loadStats(), loadGuests()]);
+  }, [loadBookings, loadStats, loadGuests]);
 
   const handleSort = useCallback((field: SortField) => {
     setSortField(prev => {
