@@ -44,7 +44,7 @@ import {
   Search as SearchIcon,
   ListAlt as SummaryIcon,
 } from '@mui/icons-material';
-import { Room, Guest, Booking, RoomType } from '../../../types';
+import { Room, Guest, Booking, BookingCreateRequest, RoomType } from '../../../types';
 import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useRoomAvailabilityCheck } from '../../../hooks/useRoomAvailabilityCheck';
@@ -189,9 +189,17 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Room selection state (when room is not pre-selected)
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [selectedRooms, setSelectedRooms] = useState<Room[]>([]);
 
   // Use selected room or prop room
-  const room = roomProp || selectedRoom;
+  const selectedBookingRooms = useMemo(() => {
+    if (roomProp) return [roomProp];
+    if (selectedRooms.length > 0) return selectedRooms;
+    return selectedRoom ? [selectedRoom] : [];
+  }, [roomProp, selectedRoom, selectedRooms]);
+  const room = roomProp || selectedBookingRooms[0] || null;
+  const roomCount = selectedBookingRooms.length;
+  const selectedRoomNumbers = selectedBookingRooms.map((r) => r.room_number).join(', ');
 
   // Check availability when room is pre-selected and dates change
   const { isAvailable: roomIsAvailable, isChecking: checkingAvailability } = useRoomAvailabilityCheck(
@@ -261,6 +269,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setBookingNotes('');
       setRoomTypeConfig(null);
       setSelectedRoom(null);
+      setSelectedRooms([]);
       setAvailableRooms([]);
 
       // Mark initialization complete after a microtask to ensure state has settled
@@ -292,6 +301,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setBookingNotes('');
       setRoomTypeConfig(null);
       setSelectedRoom(null);
+      setSelectedRooms([]);
       setAvailableRooms([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -318,6 +328,17 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     if (!needsRoomSelection || !checkInDate || !checkOutDate) return;
     loadAvailableRooms(checkInDate, checkOutDate, sortRoomsByNumber, roomsRef.current);
   }, [needsRoomSelection, checkInDate, checkOutDate]);
+
+  useEffect(() => {
+    if (!needsRoomSelection || loadingAvailableRooms || !checkInDate || !checkOutDate) return;
+
+    const availableIds = new Set(availableRooms.map((availableRoom) => String(availableRoom.id)));
+    setSelectedRooms((prev) => {
+      const filtered = prev.filter((selected) => availableIds.has(String(selected.id)));
+      setSelectedRoom(filtered[0] || null);
+      return filtered;
+    });
+  }, [availableRooms, checkInDate, checkOutDate, loadingAvailableRooms, needsRoomSelection]);
 
   // Load guests with credits when complimentary reservation is selected
   useEffect(() => {
@@ -417,7 +438,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         if (!checkInDate || !checkOutDate) return false;
         if (!isHourlyBooking && new Date(checkOutDate) <= new Date(checkInDate)) return false;
         if (isHourlyBooking && checkOutDate !== checkInDate) return false;
-        return !!selectedRoom;
+        return selectedBookingRooms.length > 0;
 
       case 'Guest':
         if (reservationType === 'complimentary') {
@@ -553,9 +574,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       };
 
       const remarks = [getBookingRemarks(), bookingNotes.trim()].filter(Boolean).join(' | ');
-      const bookingData = {
+      const bookingData: Omit<BookingCreateRequest, 'room_id'> = {
         guest_id: guestToUse.id,
-        room_id: String(room.id),
         check_in_date: checkInDate,
         check_out_date: isHourlyBooking ? checkInDate : checkOutDate,
         number_of_guests: 1,
@@ -566,12 +586,12 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         payment_status: 'unpaid' as const,
         room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
         is_tourist: isTourist,
-        tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
+        tourism_tax_amount: perRoomTourismTaxAmount > 0 ? perRoomTourismTaxAmount : undefined,
         extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
         extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
       };
 
-      const createdBookingResult = await HotelAPIService.createBooking(bookingData);
+      const [createdBookingResult] = await createBookingsForSelectedRooms(bookingData);
 
       // Create booking object for EnhancedCheckInModal
       const bookingForCheckIn: Booking = {
@@ -667,6 +687,37 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     return reservationType;
   };
 
+  const createBookingsForSelectedRooms = async (
+    bookingData: Omit<BookingCreateRequest, 'room_id'>
+  ): Promise<Booking[]> => {
+    if (selectedBookingRooms.length === 0) {
+      throw new Error('No room selected');
+    }
+
+    const multiRoomNote = selectedBookingRooms.length > 1
+      ? `Multi-room booking (${selectedBookingRooms.length} rooms: ${selectedRoomNumbers})`
+      : '';
+
+    const createdBookings: Booking[] = [];
+    for (const [index, bookingRoom] of selectedBookingRooms.entries()) {
+      const bookingRemarks = [
+        bookingData.booking_remarks,
+        multiRoomNote,
+      ].filter(Boolean).join(' | ');
+
+      const created = await HotelAPIService.createBooking({
+        ...bookingData,
+        room_id: String(bookingRoom.id),
+        booking_remarks: bookingRemarks || undefined,
+        extra_bed_count: index === 0 ? bookingData.extra_bed_count : undefined,
+        extra_bed_charge: index === 0 ? bookingData.extra_bed_charge : undefined,
+      });
+      createdBookings.push(created);
+    }
+
+    return createdBookings;
+  };
+
   // Submit booking
   const handleSubmit = async () => {
     // Handle direct booking: create booking and hand off to EnhancedCheckInModal
@@ -757,9 +808,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           };
 
           const remarksStr = [getRemarks(), bookingNotes.trim()].filter(Boolean).join(' | ');
-          const bookingData = {
+          const bookingData: Omit<BookingCreateRequest, 'room_id'> = {
             guest_id: guestToUse!.id,
-            room_id: String(room.id),
             check_in_date: checkInDate,
             check_out_date: isHourlyBooking ? checkInDate : checkOutDate,
             number_of_guests: 1,
@@ -770,14 +820,18 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             payment_status: 'unpaid' as const,
             room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
             is_tourist: isTourist,
-            tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
+            tourism_tax_amount: perRoomTourismTaxAmount > 0 ? perRoomTourismTaxAmount : undefined,
             extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
             extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
           };
 
-          await HotelAPIService.createBooking(bookingData);
+          await createBookingsForSelectedRooms(bookingData);
 
-          onSuccess(`Reservation created for ${guestToUse!.full_name} in Room ${room.room_number}`);
+          onSuccess(
+            roomCount > 1
+              ? `Reservations created for ${guestToUse!.full_name} in Rooms ${selectedRoomNumbers}`
+              : `Reservation created for ${guestToUse!.full_name} in Room ${room.room_number}`
+          );
           onClose();
           await onRefreshData();
           break;
@@ -788,9 +842,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             bookingReference ? `${bookingChannel} - Ref: ${bookingReference}` : `${bookingChannel} Booking`,
             bookingNotes.trim(),
           ].filter(Boolean).join(' | ');
-          const bookingData = {
+          const bookingData: Omit<BookingCreateRequest, 'room_id'> = {
             guest_id: guestToUse!.id,
-            room_id: String(room.id),
             check_in_date: checkInDate,
             check_out_date: isHourlyBooking ? checkInDate : checkOutDate,
             number_of_guests: 1,
@@ -806,9 +859,18 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             payment_status: 'unpaid' as const,
           };
 
-          await HotelAPIService.createBooking(bookingData);
+          await createBookingsForSelectedRooms({
+            ...bookingData,
+            tourism_tax_amount: perRoomTourismTaxAmount > 0 ? perRoomTourismTaxAmount : undefined,
+            extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
+            extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
+          });
 
-          onSuccess(`Reservation created for ${guestToUse!.full_name} in Room ${room.room_number}`);
+          onSuccess(
+            roomCount > 1
+              ? `Reservations created for ${guestToUse!.full_name} in Rooms ${selectedRoomNumbers}`
+              : `Reservation created for ${guestToUse!.full_name} in Room ${room.room_number}`
+          );
           onClose();
           await onRefreshData();
           break;
@@ -829,16 +891,25 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             complimentaryDates.push(formatLocalDate(d));
           }
 
-          const bookingResult = await HotelAPIService.bookWithCredits({
-            guest_id: selectedGuestWithCredits.id,
-            room_id: typeof room.id === 'string' ? parseInt(room.id) : room.id,
-            check_in_date: checkInDate,
-            check_out_date: checkOutDate,
-            complimentary_dates: complimentaryDates,
-            special_requests: bookingNotes.trim() || undefined,
-          });
+          const bookingResults = [];
+          for (const bookingRoom of selectedBookingRooms) {
+            const bookingResult = await HotelAPIService.bookWithCredits({
+              guest_id: selectedGuestWithCredits.id,
+              room_id: typeof bookingRoom.id === 'string' ? parseInt(bookingRoom.id) : bookingRoom.id,
+              check_in_date: checkInDate,
+              check_out_date: checkOutDate,
+              complimentary_dates: complimentaryDates,
+              special_requests: bookingNotes.trim() || undefined,
+            });
+            bookingResults.push(bookingResult);
+          }
 
-          onSuccess(`Complimentary reservation created for ${selectedGuestWithCredits.full_name} in Room ${room.room_number} (${bookingResult.complimentary_nights} nights used)`);
+          const complimentaryNights = bookingResults.reduce((sum, result) => sum + (result.complimentary_nights || 0), 0);
+          onSuccess(
+            roomCount > 1
+              ? `Complimentary reservations created for ${selectedGuestWithCredits.full_name} in Rooms ${selectedRoomNumbers} (${complimentaryNights} nights used)`
+              : `Complimentary reservation created for ${selectedGuestWithCredits.full_name} in Room ${room.room_number} (${complimentaryNights} nights used)`
+          );
           onClose();
           await onRefreshData();
           break;
@@ -853,21 +924,25 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // For hourly bookings, billable nights is always 1
   const billableNights = isHourlyBooking ? 1 : numberOfNights;
+  const pricingRoomCount = Math.max(1, roomCount);
 
   // Calculate tourism tax amount
-  const tourismTaxAmount = isTourist ? billableNights * hotelSettings.tourism_tax_rate : 0;
+  const perRoomTourismTaxAmount = isTourist ? billableNights * hotelSettings.tourism_tax_rate : 0;
+  const tourismTaxAmount = perRoomTourismTaxAmount * pricingRoomCount;
 
   // Calculate total amount
   const calculateTotal = () => {
-    let total: number;
+    let roomSubtotal: number;
     if (useCustomRate && customRate > 0) {
-      total = customRate * billableNights;
+      roomSubtotal = customRate * billableNights * pricingRoomCount;
     } else {
-      const price = room?.price_per_night || 0;
-      const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-      total = numPrice * billableNights;
+      roomSubtotal = selectedBookingRooms.reduce((sum, bookingRoom) => {
+        const price = bookingRoom.price_per_night || 0;
+        const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+        return sum + (numPrice * billableNights);
+      }, 0);
     }
-    return total + tourismTaxAmount + extraBedCharge;
+    return roomSubtotal + tourismTaxAmount + extraBedCharge;
   };
 
 
@@ -1671,7 +1746,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   // guest, channel, etc. and surface precise errors via onError(), so we don't
   // need to disable the button for those cases.
   const formIsValid = (() => {
-    if (!room) return false;
+    if (selectedBookingRooms.length === 0) return false;
     if (!bookingMode) return false;
     if (bookingMode === 'reservation' && !reservationType) return false;
     if (!checkInDate || !checkOutDate) return false;
@@ -1778,7 +1853,15 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const ratePerNight = useCustomRate && customRate > 0
     ? customRate
     : (typeof room?.price_per_night === 'string' ? parseFloat(room.price_per_night) : (room?.price_per_night || 0));
-  const subtotal = ratePerNight * billableNights;
+  const nightlyRoomTotal = useCustomRate && customRate > 0
+    ? customRate * pricingRoomCount
+    : selectedBookingRooms.reduce((sum, bookingRoom) => {
+        const price = typeof bookingRoom.price_per_night === 'string'
+          ? parseFloat(bookingRoom.price_per_night)
+          : (bookingRoom.price_per_night || 0);
+        return sum + price;
+      }, 0);
+  const subtotal = nightlyRoomTotal * billableNights;
   const total = calculateTotal();
 
   // Step glyphs auto-shift down when the Room picker section is rendered up
@@ -1844,11 +1927,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         {room && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, bgcolor: D.surface2, border: `1px solid ${D.border}`, borderRadius: 1.25, px: 1.5, py: 0.75 }}>
             <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.5px', color: D.ink, lineHeight: 1 }}>
-              {room.room_number}
+              {roomCount > 1 ? `${roomCount} rooms` : room.room_number}
             </Typography>
             <Box>
               <Typography sx={{ fontSize: 10, fontWeight: 700, color: D.ink3, letterSpacing: 0.6, textTransform: 'uppercase' }}>
-                {room.room_type}
+                {roomCount > 1 ? selectedRoomNumbers : room.room_type}
               </Typography>
               <Typography sx={{ fontSize: 11, fontWeight: 700, color: D.green, mt: '1px' }}>
                 ● {roomIsAvailable === false ? 'Unavailable' : 'Available'}
@@ -1890,9 +1973,13 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             <Box sx={{ mb: 2.75 }}>
               {sectionHeader('①', 'Room')}
               <Autocomplete
+                multiple
                 size="small"
-                value={selectedRoom}
-                onChange={(_, value) => setSelectedRoom(value)}
+                value={selectedRooms}
+                onChange={(_, value) => {
+                  setSelectedRooms(value);
+                  setSelectedRoom(value[0] || null);
+                }}
                 options={
                   // Prefer date-filtered availability list when dates are set;
                   // otherwise fall back to the full rooms array.
@@ -1930,18 +2017,21 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                     {...params}
                     placeholder={
                       !checkInDate || !checkOutDate
-                        ? 'Pick a room (set dates below to filter by availability)'
+                        ? 'Pick rooms (set dates below to filter by availability)'
                         : loadingAvailableRooms
                           ? 'Loading available rooms…'
-                          : 'Select a room'
+                          : 'Select one or more rooms'
                     }
                     sx={{ bgcolor: '#fff' }}
                     InputProps={{
                       ...params.InputProps,
                       startAdornment: (
-                        <Box sx={{ pl: 0.5, pr: 0.75, color: D.ink3, display: 'inline-flex' }}>
-                          <SearchIcon sx={{ fontSize: 16 }} />
-                        </Box>
+                        <>
+                          <Box sx={{ pl: 0.5, pr: 0.75, color: D.ink3, display: 'inline-flex' }}>
+                            <SearchIcon sx={{ fontSize: 16 }} />
+                          </Box>
+                          {params.InputProps.startAdornment}
+                        </>
                       ),
                     }}
                   />
@@ -1950,6 +2040,11 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               {checkInDate && checkOutDate && availableRooms.length === 0 && !loadingAvailableRooms && (
                 <Typography sx={{ mt: 0.75, fontSize: 11, color: D.ink3, fontStyle: 'italic' }}>
                   No rooms available for the selected dates — pick different dates below.
+                </Typography>
+              )}
+              {selectedRooms.length > 1 && (
+                <Typography sx={{ mt: 0.75, fontSize: 11, color: D.emerald, fontWeight: 700 }}>
+                  {selectedRooms.length} rooms selected: {selectedRoomNumbers}
                 </Typography>
               )}
             </Box>
@@ -2366,10 +2461,10 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             }}>
               <Box>
                 <Typography sx={{ fontSize: 24, fontWeight: 800, letterSpacing: '-1px', lineHeight: 1, color: D.ink }}>
-                  {room.room_number}
+                  {roomCount > 1 ? `${roomCount} rooms` : room.room_number}
                 </Typography>
                 <Typography sx={{ fontSize: 10, fontWeight: 700, color: D.ink3, letterSpacing: 0.6, mt: 0.25, textTransform: 'uppercase' }}>
-                  {room.room_type}
+                  {roomCount > 1 ? selectedRoomNumbers : room.room_type}
                 </Typography>
                 <Typography sx={{ fontSize: 11, color: D.green, fontWeight: 700, mt: 0.5 }}>
                   ● {roomIsAvailable === false ? 'Conflict' : 'Available now'}
@@ -2399,6 +2494,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           <Box sx={{ bgcolor: '#fff', border: `1px solid ${D.border}`, borderRadius: 1.5, p: 1.75 }}>
             {[
               { k: 'Guest',     v: summaryGuestName },
+              { k: 'Rooms',     v: selectedRoomNumbers || '—' },
               { k: 'Source',    v: effectiveType === 'online' ? (bookingChannel || '—') : (effectiveType === 'walk_in' ? 'Walk-in' : effectiveType === 'complimentary' ? 'Free credit' : '—') },
               { k: 'Check-in',  v: formatHumanDate(checkInDate) || '—' },
               { k: 'Check-out', v: isHourlyBooking ? `${formatHumanDate(checkInDate)} (hourly)` : (formatHumanDate(checkOutDate) || '—') },
@@ -2413,8 +2509,12 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
           <Box sx={{ bgcolor: '#fff', border: `1px solid ${D.border}`, borderRadius: 1.5, p: 1.75 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, fontSize: 12.5 }}>
-              <Box sx={{ color: D.ink3 }}>Rate</Box>
-              <Box sx={{ color: D.ink, fontWeight: 600 }}>{formatCurrency(ratePerNight)} / night</Box>
+              <Box sx={{ color: D.ink3 }}>{roomCount > 1 ? 'Room rates' : 'Rate'}</Box>
+              <Box sx={{ color: D.ink, fontWeight: 600 }}>
+                {roomCount > 1
+                  ? `${formatCurrency(nightlyRoomTotal)} / night total`
+                  : `${formatCurrency(ratePerNight)} / night`}
+              </Box>
             </Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, fontSize: 12.5 }}>
               <Box sx={{ color: D.ink3 }}>Subtotal (×{billableNights})</Box>
@@ -2473,7 +2573,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                   <CheckIcon sx={{ fontSize: 13 }} /> No conflicts found
                 </Box>
                 {checkInDate && checkOutDate && room
-                  ? `Room is available for ${formatHumanDate(checkInDate)} → ${formatHumanDate(checkOutDate)}.`
+                  ? `${roomCount > 1 ? 'Selected rooms are' : 'Room is'} available for ${formatHumanDate(checkInDate)} → ${formatHumanDate(checkOutDate)}.`
                   : 'Pick check-in and check-out dates to verify.'}
               </Box>
             )}
