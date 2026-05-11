@@ -38,7 +38,7 @@ import {
   ToggleButtonGroup,
   InputAdornment,
 } from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import {
   CleaningServices as CleaningIcon,
   Build as MaintenanceIcon,
@@ -128,6 +128,8 @@ interface GuestWithCredits {
 
 const RoomManagementPage: React.FC = () => {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode !== 'light';
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const {
     rooms, setRooms,
@@ -410,6 +412,24 @@ const RoomManagementPage: React.FC = () => {
     const status = room.status || 'available';
     return getUnifiedStatusShortLabel(status).toUpperCase();
   };
+
+  // Dark-mode card fills. The light-mode palette comes straight from
+  // `getRoomStatusColor` (saturated MUI shades). On a dark surface those would
+  // glow, so we substitute deeper jewel-tone equivalents that still take white
+  // ink without losing the status association.
+  const ROOM_FILL_DARK: Record<string, string> = {
+    available: '#2E7D4F',
+    occupied: '#B25E18',
+    reserved: '#1E5A8A',
+    dirty: '#8A6E1D',
+    maintenance: '#4D5358',
+  };
+  const getRoomCardFill = (status: string, statusColor: string): string => {
+    if (isDarkMode) return ROOM_FILL_DARK[status] || ROOM_FILL_DARK.available;
+    // Light mode: yellow needs the darker amber so white text stays readable.
+    return status === 'dirty' ? '#a89436' : statusColor;
+  };
+
 
   const getRoomTypeCode = (roomType: string): string => {
     const codes: { [key: string]: string } = {
@@ -1980,26 +2000,46 @@ const RoomManagementPage: React.FC = () => {
 
           // Get colors based on status
           const statusColor = getRoomStatusColor(displayRoom);
+          // Solid-filled card. Dark mode swaps in deeper jewel tones via
+          // getRoomCardFill so the saturated light-mode shades don't glow on
+          // the dark surface tokens.
+          const cardFill = getRoomCardFill(computedStatus, statusColor);
           return (
             <Box key={room.id} sx={{ minWidth: 0 }}>
               <Card
                 elevation={0}
+                ref={(el: HTMLDivElement | null) => {
+                  // Two global theme rules try to force this card back to a neutral
+                  // surface: theme.ts:276 (board-skin) and theme.ts:259 (dark-mode
+                  // nested-Paper, which uses `!important` AND has higher specificity
+                  // than any sx-generated class chain we can produce). Inline styles
+                  // set with `!important` via setProperty beat both — that's the
+                  // only reliable escape here.
+                  if (!el) return;
+                  el.style.setProperty('background-color', cardFill, 'important');
+                  el.style.setProperty('background-image', 'none', 'important');
+                  el.style.setProperty(
+                    'border-color',
+                    isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.18)',
+                    'important',
+                  );
+                  el.style.setProperty('border-width', '1px', 'important');
+                  el.style.setProperty('border-style', 'solid', 'important');
+                }}
                 sx={{
-                  bgcolor: 'background.paper',
-                  color: 'text.primary',
+                  color: '#fff',
                   cursor: 'pointer',
                   position: 'relative',
                   height: 250,
                   maxWidth: '100%',
                   display: 'flex',
                   flexDirection: 'column',
-                  borderRadius: 2,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  transition: 'box-shadow 150ms ease, border-color 150ms ease, transform 150ms ease',
+                  borderRadius: 2.5,
+                  transition: 'box-shadow 150ms ease, transform 150ms ease',
                   '&:hover': {
-                    boxShadow: '0 6px 18px rgba(0,0,0,0.08)',
-                    borderColor: alpha(statusColor, 0.55),
+                    boxShadow: isDarkMode
+                      ? '0 6px 20px rgba(0,0,0,0.55)'
+                      : '0 6px 18px rgba(0,0,0,0.18)',
                     transform: 'translateY(-1px)',
                   },
                   overflow: 'hidden',
@@ -2009,9 +2049,6 @@ const RoomManagementPage: React.FC = () => {
                   handleMenuOpen(e, room);
                 }}
               >
-                {/* Top status accent bar */}
-                <Box sx={{ height: 3, bgcolor: statusColor, opacity: 0.85 }} />
-
                 <CardContent
                   sx={{
                     p: 1.5,
@@ -2044,7 +2081,7 @@ const RoomManagementPage: React.FC = () => {
                           variant="caption"
                           sx={{
                             fontWeight: 800,
-                            color: 'text.secondary',
+                            color: 'rgba(255,255,255,0.85)',
                             letterSpacing: 0.6,
                             fontSize: '0.7rem',
                             lineHeight: 1,
@@ -2061,7 +2098,7 @@ const RoomManagementPage: React.FC = () => {
                           <path
                             d="M1 4 Q5 1 9 3 T17 3 T25 3 T35 3"
                             fill="none"
-                            stroke={statusColor}
+                            stroke="rgba(255,255,255,0.7)"
                             strokeWidth={1.6}
                             strokeLinecap="round"
                           />
@@ -2070,8 +2107,8 @@ const RoomManagementPage: React.FC = () => {
                     </Box>
 
                     {(() => {
-                      const dirtyPillBg = '#a89436';
-                      const pillBg = computedStatus === 'dirty' ? dirtyPillBg : statusColor;
+                      // Card itself is solid status color, so the pill becomes a
+                      // translucent white chip with white border + ink.
                       return (
                         <Box
                           sx={{
@@ -2080,15 +2117,15 @@ const RoomManagementPage: React.FC = () => {
                             px: 1.1,
                             py: 0.35,
                             borderRadius: 1,
-                            bgcolor: pillBg,
+                            bgcolor: 'rgba(255,255,255,0.2)',
                             color: '#fff',
+                            border: '1px solid rgba(255,255,255,0.65)',
                             fontSize: '0.62rem',
                             fontWeight: 800,
                             textTransform: 'uppercase',
                             letterSpacing: 0.8,
                             whiteSpace: 'nowrap',
                             flexShrink: 0,
-                            boxShadow: `0 1px 0 ${alpha(pillBg, 0.35)}`,
                           }}
                         >
                           {getRoomStatusLabel(displayRoom)}
@@ -2103,7 +2140,7 @@ const RoomManagementPage: React.FC = () => {
                       sx={{
                         mt: 1.25,
                         fontStyle: 'italic',
-                        color: 'text.secondary',
+                        color: 'rgba(255,255,255,0.9)',
                         fontSize: '0.85rem',
                         fontWeight: 500,
                       }}
@@ -2180,7 +2217,7 @@ const RoomManagementPage: React.FC = () => {
                       <Typography
                         sx={{
                           mt: 0.4,
-                          color: 'text.secondary',
+                          color: 'rgba(255,255,255,0.9)',
                           fontSize: '0.75rem',
                           fontWeight: 500,
                         }}
@@ -2217,11 +2254,11 @@ const RoomManagementPage: React.FC = () => {
                             gap: 0.5,
                             mt: 0.5,
                             p: 0.5,
-                            bgcolor: 'action.hover',
+                            bgcolor: 'transparent',
                             borderRadius: 0.5,
                             cursor: 'pointer',
                             '&:hover': {
-                              bgcolor: 'action.selected',
+                              bgcolor: 'rgba(255,255,255,0.18)',
                             },
                             minHeight: 24,
                           }}
@@ -2314,13 +2351,13 @@ const RoomManagementPage: React.FC = () => {
                             }}
                             sx={{
                               border: '1px solid',
-                              borderColor: 'divider',
+                              borderColor: 'rgba(255,255,255,0.55)',
                               borderRadius: 999,
                               width: 22,
                               height: 22,
                               flexShrink: 0,
-                              color: 'text.secondary',
-                              '&:hover': { borderColor: 'text.primary', color: 'text.primary' },
+                              color: '#fff',
+                              '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.12)' },
                             }}
                           >
                             <MoreHorizIcon sx={{ fontSize: 14 }} />
@@ -2370,10 +2407,10 @@ const RoomManagementPage: React.FC = () => {
                               gap: 0.5,
                               mt: 0.75,
                               p: 0.5,
-                              bgcolor: 'action.hover',
+                              bgcolor: 'transparent',
                               borderRadius: 0.5,
                               cursor: 'pointer',
-                              '&:hover': { bgcolor: 'action.selected' },
+                              '&:hover': { bgcolor: 'rgba(255,255,255,0.18)' },
                               minHeight: 24,
                             }}
                           >
@@ -2438,13 +2475,13 @@ const RoomManagementPage: React.FC = () => {
                             }}
                             sx={{
                               border: '1px solid',
-                              borderColor: 'divider',
+                              borderColor: 'rgba(255,255,255,0.55)',
                               borderRadius: 999,
                               width: 22,
                               height: 22,
                               flexShrink: 0,
-                              color: 'text.secondary',
-                              '&:hover': { borderColor: 'text.primary', color: 'text.primary' },
+                              color: '#fff',
+                              '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.12)' },
                             }}
                           >
                             <MoreHorizIcon sx={{ fontSize: 14 }} />
@@ -2456,26 +2493,26 @@ const RoomManagementPage: React.FC = () => {
 
                   {/* Upcoming Same-Day Reservation for Dirty Rooms */}
                   {computedStatus === 'dirty' && reservedBooking && hasReservationForToday && (
-                    <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(0,0,0,0.15)' }}>
+                    <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.35)' }}>
                       <Box sx={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: 0.5,
                         px: 0.5,
                         py: 0.25,
-                        bgcolor: 'rgba(66, 165, 245, 0.2)',
+                        bgcolor: 'rgba(255,255,255,0.18)',
                         borderRadius: 1,
                       }}>
-                        <CalendarIcon sx={{ fontSize: 14, color: '#1565C0' }} />
-                        <Typography variant="caption" sx={{ color: '#1565C0', fontWeight: 600, fontSize: '0.65rem' }}>
+                        <CalendarIcon sx={{ fontSize: 14, color: '#fff' }} />
+                        <Typography variant="caption" sx={{ color: '#fff', fontWeight: 600, fontSize: '0.65rem' }}>
                           Reserved: {new Date(reservedBooking.check_in_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </Typography>
                       </Box>
                       {reservedBooking.guest_name && (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                          <PersonIcon sx={{ fontSize: 12, color: '#1565C0' }} />
+                          <PersonIcon sx={{ fontSize: 12, color: '#fff' }} />
                           <Typography variant="caption" sx={{
-                            color: '#1565C0',
+                            color: '#fff',
                             fontWeight: 500,
                             fontSize: '0.6rem',
                             overflow: 'hidden',
@@ -2540,14 +2577,14 @@ const RoomManagementPage: React.FC = () => {
                           }}
                           sx={{
                             border: '1px solid',
-                            borderColor: 'divider',
+                            borderColor: 'rgba(255,255,255,0.55)',
                             borderRadius: 999,
                             width: 24,
                             height: 24,
                             flexShrink: 0,
-                            color: 'text.secondary',
-                            bgcolor: 'background.paper',
-                            '&:hover': { borderColor: 'text.primary', color: 'text.primary' },
+                            color: '#fff',
+                            bgcolor: 'transparent',
+                            '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.12)' },
                           }}
                         >
                           <MoreHorizIcon sx={{ fontSize: 14 }} />
