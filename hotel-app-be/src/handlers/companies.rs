@@ -9,21 +9,13 @@ use axum::{
 };
 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 use rust_decimal::Decimal;
-use serde::Deserialize;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
-use crate::models::{Company, CompanyCreateRequest, CompanyUpdateRequest, row_mappers};
-
-/// Query parameters for listing companies
-#[derive(Debug, Deserialize)]
-pub struct CompanyListQuery {
-    pub search: Option<String>,
-    pub is_active: Option<bool>,
-    pub limit: Option<i32>,
-    pub offset: Option<i32>,
-}
+use crate::models::{
+    Company, CompanyCreateRequest, CompanyListQuery, CompanyUpdateRequest, row_mappers,
+};
 
 /// List all companies with optional filters
 pub async fn list_companies_handler(

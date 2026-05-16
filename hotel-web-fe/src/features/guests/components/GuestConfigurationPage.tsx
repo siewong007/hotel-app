@@ -10,7 +10,6 @@ import {
   DialogActions,
   Alert,
   CircularProgress,
-  Snackbar,
   Table,
   TableBody,
   TableCell,
@@ -54,6 +53,7 @@ import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail } from '../../../utils/validation';
 import { useCurrency } from '../../../hooks/useCurrency';
 import UnifiedBookingModal from '../../rooms/components/UnifiedBookingModal';
+import { emitApiNotification } from '../../../utils/apiNotifications';
 import {
   Star as MemberIcon,
   PersonOutline as NonMemberIcon,
@@ -180,10 +180,6 @@ const GuestConfigurationPage: React.FC = () => {
   const [guestBookings, setGuestBookings] = useState<any[]>([]);
   const [formLoading, setFormLoading] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
-
-  // Snackbar
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   const loadGuests = useCallback(async (opts?: { page?: number; search?: string; type?: 'all' | GuestType }) => {
     try {
@@ -401,8 +397,7 @@ const GuestConfigurationPage: React.FC = () => {
         company_name: formData.company_name?.trim() || undefined,
       };
       await HotelAPIService.createGuest(sanitizedData);
-      setSnackbarMessage('Guest created successfully');
-      setSnackbarOpen(true);
+      emitApiNotification({ message: 'Guest created successfully', severity: 'success' });
       setCreateDialogOpen(false);
       setDialogError(null);
       resetForm();
@@ -427,8 +422,7 @@ const GuestConfigurationPage: React.FC = () => {
       setFormLoading(true);
       setDialogError(null);
       await HotelAPIService.updateGuest(editingGuest.id, formData);
-      setSnackbarMessage('Guest updated successfully');
-      setSnackbarOpen(true);
+      emitApiNotification({ message: 'Guest updated successfully', severity: 'success' });
       setEditDialogOpen(false);
       setEditingGuest(null);
       setDialogError(null);
@@ -447,8 +441,7 @@ const GuestConfigurationPage: React.FC = () => {
     try {
       setFormLoading(true);
       await HotelAPIService.deleteGuest(deletingGuest.id);
-      setSnackbarMessage('Guest deleted successfully');
-      setSnackbarOpen(true);
+      emitApiNotification({ message: 'Guest deleted successfully', severity: 'success' });
       setDeleteDialogOpen(false);
       setDeletingGuest(null);
       await loadGuests();
@@ -506,13 +499,6 @@ const GuestConfigurationPage: React.FC = () => {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, color: GUEST_DESIGN.ink }}>
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={6000}
-        onClose={() => setSnackbarOpen(false)}
-        message={snackbarMessage}
-      />
-
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
@@ -1179,8 +1165,7 @@ const GuestConfigurationPage: React.FC = () => {
         guests={guests}
         initialGuest={bookingGuest}
         onSuccess={async (message) => {
-          setSnackbarMessage(message);
-          setSnackbarOpen(true);
+          emitApiNotification({ message, severity: 'success' });
           await loadGuests();
         }}
         onError={(message) => {

@@ -130,7 +130,7 @@ pub async fn enable_2fa_handler(
 
     if !valid {
         log::warn!("TOTP code verification failed for user {}", user_id);
-        return Err(ApiError::BadRequest("Invalid TOTP code".to_string()));
+        return Err(ApiError::BadRequest("Invalid 2FA code".to_string()));
     }
 
     log::info!("TOTP code verified successfully");
@@ -287,7 +287,7 @@ pub async fn regenerate_backup_codes_handler(
         .map_err(|e| ApiError::BadRequest(format!("Invalid TOTP code: {}", e)))?;
 
     if !valid {
-        return Err(ApiError::BadRequest("Invalid TOTP code".to_string()));
+        return Err(ApiError::BadRequest("Invalid 2FA code".to_string()));
     }
 
     // Generate new backup codes

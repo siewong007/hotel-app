@@ -7,7 +7,6 @@ import {
   Paper,
   IconButton,
   Tooltip,
-  Snackbar,
   Alert,
   CircularProgress,
   alpha,
@@ -25,6 +24,7 @@ import { PermissionsTab } from './PermissionsTab';
 import { RolesTab } from './RolesTab';
 import { UsersTab } from './UsersTab';
 import { HotelAPIService } from '../../../../api';
+import { emitApiNotification } from '../../../../utils/apiNotifications';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -56,11 +56,6 @@ function a11yProps(index: number) {
 
 const RBACManagementPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean;
-    message: string;
-    severity: 'success' | 'error';
-  }>({ open: false, message: '', severity: 'success' });
 
   const {
     roles,
@@ -80,7 +75,7 @@ const RBACManagementPage: React.FC = () => {
   } = useRBACData();
 
   const showSnackbar = (message: string, severity: 'success' | 'error' = 'success') => {
-    setSnackbar({ open: true, message, severity });
+    emitApiNotification({ message, severity });
   };
 
   // Permission handlers
@@ -288,21 +283,6 @@ const RBACManagementPage: React.FC = () => {
         </Box>
       </Paper>
 
-      {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity={snackbar.severity}
-          variant="filled"
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 };

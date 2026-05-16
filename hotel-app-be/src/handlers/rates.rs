@@ -15,8 +15,8 @@ use crate::core::db::{DbPool, DbRow};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
-    RatePlan, RatePlanInput, RatePlanUpdateInput, RatePlanWithRates, RoomRate, RoomRateInput,
-    RoomRateUpdateInput, RoomRateWithDetails, RoomType,
+    ApplicableRateQuery, RatePlan, RatePlanInput, RatePlanUpdateInput, RatePlanWithRates, RoomRate,
+    RoomRateInput, RoomRateUpdateInput, RoomRateWithDetails, RoomType,
 };
 use crate::services::audit::AuditLog;
 use sqlx::Row;
@@ -851,13 +851,6 @@ pub async fn get_room_types_for_rates(
     .collect();
 
     Ok(Json(room_types))
-}
-
-/// Query for applicable rate lookup
-#[derive(serde::Deserialize)]
-pub struct ApplicableRateQuery {
-    pub room_type_id: i64,
-    pub date: String,
 }
 
 /// Get applicable rate for a room type on a specific date

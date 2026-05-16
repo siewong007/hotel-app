@@ -24,10 +24,11 @@ export type {
 
 // Guest types
 export type { Guest, GuestCreateRequest, GuestUpdateRequest, GuestType, TourismType } from './guest.types';
-export { GUEST_TYPE_CONFIG, TOURISM_TYPE_CONFIG } from './guest.types';
+export { GUEST_TYPE_CONFIG, TOURISM_TYPE_CONFIG } from '../constants/guest.constants';
 
-// Booking types - Note: BookingStatus is an enum, not just a type
-export { BookingStatus } from './booking.types';
+// Booking runtime constants and types
+export { BookingStatus } from '../constants/booking.constants';
+export type { BookingStatus as BookingStatusType } from '../constants/booking.constants';
 export type {
   Booking,
   BookingWithDetails,
@@ -40,6 +41,28 @@ export type {
   RateCodesResponse,
   MarketCodesResponse,
 } from './booking.types';
+
+// Company types
+export type { Company, CompanyCreateRequest, CompanyUpdateRequest } from './company.types';
+
+// Data transfer types
+export type { BookingDataExport, ImportMode, ImportResult } from './dataTransfer.types';
+
+// Night audit types
+export type {
+  RoomSnapshot,
+  RevenueBreakdownItem,
+  UnpostedBooking,
+  JournalEntry,
+  JournalSection,
+  NightAuditPreview,
+  NightAuditRun,
+  NightAuditResponse,
+  RunNightAuditRequest,
+  BookingPostedStatus,
+  PostedBookingDetail,
+  AuditDetailsResponse,
+} from './nightAudit.types';
 
 // Auth types
 export type {

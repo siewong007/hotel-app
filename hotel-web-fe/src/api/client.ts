@@ -2,6 +2,12 @@
 import ky from 'ky';
 import { storage } from '../utils/storage';
 import { getApiBaseUrl, resolveApiRequestUrl } from '../desktop/runtimeApi';
+import {
+  emitApiNotification,
+  getExplicitApiNotificationMessage,
+  getApiNotificationMessage,
+  getApiNotificationSeverity,
+} from '../utils/apiNotifications';
 
 // API Error class for better error handling
 export class APIError extends Error {
@@ -89,6 +95,27 @@ export const api = ky.create({
           }
         }
         return response;
+      }
+    ],
+    beforeError: [
+      async error => {
+        const response = error.response;
+        if (!response) return error;
+
+        const payload = await response.clone().json().catch(() => undefined);
+        const explicitMessage = getExplicitApiNotificationMessage(payload);
+        if (!explicitMessage) return error;
+
+        const message = getApiNotificationMessage(payload, response.status);
+        error.message = message;
+
+        emitApiNotification({
+          message,
+          severity: getApiNotificationSeverity(payload, response.status),
+          statusCode: response.status,
+        });
+
+        return error;
       }
     ]
   }

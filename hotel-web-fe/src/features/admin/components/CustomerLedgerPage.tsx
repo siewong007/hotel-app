@@ -21,7 +21,6 @@ import {
   MenuItem,
   Alert,
   CircularProgress,
-  Snackbar,
   IconButton,
   Grid,
   FormControl,
@@ -85,12 +84,13 @@ import {
   Guest,
   BookingWithDetails,
 } from '../../../types';
-import { Company } from '../../../api/companies.service';
+import type { Company } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
 import { enhanceBookingDetails } from '../../../utils/bookingUtils';
 import { useLedgers } from '../hooks/useLedgers';
+import { ApiNotificationSeverity, emitApiNotification } from '../../../utils/apiNotifications';
 
 // Company option for autocomplete
 interface CompanyOption {
@@ -366,9 +366,12 @@ const CustomerLedgerPage: React.FC = () => {
   // is auto-applied to the create form on success.
   const [companyRegPrefillCreate, setCompanyRegPrefillCreate] = useState(false);
 
-  // Notifications
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const showSnackbar = (
+    message: string,
+    severity: ApiNotificationSeverity = 'success'
+  ) => {
+    emitApiNotification({ message, severity });
+  };
 
   // Payment date edit state
   const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
@@ -606,8 +609,7 @@ const CustomerLedgerPage: React.FC = () => {
   // Handle company check-in
   const handleCompanyCheckIn = async () => {
     if (!checkInCompany || !checkInRoom) {
-      setSnackbarMessage('Please select a company and room');
-      setSnackbarOpen(true);
+      showSnackbar('Please select a company and room', 'warning');
       return;
     }
 
@@ -619,8 +621,7 @@ const CustomerLedgerPage: React.FC = () => {
       // Create new guest if needed
       if (isCreatingNewCheckInGuest) {
         if (!newCheckInGuestForm.first_name || !newCheckInGuestForm.last_name) {
-          setSnackbarMessage('Please enter guest first and last name');
-          setSnackbarOpen(true);
+          showSnackbar('Please enter guest first and last name', 'warning');
           setProcessingCheckIn(false);
           return;
         }
@@ -628,8 +629,7 @@ const CustomerLedgerPage: React.FC = () => {
         // Validate email format only if provided
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (newCheckInGuestForm.email && newCheckInGuestForm.email.trim() && !emailRegex.test(newCheckInGuestForm.email)) {
-          setSnackbarMessage('Please enter a valid email address for the guest');
-          setSnackbarOpen(true);
+          showSnackbar('Please enter a valid email address for the guest', 'warning');
           setProcessingCheckIn(false);
           return;
         }
@@ -651,8 +651,7 @@ const CustomerLedgerPage: React.FC = () => {
       }
 
       if (!guestToUse) {
-        setSnackbarMessage('Please select or create a guest');
-        setSnackbarOpen(true);
+        showSnackbar('Please select or create a guest', 'warning');
         setProcessingCheckIn(false);
         return;
       }
@@ -660,8 +659,7 @@ const CustomerLedgerPage: React.FC = () => {
       // Get room_id - handle both 'id' and potential 'room_id' field names
       const roomId = checkInRoom.id || (checkInRoom as any).room_id;
       if (!roomId) {
-        setSnackbarMessage('Room ID not found. Please select a different room.');
-        setSnackbarOpen(true);
+        showSnackbar('Room ID not found. Please select a different room.', 'warning');
         setProcessingCheckIn(false);
         return;
       }
@@ -697,8 +695,7 @@ const CustomerLedgerPage: React.FC = () => {
         await HotelAPIService.updateBooking(booking.id, { status: 'checked_out' });
       }
 
-      setSnackbarMessage(`Guest ${guestToUse.full_name} checked in to Room ${checkInRoom.room_number} (Company: ${checkInCompany.company_name})`);
-      setSnackbarOpen(true);
+      showSnackbar(`Guest ${guestToUse.full_name} checked in to Room ${checkInRoom.room_number} (Company: ${checkInCompany.company_name})`);
 
       // Reset and close dialog
       setCheckInDialogOpen(false);
@@ -708,8 +705,7 @@ const CustomerLedgerPage: React.FC = () => {
       await loadAllCompanyBookings();
     } catch (err: any) {
       console.error('Failed to perform company check-in:', err);
-      setSnackbarMessage(err.message || 'Failed to perform company check-in');
-      setSnackbarOpen(true);
+      showSnackbar(err.message || 'Failed to perform company check-in', 'error');
     } finally {
       setProcessingCheckIn(false);
     }
@@ -775,8 +771,7 @@ const CustomerLedgerPage: React.FC = () => {
       // the checked_out transition (and dedupes via an EXISTS check), so no
       // client-side post is needed for company-billed bookings here.
 
-      setSnackbarMessage(`${checkoutBooking.guest_name} checked out from Room ${checkoutBooking.room_number}`);
-      setSnackbarOpen(true);
+      showSnackbar(`${checkoutBooking.guest_name} checked out from Room ${checkoutBooking.room_number}`);
       setCheckoutDialogOpen(false);
       setCheckoutBooking(null);
 
@@ -820,8 +815,7 @@ const CustomerLedgerPage: React.FC = () => {
   // Handle company registration
   const handleRegisterCompany = async () => {
     if (!companyRegForm.company_name.trim()) {
-      setSnackbarMessage('Company name is required');
-      setSnackbarOpen(true);
+      showSnackbar('Company name is required', 'warning');
       return;
     }
 
@@ -869,8 +863,7 @@ const CustomerLedgerPage: React.FC = () => {
         setCompanyRegPrefillCreate(false);
       }
 
-      setSnackbarMessage(`Company "${companyRegForm.company_name}" registered successfully`);
-      setSnackbarOpen(true);
+      showSnackbar(`Company "${companyRegForm.company_name}" registered successfully`);
       setCompanyRegDialogOpen(false);
       resetCompanyRegForm();
 
@@ -878,8 +871,7 @@ const CustomerLedgerPage: React.FC = () => {
       await loadCompanies();
     } catch (error: any) {
       console.error('Failed to register company:', error);
-      setSnackbarMessage(error.message || 'Failed to register company');
-      setSnackbarOpen(true);
+      showSnackbar(error.message || 'Failed to register company', 'error');
     } finally {
       setCreatingCompany(false);
     }
@@ -927,8 +919,7 @@ const CustomerLedgerPage: React.FC = () => {
   // Handle update company
   const handleUpdateCompany = async () => {
     if (!editingCompany || !companyEditForm.company_name.trim()) {
-      setSnackbarMessage('Company name is required');
-      setSnackbarOpen(true);
+      showSnackbar('Company name is required', 'warning');
       return;
     }
 
@@ -950,8 +941,7 @@ const CustomerLedgerPage: React.FC = () => {
         notes: companyEditForm.notes.trim() || undefined,
       });
 
-      setSnackbarMessage(`Company "${companyEditForm.company_name}" updated successfully`);
-      setSnackbarOpen(true);
+      showSnackbar(`Company "${companyEditForm.company_name}" updated successfully`);
       setCompanyEditDialogOpen(false);
       resetCompanyEditForm();
 
@@ -959,8 +949,7 @@ const CustomerLedgerPage: React.FC = () => {
       await loadCompanies();
     } catch (error: any) {
       console.error('Failed to update company:', error);
-      setSnackbarMessage(error.message || 'Failed to update company');
-      setSnackbarOpen(true);
+      showSnackbar(error.message || 'Failed to update company', 'error');
     } finally {
       setUpdatingCompany(false);
     }
@@ -981,8 +970,7 @@ const CustomerLedgerPage: React.FC = () => {
 
       await HotelAPIService.deleteCompany(deletingCompanyData.id);
 
-      setSnackbarMessage(`Company "${deletingCompanyData.company_name}" deleted successfully`);
-      setSnackbarOpen(true);
+      showSnackbar(`Company "${deletingCompanyData.company_name}" deleted successfully`);
       setCompanyDeleteDialogOpen(false);
       setDeletingCompanyData(null);
 
@@ -990,8 +978,7 @@ const CustomerLedgerPage: React.FC = () => {
       await loadCompanies();
     } catch (error: any) {
       console.error('Failed to delete company:', error);
-      setSnackbarMessage(error.message || 'Failed to delete company');
-      setSnackbarOpen(true);
+      showSnackbar(error.message || 'Failed to delete company', 'error');
     } finally {
       setDeletingCompany(false);
     }
@@ -1036,22 +1023,19 @@ const CustomerLedgerPage: React.FC = () => {
   // Handle recording company payment (distributes across selected ledgers)
   const handleRecordCompanyPayment = async () => {
     if (selectedLedgersForPayment.length === 0 || !companyPaymentForm.payment_amount) {
-      setSnackbarMessage('Please select at least one ledger entry and enter payment amount');
-      setSnackbarOpen(true);
+      showSnackbar('Please select at least one ledger entry and enter payment amount', 'warning');
       return;
     }
 
     const paymentAmount = parseFloat(companyPaymentForm.payment_amount);
     if (isNaN(paymentAmount) || paymentAmount <= 0) {
-      setSnackbarMessage('Please enter a valid payment amount');
-      setSnackbarOpen(true);
+      showSnackbar('Please enter a valid payment amount', 'warning');
       return;
     }
 
     const selectedBalance = selectedLedgersForPayment.reduce((sum, ledger) => sum + getLedgerBalanceDue(ledger), 0);
     if (paymentAmount > selectedBalance) {
-      setSnackbarMessage('Payment amount cannot exceed the selected outstanding balance');
-      setSnackbarOpen(true);
+      showSnackbar('Payment amount cannot exceed the selected outstanding balance', 'warning');
       return;
     }
 
@@ -1061,8 +1045,7 @@ const CustomerLedgerPage: React.FC = () => {
         .flat()
         .some(payment => payment.receipt_number?.trim().toLowerCase() === receiptNumber.toLowerCase());
       if (receiptExists) {
-        setSnackbarMessage('Receipt number already exists');
-        setSnackbarOpen(true);
+        showSnackbar('Receipt number already exists', 'warning');
         return;
       }
     }
@@ -1091,8 +1074,7 @@ const CustomerLedgerPage: React.FC = () => {
         remaining -= allocate;
       }
 
-      setSnackbarMessage(`Payment of ${formatCurrency(paymentAmount)} recorded successfully`);
-      setSnackbarOpen(true);
+      showSnackbar(`Payment of ${formatCurrency(paymentAmount)} recorded successfully`);
       setCompanyPaymentDialogOpen(false);
       resetCompanyPaymentForm();
 
@@ -1100,8 +1082,7 @@ const CustomerLedgerPage: React.FC = () => {
       await loadData();
     } catch (error: any) {
       console.error('Failed to record payment:', error);
-      setSnackbarMessage(error.message || 'Failed to record payment');
-      setSnackbarOpen(true);
+      showSnackbar(error.message || 'Failed to record payment', 'error');
     } finally {
       setProcessingCompanyPayment(false);
     }
@@ -1568,8 +1549,7 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       setCreating(true);
       await HotelAPIService.createCustomerLedger(createFormData);
-      setSnackbarMessage('Ledger entry created successfully!');
-      setSnackbarOpen(true);
+      showSnackbar('Ledger entry created successfully!');
       setCreateDialogOpen(false);
       setDuplicateDialogOpen(false);
       setPossibleDuplicateLedger(null);
@@ -1623,8 +1603,7 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       setUpdating(true);
       await HotelAPIService.updateCustomerLedger(editingLedger.id, editFormData);
-      setSnackbarMessage('Ledger entry updated successfully!');
-      setSnackbarOpen(true);
+      showSnackbar('Ledger entry updated successfully!');
       setEditDialogOpen(false);
       setEditingLedger(null);
       await loadData();
@@ -1660,8 +1639,7 @@ const CustomerLedgerPage: React.FC = () => {
 
     const balanceDue = getLedgerBalanceDue(paymentLedger);
     if (paymentFormData.payment_amount > balanceDue) {
-      setSnackbarMessage('Payment amount cannot exceed the outstanding balance');
-      setSnackbarOpen(true);
+      showSnackbar('Payment amount cannot exceed the outstanding balance', 'warning');
       return;
     }
 
@@ -1671,8 +1649,7 @@ const CustomerLedgerPage: React.FC = () => {
         .flat()
         .some(payment => payment.receipt_number?.trim().toLowerCase() === receiptNumber.toLowerCase());
       if (receiptExists) {
-        setSnackbarMessage('Receipt number already exists');
-        setSnackbarOpen(true);
+        showSnackbar('Receipt number already exists', 'warning');
         return;
       }
     }
@@ -1680,8 +1657,7 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       setProcessingPayment(true);
       await HotelAPIService.createLedgerPayment(paymentLedger.id, paymentFormData);
-      setSnackbarMessage('Payment recorded successfully!');
-      setSnackbarOpen(true);
+      showSnackbar('Payment recorded successfully!');
       setPaymentDialogOpen(false);
       setPaymentLedger(null);
       await loadData();
@@ -1701,12 +1677,10 @@ const CustomerLedgerPage: React.FC = () => {
       const payments = await HotelAPIService.getLedgerPayments(payment.ledger_id);
       setPaymentHistory(payments);
       setEditingPaymentId(null);
-      setSnackbarMessage('Payment date updated successfully');
-      setSnackbarOpen(true);
+      showSnackbar('Payment date updated successfully');
       await loadData();
     } catch (err: any) {
-      setSnackbarMessage(err.message || 'Failed to update payment date');
-      setSnackbarOpen(true);
+      showSnackbar(err.message || 'Failed to update payment date', 'error');
     } finally {
       setSavingPaymentDate(false);
     }
@@ -1746,8 +1720,7 @@ const CustomerLedgerPage: React.FC = () => {
       await HotelAPIService.voidLedger(voidingLedger.id, {
         reason: voidReason || 'Voided by admin',
       });
-      setSnackbarMessage('Ledger entry voided successfully');
-      setSnackbarOpen(true);
+      showSnackbar('Ledger entry voided successfully');
       setVoidDialogOpen(false);
       setVoidingLedger(null);
       setVoidReason('');
@@ -1767,8 +1740,7 @@ const CustomerLedgerPage: React.FC = () => {
       setLedgerInvoiceBooking(enhanceBookingDetails(booking));
       setLedgerInvoiceOpen(true);
     } catch (err: any) {
-      setSnackbarMessage(err.message || 'Failed to load invoice');
-      setSnackbarOpen(true);
+      showSnackbar(err.message || 'Failed to load invoice', 'error');
     } finally {
       setLoadingLedgerInvoice(false);
     }
@@ -1778,8 +1750,7 @@ const CustomerLedgerPage: React.FC = () => {
   const handlePrintCompanyStatement = (companyName: string) => {
     const entries = ledgers.filter(l => l.company_name === companyName);
     if (entries.length === 0) {
-      setSnackbarMessage('No ledger entries to print for this company.');
-      setSnackbarOpen(true);
+      showSnackbar('No ledger entries to print for this company.', 'info');
       return;
     }
     const totalAmount = entries.reduce((sum, e) => sum + parseFloat(String(e.amount)), 0);
@@ -2258,8 +2229,7 @@ const CustomerLedgerPage: React.FC = () => {
       return;
     }
     if (!activeCompany) {
-      setSnackbarMessage('Select a company first');
-      setSnackbarOpen(true);
+      showSnackbar('Select a company first', 'warning');
       return;
     }
     if (action === 'entry') {
@@ -2281,13 +2251,11 @@ const CustomerLedgerPage: React.FC = () => {
 
   const handleSubmitCreditNote = async () => {
     if (!creditNoteLedgerId) {
-      setSnackbarMessage('Pick a ledger entry to credit');
-      setSnackbarOpen(true);
+      showSnackbar('Pick a ledger entry to credit', 'warning');
       return;
     }
     if (!creditNoteReason) {
-      setSnackbarMessage('Pick a credit reason');
-      setSnackbarOpen(true);
+      showSnackbar('Pick a credit reason', 'warning');
       return;
     }
     try {
@@ -2299,16 +2267,14 @@ const CustomerLedgerPage: React.FC = () => {
         reason: reasonText,
         notes: creditNoteNotes.trim() || undefined,
       });
-      setSnackbarMessage('Credit note issued — reversal entry posted.');
-      setSnackbarOpen(true);
+      showSnackbar('Credit note issued — reversal entry posted.');
       setCreditNoteDialogOpen(false);
       setCreditNoteLedgerId('');
       setCreditNoteReason('');
       setCreditNoteNotes('');
       await loadData();
     } catch (err: any) {
-      setSnackbarMessage(err?.message || 'Failed to issue credit note');
-      setSnackbarOpen(true);
+      showSnackbar(err?.message || 'Failed to issue credit note', 'error');
     } finally {
       setProcessingCreditNote(false);
     }
@@ -4249,15 +4215,13 @@ const CustomerLedgerPage: React.FC = () => {
                                   if (!window.confirm('Are you sure you want to delete this payment?')) return;
                                   try {
                                     await HotelAPIService.deleteLedgerPayment(paymentLedger.id, payment.id);
-                                    setSnackbarMessage('Payment deleted successfully');
-                                    setSnackbarOpen(true);
+                                    showSnackbar('Payment deleted successfully');
                                     // Refresh payment history
                                     const payments = await HotelAPIService.getLedgerPayments(paymentLedger.id);
                                     setPaymentHistory(payments);
                                     await loadData();
                                   } catch (error: any) {
-                                    setSnackbarMessage(error.message || 'Failed to delete payment');
-                                    setSnackbarOpen(true);
+                                    showSnackbar(error.message || 'Failed to delete payment', 'error');
                                   }
                                 }}
                                 title="Delete payment"
@@ -5905,13 +5869,11 @@ const CustomerLedgerPage: React.FC = () => {
                       && !selectedInvoiceLedgers.includes(ledger.id),
                   );
                   if (invoiceNumberExists) {
-                    setSnackbarMessage('Invoice number already exists');
-                    setSnackbarOpen(true);
+                    showSnackbar('Invoice number already exists', 'warning');
                     return;
                   }
                   if (getSelectedInvoiceLedgers().length === 0) {
-                    setSnackbarMessage('Select at least one eligible ledger entry');
-                    setSnackbarOpen(true);
+                    showSnackbar('Select at least one eligible ledger entry', 'warning');
                     return;
                   }
                   setSelectedInvoiceLedgers(getSelectedInvoiceLedgers().map(entry => entry.id));
@@ -6045,16 +6007,6 @@ const CustomerLedgerPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Success Snackbar */}
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={4000}
-        onClose={() => setSnackbarOpen(false)}
-      >
-        <Alert onClose={() => setSnackbarOpen(false)} severity="success">
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 };

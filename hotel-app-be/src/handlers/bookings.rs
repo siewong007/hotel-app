@@ -18,42 +18,7 @@ use axum::{
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
 use sqlx::Row;
-
-/// Pagination and filter query parameters for bookings
-#[derive(Debug, Deserialize)]
-pub struct PaginationParams {
-    pub page: Option<i64>,
-    pub page_size: Option<i64>,
-    /// General text search: guest name, booking fields, invoices, and linked ledger fields
-    pub search: Option<String>,
-    /// Filter by exact booking status (e.g. "checked_in", "confirmed"). Pass "all" to include every status (including voided). Omit to exclude voided.
-    pub status: Option<String>,
-    /// Filter by room number (partial match)
-    pub room_number: Option<String>,
-    /// Only return bookings billed to a company (company_id IS NOT NULL)
-    pub company_billed: Option<bool>,
-    /// Only bookings whose check-in date matches this date (YYYY-MM-DD)
-    pub date_search: Option<NaiveDate>,
-    /// Bookings with check-in >= this date
-    pub check_in_from: Option<NaiveDate>,
-    /// Bookings with check-in <= this date
-    pub check_in_to: Option<NaiveDate>,
-    /// Column to sort by: check_in_date | check_out_date | guest_name | room_number | status | folio_number | invoice_number
-    pub sort_by: Option<String>,
-    /// Sort direction: asc | desc (default desc)
-    pub sort_order: Option<String>,
-}
-
-/// Lightweight booking statistics
-#[derive(Debug, Serialize)]
-pub struct BookingStats {
-    pub total: i64,
-    pub checked_in: i64,
-    pub confirmed: i64,
-    pub today_check_ins: i64,
-}
 
 fn param_placeholder(idx: i32) -> String {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
@@ -74,15 +39,6 @@ fn date_cast(col: &str) -> String {
     return format!("date({})", col);
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     return format!("{}::date", col);
-}
-
-/// Paginated response wrapper
-#[derive(Debug, Serialize)]
-pub struct PaginatedResponse<T: Serialize> {
-    pub data: T,
-    pub total: i64,
-    pub page: i64,
-    pub page_size: i64,
 }
 
 fn parse_date_flexible(date_str: &str) -> Result<NaiveDate, String> {
@@ -520,7 +476,7 @@ async fn auto_post_company_ledger(
 
 pub async fn get_bookings_handler(
     State(pool): State<DbPool>,
-    Query(params): Query<PaginationParams>,
+    Query(params): Query<BookingPaginationParams>,
 ) -> Result<Json<PaginatedResponse<Vec<BookingWithDetails>>>, ApiError> {
     let page = params.page.unwrap_or(1).max(1);
     let page_size = params.page_size.unwrap_or(50).min(500);
@@ -793,9 +749,9 @@ pub async fn create_booking_handler(
     Json(input): Json<BookingInput>,
 ) -> Result<Json<Booking>, ApiError> {
     let check_in = parse_date_flexible(&input.check_in_date)
-        .map_err(|_| ApiError::BadRequest("Invalid check-in date format".to_string()))?;
+        .map_err(|_| ApiError::BadRequest("Invalid check-in date. Use YYYY-MM-DD".to_string()))?;
     let check_out = parse_date_flexible(&input.check_out_date)
-        .map_err(|_| ApiError::BadRequest("Invalid check-out date format".to_string()))?;
+        .map_err(|_| ApiError::BadRequest("Invalid check-out date. Use YYYY-MM-DD".to_string()))?;
 
     if check_out < check_in {
         return Err(ApiError::BadRequest(
@@ -1252,7 +1208,7 @@ pub async fn update_booking_handler(
     let new_room_id = if let Some(ref room_id_str) = input.room_id {
         room_id_str
             .parse::<i64>()
-            .map_err(|_| ApiError::BadRequest("Invalid room_id format".to_string()))?
+            .map_err(|_| ApiError::BadRequest("Invalid room".to_string()))?
     } else {
         existing_booking.room_id
     };
@@ -1265,14 +1221,14 @@ pub async fn update_booking_handler(
 
     let check_in = if let Some(ref date_str) = input.check_in_date {
         parse_date_flexible(date_str)
-            .map_err(|_| ApiError::BadRequest("Invalid check-in date format".to_string()))?
+            .map_err(|_| ApiError::BadRequest("Invalid check-in date. Use YYYY-MM-DD".to_string()))?
     } else {
         existing_booking.check_in_date
     };
 
     let check_out = if let Some(ref date_str) = input.check_out_date {
         parse_date_flexible(date_str)
-            .map_err(|_| ApiError::BadRequest("Invalid check-out date format".to_string()))?
+            .map_err(|_| ApiError::BadRequest("Invalid check-out date. Use YYYY-MM-DD".to_string()))?
     } else {
         existing_booking.check_out_date
     };
@@ -1717,10 +1673,8 @@ pub async fn update_booking_handler(
                 } else {
                     // Cancelled payments no longer count toward total_paid —
                     // resync so the stored chip flips back to 'voided'/'unpaid'.
-                    let _ = crate::handlers::payments::recompute_payment_status(
-                        &pool, booking_id,
-                    )
-                    .await;
+                    let _ = crate::handlers::payments::recompute_payment_status(&pool, booking_id)
+                        .await;
                 }
             }
             "checked_out" | "completed" => {
@@ -2774,21 +2728,6 @@ pub async fn convert_complimentary_to_credits_handler(
     })))
 }
 
-/// Request for booking with complimentary credits
-#[derive(Debug, Deserialize)]
-pub struct BookWithCreditsRequest {
-    pub guest_id: i64,
-    pub room_id: i64,
-    pub check_in_date: String,
-    pub check_out_date: String,
-    pub adults: Option<i32>,
-    pub children: Option<i32>,
-    pub special_requests: Option<String>,
-    /// Specific dates to mark as complimentary (YYYY-MM-DD format)
-    /// Must have at least 1 date and all dates must be within the booking range
-    pub complimentary_dates: Vec<String>,
-}
-
 /// Book a room using complimentary credits
 pub async fn book_with_credits_handler(
     State(pool): State<DbPool>,
@@ -2815,9 +2754,9 @@ pub async fn book_with_credits_handler(
 
     // Calculate total nights
     let check_in = NaiveDate::parse_from_str(&input.check_in_date, "%Y-%m-%d")
-        .map_err(|_| ApiError::BadRequest("Invalid check_in_date format".to_string()))?;
+        .map_err(|_| ApiError::BadRequest("Invalid check-in date. Use YYYY-MM-DD".to_string()))?;
     let check_out = NaiveDate::parse_from_str(&input.check_out_date, "%Y-%m-%d")
-        .map_err(|_| ApiError::BadRequest("Invalid check_out_date format".to_string()))?;
+        .map_err(|_| ApiError::BadRequest("Invalid check-out date. Use YYYY-MM-DD".to_string()))?;
 
     let total_nights = (check_out - check_in).num_days() as i32;
     if total_nights <= 0 {
@@ -3105,14 +3044,6 @@ pub async fn get_complimentary_summary_handler(
     })))
 }
 
-/// Request for updating complimentary dates
-#[derive(Debug, Deserialize)]
-pub struct UpdateComplimentaryRequest {
-    pub complimentary_start_date: Option<String>,
-    pub complimentary_end_date: Option<String>,
-    pub complimentary_reason: Option<String>,
-}
-
 /// Update complimentary dates for a booking
 pub async fn update_complimentary_handler(
     State(pool): State<DbPool>,
@@ -3146,7 +3077,7 @@ pub async fn update_complimentary_handler(
     let comp_start = if let Some(ref date_str) = input.complimentary_start_date {
         Some(
             NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
-                ApiError::BadRequest("Invalid complimentary_start_date format".to_string())
+                ApiError::BadRequest("Invalid complimentary start date. Use YYYY-MM-DD".to_string())
             })?,
         )
     } else {
@@ -3156,7 +3087,7 @@ pub async fn update_complimentary_handler(
     let comp_end = if let Some(ref date_str) = input.complimentary_end_date {
         Some(
             NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
-                ApiError::BadRequest("Invalid complimentary_end_date format".to_string())
+                ApiError::BadRequest("Invalid complimentary end date. Use YYYY-MM-DD".to_string())
             })?,
         )
     } else {
@@ -3396,15 +3327,6 @@ pub async fn get_guests_with_credits_handler(
     })))
 }
 
-/// Request to add credits to a guest
-#[derive(Debug, Deserialize)]
-pub struct AddGuestCreditsRequest {
-    pub guest_id: i64,
-    pub room_type_id: i64,
-    pub nights: i32,
-    pub notes: Option<String>,
-}
-
 /// Add complimentary credits to a guest
 pub async fn add_guest_credits_handler(
     State(pool): State<DbPool>,
@@ -3494,13 +3416,6 @@ pub async fn add_guest_credits_handler(
             "notes": credit.get::<Option<String>, _>("notes")
         }
     })))
-}
-
-/// Request to update guest credits
-#[derive(Debug, Deserialize)]
-pub struct UpdateGuestCreditsRequest {
-    pub nights_available: Option<i32>,
-    pub notes: Option<String>,
 }
 
 /// Update guest complimentary credits

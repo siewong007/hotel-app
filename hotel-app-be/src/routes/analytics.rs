@@ -6,6 +6,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_permission_helper;
 use crate::handlers;
+use crate::models;
 use axum::{
     Router,
     extract::{Query, State},
@@ -57,7 +58,7 @@ async fn get_personalized(
 async fn generate_report(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-    query: Query<handlers::analytics::ReportQuery>,
+    query: Query<models::ReportQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Allow users with either analytics:read OR reports:execute permission
     let has_analytics = require_permission_helper(&pool, &headers, "analytics:read")

@@ -7,34 +7,14 @@ use axum::{
     extract::{Path, State},
 };
 use chrono::{Duration, Utc};
-use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::{Booking, Guest, PreCheckInUpdateRequest};
-
-/// Request for verifying guest booking
-#[derive(Debug, Deserialize)]
-pub struct GuestPortalVerifyRequest {
-    pub booking_number: String,
-    pub email: String,
-}
-
-/// Response for verification
-#[derive(Debug, Serialize)]
-pub struct GuestPortalVerifyResponse {
-    pub token: String,
-    pub expires_at: String,
-    pub booking_id: String,
-}
-
-/// Response for booking details
-#[derive(Debug, Serialize)]
-pub struct GuestPortalBookingResponse {
-    pub booking: Booking,
-    pub guest: Guest,
-}
+use crate::models::{
+    Booking, Guest, GuestPortalBookingResponse, GuestPortalVerifyRequest,
+    GuestPortalVerifyResponse, PreCheckInUpdateRequest,
+};
 
 /// Generate a secure random token for pre-checkin
 fn generate_precheckin_token() -> String {

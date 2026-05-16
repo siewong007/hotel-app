@@ -13,6 +13,7 @@ import { NavigationTabs } from './components/layout/NavigationTabs';
 import { UnauthRoutes, AuthRoutes, FirstLoginPasskeyPrompt, LoadingFallback, MinimalLoadingFallback } from './routes';
 import { DesktopServiceGate } from './desktop/DesktopServiceGate';
 import { storage } from './utils/storage';
+import { ApiNotificationHost } from './components/common/ApiNotificationHost';
 
 function isThemeMode(value: unknown): value is ThemeMode {
   return value === 'light' || value === 'dark' || value === 'night';
@@ -186,6 +187,7 @@ function App() {
   return (
     <ThemeProvider theme={activeTheme}>
       <CssBaseline />
+      <ApiNotificationHost />
       <DesktopServiceGate>
         <AuthProvider>
           <Router>
