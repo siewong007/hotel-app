@@ -164,12 +164,12 @@ const DELETE_LEDGER_QUERY: &str = "DELETE FROM customer_ledgers WHERE id = $1";
 // SQLite query for getting ledger info for payment
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 const GET_LEDGER_FOR_PAYMENT_QUERY: &str =
-    "SELECT amount, paid_amount, status FROM customer_ledgers WHERE id = ?1";
+    "SELECT amount, paid_amount, status, void_at FROM customer_ledgers WHERE id = ?1";
 
 // PostgreSQL query for getting ledger info for payment
 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 const GET_LEDGER_FOR_PAYMENT_QUERY: &str =
-    "SELECT amount, paid_amount, status FROM customer_ledgers WHERE id = $1";
+    "SELECT amount, paid_amount, status, void_at FROM customer_ledgers WHERE id = $1";
 
 // SQLite query for checking if ledger is voided
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
@@ -1158,19 +1158,20 @@ pub async fn create_ledger_payment_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let (total_amount, current_paid, current_status) = match ledger_row {
+    let (total_amount, current_paid, current_status, is_voided) = match ledger_row {
         Some(row) => {
             let amount = get_decimal(&row, "amount");
             let paid = get_decimal(&row, "paid_amount");
             let status: String = row.try_get("status").unwrap_or_default();
-            (amount, paid, status)
+            let void_at: Option<chrono::NaiveDateTime> = row.try_get("void_at").ok();
+            (amount, paid, status, void_at.is_some())
         }
         None => return Err(ApiError::NotFound("Customer ledger not found".to_string())),
     };
 
-    if current_status == "cancelled" {
+    if current_status == "cancelled" || is_voided {
         return Err(ApiError::BadRequest(
-            "Cannot record payment for a cancelled ledger".to_string(),
+            "Cannot record payment for a voided ledger".to_string(),
         ));
     }
 
@@ -1181,6 +1182,30 @@ pub async fn create_ledger_payment_handler(
         return Err(ApiError::BadRequest(
             "Payment amount must be positive".to_string(),
         ));
+    }
+
+    let outstanding = total_amount - current_paid;
+    if payment_amount > outstanding {
+        return Err(ApiError::BadRequest(
+            "Payment amount cannot exceed outstanding balance".to_string(),
+        ));
+    }
+
+    if let Some(receipt_number) = request.receipt_number.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        let receipt_exists: bool = sqlx::query_scalar::<_, i32>(
+            "SELECT EXISTS(SELECT 1 FROM customer_ledger_payments WHERE LOWER(receipt_number) = LOWER(?1))",
+        )
+        .bind(receipt_number)
+        .fetch_one(&pool)
+        .await
+        .map(|v| v != 0)
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if receipt_exists {
+            return Err(ApiError::BadRequest(
+                "Receipt number already exists".to_string(),
+            ));
+        }
     }
 
     let new_total_paid = current_paid + payment_amount;
@@ -1287,19 +1312,20 @@ pub async fn create_ledger_payment_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let (total_amount, current_paid, current_status) = match ledger_row {
+    let (total_amount, current_paid, current_status, is_voided) = match ledger_row {
         Some(row) => {
             let amount = get_decimal(&row, "amount");
             let paid = get_decimal(&row, "paid_amount");
             let status: String = row.try_get("status").unwrap_or_default();
-            (amount, paid, status)
+            let void_at: Option<chrono::NaiveDateTime> = row.try_get("void_at").ok();
+            (amount, paid, status, void_at.is_some())
         }
         None => return Err(ApiError::NotFound("Customer ledger not found".to_string())),
     };
 
-    if current_status == "cancelled" {
+    if current_status == "cancelled" || is_voided {
         return Err(ApiError::BadRequest(
-            "Cannot record payment for a cancelled ledger".to_string(),
+            "Cannot record payment for a voided ledger".to_string(),
         ));
     }
 
@@ -1310,6 +1336,29 @@ pub async fn create_ledger_payment_handler(
         return Err(ApiError::BadRequest(
             "Payment amount must be positive".to_string(),
         ));
+    }
+
+    let outstanding = total_amount - current_paid;
+    if payment_amount > outstanding {
+        return Err(ApiError::BadRequest(
+            "Payment amount cannot exceed outstanding balance".to_string(),
+        ));
+    }
+
+    if let Some(receipt_number) = request.receipt_number.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        let receipt_exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM customer_ledger_payments WHERE LOWER(receipt_number) = LOWER($1))",
+        )
+        .bind(receipt_number)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if receipt_exists {
+            return Err(ApiError::BadRequest(
+                "Receipt number already exists".to_string(),
+            ));
+        }
     }
 
     let new_total_paid = current_paid + payment_amount;
