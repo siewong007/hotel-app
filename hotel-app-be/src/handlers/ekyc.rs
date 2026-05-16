@@ -13,12 +13,13 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
+use crate::constants::EkycStatus;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::{
-    EkycStatus, EkycStatusResponse, EkycSubmissionRequest, EkycVerification,
-    EkycVerificationUpdate, SelfCheckinEvent, SelfCheckinRequest,
+    EkycStatusResponse, EkycSubmissionRequest, EkycVerification, EkycVerificationUpdate,
+    SelfCheckinEvent, SelfCheckinRequest,
 };
 
 /// Helper function to save base64 image to file system
@@ -174,7 +175,7 @@ pub async fn submit_ekyc_handler(
     }
 
     let guest_id = user_info.1.ok_or_else(|| {
-        ApiError::BadRequest("User account not linked to guest profile".to_string())
+        ApiError::BadRequest("Your account is not linked to a guest profile".to_string())
     })?;
 
     // Check if guest already has an eKYC submission
@@ -195,18 +196,18 @@ pub async fn submit_ekyc_handler(
     // Parse date strings
     let date_of_birth =
         NaiveDate::parse_from_str(&req.date_of_birth, "%Y-%m-%d").map_err(|_| {
-            ApiError::BadRequest("Invalid date_of_birth format. Use YYYY-MM-DD".to_string())
+            ApiError::BadRequest("Invalid date of birth. Use YYYY-MM-DD".to_string())
         })?;
 
     let id_expiry_date =
         NaiveDate::parse_from_str(&req.id_expiry_date, "%Y-%m-%d").map_err(|_| {
-            ApiError::BadRequest("Invalid id_expiry_date format. Use YYYY-MM-DD".to_string())
+            ApiError::BadRequest("Invalid ID expiry date. Use YYYY-MM-DD".to_string())
         })?;
 
     let id_issue_date = if let Some(date_str) = &req.id_issue_date {
         Some(
             NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
-                ApiError::BadRequest("Invalid id_issue_date format. Use YYYY-MM-DD".to_string())
+                ApiError::BadRequest("Invalid ID issue date. Use YYYY-MM-DD".to_string())
             })?,
         )
     } else {
@@ -327,7 +328,7 @@ pub async fn get_ekyc_status_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let guest_id = guest_id
-        .ok_or_else(|| ApiError::BadRequest("User not linked to guest profile".to_string()))?;
+        .ok_or_else(|| ApiError::BadRequest("Your account is not linked to a guest profile".to_string()))?;
 
     // Get eKYC by guest_id
     let verification: Option<EkycVerification> =

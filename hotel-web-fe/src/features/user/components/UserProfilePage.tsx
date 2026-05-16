@@ -18,7 +18,6 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   IconButton,
-  Snackbar,
   Chip,
 } from '@mui/material';
 import {
@@ -46,6 +45,7 @@ import { validateEmail, validatePhone } from '../../../utils/validation';
 // 2FA component imports
 import TwoFactorSetup from '../../auth/components/TwoFactorSetup';
 import EkycStatusCard from '../../ekyc/components/EkycStatusCard';
+import { ApiNotificationSeverity, emitApiNotification } from '../../../utils/apiNotifications';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -235,7 +235,6 @@ const UserProfilePage: React.FC = () => {
   const [editing, setEditing] = useState(false);
   const [editingPasskey, setEditingPasskey] = useState<string | null>(null);
   const [passkeyName, setPasskeyName] = useState('');
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
 
@@ -283,7 +282,7 @@ const UserProfilePage: React.FC = () => {
       });
     } catch (error: any) {
       console.error('Failed to load profile:', error);
-      showSnackbar('Failed to load profile', 'error');
+      showSnackbar(error.message || 'Failed to load profile', 'error');
     } finally {
       setLoading(false);
     }
@@ -303,7 +302,7 @@ const UserProfilePage: React.FC = () => {
     const emailValidation = validateEmail(formData.email);
     if (emailValidation) {
       setEmailError(emailValidation);
-      showSnackbar(emailValidation, 'error');
+      showSnackbar(emailValidation, 'warning');
       return;
     }
 
@@ -314,18 +313,18 @@ const UserProfilePage: React.FC = () => {
       showSnackbar('Profile updated successfully', 'success');
     } catch (error: any) {
       console.error('Failed to update profile:', error);
-      showSnackbar('Failed to update profile', 'error');
+      showSnackbar(error.message || 'Failed to update profile', 'error');
     }
   };
 
   const handleCurrentPasswordSubmit = () => {
     if (!passwordData.current_password) {
-      showSnackbar('Please enter your current password', 'error');
+      showSnackbar('Please enter your current password', 'warning');
       return;
     }
 
     if (passwordData.current_password.length < 3) {
-      showSnackbar('Please enter a valid password', 'error');
+      showSnackbar('Please enter a valid password', 'warning');
       return;
     }
 
@@ -335,17 +334,17 @@ const UserProfilePage: React.FC = () => {
 
   const handleUpdatePassword = async () => {
     if (!passwordData.current_password || !passwordData.new_password) {
-      showSnackbar('Please fill in all password fields', 'error');
+      showSnackbar('Please fill in all password fields', 'warning');
       return;
     }
 
     if (passwordData.new_password !== passwordData.confirm_password) {
-      showSnackbar('New passwords do not match', 'error');
+      showSnackbar('New passwords do not match', 'warning');
       return;
     }
 
     if (passwordData.new_password.length < 8) {
-      showSnackbar('Password must be at least 8 characters long', 'error');
+      showSnackbar('Password must be at least 8 characters long', 'warning');
       return;
     }
 
@@ -377,13 +376,13 @@ const UserProfilePage: React.FC = () => {
       showSnackbar('Passkey deleted successfully', 'success');
     } catch (error: any) {
       console.error('Failed to delete passkey:', error);
-      showSnackbar('Failed to delete passkey', 'error');
+      showSnackbar(error.message || 'Failed to delete passkey', 'error');
     }
   };
 
   const handleAddPasskey = async () => {
     if (passkeys.length >= 10) {
-      showSnackbar('Maximum of 10 passkeys allowed', 'error');
+      showSnackbar('Maximum of 10 passkeys allowed', 'warning');
       return;
     }
 
@@ -406,7 +405,7 @@ const UserProfilePage: React.FC = () => {
 
   const handleSavePasskeyName = async (id: string) => {
     if (!passkeyName.trim()) {
-      showSnackbar('Passkey name cannot be empty', 'error');
+      showSnackbar('Passkey name cannot be empty', 'warning');
       return;
     }
 
@@ -418,7 +417,7 @@ const UserProfilePage: React.FC = () => {
       showSnackbar('Passkey name updated successfully', 'success');
     } catch (error: any) {
       console.error('Failed to update passkey:', error);
-      showSnackbar('Failed to update passkey name', 'error');
+      showSnackbar(error.message || 'Failed to update passkey name', 'error');
     }
   };
 
@@ -427,12 +426,8 @@ const UserProfilePage: React.FC = () => {
     setPasskeyName('');
   };
 
-  const showSnackbar = (message: string, severity: 'success' | 'error') => {
-    setSnackbar({ open: true, message, severity });
-  };
-
-  const handleCloseSnackbar = () => {
-    setSnackbar({ ...snackbar, open: false });
+  const showSnackbar = (message: string, severity: ApiNotificationSeverity) => {
+    emitApiNotification({ message, severity });
   };
 
   if (loading) {
@@ -934,20 +929,6 @@ const UserProfilePage: React.FC = () => {
         <TwoFactorSetup />
       </TabPanel>
 
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert
-          onClose={handleCloseSnackbar}
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 };

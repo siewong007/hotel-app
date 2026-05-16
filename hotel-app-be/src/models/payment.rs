@@ -1,62 +1,11 @@
 //! Payment and invoice models
 
+use crate::constants::PaymentMethod;
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
-
-/// Payment status enum
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
-#[sqlx(type_name = "varchar", rename_all = "snake_case")]
-pub enum PaymentStatus {
-    Pending,
-    Processing,
-    Completed,
-    Failed,
-    Refunded,
-    Cancelled,
-}
-
-impl std::fmt::Display for PaymentStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PaymentStatus::Pending => write!(f, "pending"),
-            PaymentStatus::Processing => write!(f, "processing"),
-            PaymentStatus::Completed => write!(f, "completed"),
-            PaymentStatus::Failed => write!(f, "failed"),
-            PaymentStatus::Refunded => write!(f, "refunded"),
-            PaymentStatus::Cancelled => write!(f, "cancelled"),
-        }
-    }
-}
-
-/// Payment method enum
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum PaymentMethod {
-    Cash,
-    Card,
-    BankTransfer,
-    Duitnow,
-    OnlineBanking,
-    Cheque,
-    Other,
-}
-
-impl std::fmt::Display for PaymentMethod {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PaymentMethod::Cash => write!(f, "cash"),
-            PaymentMethod::Card => write!(f, "card"),
-            PaymentMethod::BankTransfer => write!(f, "bank_transfer"),
-            PaymentMethod::Duitnow => write!(f, "duitnow"),
-            PaymentMethod::OnlineBanking => write!(f, "online_banking"),
-            PaymentMethod::Cheque => write!(f, "cheque"),
-            PaymentMethod::Other => write!(f, "other"),
-        }
-    }
-}
 
 /// Payment request input
 #[derive(Debug, Serialize, Deserialize)]

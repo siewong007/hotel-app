@@ -2,6 +2,7 @@
 //!
 //! Handles guest CRUD and user-guest relationships.
 
+use crate::constants::{GuestType, TourismType};
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -16,25 +17,6 @@ use axum::{
 };
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Deserialize)]
-pub struct GuestPaginationParams {
-    pub page: Option<i64>,
-    pub page_size: Option<i64>,
-    /// Search by name, email, or phone (partial match)
-    pub search: Option<String>,
-    /// Filter by guest type: "member" or "non_member"
-    pub guest_type: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct GuestPaginatedResponse {
-    pub data: Vec<Guest>,
-    pub total: i64,
-    pub page: i64,
-    pub page_size: i64,
-}
 
 pub async fn get_guests_handler(
     State(pool): State<DbPool>,

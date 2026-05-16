@@ -2,14 +2,18 @@
 //!
 //! Each module contains models for a specific domain of the application.
 
+pub mod analytics;
+pub mod audit;
 pub mod auth;
 pub mod booking;
 #[allow(dead_code)]
 pub mod common;
 pub mod company;
+pub mod data_transfer;
 pub mod ekyc;
 #[allow(dead_code)]
 pub mod guest;
+pub mod guest_portal;
 pub mod ledger;
 #[allow(dead_code)]
 pub mod loyalty;
@@ -29,12 +33,16 @@ pub mod settings;
 pub mod user;
 
 // Re-export all models for convenience
+pub use analytics::*;
+pub use audit::*;
 pub use auth::*;
 pub use booking::*;
 pub use common::*;
 pub use company::*;
+pub use data_transfer::*;
 pub use ekyc::*;
 pub use guest::*;
+pub use guest_portal::*;
 pub use ledger::*;
 pub use loyalty::*;
 pub use night_audit::*;

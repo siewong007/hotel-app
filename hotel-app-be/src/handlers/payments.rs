@@ -11,6 +11,7 @@ use chrono::NaiveDateTime;
 use rust_decimal::Decimal;
 use sqlx::Row;
 
+use crate::constants::{PaymentMethod, PaymentStatus};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
@@ -30,10 +31,7 @@ use crate::models::*;
 ///
 /// Skips complimentary bookings (and 'voided' bookings) — their stored value
 /// isn't backed by a `payments` row.
-pub async fn recompute_payment_status(
-    pool: &DbPool,
-    booking_id: i64,
-) -> Result<(), ApiError> {
+pub async fn recompute_payment_status(pool: &DbPool, booking_id: i64) -> Result<(), ApiError> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let sql = r#"
         UPDATE bookings AS b

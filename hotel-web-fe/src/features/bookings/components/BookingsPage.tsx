@@ -20,7 +20,6 @@ import {
   MenuItem,
   Alert,
   CircularProgress,
-  Snackbar,
   Box as MuiBox,
   IconButton,
   Grid,
@@ -75,6 +74,7 @@ import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal
 import UnifiedBookingModal from '../../rooms/components/UnifiedBookingModal';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { useBookings, PAGE_SIZE, SortField, DateFilter } from '../hooks/useBookings';
+import { emitApiNotification } from '../../../utils/apiNotifications';
 
 type BookingChannelInfo = {
   name: string;
@@ -292,9 +292,9 @@ const BookingsPage: React.FC = () => {
   const [paymentNote, setPaymentNote] = useState<string>('');
   const [updatingPayment, setUpdatingPayment] = useState(false);
 
-  // Notifications
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const showSnackbar = (message: string) => {
+    emitApiNotification({ message, severity: 'success' });
+  };
 
   const sortRoomsByNumber = (roomList: Room[]) => {
     return [...roomList].sort((a, b) => {
@@ -438,8 +438,7 @@ const BookingsPage: React.FC = () => {
       }
 
       await HotelAPIService.updateBooking(editingBooking.id, updateData);
-      setSnackbarMessage('Booking updated successfully!');
-      setSnackbarOpen(true);
+      showSnackbar('Booking updated successfully!');
       setEditDialogOpen(false);
       await reloadBookingData();
     } catch (err: any) {
@@ -465,8 +464,7 @@ const BookingsPage: React.FC = () => {
         status: 'voided',
         remarks: voidReason || 'Voided by admin',
       });
-      setSnackbarMessage('Booking voided successfully');
-      setSnackbarOpen(true);
+      showSnackbar('Booking voided successfully');
       setVoidDialogOpen(false);
       setVoidingBooking(null);
       setVoidReason('');
@@ -489,8 +487,7 @@ const BookingsPage: React.FC = () => {
     try {
       setReactivating(true);
       await HotelAPIService.reactivateBooking(reactivatingBooking.id);
-      setSnackbarMessage('Booking reactivated successfully!');
-      setSnackbarOpen(true);
+      showSnackbar('Booking reactivated successfully!');
       setReactivateDialogOpen(false);
       setReactivatingBooking(null);
       await reloadBookingData();
@@ -557,11 +554,10 @@ const BookingsPage: React.FC = () => {
         ? 'fully complimentary'
         : 'partially complimentary';
 
-      setSnackbarMessage(
+      showSnackbar(
         `Booking marked as ${statusText}! ${result.complimentary_nights} of ${result.total_nights} nights are complimentary. ` +
         `New total: ${formatCurrency(Number(result.new_total))}`
       );
-      setSnackbarOpen(true);
       setComplimentaryDialogOpen(false);
       setComplimentaryBooking(null);
       setComplimentaryReason('');
@@ -605,8 +601,7 @@ const BookingsPage: React.FC = () => {
         notes: paymentNote.trim() || `Payment accepted (${paymentMethod})`,
       });
 
-      setSnackbarMessage(`Payment of ${formatCurrency(paymentAmount)} accepted via ${paymentMethod}`);
-      setSnackbarOpen(true);
+      showSnackbar(`Payment of ${formatCurrency(paymentAmount)} accepted via ${paymentMethod}`);
       setPaymentDialogOpen(false);
       setPaymentBooking(null);
       setPaymentAmount(0);
@@ -684,8 +679,7 @@ const BookingsPage: React.FC = () => {
       await HotelAPIService.checkInGuest(String(checkinBooking.id), checkinPayload);
       setShowCheckinModal(false);
       setCheckinBooking(null);
-      setSnackbarMessage('Guest checked in successfully!');
-      setSnackbarOpen(true);
+      showSnackbar('Guest checked in successfully!');
       await reloadBookingData();
     } catch (err: any) {
       setError(err.message || 'Failed to check in guest');
@@ -794,8 +788,7 @@ const BookingsPage: React.FC = () => {
         updatePayload.payment_method = checkoutPaymentMethod;
       }
       await HotelAPIService.updateBooking(checkoutBooking.id, updatePayload);
-      setSnackbarMessage('Guest checked out successfully!');
-      setSnackbarOpen(true);
+      showSnackbar('Guest checked out successfully!');
       setShowCheckoutModal(false);
       setCheckoutBooking(null);
       await reloadBookingData();
@@ -1617,8 +1610,7 @@ const BookingsPage: React.FC = () => {
         rooms={rooms}
         guests={guests}
         onSuccess={(message) => {
-          setSnackbarMessage(message);
-          setSnackbarOpen(true);
+          showSnackbar(message);
         }}
         onError={(message) => {
           setError(message);
@@ -2056,17 +2048,6 @@ const BookingsPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
-
-      {/* Success Snackbar */}
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={4000}
-        onClose={() => setSnackbarOpen(false)}
-      >
-        <Alert onClose={() => setSnackbarOpen(false)} severity="success">
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
 
       {/* Checkout Invoice Modal */}
       <CheckoutInvoiceModal

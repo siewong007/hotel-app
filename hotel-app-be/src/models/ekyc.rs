@@ -6,17 +6,6 @@ use sqlx::FromRow;
 
 use super::guest::GuestUpdateInput;
 
-/// eKYC status enum
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
-#[sqlx(type_name = "varchar", rename_all = "snake_case")]
-pub enum EkycStatus {
-    Pending,
-    InProgress,
-    Verified,
-    Rejected,
-    Expired,
-}
-
 /// eKYC submission request
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EkycSubmissionRequest {

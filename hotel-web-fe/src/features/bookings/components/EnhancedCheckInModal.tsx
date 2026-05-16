@@ -25,7 +25,6 @@ import {
   IconButton,
   FormHelperText,
   Autocomplete,
-  Snackbar,
   Chip,
   ToggleButton,
   ToggleButtonGroup,
@@ -57,6 +56,7 @@ import {
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { useCheckInFormData } from '../hooks/useCheckInFormData';
+import { emitApiNotification } from '../../../utils/apiNotifications';
 
 // Validation helper functions
 const validateEmail = (email: string): boolean => {
@@ -257,10 +257,6 @@ export default function EnhancedCheckInModal({
     billing_address: '',
   });
 
-  // Snackbar for notifications
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
-
   // Company Ledger state
   const [creatingLedger, setCreatingLedger] = useState(false);
 
@@ -348,8 +344,10 @@ export default function EnhancedCheckInModal({
       setDirectBillCompany(newCompany.company_name);
 
       setNewCompanyDialogOpen(false);
-      setSnackbarMessage(`Company "${newCompany.company_name}" registered successfully!`);
-      setSnackbarOpen(true);
+      emitApiNotification({
+        message: `Company "${newCompany.company_name}" registered successfully!`,
+        severity: 'success',
+      });
 
       // Reset new company form
       setNewCompanyData({
@@ -362,8 +360,10 @@ export default function EnhancedCheckInModal({
       });
     } catch (err: any) {
       console.error('Failed to register company:', err);
-      setSnackbarMessage(err?.message || 'Failed to register company');
-      setSnackbarOpen(true);
+      emitApiNotification({
+        message: err?.message || 'Failed to register company',
+        severity: 'error',
+      });
     }
   };
 
@@ -692,8 +692,10 @@ export default function EnhancedCheckInModal({
       };
 
       await LedgerService.createCustomerLedger(ledgerData);
-      setSnackbarMessage(`Company ledger created for ${selectedCompany.company_name}`);
-      setSnackbarOpen(true);
+      emitApiNotification({
+        message: `Company ledger created for ${selectedCompany.company_name}`,
+        severity: 'success',
+      });
     } catch (err: any) {
       setError(err.message || 'Failed to create company ledger');
     } finally {
@@ -1974,16 +1976,6 @@ export default function EnhancedCheckInModal({
       </DialogActions>
     </Dialog>
 
-    {/* Success Snackbar */}
-    <Snackbar
-      open={snackbarOpen}
-      autoHideDuration={4000}
-      onClose={() => setSnackbarOpen(false)}
-    >
-      <Alert onClose={() => setSnackbarOpen(false)} severity="success">
-        {snackbarMessage}
-      </Alert>
-    </Snackbar>
     </>
   );
 }

@@ -9,7 +9,6 @@ use axum::{
 };
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
 use crate::core::db::DbPool;
@@ -21,36 +20,6 @@ use crate::models::row_mappers::{
     get_decimal, row_to_customer_ledger, row_to_customer_ledger_payment,
 };
 use crate::models::*;
-
-/// Query parameters for listing ledgers
-#[derive(Debug, Deserialize)]
-pub struct LedgerListQuery {
-    pub status: Option<String>,
-    pub company_name: Option<String>,
-    pub expense_type: Option<String>,
-    pub folio_type: Option<String>,
-    pub post_type: Option<String>,
-    pub department_code: Option<String>,
-    pub room_number: Option<String>,
-    pub limit: Option<i32>,
-    pub offset: Option<i32>,
-    pub page: Option<i64>,
-    pub page_size: Option<i64>,
-    /// Full-text search across company_name, description, invoice_number, contact_person
-    pub search: Option<String>,
-    /// Column to sort by (whitelisted)
-    pub sort_by: Option<String>,
-    /// Sort direction: "asc" or "desc"
-    pub sort_order: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct LedgerPaginatedResponse {
-    pub data: Vec<CustomerLedger>,
-    pub total: i64,
-    pub page: i64,
-    pub page_size: i64,
-}
 
 // Common SELECT fields for CustomerLedger.
 const LEDGER_SELECT_FIELDS: &str = r#"
@@ -851,12 +820,12 @@ pub async fn update_customer_ledger_handler(
     }
     if let Some(ref v) = request.invoice_date {
         let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d")
-            .map_err(|_| ApiError::BadRequest("Invalid invoice_date format".to_string()))?;
+            .map_err(|_| ApiError::BadRequest("Invalid invoice date. Use YYYY-MM-DD".to_string()))?;
         query_builder = query_builder.bind(parsed);
     }
     if let Some(ref v) = request.due_date {
         let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d")
-            .map_err(|_| ApiError::BadRequest("Invalid due_date format".to_string()))?;
+            .map_err(|_| ApiError::BadRequest("Invalid due date. Use YYYY-MM-DD".to_string()))?;
         query_builder = query_builder.bind(parsed);
     }
     if let Some(ref v) = request.notes {
@@ -1058,12 +1027,12 @@ pub async fn update_customer_ledger_handler(
     }
     if let Some(ref v) = request.invoice_date {
         let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d")
-            .map_err(|_| ApiError::BadRequest("Invalid invoice_date format".to_string()))?;
+            .map_err(|_| ApiError::BadRequest("Invalid invoice date. Use YYYY-MM-DD".to_string()))?;
         query_builder = query_builder.bind(parsed);
     }
     if let Some(ref v) = request.due_date {
         let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d")
-            .map_err(|_| ApiError::BadRequest("Invalid due_date format".to_string()))?;
+            .map_err(|_| ApiError::BadRequest("Invalid due date. Use YYYY-MM-DD".to_string()))?;
         query_builder = query_builder.bind(parsed);
     }
     if let Some(ref v) = request.notes {
@@ -1191,7 +1160,12 @@ pub async fn create_ledger_payment_handler(
         ));
     }
 
-    if let Some(receipt_number) = request.receipt_number.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+    if let Some(receipt_number) = request
+        .receipt_number
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
         let receipt_exists: bool = sqlx::query_scalar::<_, i32>(
             "SELECT EXISTS(SELECT 1 FROM customer_ledger_payments WHERE LOWER(receipt_number) = LOWER(?1))",
         )
@@ -1345,7 +1319,12 @@ pub async fn create_ledger_payment_handler(
         ));
     }
 
-    if let Some(receipt_number) = request.receipt_number.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+    if let Some(receipt_number) = request
+        .receipt_number
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
         let receipt_exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM customer_ledger_payments WHERE LOWER(receipt_number) = LOWER($1))",
         )
@@ -1944,7 +1923,7 @@ pub async fn update_ledger_payment_handler(
     let _user_id = require_auth(&headers).await?;
 
     let payment_date_ts = chrono::NaiveDate::parse_from_str(&request.payment_date, "%Y-%m-%d")
-        .map_err(|_| ApiError::BadRequest("Invalid date format, expected YYYY-MM-DD".to_string()))?
+        .map_err(|_| ApiError::BadRequest("Invalid date. Use YYYY-MM-DD".to_string()))?
         .and_hms_opt(12, 0, 0)
         .unwrap();
 

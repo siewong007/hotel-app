@@ -1,53 +1,11 @@
 //! Data transfer handlers for export/import/overwrite of booking-related data
 
+use crate::constants::ImportMode;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::{BookingDataExport, ImportRequest};
 use axum::{extract::State, response::Json};
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
-
-/// Represents all booking-related data for export/import
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BookingDataExport {
-    pub version: String,
-    pub exported_at: String,
-    pub guests: Vec<Value>,
-    pub guest_complimentary_credits: Vec<Value>,
-    pub companies: Vec<Value>,
-    pub bookings: Vec<Value>,
-    pub payments: Vec<Value>,
-    pub invoices: Vec<Value>,
-    pub booking_guests: Vec<Value>,
-    pub booking_modifications: Vec<Value>,
-    pub booking_history: Vec<Value>,
-    pub night_audit_runs: Vec<Value>,
-    pub night_audit_details: Vec<Value>,
-    pub customer_ledgers: Vec<Value>,
-    pub customer_ledger_payments: Vec<Value>,
-    pub room_changes: Vec<Value>,
-    #[serde(default)]
-    pub user_guests: Vec<Value>,
-    #[serde(default)]
-    pub rooms: Vec<Value>,
-    #[serde(default)]
-    pub room_types: Vec<Value>,
-}
-
-/// Import mode
-#[derive(Debug, Deserialize)]
-pub struct ImportRequest {
-    pub mode: ImportMode,
-    pub data: BookingDataExport,
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum ImportMode {
-    /// Append new records (skip duplicates by booking_number)
-    Import,
-    /// Delete all existing booking data and replace with imported data
-    Overwrite,
-}
 
 /// Export all booking-related data
 pub async fn export_booking_data_handler(

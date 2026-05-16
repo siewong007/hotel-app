@@ -61,9 +61,8 @@ pub fn routes() -> Router<DbPool> {
 async fn get_bookings(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-    query: Query<handlers::bookings::PaginationParams>,
-) -> Result<Json<handlers::bookings::PaginatedResponse<Vec<models::BookingWithDetails>>>, ApiError>
-{
+    query: Query<models::BookingPaginationParams>,
+) -> Result<Json<models::PaginatedResponse<Vec<models::BookingWithDetails>>>, ApiError> {
     require_permission_helper(&pool, &headers, "bookings:read").await?;
     handlers::bookings::get_bookings_handler(State(pool), query).await
 }
@@ -88,7 +87,7 @@ async fn get_my_bookings(
 async fn get_booking_stats(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-) -> Result<Json<handlers::bookings::BookingStats>, ApiError> {
+) -> Result<Json<models::BookingStats>, ApiError> {
     require_permission_helper(&pool, &headers, "bookings:read").await?;
     handlers::bookings::get_booking_stats_handler(State(pool)).await
 }
@@ -212,7 +211,7 @@ async fn convert_complimentary_to_credits(
 async fn book_with_credits(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-    Json(input): Json<handlers::bookings::BookWithCreditsRequest>,
+    Json(input): Json<models::BookWithCreditsRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Only requires authentication - user can book for their linked guests
     handlers::bookings::book_with_credits_handler(State(pool), headers, Json(input)).await
@@ -238,7 +237,7 @@ async fn update_complimentary(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
-    Json(input): Json<handlers::bookings::UpdateComplimentaryRequest>,
+    Json(input): Json<models::UpdateComplimentaryRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
     handlers::bookings::update_complimentary_handler(
@@ -270,7 +269,7 @@ async fn get_guests_with_credits(
 async fn add_guest_credits(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-    Json(input): Json<handlers::bookings::AddGuestCreditsRequest>,
+    Json(input): Json<models::AddGuestCreditsRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "guests:manage").await?;
     handlers::bookings::add_guest_credits_handler(State(pool), Json(input)).await
@@ -280,7 +279,7 @@ async fn update_guest_credits(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<(i64, i64)>,
-    Json(input): Json<handlers::bookings::UpdateGuestCreditsRequest>,
+    Json(input): Json<models::UpdateGuestCreditsRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "guests:manage").await?;
     handlers::bookings::update_guest_credits_handler(State(pool), path, Json(input)).await

@@ -6,6 +6,7 @@ use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_auth, require_permission_helper};
+use crate::models::ReportQuery;
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 use crate::models::row_mappers;
 use axum::{
@@ -330,16 +331,6 @@ pub async fn get_personalized_report_handler(
 // ============================================================================
 // REPORT GENERATION HANDLERS
 // ============================================================================
-
-#[derive(serde::Deserialize)]
-pub struct ReportQuery {
-    pub report_type: String,
-    pub start_date: String,
-    pub end_date: String,
-    pub shift: Option<String>,
-    pub drawer: Option<String>,
-    pub company_name: Option<String>,
-}
 
 fn parse_date_flexible(date_str: &str) -> Result<NaiveDate, String> {
     if date_str.contains('T') {
