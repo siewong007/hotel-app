@@ -63,3 +63,12 @@ pub struct CompanyUpdateRequest {
     pub payment_terms_days: Option<i32>,
     pub notes: Option<String>,
 }
+
+/// Query parameters for listing companies.
+#[derive(Debug, Deserialize)]
+pub struct CompanyListQuery {
+    pub search: Option<String>,
+    pub is_active: Option<bool>,
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
+}

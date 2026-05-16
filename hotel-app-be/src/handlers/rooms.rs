@@ -6,8 +6,8 @@ use crate::core::db::{DbPool, DbRow, opt_decimal_to_db};
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_auth, require_permission_helper};
 use crate::handlers::rooms_queries::*;
-use crate::models::*;
 use crate::models::row_mappers::{get_decimal, get_opt_decimal};
+use crate::models::*;
 use crate::services::audit::AuditLog;
 use axum::{
     extract::{Path, Query, State},
@@ -371,7 +371,7 @@ pub async fn create_room_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     if room_type_exists.is_none() {
-        return Err(ApiError::BadRequest("Invalid room_type_id".to_string()));
+        return Err(ApiError::BadRequest("Invalid room type".to_string()));
     }
 
     let custom_price_decimal = input
@@ -1333,7 +1333,7 @@ pub async fn execute_room_change_handler(
             v.as_i64()
                 .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
         })
-        .ok_or_else(|| ApiError::BadRequest("Invalid target_room_id".to_string()))?;
+        .ok_or_else(|| ApiError::BadRequest("Invalid target room".to_string()))?;
 
     let reason = input
         .get("reason")
@@ -1596,7 +1596,7 @@ pub async fn create_room_event_handler(
     let scheduled_date = if let Some(date_str) = &input.scheduled_date {
         Some(
             NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
-                ApiError::BadRequest("Invalid date format. Use YYYY-MM-DD".to_string())
+                ApiError::BadRequest("Invalid date. Use YYYY-MM-DD".to_string())
             })?,
         )
     } else {

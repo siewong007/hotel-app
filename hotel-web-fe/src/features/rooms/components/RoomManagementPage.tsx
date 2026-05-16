@@ -20,7 +20,6 @@ import {
   FormControl,
   InputLabel,
   Alert,
-  Snackbar,
   CircularProgress,
   Divider,
   ListItemIcon,
@@ -86,6 +85,7 @@ import {
 import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
 import UnifiedBookingModal, { BookingType } from './UnifiedBookingModal';
 import UpdateCheckoutDateDialog from './UpdateCheckoutDateDialog';
+import { ApiNotificationSeverity, emitApiNotification } from '../../../utils/apiNotifications';
 
 interface RoomAction {
   id: string;
@@ -147,7 +147,6 @@ const RoomManagementPage: React.FC = () => {
   } = useRoomData();
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [selectedBooking, setSelectedBooking] = useState<BookingWithDetails | null>(null);
 
   // Dialogs
@@ -351,8 +350,8 @@ const RoomManagementPage: React.FC = () => {
     }
   }, [roomBlockedDates]);
 
-  const showSnackbar = (message: string, severity: 'success' | 'error') => {
-    setSnackbar({ open: true, message, severity });
+  const showSnackbar = (message: string, severity: ApiNotificationSeverity) => {
+    emitApiNotification({ message, severity });
   };
 
   // Memoized callbacks for UnifiedBookingModal to prevent re-renders during periodic refresh
@@ -516,12 +515,12 @@ const RoomManagementPage: React.FC = () => {
 
   const handleComplimentaryBookingSubmit = async () => {
     if (!selectedRoom || !complimentaryCheckInGuest) {
-      showSnackbar('Please select a guest with free room credits', 'error');
+      showSnackbar('Please select a guest with free room credits', 'warning');
       return;
     }
 
     if (!complimentaryCheckInDate || !complimentaryCheckOutDate) {
-      showSnackbar('Please select check-in and check-out dates', 'error');
+      showSnackbar('Please select check-in and check-out dates', 'warning');
       return;
     }
 
@@ -561,7 +560,7 @@ const RoomManagementPage: React.FC = () => {
 
   const handleWalkInGuestSelected = async () => {
     if (!selectedRoom) {
-      showSnackbar('Please select a room', 'error');
+      showSnackbar('Please select a room', 'warning');
       return;
     }
 
@@ -574,14 +573,14 @@ const RoomManagementPage: React.FC = () => {
       if (isCreatingNewGuest) {
         // Validate required fields
         if (!newGuestForm.first_name || !newGuestForm.last_name) {
-          showSnackbar('Please fill in all required fields (First Name, Last Name)', 'error');
+          showSnackbar('Please fill in all required fields (First Name, Last Name)', 'warning');
           setCreatingBooking(false);
           return;
         }
 
         // Validate email format only if provided
         if (newGuestForm.email && newGuestForm.email.trim() && !isValidEmail(newGuestForm.email)) {
-          showSnackbar('Please enter a valid email address', 'error');
+          showSnackbar('Please enter a valid email address', 'warning');
           setCreatingBooking(false);
           return;
         }
@@ -590,7 +589,7 @@ const RoomManagementPage: React.FC = () => {
         const fullName = `${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}`.toLowerCase();
         const existingGuestByName = guests.find(g => g.full_name.toLowerCase().trim() === fullName);
         if (existingGuestByName) {
-          showSnackbar(`A guest with the name '${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}' already exists. Please select from existing guests.`, 'error');
+          showSnackbar(`A guest with the name '${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}' already exists. Please select from existing guests.`, 'warning');
           setCreatingBooking(false);
           return;
         }
@@ -599,7 +598,7 @@ const RoomManagementPage: React.FC = () => {
         if (newGuestForm.email && newGuestForm.email.trim()) {
           const existingGuest = guests.find(g => g.email && g.email.toLowerCase() === newGuestForm.email.toLowerCase());
           if (existingGuest) {
-            showSnackbar(`A guest with email ${newGuestForm.email} already exists. Please select from existing guests.`, 'error');
+            showSnackbar(`A guest with email ${newGuestForm.email} already exists. Please select from existing guests.`, 'warning');
             setCreatingBooking(false);
             return;
           }
@@ -632,7 +631,7 @@ const RoomManagementPage: React.FC = () => {
       } else {
         // Use existing selected guest
         if (!walkInGuest) {
-          showSnackbar('Please select a guest', 'error');
+          showSnackbar('Please select a guest', 'warning');
           setCreatingBooking(false);
           return;
         }
@@ -645,7 +644,7 @@ const RoomManagementPage: React.FC = () => {
 
       // Double-check that we have valid data
       if (!selectedRoom || !selectedRoom.id) {
-        showSnackbar('Invalid room selection. Please try again.', 'error');
+        showSnackbar('Invalid room selection. Please try again.', 'warning');
         setCreatingBooking(false);
         return;
       }
@@ -712,7 +711,7 @@ const RoomManagementPage: React.FC = () => {
 
   const handleConfirmWalkIn = async () => {
     if (!selectedRoom || !walkInGuest || !walkInBookingChannel) {
-      showSnackbar('Please select a guest and booking channel', 'error');
+      showSnackbar('Please select a guest and booking channel', 'warning');
       return;
     }
 
@@ -787,12 +786,12 @@ const RoomManagementPage: React.FC = () => {
     console.log('handleReservedCheckIn called, booking:', reservedCheckInBooking);
 
     if (!reservedCheckInBooking) {
-      showSnackbar('No booking selected', 'error');
+      showSnackbar('No booking selected', 'warning');
       return;
     }
 
     if (rcDepositChoice === 'receive' && Number(rcDepositAmount) <= 0) {
-      showSnackbar('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.', 'error');
+      showSnackbar('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.', 'warning');
       return;
     }
 
@@ -856,12 +855,12 @@ const RoomManagementPage: React.FC = () => {
   // Handle deposit collection for reserved bookings
   const handleCollectPayment = async () => {
     if (!paymentBooking) {
-      showSnackbar('No booking selected', 'error');
+      showSnackbar('No booking selected', 'warning');
       return;
     }
 
     if (!paymentMethod) {
-      showSnackbar('Please select a payment method', 'error');
+      showSnackbar('Please select a payment method', 'warning');
       return;
     }
 
@@ -891,12 +890,12 @@ const RoomManagementPage: React.FC = () => {
 
   const handleOnlineGuestSelected = async () => {
     if (!selectedRoom) {
-      showSnackbar('Please select a room', 'error');
+      showSnackbar('Please select a room', 'warning');
       return;
     }
 
     if (!onlineCheckInBookingChannel) {
-      showSnackbar('Please select a booking channel', 'error');
+      showSnackbar('Please select a booking channel', 'warning');
       return;
     }
 
@@ -909,14 +908,14 @@ const RoomManagementPage: React.FC = () => {
       if (isCreatingNewOnlineGuest) {
         // Validate required fields
         if (!newOnlineGuestForm.first_name || !newOnlineGuestForm.last_name) {
-          showSnackbar('Please fill in all required fields (First Name, Last Name)', 'error');
+          showSnackbar('Please fill in all required fields (First Name, Last Name)', 'warning');
           setCreatingBooking(false);
           return;
         }
 
         // Validate email format only if provided
         if (newOnlineGuestForm.email && newOnlineGuestForm.email.trim() && !isValidEmail(newOnlineGuestForm.email)) {
-          showSnackbar('Please enter a valid email address', 'error');
+          showSnackbar('Please enter a valid email address', 'warning');
           setCreatingBooking(false);
           return;
         }
@@ -925,7 +924,7 @@ const RoomManagementPage: React.FC = () => {
         const onlineFullName = `${newOnlineGuestForm.first_name.trim()} ${newOnlineGuestForm.last_name.trim()}`.toLowerCase();
         const existingGuestByName = guests.find(g => g.full_name.toLowerCase().trim() === onlineFullName);
         if (existingGuestByName) {
-          showSnackbar(`A guest with the name '${newOnlineGuestForm.first_name.trim()} ${newOnlineGuestForm.last_name.trim()}' already exists. Please select from existing guests.`, 'error');
+          showSnackbar(`A guest with the name '${newOnlineGuestForm.first_name.trim()} ${newOnlineGuestForm.last_name.trim()}' already exists. Please select from existing guests.`, 'warning');
           setCreatingBooking(false);
           return;
         }
@@ -934,7 +933,7 @@ const RoomManagementPage: React.FC = () => {
         if (newOnlineGuestForm.email && newOnlineGuestForm.email.trim()) {
           const existingGuest = guests.find(g => g.email && g.email.toLowerCase() === newOnlineGuestForm.email.toLowerCase());
           if (existingGuest) {
-            showSnackbar(`A guest with email ${newOnlineGuestForm.email} already exists. Please select from existing guests.`, 'error');
+            showSnackbar(`A guest with email ${newOnlineGuestForm.email} already exists. Please select from existing guests.`, 'warning');
             setCreatingBooking(false);
             return;
           }
@@ -967,7 +966,7 @@ const RoomManagementPage: React.FC = () => {
       } else {
         // Use existing selected guest
         if (!onlineCheckInGuest) {
-          showSnackbar('Please select a guest', 'error');
+          showSnackbar('Please select a guest', 'warning');
           setCreatingBooking(false);
           return;
         }
@@ -981,7 +980,7 @@ const RoomManagementPage: React.FC = () => {
       // Double-check that we have valid data
       if (!selectedRoom || !selectedRoom.id) {
         console.error('Invalid room selection:', { selectedRoom, id: selectedRoom?.id });
-        showSnackbar('Invalid room selection. Please try again.', 'error');
+        showSnackbar('Invalid room selection. Please try again.', 'warning');
         setCreatingBooking(false);
         return;
       }
@@ -1000,7 +999,7 @@ const RoomManagementPage: React.FC = () => {
       });
 
       if (!checkInDateToUse || !checkOutDateToUse) {
-        showSnackbar('Check-in and check-out dates are required', 'error');
+        showSnackbar('Check-in and check-out dates are required', 'warning');
         setCreatingBooking(false);
         return;
       }
@@ -1009,7 +1008,7 @@ const RoomManagementPage: React.FC = () => {
       const checkInTest = new Date(checkInDateToUse);
       const checkOutTest = new Date(checkOutDateToUse);
       if (checkOutTest <= checkInTest) {
-        showSnackbar('Check-out date must be after check-in date', 'error');
+        showSnackbar('Check-out date must be after check-in date', 'warning');
         setCreatingBooking(false);
         return;
       }
@@ -1068,7 +1067,7 @@ const RoomManagementPage: React.FC = () => {
       setSelectedBooking(booking);
       setCheckOutDialogOpen(true);
     } else {
-      showSnackbar('No active booking found for this room', 'error');
+      showSnackbar('No active booking found for this room', 'warning');
     }
     handleMenuClose();
   };
@@ -1265,7 +1264,7 @@ const RoomManagementPage: React.FC = () => {
       // Load guest credits in background
       loadGuestCredits(guest.id);
     } else {
-      showSnackbar(`Guest not found (ID: ${guestId})`, 'error');
+      showSnackbar(`Guest not found (ID: ${guestId})`, 'warning');
     }
   };
 
@@ -1460,7 +1459,7 @@ const RoomManagementPage: React.FC = () => {
 
   const handleBookWithCreditsAndCheckIn = async () => {
     if (!selectedGuestDetails || !creditsBookingForm.room_id || selectedComplimentaryDates.length === 0) {
-      showSnackbar('Please select a room and at least one complimentary date', 'error');
+      showSnackbar('Please select a room and at least one complimentary date', 'warning');
       return;
     }
 
@@ -1564,7 +1563,7 @@ const RoomManagementPage: React.FC = () => {
 
   const handleConfirmRoomChange = async () => {
     if (!selectedRoom || !newSelectedRoom || !selectedBooking) {
-      showSnackbar('Please select a new room', 'error');
+      showSnackbar('Please select a new room', 'warning');
       return;
     }
 
@@ -1626,14 +1625,14 @@ const RoomManagementPage: React.FC = () => {
       setComplimentaryReason('');
       setComplimentaryDialogOpen(true);
     } else {
-      showSnackbar('No pending booking found for this room', 'error');
+      showSnackbar('No pending booking found for this room', 'warning');
     }
     handleMenuClose();
   };
 
   const handleConfirmMarkComplimentary = async () => {
     if (!selectedBooking) {
-      showSnackbar('No booking selected', 'error');
+      showSnackbar('No booking selected', 'warning');
       return;
     }
 
@@ -1696,7 +1695,7 @@ const RoomManagementPage: React.FC = () => {
         color: '#7b1fa2',
         secondary: 'No cancellation',
         onClick: () => {
-          showSnackbar('This is a complimentary (Free Gift) booking. Cancellation is not recommended as the guest has used their free credits.', 'success');
+          showSnackbar('This is a complimentary (Free Gift) booking. Cancellation is not recommended as the guest has used their free credits.', 'warning');
         },
       });
     }
@@ -5137,21 +5136,6 @@ const RoomManagementPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity={snackbar.severity}
-          sx={{ width: '100%' }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 };

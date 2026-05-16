@@ -41,8 +41,8 @@ pub fn routes() -> Router<DbPool> {
 async fn list_ledgers(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-    query: Query<handlers::ledgers::LedgerListQuery>,
-) -> Result<Json<handlers::ledgers::LedgerPaginatedResponse>, ApiError> {
+    query: Query<models::LedgerListQuery>,
+) -> Result<Json<models::LedgerPaginatedResponse>, ApiError> {
     handlers::ledgers::list_customer_ledgers_handler(State(pool), headers, query).await
 }
 

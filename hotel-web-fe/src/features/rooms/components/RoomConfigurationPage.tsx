@@ -10,7 +10,6 @@ import {
   DialogActions,
   Alert,
   CircularProgress,
-  Snackbar,
   Table,
   TableBody,
   TableCell,
@@ -39,6 +38,7 @@ import { Room, RoomType } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { toNumber } from '../../../utils/currency';
+import { emitApiNotification } from '../../../utils/apiNotifications';
 
 interface RoomFormData {
   room_number: string;
@@ -78,10 +78,6 @@ const RoomConfigurationPage: React.FC = () => {
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [deletingRoom, setDeletingRoom] = useState<Room | null>(null);
   const [formLoading, setFormLoading] = useState(false);
-
-  // Snackbar
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
 
   useEffect(() => {
     if (hasAccess) {
@@ -167,8 +163,7 @@ const RoomConfigurationPage: React.FC = () => {
         custom_price: formData.custom_price ? (formData.custom_price as number) : undefined,
         is_accessible: formData.is_accessible,
       });
-      setSnackbarMessage('Room created successfully');
-      setSnackbarOpen(true);
+      emitApiNotification({ message: 'Room created successfully', severity: 'success' });
       setCreateDialogOpen(false);
       resetForm();
       await loadData();
@@ -189,8 +184,7 @@ const RoomConfigurationPage: React.FC = () => {
         price_per_night: formData.custom_price ? (formData.custom_price as number) : undefined,
         available: editingRoom.available,
       });
-      setSnackbarMessage('Room updated successfully');
-      setSnackbarOpen(true);
+      emitApiNotification({ message: 'Room updated successfully', severity: 'success' });
       setEditDialogOpen(false);
       setEditingRoom(null);
       resetForm();
@@ -208,8 +202,7 @@ const RoomConfigurationPage: React.FC = () => {
     try {
       setFormLoading(true);
       await HotelAPIService.deleteRoom(Number(deletingRoom.id));
-      setSnackbarMessage('Room deleted successfully');
-      setSnackbarOpen(true);
+      emitApiNotification({ message: 'Room deleted successfully', severity: 'success' });
       setDeleteDialogOpen(false);
       setDeletingRoom(null);
       await loadData();
@@ -242,13 +235,6 @@ const RoomConfigurationPage: React.FC = () => {
 
   return (
     <Box sx={{ p: 3 }}>
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={6000}
-        onClose={() => setSnackbarOpen(false)}
-        message={snackbarMessage}
-      />
-
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>

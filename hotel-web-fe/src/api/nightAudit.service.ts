@@ -1,128 +1,13 @@
 import { api } from './client';
 import { withRetry } from '../utils/retry';
-
-// Types
-export interface RoomSnapshot {
-  total: number;
-  available: number;
-  occupied: number;
-  reserved: number;
-  maintenance: number;
-  dirty: number;
-}
-
-export interface RevenueBreakdownItem {
-  category: string;
-  count: number;
-  amount: number;
-}
-
-export interface UnpostedBooking {
-  booking_id: number;
-  booking_number: string;
-  guest_name: string;
-  room_number: string;
-  check_in_date: string;
-  check_out_date: string;
-  status: string;
-  total_amount: number;
-  payment_method: string | null;
-  source: string | null;
-}
-
-export interface JournalEntry {
-  booking_number: string;
-  room_number: string;
-  entry_type: string;
-  debit: number;
-  credit: number;
-  description: string | null;
-}
-
-export interface JournalSection {
-  entry_type: string;
-  display_name: string;
-  entries: JournalEntry[];
-  total_debit: number;
-  total_credit: number;
-}
-
-export interface NightAuditPreview {
-  audit_date: string;
-  can_run: boolean;
-  already_run: boolean;
-  unposted_bookings: UnpostedBooking[];
-  total_unposted: number;
-  estimated_revenue: number;
-  room_snapshot: RoomSnapshot;
-  payment_method_breakdown: RevenueBreakdownItem[];
-  booking_channel_breakdown: RevenueBreakdownItem[];
-  journal_sections: JournalSection[];
-}
-
-export interface NightAuditRun {
-  id: number;
-  audit_date: string;
-  run_at: string;
-  run_by_username: string | null;
-  status: string;
-  total_bookings_posted: number;
-  total_checkins: number;
-  total_checkouts: number;
-  total_revenue: number;
-  occupancy_rate: number;
-  rooms_available: number;
-  rooms_occupied: number;
-  rooms_reserved: number;
-  rooms_maintenance: number;
-  rooms_dirty: number;
-  notes: string | null;
-  created_at: string;
-  payment_method_breakdown: RevenueBreakdownItem[];
-  booking_channel_breakdown: RevenueBreakdownItem[];
-}
-
-export interface NightAuditResponse {
-  success: boolean;
-  audit_run: NightAuditRun;
-  message: string;
-}
-
-export interface RunNightAuditRequest {
-  audit_date: string;
-  notes?: string;
-  force?: boolean;
-}
-
-export interface BookingPostedStatus {
-  booking_id: number;
-  is_posted: boolean;
-  posted_date: string | null;
-}
-
-export interface PostedBookingDetail {
-  booking_id: number;
-  booking_number: string;
-  guest_name: string;
-  room_number: string;
-  room_type: string;
-  room_type_code: string | null;
-  check_in_date: string;
-  check_out_date: string;
-  nights: number;
-  status: string;
-  total_amount: number;
-  payment_status: string | null;
-  payment_method: string | null;
-  source: string | null;
-  booking_remarks: string | null;
-}
-
-export interface AuditDetailsResponse {
-  audit_run: NightAuditRun;
-  posted_bookings: PostedBookingDetail[];
-  journal_sections: JournalSection[];
-}
+import type {
+  AuditDetailsResponse,
+  BookingPostedStatus,
+  NightAuditPreview,
+  NightAuditResponse,
+  NightAuditRun,
+  RunNightAuditRequest,
+} from '../types';
 
 export class NightAuditService {
   /**

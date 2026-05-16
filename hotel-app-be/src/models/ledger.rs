@@ -193,3 +193,34 @@ pub struct LedgerReversalRequest {
 pub struct LedgerVoidRequest {
     pub reason: String,
 }
+
+/// Query parameters for listing ledgers.
+#[derive(Debug, Deserialize)]
+pub struct LedgerListQuery {
+    pub status: Option<String>,
+    pub company_name: Option<String>,
+    pub expense_type: Option<String>,
+    pub folio_type: Option<String>,
+    pub post_type: Option<String>,
+    pub department_code: Option<String>,
+    pub room_number: Option<String>,
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+    /// Full-text search across company_name, description, invoice_number, contact_person.
+    pub search: Option<String>,
+    /// Column to sort by (whitelisted).
+    pub sort_by: Option<String>,
+    /// Sort direction: "asc" or "desc".
+    pub sort_order: Option<String>,
+}
+
+/// Paginated ledger list response.
+#[derive(Debug, Serialize)]
+pub struct LedgerPaginatedResponse {
+    pub data: Vec<CustomerLedger>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+}

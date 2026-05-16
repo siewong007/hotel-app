@@ -37,11 +37,12 @@ export { EkycService } from './ekyc.service';
 export { LedgerService } from './ledger.service';
 export { GuestPortalService } from './guestPortal.service';
 export { ReportsService } from './reports.service';
-export { CompaniesService, type Company, type CompanyCreateRequest, type CompanyUpdateRequest } from './companies.service';
+export { CompaniesService } from './companies.service';
 export { AuditService } from './audit.service';
 export { NightAuditService } from './nightAudit.service';
 export { DataTransferService } from './dataTransfer.service';
-export type { BookingDataExport, ImportResult } from './dataTransfer.service';
+export type { Company, CompanyCreateRequest, CompanyUpdateRequest } from '../types';
+export type { BookingDataExport, ImportResult } from '../types';
 export type {
   NightAuditPreview,
   NightAuditRun,
@@ -54,7 +55,7 @@ export type {
   RevenueBreakdownItem,
   JournalEntry,
   JournalSection
-} from './nightAudit.service';
+} from '../types';
 
 // Backward Compatibility Layer - HotelAPIService
 // This class provides backward compatibility for existing code that imports HotelAPIService

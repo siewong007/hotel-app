@@ -2,6 +2,7 @@
 //!
 //! A comprehensive hotel management system built with Axum.
 
+mod constants;
 mod core;
 mod handlers;
 mod models;

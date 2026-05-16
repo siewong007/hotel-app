@@ -37,8 +37,8 @@ pub fn routes() -> Router<DbPool> {
 async fn get_guests(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-    query: Query<handlers::guests::GuestPaginationParams>,
-) -> Result<Json<handlers::guests::GuestPaginatedResponse>, ApiError> {
+    query: Query<models::GuestPaginationParams>,
+) -> Result<Json<models::GuestPaginatedResponse>, ApiError> {
     // Allow all authenticated users to access guests (filtering happens in handler)
     handlers::guests::get_guests_handler(State(pool), headers, query).await
 }
