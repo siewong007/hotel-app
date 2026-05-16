@@ -14,11 +14,12 @@ import { withRetry } from '../utils/retry';
 import { validateBookingRequest, enhanceBookingDetails } from '../utils/bookingUtils';
 
 export class BookingsService {
-  static async getAllBookings(filters?: { room_number?: string }): Promise<Booking[]> {
+  static async getAllBookings(filters?: { room_number?: string; company_billed?: boolean }): Promise<Booking[]> {
     try {
       const pageSize = 500;
       const baseParams: Record<string, any> = { page: 1, page_size: pageSize };
       if (filters?.room_number) baseParams.room_number = filters.room_number;
+      if (filters?.company_billed) baseParams.company_billed = true;
 
       const firstPage = await withRetry(
         () => api.get('bookings', { searchParams: baseParams }).json<any>(),
@@ -267,7 +268,7 @@ export class BookingsService {
     }
   }
 
-  static async getBookingsWithDetails(filters?: { room_number?: string }): Promise<BookingWithDetails[]> {
+  static async getBookingsWithDetails(filters?: { room_number?: string; company_billed?: boolean }): Promise<BookingWithDetails[]> {
     try {
       const bookings = await this.getAllBookings(filters);
       const bookingsWithDetails = bookings as any as BookingWithDetails[];
