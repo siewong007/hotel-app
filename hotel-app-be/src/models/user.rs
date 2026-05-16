@@ -1,16 +1,9 @@
 //! User-related models
 
+use crate::constants::UserType;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-
-/// User type enum matching PostgreSQL UserType
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
-#[sqlx(type_name = "usertype", rename_all = "lowercase")]
-pub enum UserType {
-    Staff,
-    Guest,
-}
 
 /// Core user entity
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

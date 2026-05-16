@@ -7,6 +7,49 @@ use sqlx::FromRow;
 
 use super::guest::GuestUpdateInput;
 
+/// Pagination and filter query parameters for bookings.
+#[derive(Debug, Deserialize)]
+pub struct BookingPaginationParams {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+    /// General text search: guest name, booking fields, invoices, and linked ledger fields.
+    pub search: Option<String>,
+    /// Filter by exact booking status. Pass "all" to include every status (including voided).
+    pub status: Option<String>,
+    /// Filter by room number (partial match).
+    pub room_number: Option<String>,
+    /// Only return bookings billed to a company.
+    pub company_billed: Option<bool>,
+    /// Only bookings whose check-in date matches this date.
+    pub date_search: Option<NaiveDate>,
+    /// Bookings with check-in >= this date.
+    pub check_in_from: Option<NaiveDate>,
+    /// Bookings with check-in <= this date.
+    pub check_in_to: Option<NaiveDate>,
+    /// Column to sort by.
+    pub sort_by: Option<String>,
+    /// Sort direction: asc | desc.
+    pub sort_order: Option<String>,
+}
+
+/// Lightweight booking statistics.
+#[derive(Debug, Serialize)]
+pub struct BookingStats {
+    pub total: i64,
+    pub checked_in: i64,
+    pub confirmed: i64,
+    pub today_check_ins: i64,
+}
+
+/// Paginated response wrapper.
+#[derive(Debug, Serialize)]
+pub struct PaginatedResponse<T: Serialize> {
+    pub data: T,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+}
+
 /// Core booking entity
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Booking {
@@ -155,6 +198,44 @@ pub struct MarkComplimentaryRequest {
     pub reason: Option<String>,
     pub complimentary_start_date: String, // YYYY-MM-DD format
     pub complimentary_end_date: String,   // YYYY-MM-DD format
+}
+
+/// Request for booking with complimentary credits.
+#[derive(Debug, Deserialize)]
+pub struct BookWithCreditsRequest {
+    pub guest_id: i64,
+    pub room_id: i64,
+    pub check_in_date: String,
+    pub check_out_date: String,
+    pub adults: Option<i32>,
+    pub children: Option<i32>,
+    pub special_requests: Option<String>,
+    /// Specific dates to mark as complimentary (YYYY-MM-DD format).
+    pub complimentary_dates: Vec<String>,
+}
+
+/// Request for updating complimentary dates.
+#[derive(Debug, Deserialize)]
+pub struct UpdateComplimentaryRequest {
+    pub complimentary_start_date: Option<String>,
+    pub complimentary_end_date: Option<String>,
+    pub complimentary_reason: Option<String>,
+}
+
+/// Request to add credits to a guest.
+#[derive(Debug, Deserialize)]
+pub struct AddGuestCreditsRequest {
+    pub guest_id: i64,
+    pub room_type_id: i64,
+    pub nights: i32,
+    pub notes: Option<String>,
+}
+
+/// Request to update guest credits.
+#[derive(Debug, Deserialize)]
+pub struct UpdateGuestCreditsRequest {
+    pub nights_available: Option<i32>,
+    pub notes: Option<String>,
 }
 
 /// Booking with related details (guest, room info)

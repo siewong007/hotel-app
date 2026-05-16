@@ -8,6 +8,7 @@ import {
   BookingCreateRequest,
   BookingValidation,
   BookingStatus,
+  BookingStatusType,
   BookingWithDetails,
 } from '../types';
 
@@ -160,7 +161,7 @@ export const formatCurrency = (amount: number | string): string => {
  * Get booking status color
  */
 export const getBookingStatusColor = (
-  status: BookingStatus | string
+  status: BookingStatusType | string
 ): 'default' | 'primary' | 'secondary' | 'success' | 'error' | 'warning' | 'info' => {
   switch (status) {
     case BookingStatus.CONFIRMED:
@@ -190,7 +191,7 @@ export const getBookingStatusColor = (
 /**
  * Get booking status display text
  */
-export const getBookingStatusText = (status: BookingStatus | string): string => {
+export const getBookingStatusText = (status: BookingStatusType | string): string => {
   switch (status) {
     case BookingStatus.CONFIRMED:
       return 'Confirmed';

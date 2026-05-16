@@ -10,7 +10,6 @@ import {
   DialogActions,
   Alert,
   CircularProgress,
-  Snackbar,
   Table,
   TableBody,
   TableCell,
@@ -43,6 +42,7 @@ import { RoomType, RoomTypeCreateInput, RoomTypeUpdateInput } from '../../../typ
 import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { toNumber } from '../../../utils/currency';
+import { emitApiNotification } from '../../../utils/apiNotifications';
 
 const BED_TYPES = [
   'Single',
@@ -107,10 +107,6 @@ const RoomTypeConfigurationPage: React.FC = () => {
   const [deletingRoomType, setDeletingRoomType] = useState<RoomType | null>(null);
   const [formLoading, setFormLoading] = useState(false);
 
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
-
   useEffect(() => {
     if (hasAccess) {
       loadData();
@@ -131,9 +127,7 @@ const RoomTypeConfigurationPage: React.FC = () => {
   };
 
   const showSnackbar = (message: string, severity: 'success' | 'error' = 'success') => {
-    setSnackbarMessage(message);
-    setSnackbarSeverity(severity);
-    setSnackbarOpen(true);
+    emitApiNotification({ message, severity });
   };
 
   const handleCreateOpen = () => {
@@ -708,17 +702,6 @@ const RoomTypeConfigurationPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={4000}
-        onClose={() => setSnackbarOpen(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert severity={snackbarSeverity} onClose={() => setSnackbarOpen(false)}>
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 };

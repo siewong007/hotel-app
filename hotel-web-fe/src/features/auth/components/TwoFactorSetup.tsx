@@ -24,6 +24,7 @@ import {
   ContentCopy as CopyIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
+import { ApiNotificationSeverity, emitApiNotification } from '../../../utils/apiNotifications';
 
 interface TwoFactorSetupProps {
   onSetupComplete?: () => void;
@@ -44,8 +45,6 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
   const [newBackupCodes, setNewBackupCodes] = useState<string[]>([]);
   const [regenerateCode, setRegenerateCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
-
   useEffect(() => {
     loadTwoFactorStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -57,7 +56,6 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       setTwoFactorStatus(status);
     } catch (error: any) {
       console.error('Failed to load 2FA status:', error);
-      showSnackbar('Failed to load 2FA status', 'error');
     }
   };
 
@@ -69,7 +67,6 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       setShowSetupDialog(true);
     } catch (error: any) {
       console.error('Failed to setup 2FA:', error);
-      showSnackbar('Failed to setup 2FA', 'error');
     } finally {
       setLoading(false);
     }
@@ -77,7 +74,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
 
   const handleEnable2FA = async () => {
     if (!verificationCode.trim()) {
-      showSnackbar('Please enter verification code', 'error');
+      showSnackbar('Please enter verification code', 'warning');
       return;
     }
 
@@ -100,7 +97,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
 
   const handleDisable2FA = async () => {
     if (!disableCode.trim()) {
-      showSnackbar('Please enter your current 2FA code', 'error');
+      showSnackbar('Please enter your current 2FA code', 'warning');
       return;
     }
 
@@ -122,7 +119,7 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
 
   const handleRegenerateCodes = async () => {
     if (!regenerateCode.trim()) {
-      showSnackbar('Please enter your current 2FA code', 'error');
+      showSnackbar('Please enter your current 2FA code', 'warning');
       return;
     }
 
@@ -150,12 +147,8 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
     });
   };
 
-  const showSnackbar = (message: string, severity: 'success' | 'error') => {
-    setSnackbar({ open: true, message, severity });
-  };
-
-  const handleCloseSnackbar = () => {
-    setSnackbar({ ...snackbar, open: false });
+  const showSnackbar = (message: string, severity: ApiNotificationSeverity) => {
+    emitApiNotification({ message, severity });
   };
 
   if (!twoFactorStatus) {
@@ -431,29 +424,6 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar for notifications */}
-      <Dialog
-        open={snackbar.open}
-        onClose={handleCloseSnackbar}
-        PaperProps={{
-          sx: {
-            position: 'fixed',
-            bottom: 16,
-            left: 16,
-            right: 'auto',
-            m: 0,
-            minWidth: 300,
-          }
-        }}
-      >
-        <Alert
-          onClose={handleCloseSnackbar}
-          severity={snackbar.severity}
-          sx={{ mb: 0 }}
-        >
-          {snackbar.message}
-        </Alert>
-      </Dialog>
     </Box>
   );
 };

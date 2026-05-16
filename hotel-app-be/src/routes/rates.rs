@@ -154,7 +154,7 @@ async fn delete_room_rate(
 async fn get_applicable_rate(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-    query: Query<handlers::rates::ApplicableRateQuery>,
+    query: Query<models::ApplicableRateQuery>,
 ) -> Result<impl IntoResponse, handlers::rates::RateError> {
     require_permission_helper(&pool, &headers, "rooms:read").await?;
     handlers::rates::get_applicable_rate(State(pool), query).await

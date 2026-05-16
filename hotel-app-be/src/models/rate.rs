@@ -138,3 +138,10 @@ pub struct RoomRateWithDetails {
     pub effective_from: NaiveDate,
     pub effective_to: Option<NaiveDate>,
 }
+
+/// Query for applicable rate lookup.
+#[derive(Debug, Deserialize)]
+pub struct ApplicableRateQuery {
+    pub room_type_id: i64,
+    pub date: String,
+}

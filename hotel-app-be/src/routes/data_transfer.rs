@@ -4,6 +4,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_admin_helper;
 use crate::handlers;
+use crate::models;
 use axum::{
     Router,
     extract::{DefaultBodyLimit, State},
@@ -24,7 +25,7 @@ pub fn routes() -> Router<DbPool> {
 async fn export_data(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-) -> Result<Json<handlers::data_transfer::BookingDataExport>, ApiError> {
+) -> Result<Json<models::BookingDataExport>, ApiError> {
     require_admin_helper(&pool, &headers).await?;
     handlers::data_transfer::export_booking_data_handler(State(pool)).await
 }
@@ -32,7 +33,7 @@ async fn export_data(
 async fn import_data(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-    Json(input): Json<handlers::data_transfer::ImportRequest>,
+    Json(input): Json<models::ImportRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin_helper(&pool, &headers).await?;
     handlers::data_transfer::import_booking_data_handler(State(pool), Json(input)).await

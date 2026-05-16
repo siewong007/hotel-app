@@ -50,6 +50,51 @@ impl std::fmt::Display for ApiError {
 
 impl std::error::Error for ApiError {}
 
+/// Normalize a client-facing error message into one consistent product voice:
+/// trimmed, free of leaked internal prefixes, sentence-cased, and ending with
+/// terminal punctuation. Call sites supply the wording; this guarantees the
+/// mechanical polish so every pop-out reads the same way.
+fn polish_message(raw: &str, fallback: &str) -> String {
+    let mut msg = raw.trim();
+
+    // Strip internal "Category: " prefixes that occasionally leak from
+    // Display/`format!` into client text (e.g. "Bad request: ...").
+    for prefix in [
+        "Error: ",
+        "Bad request: ",
+        "Bad Request: ",
+        "Internal error: ",
+        "Database error: ",
+        "Conflict: ",
+        "Not found: ",
+        "Unauthorized: ",
+        "Forbidden: ",
+    ] {
+        if let Some(stripped) = msg.strip_prefix(prefix) {
+            msg = stripped.trim();
+        }
+    }
+
+    if msg.is_empty() {
+        return fallback.to_string();
+    }
+
+    // Sentence-case the first character (leave acronyms like "2FA"/"ID" alone
+    // by only uppercasing, never lowercasing the rest).
+    let mut out = String::with_capacity(msg.len() + 1);
+    let mut chars = msg.chars();
+    if let Some(first) = chars.next() {
+        out.extend(first.to_uppercase());
+        out.push_str(chars.as_str());
+    }
+
+    // Ensure a single terminal punctuation mark.
+    if !out.ends_with(['.', '!', '?']) {
+        out.push('.');
+    }
+    out
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, message) = match &self {
@@ -57,19 +102,44 @@ impl IntoResponse for ApiError {
                 log::error!("Database error: {}", msg);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "A database error occurred. Please try again later.".to_string(),
+                    "Something went wrong on our end. Please try again.".to_string(),
                 )
             }
-            ApiError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
-            ApiError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.clone()),
-            ApiError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
-            ApiError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
-            ApiError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-            ApiError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg.clone()),
-            ApiError::TooManyRequestsRetryAfter(msg, _) => {
-                (StatusCode::TOO_MANY_REQUESTS, msg.clone())
+            ApiError::Unauthorized(msg) => (
+                StatusCode::UNAUTHORIZED,
+                polish_message(msg, "You need to sign in to continue."),
+            ),
+            ApiError::Forbidden(msg) => (
+                StatusCode::FORBIDDEN,
+                polish_message(msg, "You don't have permission to do that."),
+            ),
+            ApiError::BadRequest(msg) => (
+                StatusCode::BAD_REQUEST,
+                polish_message(msg, "That request couldn't be processed."),
+            ),
+            ApiError::NotFound(msg) => (
+                StatusCode::NOT_FOUND,
+                polish_message(msg, "We couldn't find what you were looking for."),
+            ),
+            ApiError::Conflict(msg) => (
+                StatusCode::CONFLICT,
+                polish_message(msg, "That action conflicts with the current state."),
+            ),
+            ApiError::Internal(msg) => {
+                log::error!("Internal error: {}", msg);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Something went wrong on our end. Please try again.".to_string(),
+                )
             }
+            ApiError::TooManyRequests(msg) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                polish_message(msg, "Too many requests. Please slow down and try again."),
+            ),
+            ApiError::TooManyRequestsRetryAfter(msg, _) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                polish_message(msg, "Too many requests. Please slow down and try again."),
+            ),
         };
 
         let body = Json(serde_json::json!({

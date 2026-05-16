@@ -1,27 +1,9 @@
 //! Guest-related models
 
+use crate::constants::{GuestType, TourismType};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-
-/// Guest membership type for pricing differentiation
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type, Default)]
-#[sqlx(type_name = "guest_type", rename_all = "snake_case")]
-#[serde(rename_all = "snake_case")]
-pub enum GuestType {
-    Member,
-    #[default]
-    NonMember,
-}
-
-/// Tourism type for tourism tax calculation
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
-#[sqlx(type_name = "tourism_type", rename_all = "snake_case")]
-#[serde(rename_all = "snake_case")]
-pub enum TourismType {
-    Local,
-    Foreign,
-}
 
 /// Core guest entity
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -152,4 +134,24 @@ pub struct GuestCreditsSummary {
     pub guest_name: String,
     pub total_nights: i32,
     pub credits_by_room_type: Vec<GuestComplimentaryCredit>,
+}
+
+/// Pagination parameters for guest listing.
+#[derive(Debug, Deserialize)]
+pub struct GuestPaginationParams {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+    /// Search by name, email, or phone.
+    pub search: Option<String>,
+    /// Filter by guest type: "member" or "non_member".
+    pub guest_type: Option<String>,
+}
+
+/// Paginated guest list response.
+#[derive(Debug, Serialize)]
+pub struct GuestPaginatedResponse {
+    pub data: Vec<Guest>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
 }

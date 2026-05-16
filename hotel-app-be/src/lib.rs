@@ -2,6 +2,7 @@
 //!
 //! This crate provides the core functionality for the hotel management system.
 
+pub mod constants;
 pub mod core;
 pub mod handlers;
 #[allow(dead_code)]

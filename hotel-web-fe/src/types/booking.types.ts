@@ -1,16 +1,6 @@
 // Booking-related type definitions
 import type { GuestUpdateRequest } from './guest.types';
-
-export enum BookingStatus {
-  PENDING = 'pending',
-  CONFIRMED = 'confirmed',
-  CHECKED_IN = 'checked_in',
-  CHECKED_OUT = 'checked_out',
-  AUTO_CHECKED_IN = 'auto_checked_in',
-  PARTIAL_COMPLIMENTARY = 'partial_complimentary',
-  FULLY_COMPLIMENTARY = 'fully_complimentary',
-  VOIDED = 'voided'
-}
+import type { BookingStatus } from '../constants/booking.constants';
 
 export type PaymentStatus = 'unpaid' | 'unpaid_deposit' | 'paid_rate' | 'paid' | 'partial' | 'refunded';
 

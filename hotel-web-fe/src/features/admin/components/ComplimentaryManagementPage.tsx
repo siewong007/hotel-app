@@ -19,7 +19,6 @@ import {
   DialogContent,
   DialogActions,
   Alert,
-  Snackbar,
   Card,
   CardContent,
   Grid,
@@ -45,6 +44,7 @@ import { Autocomplete, FormControl, InputLabel, Select, MenuItem } from '@mui/ma
 import { HotelAPIService } from '../../../api';
 import { BookingWithDetails } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { emitApiNotification } from '../../../utils/apiNotifications';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -109,8 +109,9 @@ export default function ComplimentaryManagementPage() {
   });
   const [processing, setProcessing] = useState(false);
 
-  // Snackbar state
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const showSnackbar = (message: string, severity: 'success' | 'error' = 'success') => {
+    emitApiNotification({ message, severity });
+  };
 
   // Credit CRUD dialog state
   const [addCreditDialogOpen, setAddCreditDialogOpen] = useState(false);
@@ -180,7 +181,7 @@ export default function ComplimentaryManagementPage() {
 
   const handleAddCredit = async () => {
     if (!creditFormData.guest_id || !creditFormData.room_type_id || creditFormData.nights <= 0) {
-      setSnackbar({ open: true, message: 'Please fill in all required fields', severity: 'error' });
+      showSnackbar('Please fill in all required fields', 'error');
       return;
     }
     try {
@@ -191,11 +192,11 @@ export default function ComplimentaryManagementPage() {
         nights: creditFormData.nights,
         notes: creditFormData.notes || undefined,
       });
-      setSnackbar({ open: true, message: 'Credits added successfully', severity: 'success' });
+      showSnackbar('Credits added successfully');
       setAddCreditDialogOpen(false);
       await loadData();
     } catch (err: any) {
-      setSnackbar({ open: true, message: err.message || 'Failed to add credits', severity: 'error' });
+      showSnackbar(err.message || 'Failed to add credits', 'error');
     } finally {
       setProcessing(false);
     }
@@ -213,11 +214,11 @@ export default function ComplimentaryManagementPage() {
           notes: editCreditFormData.notes || undefined,
         }
       );
-      setSnackbar({ open: true, message: 'Credits updated successfully', severity: 'success' });
+      showSnackbar('Credits updated successfully');
       setEditCreditDialogOpen(false);
       await loadData();
     } catch (err: any) {
-      setSnackbar({ open: true, message: err.message || 'Failed to update credits', severity: 'error' });
+      showSnackbar(err.message || 'Failed to update credits', 'error');
     } finally {
       setProcessing(false);
     }
@@ -228,11 +229,11 @@ export default function ComplimentaryManagementPage() {
     try {
       setProcessing(true);
       await HotelAPIService.deleteGuestCredits(selectedCredit.guest_id, selectedCredit.room_type_id);
-      setSnackbar({ open: true, message: 'Credits deleted successfully', severity: 'success' });
+      showSnackbar('Credits deleted successfully');
       setDeleteCreditDialogOpen(false);
       await loadData();
     } catch (err: any) {
-      setSnackbar({ open: true, message: err.message || 'Failed to delete credits', severity: 'error' });
+      showSnackbar(err.message || 'Failed to delete credits', 'error');
     } finally {
       setProcessing(false);
     }
@@ -313,11 +314,11 @@ export default function ComplimentaryManagementPage() {
     try {
       setProcessing(true);
       await HotelAPIService.updateComplimentary(selectedBooking.id.toString(), editFormData);
-      setSnackbar({ open: true, message: 'Complimentary booking updated successfully', severity: 'success' });
+      showSnackbar('Complimentary booking updated successfully');
       setEditDialogOpen(false);
       await loadData();
     } catch (err: any) {
-      setSnackbar({ open: true, message: err.message || 'Failed to update', severity: 'error' });
+      showSnackbar(err.message || 'Failed to update', 'error');
     } finally {
       setProcessing(false);
     }
@@ -328,11 +329,11 @@ export default function ComplimentaryManagementPage() {
     try {
       setProcessing(true);
       await HotelAPIService.removeComplimentary(selectedBooking.id.toString());
-      setSnackbar({ open: true, message: 'Complimentary status removed successfully', severity: 'success' });
+      showSnackbar('Complimentary status removed successfully');
       setDeleteDialogOpen(false);
       await loadData();
     } catch (err: any) {
-      setSnackbar({ open: true, message: err.message || 'Failed to remove', severity: 'error' });
+      showSnackbar(err.message || 'Failed to remove', 'error');
     } finally {
       setProcessing(false);
     }
@@ -969,16 +970,6 @@ export default function ComplimentaryManagementPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-      >
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }

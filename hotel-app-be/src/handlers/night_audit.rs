@@ -39,10 +39,10 @@ pub async fn get_night_audit_preview(
 
     let audit_date_str = params
         .get("date")
-        .ok_or_else(|| ApiError::BadRequest("date parameter is required".to_string()))?;
+        .ok_or_else(|| ApiError::BadRequest("Date is required".to_string()))?;
 
     let audit_date = NaiveDate::parse_from_str(audit_date_str, "%Y-%m-%d")
-        .map_err(|_| ApiError::BadRequest("Invalid date format. Use YYYY-MM-DD".to_string()))?;
+        .map_err(|_| ApiError::BadRequest("Invalid date. Use YYYY-MM-DD".to_string()))?;
 
     log::info!("Checking if audit already run for date: {}", audit_date);
 
@@ -292,7 +292,10 @@ pub async fn run_night_audit(
     // backend isn't restarted; running here gives us at least one daily pass.
     match crate::services::invoice_numbers::backfill_missing_booking_invoices(&pool).await {
         Ok(0) => {}
-        Ok(n) => log::info!("Night audit backfilled invoice numbers for {} booking(s)", n),
+        Ok(n) => log::info!(
+            "Night audit backfilled invoice numbers for {} booking(s)",
+            n
+        ),
         Err(e) => log::warn!("Night audit invoice backfill failed: {}", e),
     }
 
