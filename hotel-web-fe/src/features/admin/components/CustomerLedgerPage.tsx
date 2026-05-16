@@ -37,6 +37,9 @@ import {
   Autocomplete,
   Checkbox,
   FormControlLabel,
+  Menu,
+  LinearProgress,
+  Tooltip,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
@@ -63,7 +66,13 @@ import {
   Save as SaveIcon,
   Close as CloseIcon,
   Block as VoidIcon,
+  Search as SearchIcon,
+  OpenInNew as OpenInNewIcon,
+  ArrowDropDown as ArrowDropDownIcon,
+  CreditScore as CreditNoteIcon,
+  Replay as RegenerateIcon,
 } from '@mui/icons-material';
+import { alpha } from '@mui/material/styles';
 import { HotelAPIService } from '../../../api';
 import { api } from '../../../api/client';
 import {
@@ -72,7 +81,6 @@ import {
   CustomerLedgerUpdateRequest,
   CustomerLedgerPayment,
   CustomerLedgerPaymentRequest,
-  CustomerLedgerSummary,
   Room,
   Guest,
   BookingWithDetails,
@@ -179,12 +187,131 @@ const getStatusText = (status: string): string => {
   }
 };
 
+type LedgerUiStatus =
+  | 'draft'
+  | 'ready_to_invoice'
+  | 'invoiced'
+  | 'partial'
+  | 'paid'
+  | 'overdue'
+  | 'voided';
+
+type EntryStatusFilter =
+  | 'all'
+  | 'uninvoiced'
+  | 'outstanding'
+  | 'invoiced'
+  | 'paid'
+  | 'overdue'
+  | 'voided';
+
+const asMoney = (value: number | string | null | undefined): number => {
+  const parsed = typeof value === 'string' ? parseFloat(value) : value;
+  return Number.isFinite(parsed) ? Number(parsed) : 0;
+};
+
+const isLedgerVoided = (ledger: CustomerLedger) => Boolean(ledger.void_at) || ledger.status === 'cancelled';
+
+const isDateOverdue = (dateString: string | null | undefined) => {
+  if (!dateString) return false;
+  const due = new Date(`${formatDateForInput(dateString)}T23:59:59`);
+  return !isNaN(due.getTime()) && due.getTime() < Date.now();
+};
+
+const getLedgerUiStatus = (ledger: CustomerLedger): LedgerUiStatus => {
+  const balance = asMoney(ledger.balance_due);
+  const paid = asMoney(ledger.paid_amount);
+  if (isLedgerVoided(ledger)) return 'voided';
+  if (ledger.status === 'paid' || balance <= 0) return 'paid';
+  if (ledger.status === 'overdue' || isDateOverdue(ledger.due_date)) return 'overdue';
+  if (paid > 0) return 'partial';
+  if (ledger.invoice_number) return 'invoiced';
+  if (balance > 0) return 'ready_to_invoice';
+  return 'draft';
+};
+
+type ToneName = 'neutral' | 'blue' | 'indigo' | 'amber' | 'green' | 'red' | 'muted';
+
+const TONE: Record<ToneName, { bg: string; fg: string; dot: string }> = {
+  neutral: { bg: '#F0F3F7', fg: '#475569', dot: '#94A3B8' },
+  blue:    { bg: '#E5F0FB', fg: '#1F66C9', dot: '#2F7DE1' },
+  indigo:  { bg: '#ECEAFB', fg: '#5743C8', dot: '#7A6BE2' },
+  amber:   { bg: '#FBF1DC', fg: '#9A6A0E', dot: '#C8941D' },
+  green:   { bg: '#E1F4EA', fg: '#0E7A48', dot: '#16A364' },
+  red:     { bg: '#FCE5E9', fg: '#B53047', dot: '#D14256' },
+  muted:   { bg: '#EFF1F4', fg: '#94A3B8', dot: '#B0B8C2' },
+};
+
+const STATUS_TONE: Record<LedgerUiStatus, { label: string; tone: ToneName }> = {
+  draft:            { label: 'Draft',          tone: 'neutral' },
+  ready_to_invoice: { label: 'Ready',          tone: 'blue' },
+  invoiced:         { label: 'Invoiced',       tone: 'indigo' },
+  partial:          { label: 'Partially Paid', tone: 'amber' },
+  paid:             { label: 'Paid',           tone: 'green' },
+  overdue:          { label: 'Overdue',        tone: 'red' },
+  voided:           { label: 'Voided',         tone: 'muted' },
+};
+
+const StatusPill: React.FC<{ tone: ToneName; children: React.ReactNode; sm?: boolean }> = ({ tone, children, sm }) => {
+  const t = TONE[tone];
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.5,
+        bgcolor: t.bg,
+        color: t.fg,
+        px: sm ? '6px' : '8px',
+        py: sm ? '1px' : '2px',
+        fontSize: sm ? 10 : 10.5,
+        fontWeight: 700,
+        letterSpacing: 0.3,
+        textTransform: 'uppercase',
+        borderRadius: '999px',
+        whiteSpace: 'nowrap',
+        lineHeight: 1.5,
+      }}
+    >
+      <Box component="span" sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: t.dot }} />
+      {children}
+    </Box>
+  );
+};
+
+const LedgerStatusBadge: React.FC<{ status: LedgerUiStatus; sm?: boolean }> = ({ status, sm }) => {
+  const meta = STATUS_TONE[status];
+  return <StatusPill tone={meta.tone} sm={sm}>{meta.label}</StatusPill>;
+};
+
+const InfoField: React.FC<{ label: string; value: React.ReactNode; span?: 1 | 2 | 3 }> = ({
+  label,
+  value,
+  span,
+}) => (
+  <Box sx={{ gridColumn: span ? `span ${span}` : 'auto' }}>
+    <Typography
+      variant="caption"
+      sx={{
+        display: 'block',
+        fontWeight: 600,
+        color: 'text.secondary',
+        letterSpacing: 0.4,
+        textTransform: 'uppercase',
+      }}
+    >
+      {label}
+    </Typography>
+    <Typography sx={{ fontSize: 13.5, mt: 0.5, wordBreak: 'break-word' }}>{value}</Typography>
+  </Box>
+);
+
 const CustomerLedgerPage: React.FC = () => {
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
   const [hotelSettings, setHotelSettings] = useState<HotelSettings>(getHotelSettings());
   const {
     ledgers,
-    summary,
     loading,
     error,
     setError,
@@ -234,24 +361,10 @@ const CustomerLedgerPage: React.FC = () => {
   const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
 
-  // New company registration dialog
-  const [newCompanyDialogOpen, setNewCompanyDialogOpen] = useState(false);
-  const [newCompanyData, setNewCompanyData] = useState<CompanyOption>({
-    company_name: '',
-    company_registration_number: '',
-    contact_person: '',
-    contact_email: '',
-    contact_phone: '',
-    billing_address_line1: '',
-  });
-
-  // Print statement dialog
-  const [printDialogOpen, setPrintDialogOpen] = useState(false);
-  const [printingCompany, setPrintingCompany] = useState<string | null>(null);
-  const [companyLedgerEntries, setCompanyLedgerEntries] = useState<CustomerLedger[]>([]);
-
-  // Receipt review state (one-by-one navigation)
-  const [currentReceiptIndex, setCurrentReceiptIndex] = useState(0);
+  // Tracks whether the company registration dialog was opened from the
+  // Create Ledger Entry autocomplete; if true, the newly-registered company
+  // is auto-applied to the create form on success.
+  const [companyRegPrefillCreate, setCompanyRegPrefillCreate] = useState(false);
 
   // Notifications
   const [snackbarOpen, setSnackbarOpen] = useState(false);
@@ -367,6 +480,29 @@ const CustomerLedgerPage: React.FC = () => {
   });
   const [invoiceNotes, setInvoiceNotes] = useState<string>('');
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
+  // v2: tri-state filter — billable (default) / all / invoiced
+  const [invoiceListFilter, setInvoiceListFilter] = useState<'billable' | 'all' | 'invoiced'>('billable');
+
+  // Credit Note dialog — wires to backend POST /ledgers/:id/reverse
+  const [creditNoteDialogOpen, setCreditNoteDialogOpen] = useState(false);
+  const [creditNoteLedgerId, setCreditNoteLedgerId] = useState<number | ''>('');
+  const [creditNoteReason, setCreditNoteReason] = useState<string>('');
+  const [creditNoteNotes, setCreditNoteNotes] = useState('');
+  const [processingCreditNote, setProcessingCreditNote] = useState(false);
+
+  // Two-pane workspace state
+  const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
+  const [companyListSearch, setCompanyListSearch] = useState('');
+  const [companyListFilter, setCompanyListFilter] = useState<'all' | 'due' | 'clear'>('all');
+  const [detailTab, setDetailTab] = useState<'entries' | 'info'>('entries');
+  const [entriesSearch, setEntriesSearch] = useState('');
+  const [entriesStatusFilter, setEntriesStatusFilter] = useState<EntryStatusFilter>('all');
+  const [createMenuAnchor, setCreateMenuAnchor] = useState<null | HTMLElement>(null);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [possibleDuplicateLedger, setPossibleDuplicateLedger] = useState<CustomerLedger | null>(null);
+  const [activeCompanyPayments, setActiveCompanyPayments] = useState<Record<number, CustomerLedgerPayment[]>>({});
+  const [loadingActiveCompanyPayments, setLoadingActiveCompanyPayments] = useState(false);
+  const [expandedReceiptId, setExpandedReceiptId] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
@@ -379,15 +515,15 @@ const CustomerLedgerPage: React.FC = () => {
     return () => window.removeEventListener('hotelSettingsChange', handleSettingsChange);
   }, []);
 
-  // Load all bookings that have company billing
+  // Load currently-active company-billed bookings.
+  // Backend filters on company_id IS NOT NULL; we narrow to active statuses client-side.
   const loadAllCompanyBookings = async () => {
     try {
-      const allBookings = await HotelAPIService.getBookingsWithDetails();
-      // Filter bookings with company_id that are active (checked_in or auto_checked_in)
-      const companyActiveBookings = allBookings.filter(
-        b => b.company_id && (b.status === 'checked_in' || b.status === 'auto_checked_in')
+      const bookings = await HotelAPIService.getBookingsWithDetails({ company_billed: true });
+      const active = bookings.filter(
+        b => b.status === 'checked_in' || b.status === 'auto_checked_in',
       );
-      setAllCompanyBookings(companyActiveBookings);
+      setAllCompanyBookings(active);
     } catch (err) {
       console.error('Failed to load company bookings:', err);
     }
@@ -553,35 +689,12 @@ const CustomerLedgerPage: React.FC = () => {
       // Check in the guest
       await HotelAPIService.checkInGuest(booking.id, {});
 
-      // For back-dated bookings: auto-checkout if check-out date is today or in the past
+      // For back-dated bookings: auto-checkout if check-out date is today or in the past.
+      // Backend's auto_post_company_ledger handles the room_charge ledger row on the
+      // checked_out transition (and dedupes via an EXISTS check), so no client-side post here.
       const today = new Date().toISOString().split('T')[0];
       if (checkOutDate <= today) {
         await HotelAPIService.updateBooking(booking.id, { status: 'checked_out' });
-
-        // Post room charges to company ledger for auto-checked-out backdated bookings
-        try {
-          const roomAmount = typeof booking.total_amount === 'string'
-            ? parseFloat(booking.total_amount)
-            : (booking.total_amount || 0);
-          const checkInDateObj = new Date(checkInDate);
-          const checkOutDateObj = new Date(checkOutDate);
-          const nights = Math.max(1, Math.ceil((checkOutDateObj.getTime() - checkInDateObj.getTime()) / (1000 * 60 * 60 * 24)));
-          let description = `Room ${checkInRoom.room_number} - ${guestToUse.full_name}`;
-          description += ` (${nights} night${nights > 1 ? 's' : ''}: ${checkInDate} to ${checkOutDate})`;
-          await HotelAPIService.createCustomerLedger({
-            company_name: checkInCompany.company_name,
-            description: description,
-            expense_type: 'accommodation',
-            amount: roomAmount,
-            booking_id: parseInt(String(booking.id)),
-            room_number: checkInRoom.room_number,
-            posting_date: today,
-            transaction_date: today,
-            post_type: 'room_charge',
-          });
-        } catch (ledgerError) {
-          console.error('Failed to post room charges to company ledger:', ledgerError);
-        }
       }
 
       setSnackbarMessage(`Guest ${guestToUse.full_name} checked in to Room ${checkInRoom.room_number} (Company: ${checkInCompany.company_name})`);
@@ -658,34 +771,9 @@ const CustomerLedgerPage: React.FC = () => {
         notes: dirtyNotes,
       });
 
-      // Auto-post room charges to company ledger
-      if (checkoutBooking.company_id && checkoutBooking.company_name) {
-        try {
-          const roomAmount = typeof checkoutBooking.total_amount === 'string'
-            ? parseFloat(checkoutBooking.total_amount)
-            : (checkoutBooking.total_amount || 0);
-          const checkIn = new Date(checkoutBooking.check_in_date);
-          const checkOut = new Date(checkoutBooking.check_out_date);
-          const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-
-          let description = `Room ${checkoutBooking.room_number} - ${checkoutBooking.guest_name}`;
-          description += ` (${nights} night${nights > 1 ? 's' : ''}: ${checkoutBooking.check_in_date} to ${checkoutBooking.check_out_date})`;
-
-          await HotelAPIService.createCustomerLedger({
-            company_name: checkoutBooking.company_name,
-            description: description,
-            expense_type: 'accommodation',
-            amount: roomAmount,
-            booking_id: parseInt(checkoutBooking.id),
-            room_number: checkoutBooking.room_number,
-            posting_date: new Date().toISOString().split('T')[0],
-            transaction_date: new Date().toISOString().split('T')[0],
-            post_type: 'room_charge',
-          });
-        } catch (ledgerError) {
-          console.error('Failed to post room charges to company ledger:', ledgerError);
-        }
-      }
+      // Backend's auto_post_company_ledger inserts the room_charge ledger row on
+      // the checked_out transition (and dedupes via an EXISTS check), so no
+      // client-side post is needed for company-billed bookings here.
 
       setSnackbarMessage(`${checkoutBooking.guest_name} checked out from Room ${checkoutBooking.room_number}`);
       setSnackbarOpen(true);
@@ -740,7 +828,7 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       setCreatingCompany(true);
 
-      await HotelAPIService.createCompany({
+      const created = await HotelAPIService.createCompany({
         company_name: companyRegForm.company_name.trim(),
         registration_number: companyRegForm.registration_number.trim() || undefined,
         contact_person: companyRegForm.contact_person.trim() || undefined,
@@ -754,6 +842,32 @@ const CustomerLedgerPage: React.FC = () => {
         payment_terms_days: companyRegForm.payment_terms_days ? parseInt(companyRegForm.payment_terms_days) : 30,
         notes: companyRegForm.notes.trim() || undefined,
       });
+
+      // When opened from the Create Ledger autocomplete, auto-select the
+      // freshly-registered company in the create form so the user doesn't
+      // have to re-pick it.
+      if (companyRegPrefillCreate) {
+        const opt: CompanyOption = {
+          company_name: created.company_name,
+          company_registration_number: created.registration_number,
+          contact_person: created.contact_person,
+          contact_email: created.contact_email,
+          contact_phone: created.contact_phone,
+          billing_address_line1: created.billing_address,
+        };
+        setCompanyOptions(prev => [...prev, opt]);
+        setSelectedCompany(opt);
+        setCreateFormData(prev => ({
+          ...prev,
+          company_name: opt.company_name,
+          company_registration_number: opt.company_registration_number,
+          contact_person: opt.contact_person,
+          contact_email: opt.contact_email,
+          contact_phone: opt.contact_phone,
+          billing_address_line1: opt.billing_address_line1,
+        }));
+        setCompanyRegPrefillCreate(false);
+      }
 
       setSnackbarMessage(`Company "${companyRegForm.company_name}" registered successfully`);
       setSnackbarOpen(true);
@@ -889,7 +1003,8 @@ const CustomerLedgerPage: React.FC = () => {
     // Load unpaid/partial ledger entries for this company
     const companyLedgersFiltered = ledgers.filter(
       l => l.company_name === company.company_name &&
-           (l.status === 'pending' || l.status === 'partial')
+           getLedgerBalanceDue(l) > 0 &&
+           !isVoidedLedger(l)
     );
     setPaymentCompanyLedgers(companyLedgersFiltered);
     setSelectedLedgersForPayment(companyLedgersFiltered);
@@ -911,6 +1026,13 @@ const CustomerLedgerPage: React.FC = () => {
     setSelectedLedgersForPayment([]);
   };
 
+  const isInvoiceEligible = (ledger: CustomerLedger) => {
+    return !ledger.invoice_number && !isVoidedLedger(ledger) && getLedgerBalanceDue(ledger) > 0;
+  };
+
+  const getSelectedInvoiceLedgers = () =>
+    invoiceLedgerEntries.filter(l => selectedInvoiceLedgers.includes(l.id) && (showInvoicePreview || isInvoiceEligible(l)));
+
   // Handle recording company payment (distributes across selected ledgers)
   const handleRecordCompanyPayment = async () => {
     if (selectedLedgersForPayment.length === 0 || !companyPaymentForm.payment_amount) {
@@ -924,6 +1046,25 @@ const CustomerLedgerPage: React.FC = () => {
       setSnackbarMessage('Please enter a valid payment amount');
       setSnackbarOpen(true);
       return;
+    }
+
+    const selectedBalance = selectedLedgersForPayment.reduce((sum, ledger) => sum + getLedgerBalanceDue(ledger), 0);
+    if (paymentAmount > selectedBalance) {
+      setSnackbarMessage('Payment amount cannot exceed the selected outstanding balance');
+      setSnackbarOpen(true);
+      return;
+    }
+
+    const receiptNumber = companyPaymentForm.receipt_number.trim();
+    if (receiptNumber) {
+      const receiptExists = Object.values(activeCompanyPayments)
+        .flat()
+        .some(payment => payment.receipt_number?.trim().toLowerCase() === receiptNumber.toLowerCase());
+      if (receiptExists) {
+        setSnackbarMessage('Receipt number already exists');
+        setSnackbarOpen(true);
+        return;
+      }
     }
 
     try {
@@ -969,26 +1110,23 @@ const CustomerLedgerPage: React.FC = () => {
   // Company Invoice handlers
   const handleOpenCompanyInvoiceDialog = (company: Company) => {
     setInvoiceCompany(company);
-    // Get all ledger entries for this company
     const companyLedgersFiltered = ledgers.filter(
       l => l.company_name === company.company_name
     );
     setInvoiceLedgerEntries(companyLedgersFiltered);
-    // Pre-select entries that don't have invoice numbers yet
     const uninvoicedIds = companyLedgersFiltered
-      .filter(l => !l.invoice_number && (l.status === 'pending' || l.status === 'partial'))
+      .filter(l => isInvoiceEligible(l))
       .map(l => l.id);
     setSelectedInvoiceLedgers(uninvoicedIds);
-    // Generate invoice number
     const timestamp = Date.now();
     setInvoiceNumber(`INV-${company.company_name.substring(0, 3).toUpperCase()}-${timestamp.toString().slice(-6)}`);
-    // Set due date based on company payment terms
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + (company.payment_terms_days || 30));
     setInvoiceDueDate(dueDate.toISOString().split('T')[0]);
     setInvoiceDate(new Date().toISOString().split('T')[0]);
     setInvoiceNotes('');
     setShowInvoicePreview(false);
+    setInvoiceListFilter('billable');
     setCompanyInvoiceDialogOpen(true);
   };
 
@@ -1003,9 +1141,12 @@ const CustomerLedgerPage: React.FC = () => {
     setInvoiceDueDate(dueDate.toISOString().split('T')[0]);
     setInvoiceNotes('');
     setShowInvoicePreview(false);
+    setInvoiceListFilter('billable');
   };
 
   const handleToggleLedgerSelection = (ledgerId: number) => {
+    const ledger = invoiceLedgerEntries.find(l => l.id === ledgerId);
+    if (!ledger || !isInvoiceEligible(ledger)) return;
     setSelectedInvoiceLedgers(prev =>
       prev.includes(ledgerId)
         ? prev.filter(id => id !== ledgerId)
@@ -1013,26 +1154,31 @@ const CustomerLedgerPage: React.FC = () => {
     );
   };
 
-  const handleSelectAllLedgers = () => {
-    if (selectedInvoiceLedgers.length === invoiceLedgerEntries.length) {
+  const handleSelectAllEligibleLedgers = () => {
+    const eligibleIds = invoiceLedgerEntries.filter(isInvoiceEligible).map(l => l.id);
+    const allEligibleSelected = eligibleIds.length > 0 && eligibleIds.every(id => selectedInvoiceLedgers.includes(id));
+    if (allEligibleSelected) {
       setSelectedInvoiceLedgers([]);
     } else {
-      setSelectedInvoiceLedgers(invoiceLedgerEntries.map(l => l.id));
+      setSelectedInvoiceLedgers(eligibleIds);
     }
   };
 
   const getSelectedLedgerTotal = () => {
-    return invoiceLedgerEntries
-      .filter(l => selectedInvoiceLedgers.includes(l.id))
+    return getSelectedInvoiceLedgers()
       .reduce((sum, l) => {
         const amount = typeof l.amount === 'string' ? parseFloat(l.amount) : l.amount;
         return sum + amount;
       }, 0);
   };
 
+  const getSelectedLedgerPaidTotal = () => {
+    return getSelectedInvoiceLedgers()
+      .reduce((sum, l) => sum + asMoney(l.paid_amount), 0);
+  };
+
   const getSelectedLedgerBalanceDue = () => {
-    return invoiceLedgerEntries
-      .filter(l => selectedInvoiceLedgers.includes(l.id))
+    return getSelectedInvoiceLedgers()
       .reduce((sum, l) => {
         const balanceDue = typeof l.balance_due === 'string' ? parseFloat(l.balance_due) : (l.balance_due || 0);
         return sum + balanceDue;
@@ -1388,14 +1534,45 @@ const CustomerLedgerPage: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const findPossibleDuplicateLedger = () => {
+    const company = createFormData.company_name.trim().toLowerCase();
+    const room = (createFormData.room_number || '').trim().toLowerCase();
+    const stayDate = createFormData.posting_date || createFormData.transaction_date || createFormData.invoice_date || '';
+    const amount = Number(createFormData.amount || 0).toFixed(2);
+
+    if (!company || !room || !stayDate || Number(amount) <= 0) return null;
+
+    return ledgers.find((ledger) => {
+      const ledgerDate = formatDateForInput(ledger.posting_date || ledger.transaction_date || ledger.invoice_date || ledger.created_at);
+      return (
+        ledger.company_name.trim().toLowerCase() === company &&
+        (ledger.room_number || '').trim().toLowerCase() === room &&
+        ledgerDate === stayDate &&
+        asMoney(ledger.amount).toFixed(2) === amount &&
+        !isLedgerVoided(ledger)
+      );
+    }) || null;
+  };
+
   // Create ledger handlers
-  const handleCreateLedger = async () => {
+  const handleCreateLedger = async (skipDuplicateCheck = false) => {
+    if (!skipDuplicateCheck) {
+      const duplicate = findPossibleDuplicateLedger();
+      if (duplicate) {
+        setPossibleDuplicateLedger(duplicate);
+        setDuplicateDialogOpen(true);
+        return;
+      }
+    }
+
     try {
       setCreating(true);
       await HotelAPIService.createCustomerLedger(createFormData);
       setSnackbarMessage('Ledger entry created successfully!');
       setSnackbarOpen(true);
       setCreateDialogOpen(false);
+      setDuplicateDialogOpen(false);
+      setPossibleDuplicateLedger(null);
       resetCreateForm();
       await loadData();
     } catch (err: any) {
@@ -1480,6 +1657,25 @@ const CustomerLedgerPage: React.FC = () => {
 
   const handleRecordPayment = async () => {
     if (!paymentLedger) return;
+
+    const balanceDue = getLedgerBalanceDue(paymentLedger);
+    if (paymentFormData.payment_amount > balanceDue) {
+      setSnackbarMessage('Payment amount cannot exceed the outstanding balance');
+      setSnackbarOpen(true);
+      return;
+    }
+
+    const receiptNumber = paymentFormData.receipt_number?.trim();
+    if (receiptNumber) {
+      const receiptExists = Object.values(activeCompanyPayments)
+        .flat()
+        .some(payment => payment.receipt_number?.trim().toLowerCase() === receiptNumber.toLowerCase());
+      if (receiptExists) {
+        setSnackbarMessage('Receipt number already exists');
+        setSnackbarOpen(true);
+        return;
+      }
+    }
 
     try {
       setProcessingPayment(true);
@@ -1578,81 +1774,22 @@ const CustomerLedgerPage: React.FC = () => {
     }
   };
 
-  // Register new company
-  const handleRegisterNewCompany = async () => {
-    try {
-      // Save to database
-      const createdCompany = await HotelAPIService.createCompany({
-        company_name: newCompanyData.company_name,
-        registration_number: newCompanyData.company_registration_number,
-        contact_person: newCompanyData.contact_person,
-        contact_email: newCompanyData.contact_email,
-        contact_phone: newCompanyData.contact_phone,
-        billing_address: newCompanyData.billing_address_line1,
-      });
-
-      const newCompany: CompanyOption = {
-        company_name: createdCompany.company_name,
-        company_registration_number: createdCompany.registration_number,
-        contact_person: createdCompany.contact_person,
-        contact_email: createdCompany.contact_email,
-        contact_phone: createdCompany.contact_phone,
-        billing_address_line1: createdCompany.billing_address,
-      };
-
-      // Add to company options
-      setCompanyOptions([...companyOptions, newCompany]);
-      setSelectedCompany(newCompany);
-
-      // Fill the create form with new company data
-      setCreateFormData({
-        ...createFormData,
-        company_name: newCompany.company_name,
-        company_registration_number: newCompany.company_registration_number,
-        contact_person: newCompany.contact_person,
-        contact_email: newCompany.contact_email,
-        contact_phone: newCompany.contact_phone,
-        billing_address_line1: newCompany.billing_address_line1,
-      });
-
-      setNewCompanyDialogOpen(false);
-      setSnackbarMessage(`Company "${newCompany.company_name}" registered successfully!`);
-      setSnackbarOpen(true);
-
-      // Reset new company form
-      setNewCompanyData({
-        company_name: '',
-        company_registration_number: '',
-        contact_person: '',
-        contact_email: '',
-        contact_phone: '',
-        billing_address_line1: '',
-      });
-    } catch (err: any) {
-      console.error('Failed to register company:', err);
-      setSnackbarMessage(err?.message || 'Failed to register company');
-      setSnackbarOpen(true);
-    }
-  };
-
   // Print company ledger statement
   const handlePrintCompanyStatement = (companyName: string) => {
-    setPrintingCompany(companyName);
     const entries = ledgers.filter(l => l.company_name === companyName);
-    setCompanyLedgerEntries(entries);
-    setCurrentReceiptIndex(0);
-    setPrintDialogOpen(true);
-  };
-
-  const handlePrint = () => {
-    const totalAmount = companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.amount)), 0);
-    const totalPaid = companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.paid_amount)), 0);
-    const totalBalance = companyLedgerEntries.reduce((sum, e) => sum + parseFloat(String(e.balance_due)), 0);
+    if (entries.length === 0) {
+      setSnackbarMessage('No ledger entries to print for this company.');
+      setSnackbarOpen(true);
+      return;
+    }
+    const totalAmount = entries.reduce((sum, e) => sum + parseFloat(String(e.amount)), 0);
+    const totalPaid = entries.reduce((sum, e) => sum + parseFloat(String(e.paid_amount)), 0);
+    const totalBalance = entries.reduce((sum, e) => sum + parseFloat(String(e.balance_due)), 0);
 
     const htmlContent = `
       <html>
         <head>
-          <title>Company Ledger Statement - ${printingCompany}</title>
+          <title>Company Ledger Statement - ${companyName}</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
             .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
@@ -1683,13 +1820,13 @@ const CustomerLedgerPage: React.FC = () => {
             <h2>Company Ledger Statement</h2>
           </div>
           <div class="company-info">
-            <h3>${printingCompany}</h3>
+            <h3>${companyName}</h3>
             <p>Statement Date: ${new Date().toLocaleDateString()}</p>
           </div>
           <div class="summary">
             <div class="summary-item">
               <div class="label">Total Entries</div>
-              <div class="value">${companyLedgerEntries.length}</div>
+              <div class="value">${entries.length}</div>
             </div>
             <div class="summary-item">
               <div class="label">Total Amount</div>
@@ -1718,7 +1855,7 @@ const CustomerLedgerPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              ${companyLedgerEntries.map(entry => `
+              ${entries.map(entry => `
                 <tr>
                   <td>${entry.invoice_number || '-'}</td>
                   <td>${new Date(entry.created_at).toLocaleDateString()}</td>
@@ -1883,22 +2020,299 @@ const CustomerLedgerPage: React.FC = () => {
     }
   };
 
-  // Get unique companies for print button
-  const uniqueCompanies = useMemo(() => {
-    const companies = new Map<string, { total: number; balance: number; entries: number }>();
-    ledgers.forEach(ledger => {
-      const existing = companies.get(ledger.company_name) || { total: 0, balance: 0, entries: 0 };
-      companies.set(ledger.company_name, {
-        total: existing.total + parseFloat(String(ledger.amount)),
-        balance: existing.balance + parseFloat(String(ledger.balance_due)),
-        entries: existing.entries + 1,
-      });
+  // Ledger summary computed from the rows we already have; keeps the strip
+  // numbers in sync with what's displayed and saves a separate API round-trip.
+  const summary = useMemo(() => {
+    let total_amount = 0;
+    let total_paid = 0;
+    let total_outstanding = 0;
+    let pending_count = 0;
+    let partial_count = 0;
+    let overdue_count = 0;
+    ledgers.forEach(l => {
+      total_amount += parseFloat(String(l.amount || 0));
+      total_paid += parseFloat(String(l.paid_amount || 0));
+      total_outstanding += parseFloat(String(l.balance_due || 0));
+      if (l.status === 'pending') pending_count += 1;
+      else if (l.status === 'partial') partial_count += 1;
+      else if (l.status === 'overdue') overdue_count += 1;
     });
-    return Array.from(companies.entries()).map(([name, data]) => ({
-      name,
-      ...data,
-    }));
+    return {
+      total_entries: ledgers.length,
+      total_amount,
+      total_paid,
+      total_outstanding,
+      pending_count,
+      partial_count,
+      overdue_count,
+    };
   }, [ledgers]);
+
+  // Per-company aggregates keyed by company name
+  const companyAggregates = useMemo(() => {
+    const m = new Map<string, { total: number; paid: number; due: number; pending: number; overdue: number; count: number }>();
+    ledgers.forEach(l => {
+      const cur = m.get(l.company_name) || { total: 0, paid: 0, due: 0, pending: 0, overdue: 0, count: 0 };
+      const amount = parseFloat(String(l.amount || 0));
+      const paid = parseFloat(String(l.paid_amount || 0));
+      const balance = parseFloat(String(l.balance_due || 0));
+      cur.total += amount;
+      cur.paid += paid;
+      cur.due += balance;
+      cur.count += 1;
+      if (balance > 0) cur.pending += 1;
+      if (l.status === 'overdue') cur.overdue += balance;
+      m.set(l.company_name, cur);
+    });
+    return m;
+  }, [ledgers]);
+
+  const emptyAgg = { total: 0, paid: 0, due: 0, pending: 0, overdue: 0, count: 0 };
+
+  // Filtered + sorted company rows for the left list pane
+  const companyListRows = useMemo(() => {
+    const q = companyListSearch.trim().toLowerCase();
+    return companies
+      .map(c => ({ c, agg: companyAggregates.get(c.company_name) || emptyAgg }))
+      .filter(({ c, agg }) => {
+        if (companyListFilter === 'due' && agg.due <= 0) return false;
+        if (companyListFilter === 'clear' && agg.due > 0) return false;
+        if (!q) return true;
+        return (
+          c.company_name.toLowerCase().includes(q) ||
+          (c.contact_phone || '').toLowerCase().includes(q) ||
+          (c.contact_person || '').toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => b.agg.due - a.agg.due);
+  }, [companies, companyAggregates, companyListSearch, companyListFilter]);
+
+  const dueCount = useMemo(
+    () => companies.filter(c => (companyAggregates.get(c.company_name)?.due || 0) > 0).length,
+    [companies, companyAggregates],
+  );
+  const clearCount = companies.length - dueCount;
+
+  // Auto-select first company when companies load and nothing is selected yet
+  useEffect(() => {
+    if (!selectedCompanyId && companies.length > 0) {
+      const sorted = [...companies].sort((a, b) => {
+        const aDue = companyAggregates.get(a.company_name)?.due || 0;
+        const bDue = companyAggregates.get(b.company_name)?.due || 0;
+        return bDue - aDue;
+      });
+      setSelectedCompanyId(sorted[0].id);
+    }
+  }, [companies, companyAggregates, selectedCompanyId]);
+
+  const activeCompany = useMemo(
+    () => companies.find(c => c.id === selectedCompanyId) || null,
+    [companies, selectedCompanyId],
+  );
+
+  const activeAgg = activeCompany
+    ? companyAggregates.get(activeCompany.company_name) || emptyAgg
+    : emptyAgg;
+
+  const activeBookingsForCompany = useMemo(
+    () => (activeCompany ? allCompanyBookings.filter(b => b.company_id === activeCompany.id) : []),
+    [allCompanyBookings, activeCompany],
+  );
+
+  const activeCompanyAllEntries = useMemo(() => {
+    if (!activeCompany) return [] as CustomerLedger[];
+    return ledgers.filter(l => l.company_name === activeCompany.company_name);
+  }, [ledgers, activeCompany]);
+
+  // Ledger entries for the selected company, filtered by search + status
+  const activeCompanyEntries = useMemo(() => {
+    if (!activeCompany) return [] as CustomerLedger[];
+    const q = entriesSearch.trim().toLowerCase();
+    return activeCompanyAllEntries
+      .filter(l => {
+        if (entriesStatusFilter === 'all') return true;
+        const uiStatus = getLedgerUiStatus(l);
+        const balance = asMoney(l.balance_due);
+        if (entriesStatusFilter === 'uninvoiced') return !l.invoice_number && !isLedgerVoided(l);
+        if (entriesStatusFilter === 'outstanding') return balance > 0 && !isLedgerVoided(l);
+        if (entriesStatusFilter === 'invoiced') return Boolean(l.invoice_number) && !isLedgerVoided(l);
+        if (entriesStatusFilter === 'paid') return uiStatus === 'paid';
+        if (entriesStatusFilter === 'overdue') return uiStatus === 'overdue';
+        if (entriesStatusFilter === 'voided') return uiStatus === 'voided';
+        return true;
+      })
+      .filter(l => {
+        if (!q) return true;
+        return (
+          l.description.toLowerCase().includes(q) ||
+          (l.invoice_number || '').toLowerCase().includes(q) ||
+          (l.folio_number || '').toLowerCase().includes(q)
+        );
+      });
+  }, [activeCompany, activeCompanyAllEntries, entriesSearch, entriesStatusFilter]);
+
+  const paidEntriesCount = useMemo(
+    () =>
+      activeCompany
+        ? ledgers.filter(l => l.company_name === activeCompany.company_name && l.status === 'paid').length
+        : 0,
+    [ledgers, activeCompany],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPaymentsForCompany = async () => {
+      if (!activeCompany) {
+        setActiveCompanyPayments({});
+        return;
+      }
+
+      const companyLedgers = activeCompanyAllEntries;
+      if (companyLedgers.length === 0) {
+        setActiveCompanyPayments({});
+        return;
+      }
+
+      setLoadingActiveCompanyPayments(true);
+      try {
+        const rows = await Promise.all(
+          companyLedgers.map(async (ledger) => {
+            try {
+              const payments = await HotelAPIService.getLedgerPayments(ledger.id);
+              return [ledger.id, payments] as const;
+            } catch {
+              return [ledger.id, []] as const;
+            }
+          }),
+        );
+        if (!cancelled) {
+          setActiveCompanyPayments(Object.fromEntries(rows));
+        }
+      } finally {
+        if (!cancelled) setLoadingActiveCompanyPayments(false);
+      }
+    };
+
+    loadPaymentsForCompany();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCompany, activeCompanyAllEntries]);
+
+  const visibleInvoiceLedgerEntries = useMemo(() => {
+    return invoiceLedgerEntries.filter((ledger) => {
+      if (isVoidedLedger(ledger)) return false; // voided always hidden
+      if (invoiceListFilter === 'billable') return isInvoiceEligible(ledger);
+      if (invoiceListFilter === 'invoiced') return Boolean(ledger.invoice_number);
+      return true; // 'all' shows everything non-voided
+    });
+  }, [invoiceLedgerEntries, invoiceListFilter]);
+
+  const invoiceFilterCounts = useMemo(() => {
+    const nonVoid = invoiceLedgerEntries.filter(l => !isVoidedLedger(l));
+    return {
+      billable: nonVoid.filter(isInvoiceEligible).length,
+      all: nonVoid.length,
+      invoiced: nonVoid.filter(l => Boolean(l.invoice_number)).length,
+    };
+  }, [invoiceLedgerEntries]);
+
+  const eligibleInvoiceCount = useMemo(
+    () => invoiceLedgerEntries.filter(isInvoiceEligible).length,
+    [invoiceLedgerEntries],
+  );
+
+  // Initials for company avatars (e.g. "Farley Sibu" -> "FS")
+  const companyInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '?';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  };
+
+  const prefillCreateForCompany = (company: Company, overrides: Partial<CustomerLedgerCreateRequest> = {}) => {
+    setCreateFormData(prev => ({
+      ...prev,
+      company_name: company.company_name,
+      company_registration_number: company.registration_number,
+      contact_person: company.contact_person,
+      contact_email: company.contact_email,
+      contact_phone: company.contact_phone,
+      billing_address_line1: company.billing_address,
+      ...overrides,
+    }));
+    setSelectedCompany({
+      company_name: company.company_name,
+      company_registration_number: company.registration_number,
+      contact_person: company.contact_person,
+      contact_email: company.contact_email,
+      contact_phone: company.contact_phone,
+      billing_address_line1: company.billing_address,
+    });
+  };
+
+  const openContextualCreate = (action: 'entry' | 'invoice' | 'payment' | 'checkin' | 'credit') => {
+    setCreateMenuAnchor(null);
+    if (action === 'checkin') {
+      handleOpenCheckInDialog(activeCompany || undefined);
+      return;
+    }
+    if (!activeCompany) {
+      setSnackbarMessage('Select a company first');
+      setSnackbarOpen(true);
+      return;
+    }
+    if (action === 'entry') {
+      prefillCreateForCompany(activeCompany);
+      setCreateDialogOpen(true);
+    } else if (action === 'invoice') {
+      handleOpenCompanyInvoiceDialog(activeCompany);
+    } else if (action === 'payment') {
+      handleOpenCompanyPaymentDialog(activeCompany);
+    } else if (action === 'credit') {
+      // v2: open dedicated Credit Note dialog that posts to the backend
+      // reversal endpoint (audit-safe), rather than creating an offsetting entry.
+      setCreditNoteLedgerId('');
+      setCreditNoteReason('');
+      setCreditNoteNotes('');
+      setCreditNoteDialogOpen(true);
+    }
+  };
+
+  const handleSubmitCreditNote = async () => {
+    if (!creditNoteLedgerId) {
+      setSnackbarMessage('Pick a ledger entry to credit');
+      setSnackbarOpen(true);
+      return;
+    }
+    if (!creditNoteReason) {
+      setSnackbarMessage('Pick a credit reason');
+      setSnackbarOpen(true);
+      return;
+    }
+    try {
+      setProcessingCreditNote(true);
+      const reasonText = creditNoteNotes.trim()
+        ? `${creditNoteReason} — ${creditNoteNotes.trim()}`
+        : creditNoteReason;
+      await HotelAPIService.reverseLedger(Number(creditNoteLedgerId), {
+        reason: reasonText,
+        notes: creditNoteNotes.trim() || undefined,
+      });
+      setSnackbarMessage('Credit note issued — reversal entry posted.');
+      setSnackbarOpen(true);
+      setCreditNoteDialogOpen(false);
+      setCreditNoteLedgerId('');
+      setCreditNoteReason('');
+      setCreditNoteNotes('');
+      await loadData();
+    } catch (err: any) {
+      setSnackbarMessage(err?.message || 'Failed to issue credit note');
+      setSnackbarOpen(true);
+    } finally {
+      setProcessingCreditNote(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -1909,41 +2323,101 @@ const CustomerLedgerPage: React.FC = () => {
   }
 
   return (
-    <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
-          Company Ledger
-        </Typography>
-        <Box display="flex" gap={2}>
-          <Button
-            variant="outlined"
-            startIcon={<RefreshIcon />}
-            onClick={loadData}
+    <Box sx={{ maxWidth: 1480, mx: 'auto' }}>
+      {/* Page header */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 2,
+          mb: 2,
+        }}
+      >
+        <Box>
+          <Typography
+            variant="caption"
+            sx={{
+              color: 'text.secondary',
+              letterSpacing: 0.4,
+              fontWeight: 600,
+              display: 'block',
+              mb: 0.5,
+            }}
           >
+            LEDGER <Box component="span" sx={{ color: 'text.disabled', mx: 0.5 }}>/</Box> COMPANIES
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+            <Typography
+              variant="h4"
+              component="h1"
+              sx={{ fontWeight: 700, letterSpacing: '-0.4px', m: 0 }}
+            >
+              Company Ledger
+            </Typography>
+            <Chip
+              size="small"
+              color="success"
+              variant="outlined"
+              label={`${companies.length} ${companies.length === 1 ? 'account' : 'accounts'}`}
+              sx={{ fontWeight: 700, height: 24 }}
+            />
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            Corporate accounts, balances and direct check-ins.
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={loadData}>
             Refresh
           </Button>
           <Button
             variant="contained"
             color="success"
-            startIcon={<CheckInIcon />}
-            onClick={() => handleOpenCheckInDialog()}
-          >
-            Company Check-In
-          </Button>
-          <Button
-            variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setCreateDialogOpen(true)}
+            endIcon={<ArrowDropDownIcon />}
+            onClick={(event) => setCreateMenuAnchor(event.currentTarget)}
           >
-            New Entry
+            Create
           </Button>
+          <Menu
+            anchorEl={createMenuAnchor}
+            open={Boolean(createMenuAnchor)}
+            onClose={() => setCreateMenuAnchor(null)}
+          >
+            <MenuItem onClick={() => openContextualCreate('entry')}>
+              <AddIcon fontSize="small" sx={{ mr: 1 }} /> New Ledger Entry
+            </MenuItem>
+            <MenuItem onClick={() => openContextualCreate('invoice')}>
+              <InvoiceIcon fontSize="small" sx={{ mr: 1 }} /> Generate Invoice
+            </MenuItem>
+            <MenuItem onClick={() => openContextualCreate('payment')} disabled={!activeCompany || activeAgg.due <= 0}>
+              <PaymentIcon fontSize="small" sx={{ mr: 1 }} /> Record Payment
+            </MenuItem>
+            <MenuItem onClick={() => openContextualCreate('checkin')}>
+              <CheckInIcon fontSize="small" sx={{ mr: 1 }} /> Company Check-In
+            </MenuItem>
+            <MenuItem onClick={() => openContextualCreate('credit')} disabled={!activeCompany}>
+              <CreditNoteIcon fontSize="small" sx={{ mr: 1 }} /> Credit Note
+            </MenuItem>
+            <Divider sx={{ my: 0.5 }} />
+            <MenuItem
+              onClick={() => {
+                setCreateMenuAnchor(null);
+                setCompanyRegDialogOpen(true);
+              }}
+            >
+              <BusinessIcon fontSize="small" sx={{ mr: 1 }} /> Register Company
+            </MenuItem>
+          </Menu>
         </Box>
       </Box>
 
       {error && (
         <Alert
           severity="error"
-          sx={{ mb: 3 }}
+          sx={{ mb: 2 }}
           action={
             <Button color="inherit" size="small" onClick={loadData}>
               Retry
@@ -1954,270 +2428,1241 @@ const CustomerLedgerPage: React.FC = () => {
         </Alert>
       )}
 
-      {/* Statistics Cards */}
-      {summary && (
-        <Grid container spacing={2} mb={3}>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <Card>
-              <CardContent>
-                <Box display="flex" alignItems="center" mb={1}>
-                  <ReceiptIcon color="primary" sx={{ mr: 1 }} />
-                  <Typography variant="h6">Total Entries</Typography>
-                </Box>
-                <Typography variant="h4" color="primary">
-                  {summary.total_entries}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <Card>
-              <CardContent>
-                <Box display="flex" alignItems="center" mb={1}>
-                  <MoneyIcon color="info" sx={{ mr: 1 }} />
-                  <Typography variant="h6">Total Amount</Typography>
-                </Box>
-                <Typography variant="h4" color="info.main">
-                  {formatCurrency(parseFloat(String(summary.total_amount)))}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <Card>
-              <CardContent>
-                <Box display="flex" alignItems="center" mb={1}>
-                  <CheckCircleIcon color="success" sx={{ mr: 1 }} />
-                  <Typography variant="h6">Total Paid</Typography>
-                </Box>
-                <Typography variant="h4" color="success.main">
-                  {formatCurrency(parseFloat(String(summary.total_paid)))}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <Card>
-              <CardContent>
-                <Box display="flex" alignItems="center" mb={1}>
-                  <WarningIcon color="warning" sx={{ mr: 1 }} />
-                  <Typography variant="h6">Outstanding</Typography>
-                </Box>
-                <Typography variant="h4" color="warning.main">
-                  {formatCurrency(parseFloat(String(summary.total_outstanding)))}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      )}
-
-      {/* Registered Companies with Check-In */}
-      <Card sx={{ mb: 3, p: 2 }}>
-        <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-          <Box display="flex" alignItems="center" gap={1}>
-            <BusinessIcon color="primary" />
-            <Typography variant="h6">Registered Companies</Typography>
-            <Chip label={companies.length} size="small" color="primary" />
-          </Box>
-          <Button
+      {/* Slim stats strip: Billed / Collected / Outstanding / Overdue */}
+      {summary && (() => {
+        const totalAmount = parseFloat(String(summary.total_amount || 0));
+        const totalPaid = parseFloat(String(summary.total_paid || 0));
+        const totalDue = parseFloat(String(summary.total_outstanding || 0));
+        const overdueAmount = ledgers.reduce(
+          (sum, l) => (getLedgerUiStatus(l) === 'overdue' ? sum + asMoney(l.balance_due) : sum),
+          0,
+        );
+        const collectionPct = totalAmount > 0 ? Math.round((totalPaid / totalAmount) * 100) : 0;
+        const readyToBillCount = ledgers.filter(l => getLedgerUiStatus(l) === 'ready_to_invoice').length;
+        const openInvoiceCount = ledgers.filter(l => {
+          const s = getLedgerUiStatus(l);
+          return s === 'invoiced' || s === 'partial' || s === 'overdue';
+        }).length;
+        const stats = [
+          {
+            key: 'billed',
+            icon: <MoneyIcon fontSize="small" />,
+            iconBg: (theme: any) => alpha(theme.palette.info.main, 0.12),
+            iconColor: 'info.main',
+            label: 'Total Billed',
+            value: formatCurrency(totalAmount).replace(currencySymbol, '').trim(),
+            delta: `${summary.total_entries} entries / ${companies.length} ${companies.length === 1 ? 'company' : 'companies'}`,
+            currency: currencySymbol,
+          },
+          {
+            key: 'collected',
+            icon: <CheckCircleIcon fontSize="small" />,
+            iconBg: (theme: any) => alpha(theme.palette.success.main, 0.12),
+            iconColor: 'success.main',
+            label: 'Collected',
+            value: formatCurrency(totalPaid).replace(currencySymbol, '').trim(),
+            delta: `${collectionPct}% of billed`,
+            currency: currencySymbol,
+          },
+          {
+            key: 'outstanding',
+            icon: <WarningIcon fontSize="small" />,
+            iconBg: (theme: any) => alpha(theme.palette.warning.main, 0.14),
+            iconColor: 'warning.main',
+            label: 'Outstanding',
+            value: formatCurrency(totalDue).replace(currencySymbol, '').trim(),
+            delta: `${openInvoiceCount} open item${openInvoiceCount === 1 ? '' : 's'}`,
+            currency: currencySymbol,
+          },
+          {
+            key: 'overdue',
+            icon: <WarningIcon fontSize="small" />,
+            iconBg: (theme: any) => alpha(theme.palette.error.main, 0.12),
+            iconColor: overdueAmount > 0 ? 'error.main' : 'text.secondary',
+            label: 'Overdue',
+            value: formatCurrency(overdueAmount).replace(currencySymbol, '').trim(),
+            delta: `${readyToBillCount} ready to bill`,
+            currency: currencySymbol,
+          },
+        ];
+        return (
+          <Card
             variant="outlined"
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={() => setCompanyRegDialogOpen(true)}
+            sx={{
+              mb: 2.5,
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: 'repeat(2, 1fr)',
+                md: 'repeat(4, 1fr)',
+              },
+              overflow: 'hidden',
+            }}
           >
-            Register Company
-          </Button>
-        </Box>
-        {companies.length === 0 ? (
-          <Alert
-            severity="info"
-            action={
-              <Button color="inherit" size="small" onClick={() => setCompanyRegDialogOpen(true)}>
-                Register Now
-              </Button>
-            }
-          >
-            No companies registered yet. Click "Register Company" to add your first company.
-          </Alert>
-        ) : (
-          <Grid container spacing={2}>
-            {companies.map((company) => {
-              const ledgerData = uniqueCompanies.find(u => u.name === company.company_name);
-              const activeBookings = allCompanyBookings.filter(b => b.company_id === company.id);
-              return (
-                <Grid key={company.id} size={{ xs: 12, sm: 6, md: 4 }}>
-                  <Paper
-                    variant="outlined"
+            {stats.map((s, idx) => (
+              <Box
+                key={s.key}
+                sx={{
+                  p: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  borderLeft: {
+                    xs: 'none',
+                    md: idx === 0 ? 'none' : '1px solid',
+                  },
+                  borderTop: {
+                    xs: idx === 0 ? 'none' : '1px solid',
+                    sm: idx < 2 ? 'none' : '1px solid',
+                    md: 'none',
+                  },
+                  borderColor: 'divider',
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 1.5,
+                    display: 'grid',
+                    placeItems: 'center',
+                    bgcolor: s.iconBg as any,
+                    color: s.iconColor,
+                    flexShrink: 0,
+                  }}
+                >
+                  {s.icon}
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography
+                    variant="caption"
                     sx={{
-                      p: 2,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      height: '100%',
-                      '&:hover': { boxShadow: 3 },
-                      transition: 'box-shadow 0.2s',
+                      display: 'block',
+                      fontWeight: 700,
+                      color: 'text.secondary',
+                      letterSpacing: 0.6,
+                      textTransform: 'uppercase',
+                      lineHeight: 1.2,
                     }}
                   >
-                    <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="subtitle1" fontWeight="bold" noWrap>
-                          {company.company_name}
-                        </Typography>
-                        {company.contact_person && (
-                          <Typography variant="caption" color="text.secondary" noWrap display="block">
-                            {company.contact_person}
-                          </Typography>
-                        )}
+                    {s.label}
+                  </Typography>
+                  <Typography
+                    variant="h6"
+                    sx={{
+                      fontWeight: 700,
+                      letterSpacing: '-0.3px',
+                      lineHeight: 1.2,
+                      mt: 0.5,
+                      fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}
+                  >
+                    {s.currency && (
+                      <Box
+                        component="span"
+                        sx={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: 'text.secondary',
+                          mr: 0.5,
+                          letterSpacing: 0.4,
+                        }}
+                      >
+                        {s.currency}
                       </Box>
-                      {activeBookings.length > 0 && (
+                    )}
+                    {s.value}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'text.secondary', display: 'block', mt: 0.25 }}
+                  >
+                    {s.delta}
+                  </Typography>
+                </Box>
+              </Box>
+            ))}
+          </Card>
+        );
+      })()}
+
+      {/* Two-pane workspace: company list (left) + detail pane (right) */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: '1fr', md: '380px 1fr' },
+          gap: 2,
+          alignItems: 'start',
+        }}
+      >
+        {/* LEFT - COMPANY LIST PANE */}
+        <Card variant="outlined" sx={{ overflow: 'hidden' }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              px: 1.5,
+              py: 1.25,
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
+            <BusinessIcon fontSize="small" color="action" />
+            <Typography sx={{ fontWeight: 700, fontSize: 13, letterSpacing: 0.2 }}>
+              Companies
+            </Typography>
+            <Chip
+              label={companies.length}
+              size="small"
+              sx={{ height: 20, fontSize: 11, fontWeight: 700, '& .MuiChip-label': { px: 1 } }}
+            />
+            <Box sx={{ flex: 1 }} />
+            <Button
+              size="small"
+              variant="text"
+              startIcon={<AddIcon fontSize="small" />}
+              onClick={() => setCompanyRegDialogOpen(true)}
+              sx={{ minWidth: 0, px: 1, fontSize: 12 }}
+            >
+              Add
+            </Button>
+          </Box>
+
+          <Box
+            sx={{
+              p: 1.25,
+              bgcolor: 'action.hover',
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
+            <TextField
+              size="small"
+              fullWidth
+              placeholder="Search by name, contact, phone..."
+              value={companyListSearch}
+              onChange={(e) => setCompanyListSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
+                endAdornment: companyListSearch ? (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={() => setCompanyListSearch('')}
+                      sx={{ p: 0.25 }}
+                    >
+                      <CloseIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null,
+                sx: { bgcolor: 'background.paper', fontSize: 13 },
+              }}
+            />
+            <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
+              {([
+                { key: 'all', label: 'All', count: companies.length },
+                { key: 'due', label: 'Has balance', count: dueCount },
+                { key: 'clear', label: 'Settled', count: clearCount },
+              ] as const).map(f => (
+                <Chip
+                  key={f.key}
+                  size="small"
+                  label={
+                    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                      <span>{f.label}</span>
+                      <Box
+                        component="span"
+                        sx={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          px: 0.6,
+                          py: 0.05,
+                          borderRadius: '999px',
+                          bgcolor: companyListFilter === f.key ? 'rgba(255,255,255,0.25)' : 'action.selected',
+                        }}
+                      >
+                        {f.count}
+                      </Box>
+                    </Box>
+                  }
+                  onClick={() => setCompanyListFilter(f.key as any)}
+                  variant={companyListFilter === f.key ? 'filled' : 'outlined'}
+                  color={companyListFilter === f.key ? 'default' : 'default'}
+                  sx={{
+                    fontSize: 11.5,
+                    fontWeight: 600,
+                    height: 24,
+                    bgcolor: companyListFilter === f.key ? 'text.primary' : 'background.paper',
+                    color: companyListFilter === f.key ? 'background.paper' : 'text.secondary',
+                    '&:hover': {
+                      bgcolor: companyListFilter === f.key ? 'text.primary' : 'action.hover',
+                    },
+                  }}
+                />
+              ))}
+            </Box>
+          </Box>
+
+          <Box
+            sx={{
+              maxHeight: { md: 'calc(100vh - 360px)' },
+              overflowY: 'auto',
+            }}
+          >
+            {companies.length === 0 ? (
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  No companies registered yet.
+                </Typography>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<AddIcon />}
+                  onClick={() => setCompanyRegDialogOpen(true)}
+                >
+                  Register Company
+                </Button>
+              </Box>
+            ) : companyListRows.length === 0 ? (
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  No companies match.
+                </Typography>
+              </Box>
+            ) : (
+              companyListRows.map(({ c, agg }) => {
+                const isOn = c.id === selectedCompanyId;
+                const pct = agg.total > 0 ? (agg.paid / agg.total) * 100 : 0;
+                return (
+                  <Box
+                    key={c.id}
+                    onClick={() => setSelectedCompanyId(c.id)}
+                    sx={{
+                      p: 1.5,
+                      cursor: 'pointer',
+                      borderBottom: '1px solid',
+                      borderColor: 'divider',
+                      position: 'relative',
+                      transition: 'background 120ms',
+                      bgcolor: isOn ? (theme) => alpha(theme.palette.success.main, 0.08) : 'transparent',
+                      '&:hover': {
+                        bgcolor: isOn
+                          ? (theme) => alpha(theme.palette.success.main, 0.12)
+                          : 'action.hover',
+                      },
+                      '&::before': isOn
+                        ? {
+                            content: '""',
+                            position: 'absolute',
+                            left: 0,
+                            top: 0,
+                            bottom: 0,
+                            width: 3,
+                            bgcolor: 'success.main',
+                          }
+                        : undefined,
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+                      <Box
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 1,
+                          display: 'grid',
+                          placeItems: 'center',
+                          fontSize: 11,
+                          fontWeight: 800,
+                          letterSpacing: 0.4,
+                          flexShrink: 0,
+                          bgcolor: isOn ? 'success.main' : 'action.selected',
+                          color: isOn ? 'success.contrastText' : 'text.secondary',
+                        }}
+                      >
+                        {companyInitials(c.company_name)}
+                      </Box>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography
+                          sx={{
+                            fontSize: 13.5,
+                            fontWeight: 700,
+                            lineHeight: 1.2,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {c.company_name}
+                        </Typography>
+                        <Typography
+                          sx={{
+                            fontSize: 11,
+                            color: 'text.secondary',
+                            mt: 0.25,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {c.contact_phone || '-'}
+                          {c.contact_person ? ` / ${c.contact_person}` : ''}
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 5.25, mt: 0.75 }}>
+                      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                        <ReceiptIcon sx={{ fontSize: 11 }} />
+                        <Typography sx={{ fontSize: 11, fontWeight: 500 }}>{agg.count}</Typography>
+                      </Box>
+                      <Box
+                        sx={{
+                          width: 4,
+                          height: 4,
+                          borderRadius: '50%',
+                          bgcolor: 'text.disabled',
+                        }}
+                      />
+                      <Typography
+                        sx={{
+                          fontSize: 11,
+                          color: 'text.secondary',
+                          fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {formatCurrency(agg.total)}
+                      </Typography>
+                      <Typography
+                        sx={{
+                          ml: 'auto',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: agg.due > 0 ? 'error.main' : 'success.main',
+                          fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {agg.due > 0 ? formatCurrency(agg.due) : 'Settled'}
+                      </Typography>
+                    </Box>
+                    {agg.total > 0 && (
+                      <Box
+                        sx={{
+                          height: 3,
+                          borderRadius: '999px',
+                          bgcolor: 'action.selected',
+                          overflow: 'hidden',
+                          mt: 0.75,
+                          ml: 5.25,
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            height: '100%',
+                            width: `${pct}%`,
+                            bgcolor: 'success.main',
+                            borderRadius: '999px',
+                          }}
+                        />
+                      </Box>
+                    )}
+                  </Box>
+                );
+              })
+            )}
+          </Box>
+        </Card>
+
+        {/* RIGHT - DETAIL PANE */}
+        <Card
+          variant="outlined"
+          sx={{
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            // Cap the pane height so the header/meter/tabs stay pinned and only
+            // the per-tab body scrolls. Disabled below md where the layout stacks.
+            maxHeight: { md: 'calc(100vh - 200px)' },
+            minHeight: { md: 480 },
+          }}
+        >
+          {!activeCompany ? (
+            <Box sx={{ py: 10, px: 4, textAlign: 'center' }}>
+              <Box
+                sx={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: 2,
+                  bgcolor: 'action.hover',
+                  color: 'text.secondary',
+                  display: 'grid',
+                  placeItems: 'center',
+                  mx: 'auto',
+                  mb: 1.5,
+                }}
+              >
+                <BusinessIcon sx={{ fontSize: 26 }} />
+              </Box>
+              <Typography sx={{ fontWeight: 600, fontSize: 16, color: 'text.primary', mb: 0.5 }}>
+                Pick a company on the left
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 320, mx: 'auto' }}>
+                Select a company to view its ledger entries, balance, and take actions like
+                check-in, payment, or invoicing.
+              </Typography>
+            </Box>
+          ) : (
+            <>
+              {/* Company header */}
+              <Box
+                sx={{
+                  px: 2.5,
+                  py: 2,
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', md: '1fr auto' },
+                  gap: 2,
+                  alignItems: 'start',
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+                  <Box
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 1.5,
+                      bgcolor: 'success.main',
+                      color: 'success.contrastText',
+                      display: 'grid',
+                      placeItems: 'center',
+                      fontSize: 15,
+                      fontWeight: 800,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {companyInitials(activeCompany.company_name)}
+                  </Box>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography
+                      variant="h6"
+                      sx={{ fontWeight: 700, letterSpacing: '-0.3px', lineHeight: 1.2 }}
+                      noWrap
+                    >
+                      {activeCompany.company_name}
+                    </Typography>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        mt: 0.5,
+                        flexWrap: 'wrap',
+                        color: 'text.secondary',
+                        fontSize: 12,
+                      }}
+                    >
+                      <span>{activeCompany.contact_phone || '-'}</span>
+                      <Box component="span" sx={{ color: 'text.disabled' }}>/</Box>
+                      <span>{activeCompany.contact_person || '-'}</span>
+                      <Box component="span" sx={{ color: 'text.disabled' }}>/</Box>
+                      <Chip
+                        size="small"
+                        label={`Net ${activeCompany.payment_terms_days || 30}d`}
+                        sx={{ height: 20, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.3 }}
+                      />
+                      {activeCompany.credit_limit != null && (
                         <Chip
-                          label={`${activeBookings.length} Active`}
                           size="small"
-                          color="success"
-                          variant="filled"
+                          label={`Limit ${formatCurrency(parseFloat(String(activeCompany.credit_limit)))}`}
+                          sx={{ height: 20, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.3 }}
                         />
                       )}
                     </Box>
-
-                    {/* Active Bookings */}
-                    {activeBookings.length > 0 && (
-                      <Box sx={{ mb: 1.5, p: 1, bgcolor: 'success.50', borderRadius: 1 }}>
-                        <Typography variant="caption" color="success.dark" fontWeight={600} sx={{ mb: 0.5, display: 'block' }}>
-                          Active Guests:
-                        </Typography>
-                        {activeBookings.slice(0, 3).map((booking) => (
-                          <Box key={booking.id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 0.5, gap: 1 }}>
-                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                              <Typography variant="caption" noWrap display="block">
-                                {booking.guest_name}
-                              </Typography>
-                              <Chip
-                                label={`Room ${booking.room_number}`}
-                                size="small"
-                                variant="outlined"
-                                sx={{ height: 18, fontSize: '0.65rem' }}
-                              />
-                            </Box>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              color="error"
-                              onClick={() => handleOpenCheckoutDialog(booking)}
-                              sx={{
-                                minWidth: 'auto',
-                                px: 1,
-                                py: 0.25,
-                                fontSize: '0.7rem',
-                              }}
-                            >
-                              <CheckOutIcon sx={{ fontSize: 14, mr: 0.5 }} />
-                              Out
-                            </Button>
-                          </Box>
-                        ))}
-                        {activeBookings.length > 3 && (
-                          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                            +{activeBookings.length - 3} more guest(s)
-                          </Typography>
-                        )}
-                      </Box>
-                    )}
-
-                    {ledgerData && (
-                      <Box sx={{ mb: 1 }}>
-                        <Typography variant="body2" color="text.secondary">
-                          {ledgerData.entries} ledger entries
-                        </Typography>
-                        <Box display="flex" justifyContent="space-between">
-                          <Typography variant="body2">
-                            Total: {formatCurrency(ledgerData.total)}
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            color={ledgerData.balance > 0 ? 'error.main' : 'success.main'}
-                            fontWeight="medium"
-                          >
-                            Due: {formatCurrency(ledgerData.balance)}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    )}
-
-                    {/* Action Buttons Row 1: Check-In and Payment */}
-                    <Box display="flex" gap={1} mt="auto" pt={1}>
-                      <Button
-                        size="small"
-                        variant="contained"
-                        color="success"
-                        startIcon={<CheckInIcon />}
-                        onClick={() => handleOpenCheckInDialog(company)}
-                        sx={{ flex: 1 }}
-                      >
-                        Check-In
-                      </Button>
-                      {ledgerData && ledgerData.balance > 0 && (
-                        <Button
-                          size="small"
-                          variant="contained"
-                          color="primary"
-                          startIcon={<PaymentIcon />}
-                          onClick={() => handleOpenCompanyPaymentDialog(company)}
-                          sx={{ flex: 1 }}
-                        >
-                          Payment
-                        </Button>
-                      )}
-                    </Box>
-                    {/* Action Buttons Row 2: Edit, Invoice, Print, Delete */}
-                    <Box display="flex" gap={1} pt={0.5}>
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                  <Tooltip title="Print statement">
+                    <span>
                       <IconButton
                         size="small"
-                        color="primary"
-                        onClick={() => handleOpenEditCompany(company)}
-                        title="Edit Company"
+                        onClick={() => handlePrintCompanyStatement(activeCompany.company_name)}
+                        disabled={activeAgg.count === 0}
                       >
-                        <EditIcon fontSize="small" />
+                        <PrintIcon fontSize="small" />
                       </IconButton>
-                      {ledgerData && (
-                        <>
-                          <IconButton
-                            size="small"
-                            color="secondary"
-                            onClick={() => handleOpenCompanyInvoiceDialog(company)}
-                            title="Generate Invoice"
-                          >
-                            <InvoiceIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={() => handlePrintCompanyStatement(company.company_name)}
-                            title="Print Statement"
-                          >
-                            <PrintIcon fontSize="small" />
-                          </IconButton>
-                        </>
-                      )}
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="Delete company">
+                    <span>
                       <IconButton
                         size="small"
                         color="error"
-                        onClick={() => handleOpenDeleteCompany(company)}
-                        title="Delete Company"
-                        disabled={activeBookings.length > 0}
+                        onClick={() => handleOpenDeleteCompany(activeCompany)}
+                        disabled={activeBookingsForCompany.length > 0}
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
+                    </span>
+                  </Tooltip>
+                </Box>
+              </Box>
+
+              {/* Billed / Collected / Outstanding meter */}
+              {(() => {
+                const pct = activeAgg.total > 0 ? (activeAgg.paid / activeAgg.total) * 100 : 0;
+                const cells: Array<{
+                  key: string;
+                  label: string;
+                  value: number;
+                  color?: 'success.main' | 'error.main';
+                  barWidth: number;
+                  barColor: string;
+                  sub?: string;
+                }> = [
+                  {
+                    key: 'billed',
+                    label: 'Total Billed',
+                    value: activeAgg.total,
+                    barWidth: 100,
+                    barColor: 'success.main',
+                  },
+                  {
+                    key: 'collected',
+                    label: 'Collected',
+                    value: activeAgg.paid,
+                    color: 'success.main',
+                    barWidth: pct,
+                    barColor: 'success.main',
+                  },
+                  {
+                    key: 'outstanding',
+                    label: 'Outstanding',
+                    value: activeAgg.due,
+                    color: 'error.main',
+                    barWidth: Math.min(100, activeAgg.total > 0 ? (activeAgg.due / activeAgg.total) * 100 : 0),
+                    barColor: 'error.main',
+                    sub: `${activeAgg.pending} open item${activeAgg.pending === 1 ? '' : 's'}`,
+                  },
+                  {
+                    key: 'overdue',
+                    label: 'Overdue',
+                    value: activeAgg.overdue,
+                    color: activeAgg.overdue > 0 ? 'error.main' : 'success.main',
+                    barWidth: Math.min(100, activeAgg.total > 0 ? (activeAgg.overdue / activeAgg.total) * 100 : 0),
+                    barColor: 'error.main',
+                    sub: activeAgg.overdue > 0 ? 'needs follow-up' : 'none overdue',
+                  },
+                  {
+                    key: 'collection',
+                    label: 'Collection',
+                    value: pct,
+                    color: 'success.main',
+                    barWidth: pct,
+                    barColor: 'success.main',
+                    sub: `${Math.round(pct)}% collected`,
+                  },
+                ];
+                return (
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(5, 1fr)' },
+                      bgcolor: 'action.hover',
+                      borderBottom: '1px solid',
+                      borderColor: 'divider',
+                    }}
+                  >
+                    {cells.map((c, idx) => (
+                      <Box
+                        key={c.key}
+                        sx={{
+                          px: 2.5,
+                          py: 1.5,
+                          borderRight: {
+                            xs: 'none',
+                            lg: idx < cells.length - 1 ? '1px solid' : 'none',
+                          },
+                          borderBottom: {
+                            xs: idx < cells.length - 1 ? '1px solid' : 'none',
+                            sm: idx < cells.length - 2 ? '1px solid' : 'none',
+                            lg: 'none',
+                          },
+                          borderColor: 'divider',
+                        }}
+                      >
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontWeight: 700,
+                            color: 'text.secondary',
+                            letterSpacing: 0.6,
+                            textTransform: 'uppercase',
+                            display: 'block',
+                          }}
+                        >
+                          {c.label}
+                        </Typography>
+                        <Typography
+                          sx={{
+                            fontSize: 18,
+                            fontWeight: 700,
+                            letterSpacing: '-0.3px',
+                            mt: 0.5,
+                            color: c.color || 'text.primary',
+                            fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {c.key === 'collection' ? (
+                            `${Math.round(c.value)}%`
+                          ) : (
+                            <>
+                              <Box
+                                component="span"
+                                sx={{
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  color: 'text.secondary',
+                                  mr: 0.5,
+                                  letterSpacing: 0.4,
+                                }}
+                              >
+                                {currencySymbol}
+                              </Box>
+                              {formatCurrency(c.value).replace(currencySymbol, '').trim()}
+                            </>
+                          )}
+                        </Typography>
+                        <LinearProgress
+                          variant="determinate"
+                          value={Math.max(0, Math.min(100, c.barWidth))}
+                          sx={{
+                            height: 5,
+                            borderRadius: 999,
+                            bgcolor: 'action.selected',
+                            mt: 1,
+                            '& .MuiLinearProgress-bar': { bgcolor: c.barColor },
+                          }}
+                        />
+                        <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, display: 'block' }}>
+                          {c.sub}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                );
+              })()}
+
+              {/* Active guests row (if any) */}
+              {activeBookingsForCompany.length > 0 && (
+                <Box
+                  sx={{
+                    px: 2.5,
+                    py: 1.5,
+                    bgcolor: (theme) => alpha(theme.palette.success.main, 0.08),
+                    borderBottom: '1px solid',
+                    borderColor: 'divider',
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    gap: 1,
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: 700,
+                      color: 'success.dark',
+                      letterSpacing: 0.4,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {activeBookingsForCompany.length} active guest{activeBookingsForCompany.length > 1 ? 's' : ''}:
+                  </Typography>
+                  {activeBookingsForCompany.map((booking) => (
+                    <Chip
+                      key={booking.id}
+                      size="small"
+                      label={
+                        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+                          <span>Room {booking.room_number}</span>
+                          <Box component="span" sx={{ color: 'text.disabled' }}>/</Box>
+                          <span>{booking.guest_name}</span>
+                        </Box>
+                      }
+                      onDelete={() => handleOpenCheckoutDialog(booking)}
+                      deleteIcon={
+                        <Box
+                          sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 0.25,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: 'error.main',
+                            px: 0.5,
+                          }}
+                        >
+                          <CheckOutIcon sx={{ fontSize: 13 }} /> Out
+                        </Box>
+                      }
+                      sx={{
+                        bgcolor: 'background.paper',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        '& .MuiChip-label': { fontSize: 12 },
+                      }}
+                    />
+                  ))}
+                </Box>
+              )}
+
+              {/* Tabs + per-tab primary action (v2) */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                  pr: 2,
+                }}
+              >
+              <Tabs
+                value={detailTab}
+                onChange={(_, v) => setDetailTab(v)}
+                sx={{
+                  flex: 1,
+                  px: 2.5,
+                  minHeight: 40,
+                  '& .MuiTab-root': {
+                    minHeight: 40,
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    fontSize: 13,
+                  },
+                }}
+              >
+                <Tab
+                  value="entries"
+                  label={
+                    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                      <span>Ledger entries</span>
+                      <Box
+                        component="span"
+                        sx={{
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          px: 0.75,
+                          py: 0.1,
+                          borderRadius: '999px',
+                          bgcolor: detailTab === 'entries'
+                            ? (theme) => alpha(theme.palette.success.main, 0.18)
+                            : 'action.selected',
+                          color: detailTab === 'entries' ? 'success.main' : 'text.secondary',
+                        }}
+                      >
+                        {activeAgg.count}
+                      </Box>
                     </Box>
-                  </Paper>
-                </Grid>
-              );
-            })}
-          </Grid>
-        )}
-      </Card>
+                  }
+                />
+                <Tab value="info" label="Company info" />
+              </Tabs>
+              {detailTab === 'entries' && (
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="success"
+                  startIcon={<AddIcon fontSize="small" />}
+                  onClick={() => {
+                    if (!activeCompany) return;
+                    prefillCreateForCompany(activeCompany);
+                    setCreateDialogOpen(true);
+                  }}
+                  disabled={!activeCompany}
+                >
+                  New entry
+                </Button>
+              )}
+              {detailTab === 'info' && (
+                <Button
+                  size="small"
+                  variant="contained"
+                  color="success"
+                  startIcon={<EditIcon fontSize="small" />}
+                  onClick={() => activeCompany && handleOpenEditCompany(activeCompany)}
+                  disabled={!activeCompany}
+                >
+                  Edit company
+                </Button>
+              )}
+              </Box>
+
+              {/* Scrollable tab body keeps header/meter/tabs pinned above */}
+              <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+              {detailTab === 'entries' && (
+                <>
+                  {/* Toolbar: search + status segment + new entry */}
+                  <Box
+                    sx={{
+                      px: 2.5,
+                      py: 1.25,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                      flexWrap: 'wrap',
+                      bgcolor: 'action.hover',
+                      borderBottom: '1px solid',
+                      borderColor: 'divider',
+                    }}
+                  >
+                    <TextField
+                      size="small"
+                      placeholder="Search description or invoice no..."
+                      value={entriesSearch}
+                      onChange={(e) => setEntriesSearch(e.target.value)}
+                      sx={{ width: 240, bgcolor: 'background.paper' }}
+                    />
+                    <Box
+                      sx={{
+                        display: 'inline-flex',
+                        bgcolor: 'background.paper',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        p: 0.25,
+                      }}
+                    >
+                      {([
+                        { key: 'all', label: 'All' },
+                        { key: 'uninvoiced', label: 'Uninvoiced' },
+                        { key: 'outstanding', label: 'Outstanding' },
+                        { key: 'invoiced', label: 'Invoiced' },
+                        { key: 'paid', label: 'Paid' },
+                        { key: 'overdue', label: 'Overdue' },
+                        { key: 'voided', label: 'Voided' },
+                      ] as const).map(s => (
+                        <Button
+                          key={s.key}
+                          size="small"
+                          onClick={() => setEntriesStatusFilter(s.key as any)}
+                          sx={{
+                            minWidth: 0,
+                            px: 1,
+                            py: 0.25,
+                            fontSize: 11.5,
+                            fontWeight: 600,
+                            color: entriesStatusFilter === s.key ? 'background.paper' : 'text.secondary',
+                            bgcolor: entriesStatusFilter === s.key ? 'text.primary' : 'transparent',
+                            borderRadius: 0.75,
+                            '&:hover': {
+                              bgcolor:
+                                entriesStatusFilter === s.key ? 'text.primary' : 'action.hover',
+                            },
+                          }}
+                        >
+                          {s.label}
+                        </Button>
+                      ))}
+                    </Box>
+                  </Box>
+
+                  {activeCompanyEntries.length === 0 ? (
+                    <Box sx={{ py: 8, px: 4, textAlign: 'center' }}>
+                      <Typography variant="body2" color="text.secondary">
+                        {activeAgg.count === 0
+                          ? 'No ledger entries for this company yet.'
+                          : 'No entries match this filter.'}
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <TableContainer sx={{ overflowX: 'auto' }}>
+                      <Table size="small" stickyHeader sx={{ minWidth: 980 }}>
+                        <TableHead>
+                          <TableRow
+                            sx={{
+                              '& .MuiTableCell-root': {
+                                fontSize: 10.5,
+                                fontWeight: 700,
+                                color: 'text.secondary',
+                                letterSpacing: 0.6,
+                                textTransform: 'uppercase',
+                                bgcolor: 'action.hover',
+                                py: 1.25,
+                              },
+                            }}
+                          >
+                            <TableCell sx={{ pl: 2.5, width: '30%' }}>Description</TableCell>
+                            <TableCell>Stay / Ledger Date</TableCell>
+                            <TableCell>Invoice #</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell align="right">Amount</TableCell>
+                            <TableCell align="right">Paid</TableCell>
+                            <TableCell align="right">Balance</TableCell>
+                            <TableCell sx={{ width: 110 }} />
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {activeCompanyEntries.map((entry) => {
+                            const amount = parseFloat(String(entry.amount || 0));
+                            const paid = parseFloat(String(entry.paid_amount || 0));
+                            const balance = parseFloat(String(entry.balance_due || 0));
+                            const voided = isVoidedLedger(entry);
+                            const uiStatus = getLedgerUiStatus(entry);
+                            const receiptNumber = (activeCompanyPayments[entry.id] || [])
+                              .map(payment => payment.receipt_number)
+                              .filter(Boolean)[0];
+                            return (
+                              <TableRow
+                                key={entry.id}
+                                hover
+                                sx={{
+                                  '&:hover .ledger-row-actions': { opacity: 1 },
+                                  opacity: voided ? 0.6 : 1,
+                                }}
+                              >
+                                <TableCell sx={{ pl: 2.5, py: 1.25 }}>
+                                  <Typography
+                                    sx={{ fontWeight: 600, fontSize: 13, lineHeight: 1.3 }}
+                                  >
+                                    {entry.description}
+                                  </Typography>
+                                  <Typography
+                                    sx={{
+                                      fontSize: 11,
+                                      color: 'text.secondary',
+                                      mt: 0.25,
+                                      fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                                    }}
+                                  >
+                                    {entry.folio_number || `#${entry.id}`}
+                                    {entry.room_number ? ` / Room ${entry.room_number}` : ''}
+                                    {entry.expense_type ? ` / ${entry.expense_type}` : ''}
+                                    {receiptNumber ? ` / Receipt ${receiptNumber}` : ''}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell sx={{ color: 'text.secondary', fontSize: 12 }}>
+                                  {formatDateForDisplay(entry.posting_date || entry.created_at)}
+                                </TableCell>
+                                <TableCell sx={{ color: entry.invoice_number ? 'text.primary' : 'text.disabled', fontSize: 12 }}>
+                                  {entry.invoice_number || 'Not invoiced'}
+                                </TableCell>
+                                <TableCell>
+                                  <LedgerStatusBadge status={uiStatus} />
+                                </TableCell>
+                                <TableCell
+                                  align="right"
+                                  sx={{
+                                    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                                    fontVariantNumeric: 'tabular-nums',
+                                    fontWeight: 700,
+                                    fontSize: 13,
+                                  }}
+                                >
+                                  {formatCurrency(amount)}
+                                </TableCell>
+                                <TableCell
+                                  align="right"
+                                  sx={{
+                                    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                                    fontVariantNumeric: 'tabular-nums',
+                                    fontWeight: 700,
+                                    fontSize: 13,
+                                    color: paid > 0 ? 'success.main' : 'text.secondary',
+                                  }}
+                                >
+                                  {formatCurrency(paid)}
+                                </TableCell>
+                                <TableCell
+                                  align="right"
+                                  sx={{
+                                    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+                                    fontVariantNumeric: 'tabular-nums',
+                                    fontWeight: 700,
+                                    fontSize: 13,
+                                    color: balance > 0 ? 'error.main' : 'success.main',
+                                  }}
+                                >
+                                  {formatCurrency(balance)}
+                                </TableCell>
+                                <TableCell sx={{ pr: 2 }}>
+                                  <Box
+                                    className="ledger-row-actions"
+                                    sx={{
+                                      display: 'inline-flex',
+                                      gap: 0.25,
+                                      opacity: { xs: 1, md: 0 },
+                                      transition: 'opacity 120ms',
+                                    }}
+                                  >
+                                    {canRecordPayment(entry) && (
+                                      <IconButton
+                                        size="small"
+                                        title="Record payment"
+                                        onClick={() => handleOpenPaymentDialog(entry)}
+                                      >
+                                        <PaymentIcon sx={{ fontSize: 16 }} />
+                                      </IconButton>
+                                    )}
+                                    {canViewInvoice(entry) && (
+                                      <IconButton
+                                        size="small"
+                                        title="View invoice"
+                                        onClick={() => handleViewLedgerInvoice(entry)}
+                                        disabled={loadingLedgerInvoice}
+                                      >
+                                        <OpenInNewIcon sx={{ fontSize: 16 }} />
+                                      </IconButton>
+                                    )}
+                                    <IconButton
+                                      size="small"
+                                      title="Edit entry"
+                                      onClick={() => handleEditLedger(entry)}
+                                    >
+                                      <EditIcon sx={{ fontSize: 16 }} />
+                                    </IconButton>
+                                    <IconButton
+                                      size="small"
+                                      title="Print receipt"
+                                      onClick={() => handlePrintSingleReceipt(entry)}
+                                    >
+                                      <PrintIcon sx={{ fontSize: 16 }} />
+                                    </IconButton>
+                                    {canVoid(entry) && (
+                                      <IconButton
+                                        size="small"
+                                        title="Void entry"
+                                        color="error"
+                                        onClick={() => handleVoidLedger(entry)}
+                                      >
+                                        <VoidIcon sx={{ fontSize: 16 }} />
+                                      </IconButton>
+                                    )}
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  )}
+                </>
+              )}
+
+              {detailTab === 'info' && (
+                <Box sx={{ p: 2.5 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<EditIcon fontSize="small" />}
+                      onClick={() => handleOpenEditCompany(activeCompany)}
+                    >
+                      Edit company
+                    </Button>
+                  </Box>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      fontWeight: 700,
+                      color: 'text.secondary',
+                      letterSpacing: 0.6,
+                      textTransform: 'uppercase',
+                      mb: 1.5,
+                    }}
+                  >
+                    Contact
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                      gap: '14px 22px',
+                      mb: 3,
+                    }}
+                  >
+                    <InfoField label="Phone" value={activeCompany.contact_phone || '-'} />
+                    <InfoField label="Contact person" value={activeCompany.contact_person || '-'} />
+                    <InfoField label="Email" value={activeCompany.contact_email || '-'} />
+                    <InfoField
+                      label="Registration no."
+                      value={activeCompany.registration_number || '-'}
+                    />
+                    <InfoField
+                      label="Address"
+                      value={
+                        [
+                          activeCompany.billing_address,
+                          activeCompany.billing_city,
+                          activeCompany.billing_state,
+                          activeCompany.billing_postal_code,
+                        ]
+                          .filter(Boolean)
+                          .join(', ') || '-'
+                      }
+                      span={2}
+                    />
+                  </Box>
+
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: 'block',
+                      fontWeight: 700,
+                      color: 'text.secondary',
+                      letterSpacing: 0.6,
+                      textTransform: 'uppercase',
+                      mb: 1.5,
+                    }}
+                  >
+                    Billing terms
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
+                      gap: '14px 22px',
+                    }}
+                  >
+                    <InfoField
+                      label="Credit limit"
+                      value={
+                        activeCompany.credit_limit != null
+                          ? formatCurrency(parseFloat(String(activeCompany.credit_limit)))
+                          : '-'
+                      }
+                    />
+                    <InfoField
+                      label="Payment terms"
+                      value={`Net ${activeCompany.payment_terms_days || 30} days`}
+                    />
+                    <InfoField
+                      label="Available credit"
+                      value={
+                        activeCompany.credit_limit != null
+                          ? formatCurrency(
+                              Math.max(parseFloat(String(activeCompany.credit_limit)) - activeAgg.due, 0),
+                            )
+                          : '-'
+                      }
+                    />
+                  </Box>
+                </Box>
+              )}
+              </Box>
+            </>
+          )}
+        </Card>
+      </Box>
 
       {/* Create Ledger Dialog */}
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>
@@ -2230,9 +3675,24 @@ const CustomerLedgerPage: React.FC = () => {
                 onChange={(event, newValue) => {
                   if (newValue) {
                     if (newValue.isNew) {
-                      // User selected "Add new company" option
-                      setNewCompanyData({ ...newCompanyData, company_name: newValue.inputValue || '' });
-                      setNewCompanyDialogOpen(true);
+                      // User selected "Add new company" option; open the full
+                      // registration dialog with the typed name prefilled.
+                      setCompanyRegForm({
+                        company_name: newValue.inputValue || '',
+                        registration_number: '',
+                        contact_person: '',
+                        contact_email: '',
+                        contact_phone: '',
+                        billing_address: '',
+                        billing_city: '',
+                        billing_state: '',
+                        billing_postal_code: '',
+                        credit_limit: '',
+                        payment_terms_days: '30',
+                        notes: '',
+                      });
+                      setCompanyRegPrefillCreate(true);
+                      setCompanyRegDialogOpen(true);
                     } else {
                       // User selected an existing company
                       setSelectedCompany(newValue);
@@ -2395,6 +3855,30 @@ const CustomerLedgerPage: React.FC = () => {
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
+                label="Room Number"
+                value={createFormData.room_number || ''}
+                onChange={(e) => setCreateFormData({ ...createFormData, room_number: e.target.value })}
+                helperText="Used to detect possible duplicate stay charges"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                label="Stay / Ledger Date"
+                type="date"
+                value={createFormData.posting_date || ''}
+                onChange={(e) => setCreateFormData({
+                  ...createFormData,
+                  posting_date: e.target.value,
+                  transaction_date: e.target.value,
+                })}
+                InputLabelProps={{ shrink: true }}
+                helperText="Company + room + date + amount is checked for duplicates"
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
                 label="Invoice Date"
                 type="date"
                 value={createFormData.invoice_date || ''}
@@ -2427,11 +3911,49 @@ const CustomerLedgerPage: React.FC = () => {
         <DialogActions>
           <Button onClick={() => { setCreateDialogOpen(false); resetCreateForm(); }}>Cancel</Button>
           <Button
-            onClick={handleCreateLedger}
+            onClick={() => handleCreateLedger()}
             variant="contained"
             disabled={creating || !createFormData.company_name || !createFormData.description || createFormData.amount <= 0}
           >
             {creating ? 'Creating...' : 'Create Entry'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Possible Duplicate Ledger Dialog */}
+      <Dialog open={duplicateDialogOpen} onClose={() => setDuplicateDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Possible duplicate ledger entry found</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            A ledger entry already exists for the same company, room, stay date, and amount.
+          </Alert>
+          {possibleDuplicateLedger && (
+            <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+              <Typography sx={{ fontWeight: 700 }}>{possibleDuplicateLedger.description}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Room {possibleDuplicateLedger.room_number || '-'} / {formatDateForDisplay(possibleDuplicateLedger.posting_date || possibleDuplicateLedger.created_at)}
+              </Typography>
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                {formatCurrency(asMoney(possibleDuplicateLedger.amount))} / {possibleDuplicateLedger.invoice_number || 'Not invoiced'}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              if (possibleDuplicateLedger) {
+                setSelectedCompanyId(activeCompany?.id || selectedCompanyId);
+                setEntriesSearch(possibleDuplicateLedger.invoice_number || possibleDuplicateLedger.description);
+              }
+              setDuplicateDialogOpen(false);
+            }}
+          >
+            View existing
+          </Button>
+          <Button onClick={() => setDuplicateDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => handleCreateLedger(true)} variant="contained" disabled={creating}>
+            Create anyway
           </Button>
         </DialogActions>
       </Dialog>
@@ -2800,301 +4322,15 @@ const CustomerLedgerPage: React.FC = () => {
             <Button
               onClick={handleRecordPayment}
               variant="contained"
-              disabled={processingPayment || paymentFormData.payment_amount <= 0}
+              disabled={
+                processingPayment ||
+                paymentFormData.payment_amount <= 0 ||
+                (paymentLedger ? paymentFormData.payment_amount > getLedgerBalanceDue(paymentLedger) : true)
+              }
             >
               {processingPayment ? 'Processing...' : 'Record Payment'}
             </Button>
           )}
-        </DialogActions>
-      </Dialog>
-
-      {/* New Company Registration Dialog */}
-      <Dialog open={newCompanyDialogOpen} onClose={() => setNewCompanyDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <PersonAddIcon color="primary" />
-            Register New Company
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            This company is not in our system. Please provide the company details below.
-          </Alert>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                required
-                label="Company Name"
-                value={newCompanyData.company_name}
-                onChange={(e) => setNewCompanyData({ ...newCompanyData, company_name: e.target.value })}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Registration Number"
-                value={newCompanyData.company_registration_number || ''}
-                onChange={(e) => setNewCompanyData({ ...newCompanyData, company_registration_number: e.target.value })}
-                placeholder="e.g., 123456-A"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Contact Person"
-                value={newCompanyData.contact_person || ''}
-                onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_person: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Contact Email"
-                type="email"
-                value={newCompanyData.contact_email || ''}
-                onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_email: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Contact Phone"
-                value={newCompanyData.contact_phone || ''}
-                onChange={(e) => setNewCompanyData({ ...newCompanyData, contact_phone: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Billing Address"
-                value={newCompanyData.billing_address_line1 || ''}
-                onChange={(e) => setNewCompanyData({ ...newCompanyData, billing_address_line1: e.target.value })}
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setNewCompanyDialogOpen(false)}>Cancel</Button>
-          <Button
-            onClick={handleRegisterNewCompany}
-            variant="contained"
-            startIcon={<PersonAddIcon />}
-            disabled={!newCompanyData.company_name}
-          >
-            Register Company
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Receipt Review & Print Dialog (one-by-one) */}
-      <Dialog open={printDialogOpen} onClose={() => setPrintDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Box display="flex" alignItems="center" gap={1}>
-              <ReceiptIcon color="primary" />
-              <Typography variant="h6">
-                {printingCompany} - Receipts
-              </Typography>
-            </Box>
-            <Box display="flex" gap={1}>
-              {companyLedgerEntries.length > 0 && (
-                <Button
-                  variant="contained"
-                  size="small"
-                  startIcon={<PrintIcon />}
-                  onClick={() => handlePrintSingleReceipt(companyLedgerEntries[currentReceiptIndex])}
-                >
-                  Print This Receipt
-                </Button>
-              )}
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<PrintIcon />}
-                onClick={handlePrint}
-              >
-                Print All
-              </Button>
-            </Box>
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          {companyLedgerEntries.length === 0 ? (
-            <Alert severity="info">No ledger entries found for this company.</Alert>
-          ) : (
-            <>
-              {/* Navigation Bar */}
-              <Box display="flex" alignItems="center" justifyContent="center" gap={2} sx={{ mb: 2 }}>
-                <IconButton
-                  onClick={() => setCurrentReceiptIndex(Math.max(0, currentReceiptIndex - 1))}
-                  disabled={currentReceiptIndex === 0}
-                >
-                  <PrevIcon />
-                </IconButton>
-                <Typography variant="body1" fontWeight="medium">
-                  Receipt {currentReceiptIndex + 1} of {companyLedgerEntries.length}
-                </Typography>
-                <IconButton
-                  onClick={() => setCurrentReceiptIndex(Math.min(companyLedgerEntries.length - 1, currentReceiptIndex + 1))}
-                  disabled={currentReceiptIndex === companyLedgerEntries.length - 1}
-                >
-                  <NextIcon />
-                </IconButton>
-              </Box>
-
-              {/* Thumbnail Strip */}
-              <Box sx={{ display: 'flex', gap: 1, overflowX: 'auto', pb: 2, mb: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                {companyLedgerEntries.map((entry, idx) => (
-                  <Paper
-                    key={entry.id}
-                    variant={idx === currentReceiptIndex ? 'elevation' : 'outlined'}
-                    elevation={idx === currentReceiptIndex ? 4 : 0}
-                    onClick={() => setCurrentReceiptIndex(idx)}
-                    sx={{
-                      p: 1,
-                      minWidth: 120,
-                      cursor: 'pointer',
-                      bgcolor: idx === currentReceiptIndex ? 'primary.50' : 'background.paper',
-                      border: idx === currentReceiptIndex ? '2px solid' : '1px solid',
-                      borderColor: idx === currentReceiptIndex ? 'primary.main' : 'divider',
-                      '&:hover': { bgcolor: 'action.hover' },
-                    }}
-                  >
-                    <Typography variant="caption" fontWeight="bold" noWrap>
-                      {entry.invoice_number || `#${entry.id}`}
-                    </Typography>
-                    <Typography variant="caption" display="block" color="text.secondary" noWrap>
-                      {formatCurrency(parseFloat(String(entry.amount)))}
-                    </Typography>
-                    <Chip
-                      label={getStatusText(entry.status)}
-                      color={getStatusColor(entry.status)}
-                      size="small"
-                      sx={{ mt: 0.5, height: 18, fontSize: '0.65rem' }}
-                    />
-                  </Paper>
-                ))}
-              </Box>
-
-              {/* Current Receipt Detail */}
-              {(() => {
-                const entry = companyLedgerEntries[currentReceiptIndex];
-                if (!entry) return null;
-                return (
-                  <Box>
-                    {/* Receipt Header */}
-                    <Box sx={{ textAlign: 'center', mb: 3, borderBottom: '2px solid #333', pb: 2 }}>
-                      <Typography variant="h5" fontWeight="bold">{hotelSettings.hotel_name}</Typography>
-                      <Typography variant="subtitle1" color="text.secondary">Payment Receipt</Typography>
-                    </Box>
-
-                    {/* Receipt Details */}
-                    <Grid container spacing={2}>
-                      <Grid size={6}>
-                        <Typography variant="caption" color="text.secondary">Receipt / Invoice #</Typography>
-                        <Typography variant="body1" fontWeight="bold">
-                          {entry.invoice_number || entry.folio_number || `#${entry.id}`}
-                        </Typography>
-                      </Grid>
-                      <Grid size={6}>
-                        <Typography variant="caption" color="text.secondary">Company</Typography>
-                        <Typography variant="body1" fontWeight="bold">{entry.company_name}</Typography>
-                      </Grid>
-                      <Grid size={12}>
-                        <Typography variant="caption" color="text.secondary">Description</Typography>
-                        <Typography variant="body1">{entry.description}</Typography>
-                      </Grid>
-                      <Grid size={4}>
-                        <Typography variant="caption" color="text.secondary">Expense Type</Typography>
-                        <Typography variant="body1">
-                          {EXPENSE_TYPES.find(t => t.value === entry.expense_type)?.label || entry.expense_type}
-                        </Typography>
-                      </Grid>
-                      <Grid size={4}>
-                        <Typography variant="caption" color="text.secondary">Date Created</Typography>
-                        <Typography variant="body1">{formatDateForDisplay(entry.created_at)}</Typography>
-                      </Grid>
-                      <Grid size={4}>
-                        <Typography variant="caption" color="text.secondary">Status</Typography>
-                        <Box>
-                          <Chip
-                            label={getStatusText(entry.status)}
-                            color={getStatusColor(entry.status)}
-                            size="small"
-                          />
-                        </Box>
-                      </Grid>
-                      {entry.payment_date && (
-                        <Grid size={4}>
-                          <Typography variant="caption" color="text.secondary">Payment Date</Typography>
-                          <Typography variant="body1">{formatDateForDisplay(entry.payment_date)}</Typography>
-                        </Grid>
-                      )}
-                      {entry.payment_method && (
-                        <Grid size={4}>
-                          <Typography variant="caption" color="text.secondary">Payment Method</Typography>
-                          <Typography variant="body1">
-                            {PAYMENT_METHODS.find(m => m.value === entry.payment_method)?.label || entry.payment_method}
-                          </Typography>
-                        </Grid>
-                      )}
-                      {entry.payment_reference && (
-                        <Grid size={4}>
-                          <Typography variant="caption" color="text.secondary">Payment Reference</Typography>
-                          <Typography variant="body1">{entry.payment_reference}</Typography>
-                        </Grid>
-                      )}
-                    </Grid>
-
-                    {/* Amount Section */}
-                    <Paper sx={{ mt: 3, p: 2, bgcolor: 'grey.50' }}>
-                      <Grid container spacing={1}>
-                        <Grid size={4}>
-                          <Typography variant="caption" color="text.secondary">Total Amount</Typography>
-                          <Typography variant="h6" fontWeight="bold">
-                            {formatCurrency(parseFloat(String(entry.amount)))}
-                          </Typography>
-                        </Grid>
-                        <Grid size={4}>
-                          <Typography variant="caption" color="text.secondary">Paid Amount</Typography>
-                          <Typography variant="h6" fontWeight="bold" color="success.main">
-                            {formatCurrency(parseFloat(String(entry.paid_amount)))}
-                          </Typography>
-                        </Grid>
-                        <Grid size={4}>
-                          <Typography variant="caption" color="text.secondary">Balance Due</Typography>
-                          <Typography
-                            variant="h6"
-                            fontWeight="bold"
-                            color={parseFloat(String(entry.balance_due)) > 0 ? 'error.main' : 'success.main'}
-                          >
-                            {formatCurrency(parseFloat(String(entry.balance_due)))}
-                          </Typography>
-                        </Grid>
-                      </Grid>
-                    </Paper>
-
-                    {entry.notes && (
-                      <Box sx={{ mt: 2 }}>
-                        <Typography variant="caption" color="text.secondary">Notes</Typography>
-                        <Typography variant="body2">{entry.notes}</Typography>
-                      </Box>
-                    )}
-
-                    <Box sx={{ mt: 3, textAlign: 'center', color: 'text.secondary' }}>
-                      <Typography variant="caption">
-                        Generated on {new Date().toLocaleString()} | {hotelSettings.hotel_name} - Hotel Management System
-                      </Typography>
-                    </Box>
-                  </Box>
-                );
-              })()}
-            </>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPrintDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 
@@ -3504,7 +4740,7 @@ const CustomerLedgerPage: React.FC = () => {
       {/* Company Registration Dialog */}
       <Dialog
         open={companyRegDialogOpen}
-        onClose={() => { setCompanyRegDialogOpen(false); resetCompanyRegForm(); }}
+        onClose={() => { setCompanyRegDialogOpen(false); resetCompanyRegForm(); setCompanyRegPrefillCreate(false); }}
         maxWidth="md"
         fullWidth
       >
@@ -4025,6 +5261,41 @@ const CustomerLedgerPage: React.FC = () => {
                 </Grid>
               )}
 
+              {/* Payment overflow warnings (v2) */}
+              {(() => {
+                const amt = parseFloat(companyPaymentForm.payment_amount || '0') || 0;
+                const selectedDue = selectedLedgersForPayment.reduce((sum, l) => {
+                  const a = typeof l.amount === 'string' ? parseFloat(l.amount) : l.amount;
+                  const bal = typeof l.balance_due === 'string' ? parseFloat(l.balance_due) : (l.balance_due || a);
+                  return sum + bal;
+                }, 0);
+                const companyDue = paymentCompany
+                  ? ledgers
+                      .filter(l => l.company_name === paymentCompany.company_name)
+                      .reduce((sum, l) => sum + asMoney(l.balance_due), 0)
+                  : 0;
+                const exceedsSelection = amt > selectedDue + 0.001 && amt <= companyDue + 0.001;
+                const exceedsOutstanding = amt > companyDue + 0.001;
+                if (!exceedsSelection && !exceedsOutstanding) return null;
+                return (
+                  <Grid size={12}>
+                    {exceedsSelection && (
+                      <Alert severity="warning" sx={{ mb: 1 }}>
+                        Payment amount exceeds selected entries by{' '}
+                        <strong>{formatCurrency(amt - selectedDue)}</strong>. The excess will be parked as
+                        credit on account.
+                      </Alert>
+                    )}
+                    {exceedsOutstanding && (
+                      <Alert severity="error">
+                        Payment amount exceeds the company's total outstanding balance of{' '}
+                        <strong>{formatCurrency(companyDue)}</strong>. Reduce the amount, or issue a credit note instead.
+                      </Alert>
+                    )}
+                  </Grid>
+                );
+              })()}
+
               {/* Payment Amount */}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
@@ -4036,7 +5307,25 @@ const CustomerLedgerPage: React.FC = () => {
                   onChange={(e) => setCompanyPaymentForm({ ...companyPaymentForm, payment_amount: e.target.value })}
                   InputProps={{
                     startAdornment: <Typography sx={{ mr: 1 }}>{currencySymbol}</Typography>,
+                    inputProps: paymentCompany
+                      ? {
+                          min: 0,
+                          max: ledgers
+                            .filter(l => l.company_name === paymentCompany.company_name)
+                            .reduce((sum, l) => sum + asMoney(l.balance_due), 0)
+                            .toFixed(2),
+                        }
+                      : { min: 0 },
                   }}
+                  helperText={
+                    paymentCompany
+                      ? `Max ${formatCurrency(
+                          ledgers
+                            .filter(l => l.company_name === paymentCompany.company_name)
+                            .reduce((sum, l) => sum + asMoney(l.balance_due), 0),
+                        )}`
+                      : undefined
+                  }
                 />
               </Grid>
 
@@ -4112,7 +5401,20 @@ const CustomerLedgerPage: React.FC = () => {
           <Button
             onClick={handleRecordCompanyPayment}
             variant="contained"
-            disabled={processingCompanyPayment || selectedLedgersForPayment.length === 0 || !companyPaymentForm.payment_amount}
+            disabled={(() => {
+              if (processingCompanyPayment) return true;
+              if (selectedLedgersForPayment.length === 0) return true;
+              const amt = parseFloat(companyPaymentForm.payment_amount || '0') || 0;
+              if (amt <= 0) return true;
+              // v2: only block when payment exceeds the company's TOTAL outstanding
+              // (exceeding the current selection is allowed — handled as credit on account).
+              const companyDue = paymentCompany
+                ? ledgers
+                    .filter(l => l.company_name === paymentCompany.company_name)
+                    .reduce((sum, l) => sum + asMoney(l.balance_due), 0)
+                : 0;
+              return amt > companyDue + 0.001;
+            })()}
             startIcon={processingCompanyPayment ? <CircularProgress size={20} /> : <PaymentIcon />}
           >
             {processingCompanyPayment ? 'Processing...' : 'Record Payment'}
@@ -4179,30 +5481,84 @@ const CustomerLedgerPage: React.FC = () => {
                   />
                 </Grid>
 
-                {/* Select Ledger Entries */}
+                {/* Select Ledger Entries — v2: tri-state chip filter */}
                 <Grid size={12}>
                   <Divider sx={{ my: 1 }} />
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                    <Typography variant="subtitle1" fontWeight={600}>
-                      Select Ledger Entries to Include
-                    </Typography>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={selectedInvoiceLedgers.length === invoiceLedgerEntries.length && invoiceLedgerEntries.length > 0}
-                          indeterminate={selectedInvoiceLedgers.length > 0 && selectedInvoiceLedgers.length < invoiceLedgerEntries.length}
-                          onChange={handleSelectAllLedgers}
-                        />
-                      }
-                      label="Select All"
-                    />
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 1,
+                      mb: 1,
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+                      {([
+                        { key: 'billable', label: 'Uninvoiced', count: invoiceFilterCounts.billable },
+                        { key: 'all', label: 'All entries', count: invoiceFilterCounts.all },
+                        { key: 'invoiced', label: 'Already invoiced', count: invoiceFilterCounts.invoiced },
+                      ] as const).map(f => {
+                        const on = invoiceListFilter === f.key;
+                        return (
+                          <Chip
+                            key={f.key}
+                            size="small"
+                            label={
+                              <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+                                <span>{f.label}</span>
+                                <Box
+                                  component="span"
+                                  sx={{
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    px: 0.6,
+                                    py: 0.05,
+                                    borderRadius: '999px',
+                                    bgcolor: on ? 'rgba(255,255,255,0.25)' : 'action.selected',
+                                  }}
+                                >
+                                  {f.count}
+                                </Box>
+                              </Box>
+                            }
+                            onClick={() => setInvoiceListFilter(f.key)}
+                            sx={{
+                              fontSize: 11.5,
+                              fontWeight: 600,
+                              height: 26,
+                              bgcolor: on ? 'text.primary' : 'background.paper',
+                              color: on ? 'background.paper' : 'text.secondary',
+                              border: '1px solid',
+                              borderColor: on ? 'text.primary' : 'divider',
+                              '&:hover': { bgcolor: on ? 'text.primary' : 'action.hover' },
+                            }}
+                          />
+                        );
+                      })}
+                    </Box>
+                    <Button
+                      size="small"
+                      variant="text"
+                      onClick={handleSelectAllEligibleLedgers}
+                      disabled={eligibleInvoiceCount === 0}
+                    >
+                      {eligibleInvoiceCount > 0 && selectedInvoiceLedgers.length === eligibleInvoiceCount
+                        ? 'Deselect all'
+                        : 'Select all billable'}
+                    </Button>
                   </Box>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                    Already-invoiced entries are protected and cannot be added to a new invoice. Use a credit note
+                    instead.
+                  </Typography>
                 </Grid>
 
-                {invoiceLedgerEntries.length === 0 ? (
+                {visibleInvoiceLedgerEntries.length === 0 ? (
                   <Grid size={12}>
                     <Alert severity="warning">
-                      No ledger entries found for this company.
+                      No uninvoiced outstanding ledger entries are eligible for invoice generation.
                     </Alert>
                   </Grid>
                 ) : (
@@ -4220,20 +5576,25 @@ const CustomerLedgerPage: React.FC = () => {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {invoiceLedgerEntries.map((ledger) => {
+                          {visibleInvoiceLedgerEntries.map((ledger) => {
                             const amount = typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount;
                             const balanceDue = typeof ledger.balance_due === 'string' ? parseFloat(ledger.balance_due) : (ledger.balance_due || 0);
+                            const eligible = isInvoiceEligible(ledger);
                             return (
                               <TableRow
                                 key={ledger.id}
-                                hover
+                                hover={eligible}
                                 selected={selectedInvoiceLedgers.includes(ledger.id)}
                                 onClick={() => handleToggleLedgerSelection(ledger.id)}
-                                sx={{ cursor: 'pointer' }}
+                                sx={{
+                                  cursor: eligible ? 'pointer' : 'not-allowed',
+                                  opacity: eligible ? 1 : 0.62,
+                                }}
                               >
                                 <TableCell padding="checkbox">
                                   <Checkbox
                                     checked={selectedInvoiceLedgers.includes(ledger.id)}
+                                    disabled={!eligible}
                                     onChange={() => handleToggleLedgerSelection(ledger.id)}
                                   />
                                 </TableCell>
@@ -4243,13 +5604,13 @@ const CustomerLedgerPage: React.FC = () => {
                                   </Typography>
                                   {ledger.invoice_number && (
                                     <Typography variant="caption" color="text.secondary">
-                                      Inv: {ledger.invoice_number}
+                                      Already invoiced: {ledger.invoice_number}
                                     </Typography>
                                   )}
                                 </TableCell>
                                 <TableCell>{formatDateForDisplay(ledger.created_at)}</TableCell>
                                 <TableCell>
-                                  <Chip label={getStatusText(ledger.status)} color={getStatusColor(ledger.status)} size="small" />
+                                  <LedgerStatusBadge status={getLedgerUiStatus(ledger)} />
                                 </TableCell>
                                 <TableCell align="right">{formatCurrency(amount)}</TableCell>
                                 <TableCell align="right">
@@ -4267,17 +5628,23 @@ const CustomerLedgerPage: React.FC = () => {
                     {/* Summary */}
                     <Paper variant="outlined" sx={{ p: 2, mt: 2, bgcolor: 'grey.50' }}>
                       <Grid container spacing={2}>
-                        <Grid size={4}>
+                        <Grid size={{ xs: 6, sm: 3 }}>
                           <Typography variant="caption" color="text.secondary">Selected Items</Typography>
-                          <Typography variant="h6">{selectedInvoiceLedgers.length}</Typography>
+                          <Typography variant="h6">{getSelectedInvoiceLedgers().length}</Typography>
                         </Grid>
-                        <Grid size={4}>
+                        <Grid size={{ xs: 6, sm: 3 }}>
                           <Typography variant="caption" color="text.secondary">Total Amount</Typography>
                           <Typography variant="h6" color="primary.main">
                             {formatCurrency(getSelectedLedgerTotal())}
                           </Typography>
                         </Grid>
-                        <Grid size={4}>
+                        <Grid size={{ xs: 6, sm: 3 }}>
+                          <Typography variant="caption" color="text.secondary">Already Paid</Typography>
+                          <Typography variant="h6" color="success.main">
+                            {formatCurrency(getSelectedLedgerPaidTotal())}
+                          </Typography>
+                        </Grid>
+                        <Grid size={{ xs: 6, sm: 3 }}>
                           <Typography variant="caption" color="text.secondary">Balance Due</Typography>
                           <Typography variant="h6" color="error.main">
                             {formatCurrency(getSelectedLedgerBalanceDue())}
@@ -4285,6 +5652,14 @@ const CustomerLedgerPage: React.FC = () => {
                         </Grid>
                       </Grid>
                     </Paper>
+                    {selectedInvoiceLedgers.some(id => {
+                      const entry = invoiceLedgerEntries.find(l => l.id === id);
+                      return !entry || !isInvoiceEligible(entry);
+                    }) && (
+                      <Alert severity="warning" sx={{ mt: 1 }}>
+                        Some selected entries are no longer eligible and will be excluded from the invoice preview.
+                      </Alert>
+                    )}
                   </Grid>
                 )}
 
@@ -4524,9 +5899,26 @@ const CustomerLedgerPage: React.FC = () => {
                 Cancel
               </Button>
               <Button
-                onClick={() => setShowInvoicePreview(true)}
+                onClick={() => {
+                  const invoiceNumberExists = ledgers.some(
+                    ledger => ledger.invoice_number?.trim().toLowerCase() === invoiceNumber.trim().toLowerCase()
+                      && !selectedInvoiceLedgers.includes(ledger.id),
+                  );
+                  if (invoiceNumberExists) {
+                    setSnackbarMessage('Invoice number already exists');
+                    setSnackbarOpen(true);
+                    return;
+                  }
+                  if (getSelectedInvoiceLedgers().length === 0) {
+                    setSnackbarMessage('Select at least one eligible ledger entry');
+                    setSnackbarOpen(true);
+                    return;
+                  }
+                  setSelectedInvoiceLedgers(getSelectedInvoiceLedgers().map(entry => entry.id));
+                  setShowInvoicePreview(true);
+                }}
                 variant="contained"
-                disabled={selectedInvoiceLedgers.length === 0 || !invoiceNumber}
+                disabled={getSelectedInvoiceLedgers().length === 0 || !invoiceNumber}
                 startIcon={<InvoiceIcon />}
               >
                 Preview Invoice
@@ -4553,6 +5945,103 @@ const CustomerLedgerPage: React.FC = () => {
               </Button>
             </>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Credit Note Dialog — posts to the backend reversal endpoint */}
+      <Dialog
+        open={creditNoteDialogOpen}
+        onClose={() => setCreditNoteDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <CreditNoteIcon color="error" />
+            Issue Credit Note
+            {activeCompany && (
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                · {activeCompany.company_name}
+              </Typography>
+            )}
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            A credit note posts a <strong>reversal entry</strong> against an existing ledger
+            row. The original entry stays in the ledger and the reversal is audit-tracked.
+            Reversals cannot be issued against another reversal.
+          </Alert>
+          <Grid container spacing={2}>
+            <Grid size={12}>
+              <TextField
+                select
+                fullWidth
+                required
+                label="Original ledger entry"
+                value={creditNoteLedgerId}
+                onChange={(e) => setCreditNoteLedgerId(e.target.value === '' ? '' : Number(e.target.value))}
+                helperText="Pick the entry to reverse"
+              >
+                {activeCompanyAllEntries
+                  .filter(l => !isVoidedLedger(l) && !l.is_reversal)
+                  .map(l => (
+                    <MenuItem key={l.id} value={l.id}>
+                      {l.invoice_number || l.folio_number || `#${l.id}`} · {l.description.slice(0, 48)}
+                      {l.description.length > 48 ? '…' : ''} · {formatCurrency(asMoney(l.amount))}
+                    </MenuItem>
+                  ))}
+              </TextField>
+              {activeCompanyAllEntries.filter(l => !isVoidedLedger(l) && !l.is_reversal).length === 0 && (
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                  No reversible entries for this company.
+                </Typography>
+              )}
+            </Grid>
+            <Grid size={12}>
+              <TextField
+                select
+                fullWidth
+                required
+                label="Reason"
+                value={creditNoteReason}
+                onChange={(e) => setCreditNoteReason(e.target.value)}
+              >
+                <MenuItem value="">Pick a reason…</MenuItem>
+                <MenuItem value="Refund — early checkout">Refund — early checkout</MenuItem>
+                <MenuItem value="Room downgrade">Room downgrade</MenuItem>
+                <MenuItem value="Service not rendered">Service not rendered</MenuItem>
+                <MenuItem value="Billing error">Billing error</MenuItem>
+                <MenuItem value="Goodwill / discount">Goodwill / discount</MenuItem>
+                <MenuItem value="Other">Other</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid size={12}>
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                label="Details (optional)"
+                value={creditNoteNotes}
+                onChange={(e) => setCreditNoteNotes(e.target.value)}
+                placeholder="Explain the credit — appears on the reversal record."
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreditNoteDialogOpen(false)} disabled={processingCreditNote}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmitCreditNote}
+            variant="contained"
+            color="error"
+            disabled={processingCreditNote || !creditNoteLedgerId || !creditNoteReason}
+            startIcon={processingCreditNote ? <CircularProgress size={18} /> : <CreditNoteIcon />}
+          >
+            {processingCreditNote ? 'Issuing…' : 'Issue credit note'}
+          </Button>
         </DialogActions>
       </Dialog>
 

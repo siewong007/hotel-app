@@ -1,10 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { HotelAPIService } from '../../../api';
-import { CustomerLedger, CustomerLedgerSummary } from '../../../types';
+import { CustomerLedger } from '../../../types';
 
 export function useLedgers() {
   const [ledgers, setLedgers] = useState<CustomerLedger[]>([]);
-  const [summary, setSummary] = useState<CustomerLedgerSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,32 +31,16 @@ export function useLedgers() {
     }
   }, []);
 
-  const loadSummary = useCallback(async () => {
-    try {
-      const data = await HotelAPIService.getCustomerLedgerSummary();
-      setSummary(data);
-    } catch {
-      // summary is non-critical
-    }
-  }, []);
-
   const reload = useCallback(async () => {
-    await Promise.all([loadLedgers(), loadSummary()]);
-  }, [loadLedgers, loadSummary]);
+    await loadLedgers();
+  }, [loadLedgers]);
 
-  // Initial summary load
-  useEffect(() => {
-    loadSummary();
-  }, [loadSummary]);
-
-  // Initial ledger load.
   useEffect(() => {
     loadLedgers();
   }, [loadLedgers]);
 
   return {
     ledgers,
-    summary,
     loading,
     error,
     setError,
