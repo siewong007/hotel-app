@@ -551,22 +551,41 @@ const NightAuditPage: React.FC = () => {
       doc.addPage();
       currentY = 20;
 
-      // General Journal title
+      // Guest Ledger title
       doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
-      doc.text('General Journal', margin, currentY);
+      doc.text('Guest Ledger', margin, currentY);
       doc.setFont('helvetica', 'normal');
       currentY += 8;
 
-      // Build General Journal summary rows
+      // Classify each account into Debit or Credit by its type.
+      // Debit: room charges, service tax (and related charges/taxes), deposit refund.
+      // Credit: payment methods (cash, cards, booking.com, boost, traveloka,
+      // agoda, ...), city ledger, and deposits collected.
+      const isDebitAccount = (entryType: string) => {
+        if (entryType === 'deposit_refund') return true;
+        if (entryType.startsWith('payment_')) return false;
+        if (entryType === 'deposit' || entryType === 'city_ledger') return false;
+        return true; // room_charge, service_tax, extra_bed_charge, extra_bed_tax, tourism_tax
+      };
+
+      // Build General Journal summary rows with reclassified debit/credit
       const journalRows: string[][] = [];
+      let journalTotalDebit = 0;
+      let journalTotalCredit = 0;
       for (const section of sections) {
         const debitTotal = Number(section.total_debit);
         const creditTotal = Number(section.total_credit);
+        const amount = debitTotal !== 0 ? debitTotal : creditTotal;
+        const asDebit = isDebitAccount(section.entry_type);
+        const debitVal = asDebit ? amount : 0;
+        const creditVal = asDebit ? 0 : amount;
+        journalTotalDebit += debitVal;
+        journalTotalCredit += creditVal;
         journalRows.push([
           section.display_name,
-          debitTotal > 0 ? debitTotal.toFixed(2) : '',
-          creditTotal > 0 ? creditTotal.toFixed(2) : '',
+          debitVal > 0 ? debitVal.toFixed(2) : '',
+          creditVal > 0 ? creditVal.toFixed(2) : '',
         ]);
       }
 
@@ -574,8 +593,10 @@ const NightAuditPage: React.FC = () => {
         startY: currentY,
         head: [['Account', 'Debits', 'Credits']],
         body: journalRows,
+        foot: [['Total', journalTotalDebit.toFixed(2), journalTotalCredit.toFixed(2)]],
         styles: { fontSize: 9, cellPadding: 3, lineColor: [0, 0, 0], lineWidth: 0.3 },
         headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', lineColor: [0, 0, 0], lineWidth: 0.3 },
+        footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', halign: 'right', lineColor: [0, 0, 0], lineWidth: 0.3 },
         columnStyles: {
           0: { fontStyle: 'bold', cellWidth: 60 },
           1: { halign: 'right', fontStyle: 'bold', cellWidth: 40 },

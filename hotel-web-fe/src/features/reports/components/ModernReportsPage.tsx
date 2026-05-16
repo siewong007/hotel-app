@@ -129,7 +129,7 @@ const REPORT_CONFIGS = [
   // Legacy Accounting Reports
   {
     type: 'general_journal' as ReportType,
-    label: 'General Journal',
+    label: 'Guest Ledger',
     description: 'Double-entry accounting journal',
     icon: <LedgerIcon />,
     color: '#546e7a',
@@ -276,14 +276,14 @@ const ModernReportsPage: React.FC = () => {
   const handleGenerateReport = () =>
     handleGenerateReportHook(selectedReport, startDate, endDate, selectedCompany);
 
-  // Render General Journal
+  // Render Guest Ledger
   const renderGeneralJournal = () => {
     if (!reportData?.sections) return <Typography>No data available</Typography>;
 
     return (
       <Box>
         <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
-          <Typography variant="h4" fontWeight="bold">General Journal</Typography>
+          <Typography variant="h4" fontWeight="bold">Guest Ledger</Typography>
           <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
           <Typography variant="body2" color="text.secondary">
             {new Date(startDate).toLocaleDateString()} to {new Date(endDate).toLocaleDateString()}
