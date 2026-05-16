@@ -32,6 +32,8 @@ pub struct PaginationParams {
     pub status: Option<String>,
     /// Filter by room number (partial match)
     pub room_number: Option<String>,
+    /// Only return bookings billed to a company (company_id IS NOT NULL)
+    pub company_billed: Option<bool>,
     /// Only bookings whose check-in date matches this date (YYYY-MM-DD)
     pub date_search: Option<NaiveDate>,
     /// Bookings with check-in >= this date
@@ -591,6 +593,11 @@ pub async fn get_bookings_handler(
         let p = param_placeholder(param_idx);
         conditions.push(format!("r.room_number {like_op} {p}"));
         bind_room_number = Some(format!("%{}%", rn.trim()));
+    }
+
+    // 3b. Company-billed filter: only bookings tied to a corporate account.
+    if matches!(params.company_billed, Some(true)) {
+        conditions.push("b.company_id IS NOT NULL".to_string());
     }
 
     // 4. Date filters: date_search matches any night the booking occupies
