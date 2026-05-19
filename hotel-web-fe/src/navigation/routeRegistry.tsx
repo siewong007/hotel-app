@@ -3,7 +3,6 @@ import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
-import CategoryIcon from '@mui/icons-material/Category';
 import EventNoteIcon from '@mui/icons-material/EventNote';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import HistoryIcon from '@mui/icons-material/History';
@@ -63,7 +62,6 @@ const EmailVerificationPage = lazyRoute(() => import('../features/auth/component
 const FirstLoginPasskeyPrompt = lazyRoute(() => import('../features/auth/components/FirstLoginPasskeyPrompt'));
 const RoomReservationTimeline = lazyRoute(() => import('../features/rooms/components/RoomReservationTimeline'));
 const RoomConfigurationPage = lazyRoute(() => import('../features/rooms/components/RoomConfigurationPage'));
-const RoomTypeConfigurationPage = lazyRoute(() => import('../features/rooms/components/RoomTypeConfigurationPage'));
 const RoomManagementPage = lazyRoute(() => import('../features/rooms/components/RoomManagementPage'));
 const GuestConfigurationPage = lazyRoute(() => import('../features/guests/components/GuestConfigurationPage'));
 const GuestCheckInLanding = lazyRoute(() => import('../features/bookings/components/GuestCheckInLanding'));
@@ -244,22 +242,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     navLabel: 'Room Configuration',
     navGroup: 'config',
     requiredRoles: ['admin', 'receptionist', 'manager'],
-    navPermissions: ['navigation_room_config:read', 'rooms:update', 'rooms:manage'],
+    navPermissions: ['navigation_room_config:read', 'rooms:update', 'rooms:write', 'rooms:manage'],
     navRoles: ['admin', 'receptionist', 'manager'],
-  },
-  {
-    id: 'room-type-config',
-    path: '/room-type-config',
-    component: RoomTypeConfigurationPage,
-    animationType: 'fade',
-    visibility: 'auth',
-    icon: CategoryIcon,
-    breadcrumbLabel: 'Room Types',
-    navLabel: 'Room Types',
-    navGroup: 'config',
-    requiredRoles: ['admin', 'manager'],
-    navPermissions: ['rooms:write', 'rooms:manage'],
-    navRoles: ['admin', 'manager'],
   },
   {
     id: 'settings',

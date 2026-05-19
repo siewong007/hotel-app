@@ -7,6 +7,8 @@ export interface AuditLogEntry {
   username: string | null;
   action: string;
   resource_type: string;
+  /** Activity stream derived from resource_type: rooms|guests|bookings|system|reports|other */
+  category: string;
   resource_id: number | null;
   details: Record<string, unknown> | null;
   ip_address: string | null;
@@ -22,10 +24,23 @@ export interface AuditLogResponse {
   total_pages: number;
 }
 
+export interface AuditCategoryCounts {
+  rooms: number;
+  guests: number;
+  bookings: number;
+  system: number;
+  reports: number;
+  other: number;
+  total: number;
+}
+
+export type AuditCategoryId = 'rooms' | 'guests' | 'bookings' | 'system' | 'reports';
+
 export interface AuditLogQuery {
   user_id?: number;
   action?: string;
   resource_type?: string;
+  category?: string;
   start_date?: string;
   end_date?: string;
   search?: string;
