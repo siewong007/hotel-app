@@ -12,7 +12,6 @@ import {
   Paper,
 } from '@mui/material';
 import {
-  TrendingUp,
   People,
   Hotel,
   AttachMoney,
@@ -23,6 +22,7 @@ import {
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { useAuth } from '../../../auth/AuthContext';
+import { StatCard } from '../../../components/common/StatCard';
 import { formatCurrency, formatCurrencyCustom } from '../../../utils/currency';
 
 interface DashboardStats {
@@ -39,73 +39,6 @@ interface DashboardStats {
   averageBookingValue: number;
   totalRevenue: number;
 }
-
-interface StatCardProps {
-  title: string;
-  value: string | number;
-  subtitle?: string;
-  icon: React.ReactNode;
-  color: string;
-  trend?: {
-    value: number;
-    label: string;
-  };
-}
-
-const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon, color, trend }) => (
-  <Card sx={{ height: '100%', position: 'relative', overflow: 'visible' }}>
-    <CardContent>
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-        <Box>
-          <Typography color="text.secondary" gutterBottom variant="body2">
-            {title}
-          </Typography>
-          <Typography variant="h4" component="div" sx={{ fontWeight: 600, mb: 0.5 }}>
-            {value}
-          </Typography>
-          {subtitle && (
-            <Typography variant="body2" color="text.secondary">
-              {subtitle}
-            </Typography>
-          )}
-          {trend && (
-            <Box display="flex" alignItems="center" mt={1}>
-              <TrendingUp
-                fontSize="small"
-                sx={{
-                  color: trend.value >= 0 ? 'success.main' : 'error.main',
-                  mr: 0.5,
-                  transform: trend.value < 0 ? 'rotate(180deg)' : 'none'
-                }}
-              />
-              <Typography
-                variant="caption"
-                sx={{
-                  color: trend.value >= 0 ? 'success.main' : 'error.main',
-                  fontWeight: 600
-                }}
-              >
-                {Math.abs(trend.value)}% {trend.label}
-              </Typography>
-            </Box>
-          )}
-        </Box>
-        <Box
-          sx={{
-            backgroundColor: color,
-            borderRadius: 2,
-            p: 1.5,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {icon}
-        </Box>
-      </Box>
-    </CardContent>
-  </Card>
-);
 
 const AdminOverviewDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -246,6 +179,8 @@ const AdminOverviewDashboard: React.FC = () => {
             subtitle={`${stats.occupiedRooms} of ${stats.totalRooms} rooms`}
             icon={<Hotel sx={{ color: 'white', fontSize: 28 }} />}
             color="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+            iconBackground="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+            sx={{ overflow: 'visible' }}
             trend={{ value: 5.2, label: 'vs last month' }}
           />
         </Grid>
@@ -256,6 +191,8 @@ const AdminOverviewDashboard: React.FC = () => {
             subtitle="This month"
             icon={<AttachMoney sx={{ color: 'white', fontSize: 28 }} />}
             color="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
+            iconBackground="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
+            sx={{ overflow: 'visible' }}
             trend={{ value: 12.5, label: 'vs last month' }}
           />
         </Grid>
@@ -266,6 +203,8 @@ const AdminOverviewDashboard: React.FC = () => {
             subtitle={`Avg: ${formatCurrencyCustom(stats.averageBookingValue, 0)}`}
             icon={<CheckCircle sx={{ color: 'white', fontSize: 28 }} />}
             color="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
+            iconBackground="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
+            sx={{ overflow: 'visible' }}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -275,6 +214,8 @@ const AdminOverviewDashboard: React.FC = () => {
             subtitle="Registered"
             icon={<People sx={{ color: 'white', fontSize: 28 }} />}
             color="linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)"
+            iconBackground="linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)"
+            sx={{ overflow: 'visible' }}
           />
         </Grid>
       </Grid>

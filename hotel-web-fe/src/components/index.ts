@@ -7,6 +7,10 @@ export { ErrorBoundary, PageErrorBoundary, ComponentErrorBoundary } from './comm
 export { default as HotelSpinner } from './common/HotelSpinner';
 export { default as LoadingSpinner } from './common/LoadingSpinner';
 export { default as ModernDatePicker } from './common/ModernDatePicker';
+export { default as StatCard } from './common/StatCard';
+export type { StatCardProps, StatCardTrend } from './common/StatCard';
+export { default as TabPanel, getTabA11yProps } from './common/TabPanel';
+export type { TabPanelProps } from './common/TabPanel';
 
 // Layout components
 export { default as LandingPage } from './layout/LandingPage';
