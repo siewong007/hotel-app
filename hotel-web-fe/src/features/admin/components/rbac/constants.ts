@@ -39,8 +39,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   { id: 'timeline', label: 'Reservation Timeline', path: '/timeline', icon: 'EventNote', description: 'View and manage room reservations timeline', category: 'core' },
   { id: 'my-bookings', label: 'My Bookings', path: '/my-bookings', icon: 'Book', description: 'View personal bookings (Guest only)', category: 'core' },
   { id: 'guest-config', label: 'Guest', path: '/guest-config', icon: 'People', description: 'Manage guest profiles and information', category: 'management' },
-  { id: 'room-config', label: 'Room Configuration', path: '/room-config', icon: 'Hotel', description: 'Manage room types and configurations', category: 'management' },
-  { id: 'room-type-config', label: 'Room Types', path: '/room-type-config', icon: 'Category', description: 'Configure room type settings and pricing', category: 'management' },
+  { id: 'room-config', label: 'Room Configuration', path: '/room-config', icon: 'Hotel', description: 'Manage room types and individual rooms in one place', category: 'management' },
   { id: 'bookings', label: 'Bookings', path: '/bookings', icon: 'CalendarMonth', description: 'View and manage all bookings', category: 'management' },
   { id: 'room-management', label: 'Room Management', path: '/room-management', icon: 'HomeWork', description: 'Comprehensive room status and management dashboard', category: 'management' },
   { id: 'company-ledger', label: 'Company Ledger', path: '/company-ledger', icon: 'AccountBalance', description: 'Manage company accounts and ledgers', category: 'management' },
@@ -50,6 +49,7 @@ export const NAVIGATION_ITEMS: NavigationItem[] = [
   { id: 'reports', label: 'Reports', path: '/reports', icon: 'Assessment', description: 'View reports and analytics', category: 'analytics' },
   { id: 'ekyc-admin', label: 'eKYC Verification', path: '/ekyc-admin', icon: 'VerifiedUser', description: 'Manage eKYC verifications', category: 'system' },
   { id: 'rbac', label: 'Roles & Permissions', path: '/rbac', icon: 'Security', description: 'Manage roles and permissions', category: 'system' },
+  { id: 'audit-log', label: 'Audit Log', path: '/audit-log', icon: 'History', description: 'Activity audit trail across rooms, guests, bookings, system, and reports', category: 'system' },
   { id: 'settings', label: 'Settings', path: '/settings', icon: 'Settings', description: 'System settings and configuration', category: 'system' },
 ];
 
@@ -68,12 +68,8 @@ export const NAVIGATION_PERMISSION_MAPPING: Record<string, NavigationPermissionD
   ],
   'room-config': [
     { name: 'rooms:read', resource: 'rooms', action: 'read', description: 'View rooms and their availability' },
+    { name: 'rooms:write', resource: 'rooms', action: 'write', description: 'Create and modify rooms and room types' },
     { name: 'rooms:manage', resource: 'rooms', action: 'manage', description: 'Manage room configurations and settings' },
-  ],
-  'room-type-config': [
-    { name: 'rooms:read', resource: 'rooms', action: 'read', description: 'View rooms and their availability' },
-    { name: 'rooms:write', resource: 'rooms', action: 'write', description: 'Create and modify room types' },
-    { name: 'rooms:manage', resource: 'rooms', action: 'manage', description: 'Full room management access' },
   ],
   'bookings': [
     { name: 'bookings:read', resource: 'bookings', action: 'read', description: 'View booking information' },
@@ -109,6 +105,10 @@ export const NAVIGATION_PERMISSION_MAPPING: Record<string, NavigationPermissionD
     { name: 'rbac:manage', resource: 'rbac', action: 'manage', description: 'Manage roles and permissions' },
     { name: 'users:read', resource: 'users', action: 'read', description: 'View user accounts' },
     { name: 'users:manage', resource: 'users', action: 'manage', description: 'Manage user accounts and role assignments' },
+  ],
+  'audit-log': [
+    { name: 'audit:read', resource: 'audit', action: 'read', description: 'View the activity audit trail' },
+    { name: 'audit:export', resource: 'audit', action: 'export', description: 'Export audit logs to CSV/PDF' },
   ],
   'settings': [
     { name: 'settings:read', resource: 'settings', action: 'read', description: 'View system settings' },

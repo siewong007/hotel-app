@@ -4,6 +4,7 @@ import {
   AuditLogResponse,
   AuditLogQuery,
   AuditUser,
+  AuditCategoryCounts,
 } from '../types/audit.types';
 
 export class AuditService {
@@ -17,6 +18,7 @@ export class AuditService {
       if (params.user_id) searchParams.set('user_id', params.user_id.toString());
       if (params.action) searchParams.set('action', params.action);
       if (params.resource_type) searchParams.set('resource_type', params.resource_type);
+      if (params.category) searchParams.set('category', params.category);
       if (params.start_date) searchParams.set('start_date', params.start_date);
       if (params.end_date) searchParams.set('end_date', params.end_date);
       if (params.search) searchParams.set('search', params.search);
@@ -31,6 +33,27 @@ export class AuditService {
 
     return await withRetry(
       () => api.get(url).json<AuditLogResponse>(),
+      { maxAttempts: 3, initialDelay: 1000 }
+    );
+  }
+
+  /**
+   * Get event counts per activity stream (honours date-range + search filters)
+   */
+  static async getCategoryCounts(params?: AuditLogQuery): Promise<AuditCategoryCounts> {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      if (params.start_date) searchParams.set('start_date', params.start_date);
+      if (params.end_date) searchParams.set('end_date', params.end_date);
+      if (params.search) searchParams.set('search', params.search);
+    }
+    const queryString = searchParams.toString();
+    const url = queryString
+      ? `audit-logs/category-counts?${queryString}`
+      : 'audit-logs/category-counts';
+
+    return await withRetry(
+      () => api.get(url).json<AuditCategoryCounts>(),
       { maxAttempts: 3, initialDelay: 1000 }
     );
   }
@@ -75,6 +98,7 @@ export class AuditService {
       if (params.user_id) searchParams.set('user_id', params.user_id.toString());
       if (params.action) searchParams.set('action', params.action);
       if (params.resource_type) searchParams.set('resource_type', params.resource_type);
+      if (params.category) searchParams.set('category', params.category);
       if (params.start_date) searchParams.set('start_date', params.start_date);
       if (params.end_date) searchParams.set('end_date', params.end_date);
       if (params.search) searchParams.set('search', params.search);
@@ -112,9 +136,11 @@ export class AuditService {
       page_size: 10000,
     });
 
-    // Dynamic import of jspdf and jspdf-autotable
+    // Dynamic import of jspdf and jspdf-autotable.
+    // jspdf-autotable v5 no longer augments the jsPDF prototype — it must be
+    // called functionally as autoTable(doc, options).
     const { jsPDF } = await import('jspdf');
-    await import('jspdf-autotable');
+    const autoTable = (await import('jspdf-autotable')).default;
 
     const doc = new jsPDF();
 
@@ -131,18 +157,19 @@ export class AuditService {
       new Date(log.created_at).toLocaleString(),
       log.username || 'System',
       log.action.replace(/_/g, ' '),
+      log.category || '-',
       log.resource_type.replace(/_/g, ' '),
       log.resource_id?.toString() || '-',
       log.ip_address || '-',
     ]);
 
-    // Add table
-    (doc as any).autoTable({
+    // Add table (jspdf-autotable v5 functional API)
+    autoTable(doc, {
       startY: 35,
-      head: [['Timestamp', 'User', 'Action', 'Resource', 'ID', 'IP']],
+      head: [['Timestamp', 'User', 'Action', 'Stream', 'Resource', 'ID', 'IP']],
       body: tableData,
       styles: { fontSize: 8 },
-      headStyles: { fillColor: [66, 66, 66] },
+      headStyles: { fillColor: [16, 164, 124] },
     });
 
     doc.save(`audit_logs_${new Date().toISOString().split('T')[0]}.pdf`);
