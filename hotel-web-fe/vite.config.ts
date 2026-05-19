@@ -9,7 +9,7 @@ const PROXY_PREFIXES = [
   '/rate-codes', '/rate-management', '/market-codes', '/settings',
   '/loyalty', '/ledgers', '/companies', '/complimentary', '/roles',
   '/users', '/audit-logs', '/uploads', '/data-transfer', '/guest-portal',
-  '/ekyc', '/reports', '/health', '/ws', '/system',
+  '/ekyc', '/reports', '/health', '/ws', '/system', '/search',
 ];
 
 export default defineConfig(({ mode }) => {

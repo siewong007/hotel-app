@@ -13,8 +13,10 @@ import {
   InputBase,
   ToggleButton,
   ToggleButtonGroup,
+  CircularProgress,
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
+import HistoryIcon from '@mui/icons-material/History';
 import PersonIcon from '@mui/icons-material/Person';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import ManageAccountsIcon from '@mui/icons-material/ManageAccounts';
@@ -27,6 +29,8 @@ import DarkModeIcon from '@mui/icons-material/DarkMode';
 import NightsStayIcon from '@mui/icons-material/NightsStay';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
+import { storage } from '../../utils/storage';
+import { useGlobalSearch } from '../../hooks/useGlobalSearch';
 import type { ThemeMode } from '../../theme';
 import {
   canAccessNavigationRoute,
@@ -112,48 +116,161 @@ export const NavigationTabs = React.memo(function NavigationTabs({
   const cmdInputRef = React.useRef<HTMLInputElement | null>(null);
   const [cmdOpen, setCmdOpen] = React.useState(false);
   const [cmdQuery, setCmdQuery] = React.useState('');
+  const [scope, setScope] = React.useState<'all' | 'bookings' | 'guests' | 'rooms' | 'pages'>('all');
+  const [activeIndex, setActiveIndex] = React.useState(0);
 
-  type CmdResult = { key: string; label: string; hint: string; run: () => void; icon: React.ReactNode };
-  const cmdResults: CmdResult[] = React.useMemo(() => {
-    const q = cmdQuery.trim().toLowerCase();
-    const slash = q.startsWith('/');
-    const term = slash ? q.slice(1) : q;
-    const out: CmdResult[] = [];
-    if (bookingsRoute && ('new booking'.includes(term) || 'create'.includes(term) || term === '')) {
-      out.push({
-        key: 'act-new-booking',
-        label: 'New booking',
-        hint: 'Action',
-        icon: <AddIcon sx={{ fontSize: 16 }} />,
-        run: () => navigate('/bookings'),
-      });
-    }
-    visibleItems.forEach((item) => {
-      const label = item.navLabel || item.breadcrumbLabel || item.path;
-      if (!term || label.toLowerCase().includes(term) || item.path.toLowerCase().includes(term)) {
-        out.push({
-          key: item.id,
-          label,
-          hint: 'Go to',
-          icon: renderNavIcon(item, 16),
-          run: () => navigate(item.path),
-        });
-      }
-    });
-    return out.slice(0, 8);
-  }, [cmdQuery, visibleItems, bookingsRoute]);
+  type Recent = { title: string; subtitle?: string; route: string; kind: string };
+  const [recents, setRecents] = React.useState<Recent[]>(
+    () => storage.getItem<Recent[]>('cmdRecents') || []
+  );
+
+  const term = cmdQuery.trim();
+  const slash = term.startsWith('/');
+  const lowTerm = (slash ? term.slice(1) : term).toLowerCase();
+
+  // Server-side federated search (skipped for /commands or the Pages scope)
+  const serverEnabled = cmdOpen && !slash && scope !== 'pages';
+  const serverTypes =
+    scope === 'bookings' || scope === 'guests' || scope === 'rooms' ? [scope] : undefined;
+  const { groups: serverGroups, loading: serverLoading } = useGlobalSearch(
+    serverEnabled ? cmdQuery : '',
+    { types: serverTypes, enabled: serverEnabled }
+  );
+
+  type SelectItem = {
+    key: string;
+    title: string;
+    subtitle?: string;
+    icon: React.ReactNode;
+    route: string;
+  };
+  type Group = { key: string; label: string; items: SelectItem[] };
+
+  const dot = (
+    <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'text.disabled' }} />
+  );
+
+  const persistRecent = (r: Recent) => {
+    const next = [r, ...recents.filter((x) => !(x.route === r.route && x.title === r.title))].slice(0, 6);
+    setRecents(next);
+    storage.setItem('cmdRecents', next);
+  };
 
   const openCmd = () => {
     setCmdOpen(true);
+    setActiveIndex(0);
     window.setTimeout(() => cmdInputRef.current?.focus(), 0);
   };
   const closeCmd = () => {
     setCmdOpen(false);
     setCmdQuery('');
+    setScope('all');
   };
-  const runResult = (r: CmdResult) => {
+
+  const groups: Group[] = React.useMemo(() => {
+    const showClient = scope === 'all' || scope === 'pages';
+    const out: Group[] = [];
+
+    if (!term && recents.length > 0 && scope === 'all') {
+      out.push({
+        key: 'recents',
+        label: 'Recent',
+        items: recents.map((r, i) => ({
+          key: `recent-${i}`,
+          title: r.title,
+          subtitle: r.subtitle,
+          icon: <HistoryIcon sx={{ fontSize: 16 }} />,
+          route: r.route,
+        })),
+      });
+    }
+
+    if (showClient && bookingsRoute) {
+      const m =
+        !lowTerm ||
+        'new booking'.includes(lowTerm) ||
+        'booking'.includes(lowTerm) ||
+        'create'.includes(lowTerm);
+      if (m) {
+        out.push({
+          key: 'actions',
+          label: 'Actions',
+          items: [
+            {
+              key: 'act-new-booking',
+              title: 'New booking',
+              subtitle: 'Create a reservation',
+              icon: <AddIcon sx={{ fontSize: 16 }} />,
+              route: '/bookings',
+            },
+          ],
+        });
+      }
+    }
+
+    serverGroups.forEach((g) => {
+      out.push({
+        key: g.type,
+        label: g.label,
+        items: g.results.map((h) => ({
+          key: `${g.type}-${h.id}`,
+          title: h.title,
+          subtitle: h.subtitle,
+          icon: dot,
+          route: h.route,
+        })),
+      });
+    });
+
+    if (showClient) {
+      const pages = visibleItems
+        .filter((item) => {
+          const label = item.navLabel || item.breadcrumbLabel || item.path;
+          return (
+            !lowTerm ||
+            label.toLowerCase().includes(lowTerm) ||
+            item.path.toLowerCase().includes(lowTerm)
+          );
+        })
+        .slice(0, term ? 6 : 12)
+        .map((item) => ({
+          key: `pg-${item.id}`,
+          title: item.navLabel || item.breadcrumbLabel || item.path,
+          subtitle: item.path,
+          icon: renderNavIcon(item, 16) || dot,
+          route: item.path,
+        }));
+      if (pages.length) out.push({ key: 'pages', label: 'Pages', items: pages });
+    }
+
+    return out;
+  }, [term, lowTerm, scope, recents, serverGroups, visibleItems, bookingsRoute]);
+
+  const flatItems = React.useMemo(() => groups.flatMap((g) => g.items), [groups]);
+
+  React.useEffect(() => {
+    setActiveIndex(0);
+  }, [cmdQuery, scope, serverGroups]);
+
+  const select = (item: SelectItem) => {
+    persistRecent({ title: item.title, subtitle: item.subtitle, route: item.route, kind: 'nav' });
     closeCmd();
-    r.run();
+    navigate(item.route);
+  };
+
+  const onPaletteKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      closeCmd();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(flatItems.length - 1, i + 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(0, i - 1));
+    } else if (e.key === 'Enter') {
+      const item = flatItems[activeIndex] || flatItems[0];
+      if (item) select(item);
+    }
   };
 
   React.useEffect(() => {
@@ -248,41 +365,94 @@ export const NavigationTabs = React.memo(function NavigationTabs({
               inputRef={cmdInputRef}
               value={cmdQuery}
               onChange={(e) => setCmdQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') closeCmd();
-                if (e.key === 'Enter' && cmdResults[0]) runResult(cmdResults[0]);
-              }}
-              placeholder="Search pages, or type /new …"
+              onKeyDown={onPaletteKeyDown}
+              placeholder="Search bookings, guests, rooms, pages…"
               sx={{ flex: 1, fontSize: '0.9rem' }}
             />
+            {serverLoading && <CircularProgress size={14} />}
             <Box sx={{ fontFamily: 'monospace', fontSize: '0.66rem', px: 0.875, py: '2px', borderRadius: 0.75, bgcolor: 'action.hover', color: 'text.secondary', fontWeight: 600 }}>
               esc
             </Box>
           </Box>
-          <Box sx={{ maxHeight: 360, overflowY: 'auto', py: 0.5 }}>
-            {cmdResults.length === 0 && (
-              <Box sx={{ px: 2, py: 3, textAlign: 'center', color: 'text.secondary', fontSize: '0.85rem' }}>
-                No matches
+
+          {/* Scope chips */}
+          <Box sx={{ display: 'flex', gap: 0.75, px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', flexWrap: 'wrap' }}>
+            {([
+              ['all', 'All'],
+              ['bookings', 'Bookings'],
+              ['guests', 'Guests'],
+              ['rooms', 'Rooms'],
+              ['pages', 'Pages'],
+            ] as const).map(([k, lb]) => {
+              const on = scope === k;
+              return (
+                <Box
+                  key={k}
+                  component="button"
+                  onClick={() => setScope(k)}
+                  sx={{
+                    px: 1.25, py: 0.5, borderRadius: 999, border: '1px solid',
+                    borderColor: on ? 'text.primary' : 'divider', cursor: 'pointer',
+                    fontSize: '0.72rem', fontWeight: 600,
+                    color: on ? 'background.paper' : 'text.secondary',
+                    bgcolor: on ? 'text.primary' : 'transparent',
+                  }}
+                >
+                  {lb}
+                </Box>
+              );
+            })}
+          </Box>
+
+          <Box sx={{ maxHeight: 380, overflowY: 'auto', py: 0.5 }}>
+            {flatItems.length === 0 && (
+              <Box sx={{ px: 2, py: 4, textAlign: 'center', color: 'text.secondary', fontSize: '0.85rem' }}>
+                {term.length >= 2 ? 'No matches' : serverLoading ? 'Searching…' : 'Type at least 2 characters, or browse below'}
               </Box>
             )}
-            {cmdResults.map((r) => (
-              <Box
-                key={r.key}
-                onClick={() => runResult(r)}
-                sx={{
-                  display: 'flex', alignItems: 'center', gap: 1.25, px: 1.75, py: 1.1, cursor: 'pointer',
-                  '&:hover': { bgcolor: 'action.hover' },
-                }}
-              >
-                <Box sx={{ display: 'grid', placeItems: 'center', width: 26, height: 26, borderRadius: 1, bgcolor: 'action.hover', color: 'text.secondary' }}>
-                  {r.icon}
+            {(() => {
+              let idx = -1;
+              return groups.map((g) => (
+                <Box key={g.key}>
+                  <Typography sx={{ px: 1.75, pt: 1, pb: 0.5, fontSize: '0.66rem', fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                    {g.label}
+                  </Typography>
+                  {g.items.map((item) => {
+                    idx += 1;
+                    const myIdx = idx;
+                    const active = myIdx === activeIndex;
+                    return (
+                      <Box
+                        key={item.key}
+                        onMouseEnter={() => setActiveIndex(myIdx)}
+                        onClick={() => select(item)}
+                        sx={{
+                          display: 'flex', alignItems: 'center', gap: 1.25, px: 1.75, py: 1, cursor: 'pointer',
+                          bgcolor: active ? 'action.selected' : 'transparent',
+                        }}
+                      >
+                        <Box sx={{ display: 'grid', placeItems: 'center', width: 26, height: 26, borderRadius: 1, bgcolor: 'action.hover', color: 'text.secondary', flexShrink: 0 }}>
+                          {item.icon}
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography sx={{ fontSize: '0.86rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.title}
+                          </Typography>
+                          {item.subtitle && (
+                            <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {item.subtitle}
+                            </Typography>
+                          )}
+                        </Box>
+                        {active && (
+                          <Box sx={{ fontFamily: 'monospace', fontSize: '0.62rem', color: 'text.secondary' }}>↵</Box>
+                        )}
+                      </Box>
+                    );
+                  })}
                 </Box>
-                <Typography sx={{ flex: 1, fontSize: '0.88rem', fontWeight: 600 }}>{r.label}</Typography>
-                <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  {r.hint}
-                </Typography>
-              </Box>
-            ))}
+              ));
+            })()}
           </Box>
         </Popover>
 

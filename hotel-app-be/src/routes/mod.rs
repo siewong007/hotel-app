@@ -21,6 +21,7 @@ pub mod profile;
 pub mod rates;
 pub mod rbac;
 pub mod rooms;
+pub mod search;
 pub mod settings;
 pub mod two_factor;
 
@@ -134,6 +135,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(guest_portal::routes())
         .merge(companies::routes())
         .merge(audit::routes())
+        .merge(search::routes())
         .merge(night_audit::routes())
         .merge(data_transfer::routes())
         .merge(passkey::routes())
