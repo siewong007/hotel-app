@@ -27,6 +27,7 @@ pub mod rbac;
 pub mod rooms;
 #[allow(dead_code)]
 pub mod rooms_queries;
+pub mod search;
 pub mod settings;
 pub mod two_factor;
 

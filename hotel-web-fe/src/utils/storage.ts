@@ -2,7 +2,7 @@
  * Efficient localStorage wrapper with batching and caching
  */
 
-type StorageKey = 'accessToken' | 'refreshToken' | 'user' | 'permissions' | 'roles' | 'themeMode';
+type StorageKey = 'accessToken' | 'refreshToken' | 'user' | 'permissions' | 'roles' | 'themeMode' | 'cmdRecents';
 
 interface StorageCache {
   [key: string]: any;
