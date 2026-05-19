@@ -46,23 +46,9 @@ import {
   TableChart as CsvIcon,
 } from '@mui/icons-material';
 import { NightAuditService, NightAuditPreview, NightAuditRun, UnpostedBooking, JournalSection, AuditDetailsResponse } from '../../../api';
+import { TabPanel, getTabA11yProps } from '../../../components/common/TabPanel';
 import { formatCurrency } from '../../../utils/currency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-  return (
-    <div hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ pt: 2 }}>{children}</Box>}
-    </div>
-  );
-}
 
 // Journal Sections Display Component
 interface JournalSectionsDisplayProps {
@@ -806,13 +792,13 @@ const NightAuditPage: React.FC = () => {
       )}
 
       {/* Tabs */}
-      <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ mb: 2 }}>
-        <Tab label="Run Audit" />
-        <Tab label="Audit History" />
+      <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)} sx={{ mb: 2 }} aria-label="Night audit tabs">
+        <Tab label="Run Audit" {...getTabA11yProps(0, 'night-audit')} />
+        <Tab label="Audit History" {...getTabA11yProps(1, 'night-audit')} />
       </Tabs>
 
       {/* Tab 1: Run Audit */}
-      <TabPanel value={tabValue} index={0}>
+      <TabPanel value={tabValue} index={0} idPrefix="night-audit" contentSx={{ pt: 2 }}>
         {/* Date Selector */}
         <Card sx={{ mb: 3 }}>
           <CardContent>
@@ -1082,7 +1068,7 @@ const NightAuditPage: React.FC = () => {
       </TabPanel>
 
       {/* Tab 2: Audit History */}
-      <TabPanel value={tabValue} index={1}>
+      <TabPanel value={tabValue} index={1} idPrefix="night-audit" contentSx={{ pt: 2 }}>
         {historyLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress />

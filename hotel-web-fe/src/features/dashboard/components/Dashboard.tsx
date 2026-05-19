@@ -23,64 +23,9 @@ import {
   Event as EventIcon
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
+import { StatCard } from '../../../components/common/StatCard';
 import { CircularProgress, Box as MuiBox } from '@mui/material';
 import { useCurrency } from '../../../hooks/useCurrency';
-
-// Memoized StatCard component to prevent unnecessary re-renders
-const StatCard = React.memo(({
-  title,
-  value,
-  icon,
-  color,
-  gradient
-}: {
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color: string;
-  gradient?: string;
-}) => (
-  <Card sx={{
-    height: '100%',
-    background: gradient || `linear-gradient(135deg, ${color} 0%, ${color}dd 100%)`,
-    color: 'white',
-    position: 'relative',
-    overflow: 'hidden',
-    '&::before': {
-      content: '""',
-      position: 'absolute',
-      top: -50,
-      right: -50,
-      width: 150,
-      height: 150,
-      borderRadius: '50%',
-      background: 'rgba(255, 255, 255, 0.1)',
-    },
-  }}>
-    <CardContent sx={{ position: 'relative', zIndex: 1 }}>
-      <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
-        <Box>
-          <Typography variant="h4" component="div" sx={{ fontWeight: 700, mb: 0.5 }}>
-            {value}
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: 500 }}>
-            {title}
-          </Typography>
-        </Box>
-        <Box sx={{
-          backgroundColor: 'rgba(255, 255, 255, 0.2)',
-          borderRadius: 2,
-          p: 1.5,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}>
-          {icon}
-        </Box>
-      </Box>
-    </CardContent>
-  </Card>
-));
 
 interface UpcomingBooking {
   id: number;
@@ -191,6 +136,9 @@ const Dashboard: React.FC = () => {
             icon={<HotelIcon sx={{ fontSize: 32, color: 'white' }} />}
             color="#1a73e8"
             gradient="linear-gradient(135deg, #1a73e8 0%, #4285f4 100%)"
+            appearance="gradient"
+            titlePlacement="bottom"
+            headerAlignItems="center"
           />
         </Grid>
 
@@ -201,6 +149,9 @@ const Dashboard: React.FC = () => {
             icon={<HotelIcon sx={{ fontSize: 32, color: 'white' }} />}
             color="#34a853"
             gradient="linear-gradient(135deg, #34a853 0%, #4caf50 100%)"
+            appearance="gradient"
+            titlePlacement="bottom"
+            headerAlignItems="center"
           />
         </Grid>
 
@@ -211,6 +162,9 @@ const Dashboard: React.FC = () => {
             icon={<PersonIcon sx={{ fontSize: 32, color: 'white' }} />}
             color="#fbbc04"
             gradient="linear-gradient(135deg, #fbbc04 0%, #ff9800 100%)"
+            appearance="gradient"
+            titlePlacement="bottom"
+            headerAlignItems="center"
           />
         </Grid>
 
@@ -221,6 +175,9 @@ const Dashboard: React.FC = () => {
             icon={<BookingIcon sx={{ fontSize: 32, color: 'white' }} />}
             color="#9c27b0"
             gradient="linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%)"
+            appearance="gradient"
+            titlePlacement="bottom"
+            headerAlignItems="center"
           />
         </Grid>
 

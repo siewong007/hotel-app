@@ -13,12 +13,8 @@ import {
 import {
   Hotel as HotelIcon,
   Person as PersonIcon,
-  EventNote as BookingIcon,
-  TrendingUp as TrendingUpIcon,
   CheckCircle as CheckCircleIcon,
   Schedule as ScheduleIcon,
-  MeetingRoom as RoomIcon,
-  AttachMoney as MoneyIcon,
 } from '@mui/icons-material';
 import {
   PieChart,
@@ -36,6 +32,7 @@ import {
   Line,
 } from 'recharts';
 import { HotelAPIService } from '../../../api';
+import { StatCard } from '../../../components/common/StatCard';
 import { useCurrency } from '../../../hooks/useCurrency';
 
 // Color palette
@@ -49,65 +46,6 @@ const COLORS = {
 };
 
 const CHART_COLORS = ['#1a73e8', '#34a853', '#fbbc04', '#ea4335', '#9c27b0', '#00bcd4'];
-
-// Stat Card Component
-const StatCard = React.memo(({
-  title,
-  value,
-  subtitle,
-  icon,
-  color,
-  trend,
-}: {
-  title: string;
-  value: string | number;
-  subtitle?: string;
-  icon: React.ReactNode;
-  color: string;
-  trend?: { value: number; label: string };
-}) => (
-  <Card sx={{ height: '100%', position: 'relative', overflow: 'hidden' }}>
-    <CardContent>
-      <Box display="flex" alignItems="flex-start" justifyContent="space-between">
-        <Box>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            {title}
-          </Typography>
-          <Typography variant="h4" component="div" sx={{ fontWeight: 700, color }}>
-            {value}
-          </Typography>
-          {subtitle && (
-            <Typography variant="caption" color="text.secondary">
-              {subtitle}
-            </Typography>
-          )}
-          {trend && (
-            <Box display="flex" alignItems="center" mt={1}>
-              <TrendingUpIcon sx={{ fontSize: 16, color: trend.value >= 0 ? 'success.main' : 'error.main', mr: 0.5 }} />
-              <Typography variant="caption" color={trend.value >= 0 ? 'success.main' : 'error.main'}>
-                {trend.value >= 0 ? '+' : ''}{trend.value}% {trend.label}
-              </Typography>
-            </Box>
-          )}
-        </Box>
-        <Box
-          sx={{
-            backgroundColor: `${color}15`,
-            borderRadius: 2,
-            p: 1.5,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: color,
-            '& svg': { fontSize: 28 },
-          }}
-        >
-          {icon}
-        </Box>
-      </Box>
-    </CardContent>
-  </Card>
-));
 
 // Occupancy Gauge Component
 const OccupancyGauge = ({ occupancyRate }: { occupancyRate: number }) => {
@@ -375,6 +313,8 @@ const AnalyticsDashboard: React.FC = () => {
               subtitle={`${roomStats.availableRooms} available`}
               icon={<HotelIcon />}
               color="#1a73e8"
+              subtitleVariant="caption"
+              valueSx={{ fontWeight: 700 }}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -385,6 +325,9 @@ const AnalyticsDashboard: React.FC = () => {
               icon={<CheckCircleIcon />}
               color="#34a853"
               trend={{ value: 5, label: 'vs last week' }}
+              showPositiveTrendSign
+              subtitleVariant="caption"
+              valueSx={{ fontWeight: 700 }}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -394,6 +337,8 @@ const AnalyticsDashboard: React.FC = () => {
               subtitle={`${bookingStats.todayCheckOuts} check-outs`}
               icon={<ScheduleIcon />}
               color="#fbbc04"
+              subtitleVariant="caption"
+              valueSx={{ fontWeight: 700 }}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -403,6 +348,8 @@ const AnalyticsDashboard: React.FC = () => {
               subtitle={`${bookingStats.pendingBookings} pending bookings`}
               icon={<PersonIcon />}
               color="#9c27b0"
+              subtitleVariant="caption"
+              valueSx={{ fontWeight: 700 }}
             />
           </Grid>
 
