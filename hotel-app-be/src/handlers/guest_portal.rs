@@ -57,7 +57,7 @@ pub async fn verify_guest_booking(
 
     // Check if booking is eligible for pre-checkin (check-in date within next 7 days)
     let check_in_date = booking.check_in_date;
-    let today = Utc::now().date_naive();
+    let today = chrono::Local::now().date_naive();
     let days_until_checkin = (check_in_date - today).num_days();
 
     if days_until_checkin < 0 {
@@ -170,9 +170,28 @@ pub async fn submit_precheckin_update(
 
     // Update guest information
     let guest_update = request.guest_update;
+    
+    // Fetch current guest data to compute full_name if first_name or last_name is being updated
+    let current_guest = sqlx::query_as::<_, Guest>("SELECT * FROM guests WHERE id = $1")
+        .bind(booking.guest_id)
+        .fetch_one(&pool)
+        .await
+        .map_err(|e| ApiError::Database(format!("Failed to fetch guest: {}", e)))?;
+    
+    // Compute new full_name if first_name or last_name is being updated
+    let new_first_name = guest_update.first_name.as_ref().unwrap_or(&current_guest.first_name).as_deref().unwrap_or("").trim();
+    let new_last_name = guest_update.last_name.as_ref().unwrap_or(&current_guest.last_name).as_deref().unwrap_or("").trim();
+    let computed_full_name = format!("{} {}", new_first_name, new_last_name).trim().to_string();
+    
     let mut query_parts = vec![];
     let mut values: Vec<String> = vec![];
-
+    
+    // Add full_name update if first_name or last_name is being updated
+    if guest_update.first_name.is_some() || guest_update.last_name.is_some() {
+        query_parts.push(format!("full_name = ${}", values.len() + 1));
+        values.push(computed_full_name);
+    }
+    
     if let Some(ref first_name) = guest_update.first_name {
         query_parts.push(format!("first_name = ${}", values.len() + 1));
         values.push(first_name.clone());
