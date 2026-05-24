@@ -14,7 +14,7 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Local};
 use rust_decimal::Decimal;
 use sqlx::Row;
 
@@ -2073,7 +2073,7 @@ async fn generate_company_ledger_statement(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Calculate aging buckets based on invoice_date or created_at
-    let today = chrono::Utc::now().date_naive();
+    let today = Local::now().date_naive();
     let mut open_balance = Decimal::ZERO;
     let mut days_31_60 = Decimal::ZERO;
     let mut days_61_90 = Decimal::ZERO;
