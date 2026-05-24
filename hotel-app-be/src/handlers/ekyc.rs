@@ -8,7 +8,7 @@ use axum::{
     http::HeaderMap,
 };
 use base64::{Engine as _, engine::general_purpose};
-use chrono::{NaiveDate, Utc};
+use chrono::{NaiveDate, Utc, Local};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -215,7 +215,7 @@ pub async fn submit_ekyc_handler(
     };
 
     // Validate expiry date is in the future
-    if id_expiry_date <= Utc::now().date_naive() {
+    if id_expiry_date <= Local::now().date_naive() {
         return Err(ApiError::BadRequest(
             "ID expiry date must be in the future".to_string(),
         ));

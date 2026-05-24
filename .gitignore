@@ -1,5 +1,36 @@
-node_modules/
-dist/
-build/
-.next/
-coverage/
+```
+# Compiled and build artifacts
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.exe
+target/
+
+# Dependencies
+Cargo.lock
+**/vendor/
+**/deps/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Rust-specific
+**/target/
+Cargo.lock
+**/Cargo.lock
+```
