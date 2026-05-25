@@ -83,29 +83,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    // Batch read all stored auth data
-    const { accessToken, user, roles, permissions, refreshToken } = storage.getItems([
-      'accessToken',
-      'user',
-      'roles',
-      'permissions',
-      'refreshToken',
-    ]);
+    const initializeAuth = async () => {
+      // Batch read all stored auth data
+      const { accessToken, user, roles, permissions, refreshToken } = storage.getItems([
+        'accessToken',
+        'user',
+        'roles',
+        'permissions',
+        'refreshToken',
+      ]);
 
-    if (accessToken && user) {
-      setAuthState({
-        user,
-        roles: roles || [],
-        permissions: permissions || [],
-        accessToken,
-        refreshToken,
-        isAuthenticated: true,
-        isLoading: false,
-        shouldPromptPasskey: false,
-      });
-    } else {
-      setAuthState(prev => ({ ...prev, isLoading: false }));
-    }
+      if (accessToken && user) {
+        try {
+          // Verify token by making a profile request.
+          // Wait for it to succeed BEFORE setting isAuthenticated to true.
+          await HotelAPIService.getUserProfile();
+          
+          setAuthState({
+            user,
+            roles: roles || [],
+            permissions: permissions || [],
+            accessToken,
+            refreshToken,
+            isAuthenticated: true,
+            isLoading: false,
+            shouldPromptPasskey: false,
+          });
+        } catch (error) {
+          // If it fails with 401, the api client's interceptor will also dispatch 
+          // 'auth:unauthorized', which clears storage and redirects to /login.
+          // We set state here just in case.
+          setAuthState(prev => ({ ...prev, isAuthenticated: false, isLoading: false }));
+        }
+      } else {
+        setAuthState(prev => ({ ...prev, isLoading: false }));
+      }
+    };
+
+    initializeAuth();
   }, []);
 
   // Listen for unauthorized events from API interceptor
