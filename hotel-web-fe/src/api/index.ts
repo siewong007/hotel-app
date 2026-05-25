@@ -140,6 +140,7 @@ export class HotelAPIService {
   static recordPayment = InvoicesService.recordPayment;
 
   // RBAC operations
+  static getRbacSnapshot = AdminService.getRbacSnapshot;
   static getAllRoles = AdminService.getAllRoles;
   static createRole = AdminService.createRole;
   static updateRole = AdminService.updateRole;
@@ -150,8 +151,10 @@ export class HotelAPIService {
   static deletePermission = AdminService.deletePermission;
   static assignRoleToUser = AdminService.assignRoleToUser;
   static removeRoleFromUser = AdminService.removeRoleFromUser;
+  static replaceUserRoles = AdminService.replaceUserRoles;
   static assignPermissionToRole = AdminService.assignPermissionToRole;
   static removePermissionFromRole = AdminService.removePermissionFromRole;
+  static replaceRolePermissions = AdminService.replaceRolePermissions;
   static getRolePermissions = AdminService.getRolePermissions;
   static getAllUsers = AdminService.getAllUsers;
   static createUser = AdminService.createUser;

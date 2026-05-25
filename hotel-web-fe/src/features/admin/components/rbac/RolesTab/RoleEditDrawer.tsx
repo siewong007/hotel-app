@@ -123,17 +123,10 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
       // Find permissions to remove
       const toRemove = role.permissions.filter((p) => !newPermIds.has(p.id));
 
-      // Add new permissions
-      for (const perm of toAdd) {
-        await HotelAPIService.assignPermissionToRole({
-          role_id: role.id,
-          permission_id: perm.id,
+      if (toAdd.length > 0 || toRemove.length > 0) {
+        await HotelAPIService.replaceRolePermissions(String(role.id), {
+          permission_ids: permissions.map((permission) => permission.id),
         });
-      }
-
-      // Remove old permissions
-      for (const perm of toRemove) {
-        await HotelAPIService.removePermissionFromRole(String(role.id), String(perm.id));
       }
 
       onSave(updatedRole, permissions);

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { api, HotelAPIService } from '../api';
 import { storage } from '../utils/storage';
 
@@ -49,38 +49,38 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const emptyAuthState: AuthState = {
-    user: null,
-    roles: [],
-    permissions: [],
-    accessToken: null,
-    refreshToken: null,
-    isAuthenticated: false,
-    isLoading: true,
-    shouldPromptPasskey: false,
-  };
+const EMPTY_AUTH_STATE: AuthState = {
+  user: null,
+  roles: [],
+  permissions: [],
+  accessToken: null,
+  refreshToken: null,
+  isAuthenticated: false,
+  isLoading: true,
+  shouldPromptPasskey: false,
+};
 
+const normalizeAccessValue = (value: string) => value.trim().toLowerCase();
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [authState, setAuthState] = useState<AuthState>({
-    ...emptyAuthState,
+    ...EMPTY_AUTH_STATE,
   });
 
-  const clearStoredAuth = () => {
+  const clearStoredAuth = useCallback(() => {
     storage.removeItem('accessToken');
     storage.removeItem('refreshToken');
     storage.removeItem('user');
     storage.removeItem('roles');
     storage.removeItem('permissions');
-  };
+  }, []);
 
-  const resetAuthState = () => {
+  const resetAuthState = useCallback(() => {
     setAuthState({
-      ...emptyAuthState,
+      ...EMPTY_AUTH_STATE,
       isLoading: false,
     });
-  };
-
-  const normalizeAccessValue = (value: string) => value.trim().toLowerCase();
+  }, []);
 
   useEffect(() => {
     // Batch read all stored auth data
@@ -121,9 +121,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
-  }, []);
+  }, [clearStoredAuth, resetAuthState]);
 
-  const register = async (data: { username: string; email: string; password: string; first_name: string; last_name: string; phone?: string }) => {
+  const register = useCallback(async (data: { username: string; email: string; password: string; first_name: string; last_name: string; phone?: string }) => {
     try {
       await HotelAPIService.register(data);
     } catch (error: any) {
@@ -146,9 +146,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       throw new Error(errorMessage);
     }
-  };
+  }, []);
 
-  const checkPasskeys = async (): Promise<boolean> => {
+  const checkPasskeys = useCallback(async (): Promise<boolean> => {
     try {
       const passkeys = await HotelAPIService.listPasskeys();
       return passkeys.length > 0;
@@ -156,9 +156,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Failed to check passkeys:', error);
       return false;
     }
-  };
+  }, []);
 
-  const login = async (username: string, password: string, totpCode?: string): Promise<boolean> => {
+  const login = useCallback(async (username: string, password: string, totpCode?: string): Promise<boolean> => {
     try {
       const data = await api.post('auth/login', {
         json: { username, password, totp_code: totpCode },
@@ -223,31 +223,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       throw new Error(errorMessage);
     }
-  };
+  }, [checkPasskeys]);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     resetAuthState();
     clearStoredAuth();
-  };
+  }, [clearStoredAuth, resetAuthState]);
 
-  const dismissPasskeyPrompt = () => {
+  const dismissPasskeyPrompt = useCallback(() => {
     setAuthState(prev => ({
       ...prev,
       shouldPromptPasskey: false,
     }));
-  };
+  }, []);
 
-  const hasPermission = (permission: string): boolean => {
-    const normalizedPermission = normalizeAccessValue(permission);
-    return authState.permissions.some((storedPermission) => normalizeAccessValue(storedPermission) === normalizedPermission);
-  };
+  const permissionSet = useMemo(
+    () => new Set(authState.permissions.map(normalizeAccessValue)),
+    [authState.permissions]
+  );
+  const roleSet = useMemo(
+    () => new Set(authState.roles.map(normalizeAccessValue)),
+    [authState.roles]
+  );
 
-  const hasRole = (role: string): boolean => {
-    const normalizedRole = normalizeAccessValue(role);
-    return authState.roles.some((storedRole) => normalizeAccessValue(storedRole) === normalizedRole);
-  };
+  const hasPermission = useCallback(
+    (permission: string): boolean => permissionSet.has(normalizeAccessValue(permission)),
+    [permissionSet]
+  );
 
-  const registerPasskey = async (username: string) => {
+  const hasRole = useCallback(
+    (role: string): boolean => roleSet.has(normalizeAccessValue(role)),
+    [roleSet]
+  );
+
+  const registerPasskey = useCallback(async (username: string) => {
     try {
       // Start passkey registration
       const startResponse = await api.post('auth/passkey/register/start', {
@@ -346,9 +355,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       throw new Error(errorMessage);
     }
-  };
+  }, []);
 
-  const loginWithPasskey = async (username: string): Promise<boolean> => {
+  const loginWithPasskey = useCallback(async (username: string): Promise<boolean> => {
     try {
       // Start passkey authentication
       const startResponse = await api.post('auth/passkey/login/start', {
@@ -497,23 +506,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       throw new Error(errorMessage);
     }
-  };
+  }, []);
+
+  const authContextValue = useMemo<AuthContextType>(() => ({
+    ...authState,
+    login,
+    register,
+    logout,
+    hasPermission,
+    hasRole,
+    registerPasskey,
+    loginWithPasskey,
+    dismissPasskeyPrompt,
+    checkPasskeys,
+  }), [
+    authState,
+    login,
+    register,
+    logout,
+    hasPermission,
+    hasRole,
+    registerPasskey,
+    loginWithPasskey,
+    dismissPasskeyPrompt,
+    checkPasskeys,
+  ]);
 
   return (
-    <AuthContext.Provider
-      value={{
-        ...authState,
-        login,
-        register,
-        logout,
-        hasPermission,
-        hasRole,
-        registerPasskey,
-        loginWithPasskey,
-        dismissPasskeyPrompt,
-        checkPasskeys,
-      }}
-    >
+    <AuthContext.Provider value={authContextValue}>
       {children}
     </AuthContext.Provider>
   );

@@ -68,24 +68,24 @@ import {
   MoneyOff as MoneyOffIcon,
   MoreHoriz as MoreHorizIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
+import { HotelAPIService } from '../../../../api';
 
-import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, Booking } from '../../../types';
-import { useCurrency } from '../../../hooks/useCurrency';
-import { useRoomData } from '../hooks/useRoomData';
-import { getHotelSettings } from '../../../utils/hotelSettings';
-import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../utils/date';
-import { isValidEmail } from '../../../utils/validation';
+import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, Booking } from '../../../../types';
+import { useCurrency } from '../../../../hooks/useCurrency';
+import { useRoomData } from '../../hooks/useRoomData';
+import { getHotelSettings } from '../../../../utils/hotelSettings';
+import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../../utils/date';
+import { isValidEmail } from '../../../../utils/validation';
 import {
   getUnifiedStatusColor,
   getUnifiedStatusLabel,
   getUnifiedStatusShortLabel,
   RoomStatusType
-} from '../config';
-import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
-import UnifiedBookingModal, { BookingType } from './UnifiedBookingModal';
-import UpdateCheckoutDateDialog from './UpdateCheckoutDateDialog';
-import { ApiNotificationSeverity, emitApiNotification } from '../../../utils/apiNotifications';
+} from '../../config';
+import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
+import UnifiedBookingModal, { BookingType } from '../UnifiedBooking/UnifiedBookingModal';
+import UpdateCheckoutDateDialog from '../UpdateCheckoutDateDialog';
+import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
 
 interface RoomAction {
   id: string;

@@ -91,6 +91,11 @@ export type {
   PermissionInput,
   AssignRoleInput,
   AssignPermissionInput,
+  RolePermissionIdsInput,
+  UserRoleIdsInput,
+  RolePermissionAssignment,
+  UserRoleAssignment,
+  RbacSnapshot,
   RoleWithPermissions,
   UserWithRolesAndPermissions,
 } from './rbac.types';

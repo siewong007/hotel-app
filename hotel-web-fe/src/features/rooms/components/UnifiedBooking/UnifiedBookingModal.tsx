@@ -44,15 +44,15 @@ import {
   Search as SearchIcon,
   ListAlt as SummaryIcon,
 } from '@mui/icons-material';
-import { Room, Guest, Booking, BookingCreateRequest, RoomType } from '../../../types';
-import { HotelAPIService } from '../../../api';
-import { useCurrency } from '../../../hooks/useCurrency';
-import { useRoomAvailabilityCheck } from '../../../hooks/useRoomAvailabilityCheck';
-import { getHotelSettings } from '../../../utils/hotelSettings';
-import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../utils/date';
-import { useUnifiedBookingData } from '../hooks/useUnifiedBookingData';
-import { isValidEmail } from '../../../utils/validation';
-import GuestSelector, { NewGuestForm, GuestWithCredits, emptyNewGuestForm } from './GuestSelector';
+import { Room, Guest, Booking, BookingCreateRequest, RoomType } from '../../../../types';
+import { HotelAPIService } from '../../../../api';
+import { useCurrency } from '../../../../hooks/useCurrency';
+import { useRoomAvailabilityCheck } from '../../../../hooks/useRoomAvailabilityCheck';
+import { getHotelSettings } from '../../../../utils/hotelSettings';
+import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../../utils/date';
+import { useUnifiedBookingData } from '../../hooks/useUnifiedBookingData';
+import { isValidEmail } from '../../../../utils/validation';
+import GuestSelector, { NewGuestForm, GuestWithCredits, emptyNewGuestForm } from '../GuestSelector';
 
 export type BookingType = 'direct' | 'walk_in' | 'online' | 'complimentary';
 export type BookingMode = 'direct' | 'reservation';
