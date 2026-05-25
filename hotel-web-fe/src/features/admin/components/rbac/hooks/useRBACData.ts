@@ -46,53 +46,38 @@ export function useRBACData(): UseRBACDataReturn {
     setError(null);
 
     try {
-      // Load roles, permissions, and users in parallel
-      const [rolesData, permissionsData, usersData] = await Promise.all([
-        HotelAPIService.getAllRoles(),
-        HotelAPIService.getAllPermissions(),
-        HotelAPIService.getAllUsers(),
-      ]);
+      const snapshot = await HotelAPIService.getRbacSnapshot();
+      const rolesById = new Map(snapshot.roles.map((role) => [role.id, role]));
+      const permissionsById = new Map(snapshot.permissions.map((permission) => [permission.id, permission]));
 
-      setRoles(rolesData);
-      setPermissions(permissionsData);
-
-      // Load permissions for each role
       const rolePermsMap: Record<number, Permission[]> = {};
+      snapshot.roles.forEach((role) => {
+        rolePermsMap[role.id] = [];
+      });
+      snapshot.role_permissions.forEach(({ role_id, permission_id }) => {
+        const permission = permissionsById.get(permission_id);
+        if (permission) {
+          (rolePermsMap[role_id] ||= []).push(permission);
+        }
+      });
 
-      await Promise.all(
-        rolesData.map(async (role) => {
-          try {
-            const { permissions: perms } = await HotelAPIService.getRolePermissions(String(role.id));
-            rolePermsMap[role.id] = perms;
-          } catch (err) {
-            // If role has no permissions yet, set empty array
-            rolePermsMap[role.id] = [];
-          }
-        })
-      );
+      const rolesByUser = new Map<string, Role[]>();
+      snapshot.user_roles.forEach(({ user_id, role_id }) => {
+        const role = rolesById.get(role_id);
+        if (!role) return;
+        const key = String(user_id);
+        const userRoles = rolesByUser.get(key) || [];
+        userRoles.push(role);
+        rolesByUser.set(key, userRoles);
+      });
 
+      setRoles(snapshot.roles);
+      setPermissions(snapshot.permissions);
       setRolePermissions(rolePermsMap);
-
-      // Load roles for each user
-      const usersWithRoles: UserWithRoles[] = await Promise.all(
-        usersData.map(async (user) => {
-          try {
-            const userDetails = await HotelAPIService.getUserRolesAndPermissions(user.id);
-            return {
-              ...user,
-              roles: userDetails.roles || [],
-            };
-          } catch (err) {
-            // If user has no roles yet, set empty array
-            return {
-              ...user,
-              roles: [],
-            };
-          }
-        })
-      );
-
-      setUsers(usersWithRoles);
+      setUsers(snapshot.users.map((user) => ({
+        ...user,
+        roles: rolesByUser.get(String(user.id)) || [],
+      })));
     } catch (err: any) {
       setError(err.message || 'Failed to load RBAC data');
     } finally {
@@ -166,6 +151,8 @@ export function useRBACData(): UseRBACDataReturn {
 
   // Compute roles with stats
   const rolesWithStats = useMemo<RoleWithStats[]>(() => {
+    const navigationItemIds = new Set(NAVIGATION_ITEMS.map(item => item.id));
+
     return roles.map(role => {
       const perms = rolePermissions[role.id] || [];
 
@@ -175,7 +162,7 @@ export function useRBACData(): UseRBACDataReturn {
       // Get navigation item IDs from permissions
       const navItems = navPerms
         .map(p => p.resource.replace('navigation:', ''))
-        .filter(id => NAVIGATION_ITEMS.some(item => item.id === id));
+        .filter(id => navigationItemIds.has(id));
 
       return {
         ...role,

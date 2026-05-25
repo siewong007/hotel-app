@@ -12,6 +12,7 @@ use axum::{
     response::Json,
 };
 use sqlx::Row;
+use std::collections::HashSet;
 
 pub async fn get_roles_handler(State(pool): State<DbPool>) -> Result<Json<Vec<Role>>, ApiError> {
     let rows = sqlx::query("SELECT id, name, description, created_at FROM roles ORDER BY name")
@@ -80,6 +81,56 @@ pub async fn get_permissions_handler(
     }
 
     Ok(Json(permissions))
+}
+
+pub async fn get_rbac_snapshot_handler(
+    State(pool): State<DbPool>,
+) -> Result<Json<RbacSnapshot>, ApiError> {
+    let roles = sqlx::query_as::<_, Role>(
+        "SELECT id, name, description, created_at FROM roles ORDER BY name",
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let permissions = sqlx::query_as::<_, Permission>(
+        "SELECT id, name, resource, action, description, created_at FROM permissions ORDER BY resource, action",
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let users = sqlx::query_as::<_, User>(
+        "SELECT id, username, email, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at FROM users WHERE deleted_at IS NULL ORDER BY username"
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .into_iter()
+    .map(UserResponse::from)
+    .collect();
+
+    let role_permissions = sqlx::query_as::<_, RolePermissionAssignment>(
+        "SELECT role_id, permission_id FROM role_permissions ORDER BY role_id, permission_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let user_roles = sqlx::query_as::<_, UserRoleAssignment>(
+        "SELECT user_id, role_id FROM user_roles ORDER BY user_id, role_id",
+    )
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(Json(RbacSnapshot {
+        roles,
+        permissions,
+        users,
+        role_permissions,
+        user_roles,
+    }))
 }
 
 pub async fn create_permission_handler(
@@ -191,6 +242,137 @@ pub async fn remove_permission_from_role_handler(
     Ok(Json(
         serde_json::json!({"message": "Permission removed successfully"}),
     ))
+}
+
+pub async fn replace_role_permissions_handler(
+    State(pool): State<DbPool>,
+    Path(role_id): Path<i64>,
+    Json(input): Json<RolePermissionIdsInput>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let role_exists: Option<i64> = sqlx::query_scalar("SELECT id FROM roles WHERE id = $1")
+        .bind(role_id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if role_exists.is_none() {
+        return Err(ApiError::NotFound("Role not found".to_string()));
+    }
+
+    let mut seen = HashSet::new();
+    let permission_ids: Vec<i64> = input
+        .permission_ids
+        .into_iter()
+        .filter(|permission_id| seen.insert(*permission_id))
+        .collect();
+
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    sqlx::query("DELETE FROM role_permissions WHERE role_id = $1")
+        .bind(role_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    for permission_id in &permission_ids {
+        sqlx::query(
+            r#"
+            INSERT INTO role_permissions (role_id, permission_id)
+            VALUES ($1, $2)
+            ON CONFLICT (role_id, permission_id) DO NOTHING
+            "#,
+        )
+        .bind(role_id)
+        .bind(permission_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    }
+
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(Json(serde_json::json!({
+        "message": "Role permissions replaced successfully",
+        "permission_count": permission_ids.len()
+    })))
+}
+
+pub async fn replace_user_roles_handler(
+    State(pool): State<DbPool>,
+    Extension(admin_user_id): Extension<i64>,
+    Path(user_id): Path<i64>,
+    Json(input): Json<UserRoleIdsInput>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let user_exists: Option<i64> =
+        sqlx::query_scalar("SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL")
+            .bind(user_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if user_exists.is_none() {
+        return Err(ApiError::NotFound("User not found".to_string()));
+    }
+
+    let current_role_ids: Vec<i64> =
+        sqlx::query_scalar("SELECT role_id FROM user_roles WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_all(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let mut seen = HashSet::new();
+    let role_ids: Vec<i64> = input
+        .role_ids
+        .into_iter()
+        .filter(|role_id| seen.insert(*role_id))
+        .collect();
+
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    sqlx::query("DELETE FROM user_roles WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    for role_id in &role_ids {
+        sqlx::query(
+            "INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        )
+        .bind(user_id)
+        .bind(role_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    }
+
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let current: HashSet<i64> = current_role_ids.into_iter().collect();
+    let next: HashSet<i64> = role_ids.iter().copied().collect();
+
+    for role_id in next.difference(&current) {
+        let _ = AuditLog::log_role_assignment(&pool, admin_user_id, user_id, *role_id).await;
+    }
+    for role_id in current.difference(&next) {
+        let _ = AuditLog::log_role_removal(&pool, admin_user_id, user_id, *role_id).await;
+    }
+
+    Ok(Json(serde_json::json!({
+        "message": "User roles replaced successfully",
+        "role_count": role_ids.len()
+    })))
 }
 
 pub async fn get_role_permissions_handler(

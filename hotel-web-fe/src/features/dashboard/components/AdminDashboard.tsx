@@ -68,6 +68,17 @@ interface TodayActivity {
   }>;
 }
 
+type BookingWithDay = BookingWithDetails & {
+  checkInTime: number;
+  checkOutTime: number;
+};
+
+const toDayTime = (value: string) => {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+};
+
 const AdminDashboard: React.FC = () => {
   const { hasRole } = useAuth();
   const isAdmin = hasRole('admin');
@@ -98,69 +109,76 @@ const AdminDashboard: React.FC = () => {
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const todayTime = today.getTime();
+
+      const bookingsWithDays: BookingWithDay[] = bookingsData.map((booking) => ({
+        ...booking,
+        checkInTime: toDayTime(booking.check_in_date),
+        checkOutTime: toDayTime(booking.check_out_date),
+      }));
+
+      const bookingsByRoom = new Map<string, BookingWithDay[]>();
+      const todayCheckIns: BookingWithDay[] = [];
+      const todayCheckOuts: BookingWithDay[] = [];
+
+      bookingsWithDays.forEach((booking) => {
+        const roomId = String(booking.room_id);
+        const roomBookings = bookingsByRoom.get(roomId);
+        if (roomBookings) {
+          roomBookings.push(booking);
+        } else {
+          bookingsByRoom.set(roomId, [booking]);
+        }
+
+        if (booking.status !== 'voided' && booking.checkInTime === todayTime) {
+          todayCheckIns.push(booking);
+        }
+        if (booking.status !== 'voided' && booking.checkOutTime === todayTime) {
+          todayCheckOuts.push(booking);
+        }
+      });
 
       // Process rooms with their current status
       const processedRooms: RoomStatus[] = roomsData.map((room: any) => {
+        const roomBookings = bookingsByRoom.get(String(room.id)) || [];
+
         // Find active booking for this room
         // Find current occupancy (checked-in guest)
-        const currentOccupancy = bookingsData.find((booking: BookingWithDetails) => {
-          if (String(booking.room_id) !== String(room.id)) return false;
-
-          const checkIn = new Date(booking.check_in_date);
-          const checkOut = new Date(booking.check_out_date);
-          checkIn.setHours(0, 0, 0, 0);
-          checkOut.setHours(0, 0, 0, 0);
-
+        const currentOccupancy = roomBookings.find((booking) => {
           // Occupied if status is checked_in AND dates overlap today
           return (
             booking.status === 'checked_in' &&
-            checkIn <= today &&
-            checkOut >= today
+            booking.checkInTime <= todayTime &&
+            booking.checkOutTime >= todayTime
           );
         });
 
         // Find today's arrival (not yet checked in)
-        const todayArrival = bookingsData.find((booking: BookingWithDetails) => {
-          if (String(booking.room_id) !== String(room.id)) return false;
-
-          const checkIn = new Date(booking.check_in_date);
-          checkIn.setHours(0, 0, 0, 0);
-
+        const todayArrival = roomBookings.find((booking) => {
           // Reserved if status is pending/confirmed AND check-in is today
           return (
             (booking.status === 'pending' || booking.status === 'confirmed') &&
-            checkIn.getTime() === today.getTime()
+            booking.checkInTime === todayTime
           );
         });
 
         // Find future reservation
-        const futureReservation = bookingsData.find((booking: BookingWithDetails) => {
-          if (String(booking.room_id) !== String(room.id)) return false;
-
-          const checkIn = new Date(booking.check_in_date);
-          checkIn.setHours(0, 0, 0, 0);
-
+        const futureReservation = roomBookings.find((booking) => {
           // Reserved if status is pending/confirmed AND check-in is in the future
           return (
             (booking.status === 'pending' || booking.status === 'confirmed') &&
-            checkIn > today
+            booking.checkInTime > todayTime
           );
         });
 
         // Find next reservation
-        const nextBooking = bookingsData
-          .filter((booking: BookingWithDetails) => {
-            const checkIn = new Date(booking.check_in_date);
-            checkIn.setHours(0, 0, 0, 0);
-            return (
-              String(booking.room_id) === String(room.id) &&
-              booking.status === 'confirmed' &&
-              checkIn > today
-            );
-          })
-          .sort((a: BookingWithDetails, b: BookingWithDetails) =>
-            new Date(a.check_in_date).getTime() - new Date(b.check_in_date).getTime()
-          )[0];
+        let nextBooking: BookingWithDay | undefined;
+        roomBookings.forEach((booking) => {
+          if (booking.status !== 'confirmed' || booking.checkInTime <= todayTime) return;
+          if (!nextBooking || booking.checkInTime < nextBooking.checkInTime) {
+            nextBooking = booking;
+          }
+        });
 
         let status: RoomStatus['status'] = 'available';
         let currentGuest: string | undefined;
@@ -236,30 +254,21 @@ const AdminDashboard: React.FC = () => {
         };
       });
 
-      // Calculate today's activity
-      const todayCheckIns = bookingsData.filter((booking: BookingWithDetails) => {
-        const checkIn = new Date(booking.check_in_date);
-        checkIn.setHours(0, 0, 0, 0);
-        return checkIn.getTime() === today.getTime() && booking.status !== 'voided';
-      });
-
-      const todayCheckOuts = bookingsData.filter((booking: BookingWithDetails) => {
-        const checkOut = new Date(booking.check_out_date);
-        checkOut.setHours(0, 0, 0, 0);
-        return checkOut.getTime() === today.getTime() && booking.status !== 'voided';
-      });
+      const roomNumberById = new Map(
+        processedRooms.map((room) => [String(room.id), room.room_number])
+      );
 
       setRooms(processedRooms);
       setTodayActivity({
         check_ins: todayCheckIns.length,
         check_outs: todayCheckOuts.length,
-        arrivals: todayCheckIns.slice(0, 5).map((b: BookingWithDetails) => ({
-          room_number: processedRooms.find(r => String(r.id) === String(b.room_id))?.room_number || 'N/A',
+        arrivals: todayCheckIns.slice(0, 5).map((b) => ({
+          room_number: roomNumberById.get(String(b.room_id)) || 'N/A',
           guest_name: b.guest_name,
           time: b.check_in_date,
         })),
-        departures: todayCheckOuts.slice(0, 5).map((b: BookingWithDetails) => ({
-          room_number: processedRooms.find(r => String(r.id) === String(b.room_id))?.room_number || 'N/A',
+        departures: todayCheckOuts.slice(0, 5).map((b) => ({
+          room_number: roomNumberById.get(String(b.room_id)) || 'N/A',
           guest_name: b.guest_name,
           time: b.check_out_date,
         })),
@@ -364,10 +373,17 @@ const AdminDashboard: React.FC = () => {
     );
   }
 
-  const availableRooms = rooms.filter(r => r.status === 'available').length;
-  const occupiedRooms = rooms.filter(r => r.status === 'occupied').length;
-  const reservedRooms = rooms.filter(r => r.status === 'reserved').length;
-  const maintenanceRooms = rooms.filter(r => r.status === 'maintenance').length;
+  const roomStatusCounts = rooms.reduce(
+    (counts, room) => {
+      counts[room.status] = (counts[room.status] || 0) + 1;
+      return counts;
+    },
+    {} as Partial<Record<RoomStatus['status'], number>>
+  );
+  const availableRooms = roomStatusCounts.available || 0;
+  const occupiedRooms = roomStatusCounts.occupied || 0;
+  const reservedRooms = roomStatusCounts.reserved || 0;
+  const maintenanceRooms = roomStatusCounts.maintenance || 0;
   const occupancyRate = rooms.length > 0 ? ((occupiedRooms / rooms.length) * 100).toFixed(1) : '0';
 
   return (

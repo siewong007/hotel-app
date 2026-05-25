@@ -45,7 +45,7 @@ export interface AppRouteDefinition {
 
 const LandingPage = lazyRoute(() => import('../components/layout/LandingPage'));
 const DashboardRouter = lazyRoute(() => import('../features/dashboard/components/DashboardRouter'));
-const BookingsPage = lazyRoute(() => import('../features/bookings/components/BookingsPage'));
+const BookingsPage = lazyRoute(() => import('../features/bookings/components/Bookings'));
 const MyBookingsPage = lazyRoute(() => import('../features/bookings/components/MyBookingsPage'));
 const ModernReportsPage = lazyRoute(() => import('../features/reports/components/ModernReportsPage'));
 const LoyaltyPortal = lazyRoute(() => import('../features/loyalty/components/LoyaltyPortal'));
@@ -62,13 +62,13 @@ const EmailVerificationPage = lazyRoute(() => import('../features/auth/component
 const FirstLoginPasskeyPrompt = lazyRoute(() => import('../features/auth/components/FirstLoginPasskeyPrompt'));
 const RoomReservationTimeline = lazyRoute(() => import('../features/rooms/components/RoomReservationTimeline'));
 const RoomConfigurationPage = lazyRoute(() => import('../features/rooms/components/RoomConfigurationPage'));
-const RoomManagementPage = lazyRoute(() => import('../features/rooms/components/RoomManagementPage'));
+const RoomManagementPage = lazyRoute(() => import('../features/rooms/components/RoomManagement'));
 const GuestConfigurationPage = lazyRoute(() => import('../features/guests/components/GuestConfigurationPage'));
 const GuestCheckInLanding = lazyRoute(() => import('../features/bookings/components/GuestCheckInLanding'));
 const GuestCheckInVerify = lazyRoute(() => import('../features/bookings/components/GuestCheckInVerify'));
 const GuestCheckInForm = lazyRoute(() => import('../features/bookings/components/GuestCheckInForm'));
 const GuestCheckInConfirmation = lazyRoute(() => import('../features/bookings/components/GuestCheckInConfirmation'));
-const CustomerLedgerPage = lazyRoute(() => import('../features/admin/components/CustomerLedgerPage'));
+const CustomerLedgerPage = lazyRoute(() => import('../features/admin/components/CustomerLedger'));
 const ComplimentaryManagementPage = lazyRoute(() => import('../features/admin/components/ComplimentaryManagementPage'));
 const AuditLogPage = lazyRoute(() => import('../features/admin/components/AuditLogPage'));
 const NightAuditPage = lazyRoute(() => import('../features/admin/components/NightAuditPage'));

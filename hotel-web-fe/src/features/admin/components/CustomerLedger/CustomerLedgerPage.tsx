@@ -72,8 +72,8 @@ import {
   Replay as RegenerateIcon,
 } from '@mui/icons-material';
 import { alpha } from '@mui/material/styles';
-import { HotelAPIService } from '../../../api';
-import { api } from '../../../api/client';
+import { HotelAPIService } from '../../../../api';
+import { api } from '../../../../api/client';
 import {
   CustomerLedger,
   CustomerLedgerCreateRequest,
@@ -83,229 +83,28 @@ import {
   Room,
   Guest,
   BookingWithDetails,
-} from '../../../types';
-import type { Company } from '../../../types';
-import { useCurrency } from '../../../hooks/useCurrency';
-import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
-import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
-import { enhanceBookingDetails } from '../../../utils/bookingUtils';
-import { useLedgers } from '../hooks/useLedgers';
-import { ApiNotificationSeverity, emitApiNotification } from '../../../utils/apiNotifications';
+} from '../../../../types';
+import type { Company } from '../../../../types';
+import { useCurrency } from '../../../../hooks/useCurrency';
+import { getHotelSettings, HotelSettings } from '../../../../utils/hotelSettings';
+import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
+import { enhanceBookingDetails } from '../../../../utils/bookingUtils';
+import { useLedgers } from '../../hooks/useLedgers';
+import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
 
-// Company option for autocomplete
-interface CompanyOption {
-  inputValue?: string;
-  company_name: string;
-  company_registration_number?: string;
-  contact_person?: string;
-  contact_email?: string;
-  contact_phone?: string;
-  billing_address_line1?: string;
-  isNew?: boolean;
-}
-
-const EXPENSE_TYPES = [
-  { value: 'accommodation', label: 'Accommodation' },
-  { value: 'food_beverage', label: 'Food & Beverage' },
-  { value: 'conference', label: 'Conference' },
-  { value: 'service', label: 'Service' },
-  { value: 'other', label: 'Other' },
-];
-
-const PAYMENT_METHODS = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'card', label: 'Credit/Debit Card' },
-  { value: 'bank_transfer', label: 'Bank Transfer' },
-  { value: 'duitnow', label: 'DuitNow' },
-  { value: 'online_banking', label: 'Online Banking' },
-  { value: 'cheque', label: 'Cheque' },
-];
-
-// Date-only ISO 8601 (YYYY-MM-DD): date columns from the backend arrive
-// without a time/offset. Plain `new Date("YYYY-MM-DD")` parses as UTC midnight,
-// which shifts the date by one day in UTC-negative timezones; build the Date
-// in local time instead.
-const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-const formatDateForInput = (dateString: string | null | undefined): string => {
-  if (!dateString) return '';
-  if (DATE_ONLY_RE.test(dateString)) return dateString;
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '';
-    return date.toISOString().split('T')[0];
-  } catch {
-    return '';
-  }
-};
-
-const formatDateForDisplay = (dateString: string | null | undefined): string => {
-  if (!dateString) return '-';
-  try {
-    const m = DATE_ONLY_RE.exec(dateString);
-    const date = m
-      ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-      : new Date(dateString);
-    if (isNaN(date.getTime())) return '-';
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  } catch {
-    return '-';
-  }
-};
-
-const getStatusColor = (status: string): 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' => {
-  switch (status) {
-    case 'paid':
-      return 'success';
-    case 'partial':
-      return 'warning';
-    case 'pending':
-      return 'info';
-    case 'overdue':
-      return 'error';
-    default:
-      return 'default';
-  }
-};
-
-const getStatusText = (status: string): string => {
-  switch (status) {
-    case 'paid':
-      return 'Paid';
-    case 'partial':
-      return 'Partial';
-    case 'pending':
-      return 'Pending';
-    case 'overdue':
-      return 'Overdue';
-    default:
-      return status;
-  }
-};
-
-type LedgerUiStatus =
-  | 'draft'
-  | 'ready_to_invoice'
-  | 'invoiced'
-  | 'partial'
-  | 'paid'
-  | 'overdue'
-  | 'voided';
-
-type EntryStatusFilter =
-  | 'all'
-  | 'uninvoiced'
-  | 'outstanding'
-  | 'invoiced'
-  | 'paid'
-  | 'overdue'
-  | 'voided';
-
-const asMoney = (value: number | string | null | undefined): number => {
-  const parsed = typeof value === 'string' ? parseFloat(value) : value;
-  return Number.isFinite(parsed) ? Number(parsed) : 0;
-};
-
-const isLedgerVoided = (ledger: CustomerLedger) => Boolean(ledger.void_at) || ledger.status === 'cancelled';
-
-const isDateOverdue = (dateString: string | null | undefined) => {
-  if (!dateString) return false;
-  const due = new Date(`${formatDateForInput(dateString)}T23:59:59`);
-  return !isNaN(due.getTime()) && due.getTime() < Date.now();
-};
-
-const getLedgerUiStatus = (ledger: CustomerLedger): LedgerUiStatus => {
-  const balance = asMoney(ledger.balance_due);
-  const paid = asMoney(ledger.paid_amount);
-  if (isLedgerVoided(ledger)) return 'voided';
-  if (ledger.status === 'paid' || balance <= 0) return 'paid';
-  if (ledger.status === 'overdue' || isDateOverdue(ledger.due_date)) return 'overdue';
-  if (paid > 0) return 'partial';
-  if (ledger.invoice_number) return 'invoiced';
-  if (balance > 0) return 'ready_to_invoice';
-  return 'draft';
-};
-
-type ToneName = 'neutral' | 'blue' | 'indigo' | 'amber' | 'green' | 'red' | 'muted';
-
-const TONE: Record<ToneName, { bg: string; fg: string; dot: string }> = {
-  neutral: { bg: '#F0F3F7', fg: '#475569', dot: '#94A3B8' },
-  blue:    { bg: '#E5F0FB', fg: '#1F66C9', dot: '#2F7DE1' },
-  indigo:  { bg: '#ECEAFB', fg: '#5743C8', dot: '#7A6BE2' },
-  amber:   { bg: '#FBF1DC', fg: '#9A6A0E', dot: '#C8941D' },
-  green:   { bg: '#E1F4EA', fg: '#0E7A48', dot: '#16A364' },
-  red:     { bg: '#FCE5E9', fg: '#B53047', dot: '#D14256' },
-  muted:   { bg: '#EFF1F4', fg: '#94A3B8', dot: '#B0B8C2' },
-};
-
-const STATUS_TONE: Record<LedgerUiStatus, { label: string; tone: ToneName }> = {
-  draft:            { label: 'Draft',          tone: 'neutral' },
-  ready_to_invoice: { label: 'Ready',          tone: 'blue' },
-  invoiced:         { label: 'Invoiced',       tone: 'indigo' },
-  partial:          { label: 'Partially Paid', tone: 'amber' },
-  paid:             { label: 'Paid',           tone: 'green' },
-  overdue:          { label: 'Overdue',        tone: 'red' },
-  voided:           { label: 'Voided',         tone: 'muted' },
-};
-
-const StatusPill: React.FC<{ tone: ToneName; children: React.ReactNode; sm?: boolean }> = ({ tone, children, sm }) => {
-  const t = TONE[tone];
-  return (
-    <Box
-      component="span"
-      sx={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 0.5,
-        bgcolor: t.bg,
-        color: t.fg,
-        px: sm ? '6px' : '8px',
-        py: sm ? '1px' : '2px',
-        fontSize: sm ? 10 : 10.5,
-        fontWeight: 700,
-        letterSpacing: 0.3,
-        textTransform: 'uppercase',
-        borderRadius: '999px',
-        whiteSpace: 'nowrap',
-        lineHeight: 1.5,
-      }}
-    >
-      <Box component="span" sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: t.dot }} />
-      {children}
-    </Box>
-  );
-};
-
-const LedgerStatusBadge: React.FC<{ status: LedgerUiStatus; sm?: boolean }> = ({ status, sm }) => {
-  const meta = STATUS_TONE[status];
-  return <StatusPill tone={meta.tone} sm={sm}>{meta.label}</StatusPill>;
-};
-
-const InfoField: React.FC<{ label: string; value: React.ReactNode; span?: 1 | 2 | 3 }> = ({
-  label,
-  value,
-  span,
-}) => (
-  <Box sx={{ gridColumn: span ? `span ${span}` : 'auto' }}>
-    <Typography
-      variant="caption"
-      sx={{
-        display: 'block',
-        fontWeight: 600,
-        color: 'text.secondary',
-        letterSpacing: 0.4,
-        textTransform: 'uppercase',
-      }}
-    >
-      {label}
-    </Typography>
-    <Typography sx={{ fontSize: 13.5, mt: 0.5, wordBreak: 'break-word' }}>{value}</Typography>
-  </Box>
-);
+// Extracted modules
+import type { CompanyOption, LedgerUiStatus, EntryStatusFilter } from './types';
+import { EXPENSE_TYPES, PAYMENT_METHODS } from './constants';
+import {
+  formatDateForInput,
+  formatDateForDisplay,
+  getStatusColor,
+  getStatusText,
+  asMoney,
+  isLedgerVoided,
+  getLedgerUiStatus,
+} from './helpers';
+import { LedgerStatusBadge, InfoField } from './StatusPill';
 
 const CustomerLedgerPage: React.FC = () => {
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();

@@ -52,7 +52,7 @@ import { Guest, GuestCreateRequest, GuestType, GUEST_TYPE_CONFIG, Room, TourismT
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail } from '../../../utils/validation';
 import { useCurrency } from '../../../hooks/useCurrency';
-import UnifiedBookingModal from '../../rooms/components/UnifiedBookingModal';
+import UnifiedBookingModal from '../../rooms/components/UnifiedBooking';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import {
   Star as MemberIcon,

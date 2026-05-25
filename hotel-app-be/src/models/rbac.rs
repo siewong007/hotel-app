@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
-use super::user::User;
+use super::user::{User, UserResponse};
 
 /// Role entity
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -54,6 +54,42 @@ pub struct AssignRoleInput {
 pub struct AssignPermissionInput {
     pub role_id: i64,
     pub permission_id: i64,
+}
+
+/// Bulk input for replacing a role's permissions
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RolePermissionIdsInput {
+    pub permission_ids: Vec<i64>,
+}
+
+/// Bulk input for replacing a user's roles
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserRoleIdsInput {
+    pub role_ids: Vec<i64>,
+}
+
+/// Role-permission join row
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct RolePermissionAssignment {
+    pub role_id: i64,
+    pub permission_id: i64,
+}
+
+/// User-role join row
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UserRoleAssignment {
+    pub user_id: i64,
+    pub role_id: i64,
+}
+
+/// Snapshot used by the RBAC management UI to avoid N+1 loading
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RbacSnapshot {
+    pub roles: Vec<Role>,
+    pub permissions: Vec<Permission>,
+    pub users: Vec<UserResponse>,
+    pub role_permissions: Vec<RolePermissionAssignment>,
+    pub user_roles: Vec<UserRoleAssignment>,
 }
 
 /// Role with its permissions

@@ -39,6 +39,32 @@ export interface AssignPermissionInput {
   permission_id: number;
 }
 
+export interface RolePermissionIdsInput {
+  permission_ids: number[];
+}
+
+export interface UserRoleIdsInput {
+  role_ids: number[];
+}
+
+export interface RolePermissionAssignment {
+  role_id: number;
+  permission_id: number;
+}
+
+export interface UserRoleAssignment {
+  user_id: number | string;
+  role_id: number;
+}
+
+export interface RbacSnapshot {
+  roles: Role[];
+  permissions: Permission[];
+  users: User[];
+  role_permissions: RolePermissionAssignment[];
+  user_roles: UserRoleAssignment[];
+}
+
 export interface RoleWithPermissions {
   role: Role;
   permissions: Permission[];

@@ -178,21 +178,12 @@ export const UsersTab: React.FC<UsersTabProps> = ({
         const currentRoleIds = editingUser.roles?.map(r => r.id) || [];
         const newRoleIds = formData.role_ids;
 
-        // Remove old roles
-        for (const roleId of currentRoleIds) {
-          if (!newRoleIds.includes(roleId)) {
-            await HotelAPIService.removeRoleFromUser(editingUser.id, String(roleId));
-          }
-        }
+        const rolesChanged =
+          currentRoleIds.length !== newRoleIds.length ||
+          currentRoleIds.some((roleId) => !newRoleIds.includes(roleId));
 
-        // Add new roles
-        for (const roleId of newRoleIds) {
-          if (!currentRoleIds.includes(roleId)) {
-            await HotelAPIService.assignRoleToUser({
-              user_id: editingUser.id,
-              role_id: roleId,
-            });
-          }
+        if (rolesChanged) {
+          await HotelAPIService.replaceUserRoles(editingUser.id, { role_ids: newRoleIds });
         }
 
         onRolesAssigned(editingUser.id, newRoleIds);
@@ -206,6 +197,9 @@ export const UsersTab: React.FC<UsersTabProps> = ({
           role_ids: formData.role_ids.length > 0 ? formData.role_ids : undefined,
         });
         onUserCreated(newUser);
+        if (formData.role_ids.length > 0) {
+          onRolesAssigned(newUser.id, formData.role_ids);
+        }
       }
 
       handleClose();

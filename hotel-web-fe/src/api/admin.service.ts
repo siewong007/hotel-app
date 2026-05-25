@@ -7,7 +7,10 @@ import {
   PermissionInput,
   AssignRoleInput,
   AssignPermissionInput,
+  RolePermissionIdsInput,
+  UserRoleIdsInput,
   RoleWithPermissions,
+  RbacSnapshot,
   User,
   UserWithRolesAndPermissions,
 } from '../types';
@@ -15,6 +18,13 @@ import { withRetry } from '../utils/retry';
 
 export class AdminService {
   // RBAC Operations
+  static async getRbacSnapshot(): Promise<RbacSnapshot> {
+    return await withRetry(
+      () => api.get('rbac/snapshot').json<RbacSnapshot>(),
+      { maxAttempts: 3, initialDelay: 1000 }
+    );
+  }
+
   static async getAllRoles(): Promise<Role[]> {
     return await withRetry(
       () => api.get('rbac/roles').json<Role[]>(),
@@ -73,12 +83,20 @@ export class AdminService {
     await api.delete(`rbac/users/${userId}/roles/${roleId}`);
   }
 
+  static async replaceUserRoles(userId: string, input: UserRoleIdsInput): Promise<void> {
+    await api.put(`rbac/users/${userId}/roles`, { json: input });
+  }
+
   static async assignPermissionToRole(assignData: AssignPermissionInput): Promise<void> {
     await api.post('rbac/roles/permissions', { json: assignData });
   }
 
   static async removePermissionFromRole(roleId: string, permissionId: string): Promise<void> {
     await api.delete(`rbac/roles/${roleId}/permissions/${permissionId}`);
+  }
+
+  static async replaceRolePermissions(roleId: string, input: RolePermissionIdsInput): Promise<void> {
+    await api.put(`rbac/roles/${roleId}/permissions`, { json: input });
   }
 
   static async getRolePermissions(roleId: string): Promise<RoleWithPermissions> {

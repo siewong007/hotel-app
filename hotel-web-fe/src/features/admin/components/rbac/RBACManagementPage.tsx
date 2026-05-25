@@ -175,7 +175,14 @@ const RBACManagementPage: React.FC = () => {
   }, [permissionCategories]);
 
   const totalPerms = permissions.length;
-  const selectedRole = roles.find((r) => r.id === selectedId) || null;
+  const selectedRole = useMemo(
+    () => roles.find((r) => r.id === selectedId) || null,
+    [roles, selectedId]
+  );
+  const visibleRoles = useMemo(() => {
+    const q = roleSearch.trim().toLowerCase();
+    return rolesWithStats.filter((r) => !q || r.name.toLowerCase().includes(q));
+  }, [roleSearch, rolesWithStats]);
   const draftSet = selectedId != null ? draft[selectedId] || new Set<number>() : new Set<number>();
   const currentSet =
     selectedId != null && rolePermissionMap[selectedId]
@@ -195,6 +202,16 @@ const RBACManagementPage: React.FC = () => {
     });
     return m;
   }, [users]);
+
+  const rolesByPermission = useMemo(() => {
+    const m: Record<number, Role[]> = {};
+    roles.forEach((role) => {
+      rolePermissionMap[role.id]?.forEach((permissionId) => {
+        (m[permissionId] ||= []).push(role);
+      });
+    });
+    return m;
+  }, [rolePermissionMap, roles]);
 
   const dirty = useMemo(() => {
     if (selectedId == null) return false;
@@ -229,12 +246,9 @@ const RBACManagementPage: React.FC = () => {
     const removed = [...currentSet].filter((id) => !draftSet.has(id));
     setSaving(true);
     try {
-      for (const pid of added) {
-        await HotelAPIService.assignPermissionToRole({ role_id: selectedId, permission_id: pid });
-      }
-      for (const pid of removed) {
-        await HotelAPIService.removePermissionFromRole(String(selectedId), String(pid));
-      }
+      await HotelAPIService.replaceRolePermissions(String(selectedId), {
+        permission_ids: [...draftSet],
+      });
       const nextPerms = permissions.filter((p) => draftSet.has(p.id));
       updateRolePermissions(selectedId, nextPerms);
       showSnackbar(
@@ -291,9 +305,7 @@ const RBACManagementPage: React.FC = () => {
         description: selectedRole.description || undefined,
       });
       const perms = [...(rolePermissionMap[selectedRole.id] || [])];
-      for (const pid of perms) {
-        await HotelAPIService.assignPermissionToRole({ role_id: created.id, permission_id: pid });
-      }
+      await HotelAPIService.replaceRolePermissions(String(created.id), { permission_ids: perms });
       setRoles((prev) => [...prev, created]);
       updateRolePermissions(
         created.id,
@@ -355,10 +367,6 @@ const RBACManagementPage: React.FC = () => {
       </Box>
     );
   }
-
-  const visibleRoles = rolesWithStats.filter(
-    (r) => !roleSearch || r.name.toLowerCase().includes(roleSearch.toLowerCase())
-  );
 
   const PtabBtn = ({ id, label, count }: { id: 'roles' | 'users'; label: string; count: string }) => {
     const on = tab === id;
@@ -635,8 +643,8 @@ const RBACManagementPage: React.FC = () => {
                           <Box>
                             {rows.map((p, i) => {
                               const on = isOn(p.id);
-                              const others = roles.filter(
-                                (r) => r.id !== selectedRole!.id && rolePermissionMap[r.id]?.has(p.id)
+                              const others = (rolesByPermission[p.id] || []).filter(
+                                (r) => r.id !== selectedRole!.id
                               );
                               const vs = verbStyle(p.action);
                               return (

@@ -64,17 +64,17 @@ import {
   Public as PublicIcon,
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
-import { HotelAPIService } from '../../../api';
+import { HotelAPIService } from '../../../../api';
 
-import { BookingTimelineEntry, BookingWithDetails, PaymentWorkflowSummary, Room, Guest, RoomType } from '../../../types';
-import { getBookingStatusColor, getBookingStatusText, getPaymentStatusColor, getPaymentStatusText } from '../../../utils/bookingUtils';
-import { useAuth } from '../../../auth/AuthContext';
-import { useCurrency } from '../../../hooks/useCurrency';
-import CheckoutInvoiceModal from '../../invoices/components/CheckoutInvoiceModal';
-import UnifiedBookingModal from '../../rooms/components/UnifiedBookingModal';
-import { getHotelSettings } from '../../../utils/hotelSettings';
-import { useBookings, PAGE_SIZE, SortField, DateFilter } from '../hooks/useBookings';
-import { emitApiNotification } from '../../../utils/apiNotifications';
+import { BookingTimelineEntry, BookingWithDetails, PaymentWorkflowSummary, Room, Guest, RoomType } from '../../../../types';
+import { getBookingStatusColor, getBookingStatusText, getPaymentStatusColor, getPaymentStatusText } from '../../../../utils/bookingUtils';
+import { useAuth } from '../../../../auth/AuthContext';
+import { useCurrency } from '../../../../hooks/useCurrency';
+import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
+import UnifiedBookingModal from '../../../rooms/components/UnifiedBooking';
+import { getHotelSettings } from '../../../../utils/hotelSettings';
+import { useBookings, PAGE_SIZE, SortField, DateFilter } from '../../hooks/useBookings';
+import { emitApiNotification } from '../../../../utils/apiNotifications';
 
 type BookingChannelInfo = {
   name: string;
