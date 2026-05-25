@@ -6,10 +6,12 @@ use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
+use crate::utils::sanitization::Sanitizer;
 use axum::{
     extract::{Extension, State},
     response::Json,
 };
+use validator::Validate;
 
 pub async fn get_user_profile_handler(
     State(pool): State<DbPool>,
@@ -36,8 +38,24 @@ pub async fn get_user_profile_handler(
 pub async fn update_user_profile_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
-    Json(input): Json<UserProfileUpdate>,
+    Json(mut input): Json<UserProfileUpdate>,
 ) -> Result<Json<UserProfile>, ApiError> {
+    input
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    if let Some(full_name) = &input.full_name {
+        input.full_name = Some(Sanitizer::sanitize_guest_name(full_name));
+    }
+    if let Some(email) = &input.email {
+        input.email = Some(Sanitizer::sanitize_email(email));
+    }
+    if let Some(phone) = &input.phone {
+        input.phone = Some(Sanitizer::sanitize_phone(phone));
+    }
+    if let Some(avatar_url) = &input.avatar_url {
+        input.avatar_url = Sanitizer::sanitize_url(avatar_url);
+    }
+
     // Use separate UPDATE statements for each field - safer than dynamic SQL construction
     if let Some(full_name) = input.full_name {
         sqlx::query(
@@ -88,6 +106,11 @@ pub async fn update_password_handler(
     Extension(user_id): Extension<i64>,
     Json(input): Json<PasswordUpdateInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    input
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    AuthService::validate_password(&input.new_password).map_err(ApiError::BadRequest)?;
+
     // Get current password hash
     let current_hash: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
         .bind(user_id)

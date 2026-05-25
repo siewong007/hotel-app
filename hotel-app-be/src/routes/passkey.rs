@@ -3,6 +3,7 @@
 use super::extract_client_ip;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::middleware::require_auth;
 use crate::core::rate_limiter::RateLimiters;
 use crate::handlers;
 use crate::models;
@@ -39,7 +40,9 @@ async fn register_start(
             retry_after,
         ));
     }
-    handlers::passkey::passkey_register_start_handler(State(pool), Json(req)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::passkey::passkey_register_start_handler(State(pool), Extension(user_id), Json(req))
+        .await
 }
 
 async fn register_finish(
@@ -59,7 +62,9 @@ async fn register_finish(
             retry_after,
         ));
     }
-    handlers::passkey::passkey_register_finish_handler(State(pool), Json(req)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::passkey::passkey_register_finish_handler(State(pool), Extension(user_id), Json(req))
+        .await
 }
 
 async fn login_start(

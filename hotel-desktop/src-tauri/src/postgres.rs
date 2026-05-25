@@ -6,6 +6,7 @@
 //! - Running migrations
 //! - Health checks
 
+use rand::RngCore;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::time::Duration;
@@ -459,9 +460,76 @@ pub async fn run_migrations_if_needed(app_handle: &AppHandle) -> Result<(), Post
     if !already_initialized {
         log::info!("Running seed data...");
         run_sql_files(app_handle, "database/seed-data").await?;
+        randomize_seed_passwords(app_handle).await?;
     }
 
     log::info!("Database migrations completed successfully");
+    Ok(())
+}
+
+fn generate_bootstrap_password() -> String {
+    let mut bytes = [0u8; 18];
+    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    hex::encode(bytes)
+}
+
+async fn randomize_seed_passwords(app_handle: &AppHandle) -> Result<(), PostgresError> {
+    let password = generate_bootstrap_password();
+    let pgsql_bin = get_pgsql_bin_dir(app_handle);
+    let psql_path = pgsql_bin.join(format!("psql{}", EXE_SUFFIX));
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!(
+        "{}{}{}",
+        pgsql_bin.to_string_lossy(),
+        PATH_SEP,
+        current_path
+    );
+    let sql = format!(
+        "UPDATE users SET password_hash = crypt('{}', gen_salt('bf', 12));",
+        password
+    );
+
+    let mut cmd = tokio::process::Command::new(&psql_path);
+    cmd.args([
+        "-h",
+        "localhost",
+        "-p",
+        &POSTGRES_PORT.to_string(),
+        "-U",
+        POSTGRES_USER,
+        "-d",
+        POSTGRES_DB,
+        "-c",
+        &sql,
+    ])
+    .env("PATH", &new_path)
+    .current_dir(&pgsql_bin)
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().await?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(PostgresError::MigrationFailed(format!(
+            "Failed to randomize seed passwords: {}",
+            stderr
+        )));
+    }
+
+    let password_file = get_data_directory().join("initial-login-password.txt");
+    let contents = format!(
+        "Initial desktop login password for seeded accounts:\n{}\n\nChange account passwords after first login.\n",
+        password
+    );
+    std::fs::write(&password_file, contents)?;
+    log::info!(
+        "Seed account passwords randomized. Initial login password written to {:?}",
+        password_file
+    );
+
     Ok(())
 }
 

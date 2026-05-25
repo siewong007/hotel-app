@@ -40,7 +40,7 @@ import {
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { EkycService } from '../../../api/ekyc.service';
-import { apiUrl } from '../../../desktop/runtimeApi';
+import { api } from '../../../api/client';
 
 interface EkycVerification {
   id: number;
@@ -74,6 +74,67 @@ interface EkycVerification {
   submitted_at: string;
   updated_at: string;
 }
+
+const SecureDocumentImage: React.FC<{
+  verificationId: number;
+  kind: 'id-front' | 'id-back' | 'selfie' | 'proof-of-address';
+  alt: string;
+}> = ({ verificationId, kind, alt }) => {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+
+    setImageUrl(null);
+    setFailed(false);
+
+    api
+      .get(`ekyc/verifications/${verificationId}/documents/${kind}`)
+      .blob()
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setImageUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [verificationId, kind]);
+
+  if (failed) {
+    return (
+      <Box sx={{ height: 200, display: 'grid', placeItems: 'center', p: 2 }}>
+        <Typography variant="caption" color="text.secondary">
+          Document unavailable
+        </Typography>
+      </Box>
+    );
+  }
+
+  if (!imageUrl) {
+    return (
+      <Box sx={{ height: 200, display: 'grid', placeItems: 'center' }}>
+        <CircularProgress size={24} />
+      </Box>
+    );
+  }
+
+  return (
+    <CardMedia
+      component="img"
+      image={imageUrl}
+      alt={alt}
+      sx={{ height: 200, objectFit: 'contain', p: 1 }}
+    />
+  );
+};
 
 const EkycManagementPage: React.FC = () => {
   const [verifications, setVerifications] = useState<EkycVerification[]>([]);
@@ -158,11 +219,6 @@ const EkycManagementPage: React.FC = () => {
   const filteredVerifications = verifications.filter(v =>
     filterStatus === 'all' || v.status === filterStatus
   );
-
-  // Build image URL using the centralized API base URL
-  const getImageUrl = (path: string) => {
-    return apiUrl(path);
-  };
 
   if (loading) {
     return (
@@ -374,11 +430,10 @@ const EkycManagementPage: React.FC = () => {
                             ID Front
                           </Typography>
                           <Card variant="outlined">
-                            <CardMedia
-                              component="img"
-                              image={getImageUrl(selectedVerification.id_front_image_path)}
+                            <SecureDocumentImage
+                              verificationId={selectedVerification.id}
+                              kind="id-front"
                               alt="ID Front"
-                              sx={{ height: 200, objectFit: 'contain', p: 1 }}
                             />
                           </Card>
                         </Grid>
@@ -388,11 +443,10 @@ const EkycManagementPage: React.FC = () => {
                               ID Back
                             </Typography>
                             <Card variant="outlined">
-                              <CardMedia
-                                component="img"
-                                image={getImageUrl(selectedVerification.id_back_image_path)}
+                              <SecureDocumentImage
+                                verificationId={selectedVerification.id}
+                                kind="id-back"
                                 alt="ID Back"
-                                sx={{ height: 200, objectFit: 'contain', p: 1 }}
                               />
                             </Card>
                           </Grid>
@@ -402,11 +456,10 @@ const EkycManagementPage: React.FC = () => {
                             Selfie
                           </Typography>
                           <Card variant="outlined">
-                            <CardMedia
-                              component="img"
-                              image={getImageUrl(selectedVerification.selfie_image_path)}
+                            <SecureDocumentImage
+                              verificationId={selectedVerification.id}
+                              kind="selfie"
                               alt="Selfie"
-                              sx={{ height: 200, objectFit: 'contain', p: 1 }}
                             />
                           </Card>
                         </Grid>

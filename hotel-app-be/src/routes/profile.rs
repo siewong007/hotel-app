@@ -192,11 +192,19 @@ async fn verify_2fa(
             retry_after,
         ));
     }
-    handlers::two_factor::verify_2fa_code_handler(State(pool), Json(input)).await
+    handlers::two_factor::verify_2fa_code_handler(State(pool), headers, Json(input)).await
 }
 
 /// Extract client IP from headers
 fn extract_client_ip(headers: &HeaderMap) -> std::net::IpAddr {
+    let trust_proxy_headers = std::env::var("TRUST_PROXY_HEADERS")
+        .map(|v| v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    if !trust_proxy_headers {
+        return std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
+    }
+
     headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())

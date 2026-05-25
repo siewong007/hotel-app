@@ -7,12 +7,14 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
 use crate::services::audit::AuditLog;
+use crate::utils::sanitization::Sanitizer;
 use axum::{
     extract::{Extension, Path, State},
     response::Json,
 };
 use sqlx::Row;
 use std::collections::HashSet;
+use validator::Validate;
 
 pub async fn get_roles_handler(State(pool): State<DbPool>) -> Result<Json<Vec<Role>>, ApiError> {
     let rows = sqlx::query("SELECT id, name, description, created_at FROM roles ORDER BY name")
@@ -439,8 +441,20 @@ pub async fn get_users_handler(
 pub async fn create_user_handler(
     State(pool): State<DbPool>,
     Extension(admin_user_id): Extension<i64>,
-    Json(input): Json<UserCreateInput>,
+    Json(mut input): Json<UserCreateInput>,
 ) -> Result<Json<UserResponse>, ApiError> {
+    input
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    input.username = Sanitizer::sanitize_text(&input.username).trim().to_string();
+    input.email = Sanitizer::sanitize_email(&input.email);
+    if let Some(full_name) = &input.full_name {
+        input.full_name = Some(Sanitizer::sanitize_guest_name(full_name));
+    }
+    if let Some(phone) = &input.phone {
+        input.phone = Some(Sanitizer::sanitize_phone(phone));
+    }
+
     let is_super_admin = AuthService::check_role(&pool, admin_user_id, "super_admin")
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;

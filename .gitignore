@@ -3,3 +3,6 @@ dist/
 build/
 .next/
 coverage/
+.env
+.env.*
+!.env.example
