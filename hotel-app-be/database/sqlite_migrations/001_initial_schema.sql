@@ -669,12 +669,13 @@ INSERT OR IGNORE INTO rate_codes (code, name, description, discount_type, discou
 ('MEMB', 'Member Rate', 'Loyalty member rate', 'percentage', 10);
 
 -- ============================================================================
--- SEED DATA: DEFAULT ADMIN USER (password: admin123)
+-- SEED DATA: DEFAULT ADMIN USER
+-- Uses a non-recoverable placeholder password hash. Reset explicitly before login.
 -- ============================================================================
 
 INSERT OR IGNORE INTO users (id, uuid, username, email, password_hash, full_name, user_type, is_active, is_verified, is_super_admin)
 VALUES (1, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'admin', 'admin@hotel.local',
-        '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYBmqdQNhuay',
+        '$2b$12$Fq3zPzZ.mr/wuYrbUPUItOqoC9YvsFfW.mcq4B6U5e3nWsPr4JQdK',
         'System Administrator', 'staff', 1, 1, 1);
 
 INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (1, 1);

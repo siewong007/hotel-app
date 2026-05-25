@@ -381,8 +381,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const { challenge, allowCredentials } = startResponse;
 
-      console.log('Passkey start response:', { challenge, allowCredentials });
-
       // Helper to decode base64url (URL-safe base64)
       const base64urlDecode = (str: string): ArrayBuffer => {
         // Convert base64url to base64
@@ -416,13 +414,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         userVerification: 'required',
       };
 
-      console.log('Requesting credentials with options:', publicKeyCredentialRequestOptions);
-
       const assertion = await navigator.credentials.get({
         publicKey: publicKeyCredentialRequestOptions,
       }) as PublicKeyCredential;
-
-      console.log('Got assertion:', assertion);
 
       if (!assertion) {
         throw new Error('Failed to authenticate with passkey');

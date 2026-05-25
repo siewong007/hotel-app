@@ -113,11 +113,13 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'guest' A
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- ============================================================================
--- ADMIN USERS (Password: Admin@123)
+-- ADMIN USERS
+-- Seeded accounts use a non-recoverable placeholder password hash.
+-- The desktop app randomizes these after first-time seeding and writes a bootstrap password file.
 -- ============================================================================
 
 INSERT INTO users (id, username, email, password_hash, full_name, is_active, is_verified, is_super_admin, created_at, updated_at)
-VALUES (1000, 'admin', 'admin@hotel.com', '$2b$12$P2hNNHU8M1HsaW20lj3COuwvTNc2WjnkQCRn58Ww3sZPu1ZLcUpNC',
+VALUES (1000, 'admin', 'admin@hotel.com', '$2b$12$Fq3zPzZ.mr/wuYrbUPUItOqoC9YvsFfW.mcq4B6U5e3nWsPr4JQdK',
     'System Administrator', true, true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, is_super_admin = EXCLUDED.is_super_admin;
 
@@ -125,9 +127,9 @@ ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, is_
 SELECT setval('users_id_seq', GREATEST((SELECT MAX(id) FROM users), 1000) + 1, false);
 
 INSERT INTO users (username, email, password_hash, full_name, is_active, is_verified, is_super_admin, created_at)
-VALUES ('superadmin', 'superadmin@hotel.local', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5GyYxN8/LewY5G',
+VALUES ('superadmin', 'superadmin@hotel.local', '$2b$12$Fq3zPzZ.mr/wuYrbUPUItOqoC9YvsFfW.mcq4B6U5e3nWsPr4JQdK',
     'Super Administrator', true, true, true, CURRENT_TIMESTAMP)
-ON CONFLICT (username) DO UPDATE SET is_super_admin = true;
+ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, is_super_admin = true;
 
 -- Assign admin roles
 INSERT INTO user_roles (user_id, role_id) SELECT 1000, id FROM roles WHERE name = 'admin' ON CONFLICT DO NOTHING;

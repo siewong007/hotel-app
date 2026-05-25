@@ -11,7 +11,7 @@ use axum::{
     Router,
     extract::{Multipart, Path, State},
     http::HeaderMap,
-    response::Json,
+    response::{Json, Response},
     routing::{get, patch, post},
 };
 
@@ -26,6 +26,10 @@ pub fn routes() -> Router<DbPool> {
         // Admin eKYC routes
         .route("/ekyc/verifications", get(get_all_verifications))
         .route("/ekyc/verifications/{id}", get(get_verification))
+        .route(
+            "/ekyc/verifications/{id}/documents/{kind}",
+            get(get_document),
+        )
         .route("/ekyc/verifications/{id}", patch(update_verification))
 }
 
@@ -75,6 +79,15 @@ async fn get_verification(
 ) -> Result<Json<models::EkycVerification>, ApiError> {
     require_permission_helper(&pool, &headers, "ekyc:manage").await?;
     handlers::ekyc::get_ekyc_by_id_handler(State(pool), path).await
+}
+
+async fn get_document(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<(i64, String)>,
+) -> Result<Response, ApiError> {
+    require_permission_helper(&pool, &headers, "ekyc:manage").await?;
+    handlers::ekyc::get_ekyc_document_handler(State(pool), path).await
 }
 
 async fn update_verification(

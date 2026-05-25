@@ -8,6 +8,7 @@ use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::*;
 use axum::{extract::State, http::HeaderMap, response::Json};
+use validator::Validate;
 
 pub async fn setup_2fa_handler(
     State(pool): State<DbPool>,
@@ -89,6 +90,8 @@ pub async fn enable_2fa_handler(
     headers: HeaderMap,
     Json(req): Json<TwoFactorEnableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    req.validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     log::info!("2FA enable handler called");
     let user_id = require_auth(&headers).await?;
     log::info!("User authenticated: {}", user_id);
@@ -113,12 +116,7 @@ pub async fn enable_2fa_handler(
         ApiError::BadRequest("2FA setup not initiated. Call /auth/2fa/setup first.".to_string())
     })?;
 
-    log::info!("2FA secret found, verifying TOTP code: {}", &req.code);
-    log::debug!(
-        "Secret (first 10 chars): {}",
-        &two_factor_secret[..10.min(two_factor_secret.len())]
-    );
-    log::debug!("Secret length: {}", two_factor_secret.len());
+    log::info!("2FA secret found, verifying submitted TOTP code");
 
     // Verify the code
     let valid = AuthService::verify_totp_code(&two_factor_secret, &req.code).map_err(|e| {
@@ -154,6 +152,8 @@ pub async fn disable_2fa_handler(
     headers: HeaderMap,
     Json(req): Json<TwoFactorDisableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    req.validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     log::info!("2FA disable handler called");
     let user_id = require_auth(&headers).await?;
 
@@ -242,18 +242,37 @@ pub async fn get_2fa_status_handler(
 }
 
 pub async fn verify_2fa_code_handler(
-    State(_pool): State<DbPool>,
-    Json(_req): Json<TwoFactorVerifyRequest>,
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Json(req): Json<TwoFactorVerifyRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // This is a standalone verification endpoint that can be used for various purposes
-    // It requires the secret to be passed (not recommended for production)
-    // In production, you'd verify against stored secrets
+    req.validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let user_id = require_auth(&headers).await?;
 
-    // For now, return the result
-    Ok(Json(serde_json::json!({
-        "verified": true,
-        "message": "Code verified (standalone verification)"
-    })))
+    let (enabled, secret): (Option<bool>, Option<String>) =
+        sqlx::query_as("SELECT two_factor_enabled, two_factor_secret FROM users WHERE id = $1 AND deleted_at IS NULL")
+            .bind(user_id)
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?
+            .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+
+    if !enabled.unwrap_or(false) {
+        return Err(ApiError::BadRequest(
+            "2FA is not enabled for this account".to_string(),
+        ));
+    }
+
+    let secret = secret.ok_or_else(|| ApiError::Internal("2FA secret missing".to_string()))?;
+    let valid = AuthService::verify_totp_code(&secret, &req.code)
+        .map_err(|_| ApiError::Unauthorized("Invalid 2FA code".to_string()))?;
+
+    if !valid {
+        return Err(ApiError::Unauthorized("Invalid 2FA code".to_string()));
+    }
+
+    Ok(Json(serde_json::json!({ "verified": true })))
 }
 
 pub async fn regenerate_backup_codes_handler(
@@ -261,6 +280,8 @@ pub async fn regenerate_backup_codes_handler(
     headers: HeaderMap,
     Json(req): Json<RegenerateBackupCodesRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    req.validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
     let user_id = require_auth(&headers).await?;
 
     // Get user info

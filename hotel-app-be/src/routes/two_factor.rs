@@ -111,7 +111,7 @@ async fn verify_2fa(
             retry_after,
         ));
     }
-    handlers::two_factor::verify_2fa_code_handler(State(pool), Json(req)).await
+    handlers::two_factor::verify_2fa_code_handler(State(pool), headers, Json(req)).await
 }
 
 async fn regenerate_backup_codes(

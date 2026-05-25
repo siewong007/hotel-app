@@ -2,6 +2,7 @@
 //!
 //! These commands can be invoked from the frontend via `invoke()`
 
+use rand::RngCore;
 use std::net::TcpListener;
 use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::Arc;
@@ -71,6 +72,12 @@ fn get_backend_url() -> String {
     format!("http://127.0.0.1:{}", BACKEND_PORT.load(Ordering::SeqCst))
 }
 
+fn generate_desktop_jwt_secret() -> String {
+    let mut secret = [0u8; 64];
+    rand::rngs::OsRng.fill_bytes(&mut secret);
+    hex::encode(secret)
+}
+
 /// Start the backend sidecar process
 pub async fn start_backend_sidecar(app_handle: &AppHandle) -> Result<(), String> {
     if BACKEND_RUNNING.load(Ordering::SeqCst) || BACKEND_STARTING.load(Ordering::SeqCst) {
@@ -90,6 +97,7 @@ pub async fn start_backend_sidecar(app_handle: &AppHandle) -> Result<(), String>
         .unwrap_or(3030);
     let backend_port = find_available_backend_port(preferred_port);
     BACKEND_PORT.store(backend_port, Ordering::SeqCst);
+    let jwt_secret = std::env::var("JWT_SECRET").unwrap_or_else(|_| generate_desktop_jwt_secret());
 
     let shell = app_handle.shell();
     let sidecar_command = shell
@@ -97,10 +105,14 @@ pub async fn start_backend_sidecar(app_handle: &AppHandle) -> Result<(), String>
         .map_err(|e| format!("Failed to create sidecar command: {}", e))?
         .env("DATABASE_URL", &database_url)
         .env("BACKEND_PORT", backend_port.to_string())
-        .env("JWT_SECRET", "super-secret-jwt-key-for-hotel-desktop-app")
+        .env("JWT_SECRET", jwt_secret)
         .env("HOTEL_DESKTOP_MODE", "1")
-        .env("ALLOWED_ORIGINS", "*")
+        .env(
+            "ALLOWED_ORIGINS",
+            "tauri://localhost,http://tauri.localhost,http://localhost:3000,http://localhost:5173",
+        )
         .env("SKIP_EMAIL_VERIFICATION", "true")
+        .env("TRUST_PROXY_HEADERS", "false")
         .env("RUST_LOG", "info");
 
     let (mut rx, child) = sidecar_command

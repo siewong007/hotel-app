@@ -4,6 +4,7 @@ use crate::constants::UserType;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use validator::Validate;
 
 /// Core user entity
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -78,28 +79,55 @@ pub struct UserProfile {
 }
 
 /// Input for updating user profile
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct UserProfileUpdate {
+    #[validate(length(
+        min = 1,
+        max = 100,
+        message = "Full name must be between 1 and 100 characters"
+    ))]
     pub full_name: Option<String>,
+    #[validate(email(message = "Invalid email format"))]
     pub email: Option<String>,
+    #[validate(length(max = 30, message = "Phone number is too long"))]
     pub phone: Option<String>,
+    #[validate(length(max = 2048, message = "Avatar URL is too long"))]
     pub avatar_url: Option<String>,
 }
 
 /// Input for changing password
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct PasswordUpdateInput {
+    #[validate(length(min = 1, max = 128, message = "Current password is required"))]
     pub current_password: String,
+    #[validate(length(
+        min = 8,
+        max = 128,
+        message = "New password must be between 8 and 128 characters"
+    ))]
     pub new_password: String,
 }
 
 /// Input for creating a new user (admin)
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct UserCreateInput {
+    #[validate(length(
+        min = 3,
+        max = 50,
+        message = "Username must be between 3 and 50 characters"
+    ))]
     pub username: String,
+    #[validate(email(message = "Invalid email format"))]
     pub email: String,
+    #[validate(length(
+        min = 8,
+        max = 128,
+        message = "Password must be between 8 and 128 characters"
+    ))]
     pub password: String,
+    #[validate(length(max = 100, message = "Full name is too long"))]
     pub full_name: Option<String>,
+    #[validate(length(max = 30, message = "Phone number is too long"))]
     pub phone: Option<String>,
     pub role_ids: Option<Vec<i64>>,
 }

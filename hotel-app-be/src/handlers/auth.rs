@@ -7,12 +7,16 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
 use crate::services::audit::AuditLog;
+use crate::utils::sanitization::Sanitizer;
 use axum::{extract::State, response::Json};
-
+use validator::Validate;
 pub async fn login_handler(
     State(pool): State<DbPool>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, ApiError> {
+    req.validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
     let user = sqlx::query_as::<_, User>(
         "SELECT id, username, email, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at FROM users WHERE (username = $1 OR email = $1) AND deleted_at IS NULL"
     )
@@ -253,7 +257,7 @@ pub async fn login_handler(
     let response = AuthResponse {
         access_token,
         refresh_token,
-        user,
+        user: UserResponse::from(user),
         roles,
         permissions,
         is_first_login,
@@ -266,6 +270,9 @@ pub async fn refresh_token_handler(
     State(pool): State<DbPool>,
     Json(req): Json<RefreshTokenRequest>,
 ) -> Result<Json<RefreshTokenResponse>, ApiError> {
+    req.validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
     // Validate refresh token
     let user_id = AuthService::validate_refresh_token(&pool, &req.refresh_token)
         .await
@@ -320,6 +327,9 @@ pub async fn logout_handler(
     State(pool): State<DbPool>,
     Json(req): Json<RefreshTokenRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    req.validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
     // Revoke the refresh token
     AuthService::revoke_refresh_token(&pool, &req.refresh_token)
         .await
@@ -332,17 +342,20 @@ pub async fn logout_handler(
 
 pub async fn register_handler(
     State(pool): State<DbPool>,
-    Json(req): Json<RegisterRequest>,
+    Json(mut req): Json<RegisterRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Validate password
-    AuthService::validate_password(&req.password).map_err(ApiError::BadRequest)?;
+    req.validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
-    // Validate email format
-    let email_regex =
-        regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
-    if !email_regex.is_match(&req.email) {
-        return Err(ApiError::BadRequest("Invalid email format".to_string()));
+    // Sanitize inputs
+    req.first_name = Sanitizer::sanitize_guest_name(&req.first_name);
+    req.last_name = Sanitizer::sanitize_guest_name(&req.last_name);
+    if let Some(phone) = &req.phone {
+        req.phone = Some(Sanitizer::sanitize_phone(phone));
     }
+
+    // Validate password (additional strength checks)
+    AuthService::validate_password(&req.password).map_err(ApiError::BadRequest)?;
 
     // Check if username or email already exists
     let existing_user: Option<(i64,)> =
@@ -410,12 +423,7 @@ pub async fn register_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    // 4. Generate and store email verification token
-    let verification_token = AuthService::create_email_verification_token(&pool, user.id)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // 5. Automatically assign "guest" role
+    // 4. Automatically assign "guest" role
     let guest_role_id: i64 =
         sqlx::query_scalar("SELECT id FROM roles WHERE name = 'guest' LIMIT 1")
             .fetch_one(&mut *tx)
@@ -429,7 +437,7 @@ pub async fn register_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    // 6. Create loyalty membership using guest.id directly
+    // 5. Create loyalty membership using guest.id directly
     let loyalty_program_id: Option<i64> = sqlx::query_scalar(
         "SELECT id FROM loyalty_programs WHERE tier_level = 1 ORDER BY created_at LIMIT 1",
     )
@@ -455,8 +463,12 @@ pub async fn register_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?;
     }
 
-    // 7. Commit transaction
+    // 6. Commit transaction
     tx.commit()
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    AuthService::create_email_verification_token(&pool, user.id)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -470,8 +482,7 @@ pub async fn register_handler(
             "user_type": user.user_type,
             "is_verified": user.is_verified,
         },
-        "guest_id": guest.id,
-        "verification_token": verification_token
+        "guest_id": guest.id
     })))
 }
 
@@ -479,6 +490,9 @@ pub async fn verify_email_handler(
     State(pool): State<DbPool>,
     Json(req): Json<EmailVerificationConfirm>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    req.validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
     let user_id = AuthService::verify_email_token(&pool, &req.token)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -498,28 +512,34 @@ pub async fn resend_verification_handler(
     State(pool): State<DbPool>,
     Json(req): Json<ResendVerificationRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let user = AuthService::get_user_by_email(&pool, &req.email)
+    req.validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let email = Sanitizer::sanitize_email(&req.email);
+
+    let user = AuthService::get_user_by_email(&pool, &email)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let user = match user {
         Some(u) => u,
-        None => return Err(ApiError::NotFound("User not found".to_string())),
+        None => {
+            return Ok(Json(serde_json::json!({
+                "message": "If that account needs verification, a new email has been sent."
+            })));
+        }
     };
 
     if user.is_verified {
-        return Err(ApiError::BadRequest(
-            "Email is already verified".to_string(),
-        ));
+        return Ok(Json(serde_json::json!({
+            "message": "If that account needs verification, a new email has been sent."
+        })));
     }
 
-    // Generate new verification token
-    let verification_token = AuthService::create_email_verification_token(&pool, user.id)
+    AuthService::create_email_verification_token(&pool, user.id)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(Json(serde_json::json!({
-        "message": "Verification email sent successfully",
-        "verification_token": verification_token
+        "message": "If that account needs verification, a new email has been sent."
     })))
 }

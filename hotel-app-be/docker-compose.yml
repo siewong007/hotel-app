@@ -5,8 +5,8 @@ services:
     image: postgres:15-alpine
     container_name: hotel-app-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-hotel_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment or .env file}
       POSTGRES_DB: hotel_management
     ports:
       - "5433:5432"

@@ -35,6 +35,14 @@ use tower_http::{
 
 /// Extract client IP from X-Forwarded-For or X-Real-IP headers, defaulting to localhost.
 pub(crate) fn extract_client_ip(headers: &axum::http::HeaderMap) -> std::net::IpAddr {
+    let trust_proxy_headers = std::env::var("TRUST_PROXY_HEADERS")
+        .map(|v| v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    if !trust_proxy_headers {
+        return std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
+    }
+
     headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
@@ -116,8 +124,8 @@ pub fn create_router(pool: DbPool) -> Router {
         // Public routes
         .route("/health", get(health_handler))
         .route("/ws/status", get(websocket_status_handler))
-        // Serve static files from uploads directory
-        .nest_service("/uploads", ServeDir::new("uploads"))
+        // Serve only explicitly public uploads. Sensitive documents use authenticated routes.
+        .nest_service("/uploads", ServeDir::new("uploads/public"))
         // Merge all domain routes
         .merge(auth::routes())
         .merge(rooms::routes())

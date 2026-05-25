@@ -3,12 +3,13 @@
 //! Handles identity verification and self-check-in.
 
 use axum::{
-    Json,
+    body::Body,
     extract::{Multipart, Path, State},
-    http::HeaderMap,
+    http::{HeaderMap, header},
+    response::{Json, Response},
 };
 use base64::{Engine as _, engine::general_purpose};
-use chrono::{NaiveDate, Utc, Local};
+use chrono::{Local, NaiveDate, Utc};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -22,6 +23,107 @@ use crate::models::{
     SelfCheckinEvent, SelfCheckinRequest,
 };
 
+const EKYC_UPLOAD_DIR: &str = "private_uploads/ekyc";
+const MAX_EKYC_IMAGE_BYTES: usize = 10 * 1024 * 1024;
+
+fn sanitize_document_type(value: &str) -> Result<String, ApiError> {
+    let sanitized: String = value
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+        .take(40)
+        .collect();
+
+    if sanitized.is_empty() {
+        return Err(ApiError::BadRequest("Invalid document type".to_string()));
+    }
+
+    Ok(sanitized)
+}
+
+fn image_extension(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        Some("jpg")
+    } else if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("png")
+    } else if bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        Some("webp")
+    } else {
+        None
+    }
+}
+
+fn validate_image_bytes(bytes: &[u8]) -> Result<&'static str, ApiError> {
+    if bytes.is_empty() || bytes.len() > MAX_EKYC_IMAGE_BYTES {
+        return Err(ApiError::BadRequest(
+            "File size must be between 1 byte and 10MB".to_string(),
+        ));
+    }
+
+    image_extension(bytes).ok_or_else(|| {
+        ApiError::BadRequest("Only JPEG, PNG, or WebP image files are allowed".to_string())
+    })
+}
+
+fn build_ekyc_filename(
+    user_id: i64,
+    image_type: &str,
+    extension: &str,
+) -> Result<String, ApiError> {
+    let image_type = sanitize_document_type(image_type)?;
+    Ok(format!(
+        "{}_{}_{}_{}.{}",
+        user_id,
+        image_type,
+        Utc::now().timestamp(),
+        uuid::Uuid::new_v4(),
+        extension
+    ))
+}
+
+fn validate_existing_ekyc_path(path: &str, user_id: i64) -> Result<String, ApiError> {
+    let prefix = format!("{EKYC_UPLOAD_DIR}/");
+    if !path.starts_with(&prefix) {
+        return Err(ApiError::BadRequest(
+            "Invalid eKYC image reference".to_string(),
+        ));
+    }
+
+    let filename = &path[prefix.len()..];
+    if filename.contains('/')
+        || filename.contains('\\')
+        || !filename.starts_with(&format!("{user_id}_"))
+    {
+        return Err(ApiError::BadRequest(
+            "Invalid eKYC image reference".to_string(),
+        ));
+    }
+
+    let full_path = PathBuf::from(EKYC_UPLOAD_DIR).join(filename);
+    if !full_path.exists() {
+        return Err(ApiError::BadRequest(
+            "Referenced eKYC image does not exist".to_string(),
+        ));
+    }
+
+    Ok(path.to_string())
+}
+
+fn prepare_ekyc_image_reference(
+    value: &str,
+    user_id: i64,
+    image_type: &str,
+) -> Result<String, ApiError> {
+    if value.starts_with(EKYC_UPLOAD_DIR) {
+        validate_existing_ekyc_path(value, user_id)
+    } else if value.starts_with("uploads/") {
+        Err(ApiError::BadRequest(
+            "Public upload paths are not accepted for eKYC images".to_string(),
+        ))
+    } else {
+        save_base64_image(value, user_id, image_type)
+    }
+}
+
 /// Helper function to save base64 image to file system
 fn save_base64_image(
     base64_data: &str,
@@ -29,7 +131,7 @@ fn save_base64_image(
     image_type: &str,
 ) -> Result<String, ApiError> {
     // Create uploads directory if it doesn't exist
-    let upload_dir = PathBuf::from("uploads/ekyc");
+    let upload_dir = PathBuf::from(EKYC_UPLOAD_DIR);
     fs::create_dir_all(&upload_dir)
         .map_err(|e| ApiError::Internal(format!("Failed to create upload directory: {}", e)))?;
 
@@ -45,10 +147,10 @@ fn save_base64_image(
     let bytes = general_purpose::STANDARD
         .decode(data)
         .map_err(|e| ApiError::BadRequest(format!("Invalid base64 data: {}", e)))?;
+    let extension = validate_image_bytes(&bytes)?;
 
     // Generate unique filename
-    let timestamp = Utc::now().timestamp();
-    let filename = format!("{}_{}_{}.jpg", user_id, image_type, timestamp);
+    let filename = build_ekyc_filename(user_id, image_type, extension)?;
     let file_path = upload_dir.join(&filename);
 
     // Save file
@@ -56,7 +158,7 @@ fn save_base64_image(
         .map_err(|e| ApiError::Internal(format!("Failed to save image: {}", e)))?;
 
     // Return relative path
-    Ok(format!("uploads/ekyc/{}", filename))
+    Ok(format!("{EKYC_UPLOAD_DIR}/{}", filename))
 }
 
 /// Upload single document (multipart/form-data)
@@ -68,13 +170,13 @@ pub async fn upload_document_handler(
     // Get authenticated user ID
     let user_id = require_auth(&headers).await?;
 
-    // Create uploads directory if it doesn't exist
-    let upload_dir = PathBuf::from("uploads/ekyc");
+    // Create private uploads directory if it doesn't exist
+    let upload_dir = PathBuf::from(EKYC_UPLOAD_DIR);
     fs::create_dir_all(&upload_dir)
         .map_err(|e| ApiError::Internal(format!("Failed to create upload directory: {}", e)))?;
 
     let mut file_path = String::new();
-    let mut document_type = String::new();
+    let mut document_type = "document".to_string();
 
     while let Some(field) = multipart
         .next_field()
@@ -84,16 +186,20 @@ pub async fn upload_document_handler(
         let field_name = field.name().unwrap_or("").to_string();
 
         if field_name == "documentType" {
-            document_type = field.text().await.map_err(|e| {
+            let raw_document_type = field.text().await.map_err(|e| {
                 ApiError::BadRequest(format!("Failed to read document type: {}", e))
             })?;
+            document_type = sanitize_document_type(&raw_document_type)?;
         } else if field_name == "file" {
             let content_type = field.content_type().unwrap_or("").to_string();
 
             // Validate file type
-            if !content_type.starts_with("image/") {
+            if !matches!(
+                content_type.as_str(),
+                "image/jpeg" | "image/jpg" | "image/png" | "image/webp"
+            ) {
                 return Err(ApiError::BadRequest(
-                    "Only image files are allowed".to_string(),
+                    "Only JPEG, PNG, or WebP image files are allowed".to_string(),
                 ));
             }
 
@@ -102,31 +208,9 @@ pub async fn upload_document_handler(
                 .await
                 .map_err(|e| ApiError::BadRequest(format!("Failed to read file data: {}", e)))?;
 
-            // Validate file size (max 10MB)
-            if data.len() > 10 * 1024 * 1024 {
-                return Err(ApiError::BadRequest(
-                    "File size must be less than 10MB".to_string(),
-                ));
-            }
+            let extension = validate_image_bytes(&data)?;
 
-            // Generate unique filename
-            let timestamp = Utc::now().timestamp();
-            let extension = if content_type.contains("jpeg") || content_type.contains("jpg") {
-                "jpg"
-            } else if content_type.contains("png") {
-                "png"
-            } else {
-                "jpg"
-            };
-
-            let filename = format!(
-                "{}_{}_{}_{}.{}",
-                user_id,
-                document_type,
-                timestamp,
-                uuid::Uuid::new_v4(),
-                extension
-            );
+            let filename = build_ekyc_filename(user_id, &document_type, extension)?;
             let full_path = upload_dir.join(&filename);
 
             // Save file
@@ -135,7 +219,7 @@ pub async fn upload_document_handler(
             file.write_all(&data)
                 .map_err(|e| ApiError::Internal(format!("Failed to write file: {}", e)))?;
 
-            file_path = format!("uploads/ekyc/{}", filename);
+            file_path = format!("{EKYC_UPLOAD_DIR}/{}", filename);
         }
     }
 
@@ -194,15 +278,11 @@ pub async fn submit_ekyc_handler(
     }
 
     // Parse date strings
-    let date_of_birth =
-        NaiveDate::parse_from_str(&req.date_of_birth, "%Y-%m-%d").map_err(|_| {
-            ApiError::BadRequest("Invalid date of birth. Use YYYY-MM-DD".to_string())
-        })?;
+    let date_of_birth = NaiveDate::parse_from_str(&req.date_of_birth, "%Y-%m-%d")
+        .map_err(|_| ApiError::BadRequest("Invalid date of birth. Use YYYY-MM-DD".to_string()))?;
 
-    let id_expiry_date =
-        NaiveDate::parse_from_str(&req.id_expiry_date, "%Y-%m-%d").map_err(|_| {
-            ApiError::BadRequest("Invalid ID expiry date. Use YYYY-MM-DD".to_string())
-        })?;
+    let id_expiry_date = NaiveDate::parse_from_str(&req.id_expiry_date, "%Y-%m-%d")
+        .map_err(|_| ApiError::BadRequest("Invalid ID expiry date. Use YYYY-MM-DD".to_string()))?;
 
     let id_issue_date = if let Some(date_str) = &req.id_issue_date {
         Some(
@@ -221,41 +301,21 @@ pub async fn submit_ekyc_handler(
         ));
     }
 
-    // Check if images are file paths (from new upload endpoint) or base64 (legacy)
-    let id_front_path = if req.id_front_image.starts_with("uploads/") {
-        req.id_front_image.clone()
-    } else {
-        save_base64_image(&req.id_front_image, user_id, "id_front")?
-    };
+    // Check if images are private file paths (from upload endpoint) or base64 (legacy)
+    let id_front_path = prepare_ekyc_image_reference(&req.id_front_image, user_id, "id_front")?;
 
     let id_back_path = req
         .id_back_image
         .as_ref()
-        .map(|img| {
-            if img.starts_with("uploads/") {
-                Ok(img.clone())
-            } else {
-                save_base64_image(img, user_id, "id_back")
-            }
-        })
+        .map(|img| prepare_ekyc_image_reference(img, user_id, "id_back"))
         .transpose()?;
 
-    let selfie_path = if req.selfie_image.starts_with("uploads/") {
-        req.selfie_image.clone()
-    } else {
-        save_base64_image(&req.selfie_image, user_id, "selfie")?
-    };
+    let selfie_path = prepare_ekyc_image_reference(&req.selfie_image, user_id, "selfie")?;
 
     let proof_path = req
         .proof_of_address
         .as_ref()
-        .map(|img| {
-            if img.starts_with("uploads/") {
-                Ok(img.clone())
-            } else {
-                save_base64_image(img, user_id, "proof")
-            }
-        })
+        .map(|img| prepare_ekyc_image_reference(img, user_id, "proof"))
         .transpose()?;
 
     // Insert eKYC verification record with guest_id (already validated above)
@@ -327,8 +387,9 @@ pub async fn get_ekyc_status_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let guest_id = guest_id
-        .ok_or_else(|| ApiError::BadRequest("Your account is not linked to a guest profile".to_string()))?;
+    let guest_id = guest_id.ok_or_else(|| {
+        ApiError::BadRequest("Your account is not linked to a guest profile".to_string())
+    })?;
 
     // Get eKYC by guest_id
     let verification: Option<EkycVerification> =
@@ -391,6 +452,54 @@ pub async fn get_ekyc_by_id_handler(
             .ok_or_else(|| ApiError::NotFound("eKYC verification not found".to_string()))?;
 
     Ok(Json(verification))
+}
+
+pub async fn get_ekyc_document_handler(
+    State(pool): State<DbPool>,
+    Path((id, kind)): Path<(i64, String)>,
+) -> Result<Response, ApiError> {
+    let column = match kind.as_str() {
+        "id-front" => "id_front_image_path",
+        "id-back" => "id_back_image_path",
+        "selfie" => "selfie_image_path",
+        "proof-of-address" => "proof_of_address_path",
+        _ => return Err(ApiError::BadRequest("Invalid document type".to_string())),
+    };
+
+    let query = format!("SELECT {column} FROM ekyc_verifications WHERE id = $1");
+    let path: Option<String> = sqlx::query_scalar(&query)
+        .bind(id)
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .flatten();
+
+    let path = path.ok_or_else(|| ApiError::NotFound("Document not found".to_string()))?;
+    let prefix = format!("{EKYC_UPLOAD_DIR}/");
+    if !path.starts_with(&prefix) {
+        return Err(ApiError::NotFound("Document not found".to_string()));
+    }
+
+    let filename = &path[prefix.len()..];
+    if filename.contains('/') || filename.contains('\\') {
+        return Err(ApiError::NotFound("Document not found".to_string()));
+    }
+
+    let file_path = PathBuf::from(EKYC_UPLOAD_DIR).join(filename);
+    let bytes =
+        fs::read(&file_path).map_err(|_| ApiError::NotFound("Document not found".to_string()))?;
+    let content_type = match image_extension(&bytes) {
+        Some("jpg") => "image/jpeg",
+        Some("png") => "image/png",
+        Some("webp") => "image/webp",
+        _ => "application/octet-stream",
+    };
+
+    Response::builder()
+        .header(header::CONTENT_TYPE, content_type)
+        .header(header::CACHE_CONTROL, "private, no-store")
+        .body(Body::from(bytes))
+        .map_err(|e| ApiError::Internal(format!("Failed to build document response: {}", e)))
 }
 
 /// Update eKYC verification (admin only)

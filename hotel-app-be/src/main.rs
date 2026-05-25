@@ -158,8 +158,10 @@ async fn main() {
         }
         Err(e) => {
             log::error!("✗ Failed to create database pool: {}", e);
-            let db_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "not set".to_string());
-            log::error!("DATABASE_URL: {}", db_url);
+            log::error!(
+                "DATABASE_URL configured: {}",
+                std::env::var("DATABASE_URL").is_ok()
+            );
             eprintln!("FATAL: Database connection failed: {}", e);
             std::process::exit(1);
         }

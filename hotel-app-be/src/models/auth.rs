@@ -5,12 +5,15 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-use super::user::User;
+use super::user::UserResponse;
+use validator::Validate;
 
 /// Login request
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct LoginRequest {
+    #[validate(length(min = 1, message = "Username is required"))]
     pub username: String,
+    #[validate(length(min = 1, message = "Password is required"))]
     pub password: String,
     pub totp_code: Option<String>,
 }
@@ -20,15 +23,16 @@ pub struct LoginRequest {
 pub struct AuthResponse {
     pub access_token: String,
     pub refresh_token: String,
-    pub user: User,
+    pub user: UserResponse,
     pub roles: Vec<String>,
     pub permissions: Vec<String>,
     pub is_first_login: bool,
 }
 
 /// Refresh token request
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct RefreshTokenRequest {
+    #[validate(length(min = 32, max = 512, message = "Invalid refresh token"))]
     pub refresh_token: String,
 }
 
@@ -40,26 +44,41 @@ pub struct RefreshTokenResponse {
 }
 
 /// Registration request
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct RegisterRequest {
+    #[validate(length(
+        min = 3,
+        max = 50,
+        message = "Username must be between 3 and 50 characters"
+    ))]
     pub username: String,
+    #[validate(email(message = "Invalid email format"))]
     pub email: String,
+    #[validate(length(
+        min = 8,
+        max = 100,
+        message = "Password must be at least 8 characters long"
+    ))]
     pub password: String,
     pub full_name: Option<String>,
+    #[validate(length(min = 1, max = 50, message = "First name is required"))]
     pub first_name: String,
+    #[validate(length(min = 1, max = 50, message = "Last name is required"))]
     pub last_name: String,
     pub phone: Option<String>,
 }
 
 /// Email verification confirmation
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct EmailVerificationConfirm {
+    #[validate(length(min = 32, max = 256, message = "Invalid verification token"))]
     pub token: String,
 }
 
 /// Resend verification email request
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct ResendVerificationRequest {
+    #[validate(email(message = "Invalid email format"))]
     pub email: String,
 }
 
@@ -67,21 +86,19 @@ pub struct ResendVerificationRequest {
 
 /// Request to setup 2FA
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TwoFactorSetupRequest {
-    pub password: String,
-}
+pub struct TwoFactorSetupRequest {}
 
 /// Request to enable 2FA
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct TwoFactorEnableRequest {
+    #[validate(length(min = 6, max = 12, message = "Invalid 2FA code"))]
     pub code: String,
-    pub secret: String,
 }
 
 /// Request to disable 2FA
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct TwoFactorDisableRequest {
-    pub password: String,
+    #[validate(length(min = 6, max = 20, message = "Invalid 2FA code"))]
     pub code: String,
 }
 
@@ -94,15 +111,16 @@ pub struct TwoFactorStatusResponse {
 }
 
 /// 2FA verification request
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct TwoFactorVerifyRequest {
+    #[validate(length(min = 6, max = 20, message = "Invalid 2FA code"))]
     pub code: String,
 }
 
 /// Request to regenerate backup codes
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct RegenerateBackupCodesRequest {
-    pub password: String,
+    #[validate(length(min = 6, max = 20, message = "Invalid 2FA code"))]
     pub code: String,
 }
 
