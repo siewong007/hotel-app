@@ -2,12 +2,12 @@
 .\"     Title: pg_rewind
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "PG_REWIND" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "PG_REWIND" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -73,7 +73,8 @@ wal_log_hints
 option enabled in
 postgresql\&.conf
 or data checksums enabled when the cluster was initialized with
-initdb\&. Neither of these are currently on by default\&.
+initdb
+(the default)\&.
 full_page_writes
 must also be set to
 on, but is enabled by default\&.
@@ -86,7 +87,7 @@ on, but is enabled by default\&.
 .nr an-break-flag 1
 .br
 .ps +1
-\fBWarning\fR
+\fBWarning: Failures While Rewinding\fR
 .ps -1
 .br
 .PP
@@ -138,7 +139,8 @@ Create
 standby\&.signal
 and append connection settings to
 postgresql\&.auto\&.conf
-in the output directory\&.
+in the output directory\&. The dbname will be recorded only if the dbname was specified explicitly in the connection string or
+environment variable\&.
 \-\-source\-server
 is mandatory with this option\&.
 .RE
@@ -179,6 +181,19 @@ pg_wal
 directory\&.
 .RE
 .PP
+\fB\-\-config\-file=\fR\fB\fIfilename\fR\fR
+.RS 4
+Use the specified main server configuration file for the target cluster\&. This affects
+pg_rewind
+when it uses internally the
+postgres
+command for the rewind operation on this cluster (when retrieving
+\fIrestore_command\fR
+with the option
+\fB\-c/\-\-restore\-target\-wal\fR
+and when forcing a completion of crash recovery)\&.
+.RE
+.PP
 \fB\-\-debug\fR
 .RS 4
 Print verbose debugging output that is mostly useful for developers debugging
@@ -193,6 +208,25 @@ pg_rewind
 starts the target server in single\-user mode to complete crash recovery first, and stops it\&. By passing this option,
 pg_rewind
 skips this and errors out immediately if the server is not cleanly shut down\&. Users are expected to handle the situation themselves in that case\&.
+.RE
+.PP
+\fB\-\-sync\-method=\fR\fB\fImethod\fR\fR
+.RS 4
+When set to
+fsync, which is the default,
+\fBpg_rewind\fR
+will recursively open and synchronize all files in the data directory\&. The search for files will follow symbolic links for the WAL directory and each configured tablespace\&.
+.sp
+On Linux,
+syncfs
+may be used instead to ask the operating system to synchronize the whole file systems that contain the data directory, the WAL files, and each tablespace\&. See
+recovery_init_sync_method
+for information about the caveats to be aware of when using
+syncfs\&.
+.sp
+This option has no effect when
+\fB\-\-no\-sync\fR
+is used\&.
 .RE
 .PP
 \fB\-V\fR
@@ -217,7 +251,7 @@ pg_rewind
 also uses the environment variables supported by
 libpq
 (see
-Section\ \&34.15)\&.
+Section\ \&32.15)\&.
 .PP
 The environment variable
 \fBPG_COLOR\fR
@@ -249,14 +283,7 @@ GRANT EXECUTE ON function pg_catalog\&.pg_read_binary_file(text, bigint, bigint,
 .if n \{\
 .RE
 .\}
-.PP
-When executing
-pg_rewind
-using an online cluster as source which has been recently promoted, it is necessary to execute a
-\fBCHECKPOINT\fR
-after promotion such that its control file reflects up\-to\-date timeline information, which is used by
-pg_rewind
-to check if the target cluster can be rewound using the designated source cluster\&.
+.sp
 .SS "How It Works"
 .PP
 The basic idea is to copy all file system\-level changes from the source cluster to the target cluster:
@@ -308,8 +335,11 @@ are omitted from the data copied from the source cluster\&. The files
 backup_label,
 tablespace_map,
 pg_internal\&.init,
-postmaster\&.opts, and
-postmaster\&.pid, as well as any file or directory beginning with
+postmaster\&.opts,
+postmaster\&.pid
+and
+\&.DS_Store
+as well as any file or directory beginning with
 pgsql_tmp, are omitted\&.
 .RE
 .sp

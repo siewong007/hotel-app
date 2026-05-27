@@ -2,12 +2,12 @@
 .\"     Title: COPY
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "COPY" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "COPY" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -47,13 +47,17 @@ where \fIoption\fR can be one of:
     FREEZE [ \fIboolean\fR ]
     DELIMITER \*(Aq\fIdelimiter_character\fR\*(Aq
     NULL \*(Aq\fInull_string\fR\*(Aq
-    HEADER [ \fIboolean\fR ]
+    DEFAULT \*(Aq\fIdefault_string\fR\*(Aq
+    HEADER [ \fIboolean\fR | MATCH ]
     QUOTE \*(Aq\fIquote_character\fR\*(Aq
     ESCAPE \*(Aq\fIescape_character\fR\*(Aq
     FORCE_QUOTE { ( \fIcolumn_name\fR [, \&.\&.\&.] ) | * }
-    FORCE_NOT_NULL ( \fIcolumn_name\fR [, \&.\&.\&.] )
-    FORCE_NULL ( \fIcolumn_name\fR [, \&.\&.\&.] )
+    FORCE_NOT_NULL { ( \fIcolumn_name\fR [, \&.\&.\&.] ) | * }
+    FORCE_NULL { ( \fIcolumn_name\fR [, \&.\&.\&.] ) | * }
+    ON_ERROR \fIerror_action\fR
+    REJECT_LIMIT \fImaxerror\fR
     ENCODING \*(Aq\fIencoding_name\fR\*(Aq
+    LOG_VERBOSITY \fIverbosity\fR
 .fi
 .SH "DESCRIPTION"
 .PP
@@ -101,8 +105,14 @@ Each backend running
 will report its progress in the
 pg_stat_progress_copy
 view\&. See
-Section\ \&28.4.6
+Section\ \&27.4.3
 for details\&.
+.PP
+By default,
+\fBCOPY\fR
+will fail if it encounters an error during processing\&. For use cases where a best\-effort attempt at loading the entire file is desired, the
+ON_ERROR
+clause can be used to specify some other behavior\&.
 .SH "PARAMETERS"
 .PP
 \fItable_name\fR
@@ -121,15 +131,16 @@ A
 \fBSELECT\fR,
 \fBVALUES\fR,
 \fBINSERT\fR,
-\fBUPDATE\fR, or
-\fBDELETE\fR
+\fBUPDATE\fR,
+\fBDELETE\fR, or
+\fBMERGE\fR
 command whose results are to be copied\&. Note that parentheses are required around the query\&.
 .sp
 For
 \fBINSERT\fR,
-\fBUPDATE\fR
-and
-\fBDELETE\fR
+\fBUPDATE\fR,
+\fBDELETE\fR, and
+\fBMERGE\fR
 queries a
 RETURNING
 clause must be provided, and the target relation must not have a conditional rule, nor an
@@ -152,7 +163,7 @@ A command to execute\&. In
 \fBCOPY FROM\fR, the input is read from standard output of the command, and in
 \fBCOPY TO\fR, the output is written to the standard input of the command\&.
 .sp
-Note that the command is invoked by the shell, so if you need to pass any arguments to shell command that come from an untrusted source, you must be careful to strip or escape any special characters that might have a special meaning for the shell\&. For security reasons, it is best to use a fixed command string, or at least avoid passing any user input in it\&.
+Note that the command is invoked by the shell, so if you need to pass any arguments that come from an untrusted source, you must be careful to strip or escape any special characters that might have a special meaning for the shell\&. For security reasons, it is best to use a fixed command string, or at least avoid including any user input in it\&.
 .RE
 .PP
 STDIN
@@ -189,7 +200,9 @@ text,
 csv
 (Comma Separated Values), or
 binary\&. The default is
-text\&.
+text\&. See
+File Formats
+below for details\&.
 .RE
 .PP
 FREEZE
@@ -198,9 +211,10 @@ Requests copying the data with rows already frozen, just as they would be after 
 \fBVACUUM FREEZE\fR
 command\&. This is intended as a performance option for initial data loading\&. Rows will be frozen only if the table being loaded has been created or truncated in the current subtransaction, there are no cursors open and there are no older snapshots held by this transaction\&. It is currently not possible to perform a
 \fBCOPY FREEZE\fR
-on a partitioned table\&.
+on a partitioned table or foreign table\&. This option is only allowed in
+\fBCOPY FROM\fR\&.
 .sp
-Note that all other sessions will immediately be able to see the data once it has been successfully loaded\&. This violates the normal rules of MVCC visibility and users specifying should be aware of the potential problems this might cause\&.
+Note that all other sessions will immediately be able to see the data once it has been successfully loaded\&. This violates the normal rules of MVCC visibility and users should be aware of the potential problems this might cause\&.
 .RE
 .PP
 DELIMITER
@@ -240,11 +254,26 @@ When using
 .RE
 .RE
 .PP
+DEFAULT
+.RS 4
+Specifies the string that represents a default value\&. Each time the string is found in the input file, the default value of the corresponding column will be used\&. This option is allowed only in
+\fBCOPY FROM\fR, and only when not using
+binary
+format\&.
+.RE
+.PP
 HEADER
 .RS 4
-Specifies that the file contains a header line with the names of each column in the file\&. On output, the first line contains the column names from the table, and on input, the first line is ignored\&. This option is allowed only when using
-CSV
-format\&.
+Specifies that the file contains a header line with the names of each column in the file\&. On output, the first line contains the column names from the table\&. On input, the first line is discarded when this option is set to
+true
+(or equivalent Boolean value)\&. If this option is set to
+MATCH, the number and names of the columns in the header line must match the actual column names of the table, in order; otherwise an error is raised\&. This option is not allowed when using
+binary
+format\&. The
+MATCH
+option is only valid for
+\fBCOPY FROM\fR
+commands\&.
 .RE
 .PP
 QUOTE
@@ -281,7 +310,9 @@ format\&.
 .PP
 FORCE_NOT_NULL
 .RS 4
-Do not match the specified columns\*(Aq values against the null string\&. In the default case where the null string is empty, this means that empty values will be read as zero\-length strings rather than nulls, even when they are not quoted\&. This option is allowed only in
+Do not match the specified columns\*(Aq values against the null string\&. In the default case where the null string is empty, this means that empty values will be read as zero\-length strings rather than nulls, even when they are not quoted\&. If
+*
+is specified, the option will be applied to all columns\&. This option is allowed only in
 \fBCOPY FROM\fR, and only when using
 CSV
 format\&.
@@ -290,16 +321,96 @@ format\&.
 FORCE_NULL
 .RS 4
 Match the specified columns\*(Aq values against the null string, even if it has been quoted, and if a match is found set the value to
-NULL\&. In the default case where the null string is empty, this converts a quoted empty string into NULL\&. This option is allowed only in
+NULL\&. In the default case where the null string is empty, this converts a quoted empty string into NULL\&. If
+*
+is specified, the option will be applied to all columns\&. This option is allowed only in
 \fBCOPY FROM\fR, and only when using
 CSV
 format\&.
+.RE
+.PP
+ON_ERROR
+.RS 4
+Specifies how to behave when encountering an error converting a column\*(Aqs input value into its data type\&. An
+\fIerror_action\fR
+value of
+stop
+means fail the command, while
+ignore
+means discard the input row and continue with the next one\&. The default is
+stop\&.
+.sp
+The
+ignore
+option is applicable only for
+\fBCOPY FROM\fR
+when the
+FORMAT
+is
+text
+or
+csv\&.
+.sp
+A
+NOTICE
+message containing the ignored row count is emitted at the end of the
+\fBCOPY FROM\fR
+if at least one row was discarded\&. When
+LOG_VERBOSITY
+option is set to
+verbose, a
+NOTICE
+message containing the line of the input file and the column name whose input conversion has failed is emitted for each discarded row\&. When it is set to
+silent, no message is emitted regarding ignored rows\&.
+.RE
+.PP
+REJECT_LIMIT
+.RS 4
+Specifies the maximum number of errors tolerated while converting a column\*(Aqs input value to its data type, when
+ON_ERROR
+is set to
+ignore\&. If the input causes more errors than the specified value, the
+\fBCOPY\fR
+command fails, even with
+ON_ERROR
+set to
+ignore\&. This clause must be used with
+ON_ERROR=ignore
+and
+\fImaxerror\fR
+must be positive
+bigint\&. If not specified,
+ON_ERROR=ignore
+allows an unlimited number of errors, meaning
+\fBCOPY\fR
+will skip all erroneous data\&.
 .RE
 .PP
 ENCODING
 .RS 4
 Specifies that the file is encoded in the
 \fIencoding_name\fR\&. If this option is omitted, the current client encoding is used\&. See the Notes below for more details\&.
+.RE
+.PP
+LOG_VERBOSITY
+.RS 4
+Specifies the amount of messages emitted by a
+\fBCOPY\fR
+command:
+default,
+verbose, or
+silent\&. If
+verbose
+is specified, additional messages are emitted during processing\&.
+silent
+suppresses both verbose and default messages\&.
+.sp
+This is currently used in
+\fBCOPY FROM\fR
+command when
+ON_ERROR
+option is set to
+ignore\&.
 .RE
 .PP
 WHERE
@@ -374,12 +485,11 @@ meta\-command
 .SH "NOTES"
 .PP
 \fBCOPY TO\fR
-can be used only with plain tables, not views, and does not copy rows from child tables or child partitions\&. For example,
+can be used with plain tables and populated materialized views\&. For example,
 COPY \fItable\fR TO
 copies the same rows as
-SELECT * FROM ONLY \fItable\fR\&. The syntax
-COPY (SELECT * FROM \fItable\fR) TO \&.\&.\&.
-can be used to dump all of the rows in an inheritance hierarchy, partitioned table, or view\&.
+SELECT * FROM ONLY \fItable\fR\&. However it doesn\*(Aqt directly support other relation types, such as partitioned tables, inheritance child tables, or views\&. To copy all rows from such relations, use
+COPY (SELECT * FROM \fItable\fR) TO\&.
 .PP
 \fBCOPY FROM\fR
 can be used with plain, foreign, or partitioned tables or with views that have
@@ -475,12 +585,11 @@ option or the current client encoding, and output data is encoded in
 ENCODING
 or the current client encoding, even if the data does not pass through the client but is read from or written to a file directly by the server\&.
 .PP
-\fBCOPY\fR
-stops operation at the first error\&. This should not lead to problems in the event of a
-\fBCOPY TO\fR, but the target table will already have received earlier rows in a
-\fBCOPY FROM\fR\&. These rows will not be visible or accessible, but they still occupy disk space\&. This might amount to a considerable amount of wasted disk space if the failure happened well into a large copy operation\&. You might wish to invoke
+The
+\fBCOPY FROM\fR
+command physically inserts input rows into the table as it progresses\&. If the command fails, these rows are left in a deleted state; these rows will not be visible, but still occupy disk space\&. This might amount to considerable wasted disk space if the failure happened well into a large copy operation\&.
 \fBVACUUM\fR
-to recover the wasted space\&.
+should be used to recover the wasted space\&.
 .PP
 FORCE_NULL
 and
@@ -495,7 +604,15 @@ format is used, the data read or written is a text file with one line per table 
 \fBCOPY FROM\fR
 will raise an error if any line of the input file contains more or fewer columns than are expected\&.
 .PP
-End of data can be represented by a single line containing just backslash\-period (\e\&.)\&. An end\-of\-data marker is not necessary when reading from a file, since the end of file serves perfectly well; it is needed only when copying data to or from client applications using pre\-3\&.0 client protocol\&.
+End of data can be represented by a line containing just backslash\-period (\e\&.)\&. An end\-of\-data marker is not necessary when reading from a file, since the end of file serves perfectly well; in that context this provision exists only for backward compatibility\&. However,
+psql
+uses
+\e\&.
+to terminate a
+COPY FROM STDIN
+operation (that is, reading in\-line
+\fBCOPY\fR
+data in an SQL script)\&. In that context the rule is needed to be able to end the operation before the end of the script\&.
 .PP
 Backslash characters (\e) can be used in the
 \fBCOPY\fR
@@ -610,8 +727,10 @@ can handle lines ending with newlines, carriage returns, or carriage return/newl
 will complain if the line endings in the input are not all alike\&.
 .SS "CSV Format"
 .PP
-This format option is used for importing and exporting the Comma Separated Value (CSV) file format used by many other programs, such as spreadsheets\&. Instead of the escaping rules used by
-PostgreSQL\*(Aqs standard text format, it produces and recognizes the common CSV escaping mechanism\&.
+This format option is used for importing and exporting the Comma\- Separated Value (CSV) file format used by many other programs, such as spreadsheets\&. Instead of the escaping rules used by
+PostgreSQL\*(Aqs standard text format, it produces and recognizes the common
+CSV
+escaping mechanism\&.
 .PP
 The values in each record are separated by the
 DELIMITER
@@ -657,11 +776,41 @@ NULL\&.
 .PP
 Because backslash is not a special character in the
 CSV
-format,
-\e\&., the end\-of\-data marker, could also appear as a data value\&. To avoid any misinterpretation, a
+format, the end\-of\-data marker used in text mode (\e\&.) is not normally treated as special when reading
+CSV
+data\&. An exception is that
+psql
+will terminate a
+COPY FROM STDIN
+operation (that is, reading in\-line
+\fBCOPY\fR
+data in an SQL script) at a line containing only
+\e\&., whether it is text or
+CSV
+mode\&.
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+.PP
+PostgreSQL
+versions before v18 always recognized unquoted
 \e\&.
-data value appearing as a lone entry on a line is automatically quoted on output, and on input, if quoted, is not interpreted as the end\-of\-data marker\&. If you are loading a file created by another application that has a single unquoted column and might have a value of
-\e\&., you might need to quote that value in the input file\&.
+as an end\-of\-data marker, even when reading from a separate file\&. For compatibility with older versions,
+\fBCOPY TO\fR
+will quote
+\e\&.
+when it\*(Aqs alone on a line, even though this is no longer necessary\&.
+.sp .5v
+.RE
 .if n \{\
 .sp
 .\}
@@ -699,7 +848,10 @@ PostgreSQL\&.
 .ps -1
 .br
 .PP
-CSV format will both recognize and produce CSV files with quoted values containing embedded carriage returns and line feeds\&. Thus the files are not strictly one line per table row like text\-format files\&.
+CSV
+format will both recognize and produce
+CSV
+files with quoted values containing embedded carriage returns and line feeds\&. Thus the files are not strictly one line per table row like text\-format files\&.
 .sp .5v
 .RE
 .if n \{\
@@ -715,7 +867,9 @@ CSV format will both recognize and produce CSV files with quoted values containi
 .ps -1
 .br
 .PP
-Many programs produce strange and occasionally perverse CSV files, so the file format is more a convention than a standard\&. Thus you might encounter some files that cannot be imported using this mechanism, and
+Many programs produce strange and occasionally perverse
+CSV
+files, so the file format is more a convention than a standard\&. Thus you might encounter some files that cannot be imported using this mechanism, and
 \fBCOPY\fR
 might produce files that other programs cannot process\&.
 .sp .5v
@@ -998,4 +1152,4 @@ COPY [ BINARY ] \fItable_name\fR
 .RE
 .\}
 .SH "SEE ALSO"
-Section\ \&28.4.6
+Section\ \&27.4.3

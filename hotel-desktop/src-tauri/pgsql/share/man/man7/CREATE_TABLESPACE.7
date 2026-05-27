@@ -2,12 +2,12 @@
 .\"     Title: CREATE TABLESPACE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE TABLESPACE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE TABLESPACE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -67,7 +67,7 @@ to have the data files for these objects stored within the specified tablespace\
 .br
 .PP
 A tablespace cannot be used independently of the cluster in which it is defined; see
-Section\ \&23.6\&.
+Section\ \&22.6\&.
 .sp .5v
 .RE
 .SH "PARAMETERS"
@@ -98,15 +98,13 @@ A tablespace parameter to be set or reset\&. Currently, the only available param
 \fIrandom_page_cost\fR,
 \fIeffective_io_concurrency\fR
 and
-\fImaintenance_io_concurrency\fR\&. Setting these values for a particular tablespace will override the planner\*(Aqs usual estimate of the cost of reading pages from tables in that tablespace, and the executor\*(Aqs prefetching behavior, as established by the configuration parameters of the same name (see
+\fImaintenance_io_concurrency\fR\&. Setting these values for a particular tablespace will override the planner\*(Aqs usual estimate of the cost of reading pages from tables in that tablespace, and how many concurrent I/Os are issued, as established by the configuration parameters of the same name (see
 seq_page_cost,
 random_page_cost,
 effective_io_concurrency,
 maintenance_io_concurrency)\&. This may be useful if one tablespace is located on a disk which is faster or slower than the remainder of the I/O subsystem\&.
 .RE
 .SH "NOTES"
-.PP
-Tablespaces are only supported on systems that support symbolic links\&.
 .PP
 \fBCREATE TABLESPACE\fR
 cannot be executed inside a transaction block\&.

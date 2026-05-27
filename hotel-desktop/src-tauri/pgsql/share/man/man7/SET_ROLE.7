@@ -2,12 +2,12 @@
 .\"     Title: SET ROLE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "SET ROLE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "SET ROLE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -40,11 +40,19 @@ RESET ROLE
 .PP
 This command sets the current user identifier of the current SQL session to be
 \fIrole_name\fR\&. The role name can be written as either an identifier or a string literal\&. After
-\fBSET ROLE\fR, permissions checking for SQL commands is carried out as though the named role were the one that had logged in originally\&.
+\fBSET ROLE\fR, permissions checking for SQL commands is carried out as though the named role were the one that had logged in originally\&. Note that
+\fBSET ROLE\fR
+and
+\fBSET SESSION AUTHORIZATION\fR
+are exceptions; permissions checks for those continue to use the current session user and the initial session user (the
+authenticated user), respectively\&.
 .PP
-The specified
-\fIrole_name\fR
-must be a role that the current session user is a member of\&. (If the session user is a superuser, any role can be selected\&.)
+The current session user must have the
+SET
+option for the specified
+\fIrole_name\fR, either directly or indirectly via a chain of memberships with the
+SET
+option\&. (If the session user is a superuser, any role can be selected\&.)
 .PP
 The
 SESSION
@@ -66,21 +74,17 @@ RESET ROLE
 sets the current user identifier to the current session user identifier\&. These forms can be executed by any user\&.
 .SH "NOTES"
 .PP
-Using this command, it is possible to either add privileges or restrict one\*(Aqs privileges\&. If the session user role has the
-INHERIT
-attribute, then it automatically has all the privileges of every role that it could
+Using this command, it is possible to either add privileges or restrict one\*(Aqs privileges\&. If the session user role has been granted memberships
+WITH INHERIT TRUE, it automatically has all the privileges of every such role\&. In this case,
 \fBSET ROLE\fR
-to; in this case
+effectively drops all the privileges except for those which the target role directly possesses or inherits\&. On the other hand, if the session user role has been granted memberships
+WITH INHERIT FALSE, the privileges of the granted roles can\*(Aqt be accessed by default\&. However, if the role was granted
+WITH SET TRUE, the session user can use
 \fBSET ROLE\fR
-effectively drops all the privileges assigned directly to the session user and to the other roles it is a member of, leaving only the privileges available to the named role\&. On the other hand, if the session user role has the
-NOINHERIT
-attribute,
-\fBSET ROLE\fR
-drops the privileges assigned directly to the session user and instead acquires the privileges available to the named role\&.
-.PP
-In particular, when a superuser chooses to
-\fBSET ROLE\fR
-to a non\-superuser role, they lose their superuser privileges\&.
+to drop the privileges assigned directly to the session user and instead acquire the privileges available to the named role\&. If the role was granted
+WITH INHERIT FALSE, SET FALSE
+then the privileges of that role cannot be exercised either with or without
+SET ROLE\&.
 .PP
 \fBSET ROLE\fR
 has effects comparable to
@@ -110,7 +114,7 @@ function\&.
 .nf
 SELECT SESSION_USER, CURRENT_USER;
 
- session_user | current_user 
+ session_user | current_user
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-\-\-
  peter        | peter
 
@@ -118,7 +122,7 @@ SET ROLE \*(Aqpaul\*(Aq;
 
 SELECT SESSION_USER, CURRENT_USER;
 
- session_user | current_user 
+ session_user | current_user
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-\-\-
  peter        | paul
 .fi

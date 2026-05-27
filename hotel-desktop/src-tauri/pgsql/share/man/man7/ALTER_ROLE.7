@@ -2,12 +2,12 @@
 .\"     Title: ALTER ROLE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "ALTER ROLE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "ALTER ROLE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -73,16 +73,24 @@ The first variant of this command listed in the synopsis can change many of the 
 \fBGRANT\fR
 and
 \fBREVOKE\fR
-for that\&.) Attributes not mentioned in the command retain their previous settings\&. Database superusers can change any of these settings for any role\&. Roles having
+for that\&.) Attributes not mentioned in the command retain their previous settings\&. Database superusers can change any of these settings for any role, except for changing the
+SUPERUSER
+property for the
+bootstrap superuser\&. Non\-superuser roles having
 CREATEROLE
-privilege can change any of these settings except
-SUPERUSER,
+privilege can change most of these properties, but only for non\-superuser and non\-replication roles for which they have been granted
+ADMIN OPTION\&. Non\-superusers cannot change the
+SUPERUSER
+property and can change the
+CREATEDB,
 REPLICATION, and
-BYPASSRLS; but only for non\-superuser and non\-replication roles\&. Ordinary roles can only change their own password\&.
+BYPASSRLS
+properties only if they possess the corresponding property themselves\&. Ordinary roles can only change their own password\&.
 .PP
 The second variant changes the name of the role\&. Database superusers can rename any role\&. Roles having
 CREATEROLE
-privilege can rename non\-superuser roles\&. The current session user cannot be renamed\&. (Connect as a different user if you need to do that\&.) Because
+privilege can rename non\-superuser roles for which they have been granted
+ADMIN OPTION\&. The current session user cannot be renamed\&. (Connect as a different user if you need to do that\&.) Because
 MD5\-encrypted passwords use the role name as cryptographic salt, renaming a role clears its password if the password is
 MD5\-encrypted\&.
 .PP
@@ -109,7 +117,8 @@ does not cause new configuration values to be set\&. Settings set for all databa
 .PP
 Superusers can change anyone\*(Aqs session defaults\&. Roles having
 CREATEROLE
-privilege can change defaults for non\-superuser roles\&. Ordinary roles can only set defaults for themselves\&. Certain configuration variables cannot be set this way, or can only be set if a superuser issues the command\&. Only superusers can change a setting for all roles in all databases\&.
+privilege can change defaults for non\-superuser roles for which they have been granted
+ADMIN OPTION\&. Ordinary roles can only set defaults for themselves\&. Certain configuration variables cannot be set this way, or can only be set if a superuser issues the command\&. Only superusers can change a setting for all roles in all databases\&.
 .SH "PARAMETERS"
 .PP
 \fIname\fR
@@ -208,7 +217,7 @@ do not process role\-specific variable settings\&.
 See
 \fBSET\fR(7)
 and
-Chapter\ \&20
+Chapter\ \&19
 for more information about allowed parameter names and values\&.
 .RE
 .SH "NOTES"

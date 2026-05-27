@@ -2,12 +2,12 @@
 .\"     Title: CREATE AGGREGATE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE AGGREGATE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE AGGREGATE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -156,7 +156,7 @@ to identify the actual argument type in the current call\&.
 .PP
 An aggregate can optionally support
 moving\-aggregate mode, as described in
-Section\ \&38.12.1\&. This requires specifying the
+Section\ \&36.12.1\&. This requires specifying the
 MSFUNC,
 MINVFUNC, and
 MSTYPE
@@ -185,7 +185,7 @@ row\&.
 .PP
 An aggregate can optionally support
 partial aggregation, as described in
-Section\ \&38.12.4\&. This requires specifying the
+Section\ \&36.12.4\&. This requires specifying the
 COMBINEFUNC
 parameter\&. If the
 \fIstate_data_type\fR
@@ -541,7 +541,7 @@ clauses, since those semantics cannot be supported during partial aggregation\&.
 .SH "EXAMPLES"
 .PP
 See
-Section\ \&38.12\&.
+Section\ \&36.12\&.
 .SH "COMPATIBILITY"
 .PP
 \fBCREATE AGGREGATE\fR

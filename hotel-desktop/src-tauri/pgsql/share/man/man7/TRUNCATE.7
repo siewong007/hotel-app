@@ -2,12 +2,12 @@
 .\"     Title: TRUNCATE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "TRUNCATE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "TRUNCATE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -111,7 +111,7 @@ triggers are fired after the last truncation is performed and any sequences are 
 .PP
 \fBTRUNCATE\fR
 is not MVCC\-safe\&. After truncation, the table will appear empty to concurrent transactions, if they are using a snapshot taken before the truncation occurred\&. See
-Section\ \&13.5
+Section\ \&13.6
 for more details\&.
 .PP
 \fBTRUNCATE\fR

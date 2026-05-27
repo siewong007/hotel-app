@@ -2,12 +2,12 @@
 .\"     Title: CREATE ROLE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE ROLE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE ROLE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -47,10 +47,8 @@ where \fIoption\fR can be:
     | [ ENCRYPTED ] PASSWORD \*(Aq\fIpassword\fR\*(Aq | PASSWORD NULL
     | VALID UNTIL \*(Aq\fItimestamp\fR\*(Aq
     | IN ROLE \fIrole_name\fR [, \&.\&.\&.]
-    | IN GROUP \fIrole_name\fR [, \&.\&.\&.]
     | ROLE \fIrole_name\fR [, \&.\&.\&.]
     | ADMIN \fIrole_name\fR [, \&.\&.\&.]
-    | USER \fIrole_name\fR [, \&.\&.\&.]
     | SYSID \fIuid\fR
 .fi
 .SH "DESCRIPTION"
@@ -61,14 +59,22 @@ PostgreSQL
 database cluster\&. A role is an entity that can own database objects and have database privileges; a role can be considered a
 \(lquser\(rq, a
 \(lqgroup\(rq, or both depending on how it is used\&. Refer to
-Chapter\ \&22
-and
 Chapter\ \&21
+and
+Chapter\ \&20
 for information about managing users and authentication\&. You must have
 CREATEROLE
 privilege or be a database superuser to use this command\&.
 .PP
 Note that roles are defined at the database cluster level, and so are valid in all databases in the cluster\&.
+.PP
+During role creation it is possible to immediately assign the newly created role to be a member of an existing role, and also assign existing roles to be members of the newly created role\&. The rules for which initial role membership options are enabled are described below in the
+IN ROLE,
+ROLE, and
+ADMIN
+clauses\&. The
+\fBGRANT\fR(7)
+command has fine\-grained option control during membership creation, and the ability to modify these options after the new role is created\&.
 .SH "PARAMETERS"
 .PP
 \fIname\fR
@@ -96,14 +102,17 @@ is specified, the role being defined will be allowed to create new databases\&. 
 NOCREATEDB
 will deny a role the ability to create databases\&. If not specified,
 NOCREATEDB
-is the default\&.
+is the default\&. Only superuser roles or roles with
+CREATEDB
+can specify
+CREATEDB\&.
 .RE
 .PP
 CREATEROLE
 .br
 NOCREATEROLE
 .RS 4
-These clauses determine whether a role will be permitted to create, alter, drop, comment on, change the security label for, and grant or revoke membership in other roles\&. See
+These clauses determine whether a role will be permitted to create, alter, drop, comment on, and change the security label for other roles\&. See
 role creation
 for more details about what capabilities are conferred by this privilege\&. If not specified,
 NOCREATEROLE
@@ -114,16 +123,19 @@ INHERIT
 .br
 NOINHERIT
 .RS 4
-These clauses determine whether a role
-\(lqinherits\(rq
-the privileges of roles it is a member of\&. A role with the
-INHERIT
-attribute can automatically use whatever database privileges have been granted to all roles it is directly or indirectly a member of\&. Without
-INHERIT, membership in another role only grants the ability to
-\fBSET ROLE\fR
-to that other role; the privileges of the other role are only available after having done so\&. If not specified,
+This affects the membership inheritance status when this role is added as a member of another role, both in this and future commands\&. Specifically, it controls the inheritance status of memberships added with this command using the
+IN ROLE
+clause, and in later commands using the
+ROLE
+clause\&. It is also used as the default inheritance status when adding this role as a member using the
+GRANT
+command\&. If not specified,
 INHERIT
 is the default\&.
+.sp
+In
+PostgreSQL
+versions before 16, inheritance was a role\-level attribute that controlled all runtime membership checks for that role\&.
 .RE
 .PP
 LOGIN
@@ -148,9 +160,10 @@ These clauses determine whether a role is a replication role\&. A role must have
 REPLICATION
 attribute is a very highly privileged role, and should only be used on roles actually used for replication\&. If not specified,
 NOREPLICATION
-is the default\&. You must be a superuser to create a new role having the
+is the default\&. Only superuser roles or roles with
 REPLICATION
-attribute\&.
+can specify
+REPLICATION\&.
 .RE
 .PP
 BYPASSRLS
@@ -159,9 +172,10 @@ NOBYPASSRLS
 .RS 4
 These clauses determine whether a role bypasses every row\-level security (RLS) policy\&.
 NOBYPASSRLS
-is the default\&. You must be a superuser to create a new role having the
+is the default\&. Only superuser roles or roles with
 BYPASSRLS
-attribute\&.
+can specify
+BYPASSRLS\&.
 .sp
 Note that pg_dump will set
 row_security
@@ -206,6 +220,24 @@ keyword has no effect, but is accepted for backwards compatibility\&. The method
 password_encryption\&. If the presented password string is already in MD5\-encrypted or SCRAM\-encrypted format, then it is stored as\-is regardless of
 \fIpassword_encryption\fR
 (since the system cannot decrypt the specified encrypted password string, to encrypt it in a different format)\&. This allows reloading of encrypted passwords during dump/restore\&.
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBWarning\fR
+.ps -1
+.br
+Support for MD5\-encrypted passwords is deprecated and will be removed in a future release of
+PostgreSQL\&. Refer to
+Section\ \&20.5
+for details about migrating to another password type\&.
+.sp .5v
+.RE
 .RE
 .PP
 VALID UNTIL \*(Aq\fItimestamp\fR\*(Aq
@@ -219,42 +251,41 @@ IN ROLE \fIrole_name\fR
 .RS 4
 The
 IN ROLE
-clause lists one or more existing roles to which the new role will be immediately added as a new member\&. (Note that there is no option to add the new role as an administrator; use a separate
-\fBGRANT\fR
-command to do that\&.)
-.RE
-.PP
-IN GROUP \fIrole_name\fR
-.RS 4
-IN GROUP
-is an obsolete spelling of
-IN ROLE\&.
+clause causes the new role to be automatically added as a member of the specified existing roles\&. The new membership will have the
+SET
+option enabled and the
+ADMIN
+option disabled\&. The
+INHERIT
+option will be enabled unless the
+NOINHERIT
+option is specified\&.
 .RE
 .PP
 ROLE \fIrole_name\fR
 .RS 4
 The
 ROLE
-clause lists one or more existing roles which are automatically added as members of the new role\&. (This in effect makes the new role a
-\(lqgroup\(rq\&.)
+clause causes one or more specified existing roles to be automatically added as members, with the
+SET
+option enabled\&. This in effect makes the new role a
+\(lqgroup\(rq\&. Roles named in this clause with the role\-level
+INHERIT
+attribute will have the
+INHERIT
+option enabled in the new membership\&. New memberships will have the
+ADMIN
+option disabled\&.
 .RE
 .PP
 ADMIN \fIrole_name\fR
 .RS 4
 The
 ADMIN
-clause is like
-ROLE, but the named roles are added to the new role
-WITH ADMIN OPTION, giving them the right to grant membership in this role to others\&.
-.RE
-.PP
-USER \fIrole_name\fR
-.RS 4
-The
-USER
-clause is an obsolete spelling of the
-ROLE
-clause\&.
+clause has the same effect as
+ROLE, but the named roles are added as members of the new role with
+ADMIN
+enabled, giving them the right to grant membership in the new role to others\&.
 .RE
 .PP
 SYSID \fIuid\fR
@@ -284,18 +315,21 @@ The
 VALID UNTIL
 clause defines an expiration time for a password only, not for the role per se\&. In particular, the expiration time is not enforced when logging in using a non\-password\-based authentication method\&.
 .PP
-The
-INHERIT
-attribute governs inheritance of grantable privileges (that is, access privileges for database objects and role memberships)\&. It does not apply to the special role attributes set by
-\fBCREATE ROLE\fR
-and
-\fBALTER ROLE\fR\&. For example, being a member of a role with
+The role attributes defined here are non\-inheritable, i\&.e\&., being a member of a role with, e\&.g\&.,
 CREATEDB
-privilege does not immediately grant the ability to create databases, even if
+will not allow the member to create new databases even if the membership grant has the
 INHERIT
-is set; it would be necessary to become that role via
+option\&. Of course, if the membership grant has the
+SET
+option the member role would be able to
 \fBSET ROLE\fR
-before creating a database\&.
+to the createdb role and then create a new database\&.
+.PP
+The membership grants created by the
+IN ROLE,
+ROLE, and
+ADMIN
+clauses have the role executing this command as the grantor\&.
 .PP
 The
 INHERIT
@@ -303,21 +337,6 @@ attribute is the default for reasons of backwards compatibility: in prior releas
 PostgreSQL, users always had access to all privileges of groups they were members of\&. However,
 NOINHERIT
 provides a closer match to the semantics specified in the SQL standard\&.
-.PP
-Be careful with the
-CREATEROLE
-privilege\&. There is no concept of inheritance for the privileges of a
-CREATEROLE\-role\&. That means that even if a role does not have a certain privilege but is allowed to create other roles, it can easily create another role with different privileges than its own (except for creating roles with superuser privileges)\&. For example, if the role
-\(lquser\(rq
-has the
-CREATEROLE
-privilege but not the
-CREATEDB
-privilege, nonetheless it can create a new role with the
-CREATEDB
-privilege\&. Therefore, regard roles that have the
-CREATEROLE
-privilege as almost\-superuser\-roles\&.
 .PP
 PostgreSQL
 includes a program
@@ -418,10 +437,47 @@ The SQL standard defines the concepts of users and roles, but it regards them as
 PostgreSQL
 we have chosen to unify users and roles into a single kind of entity\&. Roles therefore have many more optional attributes than they do in the standard\&.
 .PP
-The behavior specified by the SQL standard is most closely approximated by giving users the
+The behavior specified by the SQL standard is most closely approximated creating SQL\-standard users as
+PostgreSQL
+roles with the
 NOINHERIT
-attribute, while roles are given the
+option, and SQL\-standard roles as
+PostgreSQL
+roles with the
 INHERIT
-attribute\&.
+option\&.
+.PP
+The
+USER
+clause has the same behavior as
+ROLE
+but has been deprecated:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+USER \fIrole_name\fR [, \&.\&.\&.]
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+The
+IN GROUP
+clause has the same behavior as
+IN ROLE
+but has been deprecated:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+IN GROUP \fIrole_name\fR [, \&.\&.\&.]
+.fi
+.if n \{\
+.RE
+.\}
+.sp
 .SH "SEE ALSO"
-SET ROLE (\fBSET_ROLE\fR(7)), ALTER ROLE (\fBALTER_ROLE\fR(7)), DROP ROLE (\fBDROP_ROLE\fR(7)), \fBGRANT\fR(7), \fBREVOKE\fR(7), \fBcreateuser\fR(1)
+SET ROLE (\fBSET_ROLE\fR(7)), ALTER ROLE (\fBALTER_ROLE\fR(7)), DROP ROLE (\fBDROP_ROLE\fR(7)), \fBGRANT\fR(7), \fBREVOKE\fR(7), \fBcreateuser\fR(1), createrole_self_grant

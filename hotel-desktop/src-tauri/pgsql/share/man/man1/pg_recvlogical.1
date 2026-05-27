@@ -2,12 +2,12 @@
 .\"     Title: pg_recvlogical
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "PG_RECVLOGICAL" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "PG_RECVLOGICAL" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -39,11 +39,19 @@ controls logical decoding replication slots and streams data from such replicati
 .PP
 It creates a replication\-mode connection, so it is subject to the same constraints as
 \fBpg_receivewal\fR(1), plus those for logical replication (see
-Chapter\ \&49)\&.
+Chapter\ \&47)\&.
 .PP
 \fBpg_recvlogical\fR
 has no equivalent to the logical decoding SQL interface\*(Aqs peek and get modes\&. It sends replay confirmations for data lazily as it receives it and on clean exit\&. To examine pending data on a slot without consuming it, use
 \fBpg_logical_slot_peek_changes\fR\&.
+.PP
+In the absence of fatal errors,
+pg_recvlogical
+will run until terminated by the
+SIGINT
+(Control+C) or
+SIGTERM
+signal\&.
 .PP
 When
 pg_recvlogical
@@ -65,12 +73,29 @@ Create a new logical replication slot with the name specified by
 \fB\-\-slot\fR, using the output plugin specified by
 \fB\-\-plugin\fR, for the database specified by
 \fB\-\-dbname\fR\&.
+.sp
+The
+\fB\-\-slot\fR
+and
+\fB\-\-dbname\fR
+are required for this action\&.
+.sp
+The
+\fB\-\-enable\-two\-phase\fR
+and
+\fB\-\-enable\-failover\fR
+options can be specified with
+\fB\-\-create\-slot\fR\&.
 .RE
 .PP
 \fB\-\-drop\-slot\fR
 .RS 4
 Drop the replication slot with the name specified by
 \fB\-\-slot\fR, then exit\&.
+.sp
+The
+\fB\-\-slot\fR
+is required for this action\&.
 .RE
 .PP
 \fB\-\-start\fR
@@ -79,6 +104,13 @@ Begin streaming changes from the logical replication slot specified by
 \fB\-\-slot\fR, continuing until terminated by a signal\&. If the server side change stream ends with a server shutdown or disconnect, retry in a loop unless
 \fB\-\-no\-loop\fR
 is specified\&.
+.sp
+The
+\fB\-\-slot\fR
+and
+\fB\-\-dbname\fR,
+\fB\-\-file\fR
+are required for this action\&.
 .sp
 The stream format is determined by the output plugin specified when the slot was created\&.
 .sp
@@ -112,6 +144,12 @@ The
 option is not aware of transaction boundaries and may truncate output partway through a transaction\&. Any partially output transaction will not be consumed and will be replayed again when the slot is next read from\&. Individual messages are never truncated\&.
 .RE
 .PP
+\fB\-\-enable\-failover\fR
+.RS 4
+Enables the slot to be synchronized to the standbys\&. This option may only be specified with
+\fB\-\-create\-slot\fR\&.
+.RE
+.PP
 \fB\-f \fR\fB\fIfilename\fR\fR
 .br
 \fB\-\-file=\fR\fB\fIfilename\fR\fR
@@ -120,6 +158,9 @@ Write received and decoded transaction data into this file\&. Use
 \-
 for
 stdout\&.
+.sp
+This parameter is required for
+\fB\-\-start\fR\&.
 .RE
 .PP
 \fB\-F \fR\fB\fIinterval_seconds\fR\fR
@@ -148,9 +189,9 @@ calls altogether, while still reporting progress to the server\&. In this case, 
 In
 \fB\-\-start\fR
 mode, start replication from the given LSN\&. For details on the effect of this, see the documentation in
-Chapter\ \&49
+Chapter\ \&47
 and
-Section\ \&53.4\&. Ignored in other modes\&.
+Section\ \&54.4\&. Ignored in other modes\&.
 .RE
 .PP
 \fB\-\-if\-not\-exists\fR
@@ -182,7 +223,7 @@ to the output plugin with, if specified, the option value
 \fB\-\-plugin=\fR\fB\fIplugin\fR\fR
 .RS 4
 When creating a slot, use the specified logical decoding output plugin\&. See
-Chapter\ \&49\&. This option has no effect if the slot already exists\&.
+Chapter\ \&47\&. This option has no effect if the slot already exists\&.
 .RE
 .PP
 \fB\-s \fR\fB\fIinterval_seconds\fR\fR
@@ -205,6 +246,18 @@ mode, use the existing logical replication slot named
 mode, create the slot with this name\&. In
 \fB\-\-drop\-slot\fR
 mode, delete the slot with this name\&.
+.sp
+This parameter is required for any of actions\&.
+.RE
+.PP
+\fB\-t\fR
+.br
+\fB\-\-enable\-two\-phase\fR
+.br
+\fB\-\-two\-phase\fR (deprecated)
+.RS 4
+Enables decoding of prepared transactions\&. This option may only be specified with
+\fB\-\-create\-slot\fR\&.
 .RE
 .PP
 \fB\-v\fR
@@ -223,7 +276,12 @@ The following command\-line options control the database connection parameters\&
 The database to connect to\&. See the description of the actions for what this means in detail\&. The
 \fIdbname\fR
 can be a
-connection string\&. If so, connection string parameters will override any conflicting command line options\&. Defaults to the user name\&.
+connection string\&. If so, connection string parameters will override any conflicting command line options\&.
+.sp
+This parameter is required for
+\fB\-\-create\-slot\fR
+and
+\fB\-\-start\fR\&.
 .RE
 .PP
 \fB\-h \fR\fB\fIhostname\-or\-ip\fR\fR
@@ -296,6 +354,14 @@ Show help about
 pg_recvlogical
 command line arguments, and exit\&.
 .RE
+.SH "EXIT STATUS"
+.PP
+pg_recvlogical
+will exit with status 0 when terminated by the
+SIGINT
+or
+SIGTERM
+signal\&. (That is the normal way to end it\&. Hence it is not an error\&.) For fatal errors or other signals, the exit status will be nonzero\&.
 .SH "ENVIRONMENT"
 .PP
 This utility, like most other
@@ -303,7 +369,7 @@ PostgreSQL
 utilities, uses the environment variables supported by
 libpq
 (see
-Section\ \&34.15)\&.
+Section\ \&32.15)\&.
 .PP
 The environment variable
 \fBPG_COLOR\fR
@@ -319,7 +385,7 @@ will preserve group permissions on the received WAL files if group permissions a
 .SH "EXAMPLES"
 .PP
 See
-Section\ \&49.1
+Section\ \&47.1
 for an example\&.
 .SH "SEE ALSO"
 \fBpg_receivewal\fR(1)

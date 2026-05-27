@@ -2,12 +2,12 @@
 .\"     Title: EXPLAIN
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "EXPLAIN" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "EXPLAIN" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -33,7 +33,6 @@ EXPLAIN \- show the execution plan of a statement
 .sp
 .nf
 EXPLAIN [ ( \fIoption\fR [, \&.\&.\&.] ) ] \fIstatement\fR
-EXPLAIN [ ANALYZE ] [ VERBOSE ] \fIstatement\fR
 
 where \fIoption\fR can be one of:
 
@@ -41,10 +40,13 @@ where \fIoption\fR can be one of:
     VERBOSE [ \fIboolean\fR ]
     COSTS [ \fIboolean\fR ]
     SETTINGS [ \fIboolean\fR ]
+    GENERIC_PLAN [ \fIboolean\fR ]
     BUFFERS [ \fIboolean\fR ]
+    SERIALIZE [ { NONE | TEXT | BINARY } ]
     WAL [ \fIboolean\fR ]
     TIMING [ \fIboolean\fR ]
     SUMMARY [ \fIboolean\fR ]
+    MEMORY [ \fIboolean\fR ]
     FORMAT { TEXT | XML | JSON | YAML }
 .fi
 .SH "DESCRIPTION"
@@ -86,6 +88,7 @@ on an
 \fBINSERT\fR,
 \fBUPDATE\fR,
 \fBDELETE\fR,
+\fBMERGE\fR,
 \fBCREATE TABLE AS\fR, or
 \fBEXECUTE\fR
 statement without letting the command affect your data, use this approach:
@@ -103,14 +106,6 @@ ROLLBACK;
 .\}
 .sp .5v
 .RE
-.PP
-Only the
-ANALYZE
-and
-VERBOSE
-options can be specified, and only in that order, without surrounding the option list in parentheses\&. Prior to
-PostgreSQL
-9\&.0, the unparenthesized syntax was the only one supported\&. It is expected that all new options will be supported only in the parenthesized syntax\&.
 .SH "PARAMETERS"
 .PP
 ANALYZE
@@ -139,23 +134,60 @@ Include information on configuration parameters\&. Specifically, include options
 FALSE\&.
 .RE
 .PP
+GENERIC_PLAN
+.RS 4
+Allow the statement to contain parameter placeholders like
+$1, and generate a generic plan that does not depend on the values of those parameters\&. See
+\fBPREPARE\fR
+for details about generic plans and the types of statement that support parameters\&. This parameter cannot be used together with
+ANALYZE\&. It defaults to
+FALSE\&.
+.RE
+.PP
 BUFFERS
 .RS 4
-Include information on buffer usage\&. Specifically, include the number of shared blocks hit, read, dirtied, and written, the number of local blocks hit, read, dirtied, and written, the number of temp blocks read and written, and the time spent reading and writing data file blocks (in milliseconds) if
+Include information on buffer usage\&. Specifically, include the number of shared blocks hit, read, dirtied, and written, the number of local blocks hit, read, dirtied, and written, the number of temp blocks read and written, and the time spent reading and writing data file blocks, local blocks and temporary file blocks (in milliseconds) if
 track_io_timing
 is enabled\&. A
 \fIhit\fR
-means that a read was avoided because the block was found already in cache when needed\&. Shared blocks contain data from regular tables and indexes; local blocks contain data from temporary tables and indexes; while temp blocks contain short\-term working data used in sorts, hashes, Materialize plan nodes, and similar cases\&. The number of blocks
+means that a read was avoided because the block was found already in cache when needed\&. Shared blocks contain data from regular tables and indexes; local blocks contain data from temporary tables and indexes; while temporary blocks contain short\-term working data used in sorts, hashes, Materialize plan nodes, and similar cases\&. The number of blocks
 \fIdirtied\fR
 indicates the number of previously unmodified blocks that were changed by this query; while the number of blocks
 \fIwritten\fR
-indicates the number of previously\-dirtied blocks evicted from cache by this backend during query processing\&. The number of blocks shown for an upper\-level node includes those used by all its child nodes\&. In text format, only non\-zero values are printed\&. It defaults to
-FALSE\&.
+indicates the number of previously\-dirtied blocks evicted from cache by this backend during query processing\&. The number of blocks shown for an upper\-level node includes those used by all its child nodes\&. In text format, only non\-zero values are printed\&. Buffers information is automatically included when
+ANALYZE
+is used\&.
+.RE
+.PP
+SERIALIZE
+.RS 4
+Include information on the cost of
+serializing
+the query\*(Aqs output data, that is converting it to text or binary format to send to the client\&. This can be a significant part of the time required for regular execution of the query, if the datatype output functions are expensive or if
+TOASTed values must be fetched from out\-of\-line storage\&.
+\fBEXPLAIN\fR\*(Aqs default behavior,
+SERIALIZE NONE, does not perform these conversions\&. If
+SERIALIZE TEXT
+or
+SERIALIZE BINARY
+is specified, the appropriate conversions are performed, and the time spent doing so is measured (unless
+TIMING OFF
+is specified)\&. If the
+BUFFERS
+option is also specified, then any buffer accesses involved in the conversions are counted too\&. In no case, however, will
+\fBEXPLAIN\fR
+actually send the resulting data to the client; hence network transmission costs cannot be investigated this way\&. Serialization may only be enabled when
+ANALYZE
+is also enabled\&. If
+SERIALIZE
+is written without an argument,
+TEXT
+is assumed\&.
 .RE
 .PP
 WAL
 .RS 4
-Include information on WAL record generation\&. Specifically, include the number of records, number of full page images (fpi) and the amount of WAL generated in bytes\&. In text format, only non\-zero values are printed\&. This parameter may only be used when
+Include information on WAL record generation\&. Specifically, include the number of records, number of full page images (fpi), the amount of WAL generated in bytes and the number of times the WAL buffers became full\&. In text format, only non\-zero values are printed\&. This parameter may only be used when
 ANALYZE
 is also enabled\&. It defaults to
 FALSE\&.
@@ -178,6 +210,12 @@ ANALYZE
 is used but otherwise is not included by default, but can be enabled using this option\&. Planning time in
 \fBEXPLAIN EXECUTE\fR
 includes the time required to fetch the plan from the cache and the time required for re\-planning, if necessary\&.
+.RE
+.PP
+MEMORY
+.RS 4
+Include information on memory consumption by the query planning phase\&. Specifically, include the precise amount of storage used by planner in\-memory structures, as well as total memory considering allocation overhead\&. This parameter defaults to
+FALSE\&.
 .RE
 .PP
 FORMAT
@@ -210,6 +248,7 @@ Any
 \fBINSERT\fR,
 \fBUPDATE\fR,
 \fBDELETE\fR,
+\fBMERGE\fR,
 \fBVALUES\fR,
 \fBEXECUTE\fR,
 \fBDECLARE\fR,
@@ -330,7 +369,7 @@ EXPLAIN (FORMAT YAML) SELECT * FROM foo WHERE i=\*(Aq4\*(Aq;
      Total Cost: 5\&.98         +
      Plan Rows: 1             +
      Plan Width: 4            +
-     Index Cond: "(i = 4)"    
+     Index Cond: "(i = 4)"
 (1 row)
 .fi
 .if n \{\
@@ -390,15 +429,19 @@ PREPARE query(int, int) AS SELECT sum(bar) FROM test
 
 EXPLAIN ANALYZE EXECUTE query(100, 200);
 
-                                                       QUERY PLAN                                                       
-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\:\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
- HashAggregate  (cost=9\&.54\&.\&.9\&.54 rows=1 width=8) (actual time=0\&.156\&.\&.0\&.161 rows=11 loops=1)
+                                                       QUERY PLAN
+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\:\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
+ HashAggregate  (cost=10\&.77\&.\&.10\&.87 rows=10 width=12) (actual time=0\&.043\&.\&.0\&.044 rows=10\&.00 loops=1)
    Group Key: foo
-   \->  Index Scan using test_pkey on test  (cost=0\&.29\&.\&.9\&.29 rows=50 width=8) (actual time=0\&.039\&.\&.0\&.091 rows=99 loops=1)
-         Index Cond: ((id > $1) AND (id < $2))
- Planning time: 0\&.197 ms
- Execution time: 0\&.225 ms
-(6 rows)
+   Batches: 1  Memory Usage: 24kB
+   Buffers: shared hit=4
+   \->  Index Scan using test_pkey on test  (cost=0\&.29\&.\&.10\&.27 rows=99 width=8) (actual time=0\&.009\&.\&.0\&.025 rows=99\&.00 loops=1)
+         Index Cond: ((id > 100) AND (id < 200))
+         Index Searches: 1
+         Buffers: shared hit=4
+ Planning Time: 0\&.244 ms
+ Execution Time: 0\&.073 ms
+(10 rows)
 .fi
 .if n \{\
 .RE
@@ -410,10 +453,76 @@ releases due to planner improvements\&. In addition, the
 \fBANALYZE\fR
 command uses random sampling to estimate data statistics; therefore, it is possible for cost estimates to change after a fresh run of
 \fBANALYZE\fR, even if the actual distribution of data in the table has not changed\&.
+.PP
+Notice that the previous example showed a
+\(lqcustom\(rq
+plan for the specific parameter values given in
+\fBEXECUTE\fR\&. We might also wish to see the generic plan for a parameterized query, which can be done with
+GENERIC_PLAN:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+EXPLAIN (GENERIC_PLAN)
+  SELECT sum(bar) FROM test
+    WHERE id > $1 AND id < $2
+    GROUP BY foo;
+
+                                  QUERY PLAN
+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\:\-\-\-\-\-\-\-\-\-\-\-\-
+ HashAggregate  (cost=26\&.79\&.\&.26\&.89 rows=10 width=12)
+   Group Key: foo
+   \->  Index Scan using test_pkey on test  (cost=0\&.29\&.\&.24\&.29 rows=500 width=8)
+         Index Cond: ((id > $1) AND (id < $2))
+(4 rows)
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+In this case the parser correctly inferred that
+$1
+and
+$2
+should have the same data type as
+id, so the lack of parameter type information from
+\fBPREPARE\fR
+was not a problem\&. In other cases it might be necessary to explicitly specify types for the parameter symbols, which can be done by casting them, for example:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+EXPLAIN (GENERIC_PLAN)
+  SELECT sum(bar) FROM test
+    WHERE id > $1::integer AND id < $2::integer
+    GROUP BY foo;
+.fi
+.if n \{\
+.RE
+.\}
+.sp
 .SH "COMPATIBILITY"
 .PP
 There is no
 \fBEXPLAIN\fR
 statement defined in the SQL standard\&.
+.PP
+The following syntax was used before
+PostgreSQL
+version 9\&.0 and is still supported:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+EXPLAIN [ ANALYZE ] [ VERBOSE ] \fIstatement\fR
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+Note that in this syntax, the options must be specified in exactly the order shown\&.
 .SH "SEE ALSO"
 \fBANALYZE\fR(7)

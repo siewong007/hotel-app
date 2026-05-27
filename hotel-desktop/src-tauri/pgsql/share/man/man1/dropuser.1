@@ -2,12 +2,12 @@
 .\"     Title: dropuser
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "DROPUSER" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "DROPUSER" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -37,11 +37,11 @@ dropuser \- remove a PostgreSQL user account
 dropuser
 removes an existing
 PostgreSQL
-user\&. Only superusers and users with the
+user\&. Superusers can use this command to remove any role; otherwise, only non\-superuser roles can be removed, and only by a user who possesses the
 CREATEROLE
-privilege can remove
-PostgreSQL
-users\&. (To remove a superuser, you must yourself be a superuser\&.)
+privilege and has been granted
+ADMIN OPTION
+on the target role\&.
 .PP
 dropuser
 is a wrapper around the
@@ -175,7 +175,7 @@ PostgreSQL
 utilities, also uses the environment variables supported by
 libpq
 (see
-Section\ \&34.15)\&.
+Section\ \&32.15)\&.
 .SH "DIAGNOSTICS"
 .PP
 In case of difficulty, see

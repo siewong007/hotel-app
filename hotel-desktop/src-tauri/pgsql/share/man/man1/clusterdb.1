@@ -2,12 +2,12 @@
 .\"     Title: clusterdb
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CLUSTERDB" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CLUSTERDB" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,9 +31,7 @@
 clusterdb \- cluster a PostgreSQL database
 .SH "SYNOPSIS"
 .HP \w'\fBclusterdb\fR\ 'u
-\fBclusterdb\fR [\fIconnection\-option\fR...] [\fB\-\-verbose\fR | \fB\-v\fR] [\ \fB\-\-table\fR\ |\ \fB\-t\fR\ \fItable\fR\ ]...  [\fIdbname\fR]
-.HP \w'\fBclusterdb\fR\ 'u
-\fBclusterdb\fR [\fIconnection\-option\fR...] [\fB\-\-verbose\fR | \fB\-v\fR] \fB\-\-all\fR | \fB\-a\fR 
+\fBclusterdb\fR [\fIconnection\-option\fR...] [\fIoption\fR...] [\ \fB\-\-table\fR\ |\ \fB\-t\fR\ \fItable\fR\ ]...  [\fIdbname\fR\ |\ \fB\-a\fR\ |\ \fB\-\-all\fR]
 .SH "DESCRIPTION"
 .PP
 clusterdb
@@ -209,7 +207,7 @@ PostgreSQL
 utilities, also uses the environment variables supported by
 libpq
 (see
-Section\ \&34.15)\&.
+Section\ \&32.15)\&.
 .SH "DIAGNOSTICS"
 .PP
 In case of difficulty, see

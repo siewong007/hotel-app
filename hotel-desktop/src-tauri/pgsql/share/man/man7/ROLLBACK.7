@@ -2,12 +2,12 @@
 .\"     Title: ROLLBACK
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "ROLLBACK" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "ROLLBACK" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -51,7 +51,7 @@ AND CHAIN
 .RS 4
 If
 AND CHAIN
-is specified, a new transaction is immediately started with the same transaction characteristics (see
+is specified, a new (not aborted) transaction is immediately started with the same transaction characteristics (see
 SET TRANSACTION (\fBSET_TRANSACTION\fR(7))) as the just finished one\&. Otherwise, no new transaction is started\&.
 .RE
 .SH "NOTES"

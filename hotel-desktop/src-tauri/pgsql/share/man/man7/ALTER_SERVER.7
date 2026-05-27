@@ -2,12 +2,12 @@
 .\"     Title: ALTER SERVER
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "ALTER SERVER" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "ALTER SERVER" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -42,7 +42,9 @@ ALTER SERVER \fIname\fR RENAME TO \fInew_name\fR
 \fBALTER SERVER\fR
 changes the definition of a foreign server\&. The first form changes the server version string or the generic options of the server (at least one clause is required)\&. The second form changes the owner of the server\&.
 .PP
-To alter the server you must be the owner of the server\&. Additionally to alter the owner, you must own the server and also be a direct or indirect member of the new owning role, and you must have
+To alter the server you must be the owner of the server\&. Additionally to alter the owner, you must be able to
+SET ROLE
+to the new owning role, and you must have
 USAGE
 privilege on the server\*(Aqs foreign\-data wrapper\&. (Note that superusers satisfy all these criteria automatically\&.)
 .SH "PARAMETERS"

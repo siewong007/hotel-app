@@ -2,12 +2,12 @@
 .\"     Title: DROP OWNED
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "DROP OWNED" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "DROP OWNED" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -37,7 +37,7 @@ DROP OWNED BY { \fIname\fR | CURRENT_ROLE | CURRENT_USER | SESSION_USER } [, \&.
 .SH "DESCRIPTION"
 .PP
 \fBDROP OWNED\fR
-drops all the objects within the current database that are owned by one of the specified roles\&. Any privileges granted to the given roles on objects in the current database or on shared objects (databases, tablespaces) will also be revoked\&.
+drops all the objects within the current database that are owned by one of the specified roles\&. Any privileges granted to the given roles on objects in the current database or on shared objects (databases, tablespaces, configuration parameters) will also be revoked\&.
 .SH "PARAMETERS"
 .PP
 \fIname\fR
@@ -48,7 +48,7 @@ The name of a role whose objects will be dropped, and whose privileges will be r
 CASCADE
 .RS 4
 Automatically drop objects that depend on the affected objects, and in turn all objects that depend on those objects (see
-Section\ \&5.14)\&.
+Section\ \&5.15)\&.
 .RE
 .PP
 RESTRICT
@@ -75,7 +75,7 @@ does not deal with privileges for other objects\&.
 Databases and tablespaces owned by the role(s) will not be removed\&.
 .PP
 See
-Section\ \&22.4
+Section\ \&21.4
 for more discussion\&.
 .SH "COMPATIBILITY"
 .PP

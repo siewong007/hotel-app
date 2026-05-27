@@ -2,12 +2,12 @@
 .\"     Title: REFRESH MATERIALIZED VIEW
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "REFRESH MATERIALIZED VIEW" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "REFRESH MATERIALIZED VIEW" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -38,7 +38,9 @@ REFRESH MATERIALIZED VIEW [ CONCURRENTLY ] \fIname\fR
 .SH "DESCRIPTION"
 .PP
 \fBREFRESH MATERIALIZED VIEW\fR
-completely replaces the contents of a materialized view\&. To execute this command you must be the owner of the materialized view\&. The old contents are discarded\&. If
+completely replaces the contents of a materialized view\&. To execute this command you must have the
+MAINTAIN
+privilege on the materialized view\&. The old contents are discarded\&. If
 WITH DATA
 is specified (or defaults) the backing query is executed to provide the new data, and the materialized view is left in a scannable state\&. If
 WITH NO DATA
@@ -60,7 +62,7 @@ index on the materialized view which uses only column names and includes all row
 WHERE
 clause\&.
 .sp
-This option may not be used when the materialized view is not already populated\&.
+This option can only be used when the materialized view is already populated\&.
 .sp
 Even with this option only one
 REFRESH
@@ -78,6 +80,13 @@ ORDER BY
 clause in the materialized view\*(Aqs defining query, the original contents of the materialized view will be ordered that way; but
 \fBREFRESH MATERIALIZED VIEW\fR
 does not guarantee to preserve that ordering\&.
+.PP
+While
+\fBREFRESH MATERIALIZED VIEW\fR
+is running, the
+search_path
+is temporarily changed to
+pg_catalog, pg_temp\&.
 .SH "EXAMPLES"
 .PP
 This command will replace the contents of the materialized view called

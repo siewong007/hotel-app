@@ -2,12 +2,12 @@
 .\"     Title: SHOW
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "SHOW" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "SHOW" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -50,14 +50,14 @@ or a
 libpq\-based application), or through command\-line flags when starting the
 \fBpostgres\fR
 server\&. See
-Chapter\ \&20
+Chapter\ \&19
 for details\&.
 .SH "PARAMETERS"
 .PP
 \fIname\fR
 .RS 4
 The name of a run\-time parameter\&. Available parameters are documented in
-Chapter\ \&20
+Chapter\ \&19
 and on the
 \fBSET\fR(7)
 reference page\&. In addition, there are a few parameters that can be shown but not set:
@@ -70,16 +70,6 @@ Shows the server\*(Aqs version number\&.
 SERVER_ENCODING
 .RS 4
 Shows the server\-side character set encoding\&. At present, this parameter can be shown but not set, because the encoding is determined at database creation time\&.
-.RE
-.PP
-LC_COLLATE
-.RS 4
-Shows the database\*(Aqs locale setting for collation (text ordering)\&. At present, this parameter can be shown but not set, because the setting is determined at database creation time\&.
-.RE
-.PP
-LC_CTYPE
-.RS 4
-Shows the database\*(Aqs locale setting for character classification\&. At present, this parameter can be shown but not set, because the setting is determined at database creation time\&.
 .RE
 .PP
 IS_SUPERUSER
@@ -97,7 +87,7 @@ Show the values of all configuration parameters, with descriptions\&.
 The function
 \fBcurrent_setting\fR
 produces equivalent output; see
-Section\ \&9.27.1\&. Also, the
+Section\ \&9.28.1\&. Also, the
 pg_settings
 system view produces the same information\&.
 .SH "EXAMPLES"
@@ -143,7 +133,7 @@ Show all settings:
 .\}
 .nf
 SHOW ALL;
-            name         | setting |                description                                                          
+            name         | setting |                description
 \-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
  allow_system_table_mods | off     | Allows modifications of the structure of \&.\&.\&.
     \&.

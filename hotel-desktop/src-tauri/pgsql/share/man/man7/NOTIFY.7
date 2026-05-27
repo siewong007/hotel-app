@@ -2,12 +2,12 @@
 .\"     Title: NOTIFY
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "NOTIFY" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "NOTIFY" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -111,7 +111,7 @@ and then enters a transaction for a very long time\&. Once the queue is half ful
 The function
 \fBpg_notification_queue_usage\fR
 returns the fraction of the queue that is currently occupied by pending notifications\&. See
-Section\ \&9.26
+Section\ \&9.27
 for more information\&.
 .PP
 A transaction that has executed
@@ -151,4 +151,4 @@ There is no
 \fBNOTIFY\fR
 statement in the SQL standard\&.
 .SH "SEE ALSO"
-\fBLISTEN\fR(7), \fBUNLISTEN\fR(7)
+\fBLISTEN\fR(7), \fBUNLISTEN\fR(7), max_notify_queue_pages

@@ -2,12 +2,12 @@
 .\"     Title: ALTER SEQUENCE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "ALTER SEQUENCE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "ALTER SEQUENCE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -36,10 +36,12 @@ ALTER SEQUENCE [ IF EXISTS ] \fIname\fR
     [ AS \fIdata_type\fR ]
     [ INCREMENT [ BY ] \fIincrement\fR ]
     [ MINVALUE \fIminvalue\fR | NO MINVALUE ] [ MAXVALUE \fImaxvalue\fR | NO MAXVALUE ]
+    [ [ NO ] CYCLE ]
     [ START [ WITH ] \fIstart\fR ]
     [ RESTART [ [ WITH ] \fIrestart\fR ] ]
-    [ CACHE \fIcache\fR ] [ [ NO ] CYCLE ]
+    [ CACHE \fIcache\fR ]
     [ OWNED BY { \fItable_name\fR\&.\fIcolumn_name\fR | NONE } ]
+ALTER SEQUENCE [ IF EXISTS ] \fIname\fR SET { LOGGED | UNLOGGED }
 ALTER SEQUENCE [ IF EXISTS ] \fIname\fR OWNER TO { \fInew_owner\fR | CURRENT_ROLE | CURRENT_USER | SESSION_USER }
 ALTER SEQUENCE [ IF EXISTS ] \fIname\fR RENAME TO \fInew_name\fR
 ALTER SEQUENCE [ IF EXISTS ] \fIname\fR SET SCHEMA \fInew_schema\fR
@@ -54,7 +56,9 @@ command retain their prior settings\&.
 You must own the sequence to use
 \fBALTER SEQUENCE\fR\&. To change a sequence\*(Aqs schema, you must also have
 CREATE
-privilege on the new schema\&. To alter the owner, you must also be a direct or indirect member of the new owning role, and that role must have
+privilege on the new schema\&. To alter the owner, you must be able to
+SET ROLE
+to the new owning role, and that role must have
 CREATE
 privilege on the sequence\*(Aqs schema\&. (These restrictions enforce that altering the owner doesn\*(Aqt do anything you couldn\*(Aqt do by dropping and recreating the sequence\&. However, a superuser can alter ownership of any sequence anyway\&.)
 .SH "PARAMETERS"
@@ -114,6 +118,33 @@ NO MAXVALUE
 is specified, the defaults of the maximum value of the data type and \-1 for ascending and descending sequences, respectively, will be used\&. If neither option is specified, the current maximum value will be maintained\&.
 .RE
 .PP
+CYCLE
+.RS 4
+The optional
+CYCLE
+key word can be used to enable the sequence to wrap around when the
+\fImaxvalue\fR
+or
+\fIminvalue\fR
+has been reached by an ascending or descending sequence respectively\&. If the limit is reached, the next number generated will be the
+\fIminvalue\fR
+or
+\fImaxvalue\fR, respectively\&.
+.RE
+.PP
+NO CYCLE
+.RS 4
+If the optional
+NO CYCLE
+key word is specified, any calls to
+\fBnextval\fR
+after the sequence has reached its maximum value will return an error\&. If neither
+CYCLE
+or
+NO CYCLE
+are specified, the old cycle behavior will be maintained\&.
+.RE
+.PP
 \fIstart\fR
 .RS 4
 The optional clause
@@ -162,31 +193,10 @@ CACHE \fIcache\fR
 enables sequence numbers to be preallocated and stored in memory for faster access\&. The minimum value is 1 (only one value can be generated at a time, i\&.e\&., no cache)\&. If unspecified, the old cache value will be maintained\&.
 .RE
 .PP
-CYCLE
+SET { LOGGED | UNLOGGED }
 .RS 4
-The optional
-CYCLE
-key word can be used to enable the sequence to wrap around when the
-\fImaxvalue\fR
-or
-\fIminvalue\fR
-has been reached by an ascending or descending sequence respectively\&. If the limit is reached, the next number generated will be the
-\fIminvalue\fR
-or
-\fImaxvalue\fR, respectively\&.
-.RE
-.PP
-NO CYCLE
-.RS 4
-If the optional
-NO CYCLE
-key word is specified, any calls to
-\fBnextval\fR
-after the sequence has reached its maximum value will return an error\&. If neither
-CYCLE
-or
-NO CYCLE
-are specified, the old cycle behavior will be maintained\&.
+This form changes the sequence from unlogged to logged or vice\-versa (see
+CREATE SEQUENCE (\fBCREATE_SEQUENCE\fR(7)))\&. It cannot be applied to a temporary sequence\&.
 .RE
 .PP
 OWNED BY \fItable_name\fR\&.\fIcolumn_name\fR

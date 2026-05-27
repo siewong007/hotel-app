@@ -2,12 +2,12 @@
 .\"     Title: CREATE INDEX
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE INDEX" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE INDEX" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -35,6 +35,7 @@ CREATE_INDEX \- define a new index
 CREATE [ UNIQUE ] INDEX [ CONCURRENTLY ] [ [ IF NOT EXISTS ] \fIname\fR ] ON [ ONLY ] \fItable_name\fR [ USING \fImethod\fR ]
     ( { \fIcolumn_name\fR | ( \fIexpression\fR ) } [ COLLATE \fIcollation\fR ] [ \fIopclass\fR [ ( \fIopclass_parameter\fR = \fIvalue\fR [, \&.\&.\&. ] ) ] ] [ ASC | DESC ] [ NULLS { FIRST | LAST } ] [, \&.\&.\&.] )
     [ INCLUDE ( \fIcolumn_name\fR [, \&.\&.\&.] ) ]
+    [ NULLS [ NOT ] DISTINCT ]
     [ WITH ( \fIstorage_parameter\fR [= \fIvalue\fR] [, \&.\&.\&. ] ) ]
     [ TABLESPACE \fItablespace_name\fR ]
     [ WHERE \fIpredicate\fR ]
@@ -129,7 +130,7 @@ clause are included in leaf tuples which correspond to heap tuples, but are not 
 .PP
 \fIname\fR
 .RS 4
-The name of the index to be created\&. No schema name can be included here; the index is always created in the same schema as its parent table\&. If the name is omitted,
+The name of the index to be created\&. No schema name can be included here; the index is always created in the same schema as its parent table\&. The name of the index must be distinct from the name of any other relation (table, sequence, index, view, materialized view, or foreign table) in that schema\&. If the name is omitted,
 PostgreSQL
 chooses a suitable name based on the parent table\*(Aqs name and the indexed column name(s)\&.
 .RE
@@ -206,6 +207,13 @@ DESC
 is not specified\&.
 .RE
 .PP
+NULLS DISTINCT
+.br
+NULLS NOT DISTINCT
+.RS 4
+Specifies whether for a unique index, null values should be considered distinct (not equal)\&. The default is that they are distinct, so that a unique index could contain multiple null values in a column\&.
+.RE
+.PP
 \fIstorage_parameter\fR
 .RS 4
 The name of an index\-method\-specific storage parameter\&. See
@@ -232,11 +240,13 @@ The optional
 WITH
 clause specifies
 storage parameters
-for the index\&. Each index method has its own set of allowed storage parameters\&. The B\-tree, hash, GiST and SP\-GiST index methods all accept this parameter:
+for the index\&. Each index method has its own set of allowed storage parameters\&.
+.PP
+The B\-tree, hash, GiST and SP\-GiST index methods all accept this parameter:
 .PP
 fillfactor (integer)
 .RS 4
-The fillfactor for an index is a percentage that determines how full the index method will try to pack index pages\&. For B\-trees, leaf pages are filled to this percentage during initial index builds, and also when extending the index at the right (adding new largest key values)\&. If pages subsequently become completely full, they will be split, leading to fragmentation of the on\-disk index structure\&. B\-trees use a default fillfactor of 90, but any integer value from 10 to 100 can be selected\&.
+Controls how full the index method will try to pack index pages\&. For B\-trees, leaf pages are filled to this percentage during initial index builds, and also when extending the index at the right (adding new largest key values)\&. If pages subsequently become completely full, they will be split, leading to fragmentation of the on\-disk index structure\&. B\-trees use a default fillfactor of 90, but any integer value from 10 to 100 can be selected\&.
 .sp
 B\-tree indexes on tables where many inserts and/or updates are anticipated can benefit from lower fillfactor settings at
 \fBCREATE INDEX\fR
@@ -245,7 +255,7 @@ time (following bulk loading into the table)\&. Values in the range of 50 \- 90 
 the
 \fIrate\fR
 of page splits during the early life of the B\-tree index (lowering fillfactor like this may even lower the absolute number of page splits, though this effect is highly workload dependent)\&. The B\-tree bottom\-up index deletion technique described in
-Section\ \&64.4.2
+Section\ \&65.1.4.2
 is dependent on having some
 \(lqextra\(rq
 space on pages to store
@@ -266,7 +276,7 @@ B\-tree indexes additionally accept this parameter:
 deduplicate_items (boolean)
 .RS 4
 Controls usage of the B\-tree deduplication technique described in
-Section\ \&64.4.3\&. Set to
+Section\ \&65.1.4.3\&. Set to
 ON
 or
 OFF
@@ -275,7 +285,7 @@ ON
 and
 OFF
 are allowed as described in
-Section\ \&20.1\&.) The default is
+Section\ \&19.1\&.) The default is
 ON\&.
 .if n \{\
 .sp
@@ -302,8 +312,8 @@ GiST indexes additionally accept this parameter:
 .PP
 buffering (enum)
 .RS 4
-Determines whether the buffered build technique described in
-Section\ \&65.4.1
+Controls whether the buffered build technique described in
+Section\ \&65.2.4.1
 is used to build the index\&. With
 OFF
 buffering is disabled, with
@@ -317,12 +327,12 @@ buffering=ON
 is specified\&.
 .RE
 .PP
-GIN indexes accept different parameters:
+GIN indexes accept these parameters:
 .PP
 fastupdate (boolean)
 .RS 4
-This setting controls usage of the fast update technique described in
-Section\ \&67.4.1\&. It is a Boolean parameter:
+Controls usage of the fast update technique described in
+Section\ \&65.4.4.1\&.
 ON
 enables fast update,
 OFF
@@ -344,9 +354,9 @@ Turning
 fastupdate
 off via
 \fBALTER INDEX\fR
-prevents future insertions from going into the list of pending index entries, but does not in itself flush previous entries\&. You might want to
+prevents future insertions from going into the list of pending index entries, but does not in itself flush existing entries\&. You might want to
 \fBVACUUM\fR
-the table or call
+the table or call the
 \fBgin_clean_pending_list\fR
 function afterward to ensure the pending list is emptied\&.
 .sp .5v
@@ -355,29 +365,29 @@ function afterward to ensure the pending list is emptied\&.
 .PP
 gin_pending_list_limit (integer)
 .RS 4
-Custom
+Overrides the global setting of
 gin_pending_list_limit
-parameter\&. This value is specified in kilobytes\&.
+for this index\&. This value is specified in kilobytes\&.
 .RE
 .PP
 BRIN
-indexes accept different parameters:
+indexes accept these parameters:
 .PP
 pages_per_range (integer)
 .RS 4
 Defines the number of table blocks that make up one block range for each entry of a
 BRIN
 index (see
-Section\ \&68.1
+Section\ \&65.5.1
 for more details)\&. The default is
 128\&.
 .RE
 .PP
 autosummarize (boolean)
 .RS 4
-Defines whether a summarization run is queued for the previous page range whenever an insertion is detected on the next one\&. See
-Section\ \&68.1.1
-for more details\&. The default is
+Defines whether a summarization run is queued for the previous page range whenever an insertion is detected on the next one (see
+Section\ \&65.5.1.1
+for more details)\&. The default is
 off\&.
 .RE
 .SS "Building Indexes Concurrently"
@@ -419,9 +429,9 @@ INVALID:
 .nf
 postgres=# \ed tab
        Table "public\&.tab"
- Column |  Type   | Collation | Nullable | Default 
+ Column |  Type   | Collation | Nullable | Default
 \-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-
- col    | integer |           |          | 
+ col    | integer |           |          |
 Indexes:
     "idx" btree (col) INVALID
 .fi
@@ -466,7 +476,7 @@ int4_ops
 class; this operator class includes comparison functions for four\-byte integers\&. In practice the default operator class for the column\*(Aqs data type is usually sufficient\&. The main point of having operator classes is that for some data types, there could be more than one meaningful ordering\&. For example, we might want to sort a complex\-number data type either by absolute value or by real part\&. We could do this by defining two operator classes for the data type and then selecting the proper class when creating an index\&. More information about operator classes is in
 Section\ \&11.10
 and in
-Section\ \&38.16\&.
+Section\ \&36.16\&.
 .PP
 When
 CREATE INDEX
@@ -500,12 +510,19 @@ or wait for the
 autovacuum daemon
 to analyze the table to generate statistics for these indexes\&.
 .PP
+While
+\fBCREATE INDEX\fR
+is running, the
+search_path
+is temporarily changed to
+pg_catalog, pg_temp\&.
+.PP
 For most index methods, the speed of creating an index is dependent on the setting of
 maintenance_work_mem\&. Larger values will reduce the time needed for index creation, so long as you don\*(Aqt make it larger than the amount of memory really available, which would drive the machine into swapping\&.
 .PP
 PostgreSQL
 can build indexes while leveraging multiple CPUs in order to process the table rows faster\&. This feature is known as
-parallel index build\&. For index methods that support building indexes in parallel (currently, only B\-tree),
+parallel index build\&. For index methods that support building indexes in parallel (currently, B\-tree, GIN, and BRIN),
 \fImaintenance_work_mem\fR
 specifies the maximum amount of memory that can be used by each index build operation as a whole, regardless of how many worker processes were started\&. Generally, a cost model automatically determines how many worker processes should be requested, if any\&.
 .PP
@@ -589,7 +606,7 @@ Each backend running
 will report its progress in the
 pg_stat_progress_create_index
 view\&. See
-Section\ \&28.4.2
+Section\ \&27.4.4
 for details\&.
 .SH "EXAMPLES"
 .PP
@@ -755,4 +772,4 @@ is a
 PostgreSQL
 language extension\&. There are no provisions for indexes in the SQL standard\&.
 .SH "SEE ALSO"
-ALTER INDEX (\fBALTER_INDEX\fR(7)), DROP INDEX (\fBDROP_INDEX\fR(7)), \fBREINDEX\fR(7), Section\ \&28.4.2
+ALTER INDEX (\fBALTER_INDEX\fR(7)), DROP INDEX (\fBDROP_INDEX\fR(7)), \fBREINDEX\fR(7), Section\ \&27.4.4

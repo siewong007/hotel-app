@@ -20,7 +20,7 @@
   </p>
 
   <p>
-    <img src="https://img.shields.io/badge/Rust-%E2%89%A51.70-blue?logo=rust" alt="Rust" />
+    <img src="https://img.shields.io/badge/Rust-%E2%89%A51.95.0-blue?logo=rust" alt="Rust" />
     <img src="https://img.shields.io/badge/TypeScript-Frontend-blue?logo=typescript" alt="TypeScript" />
     <img src="https://img.shields.io/badge/Docker-CI-brightgreen?logo=docker" alt="Docker CI" />
   </p>

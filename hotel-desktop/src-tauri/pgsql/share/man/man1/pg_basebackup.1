@@ -2,12 +2,12 @@
 .\"     Title: pg_basebackup
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "PG_BASEBACKUP" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "PG_BASEBACKUP" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -38,11 +38,21 @@ pg_basebackup
 is used to take a base backup of a running
 PostgreSQL
 database cluster\&. The backup is taken without affecting other clients of the database, and can be used both for point\-in\-time recovery (see
-Section\ \&26.3) and as the starting point for a log\-shipping or streaming\-replication standby server (see
-Section\ \&27.2)\&.
+Section\ \&25.3) and as the starting point for a log\-shipping or streaming\-replication standby server (see
+Section\ \&26.2)\&.
 .PP
 pg_basebackup
-makes an exact copy of the database cluster\*(Aqs files, while making sure the server is put into and out of backup mode automatically\&. Backups are always taken of the entire database cluster; it is not possible to back up individual databases or database objects\&. For selective backups, another tool such as
+can take a full or incremental base backup of the database\&. When used to take a full backup, it makes an exact copy of the database cluster\*(Aqs files\&. When used to take an incremental backup, some files that would have been part of a full backup may be replaced with incremental versions of the same files, containing only those blocks that have been modified since the reference backup\&. An incremental backup cannot be used directly; instead,
+\fBpg_combinebackup\fR(1)
+must first be used to combine it with the previous backups upon which it depends\&. See
+Section\ \&25.3.3
+for more information about incremental backups, and
+Section\ \&25.3.5
+for steps to recover from a backup\&.
+.PP
+In any mode,
+pg_basebackup
+makes sure the server is put into and out of backup mode automatically\&. Backups are always taken of the entire database cluster; it is not possible to back up individual databases or database objects\&. For selective backups, another tool such as
 \fBpg_dump\fR(1)
 must be used\&.
 .PP
@@ -51,7 +61,7 @@ PostgreSQL
 connection that uses the replication protocol\&. The connection must be made with a user ID that has
 REPLICATION
 permissions (see
-Section\ \&22.2) or is a superuser, and
+Section\ \&21.2) or is a superuser, and
 pg_hba\&.conf
 must permit the replication connection\&. The server must also be configured with
 max_wal_senders
@@ -121,11 +131,7 @@ If the standby is promoted to be primary during backup, the backup fails\&.
 .\}
 All WAL records required for the backup must contain sufficient full\-page writes, which requires you to enable
 \fIfull_page_writes\fR
-on the primary and not to use a tool like
-pg_compresslog
-as
-\fIarchive_command\fR
-to remove full\-page writes from WAL files\&.
+on the primary\&.
 .RE
 .PP
 Whenever
@@ -133,7 +139,7 @@ pg_basebackup
 is taking a base backup, the server\*(Aqs
 pg_stat_progress_basebackup
 view will report the progress of the backup\&. See
-Section\ \&28.4.5
+Section\ \&27.4.6
 for details\&.
 .SH "OPTIONS"
 .PP
@@ -188,6 +194,14 @@ gzip\&. This is only allowed if the cluster has no additional tablespaces and WA
 .RE
 .RE
 .PP
+\fB\-i \fR\fB\fIold_manifest_file\fR\fR
+.br
+\fB\-\-incremental=\fR\fB\fIold_manifest_file\fR\fR
+.RS 4
+Performs an
+incremental backup\&. The backup manifest for the reference backup must be provided, and will be uploaded to the server, which will respond by sending the requested incremental backup\&.
+.RE
+.PP
 \fB\-R\fR
 .br
 \fB\-\-write\-recovery\-conf\fR
@@ -203,7 +217,34 @@ The
 postgresql\&.auto\&.conf
 file will record the connection settings and, if specified, the replication slot that
 pg_basebackup
-is using, so that streaming replication will use the same settings later on\&.
+is using, so that streaming replication and
+logical replication slot synchronization
+will use the same settings later on\&. The dbname will be recorded only if the dbname was specified explicitly in the connection string or
+environment variable\&.
+.RE
+.PP
+\fB\-t \fR\fB\fItarget\fR\fR
+.br
+\fB\-\-target=\fR\fB\fItarget\fR\fR
+.RS 4
+Instructs the server where to place the base backup\&. The default target is
+client, which specifies that the backup should be sent to the machine where
+pg_basebackup
+is running\&. If the target is instead set to
+server:/some/path, the backup will be stored on the machine where the server is running in the
+/some/path
+directory\&. Storing a backup on the server requires superuser privileges or having privileges of the
+pg_write_server_files
+role\&. If the target is set to
+blackhole, the contents are discarded and not stored anywhere\&. This should only be used for testing purposes, as you will not end up with an actual backup\&.
+.sp
+Since WAL streaming is implemented by
+pg_basebackup
+rather than by the server, this option cannot be used together with
+\-Xstream\&. Since that is the default, when this option is specified, you must also specify either
+\-Xfetch
+or
+\-Xnone\&.
 .RE
 .PP
 \fB\-T \fR\fB\fIolddir\fR\fR\fB=\fR\fB\fInewdir\fR\fR
@@ -250,7 +291,7 @@ need not exist already, but if it does exist it must be empty\&. This option can
 .RS 4
 Includes the required WAL (write\-ahead log) files in the backup\&. This will include all write\-ahead logs generated during the backup\&. Unless the method
 none
-is specified, it is possible to start a postmaster in the target directory without the need to consult the log archive, thus making the output a completely standalone backup\&.
+is specified, it is possible to start a postmaster in the target directory without the need to consult the WAL archive, thus making the output a completely standalone backup\&.
 .sp
 The following
 \fImethod\fRs for collecting the write\-ahead logs are supported:
@@ -301,21 +342,67 @@ will automatically be added to all tar filenames\&.
 .PP
 \fB\-Z \fR\fB\fIlevel\fR\fR
 .br
+\fB\-Z [{client|server}\-]\fR\fB\fImethod\fR\fR\fB[:\fR\fB\fIdetail\fR\fR\fB]\fR
+.br
 \fB\-\-compress=\fR\fB\fIlevel\fR\fR
+.br
+\fB\-\-compress=[{client|server}\-]\fR\fB\fImethod\fR\fR\fB[:\fR\fB\fIdetail\fR\fR\fB]\fR
 .RS 4
-Enables gzip compression of tar file output, and specifies the compression level (0 through 9, 0 being no compression and 9 being best compression)\&. Compression is only available when using the tar format, and the suffix
-\&.gz
-will automatically be added to all tar filenames\&.
+Requests compression of the backup\&. If
+client
+or
+server
+is included, it specifies where the compression is to be performed\&. Compressing on the server will reduce transfer bandwidth but will increase server CPU consumption\&. The default is
+client
+except when
+\-\-target
+is used\&. In that case, the backup is not being sent to the client, so only server compression is sensible\&. When
+\-Xstream, which is the default, is used, server\-side compression will not be applied to the WAL\&. To compress the WAL, use client\-side compression, or specify
+\-Xfetch\&.
+.sp
+The compression method can be set to
+gzip,
+lz4,
+zstd,
+none
+for no compression or an integer (no compression if 0,
+gzip
+if greater than 0)\&. A compression detail string can optionally be specified\&. If the detail string is an integer, it specifies the compression level\&. Otherwise, it should be a comma\-separated list of items, each of the form
+\fIkeyword\fR
+or
+\fIkeyword=value\fR\&. Currently, the supported keywords are
+level,
+long, and
+workers\&. The detail string cannot be used when the compression method is specified as a plain integer\&.
+.sp
+If no compression level is specified, the default compression level will be used\&. If only a level is specified without mentioning an algorithm,
+gzip
+compression will be used if the level is greater than 0, and no compression will be used if the level is 0\&.
+.sp
+When the tar format is used with
+gzip,
+lz4, or
+zstd, the suffix
+\&.gz,
+\&.lz4, or
+\&.zst, respectively, will be automatically added to all tar filenames\&. When the plain format is used, client\-side compression may not be specified, but it is still possible to request server\-side compression\&. If this is done, the server will compress the backup for transmission, and the client will decompress and extract it\&.
+.sp
+When this option is used in combination with
+\-Xstream,
+pg_wal\&.tar
+will be compressed using
+gzip
+if client\-side gzip compression is selected, but will not be compressed if any other compression algorithm is selected, or if server\-side compression is selected\&.
 .RE
 .PP
 The following command\-line options control the generation of the backup and the invocation of the program:
 .PP
-\fB\-c \fR\fB\fIfast|spread\fR\fR
+\fB\-c {fast|spread}\fR
 .br
-\fB\-\-checkpoint=\fR\fB\fIfast|spread\fR\fR
+\fB\-\-checkpoint={fast|spread}\fR
 .RS 4
 Sets checkpoint mode to fast (immediate) or spread (the default) (see
-Section\ \&26.3.3)\&.
+Section\ \&25.3.4)\&.
 .RE
 .PP
 \fB\-C\fR
@@ -397,6 +484,27 @@ is also used\&.
 If this option is not specified and the server supports temporary replication slots (version 10 and later), then a temporary replication slot is automatically used for WAL streaming\&.
 .RE
 .PP
+\fB\-\-sync\-method=\fR\fB\fImethod\fR\fR
+.RS 4
+When set to
+fsync, which is the default,
+\fBpg_basebackup\fR
+will recursively open and synchronize all files in the backup directory\&. When the plain format is used, the search for files will follow symbolic links for the WAL directory and each configured tablespace\&.
+.sp
+On Linux,
+syncfs
+may be used instead to ask the operating system to synchronize the whole file system that contains the backup directory\&. When the plain format is used,
+\fBpg_basebackup\fR
+will also synchronize the file systems that contain the WAL files and each tablespace\&. See
+recovery_init_sync_method
+for information about the caveats to be aware of when using
+syncfs\&.
+.sp
+This option has no effect when
+\fB\-\-no\-sync\fR
+is used\&.
+.RE
+.PP
 \fB\-v\fR
 .br
 \fB\-\-verbose\fR
@@ -424,7 +532,7 @@ SHA
 algorithms are significantly more CPU\-intensive than
 CRC32C, so selecting one of them may increase the time required to complete the backup\&.
 .sp
-Using a SHA hash function provides a cryptographically secure digest of each file for users who wish to verify that the backup has not been tampered with, while the CRC32C algorithm provides a checksum that is much faster to calculate; it is good at catching errors due to accidental changes but is not resistant to malicious modifications\&. Note that, to be useful against an adversary who has access to the backup, the backup manifest would need to be stored securely elsewhere or otherwise verified not to have been modified since the backup was taken\&.
+Using a SHA hash function provides a cryptographically secure digest of each file for users who wish to verify that the backup has not been tampered with, while the CRC\-32C algorithm provides a checksum that is much faster to calculate; it is good at catching errors due to accidental changes but is not resistant to malicious modifications\&. Note that, to be useful against an adversary who has access to the backup, the backup manifest would need to be stored securely elsewhere or otherwise verified not to have been modified since the backup was taken\&.
 .sp
 \fBpg_verifybackup\fR(1)
 can be used to check the integrity of a backup against the backup manifest\&.
@@ -487,11 +595,15 @@ The following command\-line options control the connection to the source server:
 Specifies parameters used to connect to the server, as a
 connection string; these will override any conflicting command line options\&.
 .sp
-The option is called
+This option is called
 \-\-dbname
 for consistency with other client applications, but because
 pg_basebackup
-doesn\*(Aqt connect to any particular database in the cluster, any database name in the connection string will be ignored\&.
+doesn\*(Aqt connect to any particular database in the cluster, any database name included in the connection string will be ignored by the server\&. However, a database name supplied that way overrides the default database name (replication) for purposes of looking up the replication connection\*(Aqs password in
+~/\&.pgpass\&. Similarly, middleware or proxies used in connecting to
+PostgreSQL
+might utilize the name for purposes such as connection routing\&. The database name can also be used by
+logical replication slot synchronization\&.
 .RE
 .PP
 \fB\-h \fR\fB\fIhost\fR\fR
@@ -578,7 +690,7 @@ PostgreSQL
 utilities, uses the environment variables supported by
 libpq
 (see
-Section\ \&34.15)\&.
+Section\ \&32.15)\&.
 .PP
 The environment variable
 \fBPG_COLOR\fR
@@ -595,8 +707,8 @@ is not used), during which
 pg_basebackup
 will appear to be idle\&.
 .PP
-The backup will include all files in the data directory and tablespaces, including the configuration files and any additional files placed in the directory by third parties, except certain temporary files managed by PostgreSQL\&. But only regular files and directories are copied, except that symbolic links used for tablespaces are preserved\&. Symbolic links pointing to certain directories known to PostgreSQL are copied as empty directories\&. Other symbolic links and special device files are skipped\&. See
-Section\ \&53.4
+The backup will include all files in the data directory and tablespaces, including the configuration files and any additional files placed in the directory by third parties, except certain temporary files managed by PostgreSQL and operating system files\&. But only regular files and directories are copied, except that symbolic links used for tablespaces are preserved\&. Symbolic links pointing to certain directories known to PostgreSQL are copied as empty directories\&. Other symbolic links and special device files are skipped\&. See
+Section\ \&54.4
 for the precise details\&.
 .PP
 In plain format, tablespaces will be backed up to the same path they have on the source server, unless the option
@@ -610,7 +722,7 @@ base\&.tar
 file\&.
 .PP
 pg_basebackup
-works with servers of the same or an older major version, down to 9\&.1\&. However, WAL streaming mode (\-X stream) only works with server version 9\&.3 and later, and tar format (\-\-format=tar) only works with server version 9\&.5 and later\&.
+works with servers of the same or older major version, down to 9\&.1\&. However, WAL streaming mode (\-X stream) only works with server version 9\&.3 and later, the tar format (\-\-format=tar) only works with server version 9\&.5 and later, and incremental backup (\-\-incremental) only works with server version 17 and later\&.
 .PP
 pg_basebackup
 will preserve group permissions for data files if group permissions are enabled on the source cluster\&.
@@ -673,5 +785,20 @@ $ \fBpg_basebackup \-D backup/data \-T /opt/ts=$(pwd)/backup/ts\fR
 .if n \{\
 .RE
 .\}
+.PP
+To create a backup of the local server with one tar file for each tablespace compressed with
+gzip
+at level 9, stored in the directory
+backup:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+$ \fBpg_basebackup \-D backup \-Ft \-\-compress=gzip:9\fR
+.fi
+.if n \{\
+.RE
+.\}
 .SH "SEE ALSO"
-\fBpg_dump\fR(1), Section\ \&28.4.5
+\fBpg_dump\fR(1), Section\ \&27.4.6

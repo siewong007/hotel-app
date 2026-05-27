@@ -2,12 +2,12 @@
 .\"     Title: SET
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "SET" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "SET" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -40,9 +40,11 @@ SET [ SESSION | LOCAL ] TIME ZONE { \fIvalue\fR | \*(Aq\fIvalue\fR\*(Aq | LOCAL 
 The
 \fBSET\fR
 command changes run\-time configuration parameters\&. Many of the run\-time parameters listed in
-Chapter\ \&20
+Chapter\ \&19
 can be changed on\-the\-fly with
-\fBSET\fR\&. (But some require superuser privileges to change, and others cannot be changed after server or session start\&.)
+\fBSET\fR\&. (Some parameters can only be changed by superusers and users who have been granted
+SET
+privilege on that parameter\&. There are also parameters that cannot be changed after server or session start\&.)
 \fBSET\fR
 only affects the value used by the current session\&.
 .PP
@@ -132,7 +134,7 @@ or
 \fIconfiguration_parameter\fR
 .RS 4
 Name of a settable run\-time parameter\&. Available parameters are documented in
-Chapter\ \&20
+Chapter\ \&19
 and below\&.
 .RE
 .PP
@@ -146,7 +148,7 @@ had been executed in the current session)\&.
 .RE
 .PP
 Besides the configuration parameters documented in
-Chapter\ \&20, there are a few that can only be adjusted using the
+Chapter\ \&19, there are a few that can only be adjusted using the
 \fBSET\fR
 command or that have a special syntax:
 .PP
@@ -159,7 +161,7 @@ SET search_path TO \fIvalue\fR\&. Only one schema can be specified using this sy
 .PP
 NAMES
 .RS 4
-SET NAMES \fIvalue\fR
+SET NAMES \*(Aq\fIvalue\fR\*(Aq
 is an alias for
 SET client_encoding TO \fIvalue\fR\&.
 .RE
@@ -235,7 +237,7 @@ for more information about time zones\&.
 The function
 \fBset_config\fR
 provides equivalent functionality; see
-Section\ \&9.27.1\&. Also, it is possible to UPDATE the
+Section\ \&9.28.1\&. Also, it is possible to UPDATE the
 pg_settings
 system view to perform the equivalent of
 \fBSET\fR\&.

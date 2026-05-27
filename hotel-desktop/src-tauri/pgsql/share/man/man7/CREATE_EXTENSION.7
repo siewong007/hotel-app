@@ -2,12 +2,12 @@
 .\"     Title: CREATE EXTENSION
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE EXTENSION" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE EXTENSION" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -71,7 +71,8 @@ Do not throw an error if an extension with the same name already exists\&. A not
 The name of the extension to be installed\&.
 PostgreSQL
 will create the extension using details from the file
-SHAREDIR/extension/\fIextension_name\fR\&.control\&.
+\fIextension_name\fR\&.control, found via the server\*(Aqs extension control path (set by
+extension_control_path\&.)
 .RE
 .PP
 \fIschema_name\fR
@@ -148,7 +149,7 @@ are believed to be secure against installation\-time attacks of this sort, excep
 .RE
 .PP
 For information about writing new extensions, see
-Section\ \&38.17\&.
+Section\ \&36.17\&.
 .SH "EXAMPLES"
 .PP
 Install the

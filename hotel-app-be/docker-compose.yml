@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:18.4-alpine
     container_name: hotel-app-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-hotel_admin}

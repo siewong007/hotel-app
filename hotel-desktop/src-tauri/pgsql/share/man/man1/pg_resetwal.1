@@ -2,12 +2,12 @@
 .\"     Title: pg_resetwal
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "PG_RESETWAL" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "PG_RESETWAL" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -39,13 +39,21 @@ clears the write\-ahead log (WAL) and optionally resets some other control infor
 pg_control
 file\&. This function is sometimes needed if these files have become corrupted\&. It should be used only as a last resort, when the server will not start due to such corruption\&.
 .PP
-After running this command, it should be possible to start the server, but bear in mind that the database might contain inconsistent data due to partially\-committed transactions\&. You should immediately dump your data, run
-\fBinitdb\fR, and restore\&. After restore, check for inconsistencies and repair as needed\&.
+Some options, such as
+\fB\-\-wal\-segsize\fR
+(see below), can also be used to modify certain global settings of a database cluster without the need to rerun
+\fBinitdb\fR\&. This can be done safely on an otherwise sound database cluster, if none of the dangerous modes mentioned below are used\&.
 .PP
-This utility can only be run by the user who installed the server, because it requires read/write access to the data directory\&. For safety reasons, you must specify the data directory on the command line\&.
+If
 \fBpg_resetwal\fR
-does not use the environment variable
-\fBPGDATA\fR\&.
+is used on a data directory where the server has been cleanly shut down and the control file is sound, then it will have no effect on the contents of the database system, except that no longer used WAL files are cleared away\&. Any other use is potentially dangerous and must be done with great care\&.
+\fBpg_resetwal\fR
+will require the
+\fB\-f\fR
+(force) option to be specified before working on a data directory in an unclean shutdown state or with a corrupted control file\&.
+.PP
+After running this command on a data directory with corrupted WAL or a corrupted control file, it should be possible to start the server, but bear in mind that the database might contain inconsistent data due to partially\-committed transactions\&. You should immediately dump your data, run
+\fBinitdb\fR, and restore\&. After restore, check for inconsistencies and repair as needed\&.
 .PP
 If
 \fBpg_resetwal\fR
@@ -57,7 +65,21 @@ pg_control, you can force it to proceed anyway by specifying the
 can still be used, but the recovered database must be treated with even more suspicion than usual: an immediate dump and restore is imperative\&.
 \fIDo not\fR
 execute any data\-modifying operations in the database before you dump, as any such action is likely to make the corruption worse\&.
+.PP
+This utility can only be run by the user who installed the server, because it requires read/write access to the data directory\&.
 .SH "OPTIONS"
+.PP
+\fIdatadir\fR
+.br
+\fB\-D \fR\fB\fIdatadir\fR\fR
+.br
+\fB\-\-pgdata=\fR\fB\fIdatadir\fR\fR
+.RS 4
+Specifies the location of the database directory\&. For safety reasons, you must specify the data directory on the command line\&.
+\fBpg_resetwal\fR
+does not use the environment variable
+\fBPGDATA\fR\&.
+.RE
 .PP
 \fB\-f\fR
 .br
@@ -65,8 +87,10 @@ execute any data\-modifying operations in the database before you dump, as any s
 .RS 4
 Force
 \fBpg_resetwal\fR
-to proceed even if it cannot determine valid data for
-pg_control, as explained above\&.
+to proceed even in situations where it could be dangerous, as explained above\&. Specifically, this option is required to proceed if the server had not been cleanly shut down or if
+\fBpg_resetwal\fR
+cannot determine valid data for
+pg_control\&.
 .RE
 .PP
 \fB\-n\fR
@@ -102,7 +126,7 @@ The following options are only needed when
 \fBpg_resetwal\fR
 is unable to determine appropriate values by reading
 pg_control\&. Safe values can be determined as described below\&. For values that take numeric arguments, hexadecimal values can be specified by using the prefix
-0x\&.
+0x\&. Note that these instructions only apply with the standard block size of 8 kB\&.
 .PP
 \fB\-c \fR\fB\fIxid\fR\fR\fB,\fR\fB\fIxid\fR\fR
 .br
@@ -206,32 +230,6 @@ pg_multixact/members
 under the data directory, adding one, and then multiplying by 52352 (0xCC80)\&. The file names are in hexadecimal\&. There is no simple recipe such as the ones for other options of appending zeroes\&.
 .RE
 .PP
-\fB\-\-wal\-segsize=\fR\fB\fIwal_segment_size\fR\fR
-.RS 4
-Set the new WAL segment size, in megabytes\&. The value must be set to a power of 2 between 1 and 1024 (megabytes)\&. See the same option of
-\fBinitdb\fR(1)
-for more information\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-While
-\fBpg_resetwal\fR
-will set the WAL starting address beyond the latest existing WAL segment file, some segment size changes can cause previous WAL file names to be reused\&. It is recommended to use
-\fB\-l\fR
-together with this option to manually set the WAL starting address if WAL file name overlap will cause problems with your archiving strategy\&.
-.sp .5v
-.RE
-.RE
-.PP
 \fB\-u \fR\fB\fIxid\fR\fR
 .br
 \fB\-\-oldest\-transaction\-id=\fR\fB\fIxid\fR\fR
@@ -262,6 +260,54 @@ is the largest entry in
 pg_xact,
 \-x 0x1200000
 will work (five trailing zeroes provide the proper multiplier)\&.
+.RE
+.PP
+\fB\-\-char\-signedness=\fR\fB\fIoption\fR\fR
+.RS 4
+Manually set the default char signedness\&. Possible values are
+signed
+and
+unsigned\&.
+.sp
+For a database cluster that
+\fBpg_upgrade\fR
+upgraded from a
+PostgreSQL
+version before 18, the safe value would be the default
+char
+signedness of the platform that ran the cluster before that upgrade\&. For all other clusters,
+signed
+would be the safe value\&. However, this option is exclusively for use with
+\fBpg_upgrade\fR
+and should not normally be used manually\&.
+.RE
+.PP
+\fB\-\-wal\-segsize=\fR\fB\fIwal_segment_size\fR\fR
+.RS 4
+Set the new WAL segment size, in megabytes\&. The value must be set to a power of 2 between 1 and 1024 (megabytes)\&. See the same option of
+\fBinitdb\fR(1)
+for more information\&.
+.sp
+This option can also be used to change the WAL segment size of an existing database cluster, avoiding the need to re\-\fBinitdb\fR\&.
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+While
+\fBpg_resetwal\fR
+will set the WAL starting address beyond the latest existing WAL segment file, some segment size changes can cause previous WAL file names to be reused\&. It is recommended to use
+\fB\-l\fR
+together with this option to manually set the WAL starting address if WAL file name overlap will cause problems with your archiving strategy\&.
+.sp .5v
+.RE
 .RE
 .SH "ENVIRONMENT"
 .PP

@@ -2,12 +2,12 @@
 .\"     Title: pg_archivecleanup
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "PG_ARCHIVECLEANUP" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "PG_ARCHIVECLEANUP" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -38,7 +38,7 @@ pg_archivecleanup
 is designed to be used as an
 archive_cleanup_command
 to clean up WAL file archives when running as a standby server (see
-Section\ \&27.2)\&.
+Section\ \&26.2)\&.
 pg_archivecleanup
 can also be used as a standalone program to clean WAL file archives\&.
 .PP
@@ -109,13 +109,26 @@ is a directory readable and writable by the server\-owning user\&.
 pg_archivecleanup
 accepts the following command\-line arguments:
 .PP
+\fB\-b\fR
+.br
+\fB\-\-clean\-backup\-history\fR
+.RS 4
+Remove backup history files as well\&. See
+Section\ \&25.3.2
+for details about backup history files\&.
+.RE
+.PP
 \fB\-d\fR
+.br
+\fB\-\-debug\fR
 .RS 4
 Print lots of debug logging output on
 stderr\&.
 .RE
 .PP
 \fB\-n\fR
+.br
+\fB\-\-dry\-run\fR
 .RS 4
 Print the names of the files that would have been removed on
 stdout
@@ -131,7 +144,9 @@ pg_archivecleanup
 version and exit\&.
 .RE
 .PP
-\fB\-x\fR \fIextension\fR
+\fB\-x \fR\fB\fIextension\fR\fR
+.br
+\fB\-\-strip\-extension=\fR\fB\fIextension\fR\fR
 .RS 4
 Provide an extension that will be stripped from all file names before deciding if they should be deleted\&. This is typically useful for cleaning up archives that have been compressed during storage, and therefore have had an extension added by the compression program\&. For example:
 \-x \&.gz\&.

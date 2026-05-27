@@ -2,12 +2,12 @@
 .\"     Title: CREATE OPERATOR CLASS
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE OPERATOR CLASS" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE OPERATOR CLASS" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -60,7 +60,7 @@ option in
 \fBCREATE OPERATOR CLASS\fR\&. Without this option, the new class is placed into a family named the same as the new class (creating that family if it doesn\*(Aqt already exist)\&.
 .PP
 Refer to
-Section\ \&38.16
+Section\ \&36.16
 for further information\&.
 .SH "PARAMETERS"
 .PP
@@ -170,16 +170,6 @@ clauses can appear in any order\&.
 Because the index machinery does not check access permissions on functions before using them, including a function or operator in an operator class is tantamount to granting public execute permission on it\&. This is usually not an issue for the sorts of functions that are useful in an operator class\&.
 .PP
 The operators should not be defined by SQL functions\&. An SQL function is likely to be inlined into the calling query, which will prevent the optimizer from recognizing that the query matches an index\&.
-.PP
-Before
-PostgreSQL
-8\&.4, the
-OPERATOR
-clause could include a
-RECHECK
-option\&. This is no longer supported because whether an index operator is
-\(lqlossy\(rq
-is now determined on\-the\-fly at run time\&. This allows efficient handling of cases where an operator might or might not be lossy\&.
 .SH "EXAMPLES"
 .PP
 The following example command defines a GiST index operator class for the data type

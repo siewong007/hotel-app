@@ -2,12 +2,12 @@
 .\"     Title: INSERT
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "INSERT" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "INSERT" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -37,7 +37,8 @@ INSERT INTO \fItable_name\fR [ AS \fIalias\fR ] [ ( \fIcolumn_name\fR [, \&.\&.\
     [ OVERRIDING { SYSTEM | USER } VALUE ]
     { DEFAULT VALUES | VALUES ( { \fIexpression\fR | DEFAULT } [, \&.\&.\&.] ) [, \&.\&.\&.] | \fIquery\fR }
     [ ON CONFLICT [ \fIconflict_target\fR ] \fIconflict_action\fR ]
-    [ RETURNING { * | \fIoutput_expression\fR [ [ AS ] \fIoutput_name\fR ] } [, \&.\&.\&.] ]
+    [ RETURNING [ WITH ( { OLD | NEW } AS \fIoutput_alias\fR [, \&.\&.\&.] ) ]
+                { * | \fIoutput_expression\fR [ [ AS ] \fIoutput_name\fR ] } [, \&.\&.\&.] ]
 
 where \fIconflict_target\fR can be one of:
 
@@ -77,7 +78,7 @@ If the expression for any column is not of the correct data type, automatic type
 .PP
 \fBINSERT\fR
 into tables that lack unique indexes will not be blocked by concurrent activity\&. Tables with unique indexes might block if concurrent sessions perform actions that lock or modify rows matching the unique index values being inserted; the details are covered in
-Section\ \&62.5\&.
+Section\ \&63.5\&.
 ON CONFLICT
 can be used to specify an alternative action to raising a unique constraint or exclusion constraint violation error\&. (See
 ON CONFLICT Clause
@@ -112,13 +113,17 @@ privilege on the listed columns\&. Similarly, when
 ON CONFLICT DO UPDATE
 is specified, you only need
 UPDATE
-privilege on the column(s) that are listed to be updated\&. However,
-ON CONFLICT DO UPDATE
-also requires
+privilege on the column(s) that are listed to be updated\&. However, all forms of
+ON CONFLICT
+also require
 SELECT
-privilege on any column whose values are read in the
+privilege on any column whose values are read\&. This includes any column mentioned in
+\fIconflict_target\fR
+(including columns referred to by the arbiter constraint), and any column mentioned in an
 ON CONFLICT DO UPDATE
-expressions or
+\fIexpression\fR, or a
+WHERE
+clause
 \fIcondition\fR\&.
 .PP
 Use of the
@@ -247,6 +252,26 @@ statement) that supplies the rows to be inserted\&. Refer to the
 statement for a description of the syntax\&.
 .RE
 .PP
+\fIoutput_alias\fR
+.RS 4
+An optional substitute name for
+OLD
+or
+NEW
+rows in the
+RETURNING
+list\&.
+.sp
+By default, old values from the target table can be returned by writing
+OLD\&.\fIcolumn_name\fR
+or
+OLD\&.*, and new values can be returned by writing
+NEW\&.\fIcolumn_name\fR
+or
+NEW\&.*\&. When an alias is provided, these names are hidden and the old or new rows must be referred to using the alias\&. For example
+RETURNING WITH (OLD AS o, NEW AS n) o\&.*, n\&.*\&.
+.RE
+.PP
 \fIoutput_expression\fR
 .RS 4
 An expression to be computed and returned by the
@@ -255,6 +280,29 @@ command after each row is inserted or updated\&. The expression can use any colu
 \fItable_name\fR\&. Write
 *
 to return all columns of the inserted or updated row(s)\&.
+.sp
+A column name or
+*
+may be qualified using
+OLD
+or
+NEW, or the corresponding
+\fIoutput_alias\fR
+for
+OLD
+or
+NEW, to cause old or new values to be returned\&. An unqualified column name, or
+*, or a column name or
+*
+qualified using the target table name or alias will return new values\&.
+.sp
+For a simple
+\fBINSERT\fR, all old values will be
+NULL\&. However, for an
+\fBINSERT\fR
+with an
+ON CONFLICT DO UPDATE
+clause, the old values may be non\-NULL\&.
 .RE
 .PP
 \fIoutput_name\fR
@@ -466,6 +514,28 @@ CREATE UNIQUE INDEX \&.\&.\&. CONCURRENTLY
 before dropping the index being replaced\&.
 .sp .5v
 .RE
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBWarning\fR
+.ps -1
+.br
+.PP
+While
+\fBCREATE INDEX CONCURRENTLY\fR
+or
+\fBREINDEX CONCURRENTLY\fR
+is running on a unique index,
+\fBINSERT \&.\&.\&. ON CONFLICT\fR
+statements on the same table may unexpectedly fail with a unique violation\&.
+.sp .5v
+.RE
 .SH "OUTPUTS"
 .PP
 On successful completion, an
@@ -508,6 +578,14 @@ list, computed over the row(s) inserted or updated by the command\&.
 .SH "NOTES"
 .PP
 If the specified table is a partitioned table, each row is routed to the appropriate partition and inserted into it\&. If the specified table is a partition, an error will occur if one of the input rows violates the partition constraint\&.
+.PP
+You may also wish to consider using
+\fBMERGE\fR, since that allows mixing
+\fBINSERT\fR,
+\fBUPDATE\fR, and
+\fBDELETE\fR
+within a single statement\&. See
+\fBMERGE\fR(7)\&.
 .SH "EXAMPLES"
 .PP
 Insert a single row into table
@@ -669,6 +747,28 @@ INSERT INTO distributors (did, dname)
 .RE
 .\}
 .PP
+Insert or update new distributors as above, returning information about any existing values that were updated, together with the new data inserted\&. Note that the returned values for
+old_did
+and
+old_dname
+will be
+NULL
+for non\-conflicting rows:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+INSERT INTO distributors (did, dname)
+    VALUES (5, \*(AqGizmo Transglobal\*(Aq), (6, \*(AqAssociated Computing, Inc\*(Aq)
+    ON CONFLICT (did) DO UPDATE SET dname = EXCLUDED\&.dname
+    RETURNING old\&.did AS old_did, old\&.dname AS old_dname,
+              new\&.did AS new_did, new\&.dname AS new_dname;
+.fi
+.if n \{\
+.RE
+.\}
+.PP
 Insert a distributor, or do nothing for rows proposed for insertion when an existing, excluded row (a row with a matching constrained column or columns after before row insert triggers fire) exists\&. Example assumes a unique index has been defined that constrains values appearing in the
 did
 column:
@@ -744,7 +844,9 @@ with
 ON CONFLICT\&. Also, the case in which a column name list is omitted, but not all the columns are filled from the
 VALUES
 clause or
-\fIquery\fR, is disallowed by the standard\&.
+\fIquery\fR, is disallowed by the standard\&. If you prefer a more SQL standard conforming statement than
+ON CONFLICT, see
+\fBMERGE\fR(7)\&.
 .PP
 The SQL standard specifies that
 OVERRIDING SYSTEM VALUE

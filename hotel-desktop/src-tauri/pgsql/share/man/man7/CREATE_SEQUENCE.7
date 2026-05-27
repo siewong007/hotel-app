@@ -2,12 +2,12 @@
 .\"     Title: CREATE SEQUENCE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE SEQUENCE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE SEQUENCE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -32,11 +32,13 @@ CREATE_SEQUENCE \- define a new sequence generator
 .SH "SYNOPSIS"
 .sp
 .nf
-CREATE [ TEMPORARY | TEMP ] SEQUENCE [ IF NOT EXISTS ] \fIname\fR
+CREATE [ { TEMPORARY | TEMP } | UNLOGGED ] SEQUENCE [ IF NOT EXISTS ] \fIname\fR
     [ AS \fIdata_type\fR ]
     [ INCREMENT [ BY ] \fIincrement\fR ]
     [ MINVALUE \fIminvalue\fR | NO MINVALUE ] [ MAXVALUE \fImaxvalue\fR | NO MAXVALUE ]
-    [ START [ WITH ] \fIstart\fR ] [ CACHE \fIcache\fR ] [ [ NO ] CYCLE ]
+    [ [ NO ] CYCLE ]
+    [ START [ WITH ] \fIstart\fR ]
+    [ CACHE \fIcache\fR ]
     [ OWNED BY { \fItable_name\fR\&.\fIcolumn_name\fR | NONE } ]
 .fi
 .SH "DESCRIPTION"
@@ -45,7 +47,7 @@ CREATE [ TEMPORARY | TEMP ] SEQUENCE [ IF NOT EXISTS ] \fIname\fR
 creates a new sequence number generator\&. This involves creating and initializing a new special single\-row table with the name
 \fIname\fR\&. The generator will be owned by the user issuing the command\&.
 .PP
-If a schema name is given then the sequence is created in the specified schema\&. Otherwise it is created in the current schema\&. Temporary sequences exist in a special schema, so a schema name cannot be given when creating a temporary sequence\&. The sequence name must be distinct from the name of any other sequence, table, index, view, or foreign table in the same schema\&.
+If a schema name is given then the sequence is created in the specified schema\&. Otherwise it is created in the current schema\&. Temporary sequences exist in a special schema, so a schema name cannot be given when creating a temporary sequence\&. The sequence name must be distinct from the name of any other relation (table, sequence, index, view, materialized view, or foreign table) in the same schema\&.
 .PP
 After a sequence is created, you use the functions
 \fBnextval\fR,
@@ -76,6 +78,13 @@ calls\&.)
 TEMPORARY or TEMP
 .RS 4
 If specified, the sequence object is created only for this session, and is automatically dropped on session exit\&. Existing permanent sequences with the same name are not visible (in this session) while the temporary sequence exists, unless they are referenced with schema\-qualified names\&.
+.RE
+.PP
+UNLOGGED
+.RS 4
+If specified, the sequence is created as an unlogged sequence\&. Changes to unlogged sequences are not written to the write\-ahead log\&. They are not crash\-safe: an unlogged sequence is automatically reset to its initial state after a crash or unclean shutdown\&. Unlogged sequences are also not replicated to standby servers\&.
+.sp
+Unlike unlogged tables, unlogged sequences do not offer a significant performance advantage\&. This option is mainly intended for sequences associated with unlogged tables via identity columns or serial columns\&. In those cases, it usually wouldn\*(Aqt make sense to have the sequence WAL\-logged and replicated but not its associated table\&.
 .RE
 .PP
 IF NOT EXISTS
@@ -129,24 +138,6 @@ determines the maximum value for the sequence\&. If this clause is not supplied 
 is specified, then default values will be used\&. The default for an ascending sequence is the maximum value of the data type\&. The default for a descending sequence is \-1\&.
 .RE
 .PP
-\fIstart\fR
-.RS 4
-The optional clause
-START WITH \fIstart\fR
-allows the sequence to begin anywhere\&. The default starting value is
-\fIminvalue\fR
-for ascending sequences and
-\fImaxvalue\fR
-for descending ones\&.
-.RE
-.PP
-\fIcache\fR
-.RS 4
-The optional clause
-CACHE \fIcache\fR
-specifies how many sequence numbers are to be preallocated and stored in memory for faster access\&. The minimum value is 1 (only one value can be generated at a time, i\&.e\&., no cache), and this is also the default\&.
-.RE
-.PP
 CYCLE
 .br
 NO CYCLE
@@ -173,6 +164,24 @@ NO CYCLE
 are specified,
 NO CYCLE
 is the default\&.
+.RE
+.PP
+\fIstart\fR
+.RS 4
+The optional clause
+START WITH \fIstart\fR
+allows the sequence to begin anywhere\&. The default starting value is
+\fIminvalue\fR
+for ascending sequences and
+\fImaxvalue\fR
+for descending ones\&.
+.RE
+.PP
+\fIcache\fR
+.RS 4
+The optional clause
+CACHE \fIcache\fR
+specifies how many sequence numbers are to be preallocated and stored in memory for faster access\&. The minimum value is 1 (only one value can be generated at a time, i\&.e\&., no cache), and this is also the default\&.
 .RE
 .PP
 OWNED BY \fItable_name\fR\&.\fIcolumn_name\fR

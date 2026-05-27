@@ -2,12 +2,12 @@
 .\"     Title: DROP SUBSCRIPTION
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "DROP SUBSCRIPTION" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "DROP SUBSCRIPTION" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -39,13 +39,18 @@ DROP SUBSCRIPTION [ IF EXISTS ] \fIname\fR [ CASCADE | RESTRICT ]
 \fBDROP SUBSCRIPTION\fR
 removes a subscription from the database cluster\&.
 .PP
-A subscription can only be dropped by a superuser\&.
+To execute this command the user must be the owner of the subscription\&.
 .PP
 \fBDROP SUBSCRIPTION\fR
 cannot be executed inside a transaction block if the subscription is associated with a replication slot\&. (You can use
 \fBALTER SUBSCRIPTION\fR
 to unset the slot\&.)
 .SH "PARAMETERS"
+.PP
+IF EXISTS
+.RS 4
+Do not throw an error if the subscription does not exist\&. A notice is issued in this case\&.
+.RE
 .PP
 \fIname\fR
 .RS 4
@@ -69,7 +74,7 @@ ALTER SUBSCRIPTION \&.\&.\&. DISABLE, and then disassociate it from the replicat
 ALTER SUBSCRIPTION \&.\&.\&. SET (slot_name = NONE)\&. After that,
 \fBDROP SUBSCRIPTION\fR
 will no longer attempt any actions on a remote host\&. Note that if the remote replication slot still exists, it (and any related table synchronization slots) should then be dropped manually; otherwise it/they will continue to reserve WAL and might eventually cause the disk to fill up\&. See also
-Section\ \&31.2.1\&.
+Section\ \&29.2.1\&.
 .PP
 If a subscription is associated with a replication slot, then
 \fBDROP SUBSCRIPTION\fR

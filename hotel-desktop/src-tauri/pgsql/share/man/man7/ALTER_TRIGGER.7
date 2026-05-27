@@ -2,12 +2,12 @@
 .\"     Title: ALTER TRIGGER
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "ALTER TRIGGER" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "ALTER TRIGGER" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -38,9 +38,13 @@ ALTER TRIGGER \fIname\fR ON \fItable_name\fR [ NO ] DEPENDS ON EXTENSION \fIexte
 .SH "DESCRIPTION"
 .PP
 \fBALTER TRIGGER\fR
-changes properties of an existing trigger\&. The
+changes properties of an existing trigger\&.
+.PP
+The
 RENAME
-clause changes the name of the given trigger without otherwise changing the trigger definition\&. The
+clause changes the name of the given trigger without otherwise changing the trigger definition\&. If the table that the trigger is on is a partitioned table, then corresponding clone triggers in the partitions are renamed too\&.
+.PP
+The
 DEPENDS ON EXTENSION
 clause marks the trigger as dependent on an extension, such that if the extension is dropped, the trigger will automatically be dropped as well\&.
 .PP

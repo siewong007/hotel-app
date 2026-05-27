@@ -2,12 +2,12 @@
 .\"     Title: REVOKE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "REVOKE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "REVOKE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -33,7 +33,7 @@ REVOKE \- remove access privileges
 .sp
 .nf
 REVOKE [ GRANT OPTION FOR ]
-    { { SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER }
+    { { SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER | MAINTAIN }
     [, \&.\&.\&.] | ALL [ PRIVILEGES ] }
     ON { [ TABLE ] \fItable_name\fR [, \&.\&.\&.]
          | ALL TABLES IN SCHEMA \fIschema_name\fR [, \&.\&.\&.] }
@@ -109,6 +109,13 @@ REVOKE [ GRANT OPTION FOR ]
     [ CASCADE | RESTRICT ]
 
 REVOKE [ GRANT OPTION FOR ]
+    { { SET | ALTER SYSTEM } [, \&.\&.\&.] | ALL [ PRIVILEGES ] }
+    ON PARAMETER \fIconfiguration_parameter\fR [, \&.\&.\&.]
+    FROM \fIrole_specification\fR [, \&.\&.\&.]
+    [ GRANTED BY \fIrole_specification\fR ]
+    [ CASCADE | RESTRICT ]
+
+REVOKE [ GRANT OPTION FOR ]
     { { CREATE | USAGE } [, \&.\&.\&.] | ALL [ PRIVILEGES ] }
     ON SCHEMA \fIschema_name\fR [, \&.\&.\&.]
     FROM \fIrole_specification\fR [, \&.\&.\&.]
@@ -129,7 +136,7 @@ REVOKE [ GRANT OPTION FOR ]
     [ GRANTED BY \fIrole_specification\fR ]
     [ CASCADE | RESTRICT ]
 
-REVOKE [ ADMIN OPTION FOR ]
+REVOKE [ { ADMIN | INHERIT | SET } OPTION FOR ]
     \fIrole_name\fR [, \&.\&.\&.] FROM \fIrole_specification\fR [, \&.\&.\&.]
     [ GRANTED BY \fIrole_specification\fR ]
     [ CASCADE | RESTRICT ]
@@ -186,12 +193,22 @@ When revoking privileges on a table, the corresponding column privileges (if any
 When revoking membership in a role,
 GRANT OPTION
 is instead called
-ADMIN OPTION, but the behavior is similar\&. This form of the command also allows a
-GRANTED BY
-option, but that option is currently ignored (except for checking the existence of the named role)\&. Note also that this form of the command does not allow the noise word
+ADMIN OPTION, but the behavior is similar\&. Note that, in releases prior to
+PostgreSQL
+16, dependent privileges were not tracked for grants of role membership, and thus
+CASCADE
+had no effect for role membership\&. This is no longer the case\&. Note also that this form of the command does not allow the noise word
 GROUP
 in
 \fIrole_specification\fR\&.
+.PP
+Just as
+ADMIN OPTION
+can be removed from an existing role grant, it is also possible to revoke
+INHERIT OPTION
+or
+SET OPTION\&. This is equivalent to setting the value of the corresponding option to
+FALSE\&.
 .SH "NOTES"
 .PP
 A user can only revoke privileges that were granted directly by that user\&. If, for example, user A has granted a privilege with grant option to user B, and user B has in turn granted it to user C, then user A cannot revoke the privilege directly from C\&. Instead, user A could revoke the grant option from user B and use the
@@ -208,7 +225,9 @@ If a superuser chooses to issue a
 \fBGRANT\fR
 or
 \fBREVOKE\fR
-command, the command is performed as though it were issued by the owner of the affected object\&. Since all privileges ultimately come from the object owner (possibly indirectly via chains of grant options), it is possible for a superuser to revoke all privileges, but this might require use of
+command, the command is performed as though it were issued by the owner of the affected object\&. (Since roles do not have owners, in the case of a
+\fBGRANT\fR
+of role membership, the command is performed as though it were issued by the bootstrap superuser\&.) Since all privileges ultimately come from the object owner (possibly indirectly via chains of grant options), it is possible for a superuser to revoke all privileges, but this might require use of
 CASCADE
 as stated above\&.
 .PP
@@ -240,7 +259,7 @@ to become the specific role you want to do the
 as\&. Failure to do so might lead to revoking privileges other than the ones you intended, or not revoking anything at all\&.
 .PP
 See
-Section\ \&5.7
+Section\ \&5.8
 for more information about specific privilege types, as well as how to inspect objects\*(Aq privileges\&.
 .SH "EXAMPLES"
 .PP

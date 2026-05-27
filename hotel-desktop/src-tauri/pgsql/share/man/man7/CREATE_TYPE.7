@@ -2,12 +2,12 @@
 .\"     Title: CREATE TYPE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE TYPE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE TYPE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -272,7 +272,7 @@ to
 VARIABLE\&. (Internally, this is represented by setting
 typlen
 to \-1\&.) The internal representation of all variable\-length types must start with a 4\-byte integer giving the total length of this value of the type\&. (Note that the length field is often encoded, as described in
-Section\ \&70.2; it\*(Aqs unwise to access it directly\&.)
+Section\ \&66.2; it\*(Aqs unwise to access it directly\&.)
 .PP
 The optional flag
 PASSEDBYVALUE
@@ -310,9 +310,9 @@ values other than
 plain
 imply that the functions of the data type can handle values that have been
 toasted, as described in
-Section\ \&70.2
+Section\ \&66.2
 and
-Section\ \&38.13.1\&. The specific other value given merely determines the default TOAST storage strategy for columns of a toastable data type; users can pick other strategies for individual columns using
+Section\ \&36.13.1\&. The specific other value given merely determines the default TOAST storage strategy for columns of a toastable data type; users can pick other strategies for individual columns using
 ALTER TABLE SET STORAGE\&.
 .PP
 The
@@ -543,7 +543,7 @@ The category code (a single ASCII character) for this type\&. The default is
 \*(AqU\*(Aq
 for
 \(lquser\-defined type\(rq\&. Other standard category codes can be found in
-Table\ \&52.63\&. You may also choose other ASCII characters in order to create custom categories\&.
+Table\ \&52.65\&. You may also choose other ASCII characters in order to create custom categories\&.
 .RE
 .PP
 \fIpreferred\fR
@@ -591,6 +591,18 @@ CREATE TYPE \fIname\fR
 did not exist\&. The way to create a new base type was to create its input function first\&. In this approach,
 PostgreSQL
 will first see the name of the new data type as the return type of the input function\&. The shell type is implicitly created in this situation, and then it can be referenced in the definitions of the remaining I/O functions\&. This approach still works, but is deprecated and might be disallowed in some future release\&. Also, to avoid accidentally cluttering the catalogs with shell types as a result of simple typos in function definitions, a shell type will only be made this way when the input function is written in C\&.
+.PP
+In
+PostgreSQL
+version 16 and later, it is desirable for base types\*(Aq input functions to return
+\(lqsoft\(rq
+errors using the new
+\fBerrsave()\fR/\fBereturn()\fR
+mechanism, rather than throwing
+\fBereport()\fR
+exceptions as in previous versions\&. See
+src/backend/utils/fmgr/README
+for more information\&.
 .SH "EXAMPLES"
 .PP
 This example creates a composite type and uses it in a function definition:
@@ -710,7 +722,7 @@ CREATE TABLE big_objs (
 .\}
 .PP
 More examples, including suitable input and output functions, are in
-Section\ \&38.13\&.
+Section\ \&36.13\&.
 .SH "COMPATIBILITY"
 .PP
 The first form of the

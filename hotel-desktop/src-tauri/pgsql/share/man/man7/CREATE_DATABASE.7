@@ -2,12 +2,12 @@
 .\"     Title: CREATE DATABASE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE DATABASE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE DATABASE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -36,13 +36,20 @@ CREATE DATABASE \fIname\fR
     [ WITH ] [ OWNER [=] \fIuser_name\fR ]
            [ TEMPLATE [=] \fItemplate\fR ]
            [ ENCODING [=] \fIencoding\fR ]
+           [ STRATEGY [=] \fIstrategy\fR ]
            [ LOCALE [=] \fIlocale\fR ]
            [ LC_COLLATE [=] \fIlc_collate\fR ]
            [ LC_CTYPE [=] \fIlc_ctype\fR ]
+           [ BUILTIN_LOCALE [=] \fIbuiltin_locale\fR ]
+           [ ICU_LOCALE [=] \fIicu_locale\fR ]
+           [ ICU_RULES [=] \fIicu_rules\fR ]
+           [ LOCALE_PROVIDER [=] \fIlocale_provider\fR ]
+           [ COLLATION_VERSION = \fIcollation_version\fR ]
            [ TABLESPACE [=] \fItablespace_name\fR ]
            [ ALLOW_CONNECTIONS [=] \fIallowconn\fR ]
            [ CONNECTION LIMIT [=] \fIconnlimit\fR ]
            [ IS_TEMPLATE [=] \fIistemplate\fR ]
+           [ OID [=] \fIoid\fR ]
 .fi
 .SH "DESCRIPTION"
 .PP
@@ -73,7 +80,9 @@ The name of a database to create\&.
 .RS 4
 The role name of the user who will own the new database, or
 DEFAULT
-to use the default (namely, the user executing the command)\&. To create a database owned by another role, you must be a direct or indirect member of that role, or be a superuser\&.
+to use the default (namely, the user executing the command)\&. To create a database owned by another role, you must be able to
+SET ROLE
+to that role\&.
 .RE
 .PP
 \fItemplate\fR
@@ -91,16 +100,52 @@ DEFAULT
 to use the default encoding (namely, the encoding of the template database)\&. The character sets supported by the
 PostgreSQL
 server are described in
-Section\ \&24.3.1\&. See below for additional restrictions\&.
+Section\ \&23.3.1\&. See below for additional restrictions\&.
+.RE
+.PP
+\fIstrategy\fR
+.RS 4
+Strategy to be used in creating the new database\&. If the
+WAL_LOG
+strategy is used, the database will be copied block by block and each block will be separately written to the write\-ahead log\&. This is the most efficient strategy in cases where the template database is small, and therefore it is the default\&. The older
+FILE_COPY
+strategy is also available\&. This strategy writes a small record to the write\-ahead log for each tablespace used by the target database\&. Each such record represents copying an entire directory to a new location at the filesystem level\&. While this does reduce the write\-ahead log volume substantially, especially if the template database is large, it also forces the system to perform a checkpoint both before and after the creation of the new database\&. In some situations, this may have a noticeable negative impact on overall system performance\&. The
+FILE_COPY
+strategy is affected by the
+file_copy_method
+setting\&.
 .RE
 .PP
 \fIlocale\fR
 .RS 4
-This is a shortcut for setting
+Sets the default collation order and character classification in the new database\&. Collation affects the sort order applied to strings, e\&.g\&., in queries with
+ORDER BY, as well as the order used in indexes on text columns\&. Character classification affects the categorization of characters, e\&.g\&., lower, upper, and digit\&. Also sets the associated aspects of the operating system environment,
 LC_COLLATE
 and
-LC_CTYPE
-at once\&. If you specify this, you cannot specify either of those parameters\&.
+LC_CTYPE\&. The default is the same setting as the template database\&. See
+Section\ \&23.2.2.3.1
+and
+Section\ \&23.2.2.3.2
+for details\&.
+.sp
+Can be overridden by setting
+\fIlc_collate\fR,
+\fIlc_ctype\fR,
+\fIbuiltin_locale\fR, or
+\fIicu_locale\fR
+individually\&.
+.sp
+If
+\fIlocale_provider\fR
+is
+builtin, then
+\fIlocale\fR
+or
+\fIbuiltin_locale\fR
+must be specified and set to either
+C,
+C\&.UTF\-8, or
+PG_UNICODE_FAST\&.
 .if n \{\
 .sp
 .\}
@@ -126,12 +171,92 @@ ALTER DATABASE \&.\&.\&. SET\&.
 .PP
 \fIlc_collate\fR
 .RS 4
-Collation order (LC_COLLATE) to use in the new database\&. This affects the sort order applied to strings, e\&.g\&., in queries with ORDER BY, as well as the order used in indexes on text columns\&. The default is to use the collation order of the template database\&. See below for additional restrictions\&.
+Sets
+LC_COLLATE
+in the database server\*(Aqs operating system environment\&. The default is the setting of
+\fIlocale\fR
+if specified, otherwise the same setting as the template database\&. See below for additional restrictions\&.
+.sp
+If
+\fIlocale_provider\fR
+is
+libc, also sets the default collation order to use in the new database, overriding the setting
+\fIlocale\fR\&.
 .RE
 .PP
 \fIlc_ctype\fR
 .RS 4
-Character classification (LC_CTYPE) to use in the new database\&. This affects the categorization of characters, e\&.g\&., lower, upper and digit\&. The default is to use the character classification of the template database\&. See below for additional restrictions\&.
+Sets
+LC_CTYPE
+in the database server\*(Aqs operating system environment\&. The default is the setting of
+\fIlocale\fR
+if specified, otherwise the same setting as the template database\&. See below for additional restrictions\&.
+.sp
+If
+\fIlocale_provider\fR
+is
+libc, also sets the default character classification to use in the new database, overriding the setting
+\fIlocale\fR\&.
+.RE
+.PP
+\fIbuiltin_locale\fR
+.RS 4
+Specifies the builtin provider locale for the database default collation order and character classification, overriding the setting
+\fIlocale\fR\&. The
+locale provider
+must be
+builtin\&. The default is the setting of
+\fIlocale\fR
+if specified; otherwise the same setting as the template database\&.
+.sp
+The locales available for the
+builtin
+provider are
+C,
+C\&.UTF\-8
+and
+PG_UNICODE_FAST\&.
+.RE
+.PP
+\fIicu_locale\fR
+.RS 4
+Specifies the ICU locale (see
+Section\ \&23.2.2.3.2) for the database default collation order and character classification, overriding the setting
+\fIlocale\fR\&. The
+locale provider
+must be ICU\&. The default is the setting of
+\fIlocale\fR
+if specified; otherwise the same setting as the template database\&.
+.RE
+.PP
+\fIicu_rules\fR
+.RS 4
+Specifies additional collation rules to customize the behavior of the default collation of this database\&. This is supported for ICU only\&. See
+Section\ \&23.2.3.4
+for details\&.
+.RE
+.PP
+\fIlocale_provider\fR
+.RS 4
+Specifies the provider to use for the default collation in this database\&. Possible values are
+builtin,
+icu
+(if the server was built with ICU support) or
+libc\&. By default, the provider is the same as that of the
+\fItemplate\fR\&. See
+Section\ \&23.1.4
+for details\&.
+.RE
+.PP
+\fIcollation_version\fR
+.RS 4
+Specifies the collation version string to store with the database\&. Normally, this should be omitted, which will cause the version to be computed from the actual version of the database collation as provided by the operating system\&. This option is intended to be used by
+\fBpg_upgrade\fR
+for copying the version from an existing installation\&.
+.sp
+See also
+ALTER DATABASE (\fBALTER_DATABASE\fR(7))
+for how to handle database collation version mismatches\&.
 .RE
 .PP
 \fItablespace_name\fR
@@ -159,6 +284,16 @@ How many concurrent connections can be made to this database\&. \-1 (the default
 If true, then this database can be cloned by any user with
 CREATEDB
 privileges; if false (the default), then only superusers or the owner of the database can clone it\&.
+.RE
+.PP
+\fIoid\fR
+.RS 4
+The object identifier to be used for the new database\&. If this parameter is not specified,
+PostgreSQL
+will choose a suitable OID automatically\&. This parameter is primarily intended for internal use by
+pg_upgrade, and only
+pg_upgrade
+can specify a value less than 16384\&.
 .RE
 .PP
 Optional parameters can be written in any order, not only the order illustrated above\&.
@@ -192,7 +327,7 @@ facility\&. The principal limitation is that no other sessions can be connected 
 will fail if any other connection exists when it starts; otherwise, new connections to the template database are locked out until
 \fBCREATE DATABASE\fR
 completes\&. See
-Section\ \&23.3
+Section\ \&22.3
 for more information\&.
 .PP
 The character set encoding specified for the new database must be compatible with the chosen locale settings (LC_COLLATE
@@ -213,6 +348,10 @@ LC_COLLATE
 and
 LC_CTYPE\&. Copying such data would result in a database that is corrupt according to the new settings\&.
 template0, however, is known to not contain any data or indexes that would be affected\&.
+.PP
+There is currently no option to use a database locale with nondeterministic comparisons (see
+\fBCREATE COLLATION\fR
+for an explanation)\&. If this is needed, then per\-column collations would need to be used\&.
 .PP
 The
 CONNECTION LIMIT

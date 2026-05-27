@@ -2,12 +2,12 @@
 .\"     Title: oid2name
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "OID2NAME" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "OID2NAME" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -36,7 +36,7 @@ oid2name \- resolve OIDs and file nodes in a PostgreSQL data directory
 .PP
 oid2name
 is a utility program that helps administrators to examine the file structure used by PostgreSQL\&. To make use of it, you need to be familiar with the database file structure, which is described in
-Chapter\ \&70\&.
+Chapter\ \&66\&.
 .if n \{\
 .sp
 .\}
@@ -234,7 +234,7 @@ PostgreSQL
 utilities, also uses the environment variables supported by
 libpq
 (see
-Section\ \&34.15)\&.
+Section\ \&32.15)\&.
 .PP
 The environment variable
 \fBPG_COLOR\fR
@@ -288,7 +288,7 @@ $ ls \-lS * | head \-10
 \-rw\-\-\-\-\-\-\-  1 alvherre alvherre    163840 sep 14 09:50 16699
 \-rw\-\-\-\-\-\-\-  1 alvherre alvherre    122880 sep  6 17:51 16751
 
-$ # I wonder what file 155173 is \&.\&.\&.
+$ # What file is 155173?
 $ oid2name \-d alvherre \-f 155173
 From database "alvherre":
   Filenode  Table Name

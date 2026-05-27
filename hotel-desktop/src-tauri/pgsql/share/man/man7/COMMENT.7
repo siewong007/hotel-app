@@ -2,12 +2,12 @@
 .\"     Title: COMMENT
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "COMMENT" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "COMMENT" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -88,13 +88,13 @@ where \fIaggregate_signature\fR is:
 .SH "DESCRIPTION"
 .PP
 \fBCOMMENT\fR
-stores a comment about a database object\&.
+stores, replaces, or removes the comment on a database object\&.
 .PP
-Only one comment string is stored for each object, so to modify a comment, issue a new
+Only one comment string is stored for each object\&. Issuing a new
 \fBCOMMENT\fR
-command for the same object\&. To remove a comment, write
+command for the same object replaces the existing comment\&. Specifying
 NULL
-in place of the text string\&. Comments are automatically dropped when their object is dropped\&.
+or an empty string (\*(Aq\*(Aq) removes the comment\&. Comments are automatically dropped when their object is dropped\&.
 .PP
 A
 SHARE UPDATE EXCLUSIVE
@@ -104,7 +104,9 @@ For most kinds of object, only the object\*(Aqs owner can set the comment\&. Rol
 COMMENT ON ROLE
 is that you must be superuser to comment on a superuser role, or have the
 CREATEROLE
-privilege to comment on non\-superuser roles\&. Likewise, access methods don\*(Aqt have owners either; you must be superuser to comment on an access method\&. Of course, a superuser can comment on anything\&.
+privilege and have been granted
+ADMIN OPTION
+on the target role\&. Likewise, access methods don\*(Aqt have owners either; you must be superuser to comment on an access method\&. Of course, a superuser can comment on anything\&.
 .PP
 Comments can be viewed using
 psql\*(Aqs
@@ -116,7 +118,7 @@ uses, namely
 \fBcol_description\fR, and
 \fBshobj_description\fR
 (see
-Table\ \&9.75)\&.
+Table\ \&9.82)\&.
 .SH "PARAMETERS"
 .PP
 \fIobject_name\fR
@@ -224,14 +226,14 @@ The name of the language of the transform\&.
 .PP
 \fIstring_literal\fR
 .RS 4
-The new comment contents, written as a string literal\&.
+The new comment contents, written as a string literal\&. An empty string (\*(Aq\*(Aq) removes the comment\&.
 .RE
 .PP
 NULL
 .RS 4
 Write
 NULL
-to drop the comment\&.
+to remove the comment\&.
 .RE
 .SH "NOTES"
 .PP
@@ -309,10 +311,11 @@ COMMENT ON TEXT SEARCH CONFIGURATION my_config IS \*(AqSpecial word filtering\*(
 COMMENT ON TEXT SEARCH DICTIONARY swedish IS \*(AqSnowball stemmer for Swedish language\*(Aq;
 COMMENT ON TEXT SEARCH PARSER my_parser IS \*(AqSplits text into words\*(Aq;
 COMMENT ON TEXT SEARCH TEMPLATE snowball IS \*(AqSnowball stemmer\*(Aq;
-COMMENT ON TRANSFORM FOR hstore LANGUAGE plpythonu IS \*(AqTransform between hstore and Python dict\*(Aq;
+COMMENT ON TRANSFORM FOR hstore LANGUAGE plpython3u IS \*(AqTransform between hstore and Python dict\*(Aq;
 COMMENT ON TRIGGER my_trigger ON my_table IS \*(AqUsed for RI\*(Aq;
 COMMENT ON TYPE complex IS \*(AqComplex number data type\*(Aq;
 COMMENT ON VIEW my_view IS \*(AqView of departmental costs\*(Aq;
+COMMENT ON VIEW my_view IS NULL;
 .fi
 .if n \{\
 .RE

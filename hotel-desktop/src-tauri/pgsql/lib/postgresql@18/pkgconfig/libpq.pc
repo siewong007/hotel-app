@@ -1,0 +1,14 @@
+prefix=/opt/homebrew/Cellar/postgresql@18/18.4
+exec_prefix=${prefix}
+libdir=/opt/homebrew/lib/postgresql@18
+includedir=/opt/homebrew/include/postgresql@18
+
+Name: libpq
+Description: PostgreSQL libpq library
+URL: https://www.postgresql.org/
+Version: 18.4
+Requires: 
+Requires.private: libssl, libcrypto, libcurl
+Cflags: -I${includedir}
+Libs: -L${libdir} -lpq
+Libs.private: -L/opt/homebrew/opt/gettext/lib -L/opt/homebrew/opt/krb5/lib -L/opt/homebrew/opt/lz4/lib -L/opt/homebrew/opt/openssl@3/lib -L/opt/homebrew/opt/readline/lib -L/opt/homebrew/opt/zstd/lib -lpgcommon -lpgport -lpq-oauth -lintl -lssl -lcrypto -lgssapi_krb5 -lm -lldap_r
