@@ -138,7 +138,7 @@ const AnalyticsDashboard: React.FC = () => {
   const [totalGuests, setTotalGuests] = useState(0);
   const [revenueData, setRevenueData] = useState<{ name: string; revenue: number }[]>([]);
 
-  const loadData = useCallback(async () => {
+  const loadData = async () => {
     try {
       setLoading(true);
       const [rooms, bookings, guests, roomTypes] = await Promise.all([
@@ -251,11 +251,11 @@ const AnalyticsDashboard: React.FC = () => {
       setError('Failed to load analytics data');
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, []);
 
   if (error) {
     return (

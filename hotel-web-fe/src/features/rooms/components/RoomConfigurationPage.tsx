@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Box,
   Typography,
@@ -44,12 +44,21 @@ import {
   RemoveCircleOutline as MinusIcon,
   AddCircleOutline as PlusIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
 import { Room, RoomType, RoomTypeCreateInput, RoomTypeUpdateInput } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { toNumber } from '../../../utils/currency';
 import { emitApiNotification } from '../../../utils/apiNotifications';
+import {
+  useAllRoomTypes,
+  useCreateRoom,
+  useCreateRoomType,
+  useDeleteRoom,
+  useDeleteRoomType,
+  useRooms,
+  useUpdateRoom,
+  useUpdateRoomType,
+} from '../hooks/useRoomQueries';
 
 /* ---------- Design tokens (Salim Inn · Room Configuration) ---------- */
 const C = {
@@ -161,10 +170,15 @@ const RoomConfigurationPage: React.FC = () => {
     hasPermission('rooms:write') ||
     hasPermission('rooms:manage');
 
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const roomsQuery = useRooms(hasAccess);
+  const roomTypesQuery = useAllRoomTypes(hasAccess);
+  const createRoomMutation = useCreateRoom();
+  const updateRoomMutation = useUpdateRoom();
+  const deleteRoomMutation = useDeleteRoom();
+  const createRoomTypeMutation = useCreateRoomType();
+  const updateRoomTypeMutation = useUpdateRoomType();
+  const deleteRoomTypeMutation = useDeleteRoomType();
 
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | RoomStatus>('all');
@@ -185,26 +199,23 @@ const RoomConfigurationPage: React.FC = () => {
 
   const [formLoading, setFormLoading] = useState(false);
 
-  useEffect(() => {
-    if (hasAccess) loadData();
-  }, [hasAccess]);
-
   const loadData = async () => {
     try {
-      setLoading(true);
-      const [roomsData, typesData] = await Promise.all([
-        HotelAPIService.getAllRooms(),
-        HotelAPIService.getAllRoomTypes(),
-      ]);
-      setRooms(roomsData);
-      setRoomTypes([...typesData].sort((a, b) => a.sort_order - b.sort_order));
+      await Promise.all([roomsQuery.refetch(), roomTypesQuery.refetch()]);
       setError(null);
     } catch (err: any) {
       setError(err?.message || 'Failed to load data');
-    } finally {
-      setLoading(false);
     }
   };
+
+  const rooms = roomsQuery.data ?? [];
+  const roomTypes = useMemo(
+    () => [...(roomTypesQuery.data ?? [])].sort((a, b) => a.sort_order - b.sort_order),
+    [roomTypesQuery.data]
+  );
+  const queryError = roomsQuery.error || roomTypesQuery.error;
+  const loading = roomsQuery.isPending || roomTypesQuery.isPending;
+  const pageError = error || (queryError instanceof Error ? queryError.message : null);
 
   const typeByName = useMemo(() => {
     const m: Record<string, RoomType> = {};
@@ -336,11 +347,11 @@ const RoomConfigurationPage: React.FC = () => {
       };
       if (editingType) {
         const input: RoomTypeUpdateInput = { ...base, is_active: typeForm.is_active };
-        await HotelAPIService.updateRoomType(editingType.id, input);
+        await updateRoomTypeMutation.mutateAsync({ roomTypeId: editingType.id, data: input });
         emitApiNotification({ message: 'Room type updated successfully', severity: 'success' });
       } else {
         const input: RoomTypeCreateInput = base;
-        await HotelAPIService.createRoomType(input);
+        await createRoomTypeMutation.mutateAsync(input);
         emitApiNotification({ message: 'Room type created successfully', severity: 'success' });
       }
       setDrawerOpen(false);
@@ -366,7 +377,7 @@ const RoomConfigurationPage: React.FC = () => {
 
   const handleToggleTypeActive = async (t: RoomType) => {
     try {
-      await HotelAPIService.updateRoomType(t.id, { is_active: !t.is_active });
+      await updateRoomTypeMutation.mutateAsync({ roomTypeId: t.id, data: { is_active: !t.is_active } });
       emitApiNotification({
         message: `Room type ${t.is_active ? 'hidden from booking' : 'made bookable'}`,
         severity: 'success',
@@ -394,7 +405,7 @@ const RoomConfigurationPage: React.FC = () => {
         extra_bed_charge: toNumber(t.extra_bed_charge),
         sort_order: t.sort_order + 1,
       };
-      await HotelAPIService.createRoomType(input);
+      await createRoomTypeMutation.mutateAsync(input);
       emitApiNotification({ message: 'Room type duplicated', severity: 'success' });
       await loadData();
     } catch (err: any) {
@@ -406,7 +417,7 @@ const RoomConfigurationPage: React.FC = () => {
     if (!typeDeleteTarget) return;
     try {
       setFormLoading(true);
-      await HotelAPIService.deleteRoomType(typeDeleteTarget.id);
+      await deleteRoomTypeMutation.mutateAsync(typeDeleteTarget.id);
       emitApiNotification({ message: 'Room type deleted', severity: 'success' });
       setTypeDeleteTarget(null);
       await loadData();
@@ -442,7 +453,7 @@ const RoomConfigurationPage: React.FC = () => {
       const t = addingRoomFor;
       const price =
         roomForm.custom_price !== '' ? Number(roomForm.custom_price) : toNumber(t.base_price);
-      await HotelAPIService.createRoom({
+      await createRoomMutation.mutateAsync({
         room_number: roomForm.room_number.trim(),
         room_type: t.name,
         room_type_id: t.id,
@@ -467,12 +478,12 @@ const RoomConfigurationPage: React.FC = () => {
     if (!editingRoom) return;
     try {
       setFormLoading(true);
-      await HotelAPIService.updateRoom(editingRoom.id, {
+      await updateRoomMutation.mutateAsync({ roomId: editingRoom.id, data: {
         room_number: roomForm.room_number,
         price_per_night:
           roomForm.custom_price !== '' ? (Number(roomForm.custom_price) as any) : undefined,
         available: editingRoom.available,
-      });
+      } });
       emitApiNotification({ message: 'Room updated successfully', severity: 'success' });
       setEditingRoom(null);
       await loadData();
@@ -485,7 +496,7 @@ const RoomConfigurationPage: React.FC = () => {
 
   const handleToggleRoomStatus = async (r: Room) => {
     try {
-      await HotelAPIService.updateRoom(r.id, { available: !r.available });
+      await updateRoomMutation.mutateAsync({ roomId: r.id, data: { available: !r.available } });
       await loadData();
     } catch (err: any) {
       emitApiNotification({ message: err?.message || 'Failed to update room', severity: 'error' });
@@ -496,7 +507,7 @@ const RoomConfigurationPage: React.FC = () => {
     if (!deletingRoom) return;
     try {
       setFormLoading(true);
-      await HotelAPIService.deleteRoom(deletingRoom.id as unknown as number);
+      await deleteRoomMutation.mutateAsync(deletingRoom.id);
       emitApiNotification({ message: 'Room deleted successfully', severity: 'success' });
       setDeletingRoom(null);
       await loadData();
@@ -741,9 +752,9 @@ const RoomConfigurationPage: React.FC = () => {
         )}
       </Box>
 
-      {error && (
+      {pageError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
+          {pageError}
         </Alert>
       )}
 

@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import react, { reactCompilerPreset } from '@vitejs/plugin-react';
+import babel from '@rolldown/plugin-babel';
 
 const TAURI_MODES = new Set(['tauri', 'desktop']);
 const BACKEND_TARGET = 'http://127.0.0.1:3030';
@@ -17,7 +18,12 @@ export default defineConfig(({ mode }) => {
   const proxy = Object.fromEntries(PROXY_PREFIXES.map((path) => [path, BACKEND_TARGET]));
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      babel({
+        presets: [reactCompilerPreset()],
+      }),
+    ],
     // Preserve console output from sibling tools (e.g. Tauri's Rust compiler) during dev
     clearScreen: false,
     // Allow Tauri-injected env vars in addition to the standard VITE_ prefix

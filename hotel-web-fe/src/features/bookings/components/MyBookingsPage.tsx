@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -37,9 +37,11 @@ import {
   HotelOutlined as RoomIcon,
   Redeem as GiftIcon,
 } from '@mui/icons-material';
-import { HotelAPIService, GuestsService, BookingsService, RoomsService } from '../../../api';
-import { BookingWithDetails, Room } from '../../../types';
+import { BookingWithDetails } from '../../../types';
 import InvoiceModal from '../../invoices/components/InvoiceModal';
+import { useBookWithCreditsMutation, useMyBookings } from '../hooks/useBookingQueries';
+import { useMyGuestsWithCredits } from '../../guests/hooks/useGuestQueries';
+import { useRooms } from '../../rooms/hooks/useRoomQueries';
 
 // Type for guest with credits by room type
 interface GuestWithCredits {
@@ -56,17 +58,23 @@ interface GuestWithCredits {
 }
 
 const MyBookingsPage: React.FC = () => {
-  const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string>('');
 
   // Complimentary credits state - now with room type breakdown
-  const [guestsWithCredits, setGuestsWithCredits] = useState<GuestWithCredits[]>([]);
-  const [guestsLoading, setGuestsLoading] = useState(true);
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [roomsLoading, setRoomsLoading] = useState(false);
+  const myBookingsQuery = useMyBookings();
+  const guestsWithCreditsQuery = useMyGuestsWithCredits();
+  const roomsQuery = useRooms(false);
+  const bookWithCreditsMutation = useBookWithCreditsMutation();
+  const bookings = myBookingsQuery.data ?? [];
+  const loading = myBookingsQuery.isPending;
+  const queryError = myBookingsQuery.error instanceof Error ? myBookingsQuery.error.message : null;
+  const pageError = error || queryError;
+  const guestsWithCredits = (guestsWithCreditsQuery.data ?? []) as GuestWithCredits[];
+  const guestsLoading = guestsWithCreditsQuery.isPending;
+  const rooms = (roomsQuery.data ?? []).filter(room => room.available || room.status === 'available');
+  const roomsLoading = roomsQuery.isFetching;
 
   // Book with credits modal state
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
@@ -85,50 +93,17 @@ const MyBookingsPage: React.FC = () => {
   const [bookingSuccess, setBookingSuccess] = useState<string | null>(null);
 
   const loadMyBookings = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      // This will call a new endpoint that returns only the current user's bookings
-      const data = await HotelAPIService.getMyBookings();
-      setBookings(data);
-    } catch (err: any) {
-      console.error('Failed to load your bookings:', err);
-      setError(err.message || 'Failed to load your bookings. Please check your connection and try again.');
-    } finally {
-      setLoading(false);
-    }
+    setError(null);
+    await myBookingsQuery.refetch();
   };
 
   const loadGuestsWithCredits = async () => {
-    try {
-      setGuestsLoading(true);
-      const guests = await GuestsService.getMyGuestsWithCredits();
-      setGuestsWithCredits(guests);
-    } catch (err: any) {
-      console.error('Failed to load guests with credits:', err);
-    } finally {
-      setGuestsLoading(false);
-    }
+    await guestsWithCreditsQuery.refetch();
   };
 
   const loadAvailableRooms = async () => {
-    try {
-      setRoomsLoading(true);
-      const allRooms = await RoomsService.getAllRooms();
-      // Filter to only show available rooms
-      const availableRooms = allRooms.filter(room => room.available || room.status === 'available');
-      setRooms(availableRooms);
-    } catch (err: any) {
-      console.error('Failed to load rooms:', err);
-    } finally {
-      setRoomsLoading(false);
-    }
+    await roomsQuery.refetch();
   };
-
-  useEffect(() => {
-    loadMyBookings();
-    loadGuestsWithCredits();
-  }, []);
 
   const handleOpenBookingModal = (guest: GuestWithCredits) => {
     setSelectedGuest(guest);
@@ -239,7 +214,7 @@ const MyBookingsPage: React.FC = () => {
       setBookingSubmitting(true);
       setBookingError(null);
 
-      const result = await BookingsService.bookWithCredits({
+      const result = await bookWithCreditsMutation.mutateAsync({
         guest_id: selectedGuest.id,
         room_id: parseInt(bookingForm.room_id, 10),
         check_in_date: bookingForm.check_in_date,
@@ -257,8 +232,7 @@ const MyBookingsPage: React.FC = () => {
       setBookingSuccess(`Booking confirmed!${giftMessage} ${result.complimentary_nights} complimentary night(s) used for ${result.room_type}.${paidMessage}`);
 
       // Refresh data
-      loadMyBookings();
-      loadGuestsWithCredits();
+      await Promise.all([loadMyBookings(), loadGuestsWithCredits()]);
 
       // Close modal after 3 seconds
       setTimeout(() => {
@@ -332,7 +306,7 @@ const MyBookingsPage: React.FC = () => {
         </Button>
       </Box>
 
-      {error && (
+      {pageError && (
         <Alert
           severity="error"
           sx={{ mb: 3 }}
@@ -342,7 +316,7 @@ const MyBookingsPage: React.FC = () => {
             </Button>
           }
         >
-          {error}
+          {pageError}
         </Alert>
       )}
 

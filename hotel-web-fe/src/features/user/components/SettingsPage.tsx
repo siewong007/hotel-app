@@ -26,7 +26,8 @@ import {
 import { useAuth } from '../../../auth/AuthContext';
 import { setCurrentCurrency, SUPPORTED_CURRENCIES } from '../../../utils/currency';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { getHotelSettings, saveHotelSettings, HotelSettings, BookingChannel } from '../../../utils/hotelSettings';
+import { HotelSettings, BookingChannel } from '../../../utils/hotelSettings';
+import { useHotelSettingsQuery, useSaveHotelSettingsMutation } from '../hooks/useSettingsQueries';
 
 // Common timezones for hotels
 const TIMEZONES = [
@@ -51,9 +52,10 @@ const SettingsPage: React.FC = () => {
   const { hasRole } = useAuth();
   const isAdmin = hasRole('admin');
   const { symbol: currencySymbol } = useCurrency();
-
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const settingsQuery = useHotelSettingsQuery();
+  const saveSettingsMutation = useSaveHotelSettingsMutation();
+  const loading = settingsQuery.isPending;
+  const saving = saveSettingsMutation.isPending;
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -91,42 +93,38 @@ const SettingsPage: React.FC = () => {
     setNewChannelAbbreviation('');
   };
 
+  const applySettingsToForm = (settings: HotelSettings) => {
+    setHotelName(settings.hotel_name);
+    setHotelAddress(settings.hotel_address);
+    setHotelPhone(settings.hotel_phone);
+    setHotelEmail(settings.hotel_email);
+    setCheckInTime(settings.check_in_time);
+    setCheckOutTime(settings.check_out_time);
+    setNightShiftTime(settings.night_shift_time || '23:00');
+    setCurrency(settings.currency);
+    setTimezone(settings.timezone);
+    setDepositAmount(settings.deposit_amount);
+    setServiceTaxRate(settings.service_tax_rate);
+    setTourismTaxRate(settings.tourism_tax_rate);
+    setBookingChannels(settings.booking_channels);
+    setPaymentMethods(settings.payment_methods);
+  };
+
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (settingsQuery.data) {
+      applySettingsToForm(settingsQuery.data);
+    }
+  }, [settingsQuery.data]);
 
   const loadSettings = async () => {
-    try {
-      setLoading(true);
-      setError('');
-
-      // Load settings from localStorage
-      const settings = getHotelSettings();
-
-      setHotelName(settings.hotel_name);
-      setHotelAddress(settings.hotel_address);
-      setHotelPhone(settings.hotel_phone);
-      setHotelEmail(settings.hotel_email);
-      setCheckInTime(settings.check_in_time);
-      setCheckOutTime(settings.check_out_time);
-      setNightShiftTime(settings.night_shift_time || '23:00');
-      setCurrency(settings.currency);
-      setTimezone(settings.timezone);
-      setDepositAmount(settings.deposit_amount);
-      setServiceTaxRate(settings.service_tax_rate);
-      setTourismTaxRate(settings.tourism_tax_rate);
-      setBookingChannels(settings.booking_channels);
-      setPaymentMethods(settings.payment_methods);
-    } catch (err: any) {
-      console.error('Failed to load settings:', err);
-      setError('Failed to load settings');
-    } finally {
-      setLoading(false);
+    setError('');
+    const result = await settingsQuery.refetch();
+    if (result.data) {
+      applySettingsToForm(result.data);
     }
   };
 
   const saveSettings = async () => {
-    setSaving(true);
     setError('');
     setSuccess('');
 
@@ -149,8 +147,7 @@ const SettingsPage: React.FC = () => {
         payment_methods: paymentMethods
       };
 
-      // Save all settings to localStorage
-      saveHotelSettings(settings);
+      await saveSettingsMutation.mutateAsync(settings);
 
       // Save currency to localStorage and trigger update
       setCurrentCurrency(currency);
@@ -165,8 +162,6 @@ const SettingsPage: React.FC = () => {
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
       setError(err.message || 'Failed to save settings');
-    } finally {
-      setSaving(false);
     }
   };
 
