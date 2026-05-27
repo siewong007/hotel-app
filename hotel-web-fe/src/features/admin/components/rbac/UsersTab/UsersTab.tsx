@@ -41,8 +41,14 @@ import {
   Security as SecurityIcon,
 } from '@mui/icons-material';
 import type { User, Role } from '../../../../../types';
-import { HotelAPIService } from '../../../../../api';
+import type { CreateRbacUserInput, UpdateRbacUserInput } from '../../../../../api/admin.service';
 import { ROLE_COLORS } from '../constants';
+import {
+  useCreateUser,
+  useDeleteUser,
+  useReplaceUserRoles,
+  useUpdateUser,
+} from '../hooks/useRBACQueries';
 
 interface UserWithRoles extends User {
   roles?: Role[];
@@ -95,8 +101,16 @@ export const UsersTab: React.FC<UsersTabProps> = ({
   const [userToDelete, setUserToDelete] = useState<UserWithRoles | null>(null);
   const [formData, setFormData] = useState<UserFormData>(initialFormData);
   const [showPassword, setShowPassword] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const createUserMutation = useCreateUser();
+  const updateUserMutation = useUpdateUser();
+  const deleteUserMutation = useDeleteUser();
+  const replaceUserRolesMutation = useReplaceUserRoles();
+  const submitting =
+    createUserMutation.isPending ||
+    updateUserMutation.isPending ||
+    deleteUserMutation.isPending ||
+    replaceUserRolesMutation.isPending;
 
   const handleOpenCreate = () => {
     setEditingUser(null);
@@ -155,13 +169,12 @@ export const UsersTab: React.FC<UsersTabProps> = ({
       return;
     }
 
-    setSubmitting(true);
     setError(null);
 
     try {
       if (editingUser) {
         // Update existing user
-        const updateData: any = {
+        const updateData: UpdateRbacUserInput = {
           username: formData.username,
           email: formData.email,
           full_name: formData.full_name || undefined,
@@ -171,7 +184,10 @@ export const UsersTab: React.FC<UsersTabProps> = ({
           updateData.password = formData.password;
         }
 
-        const updatedUser = await HotelAPIService.updateUser(editingUser.id, updateData);
+        const updatedUser = await updateUserMutation.mutateAsync({
+          userId: editingUser.id,
+          input: updateData,
+        });
         onUserUpdated(updatedUser);
 
         // Update role assignments if changed
@@ -183,19 +199,23 @@ export const UsersTab: React.FC<UsersTabProps> = ({
           currentRoleIds.some((roleId) => !newRoleIds.includes(roleId));
 
         if (rolesChanged) {
-          await HotelAPIService.replaceUserRoles(editingUser.id, { role_ids: newRoleIds });
+          await replaceUserRolesMutation.mutateAsync({
+            userId: editingUser.id,
+            input: { role_ids: newRoleIds },
+          });
         }
 
         onRolesAssigned(editingUser.id, newRoleIds);
       } else {
         // Create new user
-        const newUser = await HotelAPIService.createUser({
+        const createInput: CreateRbacUserInput = {
           username: formData.username,
           email: formData.email,
           password: formData.password,
           full_name: formData.full_name || undefined,
           role_ids: formData.role_ids.length > 0 ? formData.role_ids : undefined,
-        });
+        };
+        const newUser = await createUserMutation.mutateAsync(createInput);
         onUserCreated(newUser);
         if (formData.role_ids.length > 0) {
           onRolesAssigned(newUser.id, formData.role_ids);
@@ -205,24 +225,19 @@ export const UsersTab: React.FC<UsersTabProps> = ({
       handleClose();
     } catch (err: any) {
       setError(err.message || 'Failed to save user');
-    } finally {
-      setSubmitting(false);
     }
   };
 
   const handleDelete = async () => {
     if (!userToDelete) return;
 
-    setSubmitting(true);
     try {
-      await HotelAPIService.deleteUser(userToDelete.id);
+      await deleteUserMutation.mutateAsync(userToDelete.id);
       onUserDeleted(userToDelete.id);
       setDeleteDialogOpen(false);
       setUserToDelete(null);
     } catch (err: any) {
       setError(err.message || 'Failed to delete user');
-    } finally {
-      setSubmitting(false);
     }
   };
 

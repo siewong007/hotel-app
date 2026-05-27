@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { SearchService, SearchGroup } from '../api/search.service';
+import { useQuery } from '@tanstack/react-query';
+import { SearchService, type SearchGroup } from '../api/search.service';
+import { useDebouncedValue } from './useDebouncedValue';
 
 interface Options {
   /** Restrict server search to these domains (e.g. ['bookings']). */
@@ -8,55 +9,38 @@ interface Options {
   enabled?: boolean;
 }
 
-/**
- * Debounced, abortable federated search with a request-id guard so a
- * slow response can never overwrite a newer one. Mirrors the pattern
- * used by useBookings/useLedgers.
- */
+const GLOBAL_SEARCH_STALE_TIME_MS = 30_000;
+
+export const globalSearchQueryKeys = {
+  all: ['global-search'] as const,
+  results: (query: string, typesKey: string) =>
+    [...globalSearchQueryKeys.all, query, typesKey] as const,
+};
+
 export function useGlobalSearch(query: string, opts: Options = {}) {
   const { types, enabled = true } = opts;
-  const [groups, setGroups] = useState<SearchGroup[]>([]);
-  const [loading, setLoading] = useState(false);
-  const reqId = useRef(0);
+  const trimmedQuery = query.trim();
+  const debouncedQuery = useDebouncedValue(trimmedQuery, 220);
   const typesKey = types?.join(',') || '';
+  const canSearch = enabled && debouncedQuery.length >= 2;
 
-  useEffect(() => {
-    const q = query.trim();
-    if (!enabled || q.length < 2) {
-      setGroups([]);
-      setLoading(false);
-      return;
-    }
+  const searchQuery = useQuery({
+    queryKey: globalSearchQueryKeys.results(debouncedQuery, typesKey),
+    queryFn: ({ signal }) =>
+      SearchService.search(debouncedQuery, {
+        types,
+        limit: 6,
+        signal,
+      }),
+    enabled: canSearch,
+    staleTime: GLOBAL_SEARCH_STALE_TIME_MS,
+  });
 
-    const id = ++reqId.current;
-    const controller = new AbortController();
-    setLoading(true);
+  const isDebouncing = enabled && trimmedQuery.length >= 2 && trimmedQuery !== debouncedQuery;
+  const groups: SearchGroup[] = canSearch ? searchQuery.data?.groups || [] : [];
 
-    const t = window.setTimeout(async () => {
-      try {
-        const res = await SearchService.search(q, {
-          types,
-          limit: 6,
-          signal: controller.signal,
-        });
-        if (id === reqId.current) {
-          setGroups(res.groups || []);
-          setLoading(false);
-        }
-      } catch (e: any) {
-        if (e?.name === 'AbortError') return;
-        if (id === reqId.current) {
-          setGroups([]);
-          setLoading(false);
-        }
-      }
-    }, 220);
-
-    return () => {
-      window.clearTimeout(t);
-      controller.abort();
-    };
-  }, [query, typesKey, enabled]);
-
-  return { groups, loading };
+  return {
+    groups,
+    loading: canSearch && (searchQuery.isLoading || searchQuery.isFetching || isDebouncing),
+  };
 }

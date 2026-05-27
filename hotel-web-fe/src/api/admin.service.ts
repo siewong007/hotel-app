@@ -16,6 +16,24 @@ import {
 } from '../types';
 import { withRetry } from '../utils/retry';
 
+export interface CreateRbacUserInput {
+  username: string;
+  email: string;
+  password: string;
+  full_name?: string;
+  phone?: string;
+  role_ids?: number[];
+}
+
+export interface UpdateRbacUserInput {
+  username?: string;
+  email?: string;
+  full_name?: string;
+  phone?: string;
+  is_active?: boolean;
+  password?: string;
+}
+
 export class AdminService {
   // RBAC Operations
   static async getRbacSnapshot(): Promise<RbacSnapshot> {
@@ -110,14 +128,7 @@ export class AdminService {
     );
   }
 
-  static async createUser(userData: {
-    username: string;
-    email: string;
-    password: string;
-    full_name?: string;
-    phone?: string;
-    role_ids?: number[]
-  }): Promise<User> {
+  static async createUser(userData: CreateRbacUserInput): Promise<User> {
     return await withRetry(
       () => api.post('rbac/users', { json: userData }).json<User>(),
       { maxAttempts: 2, initialDelay: 1000 }
@@ -131,14 +142,7 @@ export class AdminService {
     );
   }
 
-  static async updateUser(userId: string, userData: {
-    username?: string;
-    email?: string;
-    full_name?: string;
-    phone?: string;
-    is_active?: boolean;
-    password?: string;
-  }): Promise<User> {
+  static async updateUser(userId: string, userData: UpdateRbacUserInput): Promise<User> {
     return await withRetry(
       () => api.patch(`rbac/users/${userId}`, { json: userData }).json<User>(),
       { maxAttempts: 2, initialDelay: 1000 }

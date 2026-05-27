@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { api, HotelAPIService } from '../api';
 import { storage } from '../utils/storage';
 
@@ -63,6 +64,7 @@ const EMPTY_AUTH_STATE: AuthState = {
 const normalizeAccessValue = (value: string) => value.trim().toLowerCase();
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const queryClient = useQueryClient();
   const [authState, setAuthState] = useState<AuthState>({
     ...EMPTY_AUTH_STATE,
   });
@@ -127,6 +129,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const handleUnauthorized = () => {
       clearStoredAuth();
+      queryClient.clear();
       resetAuthState();
 
       // Use window.location since we're outside Router context
@@ -136,7 +139,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
-  }, [clearStoredAuth, resetAuthState]);
+  }, [clearStoredAuth, queryClient, resetAuthState]);
 
   const register = useCallback(async (data: { username: string; email: string; password: string; first_name: string; last_name: string; phone?: string }) => {
     try {
@@ -192,6 +195,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Invalidate cache to ensure immediate availability
       storage.invalidateCache();
+      queryClient.clear();
 
       // Set authenticated state immediately after successful login
       setAuthState({
@@ -238,12 +242,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       throw new Error(errorMessage);
     }
-  }, [checkPasskeys]);
+  }, [checkPasskeys, queryClient]);
 
   const logout = useCallback(() => {
     resetAuthState();
     clearStoredAuth();
-  }, [clearStoredAuth, resetAuthState]);
+    queryClient.clear();
+  }, [clearStoredAuth, queryClient, resetAuthState]);
 
   const dismissPasskeyPrompt = useCallback(() => {
     setAuthState(prev => ({
@@ -460,6 +465,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Invalidate cache to ensure immediate availability
       storage.invalidateCache();
+      queryClient.clear();
 
       // Set authenticated state
       setAuthState({
@@ -515,7 +521,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       throw new Error(errorMessage);
     }
-  }, []);
+  }, [queryClient]);
 
   const authContextValue = useMemo<AuthContextType>(() => ({
     ...authState,

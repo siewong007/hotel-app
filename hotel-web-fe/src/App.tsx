@@ -1,9 +1,12 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AppBar, Box, Container } from '@mui/material';
 import { BrowserRouter as Router, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth/AuthContext';
+import { queryClient } from './api/queryClient';
 import { createAppTheme, ThemeMode } from './theme';
 import { NavigationTabs } from './components/layout/NavigationTabs';
 import { UnauthRoutes, AuthRoutes, FirstLoginPasskeyPrompt, LoadingFallback, MinimalLoadingFallback } from './routes';
@@ -93,19 +96,22 @@ function App() {
   };
 
   return (
-    <ThemeProvider theme={activeTheme}>
-      <CssBaseline />
-      <ApiNotificationHost />
-      <DesktopServiceGate>
-        <AuthProvider>
-          <Router>
-            <Suspense fallback={<LoadingFallback />}>
-              <AppContent themeMode={themeMode} onThemeModeChange={handleThemeModeChange} />
-            </Suspense>
-          </Router>
-        </AuthProvider>
-      </DesktopServiceGate>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider theme={activeTheme}>
+        <CssBaseline />
+        <ApiNotificationHost />
+        <DesktopServiceGate>
+          <AuthProvider>
+            <Router>
+              <Suspense fallback={<LoadingFallback />}>
+                <AppContent themeMode={themeMode} onThemeModeChange={handleThemeModeChange} />
+              </Suspense>
+            </Router>
+          </AuthProvider>
+        </DesktopServiceGate>
+      </ThemeProvider>
+      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+    </QueryClientProvider>
   );
 }
 
