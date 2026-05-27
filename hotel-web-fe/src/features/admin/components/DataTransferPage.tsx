@@ -30,8 +30,9 @@ import {
   Warning as WarningIcon,
   Info as InfoIcon,
 } from '@mui/icons-material';
-import { DataTransferService, BookingDataExport, ImportResult } from '../../../api';
+import { BookingDataExport, ImportResult } from '../../../api';
 import { useAuth } from '../../../auth/AuthContext';
+import { useExportDataMutation, useImportDataMutation } from '../hooks/useDataTransferQueries';
 
 const TABLE_LABELS: Record<string, string> = {
   guests: 'Guests',
@@ -55,7 +56,6 @@ const TABLE_LABELS: Record<string, string> = {
 
 const DataTransferPage: React.FC = () => {
   const { hasRole } = useAuth();
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
@@ -63,6 +63,9 @@ const DataTransferPage: React.FC = () => {
   const [importFile, setImportFile] = useState<BookingDataExport | null>(null);
   const [importFileName, setImportFileName] = useState('');
   const [confirmDialog, setConfirmDialog] = useState<'import' | 'overwrite' | null>(null);
+  const exportDataMutation = useExportDataMutation();
+  const importDataMutation = useImportDataMutation();
+  const loading = exportDataMutation.isPending || importDataMutation.isPending;
 
   if (!hasRole('admin')) {
     return (
@@ -73,12 +76,11 @@ const DataTransferPage: React.FC = () => {
   }
 
   const handleExport = async () => {
-    setLoading(true);
     setError(null);
     setSuccess(null);
     setImportResult(null);
     try {
-      const data = await DataTransferService.exportData();
+      const data = await exportDataMutation.mutateAsync();
       setExportPreview(data);
 
       // Download as JSON file
@@ -95,8 +97,6 @@ const DataTransferPage: React.FC = () => {
       setSuccess('Data exported successfully! File has been downloaded.');
     } catch (err: any) {
       setError(err.message || 'Failed to export data');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -130,12 +130,11 @@ const DataTransferPage: React.FC = () => {
   const handleImport = async (mode: 'import' | 'overwrite') => {
     if (!importFile) return;
     setConfirmDialog(null);
-    setLoading(true);
     setError(null);
     setSuccess(null);
     setImportResult(null);
     try {
-      const result = await DataTransferService.importData(mode, importFile);
+      const result = await importDataMutation.mutateAsync({ mode, data: importFile });
       setImportResult(result);
       setSuccess(
         mode === 'overwrite'
@@ -144,8 +143,6 @@ const DataTransferPage: React.FC = () => {
       );
     } catch (err: any) {
       setError(err.message || 'Failed to import data');
-    } finally {
-      setLoading(false);
     }
   };
 

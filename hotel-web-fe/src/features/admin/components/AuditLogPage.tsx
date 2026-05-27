@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -30,15 +30,19 @@ import {
   Computer as CronIcon,
   CalendarToday as CalIcon,
 } from '@mui/icons-material';
-import { AuditService } from '../../../api';
 import {
   AuditLogEntry,
   AuditLogQuery,
-  AuditCategoryCounts,
   AuditCategoryId,
 } from '../../../types/audit.types';
 import { getActionLabel, getResourceLabel } from '../../../types/audit.types';
 import { emitApiNotification } from '../../../utils/apiNotifications';
+import {
+  useAuditCategoryCounts,
+  useAuditLogs,
+  useExportAuditCsv,
+  useExportAuditPdf,
+} from '../hooks/useAuditQueries';
 
 /* ---------- Salim Inn design tokens ---------- */
 const T = {
@@ -158,12 +162,6 @@ function buildDiff(details: Record<string, unknown> | null): { k: string; from: 
 }
 
 const AuditLogPage: React.FC = () => {
-  const [logs, setLogs] = useState<AuditLogEntry[]>([]);
-  const [total, setTotal] = useState(0);
-  const [counts, setCounts] = useState<AuditCategoryCounts | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
-
   const [activeCat, setActiveCat] = useState<AuditCategoryId>('rooms');
   const [verbFilter, setVerbFilter] = useState<Verb | 'all'>('all');
   const [searchInput, setSearchInput] = useState('');
@@ -181,41 +179,27 @@ const AuditLogPage: React.FC = () => {
     sort_order: 'desc',
   });
 
-  const fetchLogs = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await AuditService.getAuditLogs({ ...query, category: activeCat });
-      setLogs(response.data);
-      setTotal(response.total);
-    } catch (e) {
-      console.error('Failed to fetch audit logs:', e);
-      setLogs([]);
-      setTotal(0);
-    } finally {
-      setLoading(false);
-    }
-  }, [query, activeCat]);
-
-  const fetchCounts = useCallback(async () => {
-    try {
-      setCounts(
-        await AuditService.getCategoryCounts({
-          start_date: query.start_date,
-          end_date: query.end_date,
-          search: query.search,
-        })
-      );
-    } catch (e) {
-      console.error('Failed to fetch category counts:', e);
-    }
-  }, [query.start_date, query.end_date, query.search]);
-
-  useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
-  useEffect(() => {
-    fetchCounts();
-  }, [fetchCounts]);
+  const logQuery = useMemo(
+    () => ({ ...query, category: activeCat }),
+    [activeCat, query]
+  );
+  const countQuery = useMemo(
+    () => ({
+      start_date: query.start_date,
+      end_date: query.end_date,
+      search: query.search,
+    }),
+    [query.end_date, query.search, query.start_date]
+  );
+  const auditLogsQuery = useAuditLogs(logQuery);
+  const countsQuery = useAuditCategoryCounts(countQuery);
+  const exportCsvMutation = useExportAuditCsv();
+  const exportPdfMutation = useExportAuditPdf();
+  const logs = auditLogsQuery.data?.data ?? [];
+  const total = auditLogsQuery.data?.total ?? 0;
+  const counts = countsQuery.data ?? null;
+  const loading = auditLogsQuery.isPending;
+  const exporting = exportCsvMutation.isPending || exportPdfMutation.isPending;
 
   // debounce search into the query
   useEffect(() => {
@@ -286,24 +270,18 @@ const AuditLogPage: React.FC = () => {
 
   const handleExportCSV = async () => {
     try {
-      setExporting(true);
-      await AuditService.downloadCSV({ ...query, category: activeCat });
+      await exportCsvMutation.mutateAsync({ ...query, category: activeCat });
     } catch (e: any) {
       console.error('CSV export failed:', e);
       emitApiNotification({ message: e?.message || 'Failed to export CSV', severity: 'error' });
-    } finally {
-      setExporting(false);
     }
   };
   const handleExportPDF = async () => {
     try {
-      setExporting(true);
-      await AuditService.downloadPDF({ ...query, category: activeCat });
+      await exportPdfMutation.mutateAsync({ ...query, category: activeCat });
     } catch (e: any) {
       console.error('PDF export failed:', e);
       emitApiNotification({ message: e?.message || 'Failed to export PDF', severity: 'error' });
-    } finally {
-      setExporting(false);
     }
   };
 
@@ -323,7 +301,7 @@ const AuditLogPage: React.FC = () => {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { fetchLogs(); fetchCounts(); }} disabled={loading}
+          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { auditLogsQuery.refetch(); countsQuery.refetch(); }} disabled={loading}
             sx={{ textTransform: 'none', borderColor: T.border, color: T.ink }}>
             Refresh
           </Button>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Typography,
@@ -45,10 +45,16 @@ import {
   PictureAsPdf as PdfIcon,
   TableChart as CsvIcon,
 } from '@mui/icons-material';
-import { NightAuditService, NightAuditPreview, NightAuditRun, UnpostedBooking, JournalSection, AuditDetailsResponse } from '../../../api';
+import { NightAuditRun, UnpostedBooking, JournalSection, AuditDetailsResponse } from '../../../api';
 import { TabPanel, getTabA11yProps } from '../../../components/common/TabPanel';
 import { formatCurrency } from '../../../utils/currency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
+import {
+  useNightAuditDetailsFetcher,
+  useNightAuditPreview,
+  useNightAuditRuns,
+  useRunNightAudit,
+} from '../hooks/useNightAuditQueries';
 
 // Journal Sections Display Component
 interface JournalSectionsDisplayProps {
@@ -189,13 +195,19 @@ const NightAuditPage: React.FC = () => {
     const today = new Date();
     return today.toISOString().split('T')[0];
   });
-  const [preview, setPreview] = useState<NightAuditPreview | null>(null);
-  const [auditHistory, setAuditHistory] = useState<NightAuditRun[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const previewQuery = useNightAuditPreview(auditDate);
+  const historyQuery = useNightAuditRuns(1, 50);
+  const runAuditMutation = useRunNightAudit();
+  const fetchAuditDetails = useNightAuditDetailsFetcher();
+  const preview = previewQuery.data ?? null;
+  const auditHistory = historyQuery.data ?? [];
+  const loading = previewQuery.isPending || previewQuery.isFetching;
+  const historyLoading = historyQuery.isPending;
+  const running = runAuditMutation.isPending;
+  const queryError = previewQuery.error || historyQuery.error;
+  const effectiveError = error || (queryError instanceof Error ? queryError.message : null);
 
   // Confirmation dialog
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
@@ -225,7 +237,7 @@ const NightAuditPage: React.FC = () => {
     if (isExpanding && !auditDetails[auditId] && !detailsLoading.has(auditId)) {
       setDetailsLoading(prev => new Set(prev).add(auditId));
       try {
-        const details = await NightAuditService.getAuditDetails(auditId);
+        const details = await fetchAuditDetails(auditId);
         setAuditDetails(prev => ({ ...prev, [auditId]: details }));
       } catch (err) {
         console.error('Failed to fetch audit details:', err);
@@ -243,7 +255,7 @@ const NightAuditPage: React.FC = () => {
   const exportAuditToCSV = async (audit: NightAuditRun) => {
     try {
       // Fetch full audit details including bookings
-      const details = await NightAuditService.getAuditDetails(audit.id);
+      const details = await fetchAuditDetails(audit.id);
       const bookings = details.posted_bookings;
 
       // Build CSV content
@@ -336,7 +348,7 @@ const NightAuditPage: React.FC = () => {
   // Export single audit to PDF matching the night audit report format
   const exportAuditToPDF = async (audit: NightAuditRun) => {
     try {
-      const details = await NightAuditService.getAuditDetails(audit.id);
+      const details = await fetchAuditDetails(audit.id);
       const bookings = details.posted_bookings;
       const sections = details.journal_sections || [];
 
@@ -659,50 +671,22 @@ const NightAuditPage: React.FC = () => {
     }
   };
 
-  // Fetch preview
-  const fetchPreview = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await NightAuditService.getPreview(auditDate);
-      setPreview(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch preview');
-      setPreview(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [auditDate]);
+  const fetchPreview = async () => {
+    setError(null);
+    await previewQuery.refetch();
+  };
 
-  // Fetch history
-  const fetchHistory = useCallback(async () => {
-    try {
-      setHistoryLoading(true);
-      const data = await NightAuditService.listNightAudits(1, 50);
-      setAuditHistory(data);
-    } catch (err) {
-      console.error('Failed to fetch audit history:', err);
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchPreview();
-  }, [fetchPreview]);
-
-  useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
+  const fetchHistory = async () => {
+    await historyQuery.refetch();
+  };
 
   // Run night audit
   const handleRunAudit = async (force: boolean = false) => {
     try {
-      setRunning(true);
       setError(null);
       setConfirmDialogOpen(false);
 
-      const response = await NightAuditService.runNightAudit({
+      const response = await runAuditMutation.mutateAsync({
         audit_date: auditDate,
         notes: auditNotes || undefined,
         force,
@@ -717,15 +701,13 @@ const NightAuditPage: React.FC = () => {
       // Auto-load journal details for the newly run audit so journal sections are immediately visible
       const newAuditId = response.audit_run.id;
       try {
-        const details = await NightAuditService.getAuditDetails(newAuditId);
+        const details = await fetchAuditDetails(newAuditId);
         setAuditDetails(prev => ({ ...prev, [newAuditId]: details }));
       } catch (detailErr) {
         console.error('Failed to auto-load audit details:', detailErr);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to run night audit');
-    } finally {
-      setRunning(false);
     }
   };
 
@@ -780,9 +762,9 @@ const NightAuditPage: React.FC = () => {
       </Box>
 
       {/* Alerts */}
-      {error && (
+      {effectiveError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
+          {effectiveError}
         </Alert>
       )}
       {success && (
@@ -929,7 +911,7 @@ const NightAuditPage: React.FC = () => {
                             onClick={async () => {
                               setDetailsLoading(prev => new Set(prev).add(completedAudit.id));
                               try {
-                                const details = await NightAuditService.getAuditDetails(completedAudit.id);
+                                const details = await fetchAuditDetails(completedAudit.id);
                                 setAuditDetails(prev => ({ ...prev, [completedAudit.id]: details }));
                               } catch (err) {
                                 console.error('Failed to fetch audit details:', err);

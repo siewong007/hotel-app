@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Box,
   Paper,
@@ -27,13 +27,14 @@ import {
   Notes,
   AttachMoney,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
 import { Room, BookingWithDetails } from '../../../types';
 import {
   getUnifiedStatusColor,
   getUnifiedStatusLabel,
 } from '../config';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { useBookingsWithDetails } from '../../bookings/hooks/useBookingQueries';
+import { useRooms } from '../hooks/useRoomQueries';
 
 // ── Layout ────────────────────────────────────────────────────────────────
 const ROOM_COL = 220;
@@ -140,9 +141,6 @@ const RoomReservationTimeline: React.FC = () => {
   useCaveatFont();
   const { format: formatCurrency } = useCurrency();
 
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [bookings, setBookings] = useState<TimelineBooking[]>([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [daysToShow, setDaysToShow] = useState(14);
   const [startDate, setStartDate] = useState(() => {
@@ -150,107 +148,105 @@ const RoomReservationTimeline: React.FC = () => {
     d.setHours(0, 0, 0, 0);
     return d;
   });
-  const loadingRef = useRef(false);
+  const roomsQuery = useRooms();
+  const bookingsQuery = useBookingsWithDetails();
 
   // Hover popover (rich booking details)
   const [popoverAnchor, setPopoverAnchor] = useState<HTMLElement | null>(null);
   const [hoveredBooking, setHoveredBooking] = useState<TimelineBooking | null>(null);
   const popoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 30000);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, daysToShow]);
-
-  const loadData = async () => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
-    setLoading(true);
+  const loadData = useCallback(async () => {
     setError(null);
     try {
-      const [roomsData, bookingsData] = await Promise.all([
-        HotelAPIService.getAllRooms(),
-        HotelAPIService.getBookingsWithDetails(),
-      ]);
-
-      const sortedRooms = [...roomsData].sort((a, b) => {
-        const na = parseInt(a.room_number);
-        const nb = parseInt(b.room_number);
-        return na - nb;
-      });
-
-      const endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + daysToShow);
-
-      const relevantBookings: TimelineBooking[] = bookingsData
-        .filter((b: BookingWithDetails) => {
-          if (['checked_out', 'voided'].includes(b.status as string)) return false;
-          const isCheckedIn = b.status === 'checked_in' || b.status === 'auto_checked_in';
-          if (isCheckedIn) return true;
-          const bookingEnd = new Date(b.check_out_date);
-          const bookingStart = new Date(b.check_in_date);
-          return bookingStart <= endDate && bookingEnd >= startDate;
-        })
-        .map((b: BookingWithDetails) => ({
-          id: b.id,
-          booking_number: b.booking_number,
-          room_id: b.room_id,
-          room_number: b.room_number,
-          room_type: b.room_type,
-          guest_name: b.guest_name || 'Unknown Guest',
-          guest_email: b.guest_email,
-          guest_phone: b.guest_phone,
-          check_in_date: b.check_in_date,
-          check_out_date: b.check_out_date,
-          status: b.status as string,
-          payment_status: b.payment_status as string,
-          payment_method: b.payment_method,
-          total_amount: b.total_amount,
-          price_per_night: b.price_per_night,
-          number_of_nights: b.number_of_nights,
-          deposit_amount: b.deposit_amount,
-          deposit_paid: b.deposit_paid,
-          special_requests: b.special_requests,
-          is_complimentary: b.is_complimentary,
-          complimentary_nights: b.complimentary_nights,
-          complimentary_start_date: b.complimentary_start_date,
-          complimentary_end_date: b.complimentary_end_date,
-          complimentary_reason: b.complimentary_reason,
-          number_of_guests: b.number_of_guests,
-          extra_bed_count: b.extra_bed_count,
-          extra_bed_charge: b.extra_bed_charge,
-          company_name: b.company_name,
-          rate_code: b.rate_code,
-        }));
-
-      // Synthetic entries for occupied/checked-in rooms with no booking record.
-      const syntheticBookings: TimelineBooking[] = [];
-      roomsData.forEach((room: Room) => {
-        const hasBooking = relevantBookings.some(b => Number(b.room_id) === Number(room.id));
-        if (hasBooking) return;
-        if (room.status && ['occupied', 'checked_in'].includes(room.status)) {
-          syntheticBookings.push({
-            id: `synthetic-${room.id}`,
-            room_id: room.id,
-            guest_name: 'Walk-in Guest',
-            check_in_date: room.reserved_start_date || startDate.toISOString().split('T')[0],
-            check_out_date: room.reserved_end_date || endDate.toISOString().split('T')[0],
-            status: room.status,
-          });
-        }
-      });
-
-      setRooms(sortedRooms);
-      setBookings([...relevantBookings, ...syntheticBookings]);
+      await Promise.all([roomsQuery.refetch(), bookingsQuery.refetch()]);
     } catch (err: any) {
       setError(err.message || 'Failed to load timeline data');
-    } finally {
-      setLoading(false);
-      loadingRef.current = false;
     }
-  };
+  }, [bookingsQuery, roomsQuery]);
+
+  useEffect(() => {
+    const interval = setInterval(loadData, 30000);
+    return () => clearInterval(interval);
+  }, [loadData]);
+
+  const rooms = useMemo(() => {
+    return [...(roomsQuery.data ?? [])].sort((a, b) => {
+      const na = parseInt(a.room_number);
+      const nb = parseInt(b.room_number);
+      return na - nb;
+    });
+  }, [roomsQuery.data]);
+
+  const bookings = useMemo(() => {
+    const roomsData = roomsQuery.data ?? [];
+    const bookingsData = bookingsQuery.data ?? [];
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + daysToShow);
+
+    const relevantBookings: TimelineBooking[] = bookingsData
+      .filter((b: BookingWithDetails) => {
+        if (['checked_out', 'voided'].includes(b.status as string)) return false;
+        const isCheckedIn = b.status === 'checked_in' || b.status === 'auto_checked_in';
+        if (isCheckedIn) return true;
+        const bookingEnd = new Date(b.check_out_date);
+        const bookingStart = new Date(b.check_in_date);
+        return bookingStart <= endDate && bookingEnd >= startDate;
+      })
+      .map((b: BookingWithDetails) => ({
+        id: b.id,
+        booking_number: b.booking_number,
+        room_id: b.room_id,
+        room_number: b.room_number,
+        room_type: b.room_type,
+        guest_name: b.guest_name || 'Unknown Guest',
+        guest_email: b.guest_email,
+        guest_phone: b.guest_phone,
+        check_in_date: b.check_in_date,
+        check_out_date: b.check_out_date,
+        status: b.status as string,
+        payment_status: b.payment_status as string,
+        payment_method: b.payment_method,
+        total_amount: b.total_amount,
+        price_per_night: b.price_per_night,
+        number_of_nights: b.number_of_nights,
+        deposit_amount: b.deposit_amount,
+        deposit_paid: b.deposit_paid,
+        special_requests: b.special_requests,
+        is_complimentary: b.is_complimentary,
+        complimentary_nights: b.complimentary_nights,
+        complimentary_start_date: b.complimentary_start_date,
+        complimentary_end_date: b.complimentary_end_date,
+        complimentary_reason: b.complimentary_reason,
+        number_of_guests: b.number_of_guests,
+        extra_bed_count: b.extra_bed_count,
+        extra_bed_charge: b.extra_bed_charge,
+        company_name: b.company_name,
+        rate_code: b.rate_code,
+      }));
+
+    const syntheticBookings: TimelineBooking[] = [];
+    roomsData.forEach((room: Room) => {
+      const hasBooking = relevantBookings.some(b => Number(b.room_id) === Number(room.id));
+      if (hasBooking) return;
+      if (room.status && ['occupied', 'checked_in'].includes(room.status)) {
+        syntheticBookings.push({
+          id: `synthetic-${room.id}`,
+          room_id: room.id,
+          guest_name: 'Walk-in Guest',
+          check_in_date: room.reserved_start_date || startDate.toISOString().split('T')[0],
+          check_out_date: room.reserved_end_date || endDate.toISOString().split('T')[0],
+          status: room.status,
+        });
+      }
+    });
+
+    return [...relevantBookings, ...syntheticBookings];
+  }, [bookingsQuery.data, daysToShow, roomsQuery.data, startDate]);
+
+  const loading = roomsQuery.isPending || bookingsQuery.isPending;
+  const queryError = roomsQuery.error || bookingsQuery.error;
+  const effectiveError = error || (queryError instanceof Error ? queryError.message : null);
 
   const dates: Date[] = (() => {
     const arr: Date[] = [];
@@ -432,9 +428,9 @@ const RoomReservationTimeline: React.FC = () => {
           </Box>
         </Box>
 
-        {error && (
+        {effectiveError && (
           <Alert severity="error" onClose={() => setError(null)} sx={{ m: 2, fontFamily: 'sans-serif' }}>
-            {error}
+            {effectiveError}
           </Alert>
         )}
 

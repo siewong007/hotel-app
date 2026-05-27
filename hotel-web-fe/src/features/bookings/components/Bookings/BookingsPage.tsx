@@ -74,6 +74,15 @@ import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceMo
 import UnifiedBookingModal from '../../../rooms/components/UnifiedBooking';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { useBookings, PAGE_SIZE, SortField, DateFilter } from '../../hooks/useBookings';
+import {
+  useBookingWorkflowFetcher,
+  useBookingsWithDetails,
+  useCheckInGuestMutation,
+  useMarkBookingComplimentaryMutation,
+  useReactivateBookingMutation,
+  useRecordPaymentMutation,
+  useUpdateBooking,
+} from '../../hooks/useBookingQueries';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { getPaginationState } from '../../../../utils/pagination';
 
@@ -188,6 +197,11 @@ const BookingsPage: React.FC = () => {
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const PAYMENT_METHODS = getHotelSettings().payment_methods;
   const isAdmin = hasRole('admin') || hasRole('receptionist') || hasRole('manager') || hasPermission('bookings:update');
+  const updateBookingMutation = useUpdateBooking();
+  const reactivateBookingMutation = useReactivateBookingMutation();
+  const markComplimentaryMutation = useMarkBookingComplimentaryMutation();
+  const recordPaymentMutation = useRecordPaymentMutation();
+  const checkInGuestMutation = useCheckInGuestMutation();
 
   const {
     bookings,
@@ -248,8 +262,10 @@ const BookingsPage: React.FC = () => {
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
   const [bookingDetailsOpen, setBookingDetailsOpen] = useState(true);
   const [bookingView, setBookingView] = useState<'all' | 'arriving' | 'in_house' | 'departing' | 'upcoming' | 'balance'>('all');
-  const [summaryBookings, setSummaryBookings] = useState<BookingWithDetails[]>([]);
-  const [summaryLoaded, setSummaryLoaded] = useState(false);
+  const summaryBookingsQuery = useBookingsWithDetails();
+  const fetchBookingWorkflow = useBookingWorkflowFetcher();
+  const summaryBookings = summaryBookingsQuery.data ?? [];
+  const summaryLoaded = summaryBookingsQuery.isSuccess;
 
   // Create booking dialog (using UnifiedBookingModal)
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -306,24 +322,9 @@ const BookingsPage: React.FC = () => {
     });
   };
 
-  const loadBookingSummary = async () => {
-    try {
-      const data = await HotelAPIService.getBookingsWithDetails();
-      setSummaryBookings(data);
-      setSummaryLoaded(true);
-    } catch (err: any) {
-      console.error('Failed to load booking summary:', err);
-      setSummaryLoaded(false);
-    }
-  };
-
   const reloadBookingData = async () => {
-    await Promise.all([loadData(), loadBookingSummary()]);
+    await Promise.all([loadData(), summaryBookingsQuery.refetch()]);
   };
-
-  useEffect(() => {
-    loadBookingSummary();
-  }, []);
 
   // Server handles all filtering and sorting — bookings is already the correct page
   const filteredAndSortedBookings = bookings;
@@ -438,7 +439,7 @@ const BookingsPage: React.FC = () => {
         delete updateData.room_id;
       }
 
-      await HotelAPIService.updateBooking(editingBooking.id, updateData);
+      await updateBookingMutation.mutateAsync({ bookingId: editingBooking.id, data: updateData });
       showSnackbar('Booking updated successfully!');
       setEditDialogOpen(false);
       await reloadBookingData();
@@ -461,10 +462,10 @@ const BookingsPage: React.FC = () => {
     if (!voidingBooking) return;
     try {
       setVoiding(true);
-      await HotelAPIService.updateBooking(voidingBooking.id, {
+      await updateBookingMutation.mutateAsync({ bookingId: voidingBooking.id, data: {
         status: 'voided',
         remarks: voidReason || 'Voided by admin',
-      });
+      } });
       showSnackbar('Booking voided successfully');
       setVoidDialogOpen(false);
       setVoidingBooking(null);
@@ -487,7 +488,7 @@ const BookingsPage: React.FC = () => {
     if (!reactivatingBooking) return;
     try {
       setReactivating(true);
-      await HotelAPIService.reactivateBooking(reactivatingBooking.id);
+      await reactivateBookingMutation.mutateAsync(reactivatingBooking.id);
       showSnackbar('Booking reactivated successfully!');
       setReactivateDialogOpen(false);
       setReactivatingBooking(null);
@@ -544,12 +545,12 @@ const BookingsPage: React.FC = () => {
 
     try {
       setMarkingComplimentary(true);
-      const result = await HotelAPIService.markBookingComplimentary(
-        complimentaryBooking.id,
-        complimentaryReason || 'Marked as complimentary',
-        complimentaryStartDate,
-        complimentaryEndDate
-      );
+      const result = await markComplimentaryMutation.mutateAsync({
+        bookingId: complimentaryBooking.id,
+        reason: complimentaryReason || 'Marked as complimentary',
+        startDate: complimentaryStartDate,
+        endDate: complimentaryEndDate,
+      });
 
       const statusText = result.status === 'fully_complimentary'
         ? 'fully complimentary'
@@ -594,7 +595,7 @@ const BookingsPage: React.FC = () => {
       setUpdatingPayment(true);
       // Insert a real `payments` row (payment_type='booking'). The backend
       // recompute_payment_status helper will flip the chip automatically.
-      await HotelAPIService.recordPayment({
+      await recordPaymentMutation.mutateAsync({
         booking_id: Number(paymentBooking.id),
         amount: paymentAmount,
         payment_method: paymentMethod,
@@ -666,7 +667,7 @@ const BookingsPage: React.FC = () => {
         updateData.deposit_amount = 0;
         updateData.payment_note = `Deposit waived: ${ciWaiveReason}`;
       }
-      await HotelAPIService.updateBooking(checkinBooking.id, updateData);
+      await updateBookingMutation.mutateAsync({ bookingId: checkinBooking.id, data: updateData });
       const checkinPayload = (ciPaymentChoice === 'pay_now' && ciAmountPaid > 0)
         ? {
             payment_record: {
@@ -677,7 +678,7 @@ const BookingsPage: React.FC = () => {
             },
           }
         : undefined;
-      await HotelAPIService.checkInGuest(String(checkinBooking.id), checkinPayload);
+      await checkInGuestMutation.mutateAsync({ bookingId: checkinBooking.id, data: checkinPayload });
       setShowCheckinModal(false);
       setCheckinBooking(null);
       showSnackbar('Guest checked in successfully!');
@@ -703,10 +704,7 @@ const BookingsPage: React.FC = () => {
     setWorkflowTimeline([]);
 
     try {
-      const [summary, timeline] = await Promise.all([
-        HotelAPIService.getPaymentWorkflowSummary(booking.id),
-        HotelAPIService.getBookingTimeline(booking.id),
-      ]);
+      const [summary, timeline] = await fetchBookingWorkflow(booking.id);
       setWorkflowSummary(summary);
       setWorkflowTimeline(timeline);
     } catch (err: any) {
@@ -788,7 +786,7 @@ const BookingsPage: React.FC = () => {
       if (checkoutPaymentMethod) {
         updatePayload.payment_method = checkoutPaymentMethod;
       }
-      await HotelAPIService.updateBooking(checkoutBooking.id, updatePayload);
+      await updateBookingMutation.mutateAsync({ bookingId: checkoutBooking.id, data: updatePayload });
       showSnackbar('Guest checked out successfully!');
       setShowCheckoutModal(false);
       setCheckoutBooking(null);

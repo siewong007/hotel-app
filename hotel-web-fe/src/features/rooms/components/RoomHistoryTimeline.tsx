@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -20,46 +20,24 @@ import {
   AutoMode as AutoIcon,
   Person as PersonIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
-import { RoomHistory } from '../../../types';
+import { useRoomHistory } from '../hooks/useRoomQueries';
 
 interface RoomHistoryTimelineProps {
   roomId: string;
 }
 
 const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => {
-  const [history, setHistory] = useState<RoomHistory[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId]);
+  const { data = [], isPending: loading, error } = useRoomHistory(roomId);
 
   // Only show guest actions: check-in (→ occupied) and check-out (occupied →)
   const isGuestAction = (from: string | null, to: string) => {
     return to === 'occupied' || from === 'occupied';
   };
 
-  const loadHistory = async () => {
-    try {
-      setLoading(true);
-      const data = await HotelAPIService.getRoomHistory(roomId);
-      setHistory(data.filter((r: RoomHistory) => isGuestAction(r.from_status, r.to_status)));
-      setError(null);
-    } catch (err: any) {
-      console.error('Failed to load room history:', err);
-      // Handle network errors gracefully
-      if (err.message && err.message.includes('fetch')) {
-        setError('Room history feature is currently unavailable. Please ensure the backend is running and try again.');
-      } else {
-        setError(err.message || 'Failed to load room history');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  const history = useMemo(
+    () => data.filter((r) => isGuestAction(r.from_status, r.to_status)),
+    [data]
+  );
 
   const getStatusIcon = (status: string) => {
     const iconProps = { fontSize: 20 };
@@ -130,9 +108,14 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
   }
 
   if (error) {
+    const errorMessage = error instanceof Error && error.message.includes('fetch')
+      ? 'Room history feature is currently unavailable. Please ensure the backend is running and try again.'
+      : error instanceof Error
+        ? error.message
+        : 'Failed to load room history';
     return (
       <Alert severity="error" sx={{ m: 2 }}>
-        {error}
+        {errorMessage}
       </Alert>
     );
   }

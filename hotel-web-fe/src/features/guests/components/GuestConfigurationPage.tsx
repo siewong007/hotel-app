@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box,
   Typography,
@@ -47,14 +47,23 @@ import {
   PublicOutlined as PublicIcon,
   CheckCircleOutline as CheckCircleIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
-import { Guest, GuestCreateRequest, GuestType, GUEST_TYPE_CONFIG, Room, TourismType, TOURISM_TYPE_CONFIG } from '../../../types';
+import { Guest, GuestCreateRequest, GuestType, GUEST_TYPE_CONFIG, TourismType, TOURISM_TYPE_CONFIG } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail } from '../../../utils/validation';
 import { useCurrency } from '../../../hooks/useCurrency';
 import UnifiedBookingModal from '../../rooms/components/UnifiedBooking';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { getPaginationState, normalizePage, toPaginationSearchParams } from '../../../utils/pagination';
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
+import {
+  useCreateGuest,
+  useDeleteGuest,
+  useGuestBookings,
+  useGuestCredits,
+  useGuestsPage,
+  useUpdateGuest,
+} from '../hooks/useGuestQueries';
+import { useRooms } from '../../rooms/hooks/useRoomQueries';
 import {
   Star as MemberIcon,
   PersonOutline as NonMemberIcon,
@@ -113,19 +122,33 @@ const GuestConfigurationPage: React.FC = () => {
   const { format: formatCurrency } = useCurrency();
   const hasAccess = hasRole('admin') || hasRole('receptionist') || hasRole('manager') || hasPermission('guests:read') || hasPermission('guests:manage');
 
-  const [guests, setGuests] = useState<Guest[]>([]);
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | GuestType>('all');
   // Extra client-side segment narrowing on top of `filterType` (which drives the API call).
   const [segment, setSegment] = useState<'all' | 'member' | 'non' | 'incomplete' | 'tourist'>('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalGuests, setTotalGuests] = useState(0);
-  // Stats counts fetched once on mount, independent of filters
-  const [statsTotal, setStatsTotal] = useState(0);
-  const [statsMembers, setStatsMembers] = useState(0);
+  const debouncedSearchTerm = useDebouncedValue(searchTerm, searchTerm ? 400 : 0);
+  const guestsQueryParams = React.useMemo(() => ({
+    ...toPaginationSearchParams({ page: normalizePage(currentPage), pageSize: PAGE_SIZE }),
+    ...(debouncedSearchTerm.trim() ? { search: debouncedSearchTerm.trim() } : {}),
+    ...(filterType !== 'all' ? { guest_type: filterType } : {}),
+  }), [currentPage, debouncedSearchTerm, filterType]);
+  const guestsQuery = useGuestsPage(guestsQueryParams, hasAccess);
+  const statsTotalQuery = useGuestsPage(toPaginationSearchParams({ page: 1, pageSize: 1 }), hasAccess);
+  const statsMembersQuery = useGuestsPage({ ...toPaginationSearchParams({ page: 1, pageSize: 1 }), guest_type: 'member' }, hasAccess);
+  const roomsQuery = useRooms(hasAccess);
+  const createGuestMutation = useCreateGuest();
+  const updateGuestMutation = useUpdateGuest();
+  const deleteGuestMutation = useDeleteGuest();
+  const guests = guestsQuery.data?.data ?? [];
+  const rooms = roomsQuery.data ?? [];
+  const totalGuests = guestsQuery.data?.total ?? 0;
+  const statsTotal = statsTotalQuery.data?.total ?? 0;
+  const statsMembers = statsMembersQuery.data?.total ?? 0;
+  const loading = guestsQuery.isPending;
+  const queryError = guestsQuery.error || statsTotalQuery.error || statsMembersQuery.error || roomsQuery.error;
+  const pageError = error || (queryError instanceof Error ? queryError.message : null);
   // Currently selected guest in the right detail pane.
   const [selectedGuestId, setSelectedGuestId] = useState<number | null>(null);
   const [guestDetailsOpen, setGuestDetailsOpen] = useState(true);
@@ -153,8 +176,6 @@ const GuestConfigurationPage: React.FC = () => {
       nights_available: number;
     }[];
   }
-  const [guestCredits, setGuestCredits] = useState<GuestCredits | null>(null);
-  const [creditsLoading, setCreditsLoading] = useState(false);
 
   // Form states
   const [formData, setFormData] = useState<GuestFormData>({
@@ -178,60 +199,21 @@ const GuestConfigurationPage: React.FC = () => {
   const [editingGuest, setEditingGuest] = useState<Guest | null>(null);
   const [deletingGuest, setDeletingGuest] = useState<Guest | null>(null);
   const [viewingGuest, setViewingGuest] = useState<Guest | null>(null);
-  const [guestBookings, setGuestBookings] = useState<any[]>([]);
   const [formLoading, setFormLoading] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const guestBookingsQuery = useGuestBookings(viewingGuest?.id, bookingsDialogOpen && !!viewingGuest);
+  const guestCreditsQuery = useGuestCredits(viewingGuest?.id, creditsDialogOpen && !!viewingGuest);
+  const guestBookings = guestBookingsQuery.data ?? [];
+  const guestCredits = (guestCreditsQuery.data ?? null) as GuestCredits | null;
+  const creditsLoading = guestCreditsQuery.isPending && creditsDialogOpen;
 
-  const loadGuests = useCallback(async (opts?: { page?: number; search?: string; type?: 'all' | GuestType }) => {
-    try {
-      setLoading(true);
-      const page = normalizePage(opts?.page ?? currentPage);
-      const search = opts?.search ?? searchTerm;
-      const type = opts?.type ?? filterType;
-      const resp = await HotelAPIService.getGuestsPage({
-        ...toPaginationSearchParams({ page, pageSize: PAGE_SIZE }),
-        ...(search.trim() ? { search: search.trim() } : {}),
-        ...(type !== 'all' ? { guest_type: type } : {}),
-      });
-      setGuests(resp.data);
-      setTotalGuests(resp.total);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  }, [currentPage, searchTerm, filterType]);
+  const loadGuests = useCallback(async () => {
+    await Promise.all([guestsQuery.refetch(), statsTotalQuery.refetch(), statsMembersQuery.refetch()]);
+  }, [guestsQuery, statsMembersQuery, statsTotalQuery]);
 
   const loadRooms = useCallback(async () => {
-    try {
-      const data = await HotelAPIService.getAllRooms();
-      setRooms(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load rooms');
-    }
-  }, []);
-
-  // Fetch global stats once on mount (total + member count, independent of active filters)
-  useEffect(() => {
-    if (!hasAccess) return;
-    const singlePageParams = toPaginationSearchParams({ page: 1, pageSize: 1 });
-    Promise.all([
-      HotelAPIService.getGuestsPage(singlePageParams),
-      HotelAPIService.getGuestsPage({ ...singlePageParams, guest_type: 'member' }),
-    ]).then(([all, members]) => {
-      setStatsTotal(all.total);
-      setStatsMembers(members.total);
-    }).catch(() => {});
-  }, [hasAccess]);
-
-  // Reload on page/filter/search changes; debounce text input
-  useEffect(() => {
-    if (!hasAccess) return;
-    const delay = searchTerm ? 400 : 0;
-    const timer = setTimeout(() => loadGuests(), delay);
-    return () => clearTimeout(timer);
-  }, [currentPage, searchTerm, filterType, hasAccess]);
+    await roomsQuery.refetch();
+  }, [roomsQuery]);
 
   // Apply segment narrowing on the loaded page (extra client-side filter
   // for "incomplete"/"tourist" — the API itself only knows guest_type).
@@ -332,29 +314,14 @@ const GuestConfigurationPage: React.FC = () => {
     setDeleteDialogOpen(true);
   };
 
-  const handleViewBookings = async (guest: Guest) => {
+  const handleViewBookings = (guest: Guest) => {
     setViewingGuest(guest);
-    try {
-      const bookings = await HotelAPIService.getGuestBookings(guest.id);
-      setGuestBookings(bookings);
-      setBookingsDialogOpen(true);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load bookings');
-    }
+    setBookingsDialogOpen(true);
   };
 
-  const handleViewCredits = async (guest: Guest) => {
+  const handleViewCredits = (guest: Guest) => {
     setViewingGuest(guest);
-    try {
-      setCreditsLoading(true);
-      const credits = await HotelAPIService.getGuestCredits(guest.id);
-      setGuestCredits(credits);
-      setCreditsDialogOpen(true);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load credits');
-    } finally {
-      setCreditsLoading(false);
-    }
+    setCreditsDialogOpen(true);
   };
 
   const handleCreateBookingForGuest = async (guest: Guest) => {
@@ -397,7 +364,7 @@ const GuestConfigurationPage: React.FC = () => {
         country: formData.country?.trim() || undefined,
         company_name: formData.company_name?.trim() || undefined,
       };
-      await HotelAPIService.createGuest(sanitizedData);
+      await createGuestMutation.mutateAsync(sanitizedData);
       emitApiNotification({ message: 'Guest created successfully', severity: 'success' });
       setCreateDialogOpen(false);
       setDialogError(null);
@@ -422,7 +389,7 @@ const GuestConfigurationPage: React.FC = () => {
     try {
       setFormLoading(true);
       setDialogError(null);
-      await HotelAPIService.updateGuest(editingGuest.id, formData);
+      await updateGuestMutation.mutateAsync({ guestId: editingGuest.id, data: formData });
       emitApiNotification({ message: 'Guest updated successfully', severity: 'success' });
       setEditDialogOpen(false);
       setEditingGuest(null);
@@ -441,7 +408,7 @@ const GuestConfigurationPage: React.FC = () => {
 
     try {
       setFormLoading(true);
-      await HotelAPIService.deleteGuest(deletingGuest.id);
+      await deleteGuestMutation.mutateAsync(deletingGuest.id);
       emitApiNotification({ message: 'Guest deleted successfully', severity: 'success' });
       setDeleteDialogOpen(false);
       setDeletingGuest(null);
@@ -503,9 +470,9 @@ const GuestConfigurationPage: React.FC = () => {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, color: GUEST_DESIGN.ink }}>
-      {error && (
+      {pageError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-          {error}
+          {pageError}
         </Alert>
       )}
 

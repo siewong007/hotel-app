@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Box,
   Typography,
@@ -23,78 +23,35 @@ import {
   Refresh as RefreshIcon,
   Search as SearchIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
-import { Guest } from '../../../types';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { getPaginationState, normalizePage, toPaginationSearchParams } from '../../../utils/pagination';
+import { useGuestsPage } from '../hooks/useGuestQueries';
 
 const PAGE_SIZE = 50;
 
 const GuestsPage: React.FC = () => {
-  const [guests, setGuests] = useState<Guest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalGuests, setTotalGuests] = useState(0);
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 700);
-  const guestsRequestId = useRef(0);
-  const previousDebouncedSearchQuery = useRef(debouncedSearchQuery);
-  const skipNextLoadForPageReset = useRef(false);
+  const guestQueryParams = useMemo(() => ({
+    ...toPaginationSearchParams({ page: normalizePage(currentPage), pageSize: PAGE_SIZE }),
+    ...(debouncedSearchQuery.trim() ? { search: debouncedSearchQuery.trim() } : {}),
+  }), [currentPage, debouncedSearchQuery]);
+  const guestsQuery = useGuestsPage(guestQueryParams);
+  const guests = guestsQuery.data?.data ?? [];
+  const totalGuests = guestsQuery.data?.total ?? 0;
+  const loading = guestsQuery.isPending;
+  const error = guestsQuery.error instanceof Error
+    ? guestsQuery.error.message || 'Failed to load guests. Please check your connection and try again.'
+    : null;
   const guestPagination = useMemo(
     () => getPaginationState({ page: currentPage, pageSize: PAGE_SIZE, totalItems: totalGuests }),
     [currentPage, totalGuests]
   );
 
-  useEffect(() => {
-    const searchChanged = previousDebouncedSearchQuery.current !== debouncedSearchQuery;
-    previousDebouncedSearchQuery.current = debouncedSearchQuery;
-
-    if (searchChanged && currentPage !== 1) {
-      skipNextLoadForPageReset.current = true;
-      setCurrentPage(1);
-    }
-  }, [debouncedSearchQuery, currentPage]);
-
-  useEffect(() => {
-    if (skipNextLoadForPageReset.current) {
-      skipNextLoadForPageReset.current = false;
-      return;
-    }
-
-    loadGuests(currentPage, debouncedSearchQuery);
-  }, [currentPage, debouncedSearchQuery]);
-
-  const loadGuests = async (page: number, search?: string) => {
-    const requestId = guestsRequestId.current + 1;
-    guestsRequestId.current = requestId;
-
-    try {
-      setLoading(true);
-      const paginationParams = toPaginationSearchParams({ page: normalizePage(page), pageSize: PAGE_SIZE });
-      const resp = await HotelAPIService.getGuestsPage({
-        ...paginationParams,
-        ...(search?.trim() ? { search: search.trim() } : {}),
-      });
-      if (guestsRequestId.current !== requestId) return;
-
-      setGuests(resp.data);
-      setTotalGuests(resp.total);
-      setError(null);
-    } catch (err: any) {
-      if (guestsRequestId.current !== requestId) return;
-
-      console.error('Failed to load guests:', err);
-      setError(err.message || 'Failed to load guests. Please check your connection and try again.');
-    } finally {
-      if (guestsRequestId.current === requestId) {
-        setLoading(false);
-      }
-    }
-  };
-
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
+    setCurrentPage(1);
   };
 
   return (
@@ -111,7 +68,7 @@ const GuestsPage: React.FC = () => {
         <Button
           variant="outlined"
           startIcon={<RefreshIcon />}
-          onClick={() => loadGuests(currentPage, searchQuery)}
+          onClick={() => guestsQuery.refetch()}
         >
           Refresh
         </Button>
@@ -122,7 +79,7 @@ const GuestsPage: React.FC = () => {
           severity="error"
           sx={{ mb: 3 }}
           action={
-            <Button color="inherit" size="small" onClick={() => loadGuests(currentPage, searchQuery)}>
+            <Button color="inherit" size="small" onClick={() => guestsQuery.refetch()}>
               Retry
             </Button>
           }

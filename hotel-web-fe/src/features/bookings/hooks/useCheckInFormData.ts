@@ -1,8 +1,11 @@
 import { useState, useCallback } from 'react';
-import { HotelAPIService } from '../../../api';
+import { useQueryClient } from '@tanstack/react-query';
+import { CompaniesService, RatesService, RoomsService } from '../../../api';
+import { queryKeys } from '../../../api/queryKeys';
 import { BookingWithDetails, RoomType } from '../../../types';
 
 export function useCheckInFormData() {
+  const queryClient = useQueryClient();
   const [rateCodes, setRateCodes] = useState<string[]>([]);
   const [marketCodes, setMarketCodes] = useState<string[]>([]);
   const [companyOptions, setCompanyOptions] = useState<any[]>([]);
@@ -12,20 +15,33 @@ export function useCheckInFormData() {
   const loadDropdownData = useCallback(async () => {
     try {
       const [ratesResp, marketsResp] = await Promise.all([
-        HotelAPIService.getRateCodes(),
-        HotelAPIService.getMarketCodes(),
+        queryClient.ensureQueryData({
+          queryKey: queryKeys.rates.rateCodes(),
+          queryFn: () => RatesService.getRateCodes(),
+          staleTime: 10 * 60_000,
+        }),
+        queryClient.ensureQueryData({
+          queryKey: queryKeys.rates.marketCodes(),
+          queryFn: () => RatesService.getMarketCodes(),
+          staleTime: 10 * 60_000,
+        }),
       ]);
       setRateCodes(ratesResp.rate_codes);
       setMarketCodes(marketsResp.market_codes);
     } catch (err) {
       console.error('Failed to load dropdown data:', err);
     }
-  }, []);
+  }, [queryClient]);
 
   const loadCompanies = useCallback(async () => {
     try {
       setLoadingCompanies(true);
-      const companies = await HotelAPIService.getCompanies({ is_active: true });
+      const params = { is_active: true };
+      const companies = await queryClient.ensureQueryData({
+        queryKey: queryKeys.companies.list(params),
+        queryFn: () => CompaniesService.getCompanies(params),
+        staleTime: 5 * 60_000,
+      });
       const options = companies.map((c: any) => ({
         company_name: c.company_name,
         company_registration_number: c.registration_number,
@@ -40,18 +56,22 @@ export function useCheckInFormData() {
     } finally {
       setLoadingCompanies(false);
     }
-  }, []);
+  }, [queryClient]);
 
   const loadRoomTypeConfig = useCallback(async (booking: BookingWithDetails) => {
     if (!booking.room_type) return;
     try {
-      const roomTypes = await HotelAPIService.getAllRoomTypes();
+      const roomTypes = await queryClient.ensureQueryData({
+        queryKey: queryKeys.roomTypes.list(),
+        queryFn: () => RoomsService.getAllRoomTypes(),
+        staleTime: 5 * 60_000,
+      });
       const matched = roomTypes.find((rt: RoomType) => rt.name === booking.room_type);
       setRoomTypeConfig(matched || null);
     } catch {
       setRoomTypeConfig(null);
     }
-  }, []);
+  }, [queryClient]);
 
   return {
     rateCodes,
