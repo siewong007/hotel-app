@@ -32,8 +32,13 @@ import {
 } from '@mui/icons-material';
 import type { Permission, Role, User } from '../../../../types';
 import { useRBACData } from './hooks/useRBACData';
+import {
+  useCreateRole,
+  useDeleteRole,
+  useReplaceRolePermissions,
+  useUpdateRole,
+} from './hooks/useRBACQueries';
 import { UsersTab } from './UsersTab';
-import { HotelAPIService } from '../../../../api';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 
 /* ---------- Salim Inn design tokens ---------- */
@@ -152,6 +157,12 @@ const RBACManagementPage: React.FC = () => {
   const showSnackbar = (message: string, severity: 'success' | 'error' = 'success') =>
     emitApiNotification({ message, severity });
 
+  const createRoleMutation = useCreateRole();
+  const updateRoleMutation = useUpdateRole();
+  const deleteRoleMutation = useDeleteRole();
+  const replaceRolePermissionsMutation = useReplaceRolePermissions();
+  const roleDialogSaving = createRoleMutation.isPending || updateRoleMutation.isPending;
+
   // Default selection — prefer an admin-ish role
   useEffect(() => {
     if (selectedId == null && roles.length) {
@@ -246,8 +257,11 @@ const RBACManagementPage: React.FC = () => {
     const removed = [...currentSet].filter((id) => !draftSet.has(id));
     setSaving(true);
     try {
-      await HotelAPIService.replaceRolePermissions(String(selectedId), {
-        permission_ids: [...draftSet],
+      await replaceRolePermissionsMutation.mutateAsync({
+        roleId: String(selectedId),
+        input: {
+          permission_ids: [...draftSet],
+        },
       });
       const nextPerms = permissions.filter((p) => draftSet.has(p.id));
       updateRolePermissions(selectedId, nextPerms);
@@ -276,7 +290,7 @@ const RBACManagementPage: React.FC = () => {
     if (!roleForm.name.trim()) return;
     try {
       if (roleDialog === 'create') {
-        const created = await HotelAPIService.createRole({
+        const created = await createRoleMutation.mutateAsync({
           name: roleForm.name.trim(),
           description: roleForm.description || undefined,
         });
@@ -285,9 +299,12 @@ const RBACManagementPage: React.FC = () => {
         setSelectedId(created.id);
         showSnackbar(`Role "${created.name}" created`);
       } else if (roleDialog === 'rename' && selectedRole) {
-        const updated = await HotelAPIService.updateRole(String(selectedRole.id), {
-          name: roleForm.name.trim(),
-          description: roleForm.description || undefined,
+        const updated = await updateRoleMutation.mutateAsync({
+          roleId: String(selectedRole.id),
+          input: {
+            name: roleForm.name.trim(),
+            description: roleForm.description || undefined,
+          },
         });
         setRoles((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
         showSnackbar(`Role "${updated.name}" updated`);
@@ -300,12 +317,15 @@ const RBACManagementPage: React.FC = () => {
   const duplicateRole = async () => {
     if (!selectedRole) return;
     try {
-      const created = await HotelAPIService.createRole({
+      const created = await createRoleMutation.mutateAsync({
         name: `${selectedRole.name} (Copy)`,
         description: selectedRole.description || undefined,
       });
       const perms = [...(rolePermissionMap[selectedRole.id] || [])];
-      await HotelAPIService.replaceRolePermissions(String(created.id), { permission_ids: perms });
+      await replaceRolePermissionsMutation.mutateAsync({
+        roleId: String(created.id),
+        input: { permission_ids: perms },
+      });
       setRoles((prev) => [...prev, created]);
       updateRolePermissions(
         created.id,
@@ -320,7 +340,7 @@ const RBACManagementPage: React.FC = () => {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     try {
-      await HotelAPIService.deleteRole(String(deleteTarget.id));
+      await deleteRoleMutation.mutateAsync(String(deleteTarget.id));
       setRoles((prev) => prev.filter((r) => r.id !== deleteTarget.id));
       if (selectedId === deleteTarget.id) {
         const remaining = roles.filter((r) => r.id !== deleteTarget.id);
@@ -775,8 +795,12 @@ const RBACManagementPage: React.FC = () => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRoleDialog(null)}>Cancel</Button>
-          <Button variant="contained" onClick={submitRole} disabled={!roleForm.name.trim()}
+          <Button onClick={() => setRoleDialog(null)} disabled={roleDialogSaving}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={submitRole}
+            disabled={roleDialogSaving || !roleForm.name.trim()}
+            startIcon={roleDialogSaving ? <CircularProgress size={16} /> : null}
             sx={{ bgcolor: T.emerald, '&:hover': { bgcolor: T.emeraldDeep } }}>
             {roleDialog === 'create' ? 'Create' : 'Save'}
           </Button>
@@ -793,8 +817,16 @@ const RBACManagementPage: React.FC = () => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)}>Cancel</Button>
-          <Button variant="contained" color="error" onClick={confirmDelete}>Delete</Button>
+          <Button onClick={() => setDeleteTarget(null)} disabled={deleteRoleMutation.isPending}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={confirmDelete}
+            disabled={deleteRoleMutation.isPending}
+            startIcon={deleteRoleMutation.isPending ? <CircularProgress size={16} /> : null}
+          >
+            Delete
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>

@@ -1,50 +1,38 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useCallback, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { HotelAPIService } from '../../../api';
-import { CustomerLedger } from '../../../types';
+
+const LEDGERS_STALE_TIME_MS = 60_000;
+
+export const ledgerQueryKeys = {
+  all: ['ledgers'] as const,
+  list: () => [...ledgerQueryKeys.all, 'list'] as const,
+};
 
 export function useLedgers() {
-  const [ledgers, setLedgers] = useState<CustomerLedger[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const ledgersRequestId = useRef(0);
-
-  const loadLedgers = useCallback(async () => {
-    const requestId = ledgersRequestId.current + 1;
-    ledgersRequestId.current = requestId;
-
-    setLoading(true);
-    try {
-      const data = await HotelAPIService.getCustomerLedgers();
-      if (ledgersRequestId.current !== requestId) return;
-
-      setLedgers(data);
-      setError(null);
-    } catch (err: any) {
-      if (ledgersRequestId.current !== requestId) return;
-
-      setError(err.message || 'Failed to load ledger data. Please check your connection and try again.');
-    } finally {
-      if (ledgersRequestId.current === requestId) {
-        setLoading(false);
-      }
-    }
-  }, []);
+  const [localError, setError] = useState<string | null>(null);
+  const ledgersQuery = useQuery({
+    queryKey: ledgerQueryKeys.list(),
+    queryFn: () => HotelAPIService.getCustomerLedgers(),
+    staleTime: LEDGERS_STALE_TIME_MS,
+  });
+  const { refetch } = ledgersQuery;
 
   const reload = useCallback(async () => {
-    await loadLedgers();
-  }, [loadLedgers]);
+    setError(null);
+    await refetch();
+  }, [refetch]);
 
-  useEffect(() => {
-    loadLedgers();
-  }, [loadLedgers]);
+  const queryError = ledgersQuery.error instanceof Error
+    ? ledgersQuery.error.message
+    : null;
 
   return {
-    ledgers,
-    loading,
-    error,
+    ledgers: ledgersQuery.data || [],
+    loading: ledgersQuery.isLoading || ledgersQuery.isFetching,
+    error: localError || queryError,
     setError,
     reload,
-    loadLedgers,
+    loadLedgers: reload,
   };
 }

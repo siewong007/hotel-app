@@ -1,10 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { HotelAPIService } from '../api';
+import { useDebouncedValue } from './useDebouncedValue';
 
 interface RoomAvailabilityResult {
   isAvailable: boolean | null;
   isChecking: boolean;
 }
+
+const ROOM_AVAILABILITY_STALE_TIME_MS = 30_000;
+
+export const roomAvailabilityQueryKeys = {
+  all: ['rooms', 'availability'] as const,
+  byDates: (checkInDate: string, checkOutDate: string) =>
+    [...roomAvailabilityQueryKeys.all, checkInDate, checkOutDate] as const,
+};
 
 export function useRoomAvailabilityCheck(
   roomId: string | number | null | undefined,
@@ -12,49 +21,39 @@ export function useRoomAvailabilityCheck(
   checkOutDate: string,
   enabled: boolean
 ): RoomAvailabilityResult {
-  const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
-  const [isChecking, setIsChecking] = useState(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const debouncedRoomId = useDebouncedValue(roomId, 400);
+  const debouncedCheckInDate = useDebouncedValue(checkInDate, 400);
+  const debouncedCheckOutDate = useDebouncedValue(checkOutDate, 400);
+  const hasValidDates =
+    Boolean(debouncedCheckInDate && debouncedCheckOutDate) &&
+    new Date(debouncedCheckOutDate) > new Date(debouncedCheckInDate);
+  const canCheck = enabled && Boolean(debouncedRoomId) && hasValidDates;
 
-  useEffect(() => {
-    if (!enabled || !roomId || !checkInDate || !checkOutDate) {
-      setIsAvailable(null);
-      setIsChecking(false);
-      return;
-    }
+  const availabilityQuery = useQuery({
+    queryKey: roomAvailabilityQueryKeys.byDates(debouncedCheckInDate, debouncedCheckOutDate),
+    queryFn: () => HotelAPIService.getAvailableRoomsForDates(debouncedCheckInDate, debouncedCheckOutDate),
+    enabled: canCheck,
+    staleTime: ROOM_AVAILABILITY_STALE_TIME_MS,
+  });
 
-    if (new Date(checkOutDate) <= new Date(checkInDate)) {
-      setIsAvailable(null);
-      setIsChecking(false);
-      return;
-    }
+  const isDebouncing =
+    enabled &&
+    Boolean(roomId && checkInDate && checkOutDate) &&
+    (debouncedRoomId !== roomId ||
+      debouncedCheckInDate !== checkInDate ||
+      debouncedCheckOutDate !== checkOutDate);
 
-    setIsChecking(true);
-    setIsAvailable(null);
-
-    const timer = setTimeout(async () => {
-      abortControllerRef.current?.abort();
-      abortControllerRef.current = new AbortController();
-
-      try {
-        const available = await HotelAPIService.getAvailableRoomsForDates(checkInDate, checkOutDate);
-        if (!abortControllerRef.current.signal.aborted) {
-          setIsAvailable(available.some((r) => String(r.id) === String(roomId)));
-          setIsChecking(false);
-        }
-      } catch {
-        if (!abortControllerRef.current?.signal.aborted) {
-          setIsAvailable(null);
-          setIsChecking(false);
-        }
-      }
-    }, 400);
-
-    return () => {
-      clearTimeout(timer);
-      abortControllerRef.current?.abort();
+  if (!canCheck || availabilityQuery.isError) {
+    return {
+      isAvailable: null,
+      isChecking: isDebouncing,
     };
-  }, [roomId, checkInDate, checkOutDate, enabled]);
+  }
 
-  return { isAvailable, isChecking };
+  return {
+    isAvailable: availabilityQuery.data
+      ? availabilityQuery.data.some((room) => String(room.id) === String(debouncedRoomId))
+      : null,
+    isChecking: availabilityQuery.isLoading || availabilityQuery.isFetching || isDebouncing,
+  };
 }

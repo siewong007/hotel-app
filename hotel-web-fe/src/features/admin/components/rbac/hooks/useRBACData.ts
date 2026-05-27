@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { HotelAPIService } from '../../../../../api';
-import type { Role, Permission, User } from '../../../../../types';
+import { useCallback, useMemo, type SetStateAction } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import type { Permission, RbacSnapshot, Role, User } from '../../../../../types';
 import type { PermissionCategory, RolePermissionMap, RoleWithStats } from '../types';
 import { PERMISSION_CATEGORIES, NAVIGATION_ITEMS } from '../constants';
+import { rbacQueryKeys, useRbacSnapshot } from './useRBACQueries';
 
 interface UserWithRoles extends User {
   roles?: Role[];
@@ -26,87 +27,139 @@ interface UseRBACDataReturn {
 
   // Actions
   reload: () => Promise<void>;
-  setRoles: React.Dispatch<React.SetStateAction<Role[]>>;
-  setPermissions: React.Dispatch<React.SetStateAction<Permission[]>>;
-  setUsers: React.Dispatch<React.SetStateAction<UserWithRoles[]>>;
+  setRoles: (nextRoles: SetStateAction<Role[]>) => void;
+  setPermissions: (nextPermissions: SetStateAction<Permission[]>) => void;
+  setUsers: (nextUsers: SetStateAction<UserWithRoles[]>) => void;
   updateRolePermissions: (roleId: number, permissions: Permission[]) => void;
   updateUserRoles: (userId: string, roleIds: number[]) => void;
 }
 
+function applyStateAction<T>(current: T, action: SetStateAction<T>): T {
+  return typeof action === 'function'
+    ? (action as (previous: T) => T)(current)
+    : action;
+}
+
+function toSnapshotUser(user: UserWithRoles): User {
+  const { roles: _roles, ...snapshotUser } = user;
+  return snapshotUser;
+}
+
 export function useRBACData(): UseRBACDataReturn {
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [rolePermissions, setRolePermissions] = useState<Record<number, Permission[]>>({});
-  const [users, setUsers] = useState<UserWithRoles[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const snapshotQuery = useRbacSnapshot();
+  const snapshot = snapshotQuery.data;
+  const { refetch } = snapshotQuery;
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const roles = snapshot?.roles || [];
+  const permissions = snapshot?.permissions || [];
 
-    try {
-      const snapshot = await HotelAPIService.getRbacSnapshot();
-      const rolesById = new Map(snapshot.roles.map((role) => [role.id, role]));
-      const permissionsById = new Map(snapshot.permissions.map((permission) => [permission.id, permission]));
+  const rolePermissions = useMemo<Record<number, Permission[]>>(() => {
+    const permissionsById = new Map(permissions.map((permission) => [permission.id, permission]));
+    const nextRolePermissions: Record<number, Permission[]> = {};
 
-      const rolePermsMap: Record<number, Permission[]> = {};
-      snapshot.roles.forEach((role) => {
-        rolePermsMap[role.id] = [];
+    roles.forEach((role) => {
+      nextRolePermissions[role.id] = [];
+    });
+
+    snapshot?.role_permissions.forEach(({ role_id, permission_id }) => {
+      const permission = permissionsById.get(permission_id);
+      if (permission) {
+        (nextRolePermissions[role_id] ||= []).push(permission);
+      }
+    });
+
+    return nextRolePermissions;
+  }, [permissions, roles, snapshot?.role_permissions]);
+
+  const users = useMemo<UserWithRoles[]>(() => {
+    if (!snapshot) return [];
+
+    const rolesById = new Map(roles.map((role) => [role.id, role]));
+    const rolesByUser = new Map<string, Role[]>();
+
+    snapshot.user_roles.forEach(({ user_id, role_id }) => {
+      const role = rolesById.get(role_id);
+      if (!role) return;
+
+      const key = String(user_id);
+      const userRoles = rolesByUser.get(key) || [];
+      userRoles.push(role);
+      rolesByUser.set(key, userRoles);
+    });
+
+    return snapshot.users.map((user) => ({
+      ...user,
+      roles: rolesByUser.get(String(user.id)) || [],
+    }));
+  }, [roles, snapshot]);
+
+  const updateSnapshot = useCallback(
+    (updater: (snapshot: RbacSnapshot) => RbacSnapshot) => {
+      queryClient.setQueryData<RbacSnapshot>(rbacQueryKeys.snapshot(), (current) => {
+        if (!current) return current;
+        return updater(current);
       });
-      snapshot.role_permissions.forEach(({ role_id, permission_id }) => {
-        const permission = permissionsById.get(permission_id);
-        if (permission) {
-          (rolePermsMap[role_id] ||= []).push(permission);
-        }
-      });
+    },
+    [queryClient]
+  );
 
-      const rolesByUser = new Map<string, Role[]>();
-      snapshot.user_roles.forEach(({ user_id, role_id }) => {
-        const role = rolesById.get(role_id);
-        if (!role) return;
-        const key = String(user_id);
-        const userRoles = rolesByUser.get(key) || [];
-        userRoles.push(role);
-        rolesByUser.set(key, userRoles);
-      });
+  const setRoles = useCallback((nextRoles: SetStateAction<Role[]>) => {
+    updateSnapshot((current) => ({
+      ...current,
+      roles: applyStateAction(current.roles, nextRoles),
+    }));
+  }, [updateSnapshot]);
 
-      setRoles(snapshot.roles);
-      setPermissions(snapshot.permissions);
-      setRolePermissions(rolePermsMap);
-      setUsers(snapshot.users.map((user) => ({
+  const setPermissions = useCallback((nextPermissions: SetStateAction<Permission[]>) => {
+    updateSnapshot((current) => ({
+      ...current,
+      permissions: applyStateAction(current.permissions, nextPermissions),
+    }));
+  }, [updateSnapshot]);
+
+  const setUsers = useCallback((nextUsers: SetStateAction<UserWithRoles[]>) => {
+    updateSnapshot((current) => {
+      const currentUsers = current.users.map((user) => ({
         ...user,
-        roles: rolesByUser.get(String(user.id)) || [],
-      })));
-    } catch (err: any) {
-      setError(err.message || 'Failed to load RBAC data');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        roles: users.find((derivedUser) => derivedUser.id === user.id)?.roles || [],
+      }));
+      const updatedUsers = applyStateAction(currentUsers, nextUsers);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+      return {
+        ...current,
+        users: updatedUsers.map(toSnapshotUser),
+      };
+    });
+  }, [updateSnapshot, users]);
 
   // Update role permissions helper
-  const updateRolePermissions = useCallback((roleId: number, perms: Permission[]) => {
-    setRolePermissions(prev => ({
-      ...prev,
-      [roleId]: perms,
+  const updateRolePermissions = useCallback((roleId: number, nextPermissions: Permission[]) => {
+    updateSnapshot((current) => ({
+      ...current,
+      role_permissions: [
+        ...current.role_permissions.filter((assignment) => assignment.role_id !== roleId),
+        ...nextPermissions.map((permission) => ({
+          role_id: roleId,
+          permission_id: permission.id,
+        })),
+      ],
     }));
-  }, []);
+  }, [updateSnapshot]);
 
   // Update user roles helper
   const updateUserRoles = useCallback((userId: string, roleIds: number[]) => {
-    setUsers(prev => prev.map(user => {
-      if (user.id === userId) {
-        const userRoles = roles.filter(r => roleIds.includes(r.id));
-        return { ...user, roles: userRoles };
-      }
-      return user;
+    updateSnapshot((current) => ({
+      ...current,
+      user_roles: [
+        ...current.user_roles.filter((assignment) => String(assignment.user_id) !== String(userId)),
+        ...roleIds.map((roleId) => ({
+          user_id: userId,
+          role_id: roleId,
+        })),
+      ],
     }));
-  }, [roles]);
+  }, [updateSnapshot]);
 
   // Compute role-permission map for quick lookups
   const rolePermissionMap = useMemo<RolePermissionMap>(() => {
@@ -174,6 +227,10 @@ export function useRBACData(): UseRBACDataReturn {
     });
   }, [roles, rolePermissions]);
 
+  const reload = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
+
   return {
     roles,
     permissions,
@@ -182,9 +239,9 @@ export function useRBACData(): UseRBACDataReturn {
     rolesWithStats,
     permissionCategories,
     rolePermissionMap,
-    loading,
-    error,
-    reload: loadData,
+    loading: snapshotQuery.isLoading,
+    error: snapshotQuery.error instanceof Error ? snapshotQuery.error.message : null,
+    reload,
     setRoles,
     setPermissions,
     setUsers,
