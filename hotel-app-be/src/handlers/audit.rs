@@ -16,6 +16,7 @@ use crate::core::middleware::require_permission_helper;
 use crate::models::{
     AuditCategoryCounts, AuditLogEntryWithUser, AuditLogQuery, AuditLogResponse,
 };
+use crate::utils::pagination::normalize_pagination;
 
 /// Single source of truth mapping an activity stream to the `resource_type`
 /// values that belong to it. Used both for filtering (category → types) and
@@ -93,9 +94,7 @@ pub async fn get_audit_logs(
     // Check permission
     require_permission_helper(&pool, &headers, "audit:read").await?;
 
-    let page = params.page.unwrap_or(1).max(1);
-    let page_size = params.page_size.unwrap_or(25).clamp(1, 100);
-    let offset = (page - 1) * page_size;
+    let pagination = normalize_pagination(params.page, params.page_size, 25, 100);
 
     let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
     let sort_order = params.sort_order.as_deref().unwrap_or("desc");
@@ -262,8 +261,8 @@ pub async fn get_audit_logs(
     if let Some(ref types) = category_types {
         data_sqlx = data_sqlx.bind(types.clone());
     }
-    data_sqlx = data_sqlx.bind(page_size);
-    data_sqlx = data_sqlx.bind(offset);
+    data_sqlx = data_sqlx.bind(pagination.page_size);
+    data_sqlx = data_sqlx.bind(pagination.offset);
 
     let rows = data_sqlx
         .fetch_all(&pool)
@@ -287,13 +286,13 @@ pub async fn get_audit_logs(
         })
         .collect();
 
-    let total_pages = (total as f64 / page_size as f64).ceil() as i64;
+    let total_pages = (total as f64 / pagination.page_size as f64).ceil() as i64;
 
     Ok(Json(AuditLogResponse {
         data,
         total,
-        page,
-        page_size,
+        page: pagination.page,
+        page_size: pagination.page_size,
         total_pages,
     }))
 }

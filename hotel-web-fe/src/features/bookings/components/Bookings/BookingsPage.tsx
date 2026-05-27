@@ -75,6 +75,7 @@ import UnifiedBookingModal from '../../../rooms/components/UnifiedBooking';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { useBookings, PAGE_SIZE, SortField, DateFilter } from '../../hooks/useBookings';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
+import { getPaginationState } from '../../../../utils/pagination';
 
 type BookingChannelInfo = {
   name: string;
@@ -875,6 +876,10 @@ const BookingsPage: React.FC = () => {
   const getBookingBalance = (booking: BookingWithDetails | null) => Number(booking?.balance_due ?? 0);
   const getBookingTotal = (booking: BookingWithDetails | null) => Number(booking?.total_amount ?? 0);
   const operationsBookings = summaryLoaded ? summaryBookings : bookings;
+  const bookingPagination = useMemo(
+    () => getPaginationState({ page: currentPage, pageSize: PAGE_SIZE, totalItems: totalBookings }),
+    [currentPage, totalBookings]
+  );
 
   const dueBookings = useMemo(
     () => operationsBookings.filter((booking) => booking.status !== 'voided' && getBookingBalance(booking) > 0),
@@ -1292,14 +1297,14 @@ const BookingsPage: React.FC = () => {
               </Stack>
             )}
 
-            {bookingView === 'all' && totalBookings > PAGE_SIZE && (
+            {bookingView === 'all' && bookingPagination.hasMultiplePages && (
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ px: 2, py: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
                 <Typography variant="body2" color="text.secondary">
-                  Showing {((currentPage - 1) * PAGE_SIZE) + 1}-{Math.min(currentPage * PAGE_SIZE, totalBookings)} of {totalBookings}
+                  Showing {bookingPagination.startItem}-{bookingPagination.endItem} of {bookingPagination.totalItems}
                 </Typography>
                 <Pagination
-                  count={Math.ceil(totalBookings / PAGE_SIZE)}
-                  page={currentPage}
+                  count={bookingPagination.totalPages}
+                  page={bookingPagination.currentPage}
                   onChange={(_, page) => setCurrentPage(page)}
                   color="primary"
                   size="small"

@@ -54,6 +54,7 @@ import { validateEmail } from '../../../utils/validation';
 import { useCurrency } from '../../../hooks/useCurrency';
 import UnifiedBookingModal from '../../rooms/components/UnifiedBooking';
 import { emitApiNotification } from '../../../utils/apiNotifications';
+import { getPaginationState, normalizePage, toPaginationSearchParams } from '../../../utils/pagination';
 import {
   Star as MemberIcon,
   PersonOutline as NonMemberIcon,
@@ -184,12 +185,11 @@ const GuestConfigurationPage: React.FC = () => {
   const loadGuests = useCallback(async (opts?: { page?: number; search?: string; type?: 'all' | GuestType }) => {
     try {
       setLoading(true);
-      const page = opts?.page ?? currentPage;
+      const page = normalizePage(opts?.page ?? currentPage);
       const search = opts?.search ?? searchTerm;
       const type = opts?.type ?? filterType;
       const resp = await HotelAPIService.getGuestsPage({
-        page,
-        page_size: PAGE_SIZE,
+        ...toPaginationSearchParams({ page, pageSize: PAGE_SIZE }),
         ...(search.trim() ? { search: search.trim() } : {}),
         ...(type !== 'all' ? { guest_type: type } : {}),
       });
@@ -215,9 +215,10 @@ const GuestConfigurationPage: React.FC = () => {
   // Fetch global stats once on mount (total + member count, independent of active filters)
   useEffect(() => {
     if (!hasAccess) return;
+    const singlePageParams = toPaginationSearchParams({ page: 1, pageSize: 1 });
     Promise.all([
-      HotelAPIService.getGuestsPage({ page: 1, page_size: 1 }),
-      HotelAPIService.getGuestsPage({ page: 1, page_size: 1, guest_type: 'member' }),
+      HotelAPIService.getGuestsPage(singlePageParams),
+      HotelAPIService.getGuestsPage({ ...singlePageParams, guest_type: 'member' }),
     ]).then(([all, members]) => {
       setStatsTotal(all.total);
       setStatsMembers(members.total);
@@ -493,7 +494,10 @@ const GuestConfigurationPage: React.FC = () => {
     else setFilterType('all');
   };
 
-  const totalPages = Math.max(1, Math.ceil(totalGuests / PAGE_SIZE));
+  const guestPagination = React.useMemo(
+    () => getPaginationState({ page: currentPage, pageSize: PAGE_SIZE, totalItems: totalGuests }),
+    [currentPage, totalGuests]
+  );
   const today = new Date();
   const dateLabel = today.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -874,14 +878,14 @@ const GuestConfigurationPage: React.FC = () => {
           )}
 
           {/* Pagination footer */}
-          {totalGuests > PAGE_SIZE && (
+          {guestPagination.hasMultiplePages && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2, py: 1.5, bgcolor: GUEST_DESIGN.paper2, borderTop: `1px solid ${GUEST_DESIGN.rule}`, fontSize: 12, color: GUEST_DESIGN.ink3 }}>
               <Box>
-                Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalGuests)} of {totalGuests}
+                Showing {guestPagination.startItem}–{guestPagination.endItem} of {guestPagination.totalItems}
               </Box>
               <Pagination
-                count={totalPages}
-                page={currentPage}
+                count={guestPagination.totalPages}
+                page={guestPagination.currentPage}
                 onChange={(_, page) => setCurrentPage(page)}
                 size="small"
                 showFirstButton

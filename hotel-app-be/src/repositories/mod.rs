@@ -6,6 +6,8 @@
 #[allow(dead_code)]
 pub mod booking;
 #[allow(dead_code)]
+pub mod booking_list;
+#[allow(dead_code)]
 pub mod guest;
 #[allow(dead_code)]
 pub mod ledger;

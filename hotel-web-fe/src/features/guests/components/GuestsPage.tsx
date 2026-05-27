@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
   Typography,
@@ -26,6 +26,7 @@ import {
 import { HotelAPIService } from '../../../api';
 import { Guest } from '../../../types';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
+import { getPaginationState, normalizePage, toPaginationSearchParams } from '../../../utils/pagination';
 
 const PAGE_SIZE = 50;
 
@@ -40,6 +41,10 @@ const GuestsPage: React.FC = () => {
   const guestsRequestId = useRef(0);
   const previousDebouncedSearchQuery = useRef(debouncedSearchQuery);
   const skipNextLoadForPageReset = useRef(false);
+  const guestPagination = useMemo(
+    () => getPaginationState({ page: currentPage, pageSize: PAGE_SIZE, totalItems: totalGuests }),
+    [currentPage, totalGuests]
+  );
 
   useEffect(() => {
     const searchChanged = previousDebouncedSearchQuery.current !== debouncedSearchQuery;
@@ -66,9 +71,9 @@ const GuestsPage: React.FC = () => {
 
     try {
       setLoading(true);
+      const paginationParams = toPaginationSearchParams({ page: normalizePage(page), pageSize: PAGE_SIZE });
       const resp = await HotelAPIService.getGuestsPage({
-        page,
-        page_size: PAGE_SIZE,
+        ...paginationParams,
         ...(search?.trim() ? { search: search.trim() } : {}),
       });
       if (guestsRequestId.current !== requestId) return;
@@ -219,14 +224,14 @@ const GuestsPage: React.FC = () => {
       </TableContainer>
 
       {/* Pagination */}
-      {totalGuests > PAGE_SIZE && (
+      {guestPagination.hasMultiplePages && (
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 2, px: 1 }}>
           <Typography variant="body2" color="text.secondary">
-            Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, totalGuests)} of {totalGuests} guests
+            Showing {guestPagination.startItem}–{guestPagination.endItem} of {guestPagination.totalItems} guests
           </Typography>
           <Pagination
-            count={Math.ceil(totalGuests / PAGE_SIZE)}
-            page={currentPage}
+            count={guestPagination.totalPages}
+            page={guestPagination.currentPage}
             onChange={(_, page) => setCurrentPage(page)}
             color="primary"
             size="small"

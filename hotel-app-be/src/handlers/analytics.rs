@@ -9,6 +9,7 @@ use crate::core::middleware::{require_auth, require_permission_helper};
 use crate::models::ReportQuery;
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 use crate::models::row_mappers;
+use crate::utils::date::parse_date_flexible;
 use axum::{
     extract::{Query, State},
     http::HeaderMap,
@@ -331,17 +332,6 @@ pub async fn get_personalized_report_handler(
 // ============================================================================
 // REPORT GENERATION HANDLERS
 // ============================================================================
-
-fn parse_date_flexible(date_str: &str) -> Result<NaiveDate, String> {
-    if date_str.contains('T') {
-        let date_part = date_str.split('T').next().unwrap_or(date_str);
-        NaiveDate::parse_from_str(date_part, "%Y-%m-%d")
-            .map_err(|e| format!("Invalid date format: {}", e))
-    } else {
-        NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
-            .map_err(|e| format!("Invalid date format: {}", e))
-    }
-}
 
 pub async fn generate_report_handler(
     State(pool): State<DbPool>,

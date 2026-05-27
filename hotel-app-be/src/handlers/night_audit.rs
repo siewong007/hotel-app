@@ -19,6 +19,7 @@ use crate::models::{
 };
 use crate::services::audit::AuditLog;
 use crate::services::night_audit as svc;
+use crate::utils::pagination::normalize_pagination;
 use std::collections::HashMap;
 
 /// Get preview of what will be posted for a given date
@@ -341,10 +342,17 @@ pub async fn list_night_audits(
     log::info!("List night audits called");
     let _user_id = require_permission_helper(&pool, &headers, "night_audit:read").await?;
 
-    let page = params.page.unwrap_or(1).max(1);
-    let page_size = params.page_size.unwrap_or(30).min(100);
-    let offset = (page - 1) * page_size;
-    log::info!("Fetching audits page {} with size {}", page, page_size);
+    let pagination = normalize_pagination(
+        params.page.map(i64::from),
+        params.page_size.map(i64::from),
+        30,
+        100,
+    );
+    log::info!(
+        "Fetching audits page {} with size {}",
+        pagination.page,
+        pagination.page_size
+    );
 
     let rows = sqlx::query(
         r#"
@@ -372,8 +380,8 @@ pub async fn list_night_audits(
         LIMIT $1 OFFSET $2
         "#,
     )
-    .bind(page_size)
-    .bind(offset)
+    .bind(pagination.page_size)
+    .bind(pagination.offset)
     .fetch_all(&pool)
     .await
     .map_err(|e| {

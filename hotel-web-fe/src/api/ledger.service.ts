@@ -11,6 +11,7 @@ import {
   LedgerReversalRequest,
 } from '../types';
 import { withRetry } from '../utils/retry';
+import { getPaginationState, toPaginationSearchParams } from '../utils/pagination';
 
 export class LedgerService {
   static async getCustomerLedgers(params?: {
@@ -25,7 +26,11 @@ export class LedgerService {
     offset?: number;
   }): Promise<CustomerLedger[]> {
     const pageSize = 500;
-    const searchParams: Record<string, string> = { page: '1', page_size: pageSize.toString() };
+    const allPageParams = toPaginationSearchParams({ page: 1, pageSize });
+    const searchParams: Record<string, string> = {
+      page: String(allPageParams.page),
+      page_size: String(allPageParams.page_size),
+    };
     if (params?.status) searchParams.status = params.status;
     if (params?.company_name) searchParams.company_name = params.company_name;
     if (params?.expense_type) searchParams.expense_type = params.expense_type;
@@ -44,7 +49,7 @@ export class LedgerService {
     if (total <= pageSize) return firstData;
 
     // Fetch remaining pages in parallel
-    const totalPages = Math.ceil(total / pageSize);
+    const totalPages = getPaginationState({ page: 1, pageSize, totalItems: total }).totalPages;
     const remainingPages = await Promise.all(
       Array.from({ length: totalPages - 1 }, (_, i) =>
         withRetry(
@@ -69,9 +74,10 @@ export class LedgerService {
     sort_by?: string;
     sort_order?: string;
   } = {}): Promise<{ data: CustomerLedger[]; total: number; page: number; page_size: number }> {
+    const pageParams = toPaginationSearchParams({ page: params.page, pageSize: params.page_size });
     const searchParams: Record<string, string> = {
-      page: String(params.page ?? 1),
-      page_size: String(params.page_size ?? 50),
+      page: String(pageParams.page),
+      page_size: String(pageParams.page_size),
     };
     if (params.search)       searchParams.search       = params.search;
     if (params.status)       searchParams.status       = params.status;

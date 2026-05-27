@@ -2,11 +2,12 @@ import { HTTPError } from 'ky';
 import { api, APIError } from './client';
 import { Guest, GuestCreateRequest } from '../types';
 import { withRetry } from '../utils/retry';
+import { getPaginationState, toPaginationSearchParams } from '../utils/pagination';
 
 export class GuestsService {
   static async getAllGuests(params?: { search?: string }): Promise<Guest[]> {
     const pageSize = 500;
-    const baseParams: Record<string, any> = { page: 1, page_size: pageSize };
+    const baseParams: Record<string, any> = toPaginationSearchParams({ page: 1, pageSize });
     if (params?.search) baseParams.search = params.search;
 
     const firstPage = await withRetry(
@@ -19,7 +20,7 @@ export class GuestsService {
     if (total <= pageSize) return firstData;
 
     // Fetch remaining pages in parallel
-    const totalPages = Math.ceil(total / pageSize);
+    const totalPages = getPaginationState({ page: 1, pageSize, totalItems: total }).totalPages;
     const remainingPages = await Promise.all(
       Array.from({ length: totalPages - 1 }, (_, i) =>
         withRetry(
@@ -42,8 +43,7 @@ export class GuestsService {
     guest_type?: string;
   } = {}): Promise<{ data: Guest[]; total: number; page: number; page_size: number }> {
     const searchParams: Record<string, any> = {
-      page: params.page ?? 1,
-      page_size: params.page_size ?? 50,
+      ...toPaginationSearchParams({ page: params.page, pageSize: params.page_size }),
     };
     if (params.search) searchParams.search = params.search;
     if (params.guest_type) searchParams.guest_type = params.guest_type;

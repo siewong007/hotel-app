@@ -1,116 +1,355 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file defines the working rules for Codex and other coding agents in this repository. Follow it when reading, changing, testing, or refactoring the codebase.
 
 ## Repository Layout
 
-This is a three-project monorepo; each subdirectory has its own build system and is worked on independently:
+This is a three-project monorepo. Each project has its own build system and should be worked on independently:
 
-- `hotel-app-be/` — Rust backend API (Axum + SQLx, dual PostgreSQL/SQLite via Cargo features)
-- `hotel-web-fe/` — React 19 + TypeScript web frontend (Vite, MUI v7, Zustand)
-- `hotel-desktop/` — Tauri 2 wrapper that embeds the backend binary and a database for offline desktop use
+- `hotel-app-be/` - Rust backend API using Axum + SQLx, with PostgreSQL and SQLite support via Cargo features.
+- `hotel-web-fe/` - React 19 + TypeScript frontend using Vite, MUI v7, ky, and Zustand.
+- `hotel-desktop/` - Tauri 2 desktop wrapper that embeds the backend sidecar and bundled PostgreSQL resources for offline use.
 
-There is no root-level package manager or workspace; run commands from the relevant subdirectory.
+There is no root-level package manager or workspace. Run commands from the relevant subdirectory.
 
-## Common Commands
+## Preferred Architecture Pattern
+
+### Backend
+
+Preferred request flow:
+
+`routes/<domain>.rs` -> auth/rate-limit guards -> `handlers/<domain>/` -> `services/<domain>/` -> `repositories/<domain>/` -> `models/<domain>/`
+
+Responsibilities:
+
+- `routes/`: HTTP path registration, route ordering, auth/rate-limit guards, and extraction wiring only. Do not put business logic or SQL here.
+- `handlers/`: Translate HTTP inputs into domain calls and domain results into HTTP responses. Keep handlers thin.
+- `services/`: Business workflows, validation orchestration, transactions, audit decisions, cross-entity rules, and domain invariants.
+- `repositories/`: SQL only. Parameter binding, row fetching, persistence, and row mapping belong here.
+- `models/`: Request/response DTOs and domain structs. Keep serialization and validation annotations close to the types they describe.
+- `core/`: Cross-cutting infrastructure: auth, DB pool, errors, middleware, rate limiting, SQL compatibility.
+- `utils/`: Small reusable pure helpers such as sanitization, date parsing, and validation helpers.
+
+Handlers may contain inline SQL only as a temporary bridge while refactoring legacy files. New code should use repositories.
+
+### Frontend
+
+Preferred feature flow:
+
+`features/<domain>/pages` -> `features/<domain>/components` -> `features/<domain>/hooks` -> `features/<domain>/api` or global `api/<domain>.service.ts`
+
+Responsibilities:
+
+- Pages compose feature components and route-level state.
+- Components render UI and receive data/actions via props where practical.
+- Hooks own async loading, derived state, local workflow state, and orchestration.
+- API services wrap HTTP calls only. They should not contain UI decisions.
+- Feature `types.ts`, `utils.ts`, and `constants.ts` should live inside the feature when only that feature uses them.
+- Shared reusable UI, hooks, utilities, and types live under `src/components`, `src/hooks`, `src/utils`, and `src/types`.
+
+Large UI files should be split by workflow, not by arbitrary line count. Prefer extracting dialogs, tables, form sections, and pure helpers before changing behavior.
+
+### Desktop
+
+Preferred desktop structure:
+
+- Tauri commands expose UI-facing operations only.
+- Backend sidecar lifecycle code should be separate from PostgreSQL lifecycle code.
+- PostgreSQL initialization, migration running, status checks, and seed/bootstrap handling should be separate modules when touched.
+- Desktop database resources are derived from backend database resources where possible. Keep sync scripts accurate.
+
+## Folder Structure Rules
+
+### Backend
+
+Current structure is flat by layer. When adding or heavily refactoring a domain, move toward this domain-module structure incrementally:
+
+```text
+src/
+  modules/
+    <domain>/
+      mod.rs
+      routes.rs
+      handlers.rs
+      service.rs
+      repository.rs
+      queries.rs
+      models.rs
+      validation.rs
+```
+
+Do not perform a repo-wide move in one change. Migrate one domain at a time, preserving public routes and response shapes.
+
+Keep these existing global areas:
+
+- `core/` for infrastructure shared by all domains.
+- `services/audit.rs` for append-only audit logging.
+- `database/migrations/` for PostgreSQL migrations.
+- `database/sqlite_migrations/` for SQLite migrations.
+
+When schema changes are made, keep PostgreSQL and SQLite migrations aligned or clearly document why they intentionally differ.
+
+### Frontend
+
+Feature folders should follow this shape for new or refactored code:
+
+```text
+src/features/<domain>/
+  api.ts
+  types.ts
+  constants.ts
+  utils.ts
+  hooks/
+  components/
+  pages/
+  index.ts
+```
+
+Rules:
+
+- Keep route-level components under `pages/` when introducing new feature structure.
+- Keep reusable domain widgets under `components/`.
+- Keep feature-specific data loading in `hooks/`.
+- Avoid adding more global barrels unless they reduce real duplication.
+- Do not call `fetch` directly. Use `src/api/client.ts` or an existing domain service.
+- Use `src/utils/storage.ts` for localStorage access.
+
+### Desktop
+
+New or refactored Rust desktop code should move toward:
+
+```text
+src-tauri/src/
+  commands/
+  process/
+  postgres/
+  config.rs
+  paths.rs
+```
+
+Do not manually edit synced desktop database resources without also checking the backend source resource and sync script.
+
+## Naming Conventions
+
+### Rust
+
+- Files and modules: `snake_case`.
+- Functions and variables: `snake_case`.
+- Types, structs, enums, traits: `PascalCase`.
+- Constants: `SCREAMING_SNAKE_CASE`.
+- Handler functions should end with `_handler` only inside handler modules. Route wrapper functions can use action names such as `create_booking`.
+- Repository methods should use persistence verbs: `find_by_id`, `list`, `insert`, `update`, `delete`, `exists`.
+- Service methods should use domain verbs: `check_in_booking`, `void_booking`, `calculate_invoice_totals`.
+- Avoid vague names like `data`, `item`, `thing`, `do_update` when a domain name is available.
+
+### TypeScript/React
+
+- Components: `PascalCase` file and export names.
+- Hooks: `useX` names and `useX.ts` files.
+- Services: `<Domain>Service` in `<domain>.service.ts` until moved into feature-local `api.ts`.
+- Types and interfaces: `PascalCase`.
+- Constants: `SCREAMING_SNAKE_CASE` for fixed values, `camelCase` for config objects when the existing feature uses that style.
+- Event handlers: `handleX`.
+- Boolean props/state: `isX`, `hasX`, `canX`, `shouldX`.
+
+## Testing Expectations
+
+### Backend
+
+Add or update tests when refactoring:
+
+- Pure business logic.
+- SQL query builders and cross-database helpers.
+- Date, money, status, permission, and validation logic.
+- Behavior around auth, 2FA, passkeys, eKYC documents, booking state transitions, payments, ledgers, and night audit.
+
+Use focused tests. Prefer unit tests for extracted pure helpers and services. Use SQLite integration tests for database behavior that can run locally without PostgreSQL.
+
+Useful commands:
+
+```bash
+cd hotel-app-be
+cargo test <name>
+cargo check --all-features
+cargo clippy --all-features -- -D warnings
+```
+
+For SQL changes, verify both database modes when practical:
+
+```bash
+cargo check --all-features
+cargo check --features sqlite --no-default-features
+```
+
+### Frontend
+
+There is currently no frontend test runner configured. For frontend refactors:
+
+- Always run `npx tsc --noEmit`.
+- Run `npm run build` for route, bundling, or lazy-loading changes.
+- Prefer extracting pure utilities so they can be tested later without coupling to UI.
+- Do not add a test framework or test dependency as part of an unrelated refactor. Propose that as a separate, explicit change.
+
+### Desktop
+
+For desktop Rust changes:
+
+```bash
+cd hotel-desktop/src-tauri
+cargo check
+```
+
+For desktop packaging/resource changes, run or inspect:
+
+```bash
+cd hotel-desktop
+npm run sync:resources
+npm run desktop:prepare
+```
+
+If a command cannot be run because of local tooling, sandboxing, or network limits, report that clearly.
+
+## Linting And Type-Checking Expectations
+
+Before finishing backend changes:
+
+```bash
+cd hotel-app-be
+cargo fmt
+cargo check --all-features
+cargo clippy --all-features -- -D warnings
+```
+
+Before finishing frontend changes:
+
+```bash
+cd hotel-web-fe
+npx tsc --noEmit
+npm run build
+```
+
+Before finishing desktop Rust changes:
+
+```bash
+cd hotel-desktop/src-tauri
+cargo fmt
+cargo check
+```
+
+CI runs on push/PR to `master`: frontend `tsc --noEmit` + Vite build, and backend `cargo check`, `cargo clippy --all-features -- -D warnings`, and release build.
+
+## Dependency Rules
+
+- Avoid unnecessary new dependencies.
+- Prefer existing standard library, existing crate, or existing npm package capabilities.
+- Add a dependency only when it removes substantial complexity, improves safety, or uses a well-established implementation for a nontrivial domain.
+- Do not add overlapping libraries for state, HTTP, validation, dates, UI, or charts without a strong reason.
+- Keep backend rate limiting in the existing in-memory implementation unless a separate task approves a different design.
+- For frontend HTTP, keep using `ky` through `src/api/client.ts`.
+- For frontend UI, prefer MUI components and existing shared components.
+- If a dependency is added, explain why, keep it scoped to the project that needs it, and verify lockfile changes.
+
+## Refactoring Rules
+
+- Keep refactors incremental and easy to review.
+- Do not combine broad restructuring with feature changes unless explicitly requested.
+- Preserve public API routes, request/response shapes, database behavior, UI workflows, and existing permissions unless fixing an obvious bug.
+- Move code before rewriting code when possible.
+- Extract pure helpers first, then services, then repositories.
+- Add tests around extracted logic before or alongside behavior-preserving moves.
+- Prefer one domain at a time. Good first backend domains are small route-guard/helper refactors before large domains like bookings, rooms, ledgers, and analytics.
+- Good first frontend targets are duplicate shared components and obvious page splits, before large workflow rewrites.
+- Avoid mechanical repo-wide formatting churn. Format touched files only unless running the project formatter is required.
+- Remove compatibility layers only after all callers have migrated.
+- Keep barrel exports purposeful. Do not create import cycles.
+- Document any intentional behavior change in the final summary.
+
+## Safety Rules For Preserving Behavior
+
+- Treat existing behavior as the specification unless there is a clear bug, security issue, or data-loss risk.
+- Do not change route paths, HTTP methods, status codes, response fields, permission names, localStorage keys, or database column meanings during a refactor.
+- Do not change migrations that may already have been applied in production. Add a new migration instead.
+- Do not rewrite historical seed or migration files unless the repository explicitly treats them as source templates and the change is safe.
+- Do not delete legacy code until `rg` confirms there are no callers or a compatibility shim remains.
+- Do not change authentication, authorization, passkey, 2FA, payment, ledger, eKYC, or night audit behavior without targeted tests or explicit approval.
+- Keep SQL parameterized. Never interpolate user input into SQL.
+- Sanitize free-text user input with existing sanitization utilities.
+- Use transactions for multi-step mutations.
+- Log internal error details server-side but return generic client-facing errors where appropriate.
+- Respect dirty worktrees. Do not revert or overwrite changes you did not make.
+
+## Backend Dual-Database Contract
+
+The backend compiles for exactly one database at runtime. The default feature is PostgreSQL; SQLite is used for offline/test modes. CI may compile with `--all-features`.
+
+When writing SQL:
+
+- Use `param!(1)` / `param!(2)` or `sql_query!(postgres: "...", sqlite: "...")` instead of hand-building placeholders.
+- Use helpers from `core/sql_compat.rs` such as `current_timestamp()` and `current_date()` instead of hardcoded database-specific expressions when possible.
+- Use helpers in `core/db.rs` for database-specific value conversion such as decimals and UUID generation.
+- Keep PostgreSQL and SQLite schema expectations aligned.
+- Avoid duplicating long PostgreSQL and SQLite queries inline in handlers. Move them into repositories or query modules.
+
+## Existing Project Commands
 
 ### Backend (`hotel-app-be/`)
 
 ```bash
-cargo check --all-features                    # CI: fast typecheck
-cargo clippy --all-features -- -D warnings    # CI: lint (warnings are errors)
-cargo build --release                         # CI: release build
-cargo run                                     # Default: PostgreSQL, port 3030
-cargo run --features sqlite --no-default-features   # SQLite mode (requires DATABASE_PATH or defaults to ./hotel_data.db)
-sqlx migrate run                              # Apply PostgreSQL migrations in database/migrations/
-cargo test <name>                             # Run a single test by name substring
+cargo check --all-features
+cargo clippy --all-features -- -D warnings
+cargo build --release
+cargo run
+cargo run --features sqlite --no-default-features
+sqlx migrate run
+cargo test <name>
 ```
 
-The `postgres` and `sqlite` features are mutually exclusive at runtime — `core::db::DbPool` resolves to a different concrete pool type depending on which feature is active. Code touching SQL must compile under both.
+Helper binaries live in `src/bin/`:
 
-Helper binaries live in `src/bin/` (`hash_password`, `fix_password`): run with `cargo run --bin hash_password -- <password>`.
+```bash
+cargo run --bin hash_password -- <password>
+cargo run --bin fix_password -- <username> <new-password>
+```
 
 ### Frontend (`hotel-web-fe/`)
 
 ```bash
 npm install
-npm run start                  # Vite dev server on port 3000, proxies API to 127.0.0.1:3030
-npm run build                  # Production build
-npx tsc --noEmit               # CI: typecheck (there is no lint or test script)
+npm run start
+npm run build
+npx tsc --noEmit
 ```
 
-The dev server proxy list in `vite.config.ts` is hand-maintained — when adding a new top-level API route on the backend, add its prefix there or the frontend dev server won't forward it.
+The Vite dev server proxy list in `vite.config.ts` is hand-maintained. When adding a new top-level backend API route, add its prefix there or the frontend dev server will not forward it.
 
 ### Desktop (`hotel-desktop/`)
 
 ```bash
 npm install
-npm run dev                    # tauri dev — launches the Rust backend as a sidecar
-npm run build                  # tauri build — production installer
-npm run build:debug            # debug build
+npm run dev
+npm run build
+npm run build:debug
+npm run sync:resources
+npm run desktop:prepare
 ```
 
-The desktop app ships an embedded PostgreSQL binary under `src-tauri/pgsql/` and its own `src-tauri/database/`. The backend detects desktop mode via the `HOTEL_DESKTOP_MODE` env var and, when set, binds to `127.0.0.1` on a dynamically-chosen free port starting at `BACKEND_PORT` (default 3030).
-
-### CI
-
-`.github/workflows/ci.yml` runs on push/PR to `master`: frontend (`tsc --noEmit` + `vite build`) and backend (`cargo check/clippy/build` with `--all-features` and `-D warnings`). There is no automated test job — keep `cargo clippy --all-features` clean.
-
-## Architecture
-
-### Backend layering
-
-Requests flow: `routes/<domain>.rs` → auth middleware → `handlers/<domain>.rs` → `repositories/<domain>.rs` (or inline SQL) → `models/<domain>.rs`.
-
-- `routes/mod.rs::create_router` composes all `routes::<domain>::routes()` routers, wires CORS, rate limiters, and security headers (HSTS, CSP, X-Frame-Options, etc.). All domain routes must be `.merge()`d in here to be live.
-- `core/auth.rs` + `core/middleware.rs` — JWT verification and RBAC. `require_auth(&headers)` extracts a user ID; `check_permission(pool, user_id, "<resource>:<action>")` enforces RBAC and auto-grants if the user has `<resource>:manage`.
-- `core/db.rs` — pool creation. On PostgreSQL, `after_connect` reads `system_settings.timezone` and runs `SET timezone = '<tz>'` per connection so `(ts AT TIME ZONE $tz)::date` comparisons are correct. Timezone values are validated against a safe character set before interpolation because `SET` doesn't accept bound parameters.
-- `core/rate_limiter.rs` — in-memory rate limiting (no external dependency); `RateLimiters` is injected as an `Extension`.
-- `core/sql_compat.rs` — `sql_query!(postgres: "...", sqlite: "...")` and `param!(N)` macros plus helpers (`current_timestamp()`, `current_date()`) for database-agnostic queries.
-- `services/audit.rs` — append-only audit log; call from handlers that mutate business data.
-- `utils/sanitization.rs` — `Sanitizer` for user-supplied strings (uses `ammonia`); `utils/validation.rs` for shape validation (uses `validator`).
-
-### Dual-database contract
-
-The backend compiles for exactly one database at a time in production (default feature `postgres`; CI builds with `--all-features` for checking). When writing SQL:
-
-- Use `param!(1)` / `param!(2)` for placeholders (`$1` vs `?1`).
-- Use `sql_compat::current_timestamp()` / `current_date()` instead of literal `NOW()` / `CURRENT_DATE`.
-- For values that differ between databases (e.g. `Decimal` → `String` on SQLite, UUID generation), use the helpers in `core/db.rs` (`decimal_to_db`, `opt_decimal_to_db`, `generate_uuid`, etc.).
-- PostgreSQL migrations live in `database/migrations/` (run via `sqlx migrate run`). SQLite migrations live in `database/sqlite_migrations/` and are run automatically at startup by `create_pool`. Keep them in sync when changing schema.
-
-### Frontend structure
-
-- `src/features/<domain>/` — feature modules (bookings, rooms, guests, loyalty, admin/rbac, ekyc, reports, dashboard, invoices, auth, user). Each typically contains a `components/` folder; barrel exports at the feature root.
-- `src/api/*.service.ts` — one service per backend domain. All HTTP goes through `src/api/client.ts` (a configured `ky` instance). Never call `fetch` directly.
-- `src/api/client.ts` — attaches `Authorization: Bearer <token>` from `storage`, retries idempotent GETs, and dispatches a `window` `auth:unauthorized` event on 401s from protected endpoints so `AuthContext` can navigate to login without a hard redirect.
-- `src/utils/storage.ts` — always use this for localStorage (preserves language preferences on logout; typed getters).
-- `src/store/useAuthStore.ts` — Zustand auth store; `AuthContext` in `src/auth/` wraps it.
-- `App.tsx` — all non-critical pages are `React.lazy()`-loaded; add new routes there and keep them inside the `Suspense` + `ErrorBoundary` wrappers.
-- `tsconfig.json` has `"strict": false` — don't assume strict-mode typing; types tighten gradually.
-
-### API surface
-
-Domain routers are listed in `src/routes/mod.rs`; see `README.md` for the full endpoint table. All protected routes use `require_auth` + `check_permission("<resource>:<action>")`. Uploads are served from the backend's `uploads/` directory via a `ServeDir` mounted at `/uploads`.
-
-## Conventions (from CONTRIBUTING.md)
-
-- **Backend:** parameterize all SQL (never interpolate user input); apply `Sanitizer` to free-text user input; guard protected routes with `require_auth`; use transactions for multi-step mutations; return generic errors to clients and log specifics server-side.
-- **Frontend:** always go through the `api` client in `src/api/client.ts` and the `storage` util; add request/response types in `src/types/`; prefer MUI components for UI.
-- **Cross-DB:** test backend query changes against both PostgreSQL and SQLite (or at minimum `cargo check --all-features`).
+The desktop app ships embedded PostgreSQL resources under `src-tauri/pgsql/` and copied database resources under `src-tauri/database/`. The backend detects desktop mode with `HOTEL_DESKTOP_MODE` and binds to localhost on a dynamically chosen port starting at `BACKEND_PORT`.
 
 ## Environment
 
-Required env vars (see `hotel-app-be/.env.example`):
+Required env vars are documented in `hotel-app-be/.env.example`:
 
-- `DATABASE_URL` — PostgreSQL DSN (postgres mode)
-- `DATABASE_PATH` — SQLite file path (sqlite mode; defaults to `./hotel_data.db`)
-- `JWT_SECRET` — ≥32 chars
-- `BACKEND_PORT` — default 3030
-- `ALLOWED_ORIGINS` — comma-separated; `*` switches CORS to permissive (used by desktop mode)
-- `HOTEL_DESKTOP_MODE` — any value enables desktop-mode behavior (localhost-only bind, dynamic port)
-- `VITE_API_URL` — frontend production API URL (dev uses the Vite proxy)
+- `DATABASE_URL` - PostgreSQL DSN.
+- `DATABASE_PATH` - SQLite file path.
+- `JWT_SECRET` - at least 32 characters.
+- `BACKEND_PORT` - default 3030.
+- `ALLOWED_ORIGINS` - comma-separated origins.
+- `TRUST_PROXY_HEADERS` - only set true behind a trusted proxy.
+- `HOTEL_DESKTOP_MODE` - enables desktop-mode backend behavior.
+- `VITE_API_URL` - frontend production API URL.
+
+Never commit real secrets or local `.env` files.
 
 ## MCP Servers
 
-`hotel-app-be/README.md` references two MCP servers under `hotel-app-be/mcp-server/` (analytics-server, hotel-search-server) that wrap the REST API for Codex Desktop / Cursor integration. They authenticate via JWT and read from the same backend; no separate database access.
+`hotel-app-be/README.md` references MCP servers under `hotel-app-be/mcp-server/`. They wrap the REST API and authenticate through JWT. They should not bypass the backend authorization/database access patterns.

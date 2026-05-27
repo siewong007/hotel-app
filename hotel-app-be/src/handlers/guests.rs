@@ -9,6 +9,7 @@ use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::*;
 use crate::services::audit::AuditLog;
+use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
 use axum::{
     extract::{Extension, Path, Query, State},
@@ -42,9 +43,7 @@ pub async fn get_guests_handler(
         }));
     }
 
-    let page = params.page.unwrap_or(1).max(1);
-    let page_size = params.page_size.unwrap_or(100).min(500);
-    let offset = (page - 1) * page_size;
+    let pagination = normalize_pagination(params.page, params.page_size, 100, 500);
 
     let search = params.search.as_deref().filter(|s| !s.trim().is_empty());
     let guest_type_filter = params
@@ -110,8 +109,8 @@ pub async fn get_guests_handler(
 
         let guests = sqlx::query_as::<_, Guest>(&data_sql)
             .bind(&pattern)
-            .bind(page_size)
-            .bind(offset)
+            .bind(pagination.page_size)
+            .bind(pagination.offset)
             .fetch_all(&pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -133,8 +132,8 @@ pub async fn get_guests_handler(
             .unwrap_or(0);
 
         let guests = sqlx::query_as::<_, Guest>(&data_sql)
-            .bind(page_size)
-            .bind(offset)
+            .bind(pagination.page_size)
+            .bind(pagination.offset)
             .fetch_all(&pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -145,8 +144,8 @@ pub async fn get_guests_handler(
     Ok(Json(GuestPaginatedResponse {
         data: guests,
         total,
-        page,
-        page_size,
+        page: pagination.page,
+        page_size: pagination.page_size,
     }))
 }
 
