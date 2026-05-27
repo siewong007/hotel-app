@@ -18,9 +18,9 @@ git checkout -b feature/your-feature-name
 
 ### Prerequisites
 
-- Rust (2021 edition) with `cargo`
+- Rust 1.95.0+ with `cargo`
 - Node.js 18+ with `npm`
-- PostgreSQL 14+ (or use SQLite for local development)
+- PostgreSQL 18+ (or use SQLite for local development)
 
 ### Backend
 

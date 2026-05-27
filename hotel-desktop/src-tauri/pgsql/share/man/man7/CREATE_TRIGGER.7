@@ -2,12 +2,12 @@
 .\"     Title: CREATE TRIGGER
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE TRIGGER" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE TRIGGER" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -136,7 +136,7 @@ T}
 T}:T{
 \(em
 T}:T{
-Tables
+Tables and foreign tables
 T}
 T{
 AFTER
@@ -152,7 +152,7 @@ T}
 T}:T{
 \(em
 T}:T{
-Tables
+Tables and foreign tables
 T}
 T{
 INSTEAD OF
@@ -183,11 +183,11 @@ conditions, although the feature is not so useful for them since the condition c
 .PP
 If multiple triggers of the same kind are defined for the same event, they will be fired in alphabetical order by name\&.
 .PP
-
 When the
 CONSTRAINT
 option is specified, this command creates a
-constraint trigger\&. This is the same as a regular trigger except that the timing of the trigger firing can be adjusted using
+constraint trigger\&.
+This is the same as a regular trigger except that the timing of the trigger firing can be adjusted using
 \fBSET CONSTRAINTS\fR\&. Constraint triggers must be
 AFTER ROW
 triggers on plain tables (not foreign tables)\&. They can be fired either at the end of the statement causing the triggering event, or at the end of the containing transaction; in the latter case they are said to be
@@ -227,7 +227,7 @@ triggers\&. Rules and views may provide workable solutions to problems that seem
 triggers\&.
 .PP
 Refer to
-Chapter\ \&39
+Chapter\ \&37
 for more information about triggers\&.
 .SH "PARAMETERS"
 .PP
@@ -481,7 +481,7 @@ option is not supported for constraint triggers\&.
 Replacing an existing trigger within a transaction that has already performed updating actions on the trigger\*(Aqs table is not recommended\&. Trigger firing decisions, or portions of firing decisions, that have already been made will not be reconsidered, so the effects could be surprising\&.
 .PP
 There are a few built\-in trigger functions that can be used to solve common problems without having to write your own trigger code; see
-Section\ \&9.28\&.
+Section\ \&9.29\&.
 .SH "EXAMPLES"
 .PP
 Execute the function
@@ -612,7 +612,7 @@ CREATE TRIGGER paired_items_update
 .RE
 .\}
 .PP
-Section\ \&39.4
+Section\ \&37.4
 contains a complete example of a trigger function written in C\&.
 .SH "COMPATIBILITY"
 .PP

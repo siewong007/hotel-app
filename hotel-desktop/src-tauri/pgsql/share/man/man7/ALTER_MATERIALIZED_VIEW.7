@@ -2,12 +2,12 @@
 .\"     Title: ALTER MATERIALIZED VIEW
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "ALTER MATERIALIZED VIEW" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "ALTER MATERIALIZED VIEW" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -50,10 +50,11 @@ where \fIaction\fR is one of:
     ALTER [ COLUMN ] \fIcolumn_name\fR SET STATISTICS \fIinteger\fR
     ALTER [ COLUMN ] \fIcolumn_name\fR SET ( \fIattribute_option\fR = \fIvalue\fR [, \&.\&.\&. ] )
     ALTER [ COLUMN ] \fIcolumn_name\fR RESET ( \fIattribute_option\fR [, \&.\&.\&. ] )
-    ALTER [ COLUMN ] \fIcolumn_name\fR SET STORAGE { PLAIN | EXTERNAL | EXTENDED | MAIN }
+    ALTER [ COLUMN ] \fIcolumn_name\fR SET STORAGE { PLAIN | EXTERNAL | EXTENDED | MAIN | DEFAULT }
     ALTER [ COLUMN ] \fIcolumn_name\fR SET COMPRESSION \fIcompression_method\fR
     CLUSTER ON \fIindex_name\fR
     SET WITHOUT CLUSTER
+    SET ACCESS METHOD \fInew_access_method\fR
     SET TABLESPACE \fInew_tablespace\fR
     SET ( \fIstorage_parameter\fR [= \fIvalue\fR] [, \&.\&.\&. ] )
     RESET ( \fIstorage_parameter\fR [, \&.\&.\&. ] )
@@ -67,7 +68,9 @@ changes various auxiliary properties of an existing materialized view\&.
 You must own the materialized view to use
 \fBALTER MATERIALIZED VIEW\fR\&. To change a materialized view\*(Aqs schema, you must also have
 CREATE
-privilege on the new schema\&. To alter the owner, you must also be a direct or indirect member of the new owning role, and that role must have
+privilege on the new schema\&. To alter the owner, you must be able to
+SET ROLE
+to the new owning role, and that role must have
 CREATE
 privilege on the materialized view\*(Aqs schema\&. (These restrictions enforce that altering the owner doesn\*(Aqt do anything you couldn\*(Aqt do by dropping and recreating the materialized view\&. However, a superuser can alter ownership of any view anyway\&.)
 .PP

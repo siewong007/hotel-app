@@ -2,12 +2,12 @@
 .\"     Title: ALTER DEFAULT PRIVILEGES
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "ALTER DEFAULT PRIVILEGES" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "ALTER DEFAULT PRIVILEGES" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -39,7 +39,7 @@ ALTER DEFAULT PRIVILEGES
 
 where \fIabbreviated_grant_or_revoke\fR is one of:
 
-GRANT { { SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER }
+GRANT { { SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER | MAINTAIN }
     [, \&.\&.\&.] | ALL [ PRIVILEGES ] }
     ON TABLES
     TO { [ GROUP ] \fIrole_name\fR | PUBLIC } [, \&.\&.\&.] [ WITH GRANT OPTION ]
@@ -62,8 +62,13 @@ GRANT { { USAGE | CREATE }
     ON SCHEMAS
     TO { [ GROUP ] \fIrole_name\fR | PUBLIC } [, \&.\&.\&.] [ WITH GRANT OPTION ]
 
+GRANT { { SELECT | UPDATE }
+    [, \&.\&.\&.] | ALL [ PRIVILEGES ] }
+    ON LARGE OBJECTS
+    TO { [ GROUP ] \fIrole_name\fR | PUBLIC } [, \&.\&.\&.] [ WITH GRANT OPTION ]
+
 REVOKE [ GRANT OPTION FOR ]
-    { { SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER }
+    { { SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER | MAINTAIN }
     [, \&.\&.\&.] | ALL [ PRIVILEGES ] }
     ON TABLES
     FROM { [ GROUP ] \fIrole_name\fR | PUBLIC } [, \&.\&.\&.]
@@ -94,11 +99,28 @@ REVOKE [ GRANT OPTION FOR ]
     ON SCHEMAS
     FROM { [ GROUP ] \fIrole_name\fR | PUBLIC } [, \&.\&.\&.]
     [ CASCADE | RESTRICT ]
+
+REVOKE [ GRANT OPTION FOR ]
+    { { SELECT | UPDATE }
+    [, \&.\&.\&.] | ALL [ PRIVILEGES ] }
+    ON LARGE OBJECTS
+    FROM { [ GROUP ] \fIrole_name\fR | PUBLIC } [, \&.\&.\&.]
+    [ CASCADE | RESTRICT ]
 .fi
 .SH "DESCRIPTION"
 .PP
 \fBALTER DEFAULT PRIVILEGES\fR
-allows you to set the privileges that will be applied to objects created in the future\&. (It does not affect privileges assigned to already\-existing objects\&.) Currently, only the privileges for schemas, tables (including views and foreign tables), sequences, functions, and types (including domains) can be altered\&. For this command, functions include aggregates and procedures\&. The words
+allows you to set the privileges that will be applied to objects created in the future\&. (It does not affect privileges assigned to already\-existing objects\&.) Privileges can be set globally (i\&.e\&., for all objects created in the current database), or just for objects created in specified schemas\&.
+.PP
+While you can change your own default privileges and the defaults of roles that you are a member of, at object creation time, new object permissions are only affected by the default privileges of the current role, and are not inherited from any roles in which the current role is a member\&.
+.PP
+As explained in
+Section\ \&5.8, the default privileges for any object type normally grant all grantable permissions to the object owner, and may grant some privileges to
+PUBLIC
+as well\&. However, this behavior can be changed by altering the global default privileges with
+\fBALTER DEFAULT PRIVILEGES\fR\&.
+.PP
+Currently, only the privileges for schemas, tables (including views and foreign tables), sequences, functions, types (including domains), and large objects can be altered\&. For this command, functions include aggregates and procedures\&. The words
 FUNCTIONS
 and
 ROUTINES
@@ -106,14 +128,6 @@ are equivalent in this command\&. (ROUTINES
 is preferred going forward as the standard term for functions and procedures taken together\&. In earlier PostgreSQL releases, only the word
 FUNCTIONS
 was allowed\&. It is not possible to set default privileges for functions and procedures separately\&.)
-.PP
-You can change default privileges only for objects that will be created by yourself or by roles that you are a member of\&. The privileges can be set globally (i\&.e\&., for all objects created in the current database), or just for objects created in specified schemas\&.
-.PP
-As explained in
-Section\ \&5.7, the default privileges for any object type normally grant all grantable permissions to the object owner, and may grant some privileges to
-PUBLIC
-as well\&. However, this behavior can be changed by altering the global default privileges with
-\fBALTER DEFAULT PRIVILEGES\fR\&.
 .PP
 Default privileges that are specified per\-schema are added to whatever the global default privileges are for the particular object type\&. This means you cannot revoke privileges per\-schema if they are granted globally (either by default, or according to a previous
 \fBALTER DEFAULT PRIVILEGES\fR
@@ -125,13 +139,8 @@ GRANT\&.
 .PP
 \fItarget_role\fR
 .RS 4
-The name of an existing role of which the current role is a member\&. Default access privileges are not inherited, so member roles must use
-\fBSET ROLE\fR
-to access these privileges, or
-\fBALTER DEFAULT PRIVILEGES\fR
-must be run for each member role\&. If
-FOR ROLE
-is omitted, the current role is assumed\&.
+Change default privileges for objects created by the
+\fItarget_role\fR, or the current role if unspecified\&.
 .RE
 .PP
 \fIschema_name\fR
@@ -140,7 +149,7 @@ The name of an existing schema\&. If specified, the default privileges are alter
 IN SCHEMA
 is omitted, the global default privileges are altered\&.
 IN SCHEMA
-is not allowed when setting privileges for schemas, since schemas can\*(Aqt be nested\&.
+is not allowed when setting privileges for schemas and large objects, since schemas can\*(Aqt be nested and large objects don\*(Aqt belong to a schema\&.
 .RE
 .PP
 \fIrole_name\fR
@@ -159,7 +168,7 @@ Use
 command to obtain information about existing assignments of default privileges\&. The meaning of the privilege display is the same as explained for
 \fB\edp\fR
 in
-Section\ \&5.7\&.
+Section\ \&5.8\&.
 .PP
 If you wish to drop a role for which the default privileges have been altered, it is necessary to reverse the changes in its default privileges or use
 \fBDROP OWNED BY\fR

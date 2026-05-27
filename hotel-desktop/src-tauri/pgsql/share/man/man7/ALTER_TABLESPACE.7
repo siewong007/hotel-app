@@ -2,12 +2,12 @@
 .\"     Title: ALTER TABLESPACE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "ALTER TABLESPACE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "ALTER TABLESPACE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -42,7 +42,9 @@ ALTER TABLESPACE \fIname\fR RESET ( \fItablespace_option\fR [, \&.\&.\&. ] )
 \fBALTER TABLESPACE\fR
 can be used to change the definition of a tablespace\&.
 .PP
-You must own the tablespace to change the definition of a tablespace\&. To alter the owner, you must also be a direct or indirect member of the new owning role\&. (Note that superusers have these privileges automatically\&.)
+You must own the tablespace to change the definition of a tablespace\&. To alter the owner, you must also be able to
+SET ROLE
+to the new owning role\&. (Note that superusers have these privileges automatically\&.)
 .SH "PARAMETERS"
 .PP
 \fIname\fR
@@ -68,7 +70,7 @@ A tablespace parameter to be set or reset\&. Currently, the only available param
 \fIrandom_page_cost\fR,
 \fIeffective_io_concurrency\fR
 and
-\fImaintenance_io_concurrency\fR\&. Setting these values for a particular tablespace will override the planner\*(Aqs usual estimate of the cost of reading pages from tables in that tablespace, and the executor\*(Aqs prefetching behavior, as established by the configuration parameters of the same name (see
+\fImaintenance_io_concurrency\fR\&. Setting these values for a particular tablespace will override the planner\*(Aqs usual estimate of the cost of reading pages from tables in that tablespace, and how many concurrent I/Os are issued, as established by the configuration parameters of the same name (see
 seq_page_cost,
 random_page_cost,
 effective_io_concurrency,

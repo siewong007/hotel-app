@@ -2,12 +2,12 @@
 .\"     Title: CREATE DOMAIN
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE DOMAIN" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE DOMAIN" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -35,9 +35,9 @@ CREATE_DOMAIN \- define a new domain
 CREATE DOMAIN \fIname\fR [ AS ] \fIdata_type\fR
     [ COLLATE \fIcollation\fR ]
     [ DEFAULT \fIexpression\fR ]
-    [ \fIconstraint\fR [ \&.\&.\&. ] ]
+    [ \fIdomain_constraint\fR [ \&.\&.\&. ] ]
 
-where \fIconstraint\fR is:
+where \fIdomain_constraint\fR is:
 
 [ CONSTRAINT \fIconstraint_name\fR ]
 { NOT NULL | NULL | CHECK (\fIexpression\fR) }
@@ -148,7 +148,7 @@ CHECK
 constraints only when a value is first converted to be of a domain type, and not at other times\&. (This is essentially the same as the treatment of table
 CHECK
 constraints, as described in
-Section\ \&5.4.1\&.)
+Section\ \&5.5.1\&.)
 .PP
 An example of a common way to break this assumption is to reference a user\-defined function in a
 CHECK
@@ -158,6 +158,10 @@ does not disallow that, but it will not notice if there are stored values of the
 CHECK
 constraint\&. That would cause a subsequent database dump and restore to fail\&. The recommended way to handle such a change is to drop the constraint (using
 \fBALTER DOMAIN\fR), adjust the function definition, and re\-add the constraint, thereby rechecking it against stored data\&.
+.PP
+It\*(Aqs also good practice to ensure that domain
+CHECK
+expressions will not throw errors\&.
 .SH "EXAMPLES"
 .PP
 This example creates the
@@ -191,5 +195,19 @@ CREATE TABLE us_snail_addy (
 The command
 \fBCREATE DOMAIN\fR
 conforms to the SQL standard\&.
+.PP
+The syntax
+NOT NULL
+in this command is a
+PostgreSQL
+extension\&. (A standard\-conforming way to write the same for non\-composite data types would be
+CHECK (VALUE IS NOT NULL)\&. However, per
+the section called \(lqNOTES\(rq, such constraints are best avoided in practice anyway\&.) The
+NULL
+\(lqconstraint\(rq
+is a
+PostgreSQL
+extension (see also
+Compatibility)\&.
 .SH "SEE ALSO"
 ALTER DOMAIN (\fBALTER_DOMAIN\fR(7)), DROP DOMAIN (\fBDROP_DOMAIN\fR(7))

@@ -2,12 +2,12 @@
 .\"     Title: pg_receivewal
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "PG_RECEIVEWAL" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "PG_RECEIVEWAL" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -38,12 +38,14 @@ pg_receivewal
 is used to stream the write\-ahead log from a running
 PostgreSQL
 cluster\&. The write\-ahead log is streamed using the streaming replication protocol, and is written to a local directory of files\&. This directory can be used as the archive location for doing a restore using point\-in\-time recovery (see
-Section\ \&26.3)\&.
+Section\ \&25.3)\&.
 .PP
 pg_receivewal
 streams the write\-ahead log in real time as it\*(Aqs being generated on the server, and does not wait for segments to complete like
 archive_command
-does\&. For this reason, it is not necessary to set
+and
+archive_library
+do\&. For this reason, it is not necessary to set
 archive_timeout
 when using
 pg_receivewal\&.
@@ -72,7 +74,7 @@ PostgreSQL
 connection and uses the replication protocol\&. The connection must be made with a user having
 REPLICATION
 permissions (see
-Section\ \&22.2) or a superuser, and
+Section\ \&21.2) or a superuser, and
 pg_hba\&.conf
 must permit the replication connection\&. The server must also be configured with
 max_wal_senders
@@ -101,6 +103,23 @@ First, scan the directory where the WAL segment files are written and find the n
 .sp -1
 .IP "  2." 4.2
 .\}
+If a starting point cannot be calculated with the previous method, and if a replication slot is used, an extra
+\fBREAD_REPLICATION_SLOT\fR
+command is issued to retrieve the slot\*(Aqs
+restart_lsn
+to use as the starting point\&. This option is only available when streaming write\-ahead logs from
+PostgreSQL
+15 and up\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04' 3.\h'+01'\c
+.\}
+.el \{\
+.sp -1
+.IP "  3." 4.2
+.\}
 If a starting point cannot be calculated with the previous method, the latest WAL flush location is used as reported by the server from an
 IDENTIFY_SYSTEM
 command\&.
@@ -116,7 +135,9 @@ In the absence of fatal errors,
 pg_receivewal
 will run until terminated by the
 SIGINT
-signal (Control+C)\&.
+(Control+C) or
+SIGTERM
+signal\&.
 .SH "OPTIONS"
 .PP
 \fB\-D \fR\fB\fIdirectory\fR\fR
@@ -176,7 +197,7 @@ Specifies the number of seconds between status packets sent back to the server\&
 Require
 pg_receivewal
 to use an existing replication slot (see
-Section\ \&27.2.6)\&. When this option is used,
+Section\ \&26.2.6)\&. When this option is used,
 pg_receivewal
 will report a flush position to the server, indicating when each segment has been synchronized to disk so that the server can remove that segment if it is not otherwise needed\&.
 .sp
@@ -206,11 +227,39 @@ Enables verbose mode\&.
 .PP
 \fB\-Z \fR\fB\fIlevel\fR\fR
 .br
+\fB\-Z \fR\fB\fImethod\fR\fR\fB[:\fR\fB\fIdetail\fR\fR\fB]\fR
+.br
 \fB\-\-compress=\fR\fB\fIlevel\fR\fR
+.br
+\fB\-\-compress=\fR\fB\fImethod\fR\fR\fB[:\fR\fB\fIdetail\fR\fR\fB]\fR
 .RS 4
-Enables gzip compression of write\-ahead logs, and specifies the compression level (0 through 9, 0 being no compression and 9 being best compression)\&. The suffix
+Enables compression of write\-ahead logs\&.
+.sp
+The compression method can be set to
+gzip,
+lz4
+(if
+PostgreSQL
+was compiled with
+\fB\-\-with\-lz4\fR) or
+none
+for no compression\&. A compression detail string can optionally be specified\&. If the detail string is an integer, it specifies the compression level\&. Otherwise, it should be a comma\-separated list of items, each of the form
+\fIkeyword\fR
+or
+\fIkeyword=value\fR\&. Currently, the only supported keyword is
+level\&.
+.sp
+If no compression level is specified, the default compression level will be used\&. If only a level is specified without mentioning an algorithm,
+gzip
+compression will be used if the level is greater than 0, and no compression will be used if the level is 0\&.
+.sp
+The suffix
 \&.gz
-will automatically be added to all filenames\&.
+will automatically be added to all filenames when using
+gzip, and the suffix
+\&.lz4
+is added when using
+lz4\&.
 .RE
 .PP
 The following command\-line options control the database connection parameters\&.
@@ -222,11 +271,14 @@ The following command\-line options control the database connection parameters\&
 Specifies parameters used to connect to the server, as a
 connection string; these will override any conflicting command line options\&.
 .sp
-The option is called
+This option is called
 \-\-dbname
 for consistency with other client applications, but because
 pg_receivewal
-doesn\*(Aqt connect to any particular database in the cluster, database name in the connection string will be ignored\&.
+doesn\*(Aqt connect to any particular database in the cluster, any database name included in the connection string will be ignored by the server\&. However, a database name supplied that way overrides the default database name (replication) for purposes of looking up the replication connection\*(Aqs password in
+~/\&.pgpass\&. Similarly, middleware or proxies used in connecting to
+PostgreSQL
+might utilize the name for purposes such as connection routing\&.
 .RE
 .PP
 \fB\-h \fR\fB\fIhost\fR\fR
@@ -319,6 +371,8 @@ command line arguments, and exit\&.
 pg_receivewal
 will exit with status 0 when terminated by the
 SIGINT
+or
+SIGTERM
 signal\&. (That is the normal way to end it\&. Hence it is not an error\&.) For fatal errors or other signals, the exit status will be nonzero\&.
 .SH "ENVIRONMENT"
 .PP
@@ -327,7 +381,7 @@ PostgreSQL
 utilities, uses the environment variables supported by
 libpq
 (see
-Section\ \&34.15)\&.
+Section\ \&32.15)\&.
 .PP
 The environment variable
 \fBPG_COLOR\fR
@@ -342,8 +396,12 @@ When using
 pg_receivewal
 instead of
 archive_command
+or
+archive_library
 as the main WAL backup method, it is strongly recommended to use replication slots\&. Otherwise, the server is free to recycle or remove write\-ahead log files before they are backed up, because it does not have any information, either from
 archive_command
+or
+archive_library
 or the replication slots, about how far the WAL stream has been archived\&. Note, however, that a replication slot will fill up the server\*(Aqs disk space if the receiver does not keep up with fetching the WAL data\&.
 .PP
 pg_receivewal

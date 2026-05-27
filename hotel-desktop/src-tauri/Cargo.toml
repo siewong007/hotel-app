@@ -4,6 +4,7 @@ version = "1.0.0"
 description = "Hotel Management System - Desktop Application"
 authors = ["Hotel App"]
 edition = "2021"
+rust-version = "1.95.0"
 
 [lib]
 name = "hotel_desktop_lib"

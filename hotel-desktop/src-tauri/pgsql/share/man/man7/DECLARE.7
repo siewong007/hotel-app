@@ -2,12 +2,12 @@
 .\"     Title: DECLARE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "DECLARE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "DECLARE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -56,14 +56,14 @@ allows a user to create cursors, which can be used to retrieve a small number of
 This page describes usage of cursors at the SQL command level\&. If you are trying to use cursors inside a
 PL/pgSQL
 function, the rules are different \(em see
-Section\ \&43.7\&.
+Section\ \&41.7\&.
 .sp .5v
 .RE
 .SH "PARAMETERS"
 .PP
 \fIname\fR
 .RS 4
-The name of the cursor to be created\&.
+The name of the cursor to be created\&. This must be different from any other active cursor name in the session\&.
 .RE
 .PP
 BINARY
@@ -231,7 +231,7 @@ may not be specified in this case\&.
 .br
 .PP
 Scrollable cursors may give unexpected results if they invoke any volatile functions (see
-Section\ \&38.7)\&. When a previously fetched row is re\-fetched, the functions might be re\-executed, perhaps leading to results different from the first time\&. It\*(Aqs best to specify
+Section\ \&36.7)\&. When a previously fetched row is re\-fetched, the functions might be re\-executed, perhaps leading to results different from the first time\&. It\*(Aqs best to specify
 NO SCROLL
 for a query involving volatile functions\&. If that is not practical, one workaround is to declare the cursor
 SCROLL WITH HOLD
@@ -301,6 +301,10 @@ PostgreSQL, supports the standard SQL cursor conventions, including those involv
 and
 \fBOPEN\fR
 statements\&.
+.PP
+The server data structure underlying an open cursor is called a
+portal\&. Portal names are exposed in the client protocol: a client can fetch rows directly from an open portal, if it knows the portal name\&. When creating a cursor with
+\fBDECLARE\fR, the portal name is the same as the cursor name\&.
 .PP
 You can see all available cursors by querying the
 pg_cursors

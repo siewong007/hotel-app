@@ -2,12 +2,12 @@
 .\"     Title: createdb
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATEDB" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATEDB" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -88,17 +88,19 @@ generates and sends to the server\&.
 Specifies the character encoding scheme to be used in this database\&. The character sets supported by the
 PostgreSQL
 server are described in
-Section\ \&24.3.1\&.
+Section\ \&23.3.1\&.
 .RE
 .PP
 \fB\-l \fR\fB\fIlocale\fR\fR
 .br
 \fB\-\-locale=\fR\fB\fIlocale\fR\fR
 .RS 4
-Specifies the locale to be used in this database\&. This is equivalent to specifying both
-\fB\-\-lc\-collate\fR
-and
-\fB\-\-lc\-ctype\fR\&.
+Specifies the locale to be used in this database\&. This is equivalent to specifying
+\fB\-\-lc\-collate\fR,
+\fB\-\-lc\-ctype\fR, and
+\fB\-\-icu\-locale\fR
+to the same value\&. Some locales are only valid for ICU and must be set with
+\fB\-\-icu\-locale\fR\&.
 .RE
 .PP
 \fB\-\-lc\-collate=\fR\fB\fIlocale\fR\fR
@@ -111,11 +113,41 @@ Specifies the LC_COLLATE setting to be used in this database\&.
 Specifies the LC_CTYPE setting to be used in this database\&.
 .RE
 .PP
+\fB\-\-builtin\-locale=\fR\fB\fIlocale\fR\fR
+.RS 4
+Specifies the locale name when the builtin provider is used\&. Locale support is described in
+Section\ \&23.1\&.
+.RE
+.PP
+\fB\-\-icu\-locale=\fR\fB\fIlocale\fR\fR
+.RS 4
+Specifies the ICU locale ID to be used in this database, if the ICU locale provider is selected\&.
+.RE
+.PP
+\fB\-\-icu\-rules=\fR\fB\fIrules\fR\fR
+.RS 4
+Specifies additional collation rules to customize the behavior of the default collation of this database\&. This is supported for ICU only\&.
+.RE
+.PP
+\fB\-\-locale\-provider={\fR\fBbuiltin\fR\fB|\fR\fBlibc\fR\fB|\fR\fBicu\fR\fB}\fR
+.RS 4
+Specifies the locale provider for the database\*(Aqs default collation\&.
+.RE
+.PP
 \fB\-O \fR\fB\fIowner\fR\fR
 .br
 \fB\-\-owner=\fR\fB\fIowner\fR\fR
 .RS 4
 Specifies the database user who will own the new database\&. (This name is processed as a double\-quoted identifier\&.)
+.RE
+.PP
+\fB\-S \fR\fB\fIstrategy\fR\fR
+.br
+\fB\-\-strategy=\fR\fB\fIstrategy\fR\fR
+.RS 4
+Specifies the database creation strategy\&. See
+CREATE DATABASE STRATEGY
+for more details\&.
 .RE
 .PP
 \fB\-T \fR\fB\fItemplate\fR\fR
@@ -244,7 +276,7 @@ PostgreSQL
 utilities, also uses the environment variables supported by
 libpq
 (see
-Section\ \&34.15)\&.
+Section\ \&32.15)\&.
 .SH "DIAGNOSTICS"
 .PP
 In case of difficulty, see

@@ -31,6 +31,7 @@ const PATH_SEP: &str = ":";
 const POSTGRES_PORT: u16 = 5433; // Use non-standard port to avoid conflicts
 const POSTGRES_USER: &str = "hotel_admin";
 const POSTGRES_DB: &str = "hotel_management";
+const BUNDLED_POSTGRES_MAJOR_VERSION: &str = "18";
 const MAX_STARTUP_WAIT_SECS: u64 = 30;
 
 /// Error types for PostgreSQL operations
@@ -50,6 +51,14 @@ pub enum PostgresError {
 
     #[error("PostgreSQL binary not found at: {0}")]
     BinaryNotFound(String),
+
+    #[error(
+        "PostgreSQL data directory version {found} is incompatible with bundled PostgreSQL {expected}. Back up and migrate the data directory before starting the desktop app."
+    )]
+    IncompatibleDataDirectory {
+        found: String,
+        expected: &'static str,
+    },
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
@@ -83,9 +92,34 @@ fn is_pgdata_initialized() -> bool {
     get_pgdata_dir().join("PG_VERSION").exists()
 }
 
+fn read_pgdata_version() -> Result<Option<String>, std::io::Error> {
+    let version_path = get_pgdata_dir().join("PG_VERSION");
+    if !version_path.exists() {
+        return Ok(None);
+    }
+
+    Ok(Some(
+        std::fs::read_to_string(version_path)?.trim().to_string(),
+    ))
+}
+
+fn ensure_pgdata_version_compatible() -> Result<(), PostgresError> {
+    if let Some(found) = read_pgdata_version()? {
+        if found != BUNDLED_POSTGRES_MAJOR_VERSION {
+            return Err(PostgresError::IncompatibleDataDirectory {
+                found,
+                expected: BUNDLED_POSTGRES_MAJOR_VERSION,
+            });
+        }
+    }
+
+    Ok(())
+}
+
 /// Initialize PostgreSQL data directory using initdb
 pub async fn init_postgres_data_dir(app_handle: &AppHandle) -> Result<(), PostgresError> {
     if is_pgdata_initialized() {
+        ensure_pgdata_version_compatible()?;
         log::info!("PostgreSQL data directory already initialized");
         return Ok(());
     }
@@ -185,6 +219,8 @@ host    all             all             ::1/128                 trust
 /// Start the PostgreSQL server
 pub async fn start_postgres(app_handle: &AppHandle) -> Result<(), PostgresError> {
     log::info!("Starting PostgreSQL server...");
+
+    ensure_pgdata_version_compatible()?;
 
     let pgsql_bin = get_pgsql_bin_dir(app_handle);
     let pg_ctl_path = pgsql_bin.join(format!("pg_ctl{}", EXE_SUFFIX));
@@ -670,10 +706,23 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
     let running = is_postgres_running(app_handle).await;
     let pgdata = get_pgdata_dir();
     let initialized = is_pgdata_initialized();
+    let data_version = read_pgdata_version()
+        .map_err(|err| {
+            log::warn!("Failed to read PostgreSQL data directory version: {}", err);
+            err
+        })
+        .ok()
+        .flatten();
+    let version_compatible = data_version
+        .as_deref()
+        .map_or(true, |version| version == BUNDLED_POSTGRES_MAJOR_VERSION);
 
     serde_json::json!({
         "running": running,
         "initialized": initialized,
+        "data_version": data_version,
+        "bundled_version": BUNDLED_POSTGRES_MAJOR_VERSION,
+        "version_compatible": version_compatible,
         "port": POSTGRES_PORT,
         "user": POSTGRES_USER,
         "database": POSTGRES_DB,

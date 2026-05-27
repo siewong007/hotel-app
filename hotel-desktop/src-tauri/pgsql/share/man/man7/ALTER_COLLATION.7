@@ -2,12 +2,12 @@
 .\"     Title: ALTER COLLATION
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "ALTER COLLATION" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "ALTER COLLATION" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -44,7 +44,9 @@ ALTER COLLATION \fIname\fR SET SCHEMA \fInew_schema\fR
 changes the definition of a collation\&.
 .PP
 You must own the collation to use
-\fBALTER COLLATION\fR\&. To alter the owner, you must also be a direct or indirect member of the new owning role, and that role must have
+\fBALTER COLLATION\fR\&. To alter the owner, you must be able to
+SET ROLE
+to the new owning role, and that role must have
 CREATE
 privilege on the collation\*(Aqs schema\&. (These restrictions enforce that altering the owner doesn\*(Aqt do anything you couldn\*(Aqt do by dropping and recreating the collation\&. However, a superuser can alter ownership of any collation anyway\&.)
 .SH "PARAMETERS"
@@ -77,7 +79,7 @@ below\&.
 .RE
 .SH "NOTES"
 .PP
-When using collations provided by the ICU library, the ICU\-specific version of the collator is recorded in the system catalog when the collation object is created\&. When the collation is used, the current version is checked against the recorded version, and a warning is issued when there is a mismatch, for example:
+When a collation object is created, the provider\-specific version of the collation is recorded in the system catalog\&. When the collation is used, the current version is checked against the recorded version, and a warning is issued when there is a mismatch, for example:
 .sp
 .if n \{\
 .RS 4
@@ -91,14 +93,14 @@ HINT:  Rebuild all objects affected by this collation and run ALTER COLLATION pg
 .RE
 .\}
 .sp
-A change in collation definitions can lead to corrupt indexes and other problems because the database system relies on stored objects having a certain sort order\&. Generally, this should be avoided, but it can happen in legitimate circumstances, such as when using
+A change in collation definitions can lead to corrupt indexes and other problems because the database system relies on stored objects having a certain sort order\&. Generally, this should be avoided, but it can happen in legitimate circumstances, such as when upgrading the operating system to a new major version or when using
 \fBpg_upgrade\fR
 to upgrade to server binaries linked with a newer version of ICU\&. When this happens, all objects depending on the collation should be rebuilt, for example, using
 \fBREINDEX\fR\&. When that is done, the collation version can be refreshed using the command
-ALTER COLLATION \&.\&.\&. REFRESH VERSION\&. This will update the system catalog to record the current collator version and will make the warning go away\&. Note that this does not actually check whether all affected objects have been rebuilt correctly\&.
+ALTER COLLATION \&.\&.\&. REFRESH VERSION\&. This will update the system catalog to record the current collation version and will make the warning go away\&. Note that this does not actually check whether all affected objects have been rebuilt correctly\&.
 .PP
 When using collations provided by
-libc, version information is recorded on systems using the GNU C library (most Linux systems), FreeBSD and Windows\&.
+libc, version information is recorded on systems using the GNU C library (most Linux systems), FreeBSD and Windows\&. When using collations provided by ICU, the version information is provided by the ICU library and is available on all platforms\&.
 .if n \{\
 .sp
 .\}
@@ -119,7 +121,8 @@ en\-US\&.
 .sp .5v
 .RE
 .PP
-Currently, there is no version tracking for the database default collation\&.
+For the database default collation, there is an analogous command
+ALTER DATABASE \&.\&.\&. REFRESH COLLATION VERSION\&.
 .PP
 The following query can be used to identify all collations in the current database that need to be refreshed and the objects that depend on them:
 .sp

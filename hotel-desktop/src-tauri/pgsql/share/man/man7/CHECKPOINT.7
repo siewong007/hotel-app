@@ -2,12 +2,12 @@
 .\"     Title: CHECKPOINT
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CHECKPOINT" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CHECKPOINT" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -37,22 +37,24 @@ CHECKPOINT
 .SH "DESCRIPTION"
 .PP
 A checkpoint is a point in the write\-ahead log sequence at which all data files have been updated to reflect the information in the log\&. All data files will be flushed to disk\&. Refer to
-Section\ \&30.5
+Section\ \&28.5
 for more details about what happens during a checkpoint\&.
 .PP
 The
 \fBCHECKPOINT\fR
 command forces an immediate checkpoint when the command is issued, without waiting for a regular checkpoint scheduled by the system (controlled by the settings in
-Section\ \&20.5.2)\&.
+Section\ \&19.5.2)\&.
 \fBCHECKPOINT\fR
 is not intended for use during normal operation\&.
 .PP
 If executed during recovery, the
 \fBCHECKPOINT\fR
 command will force a restartpoint (see
-Section\ \&30.5) rather than writing a new checkpoint\&.
+Section\ \&28.5) rather than writing a new checkpoint\&.
 .PP
-Only superusers can call
+Only superusers or users with the privileges of the
+pg_checkpoint
+role can call
 \fBCHECKPOINT\fR\&.
 .SH "COMPATIBILITY"
 .PP

@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for Rust Backend
 # Stage 1: Build the application
-FROM rust:latest AS builder
+FROM rust:1.95.0-bookworm AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -67,4 +67,3 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 
 # Run the application
 CMD ["/app/hotel-app-be"]
-

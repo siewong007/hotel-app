@@ -2,12 +2,12 @@
 .\"     Title: reindexdb
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "REINDEXDB" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "REINDEXDB" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,11 +31,7 @@
 reindexdb \- reindex a PostgreSQL database
 .SH "SYNOPSIS"
 .HP \w'\fBreindexdb\fR\ 'u
-\fBreindexdb\fR [\fIconnection\-option\fR...] [\fIoption\fR...] [\ \fB\-S\fR\ |\ \fB\-\-schema\fR\ \fIschema\fR\ ]...  [\ \fB\-t\fR\ |\ \fB\-\-table\fR\ \fItable\fR\ ]...  [\ \fB\-i\fR\ |\ \fB\-\-index\fR\ \fIindex\fR\ ]...  [\fIdbname\fR]
-.HP \w'\fBreindexdb\fR\ 'u
-\fBreindexdb\fR [\fIconnection\-option\fR...] [\fIoption\fR...] \fB\-a\fR | \fB\-\-all\fR 
-.HP \w'\fBreindexdb\fR\ 'u
-\fBreindexdb\fR [\fIconnection\-option\fR...] [\fIoption\fR...] \fB\-s\fR | \fB\-\-system\fR  [\fIdbname\fR]
+\fBreindexdb\fR [\fIconnection\-option\fR...] [\fIoption\fR...] [\ \fB\-S\fR\ |\ \fB\-\-schema\fR\ \fIschema\fR\ ]...  [\ \fB\-t\fR\ |\ \fB\-\-table\fR\ \fItable\fR\ ]...  [\ \fB\-i\fR\ |\ \fB\-\-index\fR\ \fIindex\fR\ ]...  [\ \fB\-s\fR\ |\ \fB\-\-system\fR\ ]  [\fIdbname\fR\ |\ \fB\-a\fR\ |\ \fB\-\-all\fR]
 .SH "DESCRIPTION"
 .PP
 reindexdb
@@ -115,10 +111,8 @@ max_connections
 setting is high enough to accommodate all connections\&.
 .sp
 Note that this option is incompatible with the
-\fB\-\-index\fR
-and
 \fB\-\-system\fR
-options\&.
+option\&.
 .RE
 .PP
 \fB\-q\fR
@@ -275,7 +269,7 @@ PostgreSQL
 utilities, also uses the environment variables supported by
 libpq
 (see
-Section\ \&34.15)\&.
+Section\ \&32.15)\&.
 .SH "DIAGNOSTICS"
 .PP
 In case of difficulty, see
@@ -285,16 +279,6 @@ and
 for discussions of potential problems and error messages\&. The database server must be running at the targeted host\&. Also, any default connection settings and environment variables used by the
 libpq
 front\-end library will apply\&.
-.SH "NOTES"
-.PP
-reindexdb
-might need to connect several times to the
-PostgreSQL
-server, asking for a password each time\&. It is convenient to have a
-~/\&.pgpass
-file in such cases\&. See
-Section\ \&34.16
-for more information\&.
 .SH "EXAMPLES"
 .PP
 To reindex the database

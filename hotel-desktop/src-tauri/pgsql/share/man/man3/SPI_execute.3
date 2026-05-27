@@ -2,12 +2,12 @@
 .\"     Title: SPI_execute
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "SPI_EXECUTE" "3" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "SPI_EXECUTE" "3" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -134,8 +134,9 @@ The actual number of rows for which the (last) command was executed is returned 
 \fISPI_processed\fR\&. If the return value of the function is
 SPI_OK_SELECT,
 SPI_OK_INSERT_RETURNING,
-SPI_OK_DELETE_RETURNING, or
-SPI_OK_UPDATE_RETURNING, then you can use the global pointer
+SPI_OK_DELETE_RETURNING,
+SPI_OK_UPDATE_RETURNING, or
+SPI_OK_MERGE_RETURNING, then you can use the global pointer
 SPITupleTable *SPI_tuptable
 to access the result rows\&. Some utility commands (such as
 \fBEXPLAIN\fR) also return row sets, and
@@ -248,6 +249,13 @@ if an
 was executed
 .RE
 .PP
+SPI_OK_MERGE
+.RS 4
+if a
+\fBMERGE\fR
+was executed
+.RE
+.PP
 SPI_OK_INSERT_RETURNING
 .RS 4
 if an
@@ -266,6 +274,13 @@ SPI_OK_UPDATE_RETURNING
 .RS 4
 if an
 \fBUPDATE RETURNING\fR
+was executed
+.RE
+.PP
+SPI_OK_MERGE_RETURNING
+.RS 4
+if a
+\fBMERGE RETURNING\fR
 was executed
 .RE
 .PP

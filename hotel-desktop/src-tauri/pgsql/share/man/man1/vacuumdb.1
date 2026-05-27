@@ -2,12 +2,12 @@
 .\"     Title: vacuumdb
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "VACUUMDB" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "VACUUMDB" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -31,9 +31,11 @@
 vacuumdb \- garbage\-collect and analyze a PostgreSQL database
 .SH "SYNOPSIS"
 .HP \w'\fBvacuumdb\fR\ 'u
-\fBvacuumdb\fR [\fIconnection\-option\fR...] [\fIoption\fR...] [\ \fB\-t\fR\ |\ \fB\-\-table\fR\ \fItable\fR\ [(\ \fIcolumn\fR\ [,\&.\&.\&.]\ )]\ ]...  [\fIdbname\fR]
+\fBvacuumdb\fR [\fIconnection\-option\fR...] [\fIoption\fR...] [\ \fB\-t\fR\ |\ \fB\-\-table\fR\ \fItable\fR\ [(\ \fIcolumn\fR\ [,\&.\&.\&.]\ )]\ ]...  [\fIdbname\fR\ |\ \fB\-a\fR\ |\ \fB\-\-all\fR]
 .HP \w'\fBvacuumdb\fR\ 'u
-\fBvacuumdb\fR [\fIconnection\-option\fR...] [\fIoption\fR...] \fB\-a\fR | \fB\-\-all\fR 
+\fBvacuumdb\fR [\fIconnection\-option\fR...] [\fIoption\fR...] [\ \fB\-n\fR\ |\ \fB\-\-schema\fR\ \fIschema\fR\ ]...  [\fIdbname\fR\ |\ \fB\-a\fR\ |\ \fB\-\-all\fR]
+.HP \w'\fBvacuumdb\fR\ 'u
+\fBvacuumdb\fR [\fIconnection\-option\fR...] [\fIoption\fR...] [\ \fB\-N\fR\ |\ \fB\-\-exclude\-schema\fR\ \fIschema\fR\ ]...  [\fIdbname\fR\ |\ \fB\-a\fR\ |\ \fB\-\-all\fR]
 .SH "DESCRIPTION"
 .PP
 vacuumdb
@@ -60,6 +62,15 @@ accepts the following command\-line arguments:
 Vacuum all databases\&.
 .RE
 .PP
+\fB\-\-buffer\-usage\-limit \fR\fB\fIsize\fR\fR
+.RS 4
+Specifies the
+Buffer Access Strategy
+ring buffer size for a given invocation of
+vacuumdb\&. This size is used to calculate the number of shared buffers which will be reused as part of this strategy\&. See
+\fBVACUUM\fR(7)\&.
+.RE
+.PP
 \fB[\-d]\fR\fB \fR\fB\fIdbname\fR\fR
 .br
 \fB[\-\-dbname=]\fR\fB\fIdbname\fR\fR
@@ -76,23 +87,6 @@ connection string\&. If so, connection string parameters will override any confl
 \fB\-\-disable\-page\-skipping\fR
 .RS 4
 Disable skipping pages based on the contents of the visibility map\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This option is only available for servers running
-PostgreSQL
-9\&.6 and later\&.
-.sp .5v
-.RE
 .RE
 .PP
 \fB\-e\fR
@@ -125,23 +119,6 @@ tuples\&.
 \fB\-\-force\-index\-cleanup\fR
 .RS 4
 Always remove index entries pointing to dead tuples\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This option is only available for servers running
-PostgreSQL
-12 and later\&.
-.sp .5v
-.RE
 .RE
 .PP
 \fB\-j \fR\fB\fInjobs\fR\fR
@@ -168,7 +145,7 @@ Note that using this mode together with the
 .RS 4
 Only execute the vacuum or analyze commands on tables with a multixact ID age of at least
 \fImxid_age\fR\&. This setting is useful for prioritizing tables to process to prevent multixact ID wraparound (see
-Section\ \&25.1.5.1)\&.
+Section\ \&24.1.5.1)\&.
 .sp
 For the purposes of this option, the multixact ID age of a relation is the greatest of the ages of the main relation and its associated
 TOAST
@@ -177,30 +154,13 @@ vacuumdb
 will also process the
 TOAST
 table for the relation if necessary, it does not need to be considered separately\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This option is only available for servers running
-PostgreSQL
-9\&.6 and later\&.
-.sp .5v
-.RE
 .RE
 .PP
 \fB\-\-min\-xid\-age \fR\fB\fIxid_age\fR\fR
 .RS 4
 Only execute the vacuum or analyze commands on tables with a transaction ID age of at least
 \fIxid_age\fR\&. This setting is useful for prioritizing tables to process to prevent transaction ID wraparound (see
-Section\ \&25.1.5)\&.
+Section\ \&24.1.5)\&.
 .sp
 For the purposes of this option, the transaction ID age of a relation is the greatest of the ages of the main relation and its associated
 TOAST
@@ -209,89 +169,69 @@ vacuumdb
 will also process the
 TOAST
 table for the relation if necessary, it does not need to be considered separately\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This option is only available for servers running
-PostgreSQL
-9\&.6 and later\&.
-.sp .5v
 .RE
+.PP
+\fB\-\-missing\-stats\-only\fR
+.RS 4
+Only analyze relations that are missing statistics for a column, index expression, or extended statistics object\&. When used with
+\fB\-\-analyze\-in\-stages\fR, this option prevents
+vacuumdb
+from temporarily replacing existing statistics with ones generated with lower statistics targets, thus avoiding transiently worse query optimizer choices\&.
+.sp
+This option can only be used in conjunction with
+\fB\-\-analyze\-only\fR
+or
+\fB\-\-analyze\-in\-stages\fR\&.
+.sp
+Note that
+\fB\-\-missing\-stats\-only\fR
+requires
+SELECT
+privileges on
+pg_statistic
+and
+pg_statistic_ext_data, which are restricted to superusers by default\&.
+.RE
+.PP
+\fB\-n \fR\fB\fIschema\fR\fR
+.br
+\fB\-\-schema=\fR\fB\fIschema\fR\fR
+.RS 4
+Clean or analyze all tables in
+\fIschema\fR
+only\&. Multiple schemas can be vacuumed by writing multiple
+\fB\-n\fR
+switches\&.
+.RE
+.PP
+\fB\-N \fR\fB\fIschema\fR\fR
+.br
+\fB\-\-exclude\-schema=\fR\fB\fIschema\fR\fR
+.RS 4
+Do not clean or analyze any tables in
+\fIschema\fR\&. Multiple schemas can be excluded by writing multiple
+\fB\-N\fR
+switches\&.
 .RE
 .PP
 \fB\-\-no\-index\-cleanup\fR
 .RS 4
 Do not remove index entries pointing to dead tuples\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This option is only available for servers running
-PostgreSQL
-12 and later\&.
-.sp .5v
 .RE
+.PP
+\fB\-\-no\-process\-main\fR
+.RS 4
+Skip the main relation\&.
 .RE
 .PP
 \fB\-\-no\-process\-toast\fR
 .RS 4
 Skip the TOAST table associated with the table to vacuum, if any\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This option is only available for servers running
-PostgreSQL
-14 and later\&.
-.sp .5v
-.RE
 .RE
 .PP
 \fB\-\-no\-truncate\fR
 .RS 4
 Do not truncate empty pages at the end of the table\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This option is only available for servers running
-PostgreSQL
-12 and later\&.
-.sp .5v
-.RE
 .RE
 .PP
 \fB\-P \fR\fB\fIparallel_workers\fR\fR
@@ -301,23 +241,6 @@ PostgreSQL
 Specify the number of parallel workers for
 parallel vacuum\&. This allows the vacuum to leverage multiple CPUs to process indexes\&. See
 \fBVACUUM\fR(7)\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This option is only available for servers running
-PostgreSQL
-13 and later\&.
-.sp .5v
-.RE
 .RE
 .PP
 \fB\-q\fR
@@ -330,23 +253,6 @@ Do not display progress messages\&.
 \fB\-\-skip\-locked\fR
 .RS 4
 Skip relations that cannot be immediately locked for processing\&.
-.if n \{\
-.sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBNote\fR
-.ps -1
-.br
-This option is only available for servers running
-PostgreSQL
-12 and later\&.
-.sp .5v
-.RE
 .RE
 .PP
 \fB\-t \fR\fB\fItable\fR\fR\fB [ (\fR\fB\fIcolumn\fR\fR\fB [,\&.\&.\&.]) ]\fR
@@ -412,10 +318,11 @@ Only calculate statistics for use by the optimizer (no vacuum)\&.
 \fB\-\-analyze\-in\-stages\fR
 .RS 4
 Only calculate statistics for use by the optimizer (no vacuum), like
-\fB\-\-analyze\-only\fR\&. Run several (currently three) stages of analyze with different configuration settings, to produce usable statistics faster\&.
+\fB\-\-analyze\-only\fR\&. Run three stages of analyze; the first stage uses the lowest possible statistics target (see
+default_statistics_target) to produce usable statistics faster, and subsequent stages build the full statistics\&.
 .sp
-This option is useful to analyze a database that was newly populated from a restored dump or by
-\fBpg_upgrade\fR\&. This option will try to create some statistics as fast as possible, to make the database usable, and then produce full statistics in the subsequent stages\&.
+This option is only useful to analyze a database that currently has no statistics or has wholly incorrect ones, such as if it is newly populated from a restored dump or by
+\fBpg_upgrade\fR\&. Be aware that running with this option in a database with existing statistics may cause the query optimizer choices to become transiently worse due to the low statistics targets of the early stages\&.
 .RE
 .PP
 \fB\-?\fR
@@ -515,7 +422,7 @@ PostgreSQL
 utilities, also uses the environment variables supported by
 libpq
 (see
-Section\ \&34.15)\&.
+Section\ \&32.15)\&.
 .SH "DIAGNOSTICS"
 .PP
 In case of difficulty, see
@@ -525,16 +432,6 @@ and
 for discussions of potential problems and error messages\&. The database server must be running at the targeted host\&. Also, any default connection settings and environment variables used by the
 libpq
 front\-end library will apply\&.
-.SH "NOTES"
-.PP
-vacuumdb
-might need to connect several times to the
-PostgreSQL
-server, asking for a password each time\&. It is convenient to have a
-~/\&.pgpass
-file in such cases\&. See
-Section\ \&34.16
-for more information\&.
 .SH "EXAMPLES"
 .PP
 To clean the database
@@ -575,6 +472,23 @@ of the table for the optimizer:
 .\}
 .nf
 $ \fBvacuumdb \-\-analyze \-\-verbose \-\-table=\*(Aqfoo(bar)\*(Aq xyzzy\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+To clean all tables in the
+foo
+and
+bar
+schemas in a database named
+xyzzy:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+$ \fBvacuumdb \-\-schema=\*(Aqfoo\*(Aq \-\-schema=\*(Aqbar\*(Aq xyzzy\fR
 .fi
 .if n \{\
 .RE

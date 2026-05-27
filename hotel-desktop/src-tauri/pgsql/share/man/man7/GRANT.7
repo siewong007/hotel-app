@@ -2,12 +2,12 @@
 .\"     Title: GRANT
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "GRANT" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "GRANT" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -32,7 +32,7 @@ GRANT \- define access privileges
 .SH "SYNOPSIS"
 .sp
 .nf
-GRANT { { SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER }
+GRANT { { SELECT | INSERT | UPDATE | DELETE | TRUNCATE | REFERENCES | TRIGGER | MAINTAIN }
     [, \&.\&.\&.] | ALL [ PRIVILEGES ] }
     ON { [ TABLE ] \fItable_name\fR [, \&.\&.\&.]
          | ALL TABLES IN SCHEMA \fIschema_name\fR [, \&.\&.\&.] }
@@ -88,6 +88,11 @@ GRANT { { SELECT | UPDATE } [, \&.\&.\&.] | ALL [ PRIVILEGES ] }
     TO \fIrole_specification\fR [, \&.\&.\&.] [ WITH GRANT OPTION ]
     [ GRANTED BY \fIrole_specification\fR ]
 
+GRANT { { SET | ALTER SYSTEM } [, \&.\&.\&. ] | ALL [ PRIVILEGES ] }
+    ON PARAMETER \fIconfiguration_parameter\fR [, \&.\&.\&.]
+    TO \fIrole_specification\fR [, \&.\&.\&.] [ WITH GRANT OPTION ]
+    [ GRANTED BY \fIrole_specification\fR ]
+
 GRANT { { CREATE | USAGE } [, \&.\&.\&.] | ALL [ PRIVILEGES ] }
     ON SCHEMA \fIschema_name\fR [, \&.\&.\&.]
     TO \fIrole_specification\fR [, \&.\&.\&.] [ WITH GRANT OPTION ]
@@ -104,7 +109,7 @@ GRANT { USAGE | ALL [ PRIVILEGES ] }
     [ GRANTED BY \fIrole_specification\fR ]
 
 GRANT \fIrole_name\fR [, \&.\&.\&.] TO \fIrole_specification\fR [, \&.\&.\&.]
-    [ WITH ADMIN OPTION ]
+    [ WITH { ADMIN | INHERIT | SET } { OPTION | TRUE | FALSE } ]
     [ GRANTED BY \fIrole_specification\fR ]
 
 where \fIrole_specification\fR can be:
@@ -119,7 +124,7 @@ where \fIrole_specification\fR can be:
 .PP
 The
 \fBGRANT\fR
-command has two basic variants: one that grants privileges on a database object (table, column, view, foreign table, sequence, database, foreign\-data wrapper, foreign server, function, procedure, procedural language, schema, or tablespace), and one that grants membership in a role\&. These variants are similar in many ways, but they are different enough to be described separately\&.
+command has two basic variants: one that grants privileges on a database object (table, column, view, foreign table, sequence, database, foreign\-data wrapper, foreign server, function, procedure, procedural language, large object, configuration parameter, schema, tablespace, or type), and one that grants membership in a role\&. These variants are similar in many ways, but they are different enough to be described separately\&.
 .SS "GRANT on Database Objects"
 .PP
 This variant of the
@@ -171,9 +176,15 @@ TEMPORARY
 EXECUTE
 .br
 USAGE
+.br
+SET
+.br
+ALTER SYSTEM
+.br
+MAINTAIN
 .RS 4
 Specific types of privileges, as defined in
-Section\ \&5.7\&.
+Section\ \&5.8\&.
 .RE
 .PP
 TEMP
@@ -213,19 +224,70 @@ to include procedures\&.
 .PP
 This variant of the
 \fBGRANT\fR
-command grants membership in a role to one or more other roles\&. Membership in a role is significant because it conveys the privileges granted to a role to each of its members\&.
+command grants membership in a role to one or more other roles, and the modification of membership options
+SET,
+INHERIT, and
+ADMIN; see
+Section\ \&21.3
+for details\&. Membership in a role is significant because it potentially allows access to the privileges granted to a role to each of its members, and potentially also the ability to make changes to the role itself\&. However, the actual permissions conferred depend on the options associated with the grant\&. To modify that options of an existing membership, simply specify the membership with updated option values\&.
 .PP
-If
+Each of the options described below can be set to either
+TRUE
+or
+FALSE\&. The keyword
+OPTION
+is accepted as a synonym for
+TRUE, so that
 WITH ADMIN OPTION
-is specified, the member can in turn grant membership in the role to others, and revoke membership in the role as well\&. Without the admin option, ordinary users cannot do that\&. A role is not considered to hold
+is a synonym for
+WITH ADMIN TRUE\&. When altering an existing membership the omission of an option results in the current value being retained\&.
+.PP
+The
+ADMIN
+option allows the member to in turn grant membership in the role to others, and revoke membership in the role as well\&. Without the admin option, ordinary users cannot do that\&. A role is not considered to hold
 WITH ADMIN OPTION
-on itself, but it may grant or revoke membership in itself from a database session where the session user matches the role\&. Database superusers can grant or revoke membership in any role to anyone\&. Roles having
-CREATEROLE
-privilege can grant or revoke membership in any role that is not a superuser\&.
+on itself\&. Database superusers can grant or revoke membership in any role to anyone\&. This option defaults to
+FALSE\&.
+.PP
+The
+INHERIT
+option controls the inheritance status of the new membership; see
+Section\ \&21.3
+for details on inheritance\&. If it is set to
+TRUE, it causes the new member to inherit from the granted role\&. If set to
+FALSE, the new member does not inherit\&. If unspecified when creating a new role membership, this defaults to the inheritance attribute of the new member\&.
+.PP
+The
+SET
+option, if it is set to
+TRUE, allows the member to change to the granted role using the
+\fBSET ROLE\fR
+command\&. If a role is an indirect member of another role, it can use
+SET ROLE
+to change to that role only if there is a chain of grants each of which has
+SET TRUE\&. This option defaults to
+TRUE\&.
+.PP
+To create an object owned by another role or give ownership of an existing object to another role, you must have the ability to
+SET ROLE
+to that role; otherwise, commands such as
+ALTER \&.\&.\&. OWNER TO
+or
+CREATE DATABASE \&.\&.\&. OWNER
+will fail\&. However, a user who inherits the privileges of a role but does not have the ability to
+SET ROLE
+to that role may be able to obtain full access to the role by manipulating existing objects owned by that role (e\&.g\&. they could redefine an existing function to act as a Trojan horse)\&. Therefore, if a role\*(Aqs privileges are to be inherited but should not be accessible via
+SET ROLE, it should not own any SQL objects\&.
 .PP
 If
 GRANTED BY
-is specified, the grant is recorded as having been done by the specified role\&. Only database superusers may use this option, except when it names the same role executing the command\&.
+is specified, the grant is recorded as having been done by the specified role\&. A user can only attribute a grant to another role if they possess the privileges of that role\&. The role recorded as the grantor must have
+ADMIN OPTION
+on the target role, unless it is the bootstrap superuser\&. When a grant is recorded as having a grantor other than the bootstrap superuser, it depends on the grantor continuing to possess
+ADMIN OPTION
+on the role; so, if
+ADMIN OPTION
+is revoked, dependent grants must be revoked as well\&.
 .PP
 Unlike the case with privileges, membership in a role cannot be granted to
 PUBLIC\&. Note also that this form of the command does not allow the noise word
@@ -265,7 +327,7 @@ If a superuser chooses to issue a
 \fBGRANT\fR
 or
 \fBREVOKE\fR
-command, the command is performed as though it were issued by the owner of the affected object\&. In particular, privileges granted via such a command will appear to have been granted by the object owner\&. (For role membership, the membership appears to have been granted by the containing role itself\&.)
+command, the command is performed as though it were issued by the owner of the affected object\&. In particular, privileges granted via such a command will appear to have been granted by the object owner\&. (For role membership, the membership appears to have been granted by the bootstrap superuser\&.)
 .PP
 \fBGRANT\fR
 and
@@ -301,7 +363,7 @@ SERIAL
 columns\&. Permissions on sequences must be set separately\&.
 .PP
 See
-Section\ \&5.7
+Section\ \&5.8
 for more information about specific privilege types, as well as how to inspect objects\*(Aq privileges\&.
 .SH "EXAMPLES"
 .PP
@@ -400,7 +462,7 @@ privilege to the
 currval
 function is also a PostgreSQL extension (as is the function itself)\&.
 .PP
-Privileges on databases, tablespaces, schemas, and languages are
+Privileges on databases, tablespaces, schemas, languages, and configuration parameters are
 PostgreSQL
 extensions\&.
 .SH "SEE ALSO"

@@ -2,12 +2,12 @@
 .\"     Title: RESET
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "RESET" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "RESET" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -60,7 +60,7 @@ The default value is defined as the value that the parameter would have had, if 
 \fBSET\fR
 had ever been issued for it in the current session\&. The actual source of this value might be a compiled\-in default, the configuration file, command\-line options, or per\-database or per\-user default settings\&. This is subtly different from defining it as
 \(lqthe value that the parameter had at session start\(rq, because if the value came from the configuration file, it will be reset to whatever is specified by the configuration file now\&. See
-Chapter\ \&20
+Chapter\ \&19
 for details\&.
 .PP
 The transactional behavior of
@@ -72,7 +72,7 @@ is the same as
 \fIconfiguration_parameter\fR
 .RS 4
 Name of a settable run\-time parameter\&. Available parameters are documented in
-Chapter\ \&20
+Chapter\ \&19
 and on the
 \fBSET\fR(7)
 reference page\&.

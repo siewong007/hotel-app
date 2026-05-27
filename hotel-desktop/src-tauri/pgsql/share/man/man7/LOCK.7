@@ -2,12 +2,12 @@
 .\"     Title: LOCK
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "LOCK" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "LOCK" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -143,25 +143,31 @@ should not wait for any conflicting locks to be released: if the specified lock(
 .RE
 .SH "NOTES"
 .PP
-LOCK TABLE \&.\&.\&. IN ACCESS SHARE MODE
-requires
+To lock a table, the user must have the right privilege for the specified
+\fIlockmode\fR\&. If the user has
+MAINTAIN,
+UPDATE,
+DELETE, or
+TRUNCATE
+privileges on the table, any
+\fIlockmode\fR
+is permitted\&. If the user has
+INSERT
+privileges on the table,
+ROW EXCLUSIVE MODE
+(or a less\-conflicting mode as described in
+Section\ \&13.3) is permitted\&. If a user has
 SELECT
-privileges on the target table\&.
-LOCK TABLE \&.\&.\&. IN ROW EXCLUSIVE MODE
-requires
-INSERT,
-UPDATE,
-DELETE, or
-TRUNCATE
-privileges on the target table\&. All other forms of
-\fBLOCK\fR
-require table\-level
-UPDATE,
-DELETE, or
-TRUNCATE
-privileges\&.
+privileges on the table,
+ACCESS SHARE MODE
+is permitted\&.
 .PP
-The user performing the lock on the view must have the corresponding privilege on the view\&. In addition the view\*(Aqs owner must have the relevant privileges on the underlying base relations, but the user performing the lock does not need any permissions on the underlying base relations\&.
+The user performing the lock on the view must have the corresponding privilege on the view\&. In addition, by default, the view\*(Aqs owner must have the relevant privileges on the underlying base relations, whereas the user performing the lock does not need any permissions on the underlying base relations\&. However, if the view has
+security_invoker
+set to
+true
+(see
+\fBCREATE VIEW\fR), the user performing the lock, rather than the view owner, must have the relevant privileges on the underlying base relations\&.
 .PP
 \fBLOCK TABLE\fR
 is useless outside a transaction block: the lock would remain held only to the completion of the statement\&. Therefore

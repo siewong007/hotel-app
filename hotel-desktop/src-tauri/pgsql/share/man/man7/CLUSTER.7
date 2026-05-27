@@ -2,12 +2,12 @@
 .\"     Title: CLUSTER
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CLUSTER" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CLUSTER" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -32,9 +32,7 @@ CLUSTER \- cluster a table according to an index
 .SH "SYNOPSIS"
 .sp
 .nf
-CLUSTER [VERBOSE] \fItable_name\fR [ USING \fIindex_name\fR ]
-CLUSTER ( \fIoption\fR [, \&.\&.\&.] ) \fItable_name\fR [ USING \fIindex_name\fR ]
-CLUSTER [VERBOSE]
+CLUSTER [ ( \fIoption\fR [, \&.\&.\&.] ) ] [ \fItable_name\fR [ USING \fIindex_name\fR ] ]
 
 where \fIoption\fR can be one of:
 
@@ -68,7 +66,9 @@ forms of
 to set the index to be used for future cluster operations, or to clear any previous setting\&.
 .PP
 \fBCLUSTER\fR
-without any parameter reclusters all the previously\-clustered tables in the current database that the calling user owns, or all such tables if called by a superuser\&. This form of
+without a
+\fItable_name\fR
+reclusters all the previously\-clustered tables in the current database that the calling user has privileges for\&. This form of
 \fBCLUSTER\fR
 cannot be executed inside a transaction block\&.
 .PP
@@ -91,7 +91,9 @@ The name of an index\&.
 .PP
 VERBOSE
 .RS 4
-Prints a progress report as each table is clustered\&.
+Prints a progress report as each table is clustered at
+INFO
+level\&.
 .RE
 .PP
 \fIboolean\fR
@@ -112,6 +114,10 @@ is assumed\&.
 .RE
 .SH "NOTES"
 .PP
+To cluster a table, one must have the
+MAINTAIN
+privilege on the table\&.
+.PP
 In cases where you are accessing single rows randomly within a table, the actual order of the data in the table is unimportant\&. However, if you tend to access some data more than others, and there is an index that groups them together, you will benefit from using
 \fBCLUSTER\fR\&. If you are requesting a range of indexed values from a table, or a single indexed value that has multiple rows that match,
 \fBCLUSTER\fR
@@ -119,6 +125,13 @@ will help because once the index identifies the table page for the first row tha
 .PP
 \fBCLUSTER\fR
 can re\-sort the table using either an index scan on the specified index, or (if the index is a b\-tree) a sequential scan followed by sorting\&. It will attempt to choose the method that will be faster, based on planner cost parameters and available statistical information\&.
+.PP
+While
+\fBCLUSTER\fR
+is running, the
+search_path
+is temporarily changed to
+pg_catalog, pg_temp\&.
 .PP
 When an index scan is used, a temporary copy of the table is created that contains the table data in the index order\&. Temporary copies of each index on the table are created as well\&. Therefore, you need free space on disk at least equal to the sum of the table size and the index sizes\&.
 .PP
@@ -148,8 +161,12 @@ Each backend running
 will report its progress in the
 pg_stat_progress_cluster
 view\&. See
-Section\ \&28.4.4
+Section\ \&27.4.2
 for details\&.
+.PP
+Clustering a partitioned table clusters each of its partitions using the partition of the specified partitioned index\&. When clustering a partitioned table, the index may not be omitted\&.
+\fBCLUSTER\fR
+on a partitioned table cannot be executed inside a transaction block\&.
 .SH "EXAMPLES"
 .PP
 Cluster the table
@@ -198,7 +215,23 @@ There is no
 \fBCLUSTER\fR
 statement in the SQL standard\&.
 .PP
-The syntax
+The following syntax was used before
+PostgreSQL
+17 and is still supported:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+CLUSTER [ VERBOSE ] [ \fItable_name\fR [ USING \fIindex_name\fR ] ]
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+The following syntax was used before
+PostgreSQL
+8\&.3 and is still supported:
 .sp
 .if n \{\
 .RS 4
@@ -210,8 +243,5 @@ CLUSTER \fIindex_name\fR ON \fItable_name\fR
 .RE
 .\}
 .sp
-is also supported for compatibility with pre\-8\&.3
-PostgreSQL
-versions\&.
 .SH "SEE ALSO"
-\fBclusterdb\fR(1), Section\ \&28.4.4
+\fBclusterdb\fR(1), Section\ \&27.4.2

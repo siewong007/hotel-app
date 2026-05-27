@@ -2,12 +2,12 @@
 .\"     Title: ALTER SYSTEM
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "ALTER SYSTEM" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "ALTER SYSTEM" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -64,14 +64,16 @@ pg_ctl reload, or sending a
 SIGHUP
 signal to the main server process\&.
 .PP
-Only superusers can use
+Only superusers and users granted
+ALTER SYSTEM
+privilege on a parameter can change it using
 \fBALTER SYSTEM\fR\&. Also, since this command acts directly on the file system and cannot be rolled back, it is not allowed inside a transaction block or function\&.
 .SH "PARAMETERS"
 .PP
 \fIconfiguration_parameter\fR
 .RS 4
 Name of a settable configuration parameter\&. Available parameters are documented in
-Chapter\ \&20\&.
+Chapter\ \&19\&.
 .RE
 .PP
 \fIvalue\fR
@@ -86,14 +88,21 @@ For some list\-accepting parameters, quoted values will produce double\-quoted o
 .SH "NOTES"
 .PP
 This command can\*(Aqt be used to set
-data_directory, nor parameters that are not allowed in
+data_directory,
+allow_alter_system, nor parameters that are not allowed in
 postgresql\&.conf
 (e\&.g\&.,
 preset options)\&.
 .PP
 See
-Section\ \&20.1
+Section\ \&19.1
 for other ways to set the parameters\&.
+.PP
+ALTER SYSTEM
+can be disabled by setting
+allow_alter_system
+to
+off, but this is not a security mechanism (as explained in detail in the documentation for this parameter)\&.
 .SH "EXAMPLES"
 .PP
 Set the

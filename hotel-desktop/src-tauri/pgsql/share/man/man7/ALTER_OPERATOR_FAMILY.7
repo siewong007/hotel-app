@@ -2,12 +2,12 @@
 .\"     Title: ALTER OPERATOR FAMILY
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "ALTER OPERATOR FAMILY" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "ALTER OPERATOR FAMILY" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -73,7 +73,7 @@ You must be a superuser to use
 does not presently check whether the operator family definition includes all the operators and functions required by the index method, nor whether the operators and functions form a self\-consistent set\&. It is the user\*(Aqs responsibility to define a valid operator family\&.
 .PP
 Refer to
-Section\ \&38.16
+Section\ \&36.16
 for further information\&.
 .SH "PARAMETERS"
 .PP
@@ -180,16 +180,6 @@ the type(s) to specify are the input data type(s) the function is intended to su
 Because the index machinery does not check access permissions on functions before using them, including a function or operator in an operator family is tantamount to granting public execute permission on it\&. This is usually not an issue for the sorts of functions that are useful in an operator family\&.
 .PP
 The operators should not be defined by SQL functions\&. An SQL function is likely to be inlined into the calling query, which will prevent the optimizer from recognizing that the query matches an index\&.
-.PP
-Before
-PostgreSQL
-8\&.4, the
-OPERATOR
-clause could include a
-RECHECK
-option\&. This is no longer supported because whether an index operator is
-\(lqlossy\(rq
-is now determined on\-the\-fly at run time\&. This allows efficient handling of cases where an operator might or might not be lossy\&.
 .SH "EXAMPLES"
 .PP
 The following example command adds cross\-data\-type operators and support functions to an operator family that already contains B\-tree operator classes for data types

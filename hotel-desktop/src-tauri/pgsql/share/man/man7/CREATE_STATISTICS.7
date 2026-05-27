@@ -2,12 +2,12 @@
 .\"     Title: CREATE STATISTICS
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE STATISTICS" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE STATISTICS" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -32,11 +32,11 @@ CREATE_STATISTICS \- define extended statistics
 .SH "SYNOPSIS"
 .sp
 .nf
-CREATE STATISTICS [ IF NOT EXISTS ] \fIstatistics_name\fR
+CREATE STATISTICS [ [ IF NOT EXISTS ] \fIstatistics_name\fR ]
     ON ( \fIexpression\fR )
     FROM \fItable_name\fR
 
-CREATE STATISTICS [ IF NOT EXISTS ] \fIstatistics_name\fR
+CREATE STATISTICS [ [ IF NOT EXISTS ] \fIstatistics_name\fR ]
     [ ( \fIstatistics_kind\fR [, \&.\&.\&. ] ) ]
     ON { \fIcolumn_name\fR | ( \fIexpression\fR ) }, { \fIcolumn_name\fR | ( \fIexpression\fR ) } [, \&.\&.\&.]
     FROM \fItable_name\fR
@@ -51,17 +51,21 @@ The
 command has two basic forms\&. The first form allows univariate statistics for a single expression to be collected, providing benefits similar to an expression index without the overhead of index maintenance\&. This form does not allow the statistics kind to be specified, since the various statistics kinds refer only to multivariate statistics\&. The second form of the command allows multivariate statistics on multiple columns and/or expressions to be collected, optionally specifying which statistics kinds to include\&. This form will also automatically cause univariate statistics to be collected on any expressions included in the list\&.
 .PP
 If a schema name is given (for example,
-CREATE STATISTICS myschema\&.mystat \&.\&.\&.) then the statistics object is created in the specified schema\&. Otherwise it is created in the current schema\&. The name of the statistics object must be distinct from the name of any other statistics object in the same schema\&.
+CREATE STATISTICS myschema\&.mystat \&.\&.\&.) then the statistics object is created in the specified schema\&. Otherwise it is created in the current schema\&. If given, the name of the statistics object must be distinct from the name of any other statistics object in the same schema\&.
 .SH "PARAMETERS"
 .PP
 IF NOT EXISTS
 .RS 4
-Do not throw an error if a statistics object with the same name already exists\&. A notice is issued in this case\&. Note that only the name of the statistics object is considered here, not the details of its definition\&.
+Do not throw an error if a statistics object with the same name already exists\&. A notice is issued in this case\&. Note that only the name of the statistics object is considered here, not the details of its definition\&. Statistics name is required when
+IF NOT EXISTS
+is specified\&.
 .RE
 .PP
 \fIstatistics_name\fR
 .RS 4
-The name (optionally schema\-qualified) of the statistics object to be created\&.
+The name (optionally schema\-qualified) of the statistics object to be created\&. If the name is omitted,
+PostgreSQL
+chooses a suitable name based on the parent table\*(Aqs name and the defined column name(s) and/or expression(s)\&.
 .RE
 .PP
 \fIstatistics_kind\fR
@@ -73,7 +77,7 @@ mcv
 which enables most\-common values lists\&. If this clause is omitted, all supported statistics kinds are included in the statistics object\&. Univariate expression statistics are built automatically if the statistics definition includes any complex expressions rather than just simple column references\&. For more information, see
 Section\ \&14.2.2
 and
-Section\ \&72.2\&.
+Section\ \&69.2\&.
 .RE
 .PP
 \fIcolumn_name\fR

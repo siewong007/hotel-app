@@ -2,12 +2,12 @@
 .\"     Title: CREATE COLLATION
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE COLLATION" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE COLLATION" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -38,6 +38,7 @@ CREATE COLLATION [ IF NOT EXISTS ] \fIname\fR (
     [ LC_CTYPE = \fIlc_ctype\fR, ]
     [ PROVIDER = \fIprovider\fR, ]
     [ DETERMINISTIC = \fIboolean\fR, ]
+    [ RULES = \fIrules\fR, ]
     [ VERSION = \fIversion\fR ]
 )
 CREATE COLLATION [ IF NOT EXISTS ] \fIname\fR FROM \fIexisting_collation\fR
@@ -64,34 +65,65 @@ The name of the collation\&. The collation name can be schema\-qualified\&. If i
 .PP
 \fIlocale\fR
 .RS 4
-This is a shortcut for setting
+The locale name for this collation\&. See
+Section\ \&23.2.2.3.1
+and
+Section\ \&23.2.2.3.2
+for details\&.
+.sp
+If
+\fIprovider\fR
+is
+libc, this is a shortcut for setting
 LC_COLLATE
 and
 LC_CTYPE
-at once\&. If you specify this, you cannot specify either of those parameters\&.
+at once\&. If you specify
+\fIlocale\fR, you cannot specify either of those parameters\&.
+.sp
+If
+\fIprovider\fR
+is
+builtin, then
+\fIlocale\fR
+must be specified and set to either
+C,
+C\&.UTF\-8
+or
+PG_UNICODE_FAST\&.
 .RE
 .PP
 \fIlc_collate\fR
 .RS 4
-Use the specified operating system locale for the
+If
+\fIprovider\fR
+is
+libc, use the specified operating system locale for the
 LC_COLLATE
 locale category\&.
 .RE
 .PP
 \fIlc_ctype\fR
 .RS 4
-Use the specified operating system locale for the
+If
+\fIprovider\fR
+is
+libc, use the specified operating system locale for the
 LC_CTYPE
 locale category\&.
 .RE
 .PP
 \fIprovider\fR
 .RS 4
-Specifies the provider to use for locale services associated with this collation\&. Possible values are:
-icu,
+Specifies the provider to use for locale services associated with this collation\&. Possible values are
+builtin,
+icu
+(if the server was built with ICU support) or
 libc\&.
 libc
-is the default\&. The available choices depend on the operating system and build options\&.
+is the default\&. See
+Section\ \&23.1.4
+for details\&.
 .RE
 .PP
 DETERMINISTIC
@@ -103,6 +135,13 @@ setting
 set the collation to not deterministic here\&.
 .sp
 Nondeterministic collations are only supported with the ICU provider\&.
+.RE
+.PP
+\fIrules\fR
+.RS 4
+Specifies additional collation rules to customize the behavior of the collation\&. This is supported for ICU only\&. See
+Section\ \&23.2.3.4
+for details\&.
 .RE
 .PP
 \fIversion\fR
@@ -136,7 +175,7 @@ Use
 to remove user\-defined collations\&.
 .PP
 See
-Section\ \&24.2.2.3
+Section\ \&23.2.2.3
 for more information on how to create collations\&.
 .PP
 When using the
@@ -172,6 +211,22 @@ CREATE COLLATION german_phonebook (provider = icu, locale = \*(Aqde\-u\-co\-phon
 .if n \{\
 .RE
 .\}
+.PP
+To create a collation using the ICU provider, based on the root ICU locale, with custom rules:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+CREATE COLLATION custom (provider = icu, locale = \*(Aqund\*(Aq, rules = \*(Aq&V << w <<< W\*(Aq);
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+See
+Section\ \&23.2.3.4
+for further details and examples on the rules syntax\&.
 .PP
 To create a collation from an existing collation:
 .sp

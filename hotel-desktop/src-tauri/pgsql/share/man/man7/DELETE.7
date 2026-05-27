@@ -2,12 +2,12 @@
 .\"     Title: DELETE
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "DELETE" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "DELETE" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -36,7 +36,8 @@ DELETE \- delete rows of a table
 DELETE FROM [ ONLY ] \fItable_name\fR [ * ] [ [ AS ] \fIalias\fR ]
     [ USING \fIfrom_item\fR [, \&.\&.\&.] ]
     [ WHERE \fIcondition\fR | WHERE CURRENT OF \fIcursor_name\fR ]
-    [ RETURNING { * | \fIoutput_expression\fR [ [ AS ] \fIoutput_name\fR ] } [, \&.\&.\&.] ]
+    [ RETURNING [ WITH ( { OLD | NEW } AS \fIoutput_alias\fR [, \&.\&.\&.] ) ]
+                { * | \fIoutput_expression\fR [ [ AS ] \fIoutput_name\fR ] } [, \&.\&.\&.] ]
 .fi
 .SH "DESCRIPTION"
 .PP
@@ -158,6 +159,26 @@ for more information about using cursors with
 WHERE CURRENT OF\&.
 .RE
 .PP
+\fIoutput_alias\fR
+.RS 4
+An optional substitute name for
+OLD
+or
+NEW
+rows in the
+RETURNING
+list\&.
+.sp
+By default, old values from the target table can be returned by writing
+OLD\&.\fIcolumn_name\fR
+or
+OLD\&.*, and new values can be returned by writing
+NEW\&.\fIcolumn_name\fR
+or
+NEW\&.*\&. When an alias is provided, these names are hidden and the old or new rows must be referred to using the alias\&. For example
+RETURNING WITH (OLD AS o, NEW AS n) o\&.*, n\&.*\&.
+.RE
+.PP
 \fIoutput_expression\fR
 .RS 4
 An expression to be computed and returned by the
@@ -168,6 +189,31 @@ or table(s) listed in
 USING\&. Write
 *
 to return all columns\&.
+.sp
+A column name or
+*
+may be qualified using
+OLD
+or
+NEW, or the corresponding
+\fIoutput_alias\fR
+for
+OLD
+or
+NEW, to cause old or new values to be returned\&. An unqualified column name, or
+*, or a column name or
+*
+qualified using the target table name or alias will return old values\&.
+.sp
+For a simple
+\fBDELETE\fR, all new values will be
+NULL\&. However, if an
+ON DELETE
+rule causes an
+\fBINSERT\fR
+or
+\fBUPDATE\fR
+to be executed instead, the new values may be non\-NULL\&.
 .RE
 .PP
 \fIoutput_name\fR
@@ -302,6 +348,36 @@ DELETE FROM tasks WHERE CURRENT OF c_tasks;
 .if n \{\
 .RE
 .\}
+.PP
+While there is no
+LIMIT
+clause for
+\fBDELETE\fR, it is possible to get a similar effect using the same method described in
+the documentation of \fBUPDATE\fR:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+WITH delete_batch AS (
+  SELECT l\&.ctid FROM user_logs AS l
+    WHERE l\&.status = \*(Aqarchived\*(Aq
+    ORDER BY l\&.creation_date
+    FOR UPDATE
+    LIMIT 10000
+)
+DELETE FROM user_logs AS dl
+  USING delete_batch AS del
+  WHERE dl\&.ctid = del\&.ctid;
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+This use of
+ctid
+is only safe because the query is repeatedly run, avoiding the problem of changed
+ctids\&.
 .SH "COMPATIBILITY"
 .PP
 This command conforms to the

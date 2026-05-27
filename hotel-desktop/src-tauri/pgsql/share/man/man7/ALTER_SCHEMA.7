@@ -2,12 +2,12 @@
 .\"     Title: ALTER SCHEMA
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "ALTER SCHEMA" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "ALTER SCHEMA" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -43,7 +43,9 @@ changes the definition of a schema\&.
 You must own the schema to use
 \fBALTER SCHEMA\fR\&. To rename a schema you must also have the
 CREATE
-privilege for the database\&. To alter the owner, you must also be a direct or indirect member of the new owning role, and you must have the
+privilege for the database\&. To alter the owner, you must be able to
+SET ROLE
+to the new owning role, and that role must have the
 CREATE
 privilege for the database\&. (Note that superusers have all these privileges automatically\&.)
 .SH "PARAMETERS"

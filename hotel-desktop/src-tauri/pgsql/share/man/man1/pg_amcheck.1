@@ -2,12 +2,12 @@
 .\"     Title: pg_amcheck
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "PG_AMCHECK" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "PG_AMCHECK" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -38,7 +38,7 @@ pg_amcheck
 supports running
 amcheck\*(Aqs corruption checking functions against one or more databases, with options to select which schemas, tables and indexes to check, which kinds of checking to perform, and whether to perform the checks in parallel, and if so, the number of parallel connections to establish and use\&.
 .PP
-Only table relations and btree indexes are currently supported\&. Other relation types are silently skipped\&.
+Only ordinary and toast table relations, materialized views, sequences, and btree indexes are currently supported\&. Other relation types are silently skipped\&.
 .PP
 If
 dbname
@@ -101,7 +101,7 @@ Check indexes matching the specified
 .sp
 This is similar to the
 \fB\-\-relation\fR
-option, except that it applies only to indexes, not tables\&.
+option, except that it applies only to indexes, not to other relation types\&.
 .RE
 .PP
 \fB\-I \fR\fB\fIpattern\fR\fR
@@ -113,7 +113,7 @@ Exclude indexes matching the specified
 .sp
 This is similar to the
 \fB\-\-exclude\-relation\fR
-option, except that it applies only to indexes, not tables\&.
+option, except that it applies only to indexes, not other relation types\&.
 .RE
 .PP
 \fB\-r \fR\fB\fIpattern\fR\fR
@@ -182,7 +182,7 @@ Check tables matching the specified
 .sp
 This is similar to the
 \fB\-\-relation\fR
-option, except that it applies only to tables, not indexes\&.
+option, except that it applies only to tables, materialized views, and sequences, not to indexes\&.
 .RE
 .PP
 \fB\-T \fR\fB\fIpattern\fR\fR
@@ -194,7 +194,7 @@ Exclude tables matching the specified
 .sp
 This is similar to the
 \fB\-\-exclude\-relation\fR
-option, except that it applies only to tables, not indexes\&.
+option, except that it applies only to tables, materialized views, and sequences, not to indexes\&.
 .RE
 .PP
 \fB\-\-no\-dependent\-indexes\fR
@@ -265,6 +265,14 @@ End checking at the specified block number\&. An error will occur if the table r
 .RE
 .PP
 The following command\-line options control checking of B\-tree indexes:
+.PP
+\fB\-\-checkunique\fR
+.RS 4
+For each index with unique constraint checked, verify that no more than one among duplicate entries is visible in the index using
+amcheck\*(Aqs
+\fBcheckunique\fR
+option\&.
+.RE
 .PP
 \fB\-\-heapallindexed\fR
 .RS 4
@@ -452,6 +460,22 @@ Show help about
 pg_amcheck
 command line arguments, and exit\&.
 .RE
+.SH "ENVIRONMENT"
+.PP
+\fBpg_amcheck\fR, like most other
+PostgreSQL
+utilities, also uses the environment variables supported by
+libpq
+(see
+Section\ \&32.15)\&.
+.PP
+The environment variable
+\fBPG_COLOR\fR
+specifies whether to use color in diagnostic messages\&. Possible values are
+always,
+auto
+and
+never\&.
 .SH "NOTES"
 .PP
 pg_amcheck

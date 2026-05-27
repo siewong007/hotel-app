@@ -2,12 +2,12 @@
 .\"     Title: pg_restore
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "PG_RESTORE" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "PG_RESTORE" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -93,7 +93,7 @@ Specifies the location of the archive file (or directory, for a directory\-forma
 .br
 \fB\-\-data\-only\fR
 .RS 4
-Restore only the data, not the schema (data definitions)\&. Table data, large objects, and sequence values are restored, if present in the archive\&.
+Restore only the data, not the schema (data definitions) or statistics\&. Table data, large objects, and sequence values are restored, if present in the archive\&.
 .sp
 This option is similar to, but for historical reasons not identical to, specifying
 \fB\-\-section=data\fR\&.
@@ -324,9 +324,11 @@ This option is obsolete but still accepted for backwards compatibility\&.
 .RS 4
 Restore only the schema (data definitions), not data, to the extent that schema entries are present in the archive\&.
 .sp
-This option is the inverse of
-\fB\-\-data\-only\fR\&. It is similar to, but for historical reasons not identical to, specifying
-\fB\-\-section=pre\-data \-\-section=post\-data\fR\&.
+This option cannot be used with
+\fB\-\-data\-only\fR
+or
+\fB\-\-statistics\-only\fR\&. It is similar to, but for historical reasons not identical to, specifying
+\fB\-\-section=pre\-data \-\-section=post\-data \-\-no\-statistics\fR\&.
 .sp
 (Do not confuse this with the
 \fB\-\-schema\fR
@@ -466,7 +468,7 @@ Execute the restore as a single transaction (that is, wrap the emitted commands 
 .PP
 \fB\-\-disable\-triggers\fR
 .RS 4
-This option is relevant only when performing a data\-only restore\&. It instructs
+This option is relevant only when performing a restore without schema\&. It instructs
 pg_restore
 to execute commands to temporarily disable triggers on the target tables while the data is restored\&. Use this if you have referential integrity checks or other triggers on the tables that you do not want to invoke during data restore\&.
 .sp
@@ -500,6 +502,123 @@ format, as
 does not support row security\&.
 .RE
 .PP
+\fB\-\-filter=\fR\fB\fIfilename\fR\fR
+.RS 4
+Specify a filename from which to read patterns for objects excluded or included from restore\&. The patterns are interpreted according to the same rules as
+\fB\-n\fR/\fB\-\-schema\fR
+for including objects in schemas,
+\fB\-N\fR/\fB\-\-exclude\-schema\fR
+for excluding objects in schemas,
+\fB\-P\fR/\fB\-\-function\fR
+for restoring named functions,
+\fB\-I\fR/\fB\-\-index\fR
+for restoring named indexes,
+\fB\-t\fR/\fB\-\-table\fR
+for restoring named tables or
+\fB\-T\fR/\fB\-\-trigger\fR
+for restoring triggers\&. To read from
+STDIN, use
+\-
+as the filename\&. The
+\fB\-\-filter\fR
+option can be specified in conjunction with the above listed options for including or excluding objects, and can also be specified more than once for multiple filter files\&.
+.sp
+The file lists one database pattern per row, with the following format:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+{ include | exclude } { function | index | schema | table | trigger } \fIPATTERN\fR
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+The first keyword specifies whether the objects matched by the pattern are to be included or excluded\&. The second keyword specifies the type of object to be filtered using the pattern:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+function: functions, works like the
+\fB\-P\fR/\fB\-\-function\fR
+option\&. This keyword can only be used with the
+include
+keyword\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+index: indexes, works like the
+\fB\-I\fR/\fB\-\-indexes\fR
+option\&. This keyword can only be used with the
+include
+keyword\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+schema: schemas, works like the
+\fB\-n\fR/\fB\-\-schema\fR
+and
+\fB\-N\fR/\fB\-\-exclude\-schema\fR
+options\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+table: tables, works like the
+\fB\-t\fR/\fB\-\-table\fR
+option\&. This keyword can only be used with the
+include
+keyword\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+trigger: triggers, works like the
+\fB\-T\fR/\fB\-\-trigger\fR
+option\&. This keyword can only be used with the
+include
+keyword\&.
+.RE
+.sp
+Lines starting with
+#
+are considered comments and ignored\&. Comments can be placed after an object pattern row as well\&. Blank lines are also ignored\&. See
+Patterns
+for how to perform quoting in patterns\&.
+.RE
+.PP
 \fB\-\-if\-exists\fR
 .RS 4
 Use
@@ -518,6 +637,11 @@ is also specified\&.
 Do not output commands to restore comments, even if the archive contains them\&.
 .RE
 .PP
+\fB\-\-no\-data\fR
+.RS 4
+Do not output commands to restore data, even if the archive contains them\&.
+.RE
+.PP
 \fB\-\-no\-data\-for\-failed\-tables\fR
 .RS 4
 By default, table data is restored even if the creation command for the table failed (e\&.g\&., because it already exists)\&. With this option, data for such a table is skipped\&. This behavior is useful if the target database already contains the desired table contents\&. For example, auxiliary tables for
@@ -529,9 +653,19 @@ might already be loaded in the target database; specifying this option prevents 
 This option is effective only when restoring directly into a database, not when producing SQL script output\&.
 .RE
 .PP
+\fB\-\-no\-policies\fR
+.RS 4
+Do not output commands to restore row security policies, even if the archive contains them\&.
+.RE
+.PP
 \fB\-\-no\-publications\fR
 .RS 4
 Do not output commands to restore publications, even if the archive contains them\&.
+.RE
+.PP
+\fB\-\-no\-schema\fR
+.RS 4
+Do not output commands to restore schema (data definitions), even if the archive contains them\&.
 .RE
 .PP
 \fB\-\-no\-security\-labels\fR
@@ -539,9 +673,19 @@ Do not output commands to restore publications, even if the archive contains the
 Do not output commands to restore security labels, even if the archive contains them\&.
 .RE
 .PP
+\fB\-\-no\-statistics\fR
+.RS 4
+Do not output commands to restore statistics, even if the archive contains them\&.
+.RE
+.PP
 \fB\-\-no\-subscriptions\fR
 .RS 4
 Do not output commands to restore subscriptions, even if the archive contains them\&.
+.RE
+.PP
+\fB\-\-no\-table\-access\-method\fR
+.RS 4
+Do not output commands to select table access methods\&. With this option, all objects will be created with whichever table access method is the default during restore\&.
 .RE
 .PP
 \fB\-\-no\-tablespaces\fR
@@ -575,9 +719,36 @@ Only restore the named section\&. The section name can be
 The data section contains actual table data as well as large\-object definitions\&. Post\-data items consist of definitions of indexes, triggers, rules and constraints other than validated check constraints\&. Pre\-data items consist of all other data definition items\&.
 .RE
 .PP
+\fB\-\-statistics\fR
+.RS 4
+Output commands to restore statistics, if the archive contains them\&. This is the default\&.
+.RE
+.PP
+\fB\-\-statistics\-only\fR
+.RS 4
+Restore only the statistics, not schema (data definitions) or data\&.
+.RE
+.PP
 \fB\-\-strict\-names\fR
 .RS 4
-Require that each schema (\fB\-n\fR/\fB\-\-schema\fR) and table (\fB\-t\fR/\fB\-\-table\fR) qualifier match at least one schema/table in the backup file\&.
+Require that each schema (\fB\-n\fR/\fB\-\-schema\fR) and table (\fB\-t\fR/\fB\-\-table\fR) qualifier match at least one schema/table in the file to be restored\&.
+.RE
+.PP
+\fB\-\-transaction\-size=\fR\fB\fIN\fR\fR
+.RS 4
+Execute the restore as a series of transactions, each processing up to
+\fIN\fR
+database objects\&. This option implies
+\fB\-\-exit\-on\-error\fR\&.
+.sp
+\fB\-\-transaction\-size\fR
+offers an intermediate choice between the default behavior (one transaction per SQL command) and
+\fB\-1\fR/\fB\-\-single\-transaction\fR
+(one transaction for all restored objects)\&. While
+\fB\-\-single\-transaction\fR
+has the least overhead, it may be impractical for large databases because the transaction will take a lock on each restored object, possibly exhausting the server\*(Aqs lock table space\&. Using
+\fB\-\-transaction\-size\fR
+with a size of a few thousand objects offers nearly the same performance benefits while capping the amount of lock table space needed\&.
 .RE
 .PP
 \fB\-\-use\-set\-session\-authorization\fR
@@ -690,7 +861,7 @@ PostgreSQL
 utilities, also uses the environment variables supported by
 libpq
 (see
-Section\ \&34.15)\&. However, it does not read
+Section\ \&32.15)\&. However, it does not read
 \fBPGDATABASE\fR
 when a database name is not supplied\&.
 .SH "DIAGNOSTICS"
@@ -765,12 +936,14 @@ See also the
 documentation for details on limitations of
 pg_dump\&.
 .PP
-Once restored, it is wise to run
+By default,
+\fBpg_restore\fR
+will restore optimizer statistics if included in the dump file\&. If not all statistics were restored, it may be useful to run
 \fBANALYZE\fR
 on each restored table so the optimizer has useful statistics; see
-Section\ \&25.1.3
+Section\ \&24.1.3
 and
-Section\ \&25.1.6
+Section\ \&24.1.6
 for more information\&.
 .SH "EXAMPLES"
 .PP

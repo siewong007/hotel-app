@@ -2,12 +2,12 @@
 .\"     Title: pg_ctl
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "PG_CTL" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "PG_CTL" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -99,9 +99,9 @@ mode shuts down the server that is running in the specified data directory\&. Th
 \fB\-m\fR
 option\&.
 \(lqSmart\(rq
-mode disallows new connections, then waits for all existing clients to disconnect and any online backup to finish\&. If the server is in hot standby, recovery and streaming replication will be terminated once all clients have disconnected\&.
+mode disallows new connections, then waits for all existing clients to disconnect\&. If the server is in hot standby, recovery and streaming replication will be terminated once all clients have disconnected\&.
 \(lqFast\(rq
-mode (the default) does not wait for clients to disconnect and will terminate an online backup in progress\&. All active transactions are rolled back and clients are forcibly disconnected, then the server is shut down\&.
+mode (the default) does not wait for clients to disconnect\&. All active transactions are rolled back and clients are forcibly disconnected, then the server is shut down\&.
 \(lqImmediate\(rq
 mode will abort all server processes immediately, without a clean shutdown\&. This choice will lead to a crash\-recovery cycle during the next server start\&.
 .PP
@@ -136,7 +136,7 @@ mode commands the standby server that is running in the specified data directory
 .PP
 \fBlogrotate\fR
 mode rotates the server log file\&. For details on how to use this mode with external log rotation tools, see
-Section\ \&25.3\&.
+Section\ \&24.3\&.
 .PP
 \fBkill\fR
 mode sends a signal to a specified process\&. This is primarily valuable on
@@ -187,9 +187,7 @@ is used\&.
 \fB\-\-log=\fR\fB\fIfilename\fR\fR
 .RS 4
 Append the server log output to
-\fIfilename\fR\&. If the file does not exist, it is created\&. The
-umask
-is set to 077, so access to the log file is disallowed to other users by default\&.
+\fIfilename\fR\&. If the file does not exist, it is created\&. By default, only the cluster owner can access the log file\&. If group access is enabled in the cluster, users in the same group as the cluster owner can also read it\&.
 .RE
 .PP
 \fB\-m \fR\fB\fImode\fR\fR

@@ -2,12 +2,12 @@
 .\"     Title: pg_dumpall
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "PG_DUMPALL" "1" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "PG_DUMPALL" "1" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -45,7 +45,7 @@ to restore the databases\&. It does this by calling
 \fBpg_dump\fR(1)
 for each database in the cluster\&.
 pg_dumpall
-also dumps global objects that are common to all databases, that is, database roles and tablespaces\&. (pg_dump
+also dumps global objects that are common to all databases, namely database roles, tablespaces, and privilege grants for configuration parameters\&. (pg_dump
 does not save these objects\&.)
 .PP
 Since
@@ -62,7 +62,7 @@ PostgreSQL
 server (once per database)\&. If you use password authentication it will ask for a password each time\&. It is convenient to have a
 ~/\&.pgpass
 file in such cases\&. See
-Section\ \&34.16
+Section\ \&32.16
 for more information\&.
 .if n \{\
 .sp
@@ -88,7 +88,7 @@ The following command\-line options control the content and format of the output
 .br
 \fB\-\-data\-only\fR
 .RS 4
-Dump only the data, not the schema (data definitions)\&.
+Dump only the data, not the schema (data definitions) or statistics\&.
 .RE
 .PP
 \fB\-c\fR
@@ -219,7 +219,7 @@ This option disables the use of dollar quoting for function bodies, and forces t
 .PP
 \fB\-\-disable\-triggers\fR
 .RS 4
-This option is relevant only when creating a data\-only dump\&. It instructs
+This option is relevant only when creating a dump with data and without schema\&. It instructs
 pg_dumpall
 to include commands to temporarily disable triggers on the target tables while the data is restored\&. Use this if you have referential integrity checks or other triggers on the tables that you do not want to invoke during data restore\&.
 .sp
@@ -240,13 +240,43 @@ parameter is interpreted as a pattern according to the same rules used by
 psql\*(Aqs
 \ed
 commands (see
-Patterns
-below), so multiple databases can also be excluded by writing wildcard characters in the pattern\&. When using wildcards, be careful to quote the pattern if needed to prevent shell wildcard expansion\&.
+Patterns), so multiple databases can also be excluded by writing wildcard characters in the pattern\&. When using wildcards, be careful to quote the pattern if needed to prevent shell wildcard expansion\&.
 .RE
 .PP
 \fB\-\-extra\-float\-digits=\fR\fB\fIndigits\fR\fR
 .RS 4
 Use the specified value of extra_float_digits when dumping floating\-point data, instead of the maximum available precision\&. Routine dumps made for backup purposes should not use this option\&.
+.RE
+.PP
+\fB\-\-filter=\fR\fB\fIfilename\fR\fR
+.RS 4
+Specify a filename from which to read patterns for databases excluded from the dump\&. The patterns are interpreted according to the same rules as
+\fB\-\-exclude\-database\fR\&. To read from
+STDIN, use
+\-
+as the filename\&. The
+\fB\-\-filter\fR
+option can be specified in conjunction with
+\fB\-\-exclude\-database\fR
+for excluding databases, and can also be specified more than once for multiple filter files\&.
+.sp
+The file lists one database pattern per row, with the following format:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+exclude database \fIPATTERN\fR
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+Lines starting with
+#
+are considered comments and ignored\&. Comments can be placed after an object pattern row as well\&. Blank lines are also ignored\&. See
+Patterns
+for how to perform quoting in patterns\&.
 .RE
 .PP
 \fB\-\-if\-exists\fR
@@ -291,7 +321,19 @@ Do not wait forever to acquire shared table locks at the beginning of the dump\&
 .PP
 \fB\-\-no\-comments\fR
 .RS 4
-Do not dump comments\&.
+Do not dump
+\fBCOMMENT\fR
+commands\&.
+.RE
+.PP
+\fB\-\-no\-data\fR
+.RS 4
+Do not dump data\&.
+.RE
+.PP
+\fB\-\-no\-policies\fR
+.RS 4
+Do not dump row security policies\&.
 .RE
 .PP
 \fB\-\-no\-publications\fR
@@ -309,9 +351,19 @@ pg_authid
 is restricted by some security policy\&.
 .RE
 .PP
+\fB\-\-no\-schema\fR
+.RS 4
+Do not dump schema (data definitions)\&.
+.RE
+.PP
 \fB\-\-no\-security\-labels\fR
 .RS 4
 Do not dump security labels\&.
+.RE
+.PP
+\fB\-\-no\-statistics\fR
+.RS 4
+Do not dump statistics\&. This is the default\&.
 .RE
 .PP
 \fB\-\-no\-subscriptions\fR
@@ -326,6 +378,11 @@ By default,
 will wait for all files to be written safely to disk\&. This option causes
 \fBpg_dumpall\fR
 to return without waiting, which is faster, but means that a subsequent operating system crash can leave the dump corrupt\&. Generally, this option is useful for testing but should not be used when dumping data from production installation\&.
+.RE
+.PP
+\fB\-\-no\-table\-access\-method\fR
+.RS 4
+Do not output commands to select table access methods\&. With this option, all objects will be created with whichever table access method is the default during restore\&.
 .RE
 .PP
 \fB\-\-no\-tablespaces\fR
@@ -394,6 +451,25 @@ commands (rather than
 command\&. The value specified must be a number greater than zero\&. Any error during restoring will cause only rows that are part of the problematic
 \fBINSERT\fR
 to be lost, rather than the entire table contents\&.
+.RE
+.PP
+\fB\-\-statistics\fR
+.RS 4
+Dump optimizer statistics\&.
+.RE
+.PP
+\fB\-\-statistics\-only\fR
+.RS 4
+Dump only the statistics, not the schema (data definitions) or data\&. Optimizer statistics for tables, materialized views, foreign tables, and indexes are dumped\&.
+.RE
+.PP
+\fB\-\-sequence\-data\fR
+.RS 4
+Include sequence data in the dump\&. This is the default behavior except when
+\fB\-\-no\-data\fR,
+\fB\-\-schema\-only\fR, or
+\fB\-\-statistics\-only\fR
+is specified\&.
 .RE
 .PP
 \fB\-\-use\-set\-session\-authorization\fR
@@ -536,7 +612,7 @@ PostgreSQL
 utilities, also uses the environment variables supported by
 libpq
 (see
-Section\ \&34.15)\&.
+Section\ \&32.15)\&.
 .SH "NOTES"
 .PP
 Since
@@ -556,9 +632,14 @@ and
 template1
 databases, ensuring that those databases will retain the same properties (for instance, locale and encoding) that they had in the source cluster\&. Without the option, those databases will retain their existing database\-level properties, as well as any pre\-existing contents\&.
 .PP
-Once restored, it is wise to run
+When
+\fB\-\-statistics\fR
+is specified,
+\fBpg_dumpall\fR
+will include most optimizer statistics in the resulting dump file\&. This does not include all statistics, such as those created explicitly with
+CREATE STATISTICS (\fBCREATE_STATISTICS\fR(7)), custom statistics added by an extension, or statistics collected by the cumulative statistics system\&. Therefore, it may still be useful to run
 \fBANALYZE\fR
-on each database so the optimizer has useful statistics\&. You can also run
+on each database after restoring from a dump file to ensure optimal performance\&. You can also run
 \fBvacuumdb \-a \-z\fR
 to analyze all databases\&.
 .PP

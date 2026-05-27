@@ -2,12 +2,12 @@
 .\"     Title: CREATE OPERATOR
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "CREATE OPERATOR" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "CREATE OPERATOR" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -147,14 +147,14 @@ are equivalent, but the referenced function must in any case be a function, not 
 PROCEDURE
 here is historical and deprecated\&.
 .PP
-The other clauses specify optional operator optimization clauses\&. Their meaning is detailed in
-Section\ \&38.15\&.
+The other clauses specify optional operator optimization attributes\&. Their meaning is detailed in
+Section\ \&36.15\&.
 .PP
 To be able to create an operator, you must have
 USAGE
 privilege on the argument types and the return type, as well as
 EXECUTE
-privilege on the underlying function\&. If a commutator or negator operator is specified, you must own these operators\&.
+privilege on the underlying function\&. If a commutator or negator operator is specified, you must own those operators\&.
 .SH "PARAMETERS"
 .PP
 \fIname\fR
@@ -227,8 +227,69 @@ COMMUTATOR = OPERATOR(myschema\&.===) ,
 .SH "NOTES"
 .PP
 Refer to
-Section\ \&38.14
+Section\ \&36.14
+and
+Section\ \&36.15
 for further information\&.
+.PP
+When you are defining a self\-commutative operator, you just do it\&. When you are defining a pair of commutative operators, things are a little trickier: how can the first one to be defined refer to the other one, which you haven\*(Aqt defined yet? There are three solutions to this problem:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+One way is to omit the
+COMMUTATOR
+clause in the first operator that you define, and then provide one in the second operator\*(Aqs definition\&. Since
+PostgreSQL
+knows that commutative operators come in pairs, when it sees the second definition it will automatically go back and fill in the missing
+COMMUTATOR
+clause in the first definition\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Another, more straightforward way is just to include
+COMMUTATOR
+clauses in both definitions\&. When
+PostgreSQL
+processes the first definition and realizes that
+COMMUTATOR
+refers to a nonexistent operator, the system will make a dummy entry for that operator in the system catalog\&. This dummy entry will have valid data only for the operator name, left and right operand types, and owner, since that\*(Aqs all that
+PostgreSQL
+can deduce at this point\&. The first operator\*(Aqs catalog entry will link to this dummy entry\&. Later, when you define the second operator, the system updates the dummy entry with the additional information from the second definition\&. If you try to use the dummy operator before it\*(Aqs been filled in, you\*(Aqll just get an error message\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+Alternatively, both operators can be defined without
+COMMUTATOR
+clauses and then
+\fBALTER OPERATOR\fR
+can be used to set their commutator links\&. It\*(Aqs sufficient to
+\fBALTER\fR
+either one of the pair\&.
+.RE
+.sp
+In all three cases, you must own both operators in order to mark them as commutators\&.
+.PP
+Pairs of negator operators can be defined using the same methods as for commutator pairs\&.
 .PP
 It is not possible to specify an operator\*(Aqs lexical precedence in
 \fBCREATE OPERATOR\fR, because the parser\*(Aqs precedence behavior is hard\-wired\&. See

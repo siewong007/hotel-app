@@ -2,12 +2,12 @@
 .\"     Title: REINDEX
 .\"    Author: The PostgreSQL Global Development Group
 .\" Generator: DocBook XSL Stylesheets vsnapshot <http://docbook.sf.net/>
-.\"      Date: 2025
-.\"    Manual: PostgreSQL 14.19 Documentation
-.\"    Source: PostgreSQL 14.19
+.\"      Date: 2026
+.\"    Manual: PostgreSQL 18.4 Documentation
+.\"    Source: PostgreSQL 18.4
 .\"  Language: English
 .\"
-.TH "REINDEX" "7" "2025" "PostgreSQL 14.19" "PostgreSQL 14.19 Documentation"
+.TH "REINDEX" "7" "2026" "PostgreSQL 18.4" "PostgreSQL 18.4 Documentation"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -32,7 +32,8 @@ REINDEX \- rebuild indexes
 .SH "SYNOPSIS"
 .sp
 .nf
-REINDEX [ ( \fIoption\fR [, \&.\&.\&.] ) ] { INDEX | TABLE | SCHEMA | DATABASE | SYSTEM } [ CONCURRENTLY ] \fIname\fR
+REINDEX [ ( \fIoption\fR [, \&.\&.\&.] ) ] { INDEX | TABLE | SCHEMA } [ CONCURRENTLY ] \fIname\fR
+REINDEX [ ( \fIoption\fR [, \&.\&.\&.] ) ] { DATABASE | SYSTEM } [ CONCURRENTLY ] [ \fIname\fR ]
 
 where \fIoption\fR can be one of:
 
@@ -73,7 +74,7 @@ PostgreSQL
 under certain uncommon access patterns\&.
 \fBREINDEX\fR
 provides a way to reduce the space consumption of the index by writing a new version of the index without the dead pages\&. See
-Section\ \&25.2
+Section\ \&24.2
 for more information\&.
 .RE
 .sp
@@ -134,7 +135,7 @@ cannot be executed inside a transaction block\&.
 .PP
 DATABASE
 .RS 4
-Recreate all indexes within the current database\&. Indexes on shared system catalogs are also processed\&. This form of
+Recreate all indexes within the current database, except system catalogs\&. Indexes on system catalogs are not processed\&. This form of
 \fBREINDEX\fR
 cannot be executed inside a transaction block\&.
 .RE
@@ -152,7 +153,7 @@ The name of the specific index, table, or database to be reindexed\&. Index and 
 \fBREINDEX DATABASE\fR
 and
 \fBREINDEX SYSTEM\fR
-can only reindex the current database, so their parameter must match the current database\*(Aqs name\&.
+can only reindex the current database\&. Their parameter is optional, and it must match the current database\*(Aqs name\&.
 .RE
 .PP
 CONCURRENTLY
@@ -175,7 +176,9 @@ Specifies that indexes will be rebuilt on a new tablespace\&.
 .PP
 VERBOSE
 .RS 4
-Prints a progress report as each index is reindexed\&.
+Prints a progress report as each index is reindexed at
+INFO
+level\&.
 .RE
 .PP
 \fIboolean\fR
@@ -239,7 +242,11 @@ is similar to a drop and recreate of the index in that the index contents are re
 \fBREINDEX\fR
 locks out writes but not reads of the index\*(Aqs parent table\&. It also takes an
 ACCESS EXCLUSIVE
-lock on the specific index being processed, which will block reads that attempt to use that index\&. In contrast,
+lock on the specific index being processed, which will block reads that attempt to use that index\&. In particular, the query planner tries to take an
+ACCESS SHARE
+lock on every index of the table, regardless of the query, and so
+\fBREINDEX\fR
+blocks virtually any queries except for some prepared queries whose plan has been cached and which don\*(Aqt use this very index\&. In contrast,
 \fBDROP INDEX\fR
 momentarily takes an
 ACCESS EXCLUSIVE
@@ -247,12 +254,28 @@ lock on the parent table, blocking both writes and reads\&. The subsequent
 \fBCREATE INDEX\fR
 locks out writes but not reads; since the index is not there, no read will attempt to use it, meaning that there will be no blocking but reads might be forced into expensive sequential scans\&.
 .PP
-Reindexing a single index or table requires being the owner of that index or table\&. Reindexing a schema or database requires being the owner of that schema or database\&. Note specifically that it\*(Aqs thus possible for non\-superusers to rebuild indexes of tables owned by other users\&. However, as a special exception, when
+While
+\fBREINDEX\fR
+is running, the
+search_path
+is temporarily changed to
+pg_catalog, pg_temp\&.
+.PP
+Reindexing a single index or table requires having the
+MAINTAIN
+privilege on the table\&. Note that while
+\fBREINDEX\fR
+on a partitioned index or table requires having the
+MAINTAIN
+privilege on the partitioned table, such commands skip the privilege checks when processing the individual partitions\&. Reindexing a schema or database requires being the owner of that schema or database or having privileges of the
+pg_maintain
+role\&. Note specifically that it\*(Aqs thus possible for non\-superusers to rebuild indexes of tables owned by other users\&. However, as a special exception,
 \fBREINDEX DATABASE\fR,
-\fBREINDEX SCHEMA\fR
-or
+\fBREINDEX SCHEMA\fR, and
 \fBREINDEX SYSTEM\fR
-is issued by a non\-superuser, indexes on shared catalogs will be skipped unless the user owns the catalog (which typically won\*(Aqt be the case)\&. Of course, superusers can always reindex anything\&.
+will skip indexes on shared catalogs unless the user has the
+MAINTAIN
+privilege on the catalog\&.
 .PP
 Reindexing partitioned indexes or partitioned tables is supported with
 \fBREINDEX INDEX\fR
@@ -443,7 +466,7 @@ Each backend running
 will report its progress in the
 pg_stat_progress_create_index
 view\&. See
-Section\ \&28.4.2
+Section\ \&27.4.4
 for details\&.
 .SH "EXAMPLES"
 .PP
@@ -505,4 +528,4 @@ There is no
 \fBREINDEX\fR
 command in the SQL standard\&.
 .SH "SEE ALSO"
-CREATE INDEX (\fBCREATE_INDEX\fR(7)), DROP INDEX (\fBDROP_INDEX\fR(7)), \fBreindexdb\fR(1), Section\ \&28.4.2
+CREATE INDEX (\fBCREATE_INDEX\fR(7)), DROP INDEX (\fBDROP_INDEX\fR(7)), \fBreindexdb\fR(1), Section\ \&27.4.4
