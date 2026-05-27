@@ -20,6 +20,7 @@ use crate::models::row_mappers::{
     get_decimal, row_to_customer_ledger, row_to_customer_ledger_payment,
 };
 use crate::models::*;
+use crate::utils::pagination::normalize_pagination_with_offset;
 
 // Common SELECT fields for CustomerLedger.
 const LEDGER_SELECT_FIELDS: &str = r#"
@@ -159,16 +160,13 @@ pub async fn list_customer_ledgers_handler(
 ) -> Result<Json<LedgerPaginatedResponse>, ApiError> {
     let _user_id = require_auth(&headers).await?;
 
-    let page = query.page.unwrap_or(1).max(1);
-    let page_size = query
-        .page_size
-        .or(query.limit.map(|l| l as i64))
-        .unwrap_or(50)
-        .min(500);
-    let offset = query
-        .offset
-        .map(|o| o as i64)
-        .unwrap_or_else(|| (page - 1) * page_size);
+    let pagination = normalize_pagination_with_offset(
+        query.page,
+        query.page_size.or(query.limit.map(i64::from)),
+        query.offset.map(i64::from),
+        50,
+        500,
+    );
 
     // Whitelisted sort column and direction — safe to interpolate via format!
     let sort_col = match query.sort_by.as_deref() {
@@ -246,8 +244,8 @@ pub async fn list_customer_ledgers_handler(
         .bind(query.department_code.as_deref())
         .bind(query.room_number.as_deref())
         .bind(search)
-        .bind(page_size)
-        .bind(offset)
+        .bind(pagination.page_size)
+        .bind(pagination.offset)
         .fetch_all(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -257,8 +255,8 @@ pub async fn list_customer_ledgers_handler(
     Ok(Json(LedgerPaginatedResponse {
         data: ledgers,
         total,
-        page,
-        page_size,
+        page: pagination.page,
+        page_size: pagination.page_size,
     }))
 }
 

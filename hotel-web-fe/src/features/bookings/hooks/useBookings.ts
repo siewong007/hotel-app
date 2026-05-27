@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { HotelAPIService } from '../../../api';
 import { BookingWithDetails, Room, Guest } from '../../../types';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
+import { normalizePage, toPaginationSearchParams } from '../../../utils/pagination';
 
 export type SortField = 'check_in_date' | 'check_out_date' | 'guest_name' | 'room_number' | 'status' | 'folio_number' | 'invoice_number';
 export type SortOrder = 'asc' | 'desc';
@@ -98,7 +99,7 @@ export function useBookings() {
       };
 
       const p = params || {};
-      const resolvedPage = p.page ?? currentPage;
+      const resolvedPage = normalizePage(p.page ?? currentPage);
       const resolvedSort = p.sort_by ?? sortField;
       const resolvedOrder = p.sort_order ?? sortOrder;
       const resolvedSearch = p.search ?? debouncedSearchQuery;
@@ -110,8 +111,7 @@ export function useBookings() {
       const resolvedSearchDate = p.date_search ?? searchDate;
 
       const apiParams: Record<string, any> = {
-        page: resolvedPage,
-        page_size: PAGE_SIZE,
+        ...toPaginationSearchParams({ page: resolvedPage, pageSize: PAGE_SIZE }),
         sort_by: resolvedSort,
         sort_order: resolvedOrder,
       };

@@ -2,13 +2,80 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::{Booking, BookingWithDetails};
+use crate::models::{Booking, BookingPaginationParams, BookingWithDetails, row_mappers};
+use crate::repositories::booking_list;
+use crate::utils::pagination::Pagination;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 
 pub struct BookingRepository;
 
 impl BookingRepository {
+    /// Find paginated bookings with details using the booking list query planner.
+    pub async fn find_paginated_with_details(
+        pool: &DbPool,
+        params: &BookingPaginationParams,
+        base_query: &str,
+        pagination: Pagination,
+    ) -> Result<(i64, Vec<BookingWithDetails>), ApiError> {
+        let list_query = booking_list::build_booking_list_query(params, base_query, pagination);
+        let binds = &list_query.binds;
+
+        macro_rules! apply_binds {
+            ($q:expr) => {{
+                let q = $q;
+                let q = if let Some(ref v) = binds.status {
+                    q.bind(v.as_str())
+                } else {
+                    q
+                };
+                let q = if let Some(ref v) = binds.search {
+                    q.bind(v.as_str())
+                } else {
+                    q
+                };
+                let q = if let Some(ref v) = binds.room_number {
+                    q.bind(v.as_str())
+                } else {
+                    q
+                };
+                let q = if let Some(ref v) = binds.date_search {
+                    q.bind(*v)
+                } else {
+                    q
+                };
+                let q = if let Some(ref v) = binds.check_in_from {
+                    q.bind(*v)
+                } else {
+                    q
+                };
+                let q = if let Some(ref v) = binds.check_in_to {
+                    q.bind(*v)
+                } else {
+                    q
+                };
+                q
+            }};
+        }
+
+        let total: i64 = apply_binds!(sqlx::query_scalar::<_, i64>(&list_query.count_sql))
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
+
+        let rows = apply_binds!(sqlx::query(&list_query.data_sql))
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        let bookings = rows
+            .iter()
+            .map(row_mappers::row_to_booking_with_details)
+            .collect();
+
+        Ok((total, bookings))
+    }
+
     /// Find all bookings with details
     pub async fn find_all_with_details(pool: &DbPool) -> Result<Vec<BookingWithDetails>, ApiError> {
         sqlx::query_as::<_, BookingWithDetails>(
