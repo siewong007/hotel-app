@@ -400,7 +400,7 @@ const RBACManagementPage: React.FC = () => {
             <span>Access Control</span><span style={{ color: T.ink4 }}>/</span>
             <span style={{ color: T.ink2, fontWeight: 600 }}>Roles &amp; Permissions</span>
           </Box>
-          <Typography sx={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.6px', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography component="h1" sx={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.6px', display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ width: 36, height: 36, borderRadius: '10px', bgcolor: T.emeraldSoft, color: T.emeraldDarker, display: 'grid', placeItems: 'center', border: `1px solid ${T.emerald}29` }}>
               <SecurityIcon sx={{ fontSize: 20 }} />
             </Box>
@@ -506,7 +506,7 @@ const RBACManagementPage: React.FC = () => {
                           </Box>
                         )}
                       </Box>
-                      <Typography sx={{ m: '4px 0 0', fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                      <Typography component="h2" sx={{ m: '4px 0 0', fontSize: 24, fontWeight: 800, letterSpacing: '-0.5px', display: 'flex', alignItems: 'center', gap: 1.5 }}>
                         {selectedRole.name}
                         <Box component="span" sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, color: T.ink3, bgcolor: T.surface3, px: 1, py: '4px', borderRadius: '7px', border: `1px solid ${T.border}` }}>
                           #{selectedRole.id}
