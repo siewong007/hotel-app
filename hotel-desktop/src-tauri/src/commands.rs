@@ -88,9 +88,9 @@ pub async fn start_backend_sidecar(app_handle: &AppHandle) -> Result<(), String>
     log::info!("Starting backend sidecar...");
     BACKEND_STARTING.store(true, Ordering::SeqCst);
 
-    // Use the database URL from the postgres module (port 5433) or environment variable
-    let database_url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| crate::postgres::get_database_url());
+    // Desktop mode owns the bundled PostgreSQL instance. Do not let a user or
+    // machine-level DATABASE_URL redirect the sidecar to an external database.
+    let database_url = crate::postgres::get_database_url();
     let preferred_port = std::env::var("BACKEND_PORT")
         .ok()
         .and_then(|port| port.parse::<u16>().ok())
