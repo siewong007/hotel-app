@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -16,9 +16,9 @@ import {
   Add as AddIcon,
   CheckCircle as CheckIcon,
 } from '@mui/icons-material';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from '../../../router';
 import { format } from 'date-fns';
-import { EkycService } from '../../../api/ekyc.service';
+import { useEkycStatus } from '../hooks/useEkycQueries';
 
 interface EkycStatus {
   id: number;
@@ -35,34 +35,18 @@ interface EkycStatus {
 const EkycStatusCard: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [ekycStatus, setEkycStatus] = useState<EkycStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { data, isLoading: loading, error: queryError } = useEkycStatus();
+  const ekycStatus = (data as EkycStatus | null | undefined) ?? null;
+  const error = queryError ? (queryError as Error).message || 'Failed to fetch eKYC status' : '';
   const [justSubmitted, setJustSubmitted] = useState(false);
 
   useEffect(() => {
-    // Check if user just submitted eKYC
     if (searchParams.get('ekycSubmitted') === 'true') {
       setJustSubmitted(true);
-      // Remove the query param
       searchParams.delete('ekycSubmitted');
       setSearchParams(searchParams, { replace: true });
     }
-    fetchEkycStatus();
   }, [searchParams, setSearchParams]);
-
-  const fetchEkycStatus = async () => {
-    try {
-      setLoading(true);
-      const data = await EkycService.getEkycStatus();
-      setEkycStatus(data as any);
-    } catch (err: any) {
-      console.error('eKYC status error:', err);
-      setError(err.message || 'Failed to fetch eKYC status');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getStatusConfig = (status: string) => {
     switch (status) {

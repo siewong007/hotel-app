@@ -28,6 +28,8 @@ import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useRoomAvailabilityCheck } from '../../../hooks/useRoomAvailabilityCheck';
+import { useGuests } from '../../guests/hooks/useGuestQueries';
+import { useAllRoomTypes } from '../../rooms/hooks/useRoomQueries';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../utils/date';
 
@@ -53,13 +55,20 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   const { user } = useAuth();
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
 
-  // Room type config for extra bed
-  const [roomTypeConfig, setRoomTypeConfig] = useState<RoomType | null>(null);
+  // Guest list (only fetched when modal is open in admin mode)
+  const guestsQuery = useGuests(undefined, open && !guestMode);
+  const guests = (guestsQuery.data ?? []) as Guest[];
+  const guestsLoading = guestsQuery.isFetching;
+
+  // Room types — used to resolve extra-bed config for the selected room's type
+  const roomTypesQuery = useAllRoomTypes(open && Boolean(room));
+  const roomTypeConfig = React.useMemo(() => {
+    if (!room || !roomTypesQuery.data) return null;
+    return (roomTypesQuery.data as RoomType[]).find((rt) => rt.name === room.room_type) ?? null;
+  }, [room, roomTypesQuery.data]);
 
   // Guest selection state
-  const [guests, setGuests] = useState<Guest[]>([]);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
-  const [guestsLoading, setGuestsLoading] = useState(false);
   const [showNewGuestForm, setShowNewGuestForm] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
@@ -118,9 +127,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
         if (user && user.id) {
           setCurrentUserId(typeof user.id === 'string' ? parseInt(user.id, 10) : user.id);
         }
-      } else {
-        // In admin mode, load all guests
-        loadGuests();
       }
       // Set default dates
       const today = formatLocalDate();
@@ -130,11 +136,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
       // Set default times from props
       setCheckInTime(defaultCheckInTime);
       setCheckOutTime(defaultCheckOutTime);
-
-      // Load room type config to get extra bed settings
-      if (room) {
-        loadRoomTypeConfig(room.room_type);
-      }
     }
 
     // Only reset when transitioning from open to closed
@@ -164,28 +165,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     }
   }, [isTourist, checkInDate, checkOutDate]);
 
-  const loadGuests = async () => {
-    try {
-      setGuestsLoading(true);
-      const data = await HotelAPIService.getAllGuests();
-      setGuests(data);
-    } catch (err) {
-      console.error('Failed to load guests:', err);
-    } finally {
-      setGuestsLoading(false);
-    }
-  };
-
-  const loadRoomTypeConfig = async (roomTypeName: string) => {
-    try {
-      const roomTypes = await HotelAPIService.getAllRoomTypes();
-      const matched = roomTypes.find(rt => rt.name === roomTypeName);
-      setRoomTypeConfig(matched || null);
-    } catch (err) {
-      console.error('Failed to load room type config:', err);
-      setRoomTypeConfig(null);
-    }
-  };
 
   // Derived extra bed config from room type
   const allowsExtraBed = roomTypeConfig?.allows_extra_bed ?? false;
@@ -218,7 +197,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     setUseCustomRate(false);
     setCustomRate(0);
     setDailyRates({});
-    setRoomTypeConfig(null);
     setError(null);
   };
 
@@ -258,8 +236,8 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
         phone: newGuestPhone || undefined,
       });
 
-      // Add to guests list and select it
-      setGuests([...guests, newGuest]);
+      // The guests list is managed by useQuery — invalidate it so the new guest appears
+      void guestsQuery.refetch();
       setSelectedGuest(newGuest);
       setShowNewGuestForm(false);
       return newGuest;

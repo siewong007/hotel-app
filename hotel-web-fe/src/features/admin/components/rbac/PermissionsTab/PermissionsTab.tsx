@@ -25,7 +25,7 @@ import type { Permission, Role, PermissionInput } from '../../../../../types';
 import type { PermissionCategory, RolePermissionMap } from '../types';
 import { getRoleColor, PERMISSION_CATEGORIES } from '../constants';
 import PermissionCategoryAccordion from './PermissionCategoryAccordion';
-import { HotelAPIService } from '../../../../../api';
+import { useCreatePermission } from '../hooks/useRBACQueries';
 
 interface PermissionsTabProps {
   permissions: Permission[];
@@ -50,7 +50,6 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [newPermission, setNewPermission] = useState<PermissionInput>({
     name: '',
@@ -58,6 +57,9 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
     action: '',
     description: '',
   });
+
+  const createPermissionMutation = useCreatePermission();
+  const creating = createPermissionMutation.isPending;
 
   // Filter categories based on search
   const filteredCategories = useMemo(() => {
@@ -89,18 +91,15 @@ const PermissionsTab: React.FC<PermissionsTabProps> = ({
       return;
     }
 
-    setCreating(true);
     setCreateError(null);
 
     try {
-      const created = await HotelAPIService.createPermission(newPermission);
+      const created = await createPermissionMutation.mutateAsync(newPermission);
       onPermissionCreated(created);
       setCreateDialogOpen(false);
       setNewPermission({ name: '', resource: '', action: '', description: '' });
     } catch (err: any) {
       setCreateError(err.message || 'Failed to create permission');
-    } finally {
-      setCreating(false);
     }
   };
 

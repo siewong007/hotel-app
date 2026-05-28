@@ -48,6 +48,7 @@ import {
   CheckCircleOutline as CheckCircleIcon,
 } from '@mui/icons-material';
 import { Guest, GuestCreateRequest, GuestType, GUEST_TYPE_CONFIG, TourismType, TOURISM_TYPE_CONFIG } from '../../../types';
+import { DataTable, type ColumnDef } from '../../../components';
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail } from '../../../utils/validation';
 import { useCurrency } from '../../../hooks/useCurrency';
@@ -206,6 +207,41 @@ const GuestConfigurationPage: React.FC = () => {
   const guestBookings = guestBookingsQuery.data ?? [];
   const guestCredits = (guestCreditsQuery.data ?? null) as GuestCredits | null;
   const creditsLoading = guestCreditsQuery.isPending && creditsDialogOpen;
+
+  const guestBookingColumns = React.useMemo<ColumnDef<any, any>[]>(() => [
+    { id: 'booking_number', header: 'Booking #', accessorFn: (b: any) => b.booking_number },
+    {
+      id: 'room',
+      header: 'Room',
+      accessorFn: (b: any) => `${b.room_number} (${b.room_type})`,
+    },
+    {
+      id: 'check_in',
+      header: 'Check In',
+      accessorFn: (b: any) => new Date(b.check_in_date).getTime(),
+      cell: (info) => new Date(info.getValue() as number).toLocaleDateString(),
+    },
+    {
+      id: 'check_out',
+      header: 'Check Out',
+      accessorFn: (b: any) => new Date(b.check_out_date).getTime(),
+      cell: (info) => new Date(info.getValue() as number).toLocaleDateString(),
+    },
+    { id: 'nights', header: 'Nights', accessorFn: (b: any) => b.nights, meta: { align: 'right' } },
+    {
+      id: 'status',
+      header: 'Status',
+      accessorFn: (b: any) => b.status,
+      cell: (info) => <Chip label={String(info.getValue())} size="small" />,
+    },
+    {
+      id: 'amount',
+      header: 'Amount',
+      accessorFn: (b: any) => parseFloat(b.total_amount),
+      cell: (info) => formatCurrency(info.getValue() as number),
+      meta: { align: 'right' },
+    },
+  ], [formatCurrency]);
 
   const loadGuests = useCallback(async () => {
     await Promise.all([guestsQuery.refetch(), statsTotalQuery.refetch(), statsMembersQuery.refetch()]);
@@ -1207,36 +1243,14 @@ const GuestConfigurationPage: React.FC = () => {
               No bookings found for this guest.
             </Alert>
           ) : (
-            <TableContainer sx={{ mt: 2 }}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Booking #</TableCell>
-                    <TableCell>Room</TableCell>
-                    <TableCell>Check In</TableCell>
-                    <TableCell>Check Out</TableCell>
-                    <TableCell>Nights</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Amount</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {guestBookings.map((booking) => (
-                    <TableRow key={booking.id}>
-                      <TableCell>{booking.booking_number}</TableCell>
-                      <TableCell>{booking.room_number} ({booking.room_type})</TableCell>
-                      <TableCell>{new Date(booking.check_in_date).toLocaleDateString()}</TableCell>
-                      <TableCell>{new Date(booking.check_out_date).toLocaleDateString()}</TableCell>
-                      <TableCell>{booking.nights}</TableCell>
-                      <TableCell>
-                        <Chip label={booking.status} size="small" />
-                      </TableCell>
-                      <TableCell align="right">{formatCurrency(parseFloat(booking.total_amount))}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            <Box sx={{ mt: 2 }}>
+              <DataTable<any>
+                data={guestBookings}
+                columns={guestBookingColumns}
+                emptyMessage="No bookings found for this guest."
+                getRowId={(row) => String(row.id)}
+              />
+            </Box>
           )}
         </DialogContent>
         <DialogActions>

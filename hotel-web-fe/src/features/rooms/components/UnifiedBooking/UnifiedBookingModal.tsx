@@ -892,7 +892,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             complimentaryDates.push(formatLocalDate(d));
           }
 
-          const bookingResults = [];
+          const bookingResults: Array<{ complimentary_nights?: number; [key: string]: unknown }> = [];
           for (const bookingRoom of selectedBookingRooms) {
             const bookingResult = await HotelAPIService.bookWithCredits({
               guest_id: selectedGuestWithCredits.id,

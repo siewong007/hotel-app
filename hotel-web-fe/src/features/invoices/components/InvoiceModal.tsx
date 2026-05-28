@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Dialog,
   DialogTitle,
@@ -33,28 +34,14 @@ interface InvoiceModalProps {
 }
 
 const InvoiceModal: React.FC<InvoiceModalProps> = ({ open, onClose, bookingId }) => {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [invoiceData, setInvoiceData] = useState<any>(null);
-
-  useEffect(() => {
-    if (open && bookingId) {
-      loadInvoice();
-    }
-  }, [open, bookingId]);
-
-  const loadInvoice = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await HotelAPIService.getInvoicePreview(bookingId);
-      setInvoiceData(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load invoice');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const invoiceQuery = useQuery({
+    queryKey: ['invoices', 'preview', bookingId] as const,
+    queryFn: () => HotelAPIService.getInvoicePreview(bookingId),
+    enabled: open && Boolean(bookingId),
+  });
+  const loading = invoiceQuery.isLoading;
+  const error = invoiceQuery.error ? (invoiceQuery.error as Error).message || 'Failed to load invoice' : null;
+  const invoiceData = invoiceQuery.data;
 
   const handlePrint = () => {
     window.print();

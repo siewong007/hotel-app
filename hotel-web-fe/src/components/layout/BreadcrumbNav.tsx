@@ -3,7 +3,7 @@ import { Box, Typography, Breadcrumbs, Container } from '@mui/material';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import HomeIcon from '@mui/icons-material/Home';
 import PersonIcon from '@mui/icons-material/Person';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from '../../router';
 import { useAuth } from '../../auth/AuthContext';
 import { findRouteDefinition } from '../../navigation/routeRegistry';
 

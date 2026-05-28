@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '../../../api/queryKeys';
 import {
   Box,
   Typography,
@@ -60,26 +62,24 @@ interface PersonalizedReport {
 const PersonalizedReportsPage: React.FC = () => {
   const { user } = useAuth();
   const { format: formatCurrency } = useCurrency();
-  const [report, setReport] = useState<PersonalizedReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState('month');
+  const [dismissedError, setDismissedError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadReport();
-  }, [period]);
+  const reportQuery = useQuery({
+    queryKey: [...queryKeys.personalizedReports.summary(), period],
+    queryFn: () => HotelAPIService.getPersonalizedReport(period) as Promise<PersonalizedReport>,
+  });
 
-  const loadReport = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await HotelAPIService.getPersonalizedReport(period);
-      setReport(data);
-    } catch (err: any) {
-      console.error('Failed to load personalized report:', err);
-      setError(err.response?.data?.error || 'Failed to load personalized report');
-    } finally {
-      setLoading(false);
+  const report = reportQuery.data ?? null;
+  const loading = reportQuery.isLoading;
+  const queryError = reportQuery.error as any;
+  const error = dismissedError !== queryError?.message && queryError
+    ? (queryError.response?.data?.error || queryError.message || 'Failed to load personalized report')
+    : null;
+  const loadReport = () => reportQuery.refetch();
+  const setError = (value: string | null) => {
+    if (value === null && queryError) {
+      setDismissedError(queryError.message ?? '');
     }
   };
 

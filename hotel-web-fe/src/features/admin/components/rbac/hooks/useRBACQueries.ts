@@ -5,6 +5,7 @@ import {
   type UpdateRbacUserInput,
 } from '../../../../../api/admin.service';
 import type {
+  PermissionInput,
   RoleInput,
   RolePermissionIdsInput,
   UserRoleIdsInput,
@@ -136,6 +137,34 @@ export function useDeleteUser() {
       queryClient.removeQueries({ queryKey: rbacQueryKeys.user(userId) });
       invalidateRbacQueries(queryClient);
     },
+  });
+}
+
+export function useCreatePermission() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: PermissionInput) => AdminService.createPermission(input),
+    onSuccess: () => invalidateRbacQueries(queryClient),
+  });
+}
+
+export function useUpdatePermission() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ permissionId, input }: { permissionId: string; input: PermissionInput }) =>
+      AdminService.updatePermission(permissionId, input),
+    onSuccess: () => invalidateRbacQueries(queryClient),
+  });
+}
+
+export function useDeletePermission() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (permissionId: string) => AdminService.deletePermission(permissionId),
+    onSuccess: () => invalidateRbacQueries(queryClient),
   });
 }
 

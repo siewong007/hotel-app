@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate } from '@tanstack/react-router';
 import { useAuth } from '../../../auth/AuthContext';
 import { CircularProgress, Box } from '@mui/material';
 
@@ -31,7 +31,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (requiredPermission && !hasPermission(requiredPermission)) {

@@ -1,16 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Typography,
   Button,
   TextField,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   IconButton,
   Chip,
   Dialog,
@@ -32,6 +25,8 @@ import {
   Tooltip,
   alpha,
 } from '@mui/material';
+import { Search as SearchIcon } from '@mui/icons-material';
+import { DataTable, type ColumnDef } from '../../../../../components';
 import {
   Edit as EditIcon,
   Delete as DeleteIcon,
@@ -97,6 +92,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
 }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [editingUser, setEditingUser] = useState<UserWithRoles | null>(null);
   const [userToDelete, setUserToDelete] = useState<UserWithRoles | null>(null);
   const [formData, setFormData] = useState<UserFormData>(initialFormData);
@@ -246,6 +242,99 @@ export const UsersTab: React.FC<UsersTabProps> = ({
     return ROLE_COLORS[name as keyof typeof ROLE_COLORS] || ROLE_COLORS.default;
   };
 
+  const columns = useMemo<ColumnDef<UserWithRoles, any>[]>(() => [
+    {
+      id: 'username',
+      header: 'Username',
+      accessorFn: (row) => row.username,
+      cell: (info) => <Typography fontWeight={500}>{String(info.getValue() ?? '')}</Typography>,
+    },
+    {
+      id: 'email',
+      header: 'Email',
+      accessorFn: (row) => row.email,
+    },
+    {
+      id: 'full_name',
+      header: 'Full Name',
+      accessorFn: (row) => row.full_name || '',
+      cell: (info) => (info.getValue() as string) || '-',
+    },
+    {
+      id: 'roles',
+      header: 'Roles',
+      accessorFn: (row) => (row.roles || []).map((r) => r.name).join(', '),
+      enableSorting: false,
+      cell: (info) => {
+        const user = info.row.original;
+        if (!user.roles || user.roles.length === 0) {
+          return <Typography variant="body2" color="text.secondary">No roles</Typography>;
+        }
+        return (
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+            {user.roles.map((role) => (
+              <Chip
+                key={role.id}
+                label={role.name}
+                size="small"
+                icon={<SecurityIcon sx={{ fontSize: 14 }} />}
+                sx={{
+                  bgcolor: alpha(getRoleColor(role.name), 0.1),
+                  color: getRoleColor(role.name),
+                  fontWeight: 500,
+                  '& .MuiChip-icon': { color: 'inherit' },
+                }}
+              />
+            ))}
+          </Box>
+        );
+      },
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      accessorFn: (row) => (row.is_active ? 'Active' : 'Inactive'),
+      cell: (info) => {
+        const user = info.row.original;
+        return (
+          <Chip
+            label={user.is_active ? 'Active' : 'Inactive'}
+            size="small"
+            color={user.is_active ? 'success' : 'default'}
+            variant={user.is_active ? 'filled' : 'outlined'}
+          />
+        );
+      },
+    },
+    {
+      id: 'created',
+      header: 'Created',
+      accessorFn: (row) => (row.created_at ? new Date(row.created_at).getTime() : 0),
+      cell: (info) => {
+        const ts = info.getValue() as number;
+        return ts ? new Date(ts).toLocaleDateString() : '-';
+      },
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      enableColumnFilter: false,
+      meta: { align: 'right', stopRowClick: true },
+      cell: (info) => (
+        <Tooltip title="Delete User">
+          <IconButton
+            size="small"
+            onClick={() => handleOpenDelete(info.row.original)}
+            color="error"
+          >
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      ),
+    },
+  ], []);
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
@@ -257,7 +346,7 @@ export const UsersTab: React.FC<UsersTabProps> = ({
   return (
     <Box>
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, gap: 2 }}>
         <Box>
           <Typography variant="h6" fontWeight={600}>
             User Management
@@ -266,105 +355,39 @@ export const UsersTab: React.FC<UsersTabProps> = ({
             Create, edit, and manage user accounts and their role assignments
           </Typography>
         </Box>
-        <Button
-          variant="contained"
-          startIcon={<PersonAddIcon />}
-          onClick={handleOpenCreate}
-        >
-          Add User
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+          <TextField
+            size="small"
+            placeholder="Search users..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" color="action" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ width: 240 }}
+          />
+          <Button
+            variant="contained"
+            startIcon={<PersonAddIcon />}
+            onClick={handleOpenCreate}
+          >
+            Add User
+          </Button>
+        </Box>
       </Box>
 
-      {/* Users Table */}
-      <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
-        <Table>
-          <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.50' }}>
-              <TableCell sx={{ fontWeight: 600 }}>Username</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Full Name</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Roles</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Created</TableCell>
-              <TableCell sx={{ fontWeight: 600 }} align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {users.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
-                  <Typography color="text.secondary">No users found</Typography>
-                </TableCell>
-              </TableRow>
-            ) : (
-              users.map((user) => (
-                <TableRow
-                  key={user.id}
-                  hover
-                  onClick={() => handleOpenEdit(user)}
-                  sx={{ cursor: 'pointer' }}
-                >
-                  <TableCell>
-                    <Typography fontWeight={500}>{user.username}</Typography>
-                  </TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>{user.full_name || '-'}</TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                      {user.roles && user.roles.length > 0 ? (
-                        user.roles.map((role) => (
-                          <Chip
-                            key={role.id}
-                            label={role.name}
-                            size="small"
-                            icon={<SecurityIcon sx={{ fontSize: 14 }} />}
-                            sx={{
-                              bgcolor: alpha(getRoleColor(role.name), 0.1),
-                              color: getRoleColor(role.name),
-                              fontWeight: 500,
-                              '& .MuiChip-icon': {
-                                color: 'inherit',
-                              },
-                            }}
-                          />
-                        ))
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          No roles
-                        </Typography>
-                      )}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={user.is_active ? 'Active' : 'Inactive'}
-                      size="small"
-                      color={user.is_active ? 'success' : 'default'}
-                      variant={user.is_active ? 'filled' : 'outlined'}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {user.created_at
-                      ? new Date(user.created_at).toLocaleDateString()
-                      : '-'}
-                  </TableCell>
-                  <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                    <Tooltip title="Delete User">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleOpenDelete(user)}
-                        color="error"
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <DataTable<UserWithRoles>
+        data={users}
+        columns={columns}
+        globalFilter={searchQuery}
+        emptyMessage="No users found"
+        onRowClick={handleOpenEdit}
+        getRowId={(row) => row.id}
+      />
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onClose={handleClose} maxWidth="sm" fullWidth>

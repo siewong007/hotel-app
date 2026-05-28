@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../../api/queryKeys';
 import {
   Box,
   Typography,
@@ -45,6 +47,7 @@ import { HotelAPIService } from '../../../api';
 import { BookingWithDetails } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { emitApiNotification } from '../../../utils/apiNotifications';
+import { DataTable, type ColumnDef } from '../../../components';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -84,13 +87,105 @@ type SortOrder = 'asc' | 'desc';
 
 export default function ComplimentaryManagementPage() {
   const { format: formatCurrency } = useCurrency();
+  const queryClient = useQueryClient();
 
-  // Data state
-  const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
-  const [guestCredits, setGuestCredits] = useState<GuestCredit[]>([]);
-  const [summary, setSummary] = useState<ComplimentarySummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const complimentaryQuery = useQuery({
+    queryKey: queryKeys.complimentary.list(),
+    queryFn: async () => {
+      const [bookingsData, creditsData, summaryData, guestsData, roomTypesData] = await Promise.all([
+        HotelAPIService.getComplimentaryBookings(),
+        HotelAPIService.getGuestsWithCredits(),
+        HotelAPIService.getComplimentarySummary(),
+        HotelAPIService.getAllGuests(),
+        HotelAPIService.getRoomTypes(),
+      ]);
+      return {
+        bookings: (bookingsData || []) as BookingWithDetails[],
+        guestCredits: (creditsData?.credits || []) as GuestCredit[],
+        summary: summaryData as ComplimentarySummary | null,
+        guests: (guestsData || []) as Array<{ id: number; full_name: string; email?: string }>,
+        roomTypes: (roomTypesData || []) as Array<{ id: number; name: string; code?: string }>,
+      };
+    },
+  });
+
+  const bookings = complimentaryQuery.data?.bookings ?? [];
+  const guestCredits = complimentaryQuery.data?.guestCredits ?? [];
+  const summary = complimentaryQuery.data?.summary ?? null;
+  const loading = complimentaryQuery.isLoading;
+  const queryError = complimentaryQuery.error as Error | null;
+  const [dismissedError, setDismissedError] = useState<string | null>(null);
+  const error = queryError && queryError.message !== dismissedError ? queryError.message : null;
+  const setError = (value: string | null) => {
+    if (value === null && queryError) setDismissedError(queryError.message);
+  };
+  const loadData = () => queryClient.invalidateQueries({ queryKey: queryKeys.complimentary.all });
+
+  const creditColumns = useMemo<ColumnDef<GuestCredit, any>[]>(() => [
+    {
+      id: 'guest',
+      header: 'Guest',
+      accessorFn: (c) => c.guest_name,
+      cell: (info) => {
+        const c = info.row.original;
+        return (
+          <Box>
+            <Typography variant="body2">{c.guest_name}</Typography>
+            <Typography variant="caption" color="text.secondary">{c.email}</Typography>
+          </Box>
+        );
+      },
+    },
+    {
+      id: 'room_type',
+      header: 'Room Type',
+      accessorFn: (c) => c.room_type_code || c.room_type_name,
+      cell: (info) => <Chip label={info.getValue() as string} size="small" variant="outlined" />,
+    },
+    {
+      id: 'notes',
+      header: 'Notes',
+      accessorFn: (c) => c.notes || '',
+      cell: (info) => (
+        <Typography variant="caption" color="text.secondary">
+          {(info.getValue() as string) || '-'}
+        </Typography>
+      ),
+    },
+    {
+      id: 'credits',
+      header: 'Credits',
+      accessorFn: (c) => c.nights_available,
+      meta: { align: 'center' },
+      cell: (info) => (
+        <Chip label={`${info.getValue() as number} nights`} size="small" color="success" />
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      enableSorting: false,
+      enableColumnFilter: false,
+      meta: { align: 'right', stopRowClick: true },
+      cell: (info) => {
+        const credit = info.row.original;
+        return (
+          <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
+            <Tooltip title="Edit credits">
+              <IconButton size="small" color="primary" onClick={() => handleEditCreditClick(credit)}>
+                <EditIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Delete credits">
+              <IconButton size="small" color="error" onClick={() => handleDeleteCreditClick(credit)}>
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        );
+      },
+    },
+  ], []);
 
   // UI state
   const [tabValue, setTabValue] = useState(0);
@@ -118,8 +213,8 @@ export default function ComplimentaryManagementPage() {
   const [editCreditDialogOpen, setEditCreditDialogOpen] = useState(false);
   const [deleteCreditDialogOpen, setDeleteCreditDialogOpen] = useState(false);
   const [selectedCredit, setSelectedCredit] = useState<GuestCredit | null>(null);
-  const [guests, setGuests] = useState<Array<{ id: number; full_name: string; email?: string }>>([]);
-  const [roomTypes, setRoomTypes] = useState<Array<{ id: number; name: string; code?: string }>>([]);
+  const guests = complimentaryQuery.data?.guests ?? [];
+  const roomTypes = complimentaryQuery.data?.roomTypes ?? [];
   const [creditFormData, setCreditFormData] = useState({
     guest_id: 0,
     room_type_id: 0,
@@ -131,33 +226,6 @@ export default function ComplimentaryManagementPage() {
     notes: '',
   });
 
-  // Load data
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const [bookingsData, creditsData, summaryData, guestsData, roomTypesData] = await Promise.all([
-        HotelAPIService.getComplimentaryBookings(),
-        HotelAPIService.getGuestsWithCredits(),
-        HotelAPIService.getComplimentarySummary(),
-        HotelAPIService.getAllGuests(),
-        HotelAPIService.getRoomTypes(),
-      ]);
-      setBookings(bookingsData || []);
-      setGuestCredits(creditsData?.credits || []);
-      setSummary(summaryData);
-      setGuests(guestsData || []);
-      setRoomTypes(roomTypesData || []);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, []);
 
   // Credit CRUD handlers
   const handleAddCreditClick = () => {
@@ -661,70 +729,11 @@ export default function ComplimentaryManagementPage() {
           {(!guestCredits || guestCredits.length === 0) ? (
             <Typography color="text.secondary">No guests with complimentary credits</Typography>
           ) : (
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell><strong>Guest</strong></TableCell>
-                  <TableCell><strong>Room Type</strong></TableCell>
-                  <TableCell><strong>Notes</strong></TableCell>
-                  <TableCell align="center"><strong>Credits</strong></TableCell>
-                  <TableCell align="right"><strong>Actions</strong></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(guestCredits || []).map((credit, idx) => (
-                  <TableRow key={`${credit.guest_id}-${credit.room_type_id}-${idx}`}>
-                    <TableCell>
-                      <Typography variant="body2">{credit.guest_name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {credit.email}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={credit.room_type_code || credit.room_type_name}
-                        size="small"
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" color="text.secondary">
-                        {credit.notes || '-'}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="center">
-                      <Chip
-                        label={`${credit.nights_available} nights`}
-                        size="small"
-                        color="success"
-                      />
-                    </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'flex-end' }}>
-                        <Tooltip title="Edit credits">
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={() => handleEditCreditClick(credit)}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete credits">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleDeleteCreditClick(credit)}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <DataTable<GuestCredit>
+              data={guestCredits}
+              columns={creditColumns}
+              getRowId={(row) => `${row.guest_id}-${row.room_type_id}`}
+            />
           )}
         </Paper>
       </TabPanel>

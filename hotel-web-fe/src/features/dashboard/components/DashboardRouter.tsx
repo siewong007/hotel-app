@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../../router';
 import { useAuth } from '../../../auth/AuthContext';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import UserProfilePage from '../../user/components/UserProfilePage';

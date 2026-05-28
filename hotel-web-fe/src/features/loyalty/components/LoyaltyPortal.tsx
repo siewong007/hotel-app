@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
   Box,
   Card,
@@ -68,32 +69,23 @@ const TIER_NAMES: Record<number, string> = {
 };
 
 const LoyaltyPortal: React.FC = () => {
-  const [statistics, setStatistics] = useState<LoyaltyStatistics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
 
-  useEffect(() => {
-    loadStatistics();
-  }, []);
+  const statsQuery = useQuery({
+    queryKey: ['loyalty', 'statistics'] as const,
+    queryFn: () => HotelAPIService.getLoyaltyStatistics() as Promise<LoyaltyStatistics>,
+  });
 
-  const loadStatistics = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await HotelAPIService.getLoyaltyStatistics();
-      setStatistics(data);
-    } catch (err) {
-      if (err instanceof APIError) {
-        setError(err.message);
-      } else {
-        setError('Failed to load loyalty statistics');
-      }
-      console.error('Error loading loyalty statistics:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const statistics = statsQuery.data ?? null;
+  const loading = statsQuery.isLoading;
+  const queryErr = statsQuery.error;
+  const error =
+    queryErr instanceof APIError
+      ? queryErr.message
+      : queryErr
+        ? 'Failed to load loyalty statistics'
+        : null;
+  const loadStatistics = () => statsQuery.refetch();
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
