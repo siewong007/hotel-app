@@ -34,6 +34,29 @@ const POSTGRES_USER: &str = "hotel_admin";
 const POSTGRES_DB: &str = "hotel_management";
 const CONFIGURED_POSTGRES_MAJOR_VERSION: &str = "18";
 const MAX_STARTUP_WAIT_SECS: u64 = 30;
+const SEED_PLACEHOLDER_PASSWORD_HASH: &str =
+    "$2b$12$Fq3zPzZ.mr/wuYrbUPUItOqoC9YvsFfW.mcq4B6U5e3nWsPr4JQdK";
+const BOOTSTRAP_USERNAMES: &[&str] = &[
+    "admin",
+    "superadmin",
+    "manager1",
+    "receptionist1",
+    "receptionist2",
+    "receptionist3",
+    "staff1",
+    "housekeeping1",
+    "maintenance1",
+    "guest1",
+    "guest2",
+    "guest3",
+    "guest4",
+    "guest5",
+    "guest6",
+    "guest7",
+    "guest8",
+    "guest9",
+    "guest10",
+];
 
 static BUNDLED_POSTGRES_MAJOR_VERSION: OnceLock<String> = OnceLock::new();
 
@@ -799,6 +822,8 @@ pub async fn run_migrations_if_needed(app_handle: &AppHandle) -> Result<(), Post
         randomize_seed_passwords(app_handle).await?;
     }
 
+    repair_bootstrap_password_hashes_if_needed(app_handle).await?;
+
     log::info!("Database migrations completed successfully");
     Ok(())
 }
@@ -809,10 +834,30 @@ fn generate_bootstrap_password() -> String {
     hex::encode(bytes)
 }
 
-async fn randomize_seed_passwords(app_handle: &AppHandle) -> Result<(), PostgresError> {
-    let password = generate_bootstrap_password();
+fn hash_bootstrap_password(password: &str) -> Result<String, PostgresError> {
+    bcrypt::hash(password, bcrypt::DEFAULT_COST).map_err(|err| {
+        PostgresError::MigrationFailed(format!("Failed to hash bootstrap password: {}", err))
+    })
+}
+
+fn sql_string_literal(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+async fn run_psql_scalar_sql(
+    app_handle: &AppHandle,
+    label: &str,
+    sql: &str,
+) -> Result<Output, PostgresError> {
     let pgsql_bin = get_pgsql_bin_dir(app_handle);
     let psql_path = pgsql_bin.join(format!("psql{}", EXE_SUFFIX));
+
+    if !psql_path.exists() {
+        return Err(PostgresError::BinaryNotFound(
+            psql_path.to_string_lossy().to_string(),
+        ));
+    }
+
     let current_path = std::env::var("PATH").unwrap_or_default();
     let new_path = format!(
         "{}{}{}",
@@ -820,23 +865,20 @@ async fn randomize_seed_passwords(app_handle: &AppHandle) -> Result<(), Postgres
         PATH_SEP,
         current_path
     );
-    let sql = format!(
-        "UPDATE users SET password_hash = crypt('{}', gen_salt('bf', 12));",
-        password
-    );
+    let port = POSTGRES_PORT.to_string();
 
     let mut cmd = tokio::process::Command::new(&psql_path);
     cmd.args([
         "-h",
         "localhost",
         "-p",
-        &POSTGRES_PORT.to_string(),
+        &port,
         "-U",
         POSTGRES_USER,
         "-d",
         POSTGRES_DB,
-        "-c",
-        &sql,
+        "-tAc",
+        sql,
     ])
     .env("PATH", &new_path)
     .current_dir(&pgsql_bin)
@@ -848,24 +890,116 @@ async fn randomize_seed_passwords(app_handle: &AppHandle) -> Result<(), Postgres
 
     let output = cmd.output().await?;
     if !output.status.success() {
-        let details = command_output_details("psql randomize seed passwords", &output);
-        log::error!("Failed to randomize seed passwords: {}", details);
+        let details = command_output_details(label, &output);
+        log::error!("{} failed: {}", label, details);
         return Err(PostgresError::MigrationFailed(format!(
-            "Failed to randomize seed passwords: {}",
-            details
+            "{} failed: {}",
+            label, details
         )));
     }
 
-    let password_file = get_data_directory().join("initial-login-password.txt");
+    Ok(output)
+}
+
+fn bootstrap_password_file_path() -> PathBuf {
+    get_data_directory().join("initial-login-password.txt")
+}
+
+fn read_bootstrap_password_file() -> Result<Option<String>, PostgresError> {
+    let password_file = bootstrap_password_file_path();
+
+    if !password_file.exists() {
+        return Ok(None);
+    }
+
+    let content = std::fs::read_to_string(&password_file)?;
+
+    for line in content.lines().map(str::trim) {
+        if line.is_empty()
+            || line.starts_with("Initial desktop login password")
+            || line.starts_with("Seeded usernames")
+            || line.starts_with("Change account passwords")
+            || line.starts_with('-')
+        {
+            continue;
+        }
+
+        return Ok(Some(line.to_string()));
+    }
+
+    log::warn!(
+        "Initial login password file exists but no password could be parsed at {:?}",
+        password_file
+    );
+    Ok(None)
+}
+
+async fn randomize_seed_passwords(app_handle: &AppHandle) -> Result<(), PostgresError> {
+    let password = generate_bootstrap_password();
+    let password_hash = hash_bootstrap_password(&password)?;
+    let sql = format!(
+        "UPDATE users SET password_hash = {}, failed_login_attempts = 0, is_locked = false, locked_until = NULL;",
+        sql_string_literal(&password_hash)
+    );
+
+    run_psql_scalar_sql(app_handle, "psql randomize seed passwords", &sql).await?;
+
+    let password_file = bootstrap_password_file_path();
     let contents = format!(
-        "Initial desktop login password for seeded accounts:\n{}\n\nChange account passwords after first login.\n",
-        password
+        "Initial desktop login password for seeded accounts:\n{}\n\nSeeded usernames:\n{}\n\nChange account passwords after first login.\n",
+        password,
+        BOOTSTRAP_USERNAMES
+            .iter()
+            .map(|username| format!("- {}", username))
+            .collect::<Vec<_>>()
+            .join("\n")
     );
     std::fs::write(&password_file, contents)?;
     log::info!(
         "Seed account passwords randomized. Initial login password written to {:?}",
         password_file
     );
+
+    Ok(())
+}
+
+async fn repair_bootstrap_password_hashes_if_needed(
+    app_handle: &AppHandle,
+) -> Result<(), PostgresError> {
+    let Some(password) = read_bootstrap_password_file()? else {
+        return Ok(());
+    };
+
+    let password_hash = hash_bootstrap_password(&password)?;
+    let sql = format!(
+        r#"
+WITH updated AS (
+    UPDATE users
+    SET password_hash = {},
+        failed_login_attempts = 0,
+        is_locked = false,
+        locked_until = NULL
+    WHERE password_hash LIKE '$2a$%'
+       OR password_hash = {}
+    RETURNING 1
+)
+SELECT COUNT(*) FROM updated;
+"#,
+        sql_string_literal(&password_hash),
+        sql_string_literal(SEED_PLACEHOLDER_PASSWORD_HASH)
+    );
+
+    let output =
+        run_psql_scalar_sql(app_handle, "psql repair bootstrap password hashes", &sql).await?;
+    let updated_count = trimmed_lossy(&output.stdout);
+
+    if updated_count != "0" && updated_count != "<empty>" {
+        log::warn!(
+            "Repaired {} desktop bootstrap password hash(es) using {:?}. Failed login counters were reset for repaired users.",
+            updated_count,
+            bootstrap_password_file_path()
+        );
+    }
 
     Ok(())
 }
