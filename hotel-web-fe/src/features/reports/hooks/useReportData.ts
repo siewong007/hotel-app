@@ -1,5 +1,8 @@
 import { useState, useCallback } from 'react';
-import { HotelAPIService } from '../../../api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ReportsService } from '../../../api';
+import { getQueryErrorMessage, queryGcTime, queryStaleTime } from '../../../api/queryConfig';
+import { queryKeys } from '../../../api/queryKeys';
 
 type ReportType =
   | 'daily_operations'
@@ -21,39 +24,68 @@ export interface CompanyOption {
   total_balance: number;
 }
 
+type ReportParams = {
+  reportType: ReportType;
+  startDate: string;
+  endDate: string;
+  companyName?: string;
+};
+
+const companyListParams = (startDate: string, endDate: string): ReportParams => ({
+  reportType: 'company_ledger_statement',
+  startDate,
+  endDate,
+});
+
+const getCompanyList = async (startDate: string, endDate: string) => {
+  const data = await ReportsService.generateReport(companyListParams(startDate, endDate));
+  return data.type === 'company_list' && data.companies
+    ? data.companies as CompanyOption[]
+    : [];
+};
+
 export function useReportData() {
+  const queryClient = useQueryClient();
   const today = new Date().toISOString().split('T')[0];
   const [selectedReport, setSelectedReport] = useState<ReportType | ''>('');
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
-  const [companyList, setCompanyList] = useState<CompanyOption[]>([]);
-  const [loadingCompanies, setLoadingCompanies] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [reportData, setReportData] = useState<any>(null);
+  const [reportParams, setReportParams] = useState<ReportParams | null>(null);
+
+  const companyListQuery = useQuery({
+    queryKey: queryKeys.reports.companyList(startDate, endDate),
+    queryFn: () => getCompanyList(startDate, endDate),
+    enabled: selectedReport === 'company_ledger_statement',
+    staleTime: queryStaleTime.long,
+    gcTime: queryGcTime.long,
+  });
+
+  const reportQuery = useQuery({
+    queryKey: queryKeys.reports.generated(reportParams ? { ...reportParams } : undefined),
+    queryFn: () => ReportsService.generateReport(reportParams!),
+    enabled: reportParams != null,
+    staleTime: queryStaleTime.short,
+    gcTime: queryGcTime.long,
+  });
 
   const loadCompanyList = useCallback(async (start: string, end: string) => {
     try {
-      setLoadingCompanies(true);
-      const data = await HotelAPIService.generateReport({
-        reportType: 'company_ledger_statement',
-        startDate: start,
-        endDate: end,
+      await queryClient.ensureQueryData({
+        queryKey: queryKeys.reports.companyList(start, end),
+        queryFn: () => getCompanyList(start, end),
+        staleTime: queryStaleTime.long,
       });
-      if (data.type === 'company_list' && data.companies) {
-        setCompanyList(data.companies);
-      }
     } catch (err: any) {
       console.error('Failed to load company list:', err);
-    } finally {
-      setLoadingCompanies(false);
     }
-  }, []);
+  }, [queryClient]);
 
   const handleReportTypeChange = useCallback(async (type: ReportType, start: string, end: string) => {
     setSelectedReport(type);
-    setReportData(null);
+    setReportParams(null);
+    setSelectedCompany('');
     setError('');
     if (type === 'company_ledger_statement') {
       await loadCompanyList(start, end);
@@ -74,22 +106,16 @@ export function useReportData() {
       setError('Please select a company');
       return;
     }
-    setLoading(true);
     setError('');
-    setReportData(null);
-    try {
-      const params: any = { reportType: report, startDate: start, endDate: end };
-      if (report === 'company_ledger_statement' && company) {
-        params.companyName = company;
-      }
-      const data = await HotelAPIService.generateReport(params);
-      setReportData(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to generate report');
-    } finally {
-      setLoading(false);
-    }
+    setReportParams({
+      reportType: report,
+      startDate: start,
+      endDate: end,
+      ...(report === 'company_ledger_statement' && company ? { companyName: company } : {}),
+    });
   }, []);
+
+  const queryError = getQueryErrorMessage(reportQuery.error, 'Failed to generate report');
 
   return {
     selectedReport,
@@ -100,12 +126,12 @@ export function useReportData() {
     setEndDate,
     selectedCompany,
     setSelectedCompany,
-    companyList,
-    loadingCompanies,
-    loading,
-    error,
+    companyList: companyListQuery.data ?? [],
+    loadingCompanies: companyListQuery.isFetching,
+    loading: reportQuery.isFetching,
+    error: error || queryError || '',
     setError,
-    reportData,
+    reportData: reportQuery.data ?? null,
     loadCompanyList,
     handleReportTypeChange,
     handleGenerateReport,

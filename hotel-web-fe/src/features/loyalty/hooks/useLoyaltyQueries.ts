@@ -1,21 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { HotelAPIService } from '../../../api';
+import { queryStaleTime } from '../../../api/queryConfig';
+import { queryKeys } from '../../../api/queryKeys';
 import type { LoyaltyReward, RedeemRewardInput, RewardInput, RewardUpdateInput } from '../../../types';
 
-const loyaltyRoot = ['loyalty'] as const;
-
-export const loyaltyQueryKeys = {
-  all: loyaltyRoot,
-  statistics: () => [...loyaltyRoot, 'statistics'] as const,
-  rewards: () => [...loyaltyRoot, 'rewards'] as const,
-  myRewards: () => [...loyaltyRoot, 'my-rewards'] as const,
-  myMembership: () => [...loyaltyRoot, 'my-membership'] as const,
-};
+export const loyaltyQueryKeys = queryKeys.loyalty;
 
 export function useAdminRewards() {
   return useQuery({
     queryKey: loyaltyQueryKeys.rewards(),
     queryFn: () => HotelAPIService.getRewards(),
+    staleTime: queryStaleTime.long,
   });
 }
 
@@ -24,6 +19,7 @@ export function useMyLoyaltyRewards(enabled = true) {
     queryKey: loyaltyQueryKeys.myRewards(),
     queryFn: () => HotelAPIService.getLoyaltyRewards(),
     enabled,
+    staleTime: queryStaleTime.long,
   });
 }
 
@@ -32,6 +28,7 @@ export function useMyLoyaltyMembership(enabled = true) {
     queryKey: loyaltyQueryKeys.myMembership(),
     queryFn: () => HotelAPIService.getUserLoyaltyMembership(),
     enabled,
+    staleTime: queryStaleTime.standard,
   });
 }
 

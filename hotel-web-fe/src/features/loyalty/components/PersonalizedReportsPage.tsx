@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import {
   Box,
@@ -66,8 +67,9 @@ const PersonalizedReportsPage: React.FC = () => {
   const [dismissedError, setDismissedError] = useState<string | null>(null);
 
   const reportQuery = useQuery({
-    queryKey: [...queryKeys.personalizedReports.summary(), period],
+    queryKey: queryKeys.analytics.personalized(period),
     queryFn: () => HotelAPIService.getPersonalizedReport(period) as Promise<PersonalizedReport>,
+    staleTime: queryStaleTime.short,
   });
 
   const report = reportQuery.data ?? null;
@@ -315,4 +317,3 @@ const PersonalizedReportsPage: React.FC = () => {
 };
 
 export default PersonalizedReportsPage;
-

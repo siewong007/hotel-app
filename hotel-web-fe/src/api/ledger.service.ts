@@ -70,7 +70,15 @@ export class LedgerService {
     page_size?: number;
     search?: string;
     status?: string;
+    company_name?: string;
     expense_type?: string;
+    folio_type?: string;
+    post_type?: string;
+    department_code?: string;
+    room_number?: string;
+    invoice_state?: 'uninvoiced' | 'invoiced';
+    balance_state?: 'outstanding' | 'clear';
+    ui_status?: 'draft' | 'ready_to_invoice' | 'invoiced' | 'partial' | 'paid' | 'overdue' | 'voided';
     sort_by?: string;
     sort_order?: string;
   } = {}): Promise<{ data: CustomerLedger[]; total: number; page: number; page_size: number }> {
@@ -81,7 +89,15 @@ export class LedgerService {
     };
     if (params.search)       searchParams.search       = params.search;
     if (params.status)       searchParams.status       = params.status;
+    if (params.company_name) searchParams.company_name = params.company_name;
     if (params.expense_type) searchParams.expense_type = params.expense_type;
+    if (params.folio_type) searchParams.folio_type = params.folio_type;
+    if (params.post_type) searchParams.post_type = params.post_type;
+    if (params.department_code) searchParams.department_code = params.department_code;
+    if (params.room_number) searchParams.room_number = params.room_number;
+    if (params.invoice_state) searchParams.invoice_state = params.invoice_state;
+    if (params.balance_state) searchParams.balance_state = params.balance_state;
+    if (params.ui_status) searchParams.ui_status = params.ui_status;
     if (params.sort_by)      searchParams.sort_by      = params.sort_by;
     if (params.sort_order)   searchParams.sort_order   = params.sort_order;
 

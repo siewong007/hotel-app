@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Room, RoomType } from '../../../types';
 import { GuestsService, RoomsService } from '../../../api';
+import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import { GuestWithCredits } from '../components/GuestSelector';
 
@@ -19,7 +20,7 @@ export function useUnifiedBookingData() {
       const response = await queryClient.ensureQueryData({
         queryKey: queryKeys.guests.mineWithCredits(),
         queryFn: () => GuestsService.getMyGuestsWithCredits(),
-        staleTime: 60_000,
+        staleTime: queryStaleTime.standard,
       });
       setGuestsWithCredits(response.filter((g: GuestWithCredits) => g.total_complimentary_credits > 0));
     } catch (error) {
@@ -40,7 +41,7 @@ export function useUnifiedBookingData() {
       const available = await queryClient.ensureQueryData({
         queryKey: queryKeys.rooms.available(checkInDate, checkOutDate),
         queryFn: () => RoomsService.getAvailableRoomsForDates(checkInDate, checkOutDate),
-        staleTime: 30_000,
+        staleTime: queryStaleTime.short,
       });
       setAvailableRooms(sortRooms(available));
     } catch (error) {
@@ -57,7 +58,7 @@ export function useUnifiedBookingData() {
       const roomTypes = await queryClient.ensureQueryData({
         queryKey: queryKeys.roomTypes.list(),
         queryFn: () => RoomsService.getAllRoomTypes(),
-        staleTime: 5 * 60_000,
+        staleTime: queryStaleTime.long,
       });
       const matched = roomTypes.find((rt: RoomType) => rt.name === roomTypeName);
       setRoomTypeConfig(matched || null);

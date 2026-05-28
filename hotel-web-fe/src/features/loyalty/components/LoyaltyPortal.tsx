@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { queryStaleTime } from '../../../api/queryConfig';
+import { queryKeys } from '../../../api/queryKeys';
 import {
   Box,
   Card,
@@ -72,8 +74,9 @@ const LoyaltyPortal: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
 
   const statsQuery = useQuery({
-    queryKey: ['loyalty', 'statistics'] as const,
+    queryKey: queryKeys.loyalty.statistics(),
     queryFn: () => HotelAPIService.getLoyaltyStatistics() as Promise<LoyaltyStatistics>,
+    staleTime: queryStaleTime.standard,
   });
 
   const statistics = statsQuery.data ?? null;

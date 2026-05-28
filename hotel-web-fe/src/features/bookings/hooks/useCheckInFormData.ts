@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { CompaniesService, RatesService, RoomsService } from '../../../api';
+import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import { BookingWithDetails, RoomType } from '../../../types';
 
@@ -18,12 +19,12 @@ export function useCheckInFormData() {
         queryClient.ensureQueryData({
           queryKey: queryKeys.rates.rateCodes(),
           queryFn: () => RatesService.getRateCodes(),
-          staleTime: 10 * 60_000,
+          staleTime: queryStaleTime.static,
         }),
         queryClient.ensureQueryData({
           queryKey: queryKeys.rates.marketCodes(),
           queryFn: () => RatesService.getMarketCodes(),
-          staleTime: 10 * 60_000,
+          staleTime: queryStaleTime.static,
         }),
       ]);
       setRateCodes(ratesResp.rate_codes);
@@ -40,7 +41,7 @@ export function useCheckInFormData() {
       const companies = await queryClient.ensureQueryData({
         queryKey: queryKeys.companies.list(params),
         queryFn: () => CompaniesService.getCompanies(params),
-        staleTime: 5 * 60_000,
+        staleTime: queryStaleTime.long,
       });
       const options = companies.map((c: any) => ({
         company_name: c.company_name,
@@ -64,7 +65,7 @@ export function useCheckInFormData() {
       const roomTypes = await queryClient.ensureQueryData({
         queryKey: queryKeys.roomTypes.list(),
         queryFn: () => RoomsService.getAllRoomTypes(),
-        staleTime: 5 * 60_000,
+        staleTime: queryStaleTime.long,
       });
       const matched = roomTypes.find((rt: RoomType) => rt.name === booking.room_type);
       setRoomTypeConfig(matched || null);

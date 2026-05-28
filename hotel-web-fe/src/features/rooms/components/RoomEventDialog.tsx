@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogTitle,
@@ -29,6 +30,9 @@ import {
   SwapHoriz as RoomChangeIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
+import { queryStaleTime } from '../../../api/queryConfig';
+import { invalidateBookingDependencies, invalidateRoomDependencies } from '../../../api/queryInvalidation';
+import { queryKeys } from '../../../api/queryKeys';
 import { RoomDetailedStatus, RoomStatusUpdateInput } from '../../../types';
 import RoomHistoryTimeline from './RoomHistoryTimeline';
 
@@ -49,6 +53,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
   currentStatus,
   onSuccess,
 }) => {
+  const queryClient = useQueryClient();
   const loadedRoomIdRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -104,7 +109,11 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
   const loadAvailableRooms = async () => {
     try {
-      const rooms = await HotelAPIService.getAllRooms();
+      const rooms = await queryClient.ensureQueryData({
+        queryKey: queryKeys.rooms.all,
+        queryFn: () => HotelAPIService.getAllRooms(),
+        staleTime: queryStaleTime.standard,
+      });
       // Filter out the current room
       const otherRooms = rooms.filter((r: any) => r.id !== roomId);
 
@@ -136,7 +145,11 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
     try {
       setLoadingDetails(true);
-      const details = await HotelAPIService.getRoomDetailedStatus(roomId);
+      const details = await queryClient.ensureQueryData({
+        queryKey: queryKeys.rooms.detailedStatus(roomId),
+        queryFn: () => HotelAPIService.getRoomDetailedStatus(roomId),
+        staleTime: queryStaleTime.realtime,
+      });
       setDetailedStatus(details);
 
       // Pre-populate date fields with existing room metadata
@@ -247,6 +260,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       };
 
       await HotelAPIService.updateRoomStatus(roomId, statusInput);
+      invalidateRoomDependencies(queryClient);
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -283,6 +297,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       await new Promise(resolve => setTimeout(resolve, 300));
 
       await HotelAPIService.endMaintenance(roomId);
+      invalidateRoomDependencies(queryClient);
 
       // Show success animation
       await new Promise(resolve => setTimeout(resolve, 400));
@@ -312,6 +327,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       console.log('Calling executeRoomChange API', { roomId, targetRoomId });
       const result = await HotelAPIService.executeRoomChange(roomId, targetRoomId);
       console.log('Room change result:', result);
+      invalidateRoomDependencies(queryClient);
 
       setRoomChangeMode(false);
       onSuccess();
@@ -346,6 +362,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
       // Call the dedicated check-in endpoint
       await HotelAPIService.checkInGuest(booking.id);
+      invalidateBookingDependencies(queryClient);
 
       console.log('Guest checked in successfully');
       onSuccess();

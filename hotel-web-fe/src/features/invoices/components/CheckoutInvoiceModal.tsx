@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogTitle,
@@ -37,6 +38,7 @@ import { BookingWithDetails } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { HotelAPIService } from '../../../api';
 import { InvoicesService } from '../../../api/invoices.service';
+import { queryKeys } from '../../../api/queryKeys';
 import { useCheckoutInvoiceData } from '../hooks/useCheckoutInvoiceData';
 import { calculateChargesFromInputs, emptyCharges, ChargesBreakdown } from '../utils/chargesCalculation';
 
@@ -56,6 +58,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   readOnly = false,
 }) => {
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
+  const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<'preview' | 'confirm'>('preview');
@@ -75,6 +78,15 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     setEditableDailyRates,
     reloadPayments,
   } = useCheckoutInvoiceData(booking, open);
+
+  const invalidateInvoiceState = () => {
+    if (!booking) return;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.invoices.preview(booking.id) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.invoices.payments(booking.id) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.detail(booking.id) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.paymentWorkflow(booking.id) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+  };
 
   // Payment recording state
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -162,6 +174,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         payment_date: paymentDate || undefined,
       });
       setPayments(prev => [...prev, newPayment]);
+      invalidateInvoiceState();
       setShowPaymentForm(false);
       setPaymentAmount(0);
       setPaymentReference('');
@@ -206,6 +219,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         payment_date: editDate || undefined,
       });
       setPayments(prev => prev.map(p => p.id === editingPayment.id ? updatedPayment : p));
+      invalidateInvoiceState();
       handleCancelEdit();
     } catch (err: any) {
       setError(err.message || 'Failed to update payment');
@@ -222,6 +236,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       const deletedPayment = payments.find(p => p.id === paymentId);
       await InvoicesService.deletePayment(paymentId);
       setPayments(prev => prev.filter(p => p.id !== paymentId));
+      invalidateInvoiceState();
       // Reset depositRefunded if a refund payment was deleted
       if (deletedPayment?.payment_status === 'refunded') {
         setDepositRefunded(false);
@@ -240,6 +255,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       const refundPayment = await InvoicesService.refundDeposit(booking.id, refundPaymentMethod, charges.depositRefund);
       setPayments(prev => [...prev, refundPayment]);
       setDepositRefunded(true);
+      invalidateInvoiceState();
     } catch (err: any) {
       setError(err.message || 'Failed to refund deposit');
     } finally {
@@ -275,6 +291,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         daily_rates: editableDailyRates,
         room_rate_override: totalFromRates / Object.keys(editableDailyRates).length,
       });
+      invalidateInvoiceState();
       setEditingRates(false);
     } catch (err: any) {
       setError(err.message || 'Failed to save daily rates');
