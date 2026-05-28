@@ -14,3 +14,7 @@ export type { TabPanelProps } from './common/TabPanel';
 
 // Layout components
 export { default as LandingPage } from './layout/LandingPage';
+
+// Data table primitives
+export { DataTable } from './data-table/DataTable';
+export type { DataTableProps, ColumnDef } from './data-table/DataTable';

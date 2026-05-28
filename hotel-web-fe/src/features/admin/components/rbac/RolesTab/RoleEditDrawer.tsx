@@ -17,7 +17,7 @@ import type { RoleWithStats } from '../types';
 import { getRoleColor, NAVIGATION_PERMISSION_MAPPING } from '../constants';
 import NavigationAccessSection from './NavigationAccessSection';
 import PermissionSummarySection from './PermissionSummarySection';
-import { HotelAPIService } from '../../../../../api';
+import { useUpdateRole, useReplaceRolePermissions } from '../hooks/useRBACQueries';
 
 interface RoleEditDrawerProps {
   open: boolean;
@@ -38,9 +38,12 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
   const [description, setDescription] = useState('');
   const [selectedNavItems, setSelectedNavItems] = useState<string[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
+
+  const updateRoleMutation = useUpdateRole();
+  const replacePermissionsMutation = useReplaceRolePermissions();
+  const saving = updateRoleMutation.isPending || replacePermissionsMutation.isPending;
 
   // Initialize form when role changes
   useEffect(() => {
@@ -101,16 +104,15 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
   const handleSave = async () => {
     if (!role) return;
 
-    setSaving(true);
     setError(null);
 
     try {
       // Update role info if changed
       let updatedRole = role as Role;
       if (name !== role.name || description !== (role.description || '')) {
-        updatedRole = await HotelAPIService.updateRole(String(role.id), {
-          name,
-          description,
+        updatedRole = await updateRoleMutation.mutateAsync({
+          roleId: String(role.id),
+          input: { name, description },
         });
       }
 
@@ -124,8 +126,9 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
       const toRemove = role.permissions.filter((p) => !newPermIds.has(p.id));
 
       if (toAdd.length > 0 || toRemove.length > 0) {
-        await HotelAPIService.replaceRolePermissions(String(role.id), {
-          permission_ids: permissions.map((permission) => permission.id),
+        await replacePermissionsMutation.mutateAsync({
+          roleId: String(role.id),
+          input: { permission_ids: permissions.map((permission) => permission.id) },
         });
       }
 
@@ -133,8 +136,6 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to save role');
-    } finally {
-      setSaving(false);
     }
   };
 

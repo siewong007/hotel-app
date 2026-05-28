@@ -30,7 +30,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
   const { data = [], isPending: loading, error } = useRoomHistory(roomId);
 
   // Only show guest actions: check-in (→ occupied) and check-out (occupied →)
-  const isGuestAction = (from: string | null, to: string) => {
+  const isGuestAction = (from: string | null | undefined, to: string) => {
     return to === 'occupied' || from === 'occupied';
   };
 

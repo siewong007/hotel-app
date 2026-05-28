@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../../../router';
 import {
   Box,
   Grid,
@@ -1327,8 +1327,9 @@ const RoomManagementPage: React.FC = () => {
         postal_code: guestEditForm.postal_code,
         country: guestEditForm.country,
       };
+      const previousId = selectedGuestDetails?.id;
       setSelectedGuestDetails(updatedGuest);
-      setGuests(prev => prev.map(g => g.id === selectedGuestDetails.id ? updatedGuest : g));
+      setGuests(prev => (prev ?? []).map(g => g.id === previousId ? updatedGuest : g));
       setIsEditingGuest(false);
       showSnackbar('Guest updated successfully', 'success');
     } catch (error: any) {

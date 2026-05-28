@@ -19,7 +19,7 @@ import type { Permission, Role, RoleInput } from '../../../../../types';
 import type { RoleWithStats } from '../types';
 import RoleCard from './RoleCard';
 import RoleEditDrawer from './RoleEditDrawer';
-import { HotelAPIService } from '../../../../../api';
+import { useCreateRole, useDeleteRole } from '../hooks/useRBACQueries';
 
 interface RolesTabProps {
   roles: RoleWithStats[];
@@ -45,14 +45,17 @@ const RolesTab: React.FC<RolesTabProps> = ({
   // Create dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newRole, setNewRole] = useState<RoleInput>({ name: '', description: '' });
-  const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingRole, setDeletingRole] = useState<RoleWithStats | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const createRoleMutation = useCreateRole();
+  const deleteRoleMutation = useDeleteRole();
+  const creating = createRoleMutation.isPending;
+  const deleting = deleteRoleMutation.isPending;
 
   // Handle edit
   const handleEditRole = (role: RoleWithStats) => {
@@ -71,18 +74,15 @@ const RolesTab: React.FC<RolesTabProps> = ({
       return;
     }
 
-    setCreating(true);
     setCreateError(null);
 
     try {
-      const created = await HotelAPIService.createRole(newRole);
+      const created = await createRoleMutation.mutateAsync(newRole);
       onRoleCreated(created);
       setCreateDialogOpen(false);
       setNewRole({ name: '', description: '' });
     } catch (err: any) {
       setCreateError(err.message || 'Failed to create role');
-    } finally {
-      setCreating(false);
     }
   };
 
@@ -96,18 +96,15 @@ const RolesTab: React.FC<RolesTabProps> = ({
   const handleConfirmDelete = async () => {
     if (!deletingRole) return;
 
-    setDeleting(true);
     setDeleteError(null);
 
     try {
-      await HotelAPIService.deleteRole(String(deletingRole.id));
+      await deleteRoleMutation.mutateAsync(String(deletingRole.id));
       onRoleDeleted(deletingRole.id);
       setDeleteDialogOpen(false);
       setDeletingRole(null);
     } catch (err: any) {
       setDeleteError(err.message || 'Failed to delete role');
-    } finally {
-      setDeleting(false);
     }
   };
 

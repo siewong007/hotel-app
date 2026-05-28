@@ -235,7 +235,7 @@ const AnalyticsDashboard: React.FC = () => {
 
       // Generate mock revenue data for the last 7 days
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const mockRevenue = [];
+      const mockRevenue: { name: string; revenue: number }[] = [];
       for (let i = 6; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);

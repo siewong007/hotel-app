@@ -28,7 +28,7 @@ import {
   ArrowBack as BackIcon,
   ArrowForward as ForwardIcon,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../../router';
 import { HotelAPIService, EkycService } from '../../../api';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';

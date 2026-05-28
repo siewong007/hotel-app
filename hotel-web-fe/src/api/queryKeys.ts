@@ -12,6 +12,11 @@ const dataTransfer = ['data-transfer'] as const;
 const settings = ['settings'] as const;
 const companies = ['companies'] as const;
 const rates = ['rates'] as const;
+const ekyc = ['ekyc'] as const;
+const rbac = ['rbac'] as const;
+const complimentary = ['complimentary'] as const;
+const personalizedReports = ['personalized-reports'] as const;
+const twoFactor = ['two-factor'] as const;
 
 const paramsOrEmpty = <T extends KeyParams | AuditLogQuery | undefined>(params: T) => params ?? {};
 
@@ -88,5 +93,30 @@ export const queryKeys = {
     all: rates,
     rateCodes: () => [...rates, 'rate-codes'] as const,
     marketCodes: () => [...rates, 'market-codes'] as const,
+  },
+  ekyc: {
+    all: ekyc,
+    myStatus: () => [...ekyc, 'my-status'] as const,
+    myVerification: () => [...ekyc, 'my-verification'] as const,
+    allVerifications: () => [...ekyc, 'all-verifications'] as const,
+  },
+  rbac: {
+    all: rbac,
+    roles: () => [...rbac, 'roles'] as const,
+    permissions: () => [...rbac, 'permissions'] as const,
+    users: () => [...rbac, 'users'] as const,
+    rolePermissions: (roleId: string | number) => [...rbac, 'role-permissions', String(roleId)] as const,
+  },
+  complimentary: {
+    all: complimentary,
+    list: (params?: KeyParams) => [...complimentary, 'list', paramsOrEmpty(params)] as const,
+  },
+  personalizedReports: {
+    all: personalizedReports,
+    summary: () => [...personalizedReports, 'summary'] as const,
+  },
+  twoFactor: {
+    all: twoFactor,
+    status: () => [...twoFactor, 'status'] as const,
   },
 } as const;

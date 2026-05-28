@@ -21,7 +21,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { Link } from 'react-router-dom';
+import { Link } from '../../../router';
 import { useAuth } from '../../../auth/AuthContext';
 import { canAccessNavigationRoute, navigationRouteDefinitions, preloadRoute } from '../../../navigation/routeRegistry';
 

@@ -4468,7 +4468,7 @@ const CustomerLedgerPage: React.FC = () => {
               (isCreatingNewCheckInGuest && (
                 !newCheckInGuestForm.first_name ||
                 !newCheckInGuestForm.last_name ||
-                (newCheckInGuestForm.email && newCheckInGuestForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email))
+                Boolean(newCheckInGuestForm.email && newCheckInGuestForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email))
               ))
             }
             startIcon={processingCheckIn ? <CircularProgress size={20} /> : <CheckInIcon />}

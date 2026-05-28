@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import babel from '@rolldown/plugin-babel';
+import { tanstackRouter } from '@tanstack/router-plugin/vite';
 
 const TAURI_MODES = new Set(['tauri', 'desktop']);
 const BACKEND_TARGET = 'http://127.0.0.1:3030';
@@ -19,6 +20,13 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      // Must come before React plugin to inject the generated route tree before TSX transform
+      tanstackRouter({
+        target: 'react',
+        autoCodeSplitting: true,
+        routesDirectory: './src/routes',
+        generatedRouteTree: './src/routeTree.gen.ts',
+      }),
       react(),
       babel({
         presets: [reactCompilerPreset()],

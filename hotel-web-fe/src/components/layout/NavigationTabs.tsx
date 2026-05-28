@@ -27,7 +27,7 @@ import HotelIcon from '@mui/icons-material/Hotel';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import NightsStayIcon from '@mui/icons-material/NightsStay';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from '../../router';
 import { useAuth } from '../../auth/AuthContext';
 import { storage } from '../../utils/storage';
 import { useGlobalSearch } from '../../hooks/useGlobalSearch';
@@ -47,11 +47,11 @@ interface NavigationTabsProps {
 const EMERALD = '#10A47C';
 const EMERALD_DEEP = '#0E8C6A';
 
-export const NavigationTabs = React.memo(function NavigationTabs({
+export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function NavigationTabs({
   darkBg = false,
   themeMode,
   onThemeModeChange,
-}: NavigationTabsProps = {}) {
+}: NavigationTabsProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { hasPermission, hasRole, logout, user } = useAuth();

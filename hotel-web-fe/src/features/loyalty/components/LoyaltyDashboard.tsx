@@ -227,7 +227,7 @@ const LoyaltyDashboard: React.FC = () => {
         }
 
         // Regular users see membership and user-specific rewards (if eKYC approved)
-        let membershipData = null;
+        let membershipData: UserLoyaltyMembership | null = null;
         let rewardsData: LoyaltyReward[] = [];
 
         try {
@@ -864,6 +864,10 @@ const LoyaltyDashboard: React.FC = () => {
       </Box>
     );
   }
+
+  // All `!membership && !isAdmin` and isAdmin-only branches have returned above,
+  // so at this point membership must be present.
+  if (!membership) return null;
 
   const tierConfig = getTierConfig(membership.tier_level);
   const tierProgress = getTierProgress();

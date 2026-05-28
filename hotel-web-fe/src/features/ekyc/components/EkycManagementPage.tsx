@@ -39,8 +39,8 @@ import {
   CameraAlt as PhotoIcon,
 } from '@mui/icons-material';
 import { format } from 'date-fns';
-import { EkycService } from '../../../api/ekyc.service';
 import { api } from '../../../api/client';
+import { useAllEkycVerifications, useUpdateEkycVerification } from '../hooks/useEkycQueries';
 
 interface EkycVerification {
   id: number;
@@ -137,31 +137,22 @@ const SecureDocumentImage: React.FC<{
 };
 
 const EkycManagementPage: React.FC = () => {
-  const [verifications, setVerifications] = useState<EkycVerification[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: verificationsData, isLoading: loading, error: queryError } = useAllEkycVerifications();
+  const updateEkycMutation = useUpdateEkycVerification();
+  const verifications = (verificationsData as EkycVerification[] | undefined) ?? [];
   const [error, setError] = useState('');
   const [selectedVerification, setSelectedVerification] = useState<EkycVerification | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [reviewNotes, setReviewNotes] = useState('');
   const [faceMatchScore, setFaceMatchScore] = useState<number>(0);
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [processing, setProcessing] = useState(false);
+  const processing = updateEkycMutation.isPending;
 
   useEffect(() => {
-    fetchVerifications();
-  }, []);
-
-  const fetchVerifications = async () => {
-    try {
-      setLoading(true);
-      const data = await EkycService.getAllEkycVerifications();
-      setVerifications(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch verifications');
-    } finally {
-      setLoading(false);
+    if (queryError) {
+      setError((queryError as Error).message || 'Failed to fetch verifications');
     }
-  };
+  }, [queryError]);
 
   const handleViewDetails = (verification: EkycVerification) => {
     setSelectedVerification(verification);
@@ -173,25 +164,24 @@ const EkycManagementPage: React.FC = () => {
   const handleUpdateStatus = async (status: 'approved' | 'rejected', enableSelfCheckin: boolean = false) => {
     if (!selectedVerification) return;
 
-    setProcessing(true);
     try {
-      await EkycService.updateEkycVerification(selectedVerification.id, {
-        status,
-        verification_notes: reviewNotes,
-        face_match_score: faceMatchScore > 0 ? faceMatchScore : null,
-        face_match_passed: faceMatchScore >= 80,
-        self_checkin_enabled: status === 'approved' && enableSelfCheckin,
+      await updateEkycMutation.mutateAsync({
+        verificationId: selectedVerification.id,
+        updates: {
+          status,
+          verification_notes: reviewNotes,
+          face_match_score: faceMatchScore > 0 ? faceMatchScore : null,
+          face_match_passed: faceMatchScore >= 80,
+          self_checkin_enabled: status === 'approved' && enableSelfCheckin,
+        },
       });
 
-      await fetchVerifications();
       setDialogOpen(false);
       setSelectedVerification(null);
       setReviewNotes('');
       setFaceMatchScore(0);
     } catch (err: any) {
       setError(err.message || 'Failed to update verification');
-    } finally {
-      setProcessing(false);
     }
   };
 

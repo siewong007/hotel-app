@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Card,
@@ -23,15 +23,25 @@ import {
   Refresh as RefreshIcon,
   ContentCopy as CopyIcon,
 } from '@mui/icons-material';
-import { HotelAPIService } from '../../../api';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../utils/apiNotifications';
+import {
+  useTwoFactorStatus,
+  useSetupTwoFactor,
+  useEnableTwoFactor,
+  useDisableTwoFactor,
+  useRegenerateBackupCodes,
+} from '../hooks/useTwoFactorQueries';
 
 interface TwoFactorSetupProps {
   onSetupComplete?: () => void;
 }
 
 const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
-  const [twoFactorStatus, setTwoFactorStatus] = useState<{ enabled: boolean; backup_codes_remaining: number } | null>(null);
+  const { data: twoFactorStatus } = useTwoFactorStatus();
+  const setupMutation = useSetupTwoFactor();
+  const enableMutation = useEnableTwoFactor();
+  const disableMutation = useDisableTwoFactor();
+  const regenerateMutation = useRegenerateBackupCodes();
   const [setupData, setSetupData] = useState<{
     secret: string;
     qr_code_url: string;
@@ -44,31 +54,19 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [newBackupCodes, setNewBackupCodes] = useState<string[]>([]);
   const [regenerateCode, setRegenerateCode] = useState('');
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    loadTwoFactorStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadTwoFactorStatus = async () => {
-    try {
-      const status = await HotelAPIService.getTwoFactorStatus();
-      setTwoFactorStatus(status);
-    } catch (error: any) {
-      console.error('Failed to load 2FA status:', error);
-    }
-  };
+  const loading =
+    setupMutation.isPending ||
+    enableMutation.isPending ||
+    disableMutation.isPending ||
+    regenerateMutation.isPending;
 
   const handleSetup2FA = async () => {
-    setLoading(true);
     try {
-      const data = await HotelAPIService.setupTwoFactor();
+      const data = await setupMutation.mutateAsync();
       setSetupData(data);
       setShowSetupDialog(true);
     } catch (error: any) {
       console.error('Failed to setup 2FA:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -78,20 +76,16 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       return;
     }
 
-    setLoading(true);
     try {
-      await HotelAPIService.enableTwoFactor(verificationCode);
+      await enableMutation.mutateAsync(verificationCode);
       setShowSetupDialog(false);
       setVerificationCode('');
       setSetupData(null);
-      await loadTwoFactorStatus();
       showSnackbar('2FA enabled successfully', 'success');
       onSetupComplete?.();
     } catch (error: any) {
       console.error('Failed to enable 2FA:', error);
       showSnackbar(error.message || 'Failed to enable 2FA', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -101,19 +95,15 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       return;
     }
 
-    setLoading(true);
     try {
-      await HotelAPIService.disableTwoFactor(disableCode);
+      await disableMutation.mutateAsync(disableCode);
       setShowDisableDialog(false);
       setDisableCode('');
-      await loadTwoFactorStatus();
       showSnackbar('2FA disabled successfully', 'success');
       onSetupComplete?.();
     } catch (error: any) {
       console.error('Failed to disable 2FA:', error);
       showSnackbar(error.message || 'Failed to disable 2FA', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -123,19 +113,15 @@ const TwoFactorSetup: React.FC<TwoFactorSetupProps> = ({ onSetupComplete }) => {
       return;
     }
 
-    setLoading(true);
     try {
-      const data = await HotelAPIService.regenerateBackupCodes(regenerateCode);
+      const data = await regenerateMutation.mutateAsync(regenerateCode);
       setNewBackupCodes(data.backup_codes);
       setShowRegenerateDialog(false);
       setRegenerateCode('');
-      await loadTwoFactorStatus();
       showSnackbar('Backup codes regenerated successfully', 'success');
     } catch (error: any) {
       console.error('Failed to regenerate backup codes:', error);
       showSnackbar(error.message || 'Failed to regenerate backup codes', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 

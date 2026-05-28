@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Button, Container, Typography, Fade, Slide } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from '../../router';
 import { keyframes } from '@mui/system';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import BedIcon from '@mui/icons-material/Bed';
