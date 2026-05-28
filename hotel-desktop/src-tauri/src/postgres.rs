@@ -8,7 +8,7 @@
 
 use rand::RngCore;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
+use std::process::{Output, Stdio};
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tokio::time::sleep;
@@ -43,8 +43,8 @@ pub enum PostgresError {
     #[error("Failed to start PostgreSQL server: {0}")]
     StartFailed(String),
 
-    #[error("PostgreSQL server failed to become ready within {0} seconds")]
-    StartupTimeout(u64),
+    #[error("PostgreSQL server failed to become ready within {seconds} seconds: {details}")]
+    StartupTimeout { seconds: u64, details: String },
 
     #[error("Failed to run migrations: {0}")]
     MigrationFailed(String),
@@ -109,6 +109,12 @@ fn read_pgdata_version() -> Result<Option<String>, std::io::Error> {
 fn ensure_pgdata_version_compatible() -> Result<(), PostgresError> {
     if let Some(found) = read_pgdata_version()? {
         if found != BUNDLED_POSTGRES_MAJOR_VERSION {
+            log::error!(
+                "PostgreSQL data directory version {} is incompatible with bundled PostgreSQL {} at {:?}",
+                found,
+                BUNDLED_POSTGRES_MAJOR_VERSION,
+                get_pgdata_dir()
+            );
             return Err(PostgresError::IncompatibleDataDirectory {
                 found,
                 expected: BUNDLED_POSTGRES_MAJOR_VERSION,
@@ -166,6 +172,12 @@ fn preserve_incompatible_pgdata(found_version: &str) -> Result<PathBuf, Postgres
     let archive_path = archive_path_for_incompatible_pgdata(&pgdata, found_version);
 
     std::fs::rename(&pgdata, &archive_path).map_err(|err| {
+        log::error!(
+            "Failed to preserve incompatible PostgreSQL data directory {:?} as {:?}: {}",
+            pgdata,
+            archive_path,
+            err
+        );
         PostgresError::PreserveIncompatibleDataDirectoryFailed {
             source_path: pgdata.to_string_lossy().to_string(),
             reason: err.to_string(),
@@ -187,6 +199,12 @@ async fn preserve_incompatible_pgdata_if_stopped(
     }
 
     if is_postgres_running(app_handle).await {
+        log::error!(
+            "PostgreSQL data directory version {} is incompatible with bundled PostgreSQL {}, but PostgreSQL is still accepting connections on port {}. The data directory will not be archived while the server is running.",
+            found_version,
+            BUNDLED_POSTGRES_MAJOR_VERSION,
+            POSTGRES_PORT
+        );
         return Err(PostgresError::IncompatibleDataDirectory {
             found: found_version,
             expected: BUNDLED_POSTGRES_MAJOR_VERSION,
@@ -202,6 +220,44 @@ async fn preserve_incompatible_pgdata_if_stopped(
     );
 
     Ok(())
+}
+
+fn trimmed_lossy(bytes: &[u8]) -> String {
+    let text = String::from_utf8_lossy(bytes).trim().to_string();
+    if text.is_empty() {
+        "<empty>".to_string()
+    } else {
+        text
+    }
+}
+
+fn command_output_details(command_name: &str, output: &Output) -> String {
+    format!(
+        "{} exited with code {:?}\nstdout:\n{}\nstderr:\n{}",
+        command_name,
+        output.status.code(),
+        trimmed_lossy(&output.stdout),
+        trimmed_lossy(&output.stderr)
+    )
+}
+
+fn tail_text(path: &Path, max_lines: usize) -> Option<String> {
+    let content = std::fs::read_to_string(path).ok()?;
+    let mut lines: Vec<&str> = content.lines().rev().take(max_lines).collect();
+    lines.reverse();
+
+    if lines.is_empty() {
+        None
+    } else {
+        Some(lines.join("\n"))
+    }
+}
+
+fn postgres_startup_log_details(log_file: &Path) -> String {
+    match tail_text(log_file, 120) {
+        Some(tail) => format!("startup log {}:\n{}", log_file.display(), tail),
+        None => format!("startup log {} is missing or empty", log_file.display()),
+    }
 }
 
 /// Initialize PostgreSQL data directory using initdb
@@ -255,8 +311,12 @@ pub async fn init_postgres_data_dir(app_handle: &AppHandle) -> Result<(), Postgr
     let output = cmd.output().await?;
 
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(PostgresError::InitDbFailed(stderr.to_string()));
+        let details = command_output_details("initdb", &output);
+        log::error!(
+            "Failed to initialize PostgreSQL data directory: {}",
+            details
+        );
+        return Err(PostgresError::InitDbFailed(details));
     }
 
     // Configure PostgreSQL for local-only access
@@ -355,10 +415,13 @@ pub async fn start_postgres(app_handle: &AppHandle) -> Result<(), PostgresError>
     let status = cmd.status().await?;
 
     if !status.success() {
-        return Err(PostgresError::StartFailed(format!(
-            "pg_ctl exited with code: {:?}",
-            status.code()
-        )));
+        let details = format!(
+            "pg_ctl start exited with code {:?}\n{}",
+            status.code(),
+            postgres_startup_log_details(&log_file)
+        );
+        log::error!("Failed to start PostgreSQL server: {}", details);
+        return Err(PostgresError::StartFailed(details));
     }
 
     // Wait for PostgreSQL to be ready by polling pg_isready
@@ -371,7 +434,16 @@ pub async fn start_postgres(app_handle: &AppHandle) -> Result<(), PostgresError>
         sleep(Duration::from_secs(1)).await;
     }
 
-    Err(PostgresError::StartupTimeout(MAX_STARTUP_WAIT_SECS))
+    let details = postgres_startup_log_details(&log_file);
+    log::error!(
+        "PostgreSQL server failed to become ready within {} seconds: {}",
+        MAX_STARTUP_WAIT_SECS,
+        details
+    );
+    Err(PostgresError::StartupTimeout {
+        seconds: MAX_STARTUP_WAIT_SECS,
+        details,
+    })
 }
 
 /// Stop the PostgreSQL server
@@ -416,10 +488,9 @@ pub async fn stop_postgres(app_handle: &AppHandle) -> Result<(), PostgresError> 
     let output = cmd.output().await?;
 
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
         log::warn!(
             "Failed to stop PostgreSQL (may already be stopped): {}",
-            stderr
+            command_output_details("pg_ctl stop", &output)
         );
     } else {
         log::info!("PostgreSQL server stopped successfully");
@@ -523,6 +594,15 @@ pub async fn create_database_if_needed(app_handle: &AppHandle) -> Result<(), Pos
 
     let check_output = check_cmd.output().await?;
 
+    if !check_output.status.success() {
+        let details = command_output_details("psql database existence check", &check_output);
+        log::error!("Failed to check whether database exists: {}", details);
+        return Err(PostgresError::MigrationFailed(format!(
+            "Failed to check whether database exists: {}",
+            details
+        )));
+    }
+
     let exists = String::from_utf8_lossy(&check_output.stdout)
         .trim()
         .contains('1');
@@ -559,10 +639,11 @@ pub async fn create_database_if_needed(app_handle: &AppHandle) -> Result<(), Pos
     let create_output = create_cmd.output().await?;
 
     if !create_output.status.success() {
-        let stderr = String::from_utf8_lossy(&create_output.stderr);
+        let details = command_output_details("psql create database", &create_output);
+        log::error!("Failed to create database: {}", details);
         return Err(PostgresError::MigrationFailed(format!(
             "Failed to create database: {}",
-            stderr
+            details
         )));
     }
 
@@ -638,10 +719,11 @@ async fn randomize_seed_passwords(app_handle: &AppHandle) -> Result<(), Postgres
 
     let output = cmd.output().await?;
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
+        let details = command_output_details("psql randomize seed passwords", &output);
+        log::error!("Failed to randomize seed passwords: {}", details);
         return Err(PostgresError::MigrationFailed(format!(
             "Failed to randomize seed passwords: {}",
-            stderr
+            details
         )));
     }
 
@@ -694,6 +776,15 @@ async fn is_database_initialized(app_handle: &AppHandle) -> Result<bool, Postgre
     cmd.creation_flags(CREATE_NO_WINDOW);
 
     let output = cmd.output().await?;
+    if !output.status.success() {
+        let details = command_output_details("psql database initialization check", &output);
+        log::error!("Failed to check database initialization: {}", details);
+        return Err(PostgresError::MigrationFailed(format!(
+            "Failed to check database initialization: {}",
+            details
+        )));
+    }
+
     let result = String::from_utf8_lossy(&output.stdout).trim().contains('1');
     Ok(result)
 }
@@ -766,16 +857,16 @@ async fn run_sql_files(app_handle: &AppHandle, dir_name: &str) -> Result<(), Pos
         let output = cmd.output().await?;
 
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+            let details = command_output_details("psql run SQL file", &output);
             log::error!(
                 "Failed to run SQL file {:?}: {}",
                 file_path.file_name(),
-                stderr
+                details
             );
             return Err(PostgresError::MigrationFailed(format!(
                 "Failed to run SQL file {:?}: {}",
                 file_path.file_name(),
-                stderr
+                details
             )));
         }
     }

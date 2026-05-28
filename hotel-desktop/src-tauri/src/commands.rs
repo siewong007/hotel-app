@@ -254,7 +254,7 @@ pub async fn get_logs(lines: Option<usize>) -> Result<Vec<String>, String> {
     let lines = lines.unwrap_or(100);
 
     // Find the most recent log file
-    let log_files: Vec<_> = std::fs::read_dir(&log_dir)
+    let mut log_files: Vec<_> = std::fs::read_dir(&log_dir)
         .ok()
         .into_iter()
         .flatten()
@@ -266,6 +266,12 @@ pub async fn get_logs(lines: Option<usize>) -> Result<Vec<String>, String> {
                 .unwrap_or(false)
         })
         .collect();
+
+    log_files.sort_by(|a, b| {
+        let a_modified = a.metadata().and_then(|m| m.modified()).ok();
+        let b_modified = b.metadata().and_then(|m| m.modified()).ok();
+        b_modified.cmp(&a_modified)
+    });
 
     if let Some(latest_log) = log_files.first() {
         let content = std::fs::read_to_string(latest_log.path()).map_err(|e| e.to_string())?;
