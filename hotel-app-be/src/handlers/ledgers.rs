@@ -185,22 +185,55 @@ pub async fn list_customer_ledgers_handler(
 
     // Normalise the free-text search (None when blank)
     let search = query.search.as_deref().filter(|s| !s.trim().is_empty());
+    let invoice_state = match query.invoice_state.as_deref().filter(|s| !s.is_empty()) {
+        Some("uninvoiced") => Some("uninvoiced"),
+        Some("invoiced") => Some("invoiced"),
+        Some(_) => {
+            return Err(ApiError::BadRequest(
+                "Invalid invoice_state filter".to_string(),
+            ));
+        }
+        None => None,
+    };
+    let balance_state = match query.balance_state.as_deref().filter(|s| !s.is_empty()) {
+        Some("outstanding") => Some("outstanding"),
+        Some("clear") => Some("clear"),
+        Some(_) => {
+            return Err(ApiError::BadRequest(
+                "Invalid balance_state filter".to_string(),
+            ));
+        }
+        None => None,
+    };
+    let ui_status = match query.ui_status.as_deref().filter(|s| !s.is_empty()) {
+        Some(
+            status @ ("draft" | "ready_to_invoice" | "invoiced" | "partial" | "paid" | "overdue"
+            | "voided"),
+        ) => Some(status),
+        Some(_) => {
+            return Err(ApiError::BadRequest("Invalid ui_status filter".to_string()));
+        }
+        None => None,
+    };
 
     // Build queries dynamically so we can inject the safe ORDER BY and the
     // optional search clause. All user-supplied values still go through bindings.
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let (count_sql, data_sql) = {
         let search_clause = if search.is_some() {
-            "AND (?8 IS NULL OR (company_name LIKE '%' || ?8 || '%' OR description LIKE '%' || ?8 || '%' OR COALESCE(invoice_number,'') LIKE '%' || ?8 || '%' OR COALESCE(contact_person,'') LIKE '%' || ?8 || '%'))"
+            "AND (?8 IS NULL OR (company_name LIKE '%' || ?8 || '%' OR description LIKE '%' || ?8 || '%' OR COALESCE(invoice_number,'') LIKE '%' || ?8 || '%' OR COALESCE(folio_number,'') LIKE '%' || ?8 || '%' OR COALESCE(contact_person,'') LIKE '%' || ?8 || '%'))"
         } else {
             "AND (?8 IS NULL OR 1=1)"
         };
+        let invoice_clause = "AND (?9 IS NULL OR (?9 = 'uninvoiced' AND invoice_number IS NULL AND void_at IS NULL AND status <> 'cancelled') OR (?9 = 'invoiced' AND invoice_number IS NOT NULL AND void_at IS NULL AND status <> 'cancelled'))";
+        let balance_clause = "AND (?10 IS NULL OR (?10 = 'outstanding' AND COALESCE(balance_due, 0) > 0 AND void_at IS NULL AND status <> 'cancelled') OR (?10 = 'clear' AND COALESCE(balance_due, 0) <= 0))";
+        let ui_status_clause = "AND (?11 IS NULL OR (?11 = 'voided' AND (void_at IS NOT NULL OR status = 'cancelled')) OR (?11 = 'paid' AND void_at IS NULL AND (status = 'paid' OR COALESCE(balance_due, 0) <= 0)) OR (?11 = 'overdue' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND (status = 'overdue' OR due_date < date('now'))) OR (?11 = 'partial' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) > 0 AND status <> 'overdue' AND (due_date IS NULL OR due_date >= date('now'))) OR (?11 = 'invoiced' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NOT NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= date('now'))) OR (?11 = 'ready_to_invoice' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= date('now'))) OR (?11 = 'draft' AND void_at IS NULL AND COALESCE(balance_due, 0) <= 0 AND status <> 'paid'))";
         let base_where = format!(
-            "WHERE (?1 IS NULL OR status = ?1) AND (?2 IS NULL OR company_name LIKE '%' || ?2 || '%') AND (?3 IS NULL OR expense_type = ?3) AND (?4 IS NULL OR folio_type = ?4) AND (?5 IS NULL OR post_type = ?5) AND (?6 IS NULL OR department_code = ?6) AND (?7 IS NULL OR room_number = ?7) {search_clause}"
+            "WHERE (?1 IS NULL OR status = ?1) AND (?2 IS NULL OR company_name LIKE '%' || ?2 || '%') AND (?3 IS NULL OR expense_type = ?3) AND (?4 IS NULL OR folio_type = ?4) AND (?5 IS NULL OR post_type = ?5) AND (?6 IS NULL OR department_code = ?6) AND (?7 IS NULL OR room_number = ?7) {search_clause} {invoice_clause} {balance_clause} {ui_status_clause}"
         );
         let count = format!("SELECT COUNT(*) FROM customer_ledgers {base_where}");
         let data = format!(
-            "SELECT id, company_name, company_registration_number, contact_person, contact_email, contact_phone, billing_address_line1, billing_city, billing_state, billing_postal_code, billing_country, description, expense_type, amount, currency, status, paid_amount, balance_due, payment_method, payment_reference, payment_date, booking_id, guest_id, invoice_number, invoice_date, due_date, notes, internal_notes, created_by, updated_by, created_at, updated_at, folio_number, folio_type, transaction_type, post_type, department_code, transaction_code, room_number, posting_date, transaction_date, reference_number, cashier_id, is_reversal, original_transaction_id, reversal_reason, tax_amount, service_charge, net_amount, is_posted, posted_at, void_at, void_by, void_reason FROM customer_ledgers {base_where} ORDER BY {sort_col} {sort_dir} LIMIT ?9 OFFSET ?10"
+            "SELECT id, company_name, company_registration_number, contact_person, contact_email, contact_phone, billing_address_line1, billing_city, billing_state, billing_postal_code, billing_country, description, expense_type, amount, currency, status, paid_amount, balance_due, payment_method, payment_reference, payment_date, booking_id, guest_id, invoice_number, invoice_date, due_date, notes, internal_notes, created_by, updated_by, created_at, updated_at, folio_number, folio_type, transaction_type, post_type, department_code, transaction_code, room_number, posting_date, transaction_date, reference_number, cashier_id, is_reversal, original_transaction_id, reversal_reason, tax_amount, service_charge, net_amount, is_posted, posted_at, void_at, void_by, void_reason FROM customer_ledgers {base_where} ORDER BY {sort_col} {sort_dir} LIMIT ?12 OFFSET ?13"
         );
         (count, data)
     };
@@ -208,16 +241,19 @@ pub async fn list_customer_ledgers_handler(
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let (count_sql, data_sql) = {
         let search_clause = if search.is_some() {
-            "AND ($8::text IS NULL OR (company_name ILIKE '%' || $8 || '%' OR description ILIKE '%' || $8 || '%' OR COALESCE(invoice_number,'') ILIKE '%' || $8 || '%' OR COALESCE(contact_person,'') ILIKE '%' || $8 || '%'))"
+            "AND ($8::text IS NULL OR (company_name ILIKE '%' || $8 || '%' OR description ILIKE '%' || $8 || '%' OR COALESCE(invoice_number,'') ILIKE '%' || $8 || '%' OR COALESCE(folio_number,'') ILIKE '%' || $8 || '%' OR COALESCE(contact_person,'') ILIKE '%' || $8 || '%'))"
         } else {
             "AND ($8::text IS NULL OR TRUE)"
         };
+        let invoice_clause = "AND ($9::text IS NULL OR ($9 = 'uninvoiced' AND invoice_number IS NULL AND void_at IS NULL AND status <> 'cancelled') OR ($9 = 'invoiced' AND invoice_number IS NOT NULL AND void_at IS NULL AND status <> 'cancelled'))";
+        let balance_clause = "AND ($10::text IS NULL OR ($10 = 'outstanding' AND COALESCE(balance_due, 0) > 0 AND void_at IS NULL AND status <> 'cancelled') OR ($10 = 'clear' AND COALESCE(balance_due, 0) <= 0))";
+        let ui_status_clause = "AND ($11::text IS NULL OR ($11 = 'voided' AND (void_at IS NOT NULL OR status = 'cancelled')) OR ($11 = 'paid' AND void_at IS NULL AND (status = 'paid' OR COALESCE(balance_due, 0) <= 0)) OR ($11 = 'overdue' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND (status = 'overdue' OR due_date < CURRENT_DATE)) OR ($11 = 'partial' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) > 0 AND status <> 'overdue' AND (due_date IS NULL OR due_date >= CURRENT_DATE)) OR ($11 = 'invoiced' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NOT NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= CURRENT_DATE)) OR ($11 = 'ready_to_invoice' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= CURRENT_DATE)) OR ($11 = 'draft' AND void_at IS NULL AND COALESCE(balance_due, 0) <= 0 AND status <> 'paid'))";
         let base_where = format!(
-            "WHERE ($1::text IS NULL OR status = $1) AND ($2::text IS NULL OR company_name ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR expense_type = $3) AND ($4::text IS NULL OR folio_type = $4) AND ($5::text IS NULL OR post_type = $5) AND ($6::text IS NULL OR department_code = $6) AND ($7::text IS NULL OR room_number = $7) {search_clause}"
+            "WHERE ($1::text IS NULL OR status = $1) AND ($2::text IS NULL OR company_name ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR expense_type = $3) AND ($4::text IS NULL OR folio_type = $4) AND ($5::text IS NULL OR post_type = $5) AND ($6::text IS NULL OR department_code = $6) AND ($7::text IS NULL OR room_number = $7) {search_clause} {invoice_clause} {balance_clause} {ui_status_clause}"
         );
         let count = format!("SELECT COUNT(*) FROM customer_ledgers {base_where}");
         let data = format!(
-            "SELECT {LEDGER_SELECT_FIELDS} FROM customer_ledgers {base_where} ORDER BY {sort_col} {sort_dir} LIMIT $9 OFFSET $10"
+            "SELECT {LEDGER_SELECT_FIELDS} FROM customer_ledgers {base_where} ORDER BY {sort_col} {sort_dir} LIMIT $12 OFFSET $13"
         );
         (count, data)
     };
@@ -231,6 +267,9 @@ pub async fn list_customer_ledgers_handler(
         .bind(query.department_code.as_deref())
         .bind(query.room_number.as_deref())
         .bind(search)
+        .bind(invoice_state)
+        .bind(balance_state)
+        .bind(ui_status)
         .fetch_one(&pool)
         .await
         .unwrap_or(0);
@@ -244,6 +283,9 @@ pub async fn list_customer_ledgers_handler(
         .bind(query.department_code.as_deref())
         .bind(query.room_number.as_deref())
         .bind(search)
+        .bind(invoice_state)
+        .bind(balance_state)
+        .bind(ui_status)
         .bind(pagination.page_size)
         .bind(pagination.offset)
         .fetch_all(&pool)
@@ -817,8 +859,9 @@ pub async fn update_customer_ledger_handler(
         query_builder = query_builder.bind(v);
     }
     if let Some(ref v) = request.invoice_date {
-        let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d")
-            .map_err(|_| ApiError::BadRequest("Invalid invoice date. Use YYYY-MM-DD".to_string()))?;
+        let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d").map_err(|_| {
+            ApiError::BadRequest("Invalid invoice date. Use YYYY-MM-DD".to_string())
+        })?;
         query_builder = query_builder.bind(parsed);
     }
     if let Some(ref v) = request.due_date {
@@ -1024,8 +1067,9 @@ pub async fn update_customer_ledger_handler(
         query_builder = query_builder.bind(v);
     }
     if let Some(ref v) = request.invoice_date {
-        let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d")
-            .map_err(|_| ApiError::BadRequest("Invalid invoice date. Use YYYY-MM-DD".to_string()))?;
+        let parsed = NaiveDate::parse_from_str(v, "%Y-%m-%d").map_err(|_| {
+            ApiError::BadRequest("Invalid invoice date. Use YYYY-MM-DD".to_string())
+        })?;
         query_builder = query_builder.bind(parsed);
     }
     if let Some(ref v) = request.due_date {

@@ -39,6 +39,17 @@ pub struct BookingStats {
     pub checked_in: i64,
     pub confirmed: i64,
     pub today_check_ins: i64,
+    pub today_check_outs: i64,
+    pub pending: i64,
+    pub active: i64,
+    pub total_revenue: f64,
+    pub revenue_last_7_days: Vec<BookingRevenuePoint>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BookingRevenuePoint {
+    pub date: NaiveDate,
+    pub revenue: f64,
 }
 
 /// Paginated response wrapper.

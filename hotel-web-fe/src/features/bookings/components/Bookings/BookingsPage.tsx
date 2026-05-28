@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Box,
   Typography,
@@ -65,6 +66,8 @@ import {
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
 import { HotelAPIService } from '../../../../api';
+import { queryStaleTime } from '../../../../api/queryConfig';
+import { queryKeys } from '../../../../api/queryKeys';
 
 import { BookingTimelineEntry, BookingWithDetails, PaymentWorkflowSummary, Room, Guest, RoomType } from '../../../../types';
 import { getBookingStatusColor, getBookingStatusText, getPaymentStatusColor, getPaymentStatusText } from '../../../../utils/bookingUtils';
@@ -193,6 +196,7 @@ const getBookedViaText = (booking: Pick<BookingWithDetails, 'source' | 'remarks'
 };
 
 const BookingsPage: React.FC = () => {
+  const queryClient = useQueryClient();
   const { hasRole, hasPermission } = useAuth();
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const PAYMENT_METHODS = getHotelSettings().payment_methods;
@@ -367,7 +371,11 @@ const BookingsPage: React.FC = () => {
     setEditFormData(formData);
 
     // Load room type config for extra bed settings
-    HotelAPIService.getAllRoomTypes().then(roomTypes => {
+    queryClient.ensureQueryData({
+      queryKey: queryKeys.roomTypes.list(),
+      queryFn: () => HotelAPIService.getAllRoomTypes(),
+      staleTime: queryStaleTime.long,
+    }).then(roomTypes => {
       const matched = roomTypes.find(rt => rt.name === booking.room_type);
       setEditRoomTypeConfig(matched || null);
     }).catch(() => setEditRoomTypeConfig(null));
@@ -378,7 +386,11 @@ const BookingsPage: React.FC = () => {
       const checkIn = booking.check_in_date.split('T')[0];
       const checkOut = booking.check_out_date.split('T')[0];
       const bookingId = typeof booking.id === 'string' ? parseInt(booking.id, 10) : booking.id;
-      HotelAPIService.getAvailableRoomsForDates(checkIn, checkOut, bookingId).then(available => {
+      queryClient.ensureQueryData({
+        queryKey: queryKeys.rooms.available(checkIn, checkOut, bookingId),
+        queryFn: () => HotelAPIService.getAvailableRoomsForDates(checkIn, checkOut, bookingId),
+        staleTime: queryStaleTime.short,
+      }).then(available => {
         setAvailableRooms(sortRoomsByNumber(available));
       }).catch(() => {
         // Fallback: show all rooms
@@ -397,12 +409,16 @@ const BookingsPage: React.FC = () => {
     if (!isNotCheckedIn) return;
 
     const bookingId = typeof editingBooking.id === 'string' ? parseInt(editingBooking.id, 10) : editingBooking.id;
-    HotelAPIService.getAvailableRoomsForDates(editFormData.check_in_date, editFormData.check_out_date, bookingId).then(available => {
+    queryClient.ensureQueryData({
+      queryKey: queryKeys.rooms.available(editFormData.check_in_date, editFormData.check_out_date, bookingId),
+      queryFn: () => HotelAPIService.getAvailableRoomsForDates(editFormData.check_in_date, editFormData.check_out_date, bookingId),
+      staleTime: queryStaleTime.short,
+    }).then(available => {
       setAvailableRooms(sortRoomsByNumber(available));
     }).catch(() => {
       setAvailableRooms(sortRoomsByNumber(rooms));
     });
-  }, [editFormData.check_in_date, editFormData.check_out_date]);
+  }, [editDialogOpen, editingBooking, editFormData.check_in_date, editFormData.check_out_date, queryClient, rooms]);
 
   const handleUpdateBooking = async () => {
     if (!editingBooking) return;

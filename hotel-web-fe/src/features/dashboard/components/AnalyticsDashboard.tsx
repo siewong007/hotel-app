@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React from 'react';
 import {
   Grid,
   Card,
@@ -31,9 +31,9 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import { HotelAPIService } from '../../../api';
 import { StatCard } from '../../../components/common/StatCard';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { useDashboardAnalytics } from '../hooks/useDashboardAnalytics';
 
 // Color palette
 const COLORS = {
@@ -93,169 +93,19 @@ const OccupancyGauge = ({ occupancyRate }: { occupancyRate: number }) => {
   );
 };
 
-interface RoomStats {
-  totalRooms: number;
-  availableRooms: number;
-  occupiedRooms: number;
-  reservedRooms: number;
-  maintenanceRooms: number;
-  cleaningRooms: number;
-}
-
-interface BookingStats {
-  totalBookings: number;
-  todayCheckIns: number;
-  todayCheckOuts: number;
-  pendingBookings: number;
-}
-
-interface RoomTypeStats {
-  name: string;
-  count: number;
-  occupied: number;
-  available: number;
-}
-
 const AnalyticsDashboard: React.FC = () => {
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [roomStats, setRoomStats] = useState<RoomStats>({
-    totalRooms: 0,
-    availableRooms: 0,
-    occupiedRooms: 0,
-    reservedRooms: 0,
-    maintenanceRooms: 0,
-    cleaningRooms: 0,
-  });
-  const [bookingStats, setBookingStats] = useState<BookingStats>({
-    totalBookings: 0,
-    todayCheckIns: 0,
-    todayCheckOuts: 0,
-    pendingBookings: 0,
-  });
-  const [roomTypeStats, setRoomTypeStats] = useState<RoomTypeStats[]>([]);
-  const [totalGuests, setTotalGuests] = useState(0);
-  const [revenueData, setRevenueData] = useState<{ name: string; revenue: number }[]>([]);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [rooms, bookings, guests, roomTypes] = await Promise.all([
-        HotelAPIService.getAllRooms(),
-        HotelAPIService.getAllBookings(),
-        HotelAPIService.getAllGuests(),
-        HotelAPIService.getRoomTypes(),
-      ]);
-
-      // Calculate room stats
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      // Get current bookings for each room
-      const currentBookings = bookings.filter((b: any) => {
-        const checkIn = new Date(b.check_in_date);
-        const checkOut = new Date(b.check_out_date);
-        checkIn.setHours(0, 0, 0, 0);
-        checkOut.setHours(0, 0, 0, 0);
-        return b.status === 'checked_in' || (b.status === 'confirmed' && checkIn <= today && checkOut > today);
-      });
-
-      const occupiedRoomNumbers = new Set(currentBookings.map((b: any) => b.room_number));
-
-      // Get reserved bookings for today
-      const reservedBookings = bookings.filter((b: any) => {
-        const checkIn = new Date(b.check_in_date);
-        checkIn.setHours(0, 0, 0, 0);
-        return b.status === 'confirmed' && checkIn.getTime() === today.getTime();
-      });
-      const reservedRoomNumbers = new Set(reservedBookings.map((b: any) => b.room_number));
-
-      let available = 0, occupied = 0, reserved = 0, maintenance = 0, cleaning = 0;
-
-      rooms.forEach((room: any) => {
-        if (room.status === 'maintenance') {
-          maintenance++;
-        } else if (room.status === 'cleaning' || room.status === 'dirty') {
-          cleaning++;
-        } else if (occupiedRoomNumbers.has(room.room_number)) {
-          occupied++;
-        } else if (reservedRoomNumbers.has(room.room_number)) {
-          reserved++;
-        } else {
-          available++;
-        }
-      });
-
-      setRoomStats({
-        totalRooms: rooms.length,
-        availableRooms: available,
-        occupiedRooms: occupied,
-        reservedRooms: reserved,
-        maintenanceRooms: maintenance,
-        cleaningRooms: cleaning,
-      });
-
-      // Calculate booking stats
-      const todayCheckIns = bookings.filter((b: any) => {
-        const checkIn = new Date(b.check_in_date);
-        checkIn.setHours(0, 0, 0, 0);
-        return checkIn.getTime() === today.getTime() && b.status !== 'voided';
-      }).length;
-
-      const todayCheckOuts = bookings.filter((b: any) => {
-        const checkOut = new Date(b.check_out_date);
-        checkOut.setHours(0, 0, 0, 0);
-        return checkOut.getTime() === today.getTime() && (b.status === 'checked_in' || b.status === 'completed');
-      }).length;
-
-      const pendingBookings = bookings.filter((b: any) => b.status === 'pending' || b.status === 'confirmed').length;
-
-      setBookingStats({
-        totalBookings: bookings.length,
-        todayCheckIns,
-        todayCheckOuts,
-        pendingBookings,
-      });
-
-      // Calculate room type stats
-      const typeStats: RoomTypeStats[] = roomTypes.map((rt: any) => {
-        const roomsOfType = rooms.filter((r: any) => r.room_type === rt.name);
-        const occupiedOfType = roomsOfType.filter((r: any) => occupiedRoomNumbers.has(r.room_number)).length;
-        return {
-          name: rt.name,
-          count: roomsOfType.length,
-          occupied: occupiedOfType,
-          available: roomsOfType.length - occupiedOfType,
-        };
-      }).filter((rt: RoomTypeStats) => rt.count > 0);
-
-      setRoomTypeStats(typeStats);
-      setTotalGuests(guests.length);
-
-      // Generate mock revenue data for the last 7 days
-      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const mockRevenue: { name: string; revenue: number }[] = [];
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        mockRevenue.push({
-          name: days[date.getDay()],
-          revenue: Math.floor(Math.random() * 5000) + 2000,
-        });
-      }
-      setRevenueData(mockRevenue);
-
-      setLoading(false);
-    } catch (err) {
-      setError('Failed to load analytics data');
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, []);
+  const {
+    data: {
+      roomStats,
+      bookingStats,
+      roomTypeStats,
+      totalGuests,
+      revenueData,
+    },
+    loading,
+    error,
+  } = useDashboardAnalytics();
 
   if (error) {
     return (

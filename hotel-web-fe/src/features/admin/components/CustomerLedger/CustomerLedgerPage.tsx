@@ -7,6 +7,7 @@ import {
   TableCell,
   TableContainer,
   TableHead,
+  TablePagination,
   TableRow,
   Paper,
   Card,
@@ -89,7 +90,7 @@ import { useCurrency } from '../../../../hooks/useCurrency';
 import { getHotelSettings, HotelSettings } from '../../../../utils/hotelSettings';
 import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
 import { enhanceBookingDetails } from '../../../../utils/bookingUtils';
-import { useLedgers } from '../../hooks/useLedgers';
+import { useLedgers, useLedgersPage } from '../../hooks/useLedgers';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
 
 // Extracted modules
@@ -299,6 +300,8 @@ const CustomerLedgerPage: React.FC = () => {
   const [detailTab, setDetailTab] = useState<'entries' | 'info'>('entries');
   const [entriesSearch, setEntriesSearch] = useState('');
   const [entriesStatusFilter, setEntriesStatusFilter] = useState<EntryStatusFilter>('all');
+  const [entriesPage, setEntriesPage] = useState(0);
+  const [entriesPageSize, setEntriesPageSize] = useState(25);
   const [createMenuAnchor, setCreateMenuAnchor] = useState<null | HTMLElement>(null);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [possibleDuplicateLedger, setPossibleDuplicateLedger] = useState<CustomerLedger | null>(null);
@@ -1894,32 +1897,41 @@ const CustomerLedgerPage: React.FC = () => {
     return ledgers.filter(l => l.company_name === activeCompany.company_name);
   }, [ledgers, activeCompany]);
 
+  const activeLedgerPageParams = useMemo(() => {
+    if (!activeCompany) return undefined;
+
+    const params: Parameters<typeof HotelAPIService.getLedgersPage>[0] = {
+      company_name: activeCompany.company_name,
+      page: entriesPage + 1,
+      page_size: entriesPageSize,
+      sort_by: 'created_at',
+      sort_order: 'desc',
+    };
+    const q = entriesSearch.trim();
+    if (q) params.search = q;
+
+    if (entriesStatusFilter === 'uninvoiced') params.invoice_state = 'uninvoiced';
+    else if (entriesStatusFilter === 'outstanding') params.balance_state = 'outstanding';
+    else if (entriesStatusFilter === 'invoiced') params.invoice_state = 'invoiced';
+    else if (entriesStatusFilter !== 'all') params.ui_status = entriesStatusFilter;
+
+    return params;
+  }, [activeCompany, entriesPage, entriesPageSize, entriesSearch, entriesStatusFilter]);
+
+  const activeLedgerPageQuery = useLedgersPage(activeLedgerPageParams, Boolean(activeCompany));
+
+  useEffect(() => {
+    setEntriesPage(0);
+  }, [activeCompany?.company_name, entriesSearch, entriesStatusFilter]);
+
   // Ledger entries for the selected company, filtered by search + status
   const activeCompanyEntries = useMemo(() => {
     if (!activeCompany) return [] as CustomerLedger[];
-    const q = entriesSearch.trim().toLowerCase();
-    return activeCompanyAllEntries
-      .filter(l => {
-        if (entriesStatusFilter === 'all') return true;
-        const uiStatus = getLedgerUiStatus(l);
-        const balance = asMoney(l.balance_due);
-        if (entriesStatusFilter === 'uninvoiced') return !l.invoice_number && !isLedgerVoided(l);
-        if (entriesStatusFilter === 'outstanding') return balance > 0 && !isLedgerVoided(l);
-        if (entriesStatusFilter === 'invoiced') return Boolean(l.invoice_number) && !isLedgerVoided(l);
-        if (entriesStatusFilter === 'paid') return uiStatus === 'paid';
-        if (entriesStatusFilter === 'overdue') return uiStatus === 'overdue';
-        if (entriesStatusFilter === 'voided') return uiStatus === 'voided';
-        return true;
-      })
-      .filter(l => {
-        if (!q) return true;
-        return (
-          l.description.toLowerCase().includes(q) ||
-          (l.invoice_number || '').toLowerCase().includes(q) ||
-          (l.folio_number || '').toLowerCase().includes(q)
-        );
-      });
-  }, [activeCompany, activeCompanyAllEntries, entriesSearch, entriesStatusFilter]);
+    return activeLedgerPageQuery.data?.data ?? [];
+  }, [activeCompany, activeLedgerPageQuery.data]);
+
+  const activeCompanyEntriesTotal = activeLedgerPageQuery.data?.total ?? 0;
+  const activeCompanyEntriesLoading = activeLedgerPageQuery.isLoading || activeLedgerPageQuery.isFetching;
 
   const paidEntriesCount = useMemo(
     () =>
@@ -3139,7 +3151,15 @@ const CustomerLedgerPage: React.FC = () => {
                     </Box>
                   </Box>
 
-                  {activeCompanyEntries.length === 0 ? (
+                  {activeCompanyEntriesLoading && (
+                    <LinearProgress sx={{ height: 2 }} />
+                  )}
+
+                  {activeCompanyEntries.length === 0 && activeCompanyEntriesLoading ? (
+                    <Box sx={{ py: 8, px: 4, textAlign: 'center' }}>
+                      <CircularProgress size={28} />
+                    </Box>
+                  ) : activeCompanyEntries.length === 0 ? (
                     <Box sx={{ py: 8, px: 4, textAlign: 'center' }}>
                       <Typography variant="body2" color="text.secondary">
                         {activeAgg.count === 0
@@ -3317,6 +3337,19 @@ const CustomerLedgerPage: React.FC = () => {
                           })}
                         </TableBody>
                       </Table>
+                      <TablePagination
+                        component="div"
+                        count={activeCompanyEntriesTotal}
+                        page={entriesPage}
+                        onPageChange={(_, page) => setEntriesPage(page)}
+                        rowsPerPage={entriesPageSize}
+                        rowsPerPageOptions={[10, 25, 50, 100]}
+                        onRowsPerPageChange={(event) => {
+                          setEntriesPageSize(parseInt(event.target.value, 10));
+                          setEntriesPage(0);
+                        }}
+                        labelRowsPerPage="Entries per page"
+                      />
                     </TableContainer>
                   )}
                 </>

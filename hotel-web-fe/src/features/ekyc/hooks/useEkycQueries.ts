@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import { EkycService } from '../../../api/ekyc.service';
 
@@ -6,6 +7,7 @@ export function useEkycStatus() {
   return useQuery({
     queryKey: queryKeys.ekyc.myStatus(),
     queryFn: () => EkycService.getEkycStatus(),
+    staleTime: queryStaleTime.standard,
   });
 }
 
@@ -13,6 +15,7 @@ export function useEkycVerificationDetails() {
   return useQuery({
     queryKey: queryKeys.ekyc.myVerification(),
     queryFn: () => EkycService.getEkycVerificationDetails(),
+    staleTime: queryStaleTime.standard,
   });
 }
 
@@ -20,6 +23,7 @@ export function useAllEkycVerifications() {
   return useQuery({
     queryKey: queryKeys.ekyc.allVerifications(),
     queryFn: () => EkycService.getAllEkycVerifications(),
+    staleTime: queryStaleTime.short,
   });
 }
 

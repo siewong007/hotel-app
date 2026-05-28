@@ -1,5 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { queryStaleTime } from '../../../api/queryConfig';
+import { queryKeys } from '../../../api/queryKeys';
 import {
   Dialog,
   DialogTitle,
@@ -35,9 +37,10 @@ interface InvoiceModalProps {
 
 const InvoiceModal: React.FC<InvoiceModalProps> = ({ open, onClose, bookingId }) => {
   const invoiceQuery = useQuery({
-    queryKey: ['invoices', 'preview', bookingId] as const,
+    queryKey: queryKeys.invoices.preview(bookingId),
     queryFn: () => HotelAPIService.getInvoicePreview(bookingId),
     enabled: open && Boolean(bookingId),
+    staleTime: queryStaleTime.short,
   });
   const loading = invoiceQuery.isLoading;
   const error = invoiceQuery.error ? (invoiceQuery.error as Error).message || 'Failed to load invoice' : null;

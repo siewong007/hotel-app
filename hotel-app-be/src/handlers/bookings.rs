@@ -19,7 +19,7 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use chrono::NaiveDate;
+use chrono::{Duration, NaiveDate};
 use rust_decimal::Decimal;
 use sqlx::Row;
 
@@ -466,6 +466,40 @@ pub async fn get_bookings_handler(
     }))
 }
 
+fn decimal_to_f64(value: Decimal) -> f64 {
+    value.to_string().parse::<f64>().unwrap_or(0.0)
+}
+
+async fn booking_revenue_for_date(pool: &DbPool, date: NaiveDate) -> Result<f64, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let row = sqlx::query(
+        r#"
+        SELECT COALESCE(SUM(total_amount), 0) AS revenue
+        FROM bookings
+        WHERE status != 'voided' AND date(created_at) = date(?1)
+        "#,
+    )
+    .bind(date.to_string())
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let row = sqlx::query(
+        r#"
+        SELECT COALESCE(SUM(total_amount), 0) AS revenue
+        FROM bookings
+        WHERE status != 'voided' AND created_at::date = $1
+        "#,
+    )
+    .bind(date)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(decimal_to_f64(row_mappers::get_decimal(&row, "revenue")))
+}
+
 pub async fn get_booking_stats_handler(
     State(pool): State<DbPool>,
 ) -> Result<Json<BookingStats>, ApiError> {
@@ -498,11 +532,55 @@ pub async fn get_booking_stats_handler(
         "SELECT COUNT(*) FROM bookings WHERE status IN ('pending', 'confirmed') AND check_in_date::date = $1"
     ).bind(today).fetch_one(&pool).await.unwrap_or(0);
 
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let today_check_outs: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bookings WHERE status IN ('checked_in', 'auto_checked_in', 'checked_out', 'completed') AND date(check_out_date) = ?"
+    ).bind(today).fetch_one(&pool).await.unwrap_or(0);
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let today_check_outs: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bookings WHERE status IN ('checked_in', 'auto_checked_in', 'checked_out', 'completed') AND check_out_date::date = $1"
+    ).bind(today).fetch_one(&pool).await.unwrap_or(0);
+
+    let pending: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bookings WHERE status IN ('pending', 'confirmed')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
+
+    let active: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM bookings WHERE status IN ('pending', 'confirmed', 'checked_in', 'auto_checked_in')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap_or(0);
+
+    let total_revenue = sqlx::query(
+        "SELECT COALESCE(SUM(total_amount), 0) AS revenue FROM bookings WHERE status != 'voided'",
+    )
+    .fetch_one(&pool)
+    .await
+    .map(|row| decimal_to_f64(row_mappers::get_decimal(&row, "revenue")))
+    .unwrap_or(0.0);
+
+    let mut revenue_last_7_days = Vec::with_capacity(7);
+    for days_ago in (0..7).rev() {
+        let date = today - Duration::days(days_ago);
+        let revenue = booking_revenue_for_date(&pool, date).await.unwrap_or(0.0);
+        revenue_last_7_days.push(BookingRevenuePoint { date, revenue });
+    }
+
     Ok(Json(BookingStats {
         total,
         checked_in,
         confirmed,
         today_check_ins,
+        today_check_outs,
+        pending,
+        active,
+        total_revenue,
+        revenue_last_7_days,
     }))
 }
 
@@ -1009,15 +1087,17 @@ pub async fn update_booking_handler(
         .clone();
 
     let check_in = if let Some(ref date_str) = input.check_in_date {
-        parse_date_flexible(date_str)
-            .map_err(|_| ApiError::BadRequest("Invalid check-in date. Use YYYY-MM-DD".to_string()))?
+        parse_date_flexible(date_str).map_err(|_| {
+            ApiError::BadRequest("Invalid check-in date. Use YYYY-MM-DD".to_string())
+        })?
     } else {
         existing_booking.check_in_date
     };
 
     let check_out = if let Some(ref date_str) = input.check_out_date {
-        parse_date_flexible(date_str)
-            .map_err(|_| ApiError::BadRequest("Invalid check-out date. Use YYYY-MM-DD".to_string()))?
+        parse_date_flexible(date_str).map_err(|_| {
+            ApiError::BadRequest("Invalid check-out date. Use YYYY-MM-DD".to_string())
+        })?
     } else {
         existing_booking.check_out_date
     };

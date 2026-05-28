@@ -1,10 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { BookingWithDetails } from '../../../types';
 import { HotelAPIService } from '../../../api';
 import { InvoicesService } from '../../../api/invoices.service';
+import { queryStaleTime } from '../../../api/queryConfig';
+import { queryKeys } from '../../../api/queryKeys';
 import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
 
 export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open: boolean) {
+  const queryClient = useQueryClient();
   const [hotelSettings, setHotelSettings] = useState<HotelSettings>(getHotelSettings());
   const [roomPrice, setRoomPrice] = useState(0);
   const [guestCompanyName, setGuestCompanyName] = useState('');
@@ -18,7 +22,11 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
   const reloadPayments = useCallback(async () => {
     if (!booking) return;
     try {
-      const existing = await InvoicesService.getBookingPayments(booking.id);
+      const existing = await queryClient.fetchQuery({
+        queryKey: queryKeys.invoices.payments(booking.id),
+        queryFn: () => InvoicesService.getBookingPayments(booking.id),
+        staleTime: 0,
+      });
       setPayments(existing || []);
       const hasRefund = (existing || []).some(
         (p: any) => p.payment_status === 'refunded' && p.notes === 'Keycard deposit refund'
@@ -27,7 +35,7 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
     } catch {
       setPayments([]);
     }
-  }, [booking]);
+  }, [booking, queryClient]);
 
   useEffect(() => {
     if (!open || !booking) return;
@@ -36,7 +44,11 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
     setHotelSettings(settings);
 
     // Fetch room price
-    HotelAPIService.getAllRooms().then(rooms => {
+    queryClient.ensureQueryData({
+      queryKey: queryKeys.rooms.all,
+      queryFn: () => HotelAPIService.getAllRooms(),
+      staleTime: queryStaleTime.standard,
+    }).then(rooms => {
       const room = rooms.find(r => r.id.toString() === booking.room_id.toString());
       if (room) {
         const price = typeof room.price_per_night === 'string'
@@ -49,7 +61,11 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
     }).catch(() => setRoomPrice(0));
 
     // Fetch guest info
-    HotelAPIService.getAllGuests().then(guests => {
+    queryClient.ensureQueryData({
+      queryKey: queryKeys.guests.list(),
+      queryFn: () => HotelAPIService.getAllGuests(),
+      staleTime: queryStaleTime.standard,
+    }).then(guests => {
       const guest = guests.find(g => String(g.id) === String(booking.guest_id));
       if (guest) {
         setGuestCompanyName(guest.company_name || '');
@@ -102,7 +118,7 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
 
     // Load payments
     reloadPayments();
-  }, [open, booking]);
+  }, [open, booking, queryClient, reloadPayments]);
 
   // Listen for hotel settings changes
   useEffect(() => {

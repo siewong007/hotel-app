@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import { HotelAPIService } from '../../../api';
 
@@ -6,6 +7,7 @@ export function useTwoFactorStatus() {
   return useQuery({
     queryKey: queryKeys.twoFactor.status(),
     queryFn: () => HotelAPIService.getTwoFactorStatus(),
+    staleTime: queryStaleTime.standard,
   });
 }
 

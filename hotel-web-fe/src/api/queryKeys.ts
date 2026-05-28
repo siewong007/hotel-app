@@ -17,6 +17,12 @@ const rbac = ['rbac'] as const;
 const complimentary = ['complimentary'] as const;
 const personalizedReports = ['personalized-reports'] as const;
 const twoFactor = ['two-factor'] as const;
+const loyalty = ['loyalty'] as const;
+const analytics = ['analytics'] as const;
+const reports = ['reports'] as const;
+const dashboard = ['dashboard'] as const;
+const ledgers = ['ledgers'] as const;
+const invoices = ['invoices'] as const;
 
 const paramsOrEmpty = <T extends KeyParams | AuditLogQuery | undefined>(params: T) => params ?? {};
 
@@ -102,9 +108,11 @@ export const queryKeys = {
   },
   rbac: {
     all: rbac,
+    snapshot: () => [...rbac, 'snapshot'] as const,
     roles: () => [...rbac, 'roles'] as const,
     permissions: () => [...rbac, 'permissions'] as const,
     users: () => [...rbac, 'users'] as const,
+    user: (userId: string | number) => [...rbac, 'users', String(userId)] as const,
     rolePermissions: (roleId: string | number) => [...rbac, 'role-permissions', String(roleId)] as const,
   },
   complimentary: {
@@ -118,5 +126,39 @@ export const queryKeys = {
   twoFactor: {
     all: twoFactor,
     status: () => [...twoFactor, 'status'] as const,
+  },
+  loyalty: {
+    all: loyalty,
+    statistics: () => [...loyalty, 'statistics'] as const,
+    rewards: () => [...loyalty, 'rewards'] as const,
+    myRewards: () => [...loyalty, 'my-rewards'] as const,
+    myMembership: () => [...loyalty, 'my-membership'] as const,
+  },
+  analytics: {
+    all: analytics,
+    occupancy: () => [...analytics, 'occupancy'] as const,
+    bookings: () => [...analytics, 'bookings'] as const,
+    benchmark: () => [...analytics, 'benchmark'] as const,
+    personalized: (period?: string) => [...analytics, 'personalized', period ?? 'default'] as const,
+  },
+  reports: {
+    all: reports,
+    generated: (params?: KeyParams) => [...reports, 'generated', paramsOrEmpty(params)] as const,
+    companyList: (startDate: string, endDate: string) => [...reports, 'company-list', startDate, endDate] as const,
+  },
+  dashboard: {
+    all: dashboard,
+    analytics: () => [...dashboard, 'analytics'] as const,
+  },
+  ledgers: {
+    all: ledgers,
+    list: (params?: KeyParams) => [...ledgers, 'list', paramsOrEmpty(params)] as const,
+    detail: (id: string | number) => [...ledgers, 'detail', String(id)] as const,
+    payments: (id: string | number) => [...ledgers, 'payments', String(id)] as const,
+  },
+  invoices: {
+    all: invoices,
+    preview: (bookingId: string | number) => [...invoices, 'preview', String(bookingId)] as const,
+    payments: (bookingId: string | number) => [...invoices, 'payments', String(bookingId)] as const,
   },
 } as const;

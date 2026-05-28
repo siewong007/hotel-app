@@ -1,21 +1,16 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { NightAuditService } from '../../../api';
+import { queryStaleTime } from '../../../api/queryConfig';
+import { invalidateNightAuditDependencies } from '../../../api/queryInvalidation';
 import { queryKeys } from '../../../api/queryKeys';
 import type { RunNightAuditRequest } from '../../../types';
-
-const invalidateNightAuditDependencies = (queryClient: ReturnType<typeof useQueryClient>) => {
-  queryClient.invalidateQueries({ queryKey: queryKeys.nightAudit.all });
-  queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
-  queryClient.invalidateQueries({ queryKey: queryKeys.rooms.all });
-  queryClient.invalidateQueries({ queryKey: queryKeys.audit.all });
-};
 
 export function useNightAuditPreview(date: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.nightAudit.preview(date),
     queryFn: () => NightAuditService.getPreview(date),
     enabled: enabled && !!date,
-    staleTime: 15_000,
+    staleTime: queryStaleTime.realtime,
   });
 }
 
@@ -25,7 +20,7 @@ export function useNightAuditRuns(page = 1, pageSize = 30, enabled = true) {
     queryFn: () => NightAuditService.listNightAudits(page, pageSize),
     enabled,
     placeholderData: keepPreviousData,
-    staleTime: 30_000,
+    staleTime: queryStaleTime.short,
   });
 }
 
@@ -34,7 +29,7 @@ export function useNightAuditRun(id?: number | null, enabled = true) {
     queryKey: queryKeys.nightAudit.detail(id ?? ''),
     queryFn: () => NightAuditService.getNightAudit(id as number),
     enabled: enabled && id != null,
-    staleTime: 60_000,
+    staleTime: queryStaleTime.standard,
   });
 }
 
@@ -43,7 +38,7 @@ export function useNightAuditDetails(id?: number | null, enabled = true) {
     queryKey: queryKeys.nightAudit.details(id ?? ''),
     queryFn: () => NightAuditService.getAuditDetails(id as number),
     enabled: enabled && id != null,
-    staleTime: 60_000,
+    staleTime: queryStaleTime.standard,
   });
 }
 
@@ -52,7 +47,7 @@ export function useBookingPostedStatus(bookingId?: number | null, enabled = true
     queryKey: queryKeys.nightAudit.bookingPosted(bookingId ?? ''),
     queryFn: () => NightAuditService.isBookingPosted(bookingId as number),
     enabled: enabled && bookingId != null,
-    staleTime: 60_000,
+    staleTime: queryStaleTime.standard,
   });
 }
 
@@ -70,6 +65,6 @@ export function useNightAuditDetailsFetcher() {
     queryClient.ensureQueryData({
       queryKey: queryKeys.nightAudit.details(id),
       queryFn: () => NightAuditService.getAuditDetails(id),
-      staleTime: 60_000,
+      staleTime: queryStaleTime.standard,
     });
 }

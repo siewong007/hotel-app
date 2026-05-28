@@ -13,6 +13,35 @@ import {
 import { withRetry } from '../utils/retry';
 import { validateBookingRequest, enhanceBookingDetails } from '../utils/bookingUtils';
 
+export interface BookingRevenuePoint {
+  date: string;
+  revenue: number;
+}
+
+export interface BookingStatsResponse {
+  total: number;
+  checked_in: number;
+  confirmed: number;
+  today_check_ins: number;
+  today_check_outs: number;
+  pending: number;
+  active: number;
+  total_revenue: number;
+  revenue_last_7_days: BookingRevenuePoint[];
+}
+
+const emptyBookingStats: BookingStatsResponse = {
+  total: 0,
+  checked_in: 0,
+  confirmed: 0,
+  today_check_ins: 0,
+  today_check_outs: 0,
+  pending: 0,
+  active: 0,
+  total_revenue: 0,
+  revenue_last_7_days: [],
+};
+
 export class BookingsService {
   static async getAllBookings(filters?: { room_number?: string; company_billed?: boolean }): Promise<Booking[]> {
     try {
@@ -257,14 +286,14 @@ export class BookingsService {
     }
   }
 
-  static async getBookingStats(): Promise<{ total: number; checked_in: number; confirmed: number; today_check_ins: number }> {
+  static async getBookingStats(): Promise<BookingStatsResponse> {
     try {
       return await withRetry(
-        () => api.get('bookings/stats').json<any>(),
+        () => api.get('bookings/stats').json<BookingStatsResponse>(),
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      return { total: 0, checked_in: 0, confirmed: 0, today_check_ins: 0 };
+      return emptyBookingStats;
     }
   }
 

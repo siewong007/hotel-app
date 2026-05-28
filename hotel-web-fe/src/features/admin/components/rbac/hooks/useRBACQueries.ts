@@ -4,6 +4,8 @@ import {
   type CreateRbacUserInput,
   type UpdateRbacUserInput,
 } from '../../../../../api/admin.service';
+import { queryStaleTime } from '../../../../../api/queryConfig';
+import { queryKeys } from '../../../../../api/queryKeys';
 import type {
   PermissionInput,
   RoleInput,
@@ -11,17 +13,9 @@ import type {
   UserRoleIdsInput,
 } from '../../../../../types';
 
-const rbacRootQueryKey = ['rbac'] as const;
-const RBAC_STALE_TIME_MS = 5 * 60_000;
+const RBAC_STALE_TIME_MS = queryStaleTime.long;
 
-export const rbacQueryKeys = {
-  all: rbacRootQueryKey,
-  snapshot: () => [...rbacRootQueryKey, 'snapshot'] as const,
-  roles: () => [...rbacRootQueryKey, 'roles'] as const,
-  permissions: () => [...rbacRootQueryKey, 'permissions'] as const,
-  users: () => [...rbacRootQueryKey, 'users'] as const,
-  user: (userId: string) => [...rbacRootQueryKey, 'users', userId] as const,
-};
+export const rbacQueryKeys = queryKeys.rbac;
 
 function invalidateRbacQueries(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.invalidateQueries({ queryKey: rbacQueryKeys.all });

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { queryStaleTime } from '../api/queryConfig';
 import { SearchService, type SearchGroup } from '../api/search.service';
 import { useDebouncedValue } from './useDebouncedValue';
 
@@ -8,8 +9,6 @@ interface Options {
   /** Skip the network call entirely (e.g. while typing a /command). */
   enabled?: boolean;
 }
-
-const GLOBAL_SEARCH_STALE_TIME_MS = 30_000;
 
 export const globalSearchQueryKeys = {
   all: ['global-search'] as const,
@@ -31,9 +30,9 @@ export function useGlobalSearch(query: string, opts: Options = {}) {
         types,
         limit: 6,
         signal,
-      }),
+    }),
     enabled: canSearch,
-    staleTime: GLOBAL_SEARCH_STALE_TIME_MS,
+    staleTime: queryStaleTime.short,
   });
 
   const isDebouncing = enabled && trimmedQuery.length >= 2 && trimmedQuery !== debouncedQuery;

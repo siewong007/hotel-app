@@ -1,27 +1,28 @@
 import { useCallback, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { HotelAPIService } from '../../../api';
+import { queryStaleTime } from '../../../api/queryConfig';
+import { queryKeys } from '../../../api/queryKeys';
 
-const LEDGERS_STALE_TIME_MS = 60_000;
+export const ledgerQueryKeys = queryKeys.ledgers;
 
-export const ledgerQueryKeys = {
-  all: ['ledgers'] as const,
-  list: () => [...ledgerQueryKeys.all, 'list'] as const,
-};
+type LedgersPageParams = Parameters<typeof HotelAPIService.getLedgersPage>[0];
 
 export function useLedgers() {
+  const queryClient = useQueryClient();
   const [localError, setError] = useState<string | null>(null);
   const ledgersQuery = useQuery({
     queryKey: ledgerQueryKeys.list(),
     queryFn: () => HotelAPIService.getCustomerLedgers(),
-    staleTime: LEDGERS_STALE_TIME_MS,
+    staleTime: queryStaleTime.standard,
   });
   const { refetch } = ledgersQuery;
 
   const reload = useCallback(async () => {
     setError(null);
+    await queryClient.invalidateQueries({ queryKey: ledgerQueryKeys.all });
     await refetch();
-  }, [refetch]);
+  }, [queryClient, refetch]);
 
   const queryError = ledgersQuery.error instanceof Error
     ? ledgersQuery.error.message
@@ -35,4 +36,14 @@ export function useLedgers() {
     reload,
     loadLedgers: reload,
   };
+}
+
+export function useLedgersPage(params?: LedgersPageParams, enabled = true) {
+  return useQuery({
+    queryKey: ledgerQueryKeys.list(params as Record<string, unknown> | undefined),
+    queryFn: () => HotelAPIService.getLedgersPage(params),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: queryStaleTime.short,
+  });
 }

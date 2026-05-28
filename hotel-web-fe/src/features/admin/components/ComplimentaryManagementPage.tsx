@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import {
   Box,
@@ -107,6 +108,7 @@ export default function ComplimentaryManagementPage() {
         roomTypes: (roomTypesData || []) as Array<{ id: number; name: string; code?: string }>,
       };
     },
+    staleTime: queryStaleTime.short,
   });
 
   const bookings = complimentaryQuery.data?.bookings ?? [];
@@ -119,7 +121,11 @@ export default function ComplimentaryManagementPage() {
   const setError = (value: string | null) => {
     if (value === null && queryError) setDismissedError(queryError.message);
   };
-  const loadData = () => queryClient.invalidateQueries({ queryKey: queryKeys.complimentary.all });
+  const loadData = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.complimentary.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.bookings.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.guests.all });
+  };
 
   const creditColumns = useMemo<ColumnDef<GuestCredit, any>[]>(() => [
     {

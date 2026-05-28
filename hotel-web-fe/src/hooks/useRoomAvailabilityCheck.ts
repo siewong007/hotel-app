@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { HotelAPIService } from '../api';
+import { queryStaleTime } from '../api/queryConfig';
+import { queryKeys } from '../api/queryKeys';
 import { useDebouncedValue } from './useDebouncedValue';
 
 interface RoomAvailabilityResult {
@@ -7,12 +9,10 @@ interface RoomAvailabilityResult {
   isChecking: boolean;
 }
 
-const ROOM_AVAILABILITY_STALE_TIME_MS = 30_000;
-
 export const roomAvailabilityQueryKeys = {
-  all: ['rooms', 'availability'] as const,
+  all: queryKeys.rooms.all,
   byDates: (checkInDate: string, checkOutDate: string) =>
-    [...roomAvailabilityQueryKeys.all, checkInDate, checkOutDate] as const,
+    queryKeys.rooms.available(checkInDate, checkOutDate),
 };
 
 export function useRoomAvailabilityCheck(
@@ -33,7 +33,7 @@ export function useRoomAvailabilityCheck(
     queryKey: roomAvailabilityQueryKeys.byDates(debouncedCheckInDate, debouncedCheckOutDate),
     queryFn: () => HotelAPIService.getAvailableRoomsForDates(debouncedCheckInDate, debouncedCheckOutDate),
     enabled: canCheck,
-    staleTime: ROOM_AVAILABILITY_STALE_TIME_MS,
+    staleTime: queryStaleTime.short,
   });
 
   const isDebouncing =
