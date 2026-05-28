@@ -9,6 +9,7 @@
 use rand::RngCore;
 use std::path::{Path, PathBuf};
 use std::process::{Output, Stdio};
+use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tokio::time::sleep;
@@ -31,8 +32,10 @@ const PATH_SEP: &str = ":";
 const POSTGRES_PORT: u16 = 5433; // Use non-standard port to avoid conflicts
 const POSTGRES_USER: &str = "hotel_admin";
 const POSTGRES_DB: &str = "hotel_management";
-const BUNDLED_POSTGRES_MAJOR_VERSION: &str = "18";
+const CONFIGURED_POSTGRES_MAJOR_VERSION: &str = "18";
 const MAX_STARTUP_WAIT_SECS: u64 = 30;
+
+static BUNDLED_POSTGRES_MAJOR_VERSION: OnceLock<String> = OnceLock::new();
 
 /// Error types for PostgreSQL operations
 #[derive(Debug, thiserror::Error)]
@@ -55,13 +58,13 @@ pub enum PostgresError {
     #[error(
         "PostgreSQL data directory version {found} is incompatible with bundled PostgreSQL {expected}. Close any running desktop database process and restart the desktop app; the old data directory will be preserved before a fresh database is initialized."
     )]
-    IncompatibleDataDirectory {
-        found: String,
-        expected: &'static str,
-    },
+    IncompatibleDataDirectory { found: String, expected: String },
 
     #[error("Failed to preserve incompatible PostgreSQL data directory {source_path}: {reason}")]
     PreserveIncompatibleDataDirectoryFailed { source_path: String, reason: String },
+
+    #[error("Failed to detect bundled PostgreSQL version: {0}")]
+    VersionDetectionFailed(String),
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
@@ -106,18 +109,135 @@ fn read_pgdata_version() -> Result<Option<String>, std::io::Error> {
     ))
 }
 
-fn ensure_pgdata_version_compatible() -> Result<(), PostgresError> {
+fn extract_postgres_major_version(version_text: &str) -> Option<String> {
+    version_text.split_whitespace().find_map(|part| {
+        let major: String = part.chars().take_while(|ch| ch.is_ascii_digit()).collect();
+
+        if major.is_empty() {
+            None
+        } else {
+            Some(major)
+        }
+    })
+}
+
+async fn bundled_binary_version(
+    app_handle: &AppHandle,
+    binary_name: &str,
+) -> Result<(String, String, PathBuf), PostgresError> {
+    let pgsql_bin = get_pgsql_bin_dir(app_handle);
+    let binary_path = pgsql_bin.join(format!("{}{}", binary_name, EXE_SUFFIX));
+
+    if !binary_path.exists() {
+        return Err(PostgresError::BinaryNotFound(
+            binary_path.to_string_lossy().to_string(),
+        ));
+    }
+
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!(
+        "{}{}{}",
+        pgsql_bin.to_string_lossy(),
+        PATH_SEP,
+        current_path
+    );
+
+    let mut cmd = tokio::process::Command::new(&binary_path);
+    cmd.arg("--version")
+        .env("PATH", &new_path)
+        .current_dir(&pgsql_bin)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().await?;
+
+    if !output.status.success() {
+        let details = command_output_details(&format!("{} --version", binary_name), &output);
+        log::error!(
+            "Failed to detect bundled PostgreSQL version from {:?}: {}",
+            binary_path,
+            details
+        );
+        return Err(PostgresError::VersionDetectionFailed(details));
+    }
+
+    let stdout = trimmed_lossy(&output.stdout);
+    let stderr = trimmed_lossy(&output.stderr);
+    let version_text = if stdout == "<empty>" { stderr } else { stdout };
+    let Some(major_version) = extract_postgres_major_version(&version_text) else {
+        let details = format!(
+            "could not parse major version from {:?} output: {}",
+            binary_path, version_text
+        );
+        log::error!("{}", details);
+        return Err(PostgresError::VersionDetectionFailed(details));
+    };
+
+    Ok((major_version, version_text, binary_path))
+}
+
+async fn detect_bundled_postgres_major_version(
+    app_handle: &AppHandle,
+) -> Result<String, PostgresError> {
+    let (postgres_major, postgres_version, postgres_path) =
+        bundled_binary_version(app_handle, "postgres").await?;
+    let (initdb_major, initdb_version, initdb_path) =
+        bundled_binary_version(app_handle, "initdb").await?;
+
+    log::info!(
+        "Bundled PostgreSQL binary {:?} reports: {}",
+        postgres_path,
+        postgres_version
+    );
+    log::info!(
+        "Bundled initdb binary {:?} reports: {}",
+        initdb_path,
+        initdb_version
+    );
+
+    if postgres_major != initdb_major {
+        let details = format!(
+            "bundled PostgreSQL binaries are inconsistent: {:?} reports major {}, but {:?} reports major {}",
+            postgres_path, postgres_major, initdb_path, initdb_major
+        );
+        log::error!("{}", details);
+        return Err(PostgresError::VersionDetectionFailed(details));
+    }
+
+    if postgres_major != CONFIGURED_POSTGRES_MAJOR_VERSION {
+        log::warn!(
+            "Bundled PostgreSQL binary major version {} does not match configured resource major version {}. Using the actual bundled binary version for data-directory compatibility.",
+            postgres_major,
+            CONFIGURED_POSTGRES_MAJOR_VERSION
+        );
+    }
+
+    let _ = BUNDLED_POSTGRES_MAJOR_VERSION.set(postgres_major.clone());
+    Ok(postgres_major)
+}
+
+fn cached_bundled_postgres_major_version() -> String {
+    BUNDLED_POSTGRES_MAJOR_VERSION
+        .get()
+        .cloned()
+        .unwrap_or_else(|| CONFIGURED_POSTGRES_MAJOR_VERSION.to_string())
+}
+
+fn ensure_pgdata_version_compatible(expected_version: &str) -> Result<(), PostgresError> {
     if let Some(found) = read_pgdata_version()? {
-        if found != BUNDLED_POSTGRES_MAJOR_VERSION {
+        if found != expected_version {
             log::error!(
                 "PostgreSQL data directory version {} is incompatible with bundled PostgreSQL {} at {:?}",
                 found,
-                BUNDLED_POSTGRES_MAJOR_VERSION,
+                expected_version,
                 get_pgdata_dir()
             );
             return Err(PostgresError::IncompatibleDataDirectory {
                 found,
-                expected: BUNDLED_POSTGRES_MAJOR_VERSION,
+                expected: expected_version.to_string(),
             });
         }
     }
@@ -189,12 +309,13 @@ fn preserve_incompatible_pgdata(found_version: &str) -> Result<PathBuf, Postgres
 
 async fn preserve_incompatible_pgdata_if_stopped(
     app_handle: &AppHandle,
+    expected_version: &str,
 ) -> Result<(), PostgresError> {
     let Some(found_version) = read_pgdata_version()? else {
         return Ok(());
     };
 
-    if found_version == BUNDLED_POSTGRES_MAJOR_VERSION {
+    if found_version == expected_version {
         return Ok(());
     }
 
@@ -202,12 +323,12 @@ async fn preserve_incompatible_pgdata_if_stopped(
         log::error!(
             "PostgreSQL data directory version {} is incompatible with bundled PostgreSQL {}, but PostgreSQL is still accepting connections on port {}. The data directory will not be archived while the server is running.",
             found_version,
-            BUNDLED_POSTGRES_MAJOR_VERSION,
+            expected_version,
             POSTGRES_PORT
         );
         return Err(PostgresError::IncompatibleDataDirectory {
             found: found_version,
-            expected: BUNDLED_POSTGRES_MAJOR_VERSION,
+            expected: expected_version.to_string(),
         });
     }
 
@@ -216,7 +337,7 @@ async fn preserve_incompatible_pgdata_if_stopped(
         "Preserved incompatible PostgreSQL data directory version {} at {:?}; initializing a fresh PostgreSQL {} data directory",
         found_version,
         archive_path,
-        BUNDLED_POSTGRES_MAJOR_VERSION
+        expected_version
     );
 
     Ok(())
@@ -261,9 +382,12 @@ fn postgres_startup_log_details(log_file: &Path) -> String {
 }
 
 /// Initialize PostgreSQL data directory using initdb
-pub async fn init_postgres_data_dir(app_handle: &AppHandle) -> Result<(), PostgresError> {
+pub async fn init_postgres_data_dir(
+    app_handle: &AppHandle,
+    expected_version: &str,
+) -> Result<(), PostgresError> {
     if is_pgdata_initialized() {
-        ensure_pgdata_version_compatible()?;
+        ensure_pgdata_version_compatible(expected_version)?;
         log::info!("PostgreSQL data directory already initialized");
         return Ok(());
     }
@@ -365,10 +489,13 @@ host    all             all             ::1/128                 trust
 }
 
 /// Start the PostgreSQL server
-pub async fn start_postgres(app_handle: &AppHandle) -> Result<(), PostgresError> {
+pub async fn start_postgres(
+    app_handle: &AppHandle,
+    expected_version: &str,
+) -> Result<(), PostgresError> {
     log::info!("Starting PostgreSQL server...");
 
-    ensure_pgdata_version_compatible()?;
+    ensure_pgdata_version_compatible(expected_version)?;
 
     let pgsql_bin = get_pgsql_bin_dir(app_handle);
     let pg_ctl_path = pgsql_bin.join(format!("pg_ctl{}", EXE_SUFFIX));
@@ -534,7 +661,9 @@ pub async fn is_postgres_running(app_handle: &AppHandle) -> bool {
 
 /// Ensure PostgreSQL is running, starting it if necessary
 pub async fn ensure_postgres_running(app_handle: &AppHandle) -> Result<(), PostgresError> {
-    preserve_incompatible_pgdata_if_stopped(app_handle).await?;
+    let bundled_postgres_major_version = detect_bundled_postgres_major_version(app_handle).await?;
+
+    preserve_incompatible_pgdata_if_stopped(app_handle, &bundled_postgres_major_version).await?;
 
     // Check if already running
     if is_postgres_running(app_handle).await {
@@ -543,10 +672,10 @@ pub async fn ensure_postgres_running(app_handle: &AppHandle) -> Result<(), Postg
     }
 
     // Initialize if needed
-    init_postgres_data_dir(app_handle).await?;
+    init_postgres_data_dir(app_handle, &bundled_postgres_major_version).await?;
 
     // Start the server (this now includes waiting for ready)
-    start_postgres(app_handle).await
+    start_postgres(app_handle, &bundled_postgres_major_version).await
 }
 
 /// Create the hotel_management database if it doesn't exist
@@ -887,6 +1016,7 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
     let running = is_postgres_running(app_handle).await;
     let pgdata = get_pgdata_dir();
     let initialized = is_pgdata_initialized();
+    let bundled_version = cached_bundled_postgres_major_version();
     let data_version = read_pgdata_version()
         .map_err(|err| {
             log::warn!("Failed to read PostgreSQL data directory version: {}", err);
@@ -896,13 +1026,14 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
         .flatten();
     let version_compatible = data_version
         .as_deref()
-        .map_or(true, |version| version == BUNDLED_POSTGRES_MAJOR_VERSION);
+        .map_or(true, |version| version == bundled_version.as_str());
 
     serde_json::json!({
         "running": running,
         "initialized": initialized,
         "data_version": data_version,
-        "bundled_version": BUNDLED_POSTGRES_MAJOR_VERSION,
+        "bundled_version": bundled_version,
+        "configured_bundled_version": CONFIGURED_POSTGRES_MAJOR_VERSION,
         "version_compatible": version_compatible,
         "port": POSTGRES_PORT,
         "user": POSTGRES_USER,
