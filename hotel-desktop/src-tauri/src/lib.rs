@@ -4,14 +4,14 @@
 //! desktop application built with Tauri.
 
 pub mod commands;
+pub mod logging;
 pub mod postgres;
 
 use tauri::{Emitter, Manager};
 
 /// Initialize and run the Tauri application
 pub fn run() {
-    // Initialize logging
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    logging::init_logging();
     log::info!("Starting Hotel Management Desktop Application");
 
     tauri::Builder::default()
