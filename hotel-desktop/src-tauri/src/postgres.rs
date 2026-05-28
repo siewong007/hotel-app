@@ -79,12 +79,9 @@ pub enum PostgresError {
     BinaryNotFound(String),
 
     #[error(
-        "PostgreSQL data directory version {found} is incompatible with bundled PostgreSQL {expected}. Close any running desktop database process and restart the desktop app; the old data directory will be preserved before a fresh database is initialized."
+        "PostgreSQL data directory at this app's data location was created by PostgreSQL {found}, but this build of the app ships PostgreSQL {expected}. Refusing to start so your data is not lost. Recover by either (1) installing a desktop build matching PostgreSQL {found} to read the existing data, (2) running pg_upgrade manually to migrate the data directory from {found} to {expected}, or (3) renaming the data directory aside and letting the app initialize a fresh empty one."
     )]
     IncompatibleDataDirectory { found: String, expected: String },
-
-    #[error("Failed to preserve incompatible PostgreSQL data directory {source_path}: {reason}")]
-    PreserveIncompatibleDataDirectoryFailed { source_path: String, reason: String },
 
     #[error("Failed to detect bundled PostgreSQL version: {0}")]
     VersionDetectionFailed(String),
@@ -268,70 +265,7 @@ fn ensure_pgdata_version_compatible(expected_version: &str) -> Result<(), Postgr
     Ok(())
 }
 
-fn archive_path_for_incompatible_pgdata(pgdata: &Path, found_version: &str) -> PathBuf {
-    let parent = pgdata.parent().unwrap_or_else(|| Path::new("."));
-    let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
-    let sanitized_version: String = found_version
-        .chars()
-        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
-        .collect();
-    let base_name = format!(
-        "pgdata-postgresql-{}-backup-{}",
-        sanitized_version, timestamp
-    );
-    let base_path = parent.join(base_name);
-
-    if !base_path.exists() {
-        return base_path;
-    }
-
-    for index in 1..=100 {
-        let candidate = base_path.with_file_name(format!(
-            "{}-{}",
-            base_path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .unwrap_or("pgdata-postgresql-backup"),
-            index
-        ));
-
-        if !candidate.exists() {
-            return candidate;
-        }
-    }
-
-    base_path.with_file_name(format!(
-        "{}-{}",
-        base_path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("pgdata-postgresql-backup"),
-        rand::random::<u32>()
-    ))
-}
-
-fn preserve_incompatible_pgdata(found_version: &str) -> Result<PathBuf, PostgresError> {
-    let pgdata = get_pgdata_dir();
-    let archive_path = archive_path_for_incompatible_pgdata(&pgdata, found_version);
-
-    std::fs::rename(&pgdata, &archive_path).map_err(|err| {
-        log::error!(
-            "Failed to preserve incompatible PostgreSQL data directory {:?} as {:?}: {}",
-            pgdata,
-            archive_path,
-            err
-        );
-        PostgresError::PreserveIncompatibleDataDirectoryFailed {
-            source_path: pgdata.to_string_lossy().to_string(),
-            reason: err.to_string(),
-        }
-    })?;
-
-    Ok(archive_path)
-}
-
-async fn preserve_incompatible_pgdata_if_stopped(
-    app_handle: &AppHandle,
+async fn refuse_if_pgdata_version_mismatch(
     expected_version: &str,
 ) -> Result<(), PostgresError> {
     let Some(found_version) = read_pgdata_version()? else {
@@ -342,28 +276,16 @@ async fn preserve_incompatible_pgdata_if_stopped(
         return Ok(());
     }
 
-    if is_postgres_running(app_handle).await {
-        log::error!(
-            "PostgreSQL data directory version {} is incompatible with bundled PostgreSQL {}, but PostgreSQL is still accepting connections on port {}. The data directory will not be archived while the server is running.",
-            found_version,
-            expected_version,
-            POSTGRES_PORT
-        );
-        return Err(PostgresError::IncompatibleDataDirectory {
-            found: found_version,
-            expected: expected_version.to_string(),
-        });
-    }
-
-    let archive_path = preserve_incompatible_pgdata(&found_version)?;
-    log::warn!(
-        "Preserved incompatible PostgreSQL data directory version {} at {:?}; initializing a fresh PostgreSQL {} data directory",
+    log::error!(
+        "PostgreSQL data directory at {:?} was created by PostgreSQL {} but bundled PostgreSQL is {}. Refusing to auto-initialize or archive the data directory; the existing data is left untouched on disk.",
+        get_pgdata_dir(),
         found_version,
-        archive_path,
         expected_version
     );
-
-    Ok(())
+    Err(PostgresError::IncompatibleDataDirectory {
+        found: found_version,
+        expected: expected_version.to_string(),
+    })
 }
 
 fn trimmed_lossy(bytes: &[u8]) -> String {
@@ -686,7 +608,7 @@ pub async fn is_postgres_running(app_handle: &AppHandle) -> bool {
 pub async fn ensure_postgres_running(app_handle: &AppHandle) -> Result<(), PostgresError> {
     let bundled_postgres_major_version = detect_bundled_postgres_major_version(app_handle).await?;
 
-    preserve_incompatible_pgdata_if_stopped(app_handle, &bundled_postgres_major_version).await?;
+    refuse_if_pgdata_version_mismatch(&bundled_postgres_major_version).await?;
 
     // Check if already running
     if is_postgres_running(app_handle).await {
