@@ -7,7 +7,7 @@
 //! - Health checks
 
 use rand::RngCore;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
@@ -53,12 +53,15 @@ pub enum PostgresError {
     BinaryNotFound(String),
 
     #[error(
-        "PostgreSQL data directory version {found} is incompatible with bundled PostgreSQL {expected}. Back up and migrate the data directory before starting the desktop app."
+        "PostgreSQL data directory version {found} is incompatible with bundled PostgreSQL {expected}. Close any running desktop database process and restart the desktop app; the old data directory will be preserved before a fresh database is initialized."
     )]
     IncompatibleDataDirectory {
         found: String,
         expected: &'static str,
     },
+
+    #[error("Failed to preserve incompatible PostgreSQL data directory {source_path}: {reason}")]
+    PreserveIncompatibleDataDirectoryFailed { source_path: String, reason: String },
 
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
@@ -112,6 +115,91 @@ fn ensure_pgdata_version_compatible() -> Result<(), PostgresError> {
             });
         }
     }
+
+    Ok(())
+}
+
+fn archive_path_for_incompatible_pgdata(pgdata: &Path, found_version: &str) -> PathBuf {
+    let parent = pgdata.parent().unwrap_or_else(|| Path::new("."));
+    let timestamp = chrono::Local::now().format("%Y%m%d-%H%M%S");
+    let sanitized_version: String = found_version
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
+        .collect();
+    let base_name = format!(
+        "pgdata-postgresql-{}-backup-{}",
+        sanitized_version, timestamp
+    );
+    let base_path = parent.join(base_name);
+
+    if !base_path.exists() {
+        return base_path;
+    }
+
+    for index in 1..=100 {
+        let candidate = base_path.with_file_name(format!(
+            "{}-{}",
+            base_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("pgdata-postgresql-backup"),
+            index
+        ));
+
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+
+    base_path.with_file_name(format!(
+        "{}-{}",
+        base_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("pgdata-postgresql-backup"),
+        rand::random::<u32>()
+    ))
+}
+
+fn preserve_incompatible_pgdata(found_version: &str) -> Result<PathBuf, PostgresError> {
+    let pgdata = get_pgdata_dir();
+    let archive_path = archive_path_for_incompatible_pgdata(&pgdata, found_version);
+
+    std::fs::rename(&pgdata, &archive_path).map_err(|err| {
+        PostgresError::PreserveIncompatibleDataDirectoryFailed {
+            source_path: pgdata.to_string_lossy().to_string(),
+            reason: err.to_string(),
+        }
+    })?;
+
+    Ok(archive_path)
+}
+
+async fn preserve_incompatible_pgdata_if_stopped(
+    app_handle: &AppHandle,
+) -> Result<(), PostgresError> {
+    let Some(found_version) = read_pgdata_version()? else {
+        return Ok(());
+    };
+
+    if found_version == BUNDLED_POSTGRES_MAJOR_VERSION {
+        return Ok(());
+    }
+
+    if is_postgres_running(app_handle).await {
+        return Err(PostgresError::IncompatibleDataDirectory {
+            found: found_version,
+            expected: BUNDLED_POSTGRES_MAJOR_VERSION,
+        });
+    }
+
+    let archive_path = preserve_incompatible_pgdata(&found_version)?;
+    log::warn!(
+        "Preserved incompatible PostgreSQL data directory version {} at {:?}; initializing a fresh PostgreSQL {} data directory",
+        found_version,
+        archive_path,
+        BUNDLED_POSTGRES_MAJOR_VERSION
+    );
 
     Ok(())
 }
@@ -375,6 +463,8 @@ pub async fn is_postgres_running(app_handle: &AppHandle) -> bool {
 
 /// Ensure PostgreSQL is running, starting it if necessary
 pub async fn ensure_postgres_running(app_handle: &AppHandle) -> Result<(), PostgresError> {
+    preserve_incompatible_pgdata_if_stopped(app_handle).await?;
+
     // Check if already running
     if is_postgres_running(app_handle).await {
         log::info!("PostgreSQL is already running");
