@@ -151,9 +151,20 @@ pub fn build_booking_list_query(
          INNER JOIN rooms r ON b.room_id = r.id {}",
         where_clause
     );
+    // Inject a windowed total so the page and its total row count come back in a
+    // single round-trip. COUNT(*) OVER() is evaluated over the full filtered set
+    // (before LIMIT/OFFSET), so every returned row carries the same total; the
+    // caller reads it from the first row and only falls back to `count_sql` when
+    // the page is empty (e.g. an offset past the end). The standalone count_sql
+    // stays cheaper than the data query because it omits the per-row subqueries.
+    let select_with_count = base_query.replacen(
+        "FROM bookings b",
+        ", COUNT(*) OVER() AS total_count FROM bookings b",
+        1,
+    );
     let data_sql = format!(
         "{}{} ORDER BY {} {} LIMIT {} OFFSET {}",
-        base_query, where_clause, sort_col, sort_dir, pagination.page_size, pagination.offset
+        select_with_count, where_clause, sort_col, sort_dir, pagination.page_size, pagination.offset
     );
 
     BookingListQuery {
@@ -321,5 +332,16 @@ mod tests {
                 .data_sql
                 .ends_with("ORDER BY b.created_at DESC LIMIT 50 OFFSET 0")
         );
+    }
+
+    #[test]
+    fn data_query_carries_windowed_total_but_count_query_does_not() {
+        let query = build_booking_list_query(&params(), "SELECT * FROM bookings b ", pagination());
+
+        // The page total rides along on the data rows (single round-trip)...
+        assert!(query.data_sql.contains("COUNT(*) OVER() AS total_count"));
+        // ...and the standalone count (empty-page fallback) stays a plain COUNT.
+        assert!(query.count_sql.contains("SELECT COUNT(*)"));
+        assert!(!query.count_sql.contains("OVER()"));
     }
 }

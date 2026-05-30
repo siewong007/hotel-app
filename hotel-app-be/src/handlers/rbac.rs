@@ -184,6 +184,8 @@ pub async fn assign_role_to_user_handler(
     // Log role assignment (no admin_id available in this handler)
     let _ = AuditLog::log_role_assignment(&pool, 0, input.user_id, input.role_id).await;
 
+    crate::core::rbac_cache::invalidate_all();
+
     Ok(Json(
         serde_json::json!({"message": "Role assigned successfully"}),
     ))
@@ -202,6 +204,8 @@ pub async fn remove_role_from_user_handler(
 
     // Log role removal (no admin_id available in this handler)
     let _ = AuditLog::log_role_removal(&pool, 0, user_id, role_id).await;
+
+    crate::core::rbac_cache::invalidate_all();
 
     Ok(Json(
         serde_json::json!({"message": "Role removed successfully"}),
@@ -225,6 +229,8 @@ pub async fn assign_permission_to_role_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    crate::core::rbac_cache::invalidate_all();
+
     Ok(Json(
         serde_json::json!({"message": "Permission assigned successfully"}),
     ))
@@ -240,6 +246,8 @@ pub async fn remove_permission_from_role_handler(
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    crate::core::rbac_cache::invalidate_all();
 
     Ok(Json(
         serde_json::json!({"message": "Permission removed successfully"}),
@@ -297,6 +305,8 @@ pub async fn replace_role_permissions_handler(
     tx.commit()
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    crate::core::rbac_cache::invalidate_all();
 
     Ok(Json(serde_json::json!({
         "message": "Role permissions replaced successfully",
@@ -370,6 +380,8 @@ pub async fn replace_user_roles_handler(
     for role_id in current.difference(&next) {
         let _ = AuditLog::log_role_removal(&pool, admin_user_id, user_id, *role_id).await;
     }
+
+    crate::core::rbac_cache::invalidate_all();
 
     Ok(Json(serde_json::json!({
         "message": "User roles replaced successfully",
@@ -677,6 +689,8 @@ pub async fn update_role_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    crate::core::rbac_cache::invalidate_all();
+
     Ok(Json(Role {
         id: row.get(0),
         name: row.get(1),
@@ -736,6 +750,8 @@ pub async fn delete_role_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    crate::core::rbac_cache::invalidate_all();
+
     Ok(Json(
         serde_json::json!({"message": "Role deleted successfully"}),
     ))
@@ -781,6 +797,8 @@ pub async fn update_permission_handler(
     .fetch_one(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    crate::core::rbac_cache::invalidate_all();
 
     Ok(Json(Permission {
         id: row.get(0),
@@ -836,6 +854,8 @@ pub async fn delete_permission_handler(
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    crate::core::rbac_cache::invalidate_all();
 
     Ok(Json(
         serde_json::json!({"message": "Permission deleted successfully"}),

@@ -282,58 +282,24 @@ impl AuthService {
         Ok(roles)
     }
 
+    /// Check whether a user holds a permission (or the implied
+    /// `<resource>:manage`). Backed by [`crate::core::rbac_cache`] so the common
+    /// case answers from an in-process cache instead of a per-request join.
     pub async fn check_permission(
         pool: &DbPool,
         user_id: i64,
         permission: &str,
     ) -> Result<bool, sqlx::Error> {
-        let manage_permission = permission
-            .split_once(':')
-            .map(|(resource, _)| format!("{resource}:manage"))
-            .unwrap_or_else(|| permission.to_string());
-
-        let has_permission = sqlx::query_scalar::<_, bool>(
-            r#"
-            SELECT EXISTS(
-                SELECT 1
-                FROM permissions p
-                INNER JOIN role_permissions rp ON p.id = rp.permission_id
-                INNER JOIN user_roles ur ON rp.role_id = ur.role_id
-                WHERE ur.user_id = $1
-                  AND (p.name = $2 OR p.name = $3)
-            )
-            "#,
-        )
-        .bind(user_id)
-        .bind(permission)
-        .bind(manage_permission)
-        .fetch_one(pool)
-        .await?;
-
-        Ok(has_permission)
+        super::rbac_cache::has_permission(pool, user_id, permission).await
     }
 
+    /// Check whether a user holds a role. Backed by the same RBAC cache.
     pub async fn check_role(
         pool: &DbPool,
         user_id: i64,
         role_name: &str,
     ) -> Result<bool, sqlx::Error> {
-        let has_role = sqlx::query_scalar::<_, bool>(
-            r#"
-            SELECT EXISTS(
-                SELECT 1
-                FROM roles r
-                INNER JOIN user_roles ur ON r.id = ur.role_id
-                WHERE ur.user_id = $1 AND r.name = $2
-            )
-            "#,
-        )
-        .bind(user_id)
-        .bind(role_name)
-        .fetch_one(pool)
-        .await?;
-
-        Ok(has_role)
+        super::rbac_cache::has_role(pool, user_id, role_name).await
     }
 
     /// Generate a secure email verification token

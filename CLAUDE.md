@@ -111,6 +111,8 @@ Required env vars (see `hotel-app-be/.env.example`):
 - `HOTEL_DESKTOP_MODE` — any value enables desktop-mode behavior (localhost-only bind, dynamic port)
 - `VITE_API_URL` — frontend production API URL (dev uses the Vite proxy)
 
+Optional pool/cache tuning (all have defaults; read in `core/db.rs::create_pool` and `core/rbac_cache.rs`): `DATABASE_MAX_CONNECTIONS`, `DATABASE_MIN_CONNECTIONS`, `DATABASE_ACQUIRE_TIMEOUT_SECS`, `DATABASE_IDLE_TIMEOUT_SECS`, `DATABASE_MAX_LIFETIME_SECS`, `DATABASE_SLOW_STATEMENT_MS`, `DATABASE_BUSY_TIMEOUT_SECS` (SQLite), `RBAC_CACHE_TTL_SECS`.
+
 ## MCP Servers
 
 `hotel-app-be/README.md` references two MCP servers under `hotel-app-be/mcp-server/` (analytics-server, hotel-search-server) that wrap the REST API for Claude Desktop / Cursor integration. They authenticate via JWT and read from the same backend; no separate database access.

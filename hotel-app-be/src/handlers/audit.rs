@@ -610,3 +610,80 @@ pub async fn get_audit_category_counts(
 
     Ok(Json(counts))
 }
+
+/// Query parameters for the DB statements diagnostics endpoint.
+#[derive(Debug, serde::Deserialize)]
+pub struct DbStatementsQuery {
+    /// Number of top statements to return (default 20, clamped to 1..=200).
+    pub limit: Option<i64>,
+}
+
+/// Admin-only `pg_stat_statements` snapshot: the top statements by total
+/// execution time, so slow queries can be found without shell access to the
+/// database. PostgreSQL-only — returns `{ "available": false }` in SQLite mode
+/// or when the extension is not installed, rather than erroring.
+pub async fn get_db_statements(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Query(params): Query<DbStatementsQuery>,
+) -> Result<Json<Value>, ApiError> {
+    require_permission_helper(&pool, &headers, "audit:read").await?;
+    let limit = params.limit.unwrap_or(20).clamp(1, 200);
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    {
+        let _ = (&pool, limit);
+        Ok(Json(serde_json::json!({
+            "available": false,
+            "reason": "pg_stat_statements is PostgreSQL-only; not available in SQLite mode.",
+            "statements": [],
+        })))
+    }
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    {
+        use sqlx::Row;
+
+        // pg_stat_statements reports times in milliseconds. If the extension is
+        // not installed the query errors with "relation does not exist"; we map
+        // that to a graceful unavailable response instead of a 500.
+        let result = sqlx::query(
+            "SELECT query, calls, total_exec_time, mean_exec_time, rows \
+             FROM pg_stat_statements \
+             ORDER BY total_exec_time DESC \
+             LIMIT $1",
+        )
+        .bind(limit)
+        .fetch_all(&pool)
+        .await;
+
+        match result {
+            Ok(rows) => {
+                let statements: Vec<Value> = rows
+                    .iter()
+                    .map(|r| {
+                        serde_json::json!({
+                            "query": r.try_get::<String, _>("query").unwrap_or_default(),
+                            "calls": r.try_get::<i64, _>("calls").unwrap_or_default(),
+                            "total_exec_time_ms": r.try_get::<f64, _>("total_exec_time").unwrap_or_default(),
+                            "mean_exec_time_ms": r.try_get::<f64, _>("mean_exec_time").unwrap_or_default(),
+                            "rows": r.try_get::<i64, _>("rows").unwrap_or_default(),
+                        })
+                    })
+                    .collect();
+                Ok(Json(serde_json::json!({
+                    "available": true,
+                    "statements": statements,
+                })))
+            }
+            Err(e) => {
+                log::warn!("pg_stat_statements unavailable: {e}");
+                Ok(Json(serde_json::json!({
+                    "available": false,
+                    "reason": "pg_stat_statements is not installed or not accessible on this database.",
+                    "statements": [],
+                })))
+            }
+        }
+    }
+}
