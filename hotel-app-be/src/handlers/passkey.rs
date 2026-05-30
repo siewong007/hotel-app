@@ -547,12 +547,15 @@ pub async fn passkey_register_start_handler(
     sqlx::query(
         r#"
         INSERT INTO passkey_challenges (user_id, challenge, challenge_type, expires_at)
-        VALUES ($1, $2, $3, NOW() + INTERVAL '5 minutes')
+        VALUES ($1, $2, $3, $4)
         "#,
     )
     .bind(user.id)
     .bind(&challenge_bytes[..]) // Bind as bytea
     .bind("registration")
+    // Expiry computed in Rust so the query stays portable across PostgreSQL
+    // and SQLite (no CURRENT_TIMESTAMP + INTERVAL).
+    .bind(chrono::Utc::now() + chrono::Duration::minutes(5))
     .execute(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -588,7 +591,7 @@ pub async fn passkey_register_finish_handler(
 
     let expected_challenge = decode_standard_b64(&req.challenge, "challenge")?;
     let challenge_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM passkey_challenges WHERE user_id = $1 AND challenge = $2 AND challenge_type = 'registration' AND expires_at > NOW() AND used_at IS NULL)"
+        "SELECT EXISTS(SELECT 1 FROM passkey_challenges WHERE user_id = $1 AND challenge = $2 AND challenge_type = 'registration' AND expires_at > CURRENT_TIMESTAMP AND used_at IS NULL)"
     )
     .bind(user.id)
     .bind(&expected_challenge)
@@ -665,7 +668,7 @@ pub async fn passkey_register_finish_handler(
 
     // Delete used challenge
     sqlx::query(
-        "UPDATE passkey_challenges SET used_at = NOW() WHERE user_id = $1 AND challenge = $2",
+        "UPDATE passkey_challenges SET used_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND challenge = $2",
     )
     .bind(user.id)
     .bind(&expected_challenge)
@@ -718,12 +721,15 @@ pub async fn passkey_login_start_handler(
     sqlx::query(
         r#"
         INSERT INTO passkey_challenges (user_id, challenge, challenge_type, expires_at)
-        VALUES ($1, $2, $3, NOW() + INTERVAL '5 minutes')
+        VALUES ($1, $2, $3, $4)
         "#,
     )
     .bind(user.id)
     .bind(&challenge_bytes[..]) // Bind as bytea
     .bind("authentication")
+    // Expiry computed in Rust so the query stays portable across PostgreSQL
+    // and SQLite (no CURRENT_TIMESTAMP + INTERVAL).
+    .bind(chrono::Utc::now() + chrono::Duration::minutes(5))
     .execute(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -760,7 +766,7 @@ pub async fn passkey_login_finish_handler(
 
     let expected_challenge = decode_standard_b64(&req.challenge, "challenge")?;
     let challenge_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM passkey_challenges WHERE user_id = $1 AND challenge = $2 AND challenge_type = 'authentication' AND expires_at > NOW() AND used_at IS NULL)"
+        "SELECT EXISTS(SELECT 1 FROM passkey_challenges WHERE user_id = $1 AND challenge = $2 AND challenge_type = 'authentication' AND expires_at > CURRENT_TIMESTAMP AND used_at IS NULL)"
     )
     .bind(user.id)
     .bind(&expected_challenge)
@@ -815,7 +821,7 @@ pub async fn passkey_login_finish_handler(
         .map_err(|_| ApiError::Unauthorized("Invalid passkey signature".to_string()))?;
 
     // Update last used
-    sqlx::query("UPDATE passkeys SET last_used_at = NOW(), counter = $1 WHERE id = $2")
+    sqlx::query("UPDATE passkeys SET last_used_at = CURRENT_TIMESTAMP, counter = $1 WHERE id = $2")
         .bind(i64::from(counter))
         .bind(passkey.id)
         .execute(&pool)
@@ -823,7 +829,7 @@ pub async fn passkey_login_finish_handler(
         .ok();
 
     sqlx::query(
-        "UPDATE passkey_challenges SET used_at = NOW() WHERE user_id = $1 AND challenge = $2",
+        "UPDATE passkey_challenges SET used_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND challenge = $2",
     )
     .bind(user.id)
     .bind(&expected_challenge)

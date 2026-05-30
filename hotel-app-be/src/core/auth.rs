@@ -201,7 +201,7 @@ impl AuthService {
             SELECT user_id
             FROM refresh_tokens
             WHERE token_hash = $1
-              AND expires_at > NOW()
+              AND expires_at > CURRENT_TIMESTAMP
               AND revoked_at IS NULL
             "#,
         )
@@ -219,7 +219,7 @@ impl AuthService {
         sqlx::query(
             r#"
             UPDATE refresh_tokens
-            SET revoked_at = NOW()
+            SET revoked_at = CURRENT_TIMESTAMP
             WHERE token_hash = $1
             "#,
         )
@@ -235,7 +235,7 @@ impl AuthService {
         sqlx::query(
             r#"
             UPDATE refresh_tokens
-            SET revoked_at = NOW()
+            SET revoked_at = CURRENT_TIMESTAMP
             WHERE user_id = $1 AND revoked_at IS NULL
             "#,
         )
