@@ -88,9 +88,16 @@ pub async fn create_pool() -> Result<DbPool, sqlx::Error> {
     }
 }
 
-/// Helper to generate UUIDs (needed for SQLite since it doesn't have uuid_generate_v4())
+/// Helper to generate UUIDs for application-generated primary keys.
+///
+/// Emits a time-ordered UUIDv7 to match the PostgreSQL `gen_uuidv7()` column
+/// defaults (migration 018) — v7's leading timestamp bits give much better
+/// btree insert locality than the random v4 we used before, and SQLite (which
+/// has no `uuid_generate_v4()`) gets the same benefit. Use this for PK/UUID
+/// columns; for values that must stay unpredictable (tokens, the random tail
+/// of a booking number) keep an explicit `Uuid::new_v4()`.
 pub fn generate_uuid() -> String {
-    uuid::Uuid::new_v4().to_string()
+    uuid::Uuid::now_v7().to_string()
 }
 
 /// Helper to get current timestamp as ISO 8601 string

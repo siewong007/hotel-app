@@ -176,6 +176,11 @@ applied in subsequent migrations:
   bookings (void/move one of each pair) and rerun.
 - The application's existing `SELECT … FOR UPDATE` guard in
   `create_booking_handler` is now backed up by the DB.
+- **Fix (PG 18.4 verification):** the pre-flight query used a CTE named
+  `overlaps`, which is a reserved SQL keyword — it parsed only on bundled
+  builds *without* `btree_gist` (where the block hit its early `RETURN`) and
+  errored on any full Postgres. Renamed to `overlap_pairs`; the constraint now
+  actually gets created on 18.4.
 
 ### `018_pg18_uuidv7_defaults.sql`
 
@@ -196,13 +201,52 @@ applied in subsequent migrations:
   0) ELSE 0 END`. Read-only, no storage, no write cost.
 - Lets reporting queries replace duplicated `CASE` expressions with a
   single column reference.
+- **Now wired in:** the general-journal report (`handlers/analytics.rs`)
+  selects `b.tourism_billable_amount` instead of a bare
+  `COALESCE(b.tourism_tax_amount, 0)`, so non-tourist bookings can never post
+  tourism tax into the journal.
 
-## Remaining manual follow-ups (not auto-applied — high-risk / premature)
+### `020_pg18_audit_logs_partitioning.sql`
+
+- Converts `audit_logs` into a `RANGE`-partitioned table (one partition per
+  calendar month on `created_at`), the deferred audit partitioning follow-up.
+  An atomic rename → recreate → copy → drop rewrite wrapped in the migration
+  transaction; preserves existing `id`s via `OVERRIDING SYSTEM VALUE` and
+  backfills any NULL `created_at`.
+- `id` switches to `GENERATED ALWAYS AS IDENTITY` (PK becomes `(id,
+  created_at)` — required because the partition key must be in every unique
+  constraint; no FK references `audit_logs.id`, so this is transparent). The
+  old `audit_logs_id_seq` is dropped.
+- Ships a `DEFAULT` partition (no insert is ever rejected), pre-creates the
+  current month + next 11, and adds `ensure_audit_logs_partition(date)` for a
+  maintenance job/deploy to roll partitions forward.
+- Verified end-to-end on bundled **PostgreSQL 18.4**: fresh-install apply,
+  data-preserving upgrade from a populated table, insert routing, the DEFAULT
+  catch-all, and identity advancement.
+
+## Application-code wiring (PG 18.4 pass)
+
+- `core::db::generate_uuid()` now emits **UUIDv7** (`Uuid::now_v7()`) to match
+  the `gen_uuidv7()` column defaults from `018` — app-generated PKs get the
+  same time-ordered btree locality. Random-token / booking-suffix call sites
+  intentionally keep `Uuid::new_v4()`.
+- Literal `NOW()` in `core/auth.rs` and `handlers/passkey.rs` replaced with the
+  standard `CURRENT_TIMESTAMP`; the two passkey-challenge expiries that used
+  `NOW() + INTERVAL '5 minutes'` now bind a chrono-computed timestamp so the
+  queries are portable to SQLite.
+- Driver/lib bumps within semver: `uuid 1.19→1.23.2`, `chrono 0.4.43→0.4.44`,
+  `rust_decimal 1.40→1.42`. `sqlx` stays at `0.8.6` (already the latest 0.8.x;
+  `0.9` is a breaking pre-1.0 major and is out of scope for this pass).
+
+## Remaining manual follow-up (not applied — high-risk)
 
 1. **Drop the parallel `id BIGINT` + `uuid UUID` pattern** on user/guest/
-   booking tables in favor of a single UUID PK. High-risk; not justified at
-   current scale.
-2. **Partition `audit_logs` by month** once row count crosses ~10M.
-3. **Use `GENERATED ALWAYS AS IDENTITY` for all new tables** instead of
-   `BIGINT … DEFAULT nextval(<seq>)`. Style guideline for future migrations,
-   no rewrite of existing tables.
+   booking tables in favor of a single UUID PK. **Deliberately not done** — it
+   rewrites every PK and the FKs that reference them across the whole schema,
+   plus the `i64`-typed id handling throughout the Rust code, for no benefit at
+   current scale. This belongs in its own dedicated, separately-reviewed change
+   rather than bundled into a compatibility pass.
+
+Items 2 (audit partitioning) and 3 (`GENERATED ALWAYS AS IDENTITY`) from the
+previous revision of this list are now done: partitioning via `020`, and
+IDENTITY is adopted in `020` and is the go-forward standard for new tables.
