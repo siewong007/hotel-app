@@ -22,4 +22,5 @@ pub fn routes() -> Router<DbPool> {
             get(audit::get_audit_category_counts),
         )
         .route("/audit-logs/export/csv", get(audit::export_audit_logs_csv))
+        .route("/audit-logs/db-statements", get(audit::get_db_statements))
 }

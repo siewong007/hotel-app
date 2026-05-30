@@ -22,17 +22,56 @@ pub type DbRow = sqlx::postgres::PgRow;
 #[cfg(all(feature = "sqlite", feature = "postgres"))]
 pub type DbRow = sqlx::postgres::PgRow;
 
+/// Read an environment variable and parse it, falling back to `default` when the
+/// variable is unset or unparseable. Used for the database pool tuning knobs so
+/// every deployment can size the pool without a recompile.
+fn env_or<T: std::str::FromStr>(key: &str, default: T) -> T {
+    env::var(key)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
 /// Creates a database connection pool based on the enabled feature
 pub async fn create_pool() -> Result<DbPool, sqlx::Error> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     {
+        use sqlx::ConnectOptions;
+        use sqlx::sqlite::{
+            SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
+        };
+        use std::str::FromStr;
+        use std::time::Duration;
+
         let db_path = env::var("DATABASE_PATH").unwrap_or_else(|_| "./hotel_data.db".to_string());
 
-        // Create database file if it doesn't exist
+        // Create database file if it doesn't exist (mode=rwc).
         let db_url = format!("sqlite:{}?mode=rwc", db_path);
         log::info!("Connecting to SQLite database: {}", db_path);
 
-        let pool = sqlx::SqlitePool::connect(&db_url).await?;
+        // Explicit pragmas rather than relying on sqlx URL defaults: WAL journaling
+        // with NORMAL synchronous (safe under WAL, far fewer fsyncs than the default
+        // FULL), a generous page cache and mmap window, and in-memory temp tables.
+        // This is the single biggest lever for the embedded desktop write path.
+        let connect_opts = SqliteConnectOptions::from_str(&db_url)?
+            .journal_mode(SqliteJournalMode::Wal)
+            .synchronous(SqliteSynchronous::Normal)
+            .busy_timeout(Duration::from_secs(env_or("DATABASE_BUSY_TIMEOUT_SECS", 10)))
+            .foreign_keys(true)
+            .pragma("cache_size", "-65536") // 64 MiB page cache (negative value = KiB)
+            .pragma("mmap_size", "268435456") // 256 MiB memory-mapped I/O
+            .pragma("temp_store", "MEMORY")
+            .log_slow_statements(
+                log::LevelFilter::Warn,
+                Duration::from_millis(env_or("DATABASE_SLOW_STATEMENT_MS", 500)),
+            );
+
+        let pool = SqlitePoolOptions::new()
+            .max_connections(env_or("DATABASE_MAX_CONNECTIONS", 5))
+            .min_connections(env_or("DATABASE_MIN_CONNECTIONS", 0))
+            .acquire_timeout(Duration::from_secs(env_or("DATABASE_ACQUIRE_TIMEOUT_SECS", 30)))
+            .connect_with(connect_opts)
+            .await?;
 
         // Run migrations for SQLite
         sqlx::migrate!("./database/sqlite_migrations")
@@ -47,18 +86,41 @@ pub async fn create_pool() -> Result<DbPool, sqlx::Error> {
         all(feature = "sqlite", feature = "postgres")
     ))]
     {
+        use sqlx::ConnectOptions;
         use sqlx::Executor;
-        use sqlx::postgres::PgPoolOptions;
+        use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
+        use std::str::FromStr;
+        use std::time::Duration;
 
         let database_url =
             env::var("DATABASE_URL").expect("DATABASE_URL must be set in environment variables");
 
         log::info!("Connecting to PostgreSQL database");
 
+        // Log any statement slower than the threshold at WARN so slow queries are
+        // visible even without inspecting pg_stat_statements.
+        let connect_opts = PgConnectOptions::from_str(&database_url)?.log_slow_statements(
+            log::LevelFilter::Warn,
+            Duration::from_millis(env_or("DATABASE_SLOW_STATEMENT_MS", 500)),
+        );
+
+        // Pool tuning (all env-overridable). min_connections defaults to 0 so the
+        // pool is created lazily and startup never blocks on opening connections;
+        // sqlx eagerly establishes (and awaits) any non-zero floor inside
+        // connect_with, so a warm floor must stay opt-in. test_before_acquire(false)
+        // drops a ping round-trip per checkout; max_lifetime bounds how long a
+        // pooled connection can hold a stale `SET timezone` after a runtime change.
+        //
         // Set session timezone on every connection so ::date extractions are timezone-correct.
         // sqlx defaults sessions to UTC, which breaks (ts AT TIME ZONE $tz)::date comparisons.
         // Read the hotel timezone from system_settings on each new connection.
         PgPoolOptions::new()
+            .max_connections(env_or("DATABASE_MAX_CONNECTIONS", 20))
+            .min_connections(env_or("DATABASE_MIN_CONNECTIONS", 0))
+            .acquire_timeout(Duration::from_secs(env_or("DATABASE_ACQUIRE_TIMEOUT_SECS", 30)))
+            .idle_timeout(Duration::from_secs(env_or("DATABASE_IDLE_TIMEOUT_SECS", 600)))
+            .max_lifetime(Duration::from_secs(env_or("DATABASE_MAX_LIFETIME_SECS", 1800)))
+            .test_before_acquire(false)
             .after_connect(|conn, _meta| {
                 Box::pin(async move {
                     let tz: Option<String> = sqlx::query_scalar(
@@ -83,7 +145,7 @@ pub async fn create_pool() -> Result<DbPool, sqlx::Error> {
                     Ok(())
                 })
             })
-            .connect(&database_url)
+            .connect_with(connect_opts)
             .await
     }
 }
