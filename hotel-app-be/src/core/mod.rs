@@ -13,6 +13,7 @@ pub mod db;
 pub mod error;
 pub mod middleware;
 pub mod rate_limiter;
+pub mod rbac_cache;
 #[allow(dead_code)]
 pub mod sql_compat;
 

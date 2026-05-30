@@ -7,6 +7,7 @@ use crate::repositories::booking_list;
 use crate::utils::pagination::Pagination;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use sqlx::Row;
 
 pub struct BookingRepository;
 
@@ -58,15 +59,21 @@ impl BookingRepository {
             }};
         }
 
-        let total: i64 = apply_binds!(sqlx::query_scalar::<_, i64>(&list_query.count_sql))
-            .fetch_one(pool)
-            .await
-            .unwrap_or(0);
-
         let rows = apply_binds!(sqlx::query(&list_query.data_sql))
             .fetch_all(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        // The windowed COUNT(*) OVER() rides along on every data row, so the page
+        // total comes back without a second query. Only an empty page needs the
+        // standalone count (offset past the end / no matching rows).
+        let total: i64 = match rows.first() {
+            Some(first) => first.try_get::<i64, _>("total_count").unwrap_or(0),
+            None => apply_binds!(sqlx::query_scalar::<_, i64>(&list_query.count_sql))
+                .fetch_one(pool)
+                .await
+                .unwrap_or(0),
+        };
 
         let bookings = rows
             .iter()
@@ -254,12 +261,10 @@ impl BookingRepository {
 
     /// Check if booking exists
     pub async fn exists(pool: &DbPool, id: i64) -> Result<bool, ApiError> {
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM bookings WHERE id = $1")
+        sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM bookings WHERE id = $1)")
             .bind(id)
             .fetch_one(pool)
             .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        Ok(count > 0)
+            .map_err(|e| ApiError::Database(e.to_string()))
     }
 }

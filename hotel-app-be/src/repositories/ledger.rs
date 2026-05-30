@@ -143,13 +143,13 @@ impl LedgerRepository {
 
     /// Check if ledger exists
     pub async fn exists(pool: &DbPool, id: i64) -> Result<bool, ApiError> {
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM customer_ledgers WHERE id = $1")
-            .bind(id)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        Ok(count > 0)
+        sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM customer_ledgers WHERE id = $1)",
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
     }
 
     /// Get ledger summary statistics
