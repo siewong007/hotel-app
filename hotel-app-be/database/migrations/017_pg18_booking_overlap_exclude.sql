@@ -59,7 +59,8 @@ BEGIN
         WHERE status IN ('pending', 'confirmed', 'checked_in', 'auto_checked_in')
           AND check_out_date > check_in_date
     ),
-    overlaps AS (
+    -- NB: "overlaps" is a reserved SQL keyword and cannot be a CTE name.
+    overlap_pairs AS (
         SELECT a.id AS a_id, b.id AS b_id, a.room_id
         FROM active a
         JOIN active b
@@ -71,7 +72,7 @@ BEGIN
     SELECT COUNT(*),
            string_agg(format('room %s: bookings %s and %s', room_id, a_id, b_id), '; ')
       INTO v_violation_count, v_sample
-      FROM overlaps;
+      FROM overlap_pairs;
 
     IF v_violation_count > 0 THEN
         RAISE EXCEPTION

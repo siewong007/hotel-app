@@ -753,7 +753,9 @@ async fn generate_general_journal(
             b.total_amount,
             b.room_rate,
             COALESCE(b.tax_amount, 0) as tax_amount,
-            COALESCE(b.tourism_tax_amount, 0) as tourism_tax_amount,
+            -- PG 18 VIRTUAL generated column (migration 019): tourism_tax_amount
+            -- gated on is_tourist, so non-tourist bookings never post tourism tax.
+            b.tourism_billable_amount as tourism_tax_amount,
             b.payment_status,
             b.payment_method,
             COALESCE(b.deposit_amount, 0) as deposit_amount,
