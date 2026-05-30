@@ -223,13 +223,12 @@ impl RoomRepository {
 
     /// Check if room exists
     pub async fn exists(pool: &DbPool, id: i64) -> Result<bool, ApiError> {
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM rooms WHERE id = $1 AND deleted_at IS NULL")
-                .bind(id)
-                .fetch_one(pool)
-                .await
-                .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        Ok(count > 0)
+        sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM rooms WHERE id = $1 AND deleted_at IS NULL)",
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
     }
 }
