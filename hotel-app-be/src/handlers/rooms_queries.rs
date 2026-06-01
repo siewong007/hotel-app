@@ -167,7 +167,8 @@ FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = true
-  AND r.status NOT IN ('maintenance', 'out_of_order')
+  AND r.status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning')
+  AND NOT (r.status IN ('occupied', 'reserved') AND $1 <= CURRENT_DATE)
   AND cb.room_id IS NULL
   AND ($4::text IS NULL OR LOWER(rt.name) = LOWER($4) OR LOWER(rt.code) = LOWER($4))
   AND ($5::DOUBLE PRECISION IS NULL OR COALESCE(r.custom_price, rt.base_price) <= $5)
@@ -208,7 +209,8 @@ FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = 1
-  AND r.status NOT IN ('maintenance', 'out_of_order')
+  AND r.status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning')
+  AND NOT (r.status IN ('occupied', 'reserved') AND ?1 <= date('now'))
   AND cb.room_id IS NULL
   AND (?4 IS NULL OR LOWER(rt.name) = LOWER(?4) OR LOWER(rt.code) = LOWER(?4))
   AND (?5 IS NULL OR COALESCE(r.custom_price, rt.base_price) <= ?5)
@@ -261,7 +263,7 @@ FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN current_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = true
-  AND r.status NOT IN ('maintenance', 'out_of_order')
+  AND r.status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'occupied', 'reserved')
   AND (cb.room_id IS NULL OR NOT (
       cb.booking_status IN ('checked_in', 'auto_checked_in') OR
       (cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= CURRENT_DATE)
@@ -321,7 +323,7 @@ FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN current_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = 1
-  AND r.status NOT IN ('maintenance', 'out_of_order')
+  AND r.status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'occupied', 'reserved')
   AND (cb.room_id IS NULL OR NOT (
       cb.booking_status IN ('checked_in', 'auto_checked_in') OR
       (cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= date('now'))
