@@ -158,13 +158,14 @@ impl AuthRepository {
         username: &str,
         email: &str,
     ) -> Result<bool, ApiError> {
-        let existing: Option<(i64,)> =
-            sqlx::query_as("SELECT id FROM users WHERE username = $1 OR email = $2 LIMIT 1")
-                .bind(username)
-                .bind(email)
-                .fetch_optional(pool)
-                .await
-                .map_err(ApiError::from)?;
+        let existing = sqlx::query!(
+            "SELECT id FROM users WHERE username = $1 OR email = $2 LIMIT 1",
+            username,
+            email
+        )
+        .fetch_optional(pool)
+        .await
+        .map_err(ApiError::from)?;
 
         Ok(existing.is_some())
     }
