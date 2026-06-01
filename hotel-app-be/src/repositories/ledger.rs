@@ -1,12 +1,7 @@
-//! Customer ledger repository compatibility layer
+//! Customer ledger repository workflows
 //!
 //! Query-heavy ledger workflows preserved behind the service/handler boundary.
 
-use axum::{
-    Json,
-    extract::{Path, Query, State},
-    http::HeaderMap,
-};
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::Row;
@@ -15,7 +10,6 @@ use crate::core::db::DbPool;
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 use crate::core::db::{decimal_to_db, opt_decimal_to_db};
 use crate::core::error::ApiError;
-use crate::core::middleware::require_auth;
 use crate::models::row_mappers::{
     get_decimal, row_to_customer_ledger, row_to_customer_ledger_payment,
 };
@@ -153,13 +147,10 @@ const CHECK_LEDGER_VOIDED_QUERY: &str =
     "SELECT void_at IS NOT NULL FROM customer_ledgers WHERE id = $1";
 
 /// List all customer ledgers with optional filters
-pub async fn list_customer_ledgers_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Query(query): Query<LedgerListQuery>,
-) -> Result<Json<LedgerPaginatedResponse>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
+pub async fn list_customer_ledgers(
+    pool: &DbPool,
+    query: LedgerListQuery,
+) -> Result<LedgerPaginatedResponse, ApiError> {
     let pagination = normalize_pagination_with_offset(
         query.page,
         query.page_size.or(query.limit.map(i64::from)),
@@ -270,7 +261,7 @@ pub async fn list_customer_ledgers_handler(
         .bind(invoice_state)
         .bind(balance_state)
         .bind(ui_status)
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .unwrap_or(0);
 
@@ -288,51 +279,45 @@ pub async fn list_customer_ledgers_handler(
         .bind(ui_status)
         .bind(pagination.page_size)
         .bind(pagination.offset)
-        .fetch_all(&pool)
+        .fetch_all(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let ledgers: Vec<CustomerLedger> = rows.iter().map(row_to_customer_ledger).collect();
 
-    Ok(Json(LedgerPaginatedResponse {
+    Ok(LedgerPaginatedResponse {
         data: ledgers,
         total,
         page: pagination.page,
         page_size: pagination.page_size,
-    }))
+    })
 }
 
 /// Get a single customer ledger by ID
-pub async fn get_customer_ledger_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path(ledger_id): Path<i64>,
-) -> Result<Json<CustomerLedger>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
+pub async fn get_customer_ledger(
+    pool: &DbPool,
+    ledger_id: i64,
+) -> Result<CustomerLedger, ApiError> {
     let row = sqlx::query(GET_LEDGER_BY_ID_QUERY)
         .bind(ledger_id)
-        .fetch_optional(&pool)
+        .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound("Customer ledger not found".to_string()))?;
 
     let ledger = row_to_customer_ledger(&row);
 
-    Ok(Json(ledger))
+    Ok(ledger)
 }
 
 /// Get customer ledger with payment history
-pub async fn get_customer_ledger_with_payments_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path(ledger_id): Path<i64>,
-) -> Result<Json<CustomerLedgerWithPayments>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
+pub async fn get_customer_ledger_with_payments(
+    pool: &DbPool,
+    ledger_id: i64,
+) -> Result<CustomerLedgerWithPayments, ApiError> {
     let row = sqlx::query(GET_LEDGER_BY_ID_QUERY)
         .bind(ledger_id)
-        .fetch_optional(&pool)
+        .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound("Customer ledger not found".to_string()))?;
@@ -341,7 +326,7 @@ pub async fn get_customer_ledger_with_payments_handler(
 
     let payment_rows = sqlx::query(GET_LEDGER_PAYMENTS_QUERY)
         .bind(ledger_id)
-        .fetch_all(&pool)
+        .fetch_all(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -350,18 +335,16 @@ pub async fn get_customer_ledger_with_payments_handler(
         .map(row_to_customer_ledger_payment)
         .collect();
 
-    Ok(Json(CustomerLedgerWithPayments { ledger, payments }))
+    Ok(CustomerLedgerWithPayments { ledger, payments })
 }
 
 /// Create a new customer ledger entry.
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn create_customer_ledger_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Json(request): Json<CustomerLedgerCreateRequest>,
-) -> Result<Json<CustomerLedger>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
+pub async fn create_customer_ledger(
+    pool: &DbPool,
+    user_id: i64,
+    request: CustomerLedgerCreateRequest,
+) -> Result<CustomerLedger, ApiError> {
     let invoice_date = request
         .invoice_date
         .as_ref()
@@ -389,7 +372,7 @@ pub async fn create_customer_ledger_handler(
                 "SELECT payment_terms_days FROM companies WHERE company_name = ?1 LIMIT 1",
             )
             .bind(&request.company_name)
-            .fetch_optional(&pool)
+            .fetch_optional(pool)
             .await
             .ok()
             .flatten()
@@ -446,16 +429,16 @@ pub async fn create_customer_ledger_handler(
         .bind(&request.room_number)
         .bind(posting_date)
         .bind(transaction_date)
-        .fetch_optional(&pool)
+        .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
         if let Some(row) = existing {
-            return Ok(Json(row_to_customer_ledger(&row)));
+            return Ok(row_to_customer_ledger(&row));
         }
     }
 
-    let invoice_number = crate::services::invoice_numbers::next_invoice_number(&pool).await?;
+    let invoice_number = crate::services::invoice_numbers::next_invoice_number(pool).await?;
 
     // SQLite INSERT without RETURNING
     sqlx::query(
@@ -510,36 +493,34 @@ pub async fn create_customer_ledger_handler(
     .bind(opt_decimal_to_db(tax_amount))
     .bind(opt_decimal_to_db(service_charge))
     .bind(&invoice_number)
-    .execute(&pool)
+    .execute(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Get the inserted ID and fetch the record
     let ledger_id: i64 = sqlx::query_scalar::<_, i64>("SELECT last_insert_rowid()")
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let row = sqlx::query(GET_LEDGER_BY_ID_QUERY)
         .bind(ledger_id)
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let ledger = row_to_customer_ledger(&row);
 
-    Ok(Json(ledger))
+    Ok(ledger)
 }
 
 /// Create a new customer ledger entry (PostgreSQL).
 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-pub async fn create_customer_ledger_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Json(request): Json<CustomerLedgerCreateRequest>,
-) -> Result<Json<CustomerLedger>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
+pub async fn create_customer_ledger(
+    pool: &DbPool,
+    user_id: i64,
+    request: CustomerLedgerCreateRequest,
+) -> Result<CustomerLedger, ApiError> {
     let invoice_date = request
         .invoice_date
         .as_ref()
@@ -567,7 +548,7 @@ pub async fn create_customer_ledger_handler(
                 "SELECT payment_terms_days FROM companies WHERE company_name = $1 LIMIT 1",
             )
             .bind(&request.company_name)
-            .fetch_optional(&pool)
+            .fetch_optional(pool)
             .await
             .ok()
             .flatten()
@@ -614,16 +595,16 @@ pub async fn create_customer_ledger_handler(
             .bind(&request.room_number)
             .bind(posting_date)
             .bind(transaction_date)
-            .fetch_optional(&pool)
+            .fetch_optional(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
         if let Some(row) = existing {
-            return Ok(Json(row_to_customer_ledger(&row)));
+            return Ok(row_to_customer_ledger(&row));
         }
     }
 
-    let invoice_number = crate::services::invoice_numbers::next_invoice_number(&pool).await?;
+    let invoice_number = crate::services::invoice_numbers::next_invoice_number(pool).await?;
 
     let query_str = format!(
         r#"
@@ -681,29 +662,27 @@ pub async fn create_customer_ledger_handler(
         .bind(tax_amount)
         .bind(service_charge)
         .bind(&invoice_number)
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let ledger = row_to_customer_ledger(&row);
 
-    Ok(Json(ledger))
+    Ok(ledger)
 }
 
 /// Update a customer ledger entry (SQLite version)
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn update_customer_ledger_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path(ledger_id): Path<i64>,
-    Json(request): Json<CustomerLedgerUpdateRequest>,
-) -> Result<Json<CustomerLedger>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
+pub async fn update_customer_ledger(
+    pool: &DbPool,
+    ledger_id: i64,
+    user_id: i64,
+    request: CustomerLedgerUpdateRequest,
+) -> Result<CustomerLedger, ApiError> {
     // Check if ledger exists
     let exists = sqlx::query(CHECK_LEDGER_EXISTS_QUERY)
         .bind(ledger_id)
-        .fetch_optional(&pool)
+        .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -880,36 +859,34 @@ pub async fn update_customer_ledger_handler(
     query_builder = query_builder.bind(ledger_id);
 
     query_builder
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Fetch the updated ledger
     let row = sqlx::query(GET_LEDGER_BY_ID_QUERY)
         .bind(ledger_id)
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let ledger = row_to_customer_ledger(&row);
 
-    Ok(Json(ledger))
+    Ok(ledger)
 }
 
 /// Update a customer ledger entry (PostgreSQL version)
 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-pub async fn update_customer_ledger_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path(ledger_id): Path<i64>,
-    Json(request): Json<CustomerLedgerUpdateRequest>,
-) -> Result<Json<CustomerLedger>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
+pub async fn update_customer_ledger(
+    pool: &DbPool,
+    ledger_id: i64,
+    user_id: i64,
+    request: CustomerLedgerUpdateRequest,
+) -> Result<CustomerLedger, ApiError> {
     let exists: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM customer_ledgers WHERE id = $1)")
             .bind(ledger_id)
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1088,27 +1065,24 @@ pub async fn update_customer_ledger_handler(
     query_builder = query_builder.bind(ledger_id);
 
     let row = query_builder
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let ledger = row_to_customer_ledger(&row);
 
-    Ok(Json(ledger))
+    Ok(ledger)
 }
 
 /// Delete a customer ledger entry
-pub async fn delete_customer_ledger_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path(ledger_id): Path<i64>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
+pub async fn delete_customer_ledger(
+    pool: &DbPool,
+    ledger_id: i64,
+) -> Result<serde_json::Value, ApiError> {
     // Fetch ledger status and paid_amount
     let ledger_row = sqlx::query(GET_LEDGER_STATUS_QUERY)
         .bind(ledger_id)
-        .fetch_optional(&pool)
+        .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1133,13 +1107,13 @@ pub async fn delete_customer_ledger_handler(
 
     sqlx::query(DELETE_LEDGER_PAYMENTS_QUERY)
         .bind(ledger_id)
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let result = sqlx::query(DELETE_LEDGER_QUERY)
         .bind(ledger_id)
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1147,25 +1121,23 @@ pub async fn delete_customer_ledger_handler(
         return Err(ApiError::NotFound("Customer ledger not found".to_string()));
     }
 
-    Ok(Json(serde_json::json!({
+    Ok(serde_json::json!({
         "message": "Customer ledger deleted successfully",
         "ledger_id": ledger_id
-    })))
+    }))
 }
 
 /// Record a payment against a customer ledger (SQLite version)
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn create_ledger_payment_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path(ledger_id): Path<i64>,
-    Json(request): Json<CustomerLedgerPaymentRequest>,
-) -> Result<Json<CustomerLedgerPayment>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
+pub async fn create_ledger_payment(
+    pool: &DbPool,
+    ledger_id: i64,
+    user_id: i64,
+    request: CustomerLedgerPaymentRequest,
+) -> Result<CustomerLedgerPayment, ApiError> {
     let ledger_row = sqlx::query(GET_LEDGER_FOR_PAYMENT_QUERY)
         .bind(ledger_id)
-        .fetch_optional(&pool)
+        .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1212,7 +1184,7 @@ pub async fn create_ledger_payment_handler(
             "SELECT EXISTS(SELECT 1 FROM customer_ledger_payments WHERE LOWER(receipt_number) = LOWER(?1))",
         )
         .bind(receipt_number)
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .map(|v| v != 0)
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -1259,13 +1231,13 @@ pub async fn create_ledger_payment_handler(
     .bind(&request.receipt_file_url)
     .bind(&request.notes)
     .bind(user_id)
-    .execute(&pool)
+    .execute(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Get the inserted payment
     let payment_id: i64 = sqlx::query_scalar::<_, i64>("SELECT last_insert_rowid()")
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1278,7 +1250,7 @@ pub async fn create_ledger_payment_handler(
         "#,
     )
     .bind(payment_id)
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1305,26 +1277,24 @@ pub async fn create_ledger_payment_handler(
     .bind(&payment_date_value)
     .bind(user_id)
     .bind(ledger_id)
-    .execute(&pool)
+    .execute(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(payment))
+    Ok(payment)
 }
 
 /// Record a payment against a customer ledger (PostgreSQL version)
 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-pub async fn create_ledger_payment_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path(ledger_id): Path<i64>,
-    Json(request): Json<CustomerLedgerPaymentRequest>,
-) -> Result<Json<CustomerLedgerPayment>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
+pub async fn create_ledger_payment(
+    pool: &DbPool,
+    ledger_id: i64,
+    user_id: i64,
+    request: CustomerLedgerPaymentRequest,
+) -> Result<CustomerLedgerPayment, ApiError> {
     let ledger_row = sqlx::query(GET_LEDGER_FOR_PAYMENT_QUERY)
         .bind(ledger_id)
-        .fetch_optional(&pool)
+        .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1371,7 +1341,7 @@ pub async fn create_ledger_payment_handler(
             "SELECT EXISTS(SELECT 1 FROM customer_ledger_payments WHERE LOWER(receipt_number) = LOWER($1))",
         )
         .bind(receipt_number)
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1420,7 +1390,7 @@ pub async fn create_ledger_payment_handler(
     .bind(&request.receipt_file_url)
     .bind(&request.notes)
     .bind(user_id)
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1446,25 +1416,22 @@ pub async fn create_ledger_payment_handler(
     .bind(payment_date_ts)
     .bind(user_id)
     .bind(ledger_id)
-    .execute(&pool)
+    .execute(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(payment))
+    Ok(payment)
 }
 
 /// Get payment history for a ledger
-pub async fn get_ledger_payments_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path(ledger_id): Path<i64>,
-) -> Result<Json<Vec<CustomerLedgerPayment>>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
+pub async fn get_ledger_payments(
+    pool: &DbPool,
+    ledger_id: i64,
+) -> Result<Vec<CustomerLedgerPayment>, ApiError> {
     // Check if ledger exists
     let exists = sqlx::query(CHECK_LEDGER_EXISTS_QUERY)
         .bind(ledger_id)
-        .fetch_optional(&pool)
+        .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1474,24 +1441,19 @@ pub async fn get_ledger_payments_handler(
 
     let rows = sqlx::query(GET_LEDGER_PAYMENTS_QUERY)
         .bind(ledger_id)
-        .fetch_all(&pool)
+        .fetch_all(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let payments: Vec<CustomerLedgerPayment> =
         rows.iter().map(row_to_customer_ledger_payment).collect();
 
-    Ok(Json(payments))
+    Ok(payments)
 }
 
 /// Get summary statistics for ledgers (SQLite version)
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn get_ledger_summary_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
+pub async fn get_ledger_summary(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
     let row = sqlx::query(
         r#"
         SELECT
@@ -1506,7 +1468,7 @@ pub async fn get_ledger_summary_handler(
         WHERE status NOT IN ('cancelled')
         "#,
     )
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1518,7 +1480,7 @@ pub async fn get_ledger_summary_handler(
     let partial_count: i64 = row.try_get("partial_count").unwrap_or(0);
     let overdue_count: i64 = row.try_get("overdue_count").unwrap_or(0);
 
-    Ok(Json(serde_json::json!({
+    Ok(serde_json::json!({
         "total_entries": total_entries,
         "total_amount": total_amount,
         "total_paid": total_paid,
@@ -1526,17 +1488,12 @@ pub async fn get_ledger_summary_handler(
         "pending_count": pending_count,
         "partial_count": partial_count,
         "overdue_count": overdue_count
-    })))
+    }))
 }
 
 /// Get summary statistics for ledgers (PostgreSQL version)
 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-pub async fn get_ledger_summary_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
+pub async fn get_ledger_summary(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
     let row = sqlx::query(
         r#"
         SELECT
@@ -1551,7 +1508,7 @@ pub async fn get_ledger_summary_handler(
         WHERE status NOT IN ('cancelled')
         "#,
     )
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1563,7 +1520,7 @@ pub async fn get_ledger_summary_handler(
     let partial_count: i64 = row.try_get("partial_count").unwrap_or(0);
     let overdue_count: i64 = row.try_get("overdue_count").unwrap_or(0);
 
-    Ok(Json(serde_json::json!({
+    Ok(serde_json::json!({
         "total_entries": total_entries,
         "total_amount": total_amount,
         "total_paid": total_paid,
@@ -1571,23 +1528,21 @@ pub async fn get_ledger_summary_handler(
         "pending_count": pending_count,
         "partial_count": partial_count,
         "overdue_count": overdue_count
-    })))
+    }))
 }
 
 /// Void a ledger entry (SQLite version)
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn void_ledger_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path(ledger_id): Path<i64>,
-    Json(request): Json<LedgerVoidRequest>,
-) -> Result<Json<CustomerLedger>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
+pub async fn void_ledger(
+    pool: &DbPool,
+    ledger_id: i64,
+    user_id: i64,
+    request: LedgerVoidRequest,
+) -> Result<CustomerLedger, ApiError> {
     // Check if ledger exists and is not already voided
     let exists_row = sqlx::query(CHECK_LEDGER_VOIDED_QUERY)
         .bind(ledger_id)
-        .fetch_optional(&pool)
+        .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1617,36 +1572,34 @@ pub async fn void_ledger_handler(
     .bind(user_id)
     .bind(&request.reason)
     .bind(ledger_id)
-    .execute(&pool)
+    .execute(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let row = sqlx::query(GET_LEDGER_BY_ID_QUERY)
         .bind(ledger_id)
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let ledger = row_to_customer_ledger(&row);
 
-    Ok(Json(ledger))
+    Ok(ledger)
 }
 
 /// Void a ledger entry (PostgreSQL version)
 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-pub async fn void_ledger_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path(ledger_id): Path<i64>,
-    Json(request): Json<LedgerVoidRequest>,
-) -> Result<Json<CustomerLedger>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
+pub async fn void_ledger(
+    pool: &DbPool,
+    ledger_id: i64,
+    user_id: i64,
+    request: LedgerVoidRequest,
+) -> Result<CustomerLedger, ApiError> {
     // Check if ledger exists and is not already voided
     let exists: Option<bool> =
         sqlx::query_scalar("SELECT void_at IS NOT NULL FROM customer_ledgers WHERE id = $1")
             .bind(ledger_id)
-            .fetch_optional(&pool)
+            .fetch_optional(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1675,29 +1628,27 @@ pub async fn void_ledger_handler(
         .bind(user_id)
         .bind(&request.reason)
         .bind(ledger_id)
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let ledger = row_to_customer_ledger(&row);
 
-    Ok(Json(ledger))
+    Ok(ledger)
 }
 
 /// Create a reversal for a ledger entry (SQLite version)
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn create_ledger_reversal_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path(ledger_id): Path<i64>,
-    Json(request): Json<LedgerReversalRequest>,
-) -> Result<Json<CustomerLedger>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
+pub async fn create_ledger_reversal(
+    pool: &DbPool,
+    ledger_id: i64,
+    user_id: i64,
+    request: LedgerReversalRequest,
+) -> Result<CustomerLedger, ApiError> {
     // Get the original ledger
     let original_row = sqlx::query(GET_LEDGER_BY_ID_QUERY)
         .bind(ledger_id)
-        .fetch_optional(&pool)
+        .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound("Customer ledger not found".to_string()))?;
@@ -1718,7 +1669,7 @@ pub async fn create_ledger_reversal_handler(
     };
 
     let description = format!("REVERSAL: {}", original.description);
-    let invoice_number = crate::services::invoice_numbers::next_invoice_number(&pool).await?;
+    let invoice_number = crate::services::invoice_numbers::next_invoice_number(pool).await?;
 
     // Insert reversal without RETURNING
     sqlx::query(
@@ -1772,41 +1723,39 @@ pub async fn create_ledger_reversal_handler(
     .bind(ledger_id)
     .bind(&request.reason)
     .bind(&invoice_number)
-    .execute(&pool)
+    .execute(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Get the inserted reversal
     let reversal_id: i64 = sqlx::query_scalar::<_, i64>("SELECT last_insert_rowid()")
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let row = sqlx::query(GET_LEDGER_BY_ID_QUERY)
         .bind(reversal_id)
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let reversal = row_to_customer_ledger(&row);
 
-    Ok(Json(reversal))
+    Ok(reversal)
 }
 
 /// Create a reversal for a ledger entry (PostgreSQL version)
 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-pub async fn create_ledger_reversal_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path(ledger_id): Path<i64>,
-    Json(request): Json<LedgerReversalRequest>,
-) -> Result<Json<CustomerLedger>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
+pub async fn create_ledger_reversal(
+    pool: &DbPool,
+    ledger_id: i64,
+    user_id: i64,
+    request: LedgerReversalRequest,
+) -> Result<CustomerLedger, ApiError> {
     // Get the original ledger
     let original_row = sqlx::query(GET_LEDGER_BY_ID_QUERY)
         .bind(ledger_id)
-        .fetch_optional(&pool)
+        .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound("Customer ledger not found".to_string()))?;
@@ -1826,7 +1775,7 @@ pub async fn create_ledger_reversal_handler(
         "debit"
     };
 
-    let invoice_number = crate::services::invoice_numbers::next_invoice_number(&pool).await?;
+    let invoice_number = crate::services::invoice_numbers::next_invoice_number(pool).await?;
 
     let reversal_query = format!(
         r#"
@@ -1883,25 +1832,23 @@ pub async fn create_ledger_reversal_handler(
         .bind(ledger_id)
         .bind(&request.reason)
         .bind(&invoice_number)
-        .fetch_one(&pool)
+        .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let reversal = row_to_customer_ledger(&row);
 
-    Ok(Json(reversal))
+    Ok(reversal)
 }
 
 /// Update the payment date on an existing ledger payment (SQLite version)
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn update_ledger_payment_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path((ledger_id, payment_id)): Path<(i64, i64)>,
-    Json(request): Json<UpdateLedgerPaymentRequest>,
-) -> Result<Json<CustomerLedgerPayment>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
+pub async fn update_ledger_payment(
+    pool: &DbPool,
+    ledger_id: i64,
+    payment_id: i64,
+    request: UpdateLedgerPaymentRequest,
+) -> Result<CustomerLedgerPayment, ApiError> {
     let payment_date_value = format!("{} 12:00:00", &request.payment_date);
 
     // Verify the payment belongs to this ledger
@@ -1909,7 +1856,7 @@ pub async fn update_ledger_payment_handler(
         sqlx::query("SELECT id FROM customer_ledger_payments WHERE id = ?1 AND ledger_id = ?2")
             .bind(payment_id)
             .bind(ledger_id)
-            .fetch_optional(&pool)
+            .fetch_optional(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1920,7 +1867,7 @@ pub async fn update_ledger_payment_handler(
     sqlx::query("UPDATE customer_ledger_payments SET payment_date = ?1 WHERE id = ?2")
         .bind(&payment_date_value)
         .bind(payment_id)
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1934,7 +1881,7 @@ pub async fn update_ledger_payment_handler(
         "#,
     )
     .bind(ledger_id)
-    .execute(&pool)
+    .execute(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1947,23 +1894,21 @@ pub async fn update_ledger_payment_handler(
         "#,
     )
     .bind(payment_id)
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(row_to_customer_ledger_payment(&payment_row)))
+    Ok(row_to_customer_ledger_payment(&payment_row))
 }
 
 /// Update the payment date on an existing ledger payment (PostgreSQL version)
 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-pub async fn update_ledger_payment_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path((ledger_id, payment_id)): Path<(i64, i64)>,
-    Json(request): Json<UpdateLedgerPaymentRequest>,
-) -> Result<Json<CustomerLedgerPayment>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
+pub async fn update_ledger_payment(
+    pool: &DbPool,
+    ledger_id: i64,
+    payment_id: i64,
+    request: UpdateLedgerPaymentRequest,
+) -> Result<CustomerLedgerPayment, ApiError> {
     let payment_date_ts = chrono::NaiveDate::parse_from_str(&request.payment_date, "%Y-%m-%d")
         .map_err(|_| ApiError::BadRequest("Invalid date. Use YYYY-MM-DD".to_string()))?
         .and_hms_opt(12, 0, 0)
@@ -1974,7 +1919,7 @@ pub async fn update_ledger_payment_handler(
         sqlx::query("SELECT id FROM customer_ledger_payments WHERE id = $1 AND ledger_id = $2")
             .bind(payment_id)
             .bind(ledger_id)
-            .fetch_optional(&pool)
+            .fetch_optional(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -1993,7 +1938,7 @@ pub async fn update_ledger_payment_handler(
     )
     .bind(payment_date_ts)
     .bind(payment_id)
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2007,28 +1952,26 @@ pub async fn update_ledger_payment_handler(
         "#,
     )
     .bind(ledger_id)
-    .execute(&pool)
+    .execute(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(row_to_customer_ledger_payment(&payment_row)))
+    Ok(row_to_customer_ledger_payment(&payment_row))
 }
 
 /// Delete a payment from a customer ledger (SQLite version)
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub async fn delete_ledger_payment_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path((ledger_id, payment_id)): Path<(i64, i64)>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
+pub async fn delete_ledger_payment(
+    pool: &DbPool,
+    ledger_id: i64,
+    payment_id: i64,
+) -> Result<serde_json::Value, ApiError> {
     // Verify the payment belongs to this ledger
     let exists =
         sqlx::query("SELECT id FROM customer_ledger_payments WHERE id = ?1 AND ledger_id = ?2")
             .bind(payment_id)
             .bind(ledger_id)
-            .fetch_optional(&pool)
+            .fetch_optional(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2039,7 +1982,7 @@ pub async fn delete_ledger_payment_handler(
     // Delete the payment
     sqlx::query("DELETE FROM customer_ledger_payments WHERE id = ?1")
         .bind(payment_id)
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2048,7 +1991,7 @@ pub async fn delete_ledger_payment_handler(
         "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = ?1"
     )
     .bind(ledger_id)
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2056,7 +1999,7 @@ pub async fn delete_ledger_payment_handler(
     let total_amount: f64 =
         sqlx::query_scalar("SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = ?1")
             .bind(ledger_id)
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2081,31 +2024,29 @@ pub async fn delete_ledger_payment_handler(
     .bind(new_paid)
     .bind(new_status)
     .bind(ledger_id)
-    .execute(&pool)
+    .execute(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(serde_json::json!({
+    Ok(serde_json::json!({
         "message": "Payment deleted successfully",
         "payment_id": payment_id
-    })))
+    }))
 }
 
 /// Delete a payment from a customer ledger (PostgreSQL version)
 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-pub async fn delete_ledger_payment_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Path((ledger_id, payment_id)): Path<(i64, i64)>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
+pub async fn delete_ledger_payment(
+    pool: &DbPool,
+    ledger_id: i64,
+    payment_id: i64,
+) -> Result<serde_json::Value, ApiError> {
     // Verify the payment belongs to this ledger
     let exists =
         sqlx::query("SELECT id FROM customer_ledger_payments WHERE id = $1 AND ledger_id = $2")
             .bind(payment_id)
             .bind(ledger_id)
-            .fetch_optional(&pool)
+            .fetch_optional(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2116,7 +2057,7 @@ pub async fn delete_ledger_payment_handler(
     // Delete the payment
     sqlx::query("DELETE FROM customer_ledger_payments WHERE id = $1")
         .bind(payment_id)
-        .execute(&pool)
+        .execute(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2125,14 +2066,14 @@ pub async fn delete_ledger_payment_handler(
         "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = $1"
     )
     .bind(ledger_id)
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let total_amount: Decimal =
         sqlx::query_scalar("SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1")
             .bind(ledger_id)
-            .fetch_one(&pool)
+            .fetch_one(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2157,12 +2098,12 @@ pub async fn delete_ledger_payment_handler(
     .bind(new_paid)
     .bind(new_status)
     .bind(ledger_id)
-    .execute(&pool)
+    .execute(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(serde_json::json!({
+    Ok(serde_json::json!({
         "message": "Payment deleted successfully",
         "payment_id": payment_id
-    })))
+    }))
 }
