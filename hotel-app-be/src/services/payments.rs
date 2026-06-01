@@ -1,0 +1,291 @@
+use crate::constants::PaymentMethod;
+use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::models::{
+    Invoice, InvoicePreview, Payment, PaymentRequest, PaymentSummary, PaymentWorkflowSummary,
+    RecordPaymentRequest, UpdatePaymentRequest,
+};
+use crate::repositories::payment::PaymentRepository;
+use rust_decimal::Decimal;
+
+pub async fn recompute_payment_status(pool: &DbPool, booking_id: i64) -> Result<(), ApiError> {
+    PaymentRepository::recompute_booking_payment_status(pool, booking_id).await
+}
+
+pub async fn calculate_payment_summary(
+    pool: &DbPool,
+    booking_id: i64,
+) -> Result<PaymentSummary, ApiError> {
+    let stay = PaymentRepository::payment_booking_stay(pool, booking_id).await?;
+    let pricing = PaymentRepository::room_pricing(pool, stay.room_id).await?;
+
+    let nights = (stay.check_out.date() - stay.check_in.date()).num_days();
+    let subtotal = pricing.base_price * Decimal::from(nights);
+    let service_charge = (subtotal * pricing.service_charge_percentage) / Decimal::from(100);
+    let tax_amount = Decimal::ZERO;
+    let total = subtotal + service_charge + tax_amount + pricing.keycard_deposit;
+
+    Ok(PaymentSummary {
+        subtotal,
+        service_charge,
+        service_charge_percentage: pricing.service_charge_percentage,
+        tax_amount,
+        tax_percentage: Decimal::ZERO,
+        keycard_deposit: pricing.keycard_deposit,
+        total_amount: total,
+        payment_method: None,
+    })
+}
+
+pub async fn create_payment(
+    pool: &DbPool,
+    user_id: i64,
+    request: PaymentRequest,
+) -> Result<Payment, ApiError> {
+    let summary = calculate_payment_summary(pool, request.booking_id).await?;
+    let payment_gateway = match &request.payment_method {
+        PaymentMethod::Card => Some("card_processor"),
+        PaymentMethod::Duitnow => Some("duitnow"),
+        PaymentMethod::OnlineBanking => Some("online_banking"),
+        _ => None,
+    };
+
+    PaymentRepository::create_completed_payment(pool, user_id, &request, &summary, payment_gateway)
+        .await
+}
+
+pub async fn record_payment(
+    pool: &DbPool,
+    user_id: i64,
+    request: RecordPaymentRequest,
+) -> Result<serde_json::Value, ApiError> {
+    let amount = Decimal::from_f64_retain(request.amount)
+        .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
+
+    let payment_type = request.payment_type.as_deref().unwrap_or("booking");
+    let created_at_override = request
+        .payment_date
+        .as_ref()
+        .map(|d| format!("{} 12:00:00", d));
+
+    let row = PaymentRepository::record_payment(
+        pool,
+        user_id,
+        &request,
+        amount,
+        payment_type,
+        created_at_override.as_deref(),
+    )
+    .await?;
+
+    recompute_payment_status(pool, request.booking_id).await?;
+
+    Ok(row.into_response())
+}
+
+pub async fn get_all_payments(
+    pool: &DbPool,
+    booking_id: i64,
+) -> Result<Vec<serde_json::Value>, ApiError> {
+    Ok(PaymentRepository::list_payment_entries(pool, booking_id)
+        .await?
+        .into_iter()
+        .map(|row| row.into_response())
+        .collect())
+}
+
+pub async fn get_payment_workflow_summary(
+    pool: &DbPool,
+    booking_id: i64,
+) -> Result<PaymentWorkflowSummary, ApiError> {
+    let row = PaymentRepository::workflow_summary_row(pool, booking_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+
+    let balance_due = if row.total_amount > row.total_paid {
+        row.total_amount - row.total_paid
+    } else {
+        Decimal::ZERO
+    };
+
+    let mut warnings = Vec::new();
+    if row.has_failed_payment {
+        warnings.push("One or more payments failed and need review".to_string());
+    }
+    if balance_due > Decimal::ZERO {
+        warnings.push(format!("Outstanding balance: {}", balance_due));
+    }
+    if row.deposit_collected > row.deposit_refunded
+        && matches!(row.booking_status.as_str(), "checked_out" | "completed")
+    {
+        warnings.push("Collected deposit has not been fully refunded".to_string());
+    }
+    if row.total_refunded > row.total_paid {
+        warnings.push("Refund total is greater than collected payments".to_string());
+    }
+
+    let next_action = if row.booking_status == "voided" {
+        "No payment action - booking is voided".to_string()
+    } else if row.has_failed_payment {
+        "Review failed payment".to_string()
+    } else if balance_due > Decimal::ZERO {
+        "Collect balance due".to_string()
+    } else if row.deposit_collected > row.deposit_refunded
+        && matches!(row.booking_status.as_str(), "checked_out" | "completed")
+    {
+        "Refund deposit".to_string()
+    } else {
+        "Settled".to_string()
+    };
+
+    Ok(PaymentWorkflowSummary {
+        booking_id,
+        booking_status: row.booking_status,
+        payment_status: row.payment_status,
+        total_amount: row.total_amount,
+        total_paid: row.total_paid,
+        total_refunded: row.total_refunded,
+        balance_due,
+        deposit_collected: row.deposit_collected,
+        deposit_refunded: row.deposit_refunded,
+        has_failed_payment: row.has_failed_payment,
+        next_action,
+        warnings,
+    })
+}
+
+pub async fn refund_deposit(
+    pool: &DbPool,
+    user_id: i64,
+    booking_id: i64,
+    body: serde_json::Value,
+) -> Result<serde_json::Value, ApiError> {
+    let payment_method = body
+        .get("payment_method")
+        .and_then(|v| v.as_str())
+        .unwrap_or("cash")
+        .to_string();
+
+    let deposit_amount_f64 = body.get("amount").and_then(|v| v.as_f64()).unwrap_or(0.0);
+    let deposit_amount = Decimal::from_f64_retain(deposit_amount_f64).unwrap_or(Decimal::ZERO);
+
+    if deposit_amount <= Decimal::ZERO {
+        return Err(ApiError::BadRequest(
+            "No deposit amount provided".to_string(),
+        ));
+    }
+
+    let row = PaymentRepository::refund_deposit(
+        pool,
+        user_id,
+        booking_id,
+        &payment_method,
+        deposit_amount,
+    )
+    .await?;
+
+    recompute_payment_status(pool, booking_id).await?;
+
+    Ok(serde_json::json!({
+        "id": row.id,
+        "booking_id": row.booking_id,
+        "total_amount": row.total_amount,
+        "payment_method": row.payment_method,
+        "payment_type": row.payment_type,
+        "payment_status": row.payment_status,
+        "notes": row.notes,
+        "created_at": row.created_at,
+    }))
+}
+
+pub async fn get_payment(pool: &DbPool, booking_id: i64) -> Result<Option<Payment>, ApiError> {
+    PaymentRepository::find_by_booking_id(pool, booking_id).await
+}
+
+pub async fn generate_invoice(
+    pool: &DbPool,
+    user_id: i64,
+    booking_id: i64,
+) -> Result<Invoice, ApiError> {
+    if let Some(invoice) = PaymentRepository::find_invoice_by_booking_id(pool, booking_id).await? {
+        return Ok(invoice);
+    }
+
+    let invoice_number = crate::services::invoice_numbers::next_invoice_number(pool).await?;
+    PaymentRepository::create_generated_invoice(pool, user_id, booking_id, &invoice_number).await
+}
+
+pub async fn get_invoice_preview(
+    pool: &DbPool,
+    user_id: i64,
+    booking_id: i64,
+) -> Result<InvoicePreview, ApiError> {
+    let invoice = match PaymentRepository::find_invoice_by_booking_id(pool, booking_id).await? {
+        Some(invoice) => invoice,
+        None => generate_invoice(pool, user_id, booking_id).await?,
+    };
+
+    let payment = PaymentRepository::find_by_booking_id(pool, booking_id).await?;
+    let booking_details = serde_json::json!({
+        "booking_id": booking_id,
+        "check_in": invoice.check_in_date,
+        "check_out": invoice.check_out_date,
+        "nights": invoice.number_of_nights,
+        "room": format!("{} ({})", invoice.room_number.as_ref().unwrap_or(&"N/A".to_string()), invoice.room_type.as_ref().unwrap_or(&"N/A".to_string()))
+    });
+
+    Ok(InvoicePreview {
+        invoice,
+        payment,
+        booking_details,
+    })
+}
+
+pub async fn get_user_invoices(pool: &DbPool, user_id: i64) -> Result<Vec<Invoice>, ApiError> {
+    PaymentRepository::find_user_invoices(pool, user_id).await
+}
+
+pub async fn update_payment(
+    pool: &DbPool,
+    payment_id: i64,
+    request: UpdatePaymentRequest,
+) -> Result<serde_json::Value, ApiError> {
+    let row = PaymentRepository::update_payment(pool, payment_id, &request).await?;
+    recompute_payment_status(pool, row.booking_id).await?;
+    Ok(row.into_response())
+}
+
+pub async fn delete_payment(pool: &DbPool, payment_id: i64) -> Result<serde_json::Value, ApiError> {
+    let affected_booking_id = PaymentRepository::delete_payment(pool, payment_id).await?;
+
+    if let Some(booking_id) = affected_booking_id {
+        recompute_payment_status(pool, booking_id).await?;
+    }
+
+    Ok(serde_json::json!({
+        "success": true,
+        "message": "Payment deleted successfully",
+        "deleted_id": payment_id
+    }))
+}
+
+pub async fn ensure_invoice_for_booking(
+    pool: &DbPool,
+    booking_id: i64,
+    user_id: i64,
+) -> Result<String, ApiError> {
+    if let Some(invoice_number) =
+        PaymentRepository::existing_invoice_number(pool, booking_id).await?
+    {
+        return Ok(invoice_number);
+    }
+
+    let invoice_number = match PaymentRepository::ledger_invoice_number(pool, booking_id).await? {
+        Some(number) => number,
+        None => crate::services::invoice_numbers::next_invoice_number(pool).await?,
+    };
+
+    PaymentRepository::insert_checkout_invoice(pool, booking_id, user_id, &invoice_number).await?;
+
+    Ok(invoice_number)
+}

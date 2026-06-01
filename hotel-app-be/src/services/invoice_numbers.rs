@@ -8,6 +8,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::repositories::invoice_numbers as repo;
 
 /// Compute the next invoice number for the current month.
 ///
@@ -18,40 +19,7 @@ pub async fn next_invoice_number(pool: &DbPool) -> Result<String, ApiError> {
     let prefix = format!("INV-{}-", yyyymm);
     let pattern = format!("{}%", prefix);
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let max_seq: Option<i64> = sqlx::query_scalar(
-        r#"
-        SELECT MAX(seq) FROM (
-            SELECT CAST(SUBSTR(invoice_number, 12) AS INTEGER) AS seq
-            FROM invoices WHERE invoice_number LIKE ?1
-            UNION ALL
-            SELECT CAST(SUBSTR(invoice_number, 12) AS INTEGER) AS seq
-            FROM customer_ledgers WHERE invoice_number LIKE ?1
-        )
-        "#,
-    )
-    .bind(&pattern)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let max_seq: Option<i64> = sqlx::query_scalar(
-        r#"
-        SELECT MAX(seq) FROM (
-            SELECT CAST(SUBSTRING(invoice_number FROM 12) AS BIGINT) AS seq
-            FROM invoices WHERE invoice_number LIKE $1
-            UNION ALL
-            SELECT CAST(SUBSTRING(invoice_number FROM 12) AS BIGINT) AS seq
-            FROM customer_ledgers WHERE invoice_number LIKE $1
-        ) combined
-        "#,
-    )
-    .bind(&pattern)
-    .fetch_one(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
+    let max_seq = repo::max_invoice_sequence(pool, &pattern).await?;
     let next = max_seq.unwrap_or(0) + 1;
     Ok(format!("{}{:04}", prefix, next))
 }
@@ -66,32 +34,7 @@ pub async fn next_invoice_number(pool: &DbPool) -> Result<String, ApiError> {
 /// Returns the number of invoices created.
 #[allow(dead_code)]
 pub async fn backfill_missing_booking_invoices(pool: &DbPool) -> Result<usize, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let rows: Vec<(i64, String)> = sqlx::query_as(
-        r#"
-        SELECT b.id, strftime('%Y%m', b.created_at)
-        FROM bookings b
-        WHERE NOT EXISTS (SELECT 1 FROM invoices i WHERE i.booking_id = b.id)
-        ORDER BY b.created_at
-        "#,
-    )
-    .fetch_all(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let rows: Vec<(i64, String)> = sqlx::query_as(
-        r#"
-        SELECT b.id, TO_CHAR(b.created_at, 'YYYYMM')
-        FROM bookings b
-        WHERE NOT EXISTS (SELECT 1 FROM invoices i WHERE i.booking_id = b.id)
-        ORDER BY b.created_at
-        "#,
-    )
-    .fetch_all(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
+    let rows = repo::bookings_missing_invoices(pool).await?;
     if rows.is_empty() {
         return Ok(0);
     }
@@ -109,40 +52,7 @@ pub async fn backfill_missing_booking_invoices(pool: &DbPool) -> Result<usize, A
             *n += 1;
             *n
         } else {
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            let max_seq: Option<i64> = sqlx::query_scalar(
-                r#"
-                SELECT MAX(seq) FROM (
-                    SELECT CAST(SUBSTR(invoice_number, 12) AS INTEGER) AS seq
-                    FROM invoices WHERE invoice_number LIKE ?1
-                    UNION ALL
-                    SELECT CAST(SUBSTR(invoice_number, 12) AS INTEGER) AS seq
-                    FROM customer_ledgers WHERE invoice_number LIKE ?1
-                )
-                "#,
-            )
-            .bind(&pattern)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-            let max_seq: Option<i64> = sqlx::query_scalar(
-                r#"
-                SELECT MAX(seq) FROM (
-                    SELECT CAST(SUBSTRING(invoice_number FROM 12) AS BIGINT) AS seq
-                    FROM invoices WHERE invoice_number LIKE $1
-                    UNION ALL
-                    SELECT CAST(SUBSTRING(invoice_number FROM 12) AS BIGINT) AS seq
-                    FROM customer_ledgers WHERE invoice_number LIKE $1
-                ) combined
-                "#,
-            )
-            .bind(&pattern)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
+            let max_seq = repo::max_invoice_sequence(pool, &pattern).await?;
             let n = max_seq.unwrap_or(0) + 1;
             next_by_month.insert(yyyymm.clone(), n);
             n
@@ -150,49 +60,7 @@ pub async fn backfill_missing_booking_invoices(pool: &DbPool) -> Result<usize, A
 
         let invoice_number = format!("{}{:04}", prefix, next);
 
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let result = sqlx::query(
-            r#"
-            INSERT INTO invoices (
-                invoice_number, booking_id, invoice_type,
-                subtotal, total_amount, status
-            )
-            SELECT ?1, b.id, 'checkout', b.total_amount, b.total_amount, 'issued'
-            FROM bookings b
-            WHERE b.id = ?2
-            "#,
-        )
-        .bind(&invoice_number)
-        .bind(booking_id)
-        .execute(pool)
-        .await;
-
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-        let result = sqlx::query(
-            r#"
-            INSERT INTO invoices (
-                invoice_number, booking_id, billing_name, billing_email,
-                subtotal, total_amount, line_items, status, invoice_type
-            )
-            SELECT $1, b.id,
-                   COALESCE(g.full_name, ''),
-                   g.email,
-                   b.total_amount,
-                   b.total_amount,
-                   '[]'::jsonb,
-                   'issued',
-                   'booking'
-            FROM bookings b
-            INNER JOIN guests g ON b.guest_id = g.id
-            WHERE b.id = $2
-            "#,
-        )
-        .bind(&invoice_number)
-        .bind(booking_id)
-        .execute(pool)
-        .await;
-
-        match result {
+        match repo::insert_booking_invoice(pool, booking_id, &invoice_number).await {
             Ok(_) => inserted += 1,
             Err(e) => {
                 log::warn!(
@@ -219,43 +87,5 @@ pub async fn backfill_missing_booking_invoices(pool: &DbPool) -> Result<usize, A
 /// preference). Idempotent — only touches rows where `due_date IS NULL`.
 #[allow(dead_code)]
 pub async fn backfill_missing_ledger_due_dates(pool: &DbPool) -> Result<usize, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let result = sqlx::query(
-        r#"
-        UPDATE customer_ledgers
-           SET due_date = date(
-               COALESCE(posting_date, invoice_date, date(created_at)),
-               '+' || COALESCE(
-                   (SELECT payment_terms_days FROM companies WHERE companies.company_name = customer_ledgers.company_name LIMIT 1),
-                   30
-               ) || ' days'
-           )
-         WHERE due_date IS NULL
-        "#,
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let result = sqlx::query(
-        r#"
-        UPDATE customer_ledgers
-           SET due_date = (
-               COALESCE(posting_date, invoice_date, created_at::date)
-               + COALESCE(
-                   (SELECT payment_terms_days FROM companies
-                     WHERE company_name = customer_ledgers.company_name
-                     LIMIT 1),
-                   30
-               ) * INTERVAL '1 day'
-           )::date
-         WHERE due_date IS NULL
-        "#,
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(result.rows_affected() as usize)
+    repo::backfill_ledger_due_dates(pool).await
 }

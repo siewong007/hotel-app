@@ -4,12 +4,12 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::require_permission_helper;
+use crate::core::middleware::{require_auth, require_permission_helper};
 use crate::handlers;
 use crate::models;
 use axum::{
     Router,
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     http::HeaderMap,
     response::Json,
     routing::get,
@@ -30,21 +30,24 @@ async fn get_occupancy(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::analytics::get_occupancy_report_handler(State(pool), headers).await
+    require_permission_helper(&pool, &headers, "analytics:read").await?;
+    handlers::analytics::get_occupancy_report_handler(State(pool)).await
 }
 
 async fn get_booking_analytics(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::analytics::get_booking_analytics_handler(State(pool), headers).await
+    require_permission_helper(&pool, &headers, "analytics:read").await?;
+    handlers::analytics::get_booking_analytics_handler(State(pool)).await
 }
 
 async fn get_benchmark(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::analytics::get_occupancy_report_handler(State(pool), headers).await
+    require_permission_helper(&pool, &headers, "analytics:read").await?;
+    handlers::analytics::get_occupancy_report_handler(State(pool)).await
 }
 
 async fn get_personalized(
@@ -52,7 +55,10 @@ async fn get_personalized(
     headers: HeaderMap,
     query: Query<HashMap<String, String>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::analytics::get_personalized_report_handler(State(pool), headers, query).await
+    require_permission_helper(&pool, &headers, "analytics:read").await?;
+    let user_id = require_auth(&headers).await?;
+    handlers::analytics::get_personalized_report_handler(State(pool), Extension(user_id), query)
+        .await
 }
 
 async fn generate_report(

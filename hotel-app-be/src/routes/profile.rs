@@ -125,7 +125,8 @@ async fn setup_2fa(
             retry_after,
         ));
     }
-    handlers::two_factor::setup_2fa_handler(State(pool), headers, Json(input)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::two_factor::setup_2fa_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn enable_2fa(
@@ -145,7 +146,8 @@ async fn enable_2fa(
             retry_after,
         ));
     }
-    handlers::two_factor::enable_2fa_handler(State(pool), headers, Json(input)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::two_factor::enable_2fa_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn disable_2fa(
@@ -165,14 +167,16 @@ async fn disable_2fa(
             retry_after,
         ));
     }
-    handlers::two_factor::disable_2fa_handler(State(pool), headers, Json(input)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::two_factor::disable_2fa_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn get_2fa_status(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<models::TwoFactorStatusResponse>, ApiError> {
-    handlers::two_factor::get_2fa_status_handler(State(pool), headers).await
+    let user_id = require_auth(&headers).await?;
+    handlers::two_factor::get_2fa_status_handler(State(pool), user_id).await
 }
 
 async fn verify_2fa(
@@ -192,7 +196,8 @@ async fn verify_2fa(
             retry_after,
         ));
     }
-    handlers::two_factor::verify_2fa_code_handler(State(pool), headers, Json(input)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::two_factor::verify_2fa_code_handler(State(pool), user_id, Json(input)).await
 }
 
 /// Extract client IP from headers

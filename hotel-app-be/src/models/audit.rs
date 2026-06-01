@@ -3,6 +3,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sqlx::FromRow;
 
 /// Query parameters for audit log listing.
 #[derive(Debug, Deserialize)]
@@ -38,6 +39,33 @@ pub struct AuditLogEntryWithUser {
     pub created_at: DateTime<Utc>,
 }
 
+/// Database row used before deriving the activity-stream category.
+#[derive(Debug, FromRow)]
+pub struct AuditLogRow {
+    pub id: i64,
+    pub user_id: Option<i64>,
+    pub username: Option<String>,
+    pub action: String,
+    pub resource_type: String,
+    pub resource_id: Option<i64>,
+    pub details: Option<Value>,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, FromRow, Serialize)]
+pub struct AuditUserOption {
+    pub id: i64,
+    pub username: String,
+}
+
+#[derive(Debug, FromRow)]
+pub struct AuditResourceTypeCount {
+    pub resource_type: String,
+    pub count: i64,
+}
+
 /// Per-activity-stream event counts for the audit category rail.
 #[derive(Debug, Serialize, Default)]
 pub struct AuditCategoryCounts {
@@ -58,4 +86,11 @@ pub struct AuditLogResponse {
     pub page: i64,
     pub page_size: i64,
     pub total_pages: i64,
+}
+
+/// Query parameters for the DB statements diagnostics endpoint.
+#[derive(Debug, Deserialize)]
+pub struct DbStatementsQuery {
+    /// Number of top statements to return (default 20, clamped to 1..=200).
+    pub limit: Option<i64>,
 }

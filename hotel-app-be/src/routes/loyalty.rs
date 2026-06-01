@@ -110,7 +110,7 @@ async fn redeem_reward(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     Json(input): Json<models::RedeemRewardInput>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> Result<Json<models::RewardRedemptionResponse>, ApiError> {
     let user_id = require_auth(&headers).await?;
     handlers::loyalty::redeem_reward_handler(State(pool), Extension(user_id), Json(input)).await
 }
@@ -176,7 +176,7 @@ async fn redeem_reward_by_id(
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::RedeemRewardInput>,
-) -> Result<Json<serde_json::Value>, ApiError> {
+) -> Result<Json<models::RewardRedemptionResponse>, ApiError> {
     let user_id = require_auth(&headers).await?;
     handlers::loyalty::redeem_reward_for_user_handler(
         State(pool),
