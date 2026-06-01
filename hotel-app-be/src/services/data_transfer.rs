@@ -1,6 +1,6 @@
 //! Data-transfer workflows
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::Value;
 
@@ -120,17 +120,17 @@ pub async fn import_booking_data(pool: &DbPool, request: ImportRequest) -> Resul
         log::info!("Phase 1: All managed tables cleared");
     }
 
-    let generated_columns: HashMap<&str, Vec<&str>> = HashMap::from([
-        ("bookings", vec!["nights", "total_guests"]),
-        ("invoices", vec!["balance_due"]),
-        ("customer_ledgers", vec!["balance_due"]),
-    ]);
+    let mut generated_columns = base_generated_columns();
     let existing_user_ids = DataTransferRepository::existing_user_ids(pool).await;
+    for (table, columns) in DataTransferRepository::generated_columns(pool, ALL_IMPORT_TABLES).await
+    {
+        generated_columns.entry(table).or_default().extend(columns);
+    }
     let table_columns = DataTransferRepository::table_columns(pool, ALL_IMPORT_TABLES).await;
 
     DataTransferRepository::set_user_triggers(pool, TABLES_WITH_TRIGGERS, false).await;
 
-    let empty_skip = Vec::new();
+    let empty_skip = HashSet::new();
     let tables_and_data: Vec<(&str, &[Value])> = vec![
         ("room_types", &data.room_types),
         ("rooms", &data.rooms),
@@ -239,4 +239,40 @@ fn managed_tables(skip_rooms: bool) -> Vec<&'static str> {
         tables.extend_from_slice(ROOM_DEPENDENT_TABLES);
     }
     tables
+}
+
+fn base_generated_columns() -> HashMap<String, HashSet<String>> {
+    [
+        (
+            "bookings",
+            ["nights", "total_guests", "tourism_billable_amount"].as_slice(),
+        ),
+        ("invoices", ["balance_due"].as_slice()),
+        ("customer_ledgers", ["balance_due"].as_slice()),
+    ]
+    .into_iter()
+    .map(|(table, columns)| {
+        (
+            table.to_string(),
+            columns.iter().map(|column| (*column).to_string()).collect(),
+        )
+    })
+    .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::base_generated_columns;
+
+    #[test]
+    fn base_generated_columns_include_pg18_booking_virtual_column() {
+        let generated_columns = base_generated_columns();
+        let booking_columns = generated_columns
+            .get("bookings")
+            .expect("bookings generated columns should be listed");
+
+        assert!(booking_columns.contains("nights"));
+        assert!(booking_columns.contains("total_guests"));
+        assert!(booking_columns.contains("tourism_billable_amount"));
+    }
 }

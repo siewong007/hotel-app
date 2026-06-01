@@ -75,6 +75,30 @@ impl DataTransferRepository {
         table_columns
     }
 
+    pub async fn generated_columns(
+        pool: &DbPool,
+        table_names: &[&str],
+    ) -> HashMap<String, HashSet<String>> {
+        let mut generated_columns = HashMap::new();
+
+        for table_name in table_names {
+            let cols: Vec<(String,)> = sqlx::query_as(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = $1 AND table_schema = 'public' AND is_generated <> 'NEVER'",
+            )
+            .bind(*table_name)
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
+
+            generated_columns.insert(
+                (*table_name).to_string(),
+                cols.into_iter().map(|row| row.0).collect(),
+            );
+        }
+
+        generated_columns
+    }
+
     pub async fn set_user_triggers(pool: &DbPool, tables: &[&str], enabled: bool) {
         let action = if enabled { "ENABLE" } else { "DISABLE" };
         for table in tables {
@@ -88,7 +112,7 @@ impl DataTransferRepository {
         pool: &DbPool,
         table: &str,
         row: &serde_json::Map<String, Value>,
-        skip_columns: &[&str],
+        skip_columns: &HashSet<String>,
         valid_columns: Option<&HashSet<String>>,
         user_fk_columns: &[&str],
         existing_user_ids: &HashSet<i64>,
@@ -96,7 +120,7 @@ impl DataTransferRepository {
         let columns: Vec<&str> = row
             .keys()
             .map(|key| key.as_str())
-            .filter(|key| !skip_columns.contains(key))
+            .filter(|key| !skip_columns.contains(*key))
             .filter(|key| valid_columns.is_none_or(|cols| cols.contains(*key)))
             .collect();
 

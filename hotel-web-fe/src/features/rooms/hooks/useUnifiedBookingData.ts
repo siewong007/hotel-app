@@ -37,12 +37,12 @@ export function useUnifiedBookingData() {
   ) => {
     setLoadingAvailableRooms(true);
     try {
-      const available = await queryClient.ensureQueryData({
+      const available = await queryClient.fetchQuery({
         queryKey: queryKeys.rooms.available(checkInDate, checkOutDate),
         queryFn: () => RoomsService.getAvailableRoomsForDates(checkInDate, checkOutDate),
-        staleTime: queryStaleTime.short,
+        staleTime: 0,
       });
-      setAvailableRooms(sortRooms(available));
+      setAvailableRooms(sortRooms(available.filter((room) => room.available !== false)));
     } catch (error) {
       console.error('Failed to fetch available rooms:', error);
       setAvailableRooms([]);
