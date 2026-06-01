@@ -61,7 +61,7 @@ interface UnifiedBookingModalProps {
   open: boolean;
   onClose: () => void;
   room?: Room | null;  // Optional - if not provided, room selection step will be shown
-  rooms?: Room[];      // List of rooms for selection when room is not pre-selected
+  rooms?: Room[];      // Legacy caller prop; selection uses date-filtered availability
   guests: Guest[];
   initialGuest?: Guest | null;
   initialBookingType?: BookingType;
@@ -113,7 +113,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   open,
   onClose,
   room: roomProp,
-  rooms = [],
   guests,
   initialGuest = null,
   initialBookingType,
@@ -308,10 +307,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Store rooms in a ref to avoid dependency issues
-  const roomsRef = useRef(rooms);
-  roomsRef.current = rooms;
-
   // Sort rooms by room number ascending
   const sortRoomsByNumber = (roomList: Room[]) => {
     return [...roomList].sort((a, b) => {
@@ -327,7 +322,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   // Fetch available rooms when dates change (for room selection mode)
   useEffect(() => {
     if (!needsRoomSelection || !checkInDate || !checkOutDate) return;
-    loadAvailableRooms(checkInDate, checkOutDate, sortRoomsByNumber, roomsRef.current);
+    loadAvailableRooms(checkInDate, checkOutDate, sortRoomsByNumber);
   }, [needsRoomSelection, checkInDate, checkOutDate]);
 
   useEffect(() => {
@@ -1990,11 +1985,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
                   setSelectedRoom(value[0] || null);
                 }}
                 options={
-                  // Prefer date-filtered availability list when dates are set;
-                  // otherwise fall back to the full rooms array.
-                  availableRooms.length > 0
+                  checkInDate && checkOutDate
                     ? availableRooms
-                    : sortRoomsByNumber(rooms)
+                    : []
                 }
                 loading={loadingAvailableRooms}
                 getOptionLabel={(o) => o ? `Room ${o.room_number} · ${o.room_type}` : ''}

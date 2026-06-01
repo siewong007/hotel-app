@@ -33,8 +33,7 @@ export function useUnifiedBookingData() {
   const loadAvailableRooms = useCallback(async (
     checkInDate: string,
     checkOutDate: string,
-    sortRooms: (rooms: Room[]) => Room[],
-    fallbackRooms: Room[]
+    sortRooms: (rooms: Room[]) => Room[]
   ) => {
     setLoadingAvailableRooms(true);
     try {
@@ -46,7 +45,7 @@ export function useUnifiedBookingData() {
       setAvailableRooms(sortRooms(available));
     } catch (error) {
       console.error('Failed to fetch available rooms:', error);
-      setAvailableRooms(sortRooms(fallbackRooms));
+      setAvailableRooms([]);
     } finally {
       setLoadingAvailableRooms(false);
     }
