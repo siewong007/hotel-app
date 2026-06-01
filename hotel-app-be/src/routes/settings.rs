@@ -4,7 +4,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::require_auth;
+use crate::core::middleware::{require_auth, require_permission_helper};
 use crate::handlers;
 use crate::models;
 use axum::{
@@ -27,7 +27,8 @@ async fn get_settings(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::SystemSetting>>, ApiError> {
-    handlers::settings::get_system_settings_handler(State(pool), headers).await
+    require_permission_helper(&pool, &headers, "settings:read").await?;
+    handlers::settings::get_system_settings_handler(State(pool)).await
 }
 
 async fn update_setting(
@@ -36,7 +37,8 @@ async fn update_setting(
     headers: HeaderMap,
     Json(input): Json<models::SystemSettingUpdate>,
 ) -> Result<Json<models::SystemSetting>, ApiError> {
-    handlers::settings::update_system_setting_handler(State(pool), path, headers, Json(input)).await
+    let user_id = require_permission_helper(&pool, &headers, "settings:update").await?;
+    handlers::settings::update_system_setting_handler(State(pool), path, user_id, Json(input)).await
 }
 
 async fn process_checkins(

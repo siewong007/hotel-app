@@ -83,6 +83,97 @@ pub struct GuestUpdateInput {
     pub company_name: Option<String>,
 }
 
+/// Existing values needed to resolve partial guest updates.
+#[derive(Debug, sqlx::FromRow)]
+pub struct GuestUpdateState {
+    pub first_name: String,
+    pub last_name: String,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub ic_number: Option<String>,
+    pub nationality: Option<String>,
+    pub address_line1: Option<String>,
+    pub city: Option<String>,
+    pub state_province: Option<String>,
+    pub postal_code: Option<String>,
+    pub country: Option<String>,
+    pub title: Option<String>,
+    pub alt_phone: Option<String>,
+    pub company_name: Option<String>,
+    pub guest_type: GuestType,
+    pub tourism_type: Option<TourismType>,
+    pub discount_percentage: i32,
+}
+
+/// Fully resolved guest update values.
+#[derive(Debug)]
+pub struct GuestUpdateValues {
+    pub full_name: String,
+    pub first_name: String,
+    pub last_name: String,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub ic_number: Option<String>,
+    pub nationality: Option<String>,
+    pub address_line1: Option<String>,
+    pub city: Option<String>,
+    pub state_province: Option<String>,
+    pub postal_code: Option<String>,
+    pub country: Option<String>,
+    pub title: Option<String>,
+    pub alt_phone: Option<String>,
+    pub guest_type: GuestType,
+    pub tourism_type: Option<TourismType>,
+    pub discount_percentage: i32,
+    pub company_name: Option<String>,
+}
+
+/// Guest booking row for the guest detail endpoint.
+#[derive(Debug, sqlx::FromRow)]
+pub struct GuestBookingRow {
+    pub id: i64,
+    pub booking_number: Option<String>,
+    pub check_in_date: chrono::NaiveDate,
+    pub check_out_date: chrono::NaiveDate,
+    pub nights: Option<i32>,
+    pub status: String,
+    pub total_amount: rust_decimal::Decimal,
+    pub created_at: DateTime<Utc>,
+    pub room_number: String,
+    pub room_type: String,
+}
+
+/// Complimentary credit row joined to room type details.
+#[derive(Debug, sqlx::FromRow)]
+pub struct GuestCreditRow {
+    pub id: i32,
+    pub guest_id: i64,
+    pub room_type_id: i64,
+    pub room_type_name: String,
+    pub room_type_code: String,
+    pub nights_available: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Linked guest row with legacy credit total.
+#[derive(Debug, sqlx::FromRow)]
+pub struct LinkedGuestCreditRow {
+    pub id: i64,
+    pub full_name: String,
+    pub email: Option<String>,
+    pub legacy_credits: i32,
+}
+
+/// Room-type credit row for linked guest summaries.
+#[derive(Debug, sqlx::FromRow)]
+pub struct GuestRoomCreditRow {
+    pub room_type_id: i64,
+    pub room_type_name: String,
+    pub room_type_code: String,
+    pub nights_available: i32,
+}
+
 /// Input for linking a guest to a user
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LinkGuestInput {

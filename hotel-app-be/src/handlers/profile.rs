@@ -2,103 +2,32 @@
 //!
 //! Handles user profile management.
 
-use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
-use crate::utils::sanitization::Sanitizer;
+use crate::services::profile as profile_service;
 use axum::{
     extract::{Extension, State},
     response::Json,
 };
-use validator::Validate;
 
 pub async fn get_user_profile_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
 ) -> Result<Json<UserProfile>, ApiError> {
-    let profile = sqlx::query_as::<_, UserProfile>(
-        r#"
-        SELECT
-            id, username, email, full_name, phone,
-            avatar_url, created_at, updated_at, last_login_at
-        FROM users
-        WHERE id = $1 AND is_active = true
-        "#,
-    )
-    .bind(user_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
-
-    Ok(Json(profile))
+    Ok(Json(
+        profile_service::get_user_profile(&pool, user_id).await?,
+    ))
 }
 
 pub async fn update_user_profile_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
-    Json(mut input): Json<UserProfileUpdate>,
+    Json(input): Json<UserProfileUpdate>,
 ) -> Result<Json<UserProfile>, ApiError> {
-    input
-        .validate()
-        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    if let Some(full_name) = &input.full_name {
-        input.full_name = Some(Sanitizer::sanitize_guest_name(full_name));
-    }
-    if let Some(email) = &input.email {
-        input.email = Some(Sanitizer::sanitize_email(email));
-    }
-    if let Some(phone) = &input.phone {
-        input.phone = Some(Sanitizer::sanitize_phone(phone));
-    }
-    if let Some(avatar_url) = &input.avatar_url {
-        input.avatar_url = Sanitizer::sanitize_url(avatar_url);
-    }
-
-    // Use separate UPDATE statements for each field - safer than dynamic SQL construction
-    if let Some(full_name) = input.full_name {
-        sqlx::query(
-            "UPDATE users SET full_name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-        )
-        .bind(full_name)
-        .bind(user_id)
-        .execute(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-    }
-
-    if let Some(email) = input.email {
-        sqlx::query("UPDATE users SET email = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
-            .bind(email)
-            .bind(user_id)
-            .execute(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-    }
-
-    if let Some(phone) = input.phone {
-        sqlx::query("UPDATE users SET phone = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
-            .bind(phone)
-            .bind(user_id)
-            .execute(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-    }
-
-    if let Some(avatar_url) = input.avatar_url {
-        sqlx::query(
-            "UPDATE users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
-        )
-        .bind(avatar_url)
-        .bind(user_id)
-        .execute(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-    }
-
-    // Fetch updated profile
-    get_user_profile_handler(State(pool), Extension(user_id)).await
+    Ok(Json(
+        profile_service::update_user_profile(&pool, user_id, input).await?,
+    ))
 }
 
 pub async fn update_password_handler(
@@ -106,47 +35,7 @@ pub async fn update_password_handler(
     Extension(user_id): Extension<i64>,
     Json(input): Json<PasswordUpdateInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    input
-        .validate()
-        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
-    AuthService::validate_password(&input.new_password).map_err(ApiError::BadRequest)?;
-
-    // Get current password hash
-    let current_hash: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE id = $1")
-        .bind(user_id)
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Verify current password
-    let valid = AuthService::verify_password(&input.current_password, &current_hash)
-        .await
-        .map_err(|_| ApiError::Internal("Password verification failed".to_string()))?;
-
-    if !valid {
-        return Err(ApiError::Unauthorized(
-            "Current password is incorrect".to_string(),
-        ));
-    }
-
-    // Hash new password
-    let new_hash = AuthService::hash_password(&input.new_password)
-        .await
-        .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?;
-
-    // Update password
-    sqlx::query(
-        r#"
-        UPDATE users
-        SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
-        WHERE id = $2
-        "#,
-    )
-    .bind(&new_hash)
-    .bind(user_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    profile_service::update_password(&pool, user_id, input).await?;
 
     Ok(Json(
         serde_json::json!({"message": "Password updated successfully"}),

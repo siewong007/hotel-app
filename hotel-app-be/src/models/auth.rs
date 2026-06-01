@@ -181,6 +181,16 @@ pub struct PasskeyInfo {
     pub last_used_at: Option<DateTime<Utc>>,
 }
 
+/// Raw passkey info row before credential IDs are encoded for clients.
+#[derive(Debug, FromRow)]
+pub struct PasskeyInfoRow {
+    pub id: Uuid,
+    pub credential_id: Vec<u8>,
+    pub device_name: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub last_used_at: Option<DateTime<Utc>>,
+}
+
 /// Input for updating passkey
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PasskeyUpdateInput {

@@ -361,6 +361,7 @@ impl AuthService {
     }
 
     /// Get user by email for verification
+    #[allow(dead_code)]
     pub async fn get_user_by_email(
         pool: &DbPool,
         email: &str,

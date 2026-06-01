@@ -4,7 +4,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::require_permission_helper;
+use crate::core::middleware::{require_auth, require_permission_helper};
 use crate::handlers;
 use crate::models;
 use axum::{
@@ -38,7 +38,8 @@ async fn upload_document(
     headers: HeaderMap,
     multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::ekyc::upload_document_handler(State(pool), headers, multipart).await
+    let user_id = require_auth(&headers).await?;
+    handlers::ekyc::upload_document_handler(State(pool), user_id, multipart).await
 }
 
 async fn submit_ekyc(
@@ -46,14 +47,16 @@ async fn submit_ekyc(
     headers: HeaderMap,
     Json(input): Json<models::EkycSubmissionRequest>,
 ) -> Result<Json<models::EkycStatusResponse>, ApiError> {
-    handlers::ekyc::submit_ekyc_handler(State(pool), headers, Json(input)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::ekyc::submit_ekyc_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn get_status(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Option<models::EkycStatusResponse>>, ApiError> {
-    handlers::ekyc::get_ekyc_status_handler(State(pool), headers).await
+    let user_id = require_auth(&headers).await?;
+    handlers::ekyc::get_ekyc_status_handler(State(pool), user_id).await
 }
 
 async fn self_checkin(
@@ -61,7 +64,8 @@ async fn self_checkin(
     headers: HeaderMap,
     Json(input): Json<models::SelfCheckinRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::ekyc::self_checkin_handler(State(pool), headers, Json(input)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::ekyc::self_checkin_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn get_all_verifications(
@@ -96,6 +100,6 @@ async fn update_verification(
     path: Path<i64>,
     Json(input): Json<models::EkycVerificationUpdate>,
 ) -> Result<Json<models::EkycVerification>, ApiError> {
-    require_permission_helper(&pool, &headers, "ekyc:verify").await?;
-    handlers::ekyc::update_ekyc_handler(State(pool), headers, path, Json(input)).await
+    let admin_id = require_permission_helper(&pool, &headers, "ekyc:verify").await?;
+    handlers::ekyc::update_ekyc_handler(State(pool), admin_id, path, Json(input)).await
 }

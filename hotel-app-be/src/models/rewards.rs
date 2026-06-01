@@ -60,6 +60,30 @@ pub struct RewardUpdateInput {
     pub terms_conditions: Option<String>,
 }
 
+/// Fully resolved values used when persisting a reward update.
+#[derive(Debug, Clone)]
+pub struct RewardUpdateValues {
+    pub name: String,
+    pub description: Option<String>,
+    pub category: String,
+    pub points_cost: i32,
+    pub monetary_value: Option<Decimal>,
+    pub minimum_tier_level: i32,
+    pub is_active: bool,
+    pub stock_quantity: Option<i32>,
+    pub image_url: Option<String>,
+    pub terms_conditions: Option<String>,
+}
+
+/// Response returned after redeeming a reward.
+#[derive(Debug, Clone, Serialize)]
+pub struct RewardRedemptionResponse {
+    pub message: String,
+    pub points_spent: i32,
+    pub new_balance: i32,
+    pub reward_name: String,
+}
+
 /// Reward redemption record
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct RewardRedemption {

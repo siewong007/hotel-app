@@ -4,1180 +4,149 @@
 
 use axum::{
     Json,
-    extract::{Path, State},
-    http::HeaderMap,
+    extract::{Extension, Path, State},
 };
-use chrono::NaiveDateTime;
-use rust_decimal::Decimal;
-use sqlx::Row;
 
-use crate::constants::{PaymentMethod, PaymentStatus};
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::require_auth;
-use crate::models::row_mappers;
 use crate::models::*;
+use crate::services::payments;
 
-/// Recompute and persist `bookings.payment_status` for a single booking,
-/// bringing the stored column back in sync with the live sum of completed
-/// non-refund payment rows. Call this from every code path that mutates the
-/// `payments` table or `bookings.total_amount`.
+/// Recompute and persist `bookings.payment_status` for a single booking.
 ///
-/// The CASE expression below is mirrored verbatim in `bookings_queries.rs`
-/// (the SELECT-time override). Keep them in sync — the SELECT override
-/// guarantees correct list output even if a write path forgets to call this
-/// helper, and this helper guarantees correctness for callers that read
-/// `b.payment_status` directly.
-///
-/// Skips complimentary bookings (and 'voided' bookings) — their stored value
-/// isn't backed by a `payments` row.
+/// Kept as a public compatibility wrapper because booking handlers call this
+/// helper during their own refactor path.
 pub async fn recompute_payment_status(pool: &DbPool, booking_id: i64) -> Result<(), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let sql = r#"
-        UPDATE bookings AS b
-        SET payment_status = CASE
-            WHEN b.status = 'voided' THEN 'voided'
-            WHEN COALESCE(b.is_complimentary, 0) = 1 THEN COALESCE(b.payment_status, 'paid')
-            WHEN b.total_amount <= 0 THEN 'paid'
-            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
-                    WHERE p.booking_id = b.id
-                      AND p.status = 'completed'
-                      AND COALESCE(p.payment_type, 'booking') != 'refund'), 0)
-                 >= b.total_amount THEN 'paid'
-            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
-                    WHERE p.booking_id = b.id
-                      AND p.status = 'completed'
-                      AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
-                THEN 'partial'
-            ELSE 'unpaid'
-        END,
-        updated_at = CURRENT_TIMESTAMP
-        WHERE b.id = ?1
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let sql = r#"
-        UPDATE bookings AS b
-        SET payment_status = CASE
-            WHEN b.status = 'voided' THEN 'voided'
-            WHEN COALESCE(b.is_complimentary, false) THEN COALESCE(b.payment_status, 'paid')
-            WHEN b.total_amount <= 0 THEN 'paid'
-            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
-                    WHERE p.booking_id = b.id
-                      AND p.status = 'completed'
-                      AND COALESCE(p.payment_type, 'booking') != 'refund'), 0)
-                 >= b.total_amount THEN 'paid'
-            WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
-                    WHERE p.booking_id = b.id
-                      AND p.status = 'completed'
-                      AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
-                THEN 'partial'
-            ELSE 'unpaid'
-        END,
-        updated_at = CURRENT_TIMESTAMP
-        WHERE b.id = $1
-    "#;
-
-    sqlx::query(sql)
-        .bind(booking_id)
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-    Ok(())
+    payments::recompute_payment_status(pool, booking_id).await
 }
 
 /// Create a payment for a booking
 pub async fn create_payment_handler(
     State(pool): State<DbPool>,
-    headers: HeaderMap,
+    Extension(user_id): Extension<i64>,
     Json(request): Json<PaymentRequest>,
 ) -> Result<Json<Payment>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
-    // Start a transaction to prevent double-charging and ensure atomicity
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Idempotency check: prevent duplicate completed payments for the same booking
-    let existing_payment: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM payments WHERE booking_id = $1 AND payment_status = $2 LIMIT 1",
-    )
-    .bind(request.booking_id)
-    .bind(PaymentStatus::Completed.to_string())
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if existing_payment.is_some() {
-        return Err(ApiError::BadRequest(
-            "A completed payment already exists for this booking".to_string(),
-        ));
-    }
-
-    // Get booking details to calculate amounts
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let booking_query = r#"
-        SELECT b.id, b.room_id, b.check_in_date, b.check_out_date, r.room_number
-        FROM bookings b
-        JOIN rooms r ON b.room_id = r.id
-        WHERE b.id = ?1
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let booking_query = r#"
-        SELECT b.id, b.room_id, b.check_in_date, b.check_out_date, r.room_number
-        FROM bookings b
-        JOIN rooms r ON b.room_id = r.id
-        WHERE b.id = $1
-    "#;
-
-    let booking_row = sqlx::query(booking_query)
-        .bind(request.booking_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let booking_id: i64 = booking_row.get("id");
-    let room_id: i64 = booking_row.get("room_id");
-    let check_in: NaiveDateTime = booking_row.get("check_in_date");
-    let check_out: NaiveDateTime = booking_row.get("check_out_date");
-    let _room_number: String = booking_row.get("room_number");
-
-    // Get room type configuration
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let room_type_query = r#"
-        SELECT rt.base_price, rt.keycard_deposit_amount, rt.service_charge_percentage
-        FROM rooms r
-        JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE r.id = ?1
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let room_type_query = r#"
-        SELECT rt.base_price, rt.keycard_deposit_amount, rt.service_charge_percentage
-        FROM rooms r
-        JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE r.id = $1
-    "#;
-
-    let room_type_row = sqlx::query(room_type_query)
-        .bind(room_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let base_price = row_mappers::get_decimal(&room_type_row, "base_price");
-    let keycard_deposit = row_mappers::get_decimal(&room_type_row, "keycard_deposit_amount");
-    let service_charge_pct = row_mappers::get_decimal(&room_type_row, "service_charge_percentage");
-
-    // Calculate number of nights
-    let nights = (check_out.date() - check_in.date()).num_days();
-    let subtotal = base_price * Decimal::from(nights);
-
-    // Calculate service charge
-    let service_charge = (subtotal * service_charge_pct) / Decimal::from(100);
-
-    // Tax (0 for now, but can be configured)
-    let tax_amount = Decimal::ZERO;
-
-    // Total = subtotal + service charge + tax + keycard deposit
-    let total = subtotal + service_charge + tax_amount + keycard_deposit;
-
-    // Create payment record
-    let payment = sqlx::query_as::<_, Payment>(
-        r#"
-        INSERT INTO payments (
-            booking_id, user_id, payment_method, payment_status,
-            subtotal, service_charge, tax_amount, keycard_deposit, total_amount,
-            transaction_reference, payment_gateway,
-            card_last_four, card_brand, bank_name, account_reference, notes
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-        RETURNING *
-        "#,
-    )
-    .bind(booking_id)
-    .bind(user_id)
-    .bind(request.payment_method.to_string())
-    .bind(PaymentStatus::Completed.to_string())
-    .bind(subtotal)
-    .bind(service_charge)
-    .bind(tax_amount)
-    .bind(keycard_deposit)
-    .bind(total)
-    .bind(&request.transaction_reference)
-    .bind(match &request.payment_method {
-        PaymentMethod::Card => Some("card_processor"),
-        PaymentMethod::Duitnow => Some("duitnow"),
-        PaymentMethod::OnlineBanking => Some("online_banking"),
-        _ => None,
-    })
-    .bind(&request.card_last_four)
-    .bind(&request.card_brand)
-    .bind(&request.bank_name)
-    .bind(&request.account_reference)
-    .bind(&request.notes)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Create keycard deposit record
-    if keycard_deposit > Decimal::ZERO {
-        sqlx::query(
-            r#"
-            INSERT INTO keycard_deposits (booking_id, payment_id, deposit_amount, deposit_status)
-            VALUES ($1, $2, $3, 'held')
-            "#,
-        )
-        .bind(booking_id)
-        .bind(payment.id)
-        .bind(keycard_deposit)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-    }
-
-    // Commit the transaction - all inserts succeed or none do
-    tx.commit()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(Json(payment))
+    Ok(Json(
+        payments::create_payment(&pool, user_id, request).await?,
+    ))
 }
 
 /// Record an explicit payment for a booking
 pub async fn record_payment_handler(
     State(pool): State<DbPool>,
-    headers: HeaderMap,
+    Extension(user_id): Extension<i64>,
     Json(request): Json<RecordPaymentRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
-    let amount = Decimal::from_f64_retain(request.amount)
-        .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
-
-    let payment_type = request.payment_type.as_deref().unwrap_or("booking");
-
-    // Start a transaction for atomicity and idempotency
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Idempotency check: if a transaction_reference is provided, check for duplicates
-    if let Some(ref txn_ref) = request.transaction_reference
-        && !txn_ref.is_empty()
-    {
-        let duplicate: Option<i64> =
-            sqlx::query_scalar("SELECT id FROM payments WHERE transaction_id = $1 LIMIT 1")
-                .bind(txn_ref)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        if duplicate.is_some() {
-            return Err(ApiError::BadRequest(
-                "A payment with this transaction reference already exists".to_string(),
-            ));
-        }
-    }
-
-    // Parse optional payment_date to override created_at
-    let created_at_override: Option<String> = request
-        .payment_date
-        .as_ref()
-        .map(|d| format!("{} 12:00:00", d));
-
-    let row = sqlx::query(
-        r#"
-        INSERT INTO payments (
-            uuid, booking_id, amount, payment_method, payment_type,
-            status, transaction_id, notes, created_by, created_at
-        )
-        VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6, $7, COALESCE($8::timestamptz, CURRENT_TIMESTAMP))
-        RETURNING id, booking_id, amount::text, payment_method, payment_type, status,
-                  transaction_id, notes, created_at
-        "#,
-    )
-    .bind(request.booking_id)
-    .bind(amount)
-    .bind(&request.payment_method)
-    .bind(payment_type)
-    .bind(&request.transaction_reference)
-    .bind(&request.notes)
-    .bind(user_id)
-    .bind(&created_at_override)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Commit the transaction
-    tx.commit()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Resync bookings.payment_status with the new payment row.
-    recompute_payment_status(&pool, request.booking_id).await?;
-
-    let payment = serde_json::json!({
-        "id": row.get::<i64, _>("id"),
-        "booking_id": row.get::<i64, _>("booking_id"),
-        "total_amount": row.get::<String, _>("amount"),
-        "payment_method": row.get::<String, _>("payment_method"),
-        "payment_type": row.get::<Option<String>, _>("payment_type"),
-        "payment_status": row.get::<Option<String>, _>("status"),
-        "transaction_reference": row.get::<Option<String>, _>("transaction_id"),
-        "notes": row.get::<Option<String>, _>("notes"),
-        "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-    });
-
-    Ok(Json(payment))
+    Ok(Json(
+        payments::record_payment(&pool, user_id, request).await?,
+    ))
 }
 
 /// Get all payments for a booking
 pub async fn get_all_payments_handler(
     State(pool): State<DbPool>,
-    headers: HeaderMap,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
-    let rows = sqlx::query(
-        r#"SELECT id, booking_id, amount::text, payment_method, payment_type, status,
-                  transaction_id, notes, created_at
-           FROM payments WHERE booking_id = $1 ORDER BY created_at ASC"#,
-    )
-    .bind(booking_id)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let payments: Vec<serde_json::Value> = rows
-        .iter()
-        .map(|row| {
-            serde_json::json!({
-                "id": row.get::<i64, _>("id"),
-                "booking_id": row.get::<i64, _>("booking_id"),
-                "total_amount": row.get::<String, _>("amount"),
-                "payment_method": row.get::<String, _>("payment_method"),
-                "payment_type": row.get::<Option<String>, _>("payment_type"),
-                "payment_status": row.get::<Option<String>, _>("status"),
-                "transaction_reference": row.get::<Option<String>, _>("transaction_id"),
-                "notes": row.get::<Option<String>, _>("notes"),
-                "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-            })
-        })
-        .collect();
-
-    Ok(Json(payments))
+    Ok(Json(payments::get_all_payments(&pool, booking_id).await?))
 }
 
 /// Get booking-level payment workflow totals and next action.
 pub async fn get_payment_workflow_summary_handler(
     State(pool): State<DbPool>,
-    headers: HeaderMap,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<PaymentWorkflowSummary>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let summary_sql = r#"
-        SELECT
-            b.id AS booking_id,
-            b.status AS booking_status,
-            COALESCE(b.payment_status, 'unpaid') AS payment_status,
-            b.total_amount,
-            COALESCE((SELECT SUM(p.amount) FROM payments p
-                WHERE p.booking_id = b.id AND p.status = 'completed'
-                  AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
-            COALESCE((SELECT SUM(p.amount) FROM payments p
-                WHERE p.booking_id = b.id
-                  AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS total_refunded,
-            COALESCE((SELECT SUM(p.amount) FROM payments p
-                WHERE p.booking_id = b.id AND p.status = 'completed'
-                  AND COALESCE(p.payment_type, 'booking') = 'deposit'), 0) AS deposit_collected,
-            COALESCE((SELECT SUM(p.amount) FROM payments p
-                WHERE p.booking_id = b.id
-                  AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS deposit_refunded,
-            EXISTS(SELECT 1 FROM payments p WHERE p.booking_id = b.id AND p.status = 'failed') AS has_failed_payment
-        FROM bookings b
-        WHERE b.id = ?1
-    "#;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let summary_sql = r#"
-        SELECT
-            b.id AS booking_id,
-            b.status AS booking_status,
-            COALESCE(b.payment_status, 'unpaid') AS payment_status,
-            b.total_amount,
-            COALESCE((SELECT SUM(p.amount) FROM payments p
-                WHERE p.booking_id = b.id AND p.status = 'completed'
-                  AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
-            COALESCE((SELECT SUM(p.amount) FROM payments p
-                WHERE p.booking_id = b.id
-                  AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS total_refunded,
-            COALESCE((SELECT SUM(p.amount) FROM payments p
-                WHERE p.booking_id = b.id AND p.status = 'completed'
-                  AND COALESCE(p.payment_type, 'booking') = 'deposit'), 0) AS deposit_collected,
-            COALESCE((SELECT SUM(p.amount) FROM payments p
-                WHERE p.booking_id = b.id
-                  AND (p.status = 'refunded' OR COALESCE(p.payment_type, 'booking') = 'refund')), 0) AS deposit_refunded,
-            EXISTS(SELECT 1 FROM payments p WHERE p.booking_id = b.id AND p.status = 'failed') AS has_failed_payment
-        FROM bookings b
-        WHERE b.id = $1
-    "#;
-
-    let row = sqlx::query(summary_sql)
-        .bind(booking_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?
-        .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
-
-    let total_amount = row_mappers::get_decimal(&row, "total_amount");
-    let total_paid = row_mappers::get_decimal(&row, "total_paid");
-    let total_refunded = row_mappers::get_decimal(&row, "total_refunded");
-    let deposit_collected = row_mappers::get_decimal(&row, "deposit_collected");
-    let deposit_refunded = row_mappers::get_decimal(&row, "deposit_refunded");
-    let balance_due = if total_amount > total_paid {
-        total_amount - total_paid
-    } else {
-        Decimal::ZERO
-    };
-    let booking_status: String = row.get("booking_status");
-    let payment_status: String = row.get("payment_status");
-    let has_failed_payment = row_mappers::get_bool(&row, "has_failed_payment");
-
-    let mut warnings = Vec::new();
-    if has_failed_payment {
-        warnings.push("One or more payments failed and need review".to_string());
-    }
-    if balance_due > Decimal::ZERO {
-        warnings.push(format!("Outstanding balance: {}", balance_due));
-    }
-    if deposit_collected > deposit_refunded
-        && matches!(booking_status.as_str(), "checked_out" | "completed")
-    {
-        warnings.push("Collected deposit has not been fully refunded".to_string());
-    }
-    if total_refunded > total_paid {
-        warnings.push("Refund total is greater than collected payments".to_string());
-    }
-
-    let next_action = if booking_status == "voided" {
-        "No payment action - booking is voided".to_string()
-    } else if has_failed_payment {
-        "Review failed payment".to_string()
-    } else if balance_due > Decimal::ZERO {
-        "Collect balance due".to_string()
-    } else if deposit_collected > deposit_refunded
-        && matches!(booking_status.as_str(), "checked_out" | "completed")
-    {
-        "Refund deposit".to_string()
-    } else {
-        "Settled".to_string()
-    };
-
-    Ok(Json(PaymentWorkflowSummary {
-        booking_id,
-        booking_status,
-        payment_status,
-        total_amount,
-        total_paid,
-        total_refunded,
-        balance_due,
-        deposit_collected,
-        deposit_refunded,
-        has_failed_payment,
-        next_action,
-        warnings,
-    }))
+    Ok(Json(
+        payments::get_payment_workflow_summary(&pool, booking_id).await?,
+    ))
 }
 
 /// Refund keycard deposit for a booking
 pub async fn refund_deposit_handler(
     State(pool): State<DbPool>,
-    headers: HeaderMap,
+    Extension(user_id): Extension<i64>,
     Path(booking_id): Path<i64>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
-    let payment_method = body
-        .get("payment_method")
-        .and_then(|v| v.as_str())
-        .unwrap_or("cash")
-        .to_string();
-
-    // Get deposit amount from request body (frontend passes it from hotel settings)
-    let deposit_amount_f64 = body.get("amount").and_then(|v| v.as_f64()).unwrap_or(0.0);
-
-    let deposit_amount = Decimal::from_f64_retain(deposit_amount_f64).unwrap_or(Decimal::ZERO);
-
-    if deposit_amount <= Decimal::ZERO {
-        return Err(ApiError::BadRequest(
-            "No deposit amount provided".to_string(),
-        ));
-    }
-
-    // Start a transaction to prevent double-refunding (check + insert must be atomic)
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Check if already refunded (within the transaction to prevent race conditions)
-    let existing_refund: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND notes = 'Keycard deposit refund' LIMIT 1"
-    )
-    .bind(booking_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if existing_refund.is_some() {
-        return Err(ApiError::BadRequest("Deposit already refunded".to_string()));
-    }
-
-    // Create a refund payment record
-    let row = sqlx::query(
-        r#"
-        INSERT INTO payments (
-            uuid, booking_id, amount, payment_method, payment_type,
-            status, notes, created_by
-        )
-        VALUES (gen_random_uuid(), $1, $2, $3, 'refund', 'refunded', 'Keycard deposit refund', $4)
-        RETURNING id, booking_id, amount::text, payment_method, payment_type, status, notes, created_at
-        "#,
-    )
-    .bind(booking_id)
-    .bind(deposit_amount)
-    .bind(&payment_method)
-    .bind(user_id)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Commit the transaction
-    tx.commit()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Refund changes the running paid total — keep payment_status in sync.
-    recompute_payment_status(&pool, booking_id).await?;
-
-    let refund = serde_json::json!({
-        "id": row.get::<i64, _>("id"),
-        "booking_id": row.get::<i64, _>("booking_id"),
-        "total_amount": row.get::<String, _>("amount"),
-        "payment_method": row.get::<String, _>("payment_method"),
-        "payment_type": row.get::<Option<String>, _>("payment_type"),
-        "payment_status": row.get::<Option<String>, _>("status"),
-        "notes": row.get::<Option<String>, _>("notes"),
-        "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-    });
-
-    Ok(Json(refund))
+    Ok(Json(
+        payments::refund_deposit(&pool, user_id, booking_id, body).await?,
+    ))
 }
 
 /// Get payment for a booking
 pub async fn get_payment_handler(
     State(pool): State<DbPool>,
-    headers: HeaderMap,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<Option<Payment>>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
-    let payment = sqlx::query_as::<_, Payment>(
-        "SELECT * FROM payments WHERE booking_id = $1 ORDER BY created_at DESC LIMIT 1",
-    )
-    .bind(booking_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(Json(payment))
+    Ok(Json(payments::get_payment(&pool, booking_id).await?))
 }
 
 /// Calculate payment summary for a booking (before actual payment)
 pub async fn calculate_payment_summary_handler(
     State(pool): State<DbPool>,
-    headers: HeaderMap,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<PaymentSummary>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
-    // Get booking and room details
-    let (room_id, check_in, check_out): (i64, NaiveDateTime, NaiveDateTime) =
-        sqlx::query_as("SELECT room_id, check_in_date, check_out_date FROM bookings WHERE id = $1")
-            .bind(booking_id)
-            .fetch_one(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Get pricing configuration
-    let (base_price, keycard_deposit, service_charge_pct): (Decimal, Decimal, Decimal) =
-        sqlx::query_as(
-            r#"
-        SELECT rt.base_price, rt.keycard_deposit_amount, rt.service_charge_percentage
-        FROM rooms r
-        JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE r.id = $1
-        "#,
-        )
-        .bind(room_id)
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Calculate amounts
-    let nights = (check_out.date() - check_in.date()).num_days();
-    let subtotal = base_price * Decimal::from(nights);
-    let service_charge = (subtotal * service_charge_pct) / Decimal::from(100);
-    let tax_amount = Decimal::ZERO;
-    let total = subtotal + service_charge + tax_amount + keycard_deposit;
-
-    Ok(Json(PaymentSummary {
-        subtotal,
-        service_charge,
-        service_charge_percentage: service_charge_pct,
-        tax_amount,
-        tax_percentage: Decimal::ZERO,
-        keycard_deposit,
-        total_amount: total,
-        payment_method: None,
-    }))
+    Ok(Json(
+        payments::calculate_payment_summary(&pool, booking_id).await?,
+    ))
 }
 
 /// Generate an invoice for a booking
 pub async fn generate_invoice_handler(
     State(pool): State<DbPool>,
-    headers: HeaderMap,
+    Extension(user_id): Extension<i64>,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<Invoice>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
-    // Start a transaction to prevent duplicate invoice generation
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Check if invoice already exists (within the transaction to prevent race conditions)
-    if let Some(existing) =
-        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE booking_id = $1")
-            .bind(booking_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?
-    {
-        return Ok(Json(existing));
-    }
-
-    // Get booking details with user info
-    let booking_details: (
-        i64,
-        i64,
-        String,
-        String,
-        Option<String>,
-        NaiveDateTime,
-        NaiveDateTime,
-        i64,
-        String,
-        String,
-    ) = sqlx::query_as(
-        r#"
-        SELECT b.id, b.guest_id, u.full_name, u.email, u.phone,
-               b.check_in_date, b.check_out_date,
-               r.id as room_id, r.room_number, rt.name as room_type
-        FROM bookings b
-        JOIN users u ON b.guest_id = u.id
-        JOIN rooms r ON b.room_id = r.id
-        JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE b.id = $1
-        "#,
-    )
-    .bind(booking_id)
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let (
-        _bid,
-        _guest_id,
-        customer_name,
-        customer_email,
-        customer_phone,
-        check_in,
-        check_out,
-        room_id,
-        room_number,
-        room_type,
-    ) = booking_details;
-
-    // Get payment if exists
-    let payment = sqlx::query_as::<_, Payment>(
-        "SELECT * FROM payments WHERE booking_id = $1 ORDER BY created_at DESC LIMIT 1",
-    )
-    .bind(booking_id)
-    .fetch_optional(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Calculate amounts (same as payment)
-    let (base_price, keycard_deposit, service_charge_pct): (Decimal, Decimal, Decimal) =
-        sqlx::query_as(
-            r#"
-        SELECT rt.base_price, rt.keycard_deposit_amount, rt.service_charge_percentage
-        FROM rooms r
-        JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE r.id = $1
-        "#,
-        )
-        .bind(room_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let nights = (check_out.date() - check_in.date()).num_days() as i32;
-    let subtotal = base_price * Decimal::from(nights);
-    let service_charge = (subtotal * service_charge_pct) / Decimal::from(100);
-    let tax_amount = Decimal::ZERO;
-    let total = subtotal + service_charge + tax_amount + keycard_deposit;
-
-    // Build line items
-    let line_items = serde_json::json!([
-        {
-            "description": format!("Room {} ({}) - {} night(s)", room_number, room_type, nights),
-            "quantity": nights,
-            "unit_price": base_price,
-            "total": subtotal
-        },
-        {
-            "description": format!("Service Charge ({}%)", service_charge_pct),
-            "quantity": 1,
-            "unit_price": service_charge,
-            "total": service_charge
-        },
-        {
-            "description": "Keycard Deposit (Refundable)",
-            "quantity": 1,
-            "unit_price": keycard_deposit,
-            "total": keycard_deposit
-        }
-    ]);
-
-    // Generate invoice number in INV-YYYYMM-XXXX format
-    let invoice_number = crate::services::invoice_numbers::next_invoice_number(&pool).await?;
-
-    // Create invoice
-    let invoice = sqlx::query_as::<_, Invoice>(
-        r#"
-        INSERT INTO invoices (
-            invoice_number, booking_id, payment_id, user_id,
-            subtotal, service_charge, service_charge_percentage,
-            tax_amount, tax_percentage, keycard_deposit, total_amount,
-            line_items, customer_name, customer_email, customer_phone,
-            room_number, room_type, check_in_date, check_out_date,
-            number_of_nights, status
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
-        RETURNING *
-        "#,
-    )
-    .bind(&invoice_number)
-    .bind(booking_id)
-    .bind(payment.as_ref().map(|p| p.id))
-    .bind(user_id)
-    .bind(subtotal)
-    .bind(service_charge)
-    .bind(service_charge_pct)
-    .bind(tax_amount)
-    .bind(Decimal::ZERO)
-    .bind(keycard_deposit)
-    .bind(total)
-    .bind(&line_items)
-    .bind(&customer_name)
-    .bind(&customer_email)
-    .bind(&customer_phone)
-    .bind(&room_number)
-    .bind(&room_type)
-    .bind(check_in)
-    .bind(check_out)
-    .bind(nights)
-    .bind(if payment.is_some() { "paid" } else { "draft" })
-    .fetch_one(&mut *tx)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Commit the transaction
-    tx.commit()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(Json(invoice))
+    Ok(Json(
+        payments::generate_invoice(&pool, user_id, booking_id).await?,
+    ))
 }
 
 /// Get invoice preview with all details
 pub async fn get_invoice_preview_handler(
     State(pool): State<DbPool>,
-    headers: HeaderMap,
+    Extension(user_id): Extension<i64>,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<InvoicePreview>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
-    // Get or generate invoice
-    let invoice = sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE booking_id = $1")
-        .bind(booking_id)
-        .fetch_optional(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let invoice = match invoice {
-        Some(inv) => inv,
-        None => {
-            // Generate if doesn't exist
-            let response =
-                generate_invoice_handler(State(pool.clone()), headers.clone(), Path(booking_id))
-                    .await?;
-            response.0
-        }
-    };
-
-    // Get payment
-    let payment = sqlx::query_as::<_, Payment>(
-        "SELECT * FROM payments WHERE booking_id = $1 ORDER BY created_at DESC LIMIT 1",
-    )
-    .bind(booking_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Get booking details
-    let booking_details = serde_json::json!({
-        "booking_id": booking_id,
-        "check_in": invoice.check_in_date,
-        "check_out": invoice.check_out_date,
-        "nights": invoice.number_of_nights,
-        "room": format!("{} ({})", invoice.room_number.as_ref().unwrap_or(&"N/A".to_string()), invoice.room_type.as_ref().unwrap_or(&"N/A".to_string()))
-    });
-
-    Ok(Json(InvoicePreview {
-        invoice,
-        payment,
-        booking_details,
-    }))
+    Ok(Json(
+        payments::get_invoice_preview(&pool, user_id, booking_id).await?,
+    ))
 }
 
 /// Get all invoices for a user
 pub async fn get_user_invoices_handler(
     State(pool): State<DbPool>,
-    headers: HeaderMap,
+    Extension(user_id): Extension<i64>,
 ) -> Result<Json<Vec<Invoice>>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
-    let invoices = sqlx::query_as::<_, Invoice>(
-        "SELECT * FROM invoices WHERE user_id = $1 ORDER BY invoice_date DESC",
-    )
-    .bind(user_id)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(Json(invoices))
+    Ok(Json(payments::get_user_invoices(&pool, user_id).await?))
 }
 
 /// Update a payment record
 pub async fn update_payment_handler(
     State(pool): State<DbPool>,
-    headers: HeaderMap,
     Path(payment_id): Path<i64>,
     Json(request): Json<UpdatePaymentRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
-    // Start a transaction to ensure check + update is atomic
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Check if payment exists (within the transaction)
-    let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM payments WHERE id = $1")
-        .bind(payment_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if existing.is_none() {
-        return Err(ApiError::NotFound("Payment not found".to_string()));
-    }
-
-    // Build dynamic update query
-    let mut updates = Vec::new();
-    let mut param_index = 1;
-
-    if request.amount.is_some() {
-        param_index += 1;
-        updates.push(format!("amount = ${}", param_index));
-    }
-    if request.payment_method.is_some() {
-        param_index += 1;
-        updates.push(format!("payment_method = ${}", param_index));
-    }
-    if request.transaction_reference.is_some() {
-        param_index += 1;
-        updates.push(format!("transaction_id = ${}", param_index));
-    }
-    if request.notes.is_some() {
-        param_index += 1;
-        updates.push(format!("notes = ${}", param_index));
-    }
-    if request.payment_date.is_some() {
-        param_index += 1;
-        updates.push(format!("created_at = ${}::timestamptz", param_index));
-    }
-
-    if updates.is_empty() {
-        return Err(ApiError::BadRequest("No fields to update".to_string()));
-    }
-
-    let query = format!(
-        "UPDATE payments SET {} WHERE id = $1 RETURNING id, booking_id, amount::text, payment_method, payment_type, status, transaction_id, notes, created_at",
-        updates.join(", ")
-    );
-
-    let mut query_builder = sqlx::query(&query).bind(payment_id);
-
-    if let Some(amount) = request.amount {
-        let amount_decimal = Decimal::from_f64_retain(amount)
-            .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
-        query_builder = query_builder.bind(amount_decimal);
-    }
-    if let Some(ref method) = request.payment_method {
-        query_builder = query_builder.bind(method);
-    }
-    if let Some(ref reference) = request.transaction_reference {
-        query_builder = query_builder.bind(reference);
-    }
-    if let Some(ref notes) = request.notes {
-        query_builder = query_builder.bind(notes);
-    }
-    if let Some(ref payment_date) = request.payment_date {
-        // Combine the new date with noon in the hotel timezone to ensure correct date
-        let ts = format!("{} 12:00:00", payment_date);
-        query_builder = query_builder.bind(ts);
-    }
-
-    let row = query_builder
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Commit the transaction
-    tx.commit()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Amount may have changed — resync the booking's payment_status.
-    let updated_booking_id: i64 = row.get("booking_id");
-    recompute_payment_status(&pool, updated_booking_id).await?;
-
-    let payment = serde_json::json!({
-        "id": row.get::<i64, _>("id"),
-        "booking_id": row.get::<i64, _>("booking_id"),
-        "total_amount": row.get::<String, _>("amount"),
-        "payment_method": row.get::<String, _>("payment_method"),
-        "payment_type": row.get::<Option<String>, _>("payment_type"),
-        "payment_status": row.get::<Option<String>, _>("status"),
-        "transaction_reference": row.get::<Option<String>, _>("transaction_id"),
-        "notes": row.get::<Option<String>, _>("notes"),
-        "created_at": row.get::<chrono::DateTime<chrono::Utc>, _>("created_at"),
-    });
-
-    Ok(Json(payment))
+    Ok(Json(
+        payments::update_payment(&pool, payment_id, request).await?,
+    ))
 }
 
 /// Delete a payment record
 pub async fn delete_payment_handler(
     State(pool): State<DbPool>,
-    headers: HeaderMap,
     Path(payment_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let _user_id = require_auth(&headers).await?;
-
-    // Start a transaction to ensure check + delete is atomic
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Check if payment exists and get its type (within the transaction)
-    let payment_row = sqlx::query("SELECT id, payment_type FROM payments WHERE id = $1")
-        .bind(payment_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let payment_row = match payment_row {
-        Some(row) => row,
-        None => return Err(ApiError::NotFound("Payment not found".to_string())),
-    };
-
-    let payment_type: Option<String> = payment_row.get("payment_type");
-
-    // Prevent deletion of refund records (maintain audit trail for refunds)
-    if payment_type.as_deref() == Some("refund") {
-        return Err(ApiError::BadRequest(
-            "Cannot delete refund records".to_string(),
-        ));
-    }
-
-    // Capture booking_id BEFORE the row is gone so we can recompute after the
-    // delete commits.
-    let affected_booking_id: Option<i64> =
-        sqlx::query_scalar("SELECT booking_id FROM payments WHERE id = $1")
-            .bind(payment_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Delete the payment
-    sqlx::query("DELETE FROM payments WHERE id = $1")
-        .bind(payment_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Commit the transaction
-    tx.commit()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if let Some(bid) = affected_booking_id {
-        recompute_payment_status(&pool, bid).await?;
-    }
-
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "message": "Payment deleted successfully",
-        "deleted_id": payment_id
-    })))
+    Ok(Json(payments::delete_payment(&pool, payment_id).await?))
 }
 
-/// Ensure an invoice row exists for the given booking. Idempotent: if an
-/// invoice already exists, returns its number; otherwise generates a new
-/// `INV-YYYYMM-XXXX` number and inserts a minimal row.
+/// Ensure an invoice row exists for the given booking. Idempotent.
 ///
-/// Called from the booking checkout flow so every checked-out booking has an
-/// invoice number visible in the UI without requiring a separate API call.
-/// Errors are swallowed by the caller — checkout must succeed even if invoice
-/// row creation fails.
+/// Kept as a public compatibility wrapper because checkout currently calls
+/// this handler helper directly.
 pub async fn ensure_invoice_for_booking(
     pool: &DbPool,
     booking_id: i64,
     user_id: i64,
 ) -> Result<String, ApiError> {
-    // Already have one?
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let existing: Option<String> =
-        sqlx::query_scalar("SELECT invoice_number FROM invoices WHERE booking_id = ?1 LIMIT 1")
-            .bind(booking_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let existing: Option<String> =
-        sqlx::query_scalar("SELECT invoice_number FROM invoices WHERE booking_id = $1 LIMIT 1")
-            .bind(booking_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if let Some(num) = existing {
-        return Ok(num);
-    }
-
-    // Fall back to a city-ledger invoice number for the same booking before
-    // minting a new one — keeps a single booking on a single invoice number.
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let ledger_existing: Option<String> = sqlx::query_scalar(
-        "SELECT invoice_number FROM customer_ledgers \
-         WHERE booking_id = ?1 AND invoice_number IS NOT NULL \
-         ORDER BY id LIMIT 1",
-    )
-    .bind(booking_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let ledger_existing: Option<String> = sqlx::query_scalar(
-        "SELECT invoice_number FROM customer_ledgers \
-         WHERE booking_id = $1 AND invoice_number IS NOT NULL \
-         ORDER BY id LIMIT 1",
-    )
-    .bind(booking_id)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let invoice_number = match ledger_existing {
-        Some(n) => n,
-        None => crate::services::invoice_numbers::next_invoice_number(pool).await?,
-    };
-
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    {
-        sqlx::query(
-            r#"
-            INSERT INTO invoices (
-                invoice_number, booking_id, invoice_type,
-                subtotal, total_amount, status, created_by
-            )
-            SELECT ?1, b.id, 'checkout', b.total_amount, b.total_amount, 'issued', ?2
-            FROM bookings b
-            WHERE b.id = ?3
-            "#,
-        )
-        .bind(&invoice_number)
-        .bind(user_id)
-        .bind(booking_id)
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-    }
-
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    {
-        sqlx::query(
-            r#"
-            INSERT INTO invoices (
-                invoice_number, booking_id, billing_name, billing_email,
-                subtotal, total_amount, line_items, status, invoice_type, created_by
-            )
-            SELECT $1, b.id,
-                   COALESCE(g.full_name, ''),
-                   g.email,
-                   b.total_amount,
-                   b.total_amount,
-                   '[]'::jsonb,
-                   'issued',
-                   'booking',
-                   $2
-            FROM bookings b
-            INNER JOIN guests g ON b.guest_id = g.id
-            WHERE b.id = $3
-            "#,
-        )
-        .bind(&invoice_number)
-        .bind(user_id)
-        .bind(booking_id)
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-    }
-
-    Ok(invoice_number)
+    payments::ensure_invoice_for_booking(pool, booking_id, user_id).await
 }

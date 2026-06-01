@@ -74,6 +74,73 @@ pub struct PaymentWorkflowSummary {
     pub warnings: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct PaymentBookingStay {
+    pub room_id: i64,
+    pub check_in: chrono::NaiveDateTime,
+    pub check_out: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, Clone)]
+pub struct PaymentRoomPricing {
+    pub base_price: Decimal,
+    pub keycard_deposit: Decimal,
+    pub service_charge_percentage: Decimal,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct PaymentEntryRow {
+    pub id: i64,
+    pub booking_id: i64,
+    pub total_amount: String,
+    pub payment_method: String,
+    pub payment_type: Option<String>,
+    pub payment_status: Option<String>,
+    pub transaction_reference: Option<String>,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl PaymentEntryRow {
+    pub fn into_response(self) -> serde_json::Value {
+        serde_json::json!({
+            "id": self.id,
+            "booking_id": self.booking_id,
+            "total_amount": self.total_amount,
+            "payment_method": self.payment_method,
+            "payment_type": self.payment_type,
+            "payment_status": self.payment_status,
+            "transaction_reference": self.transaction_reference,
+            "notes": self.notes,
+            "created_at": self.created_at,
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PaymentWorkflowSummaryRow {
+    pub booking_status: String,
+    pub payment_status: String,
+    pub total_amount: Decimal,
+    pub total_paid: Decimal,
+    pub total_refunded: Decimal,
+    pub deposit_collected: Decimal,
+    pub deposit_refunded: Decimal,
+    pub has_failed_payment: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct InvoiceBookingDetails {
+    pub customer_name: String,
+    pub customer_email: String,
+    pub customer_phone: Option<String>,
+    pub check_in: chrono::NaiveDateTime,
+    pub check_out: chrono::NaiveDateTime,
+    pub room_id: i64,
+    pub room_number: String,
+    pub room_type: String,
+}
+
 /// Invoice record
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Invoice {

@@ -51,7 +51,7 @@ impl UserRepository {
             SELECT id, username, email, full_name, phone, avatar_url,
                    created_at, updated_at, last_login_at
             FROM users
-            WHERE id = $1 AND deleted_at IS NULL
+            WHERE id = $1 AND is_active = true AND deleted_at IS NULL
             "#,
         )
         .bind(user_id)
@@ -67,6 +67,98 @@ impl UserRepository {
             .fetch_one(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    pub async fn update_full_name(
+        pool: &DbPool,
+        user_id: i64,
+        full_name: &str,
+    ) -> Result<(), ApiError> {
+        sqlx::query(
+            "UPDATE users SET full_name = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        )
+        .bind(full_name)
+        .bind(user_id)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
+    pub async fn update_email(pool: &DbPool, user_id: i64, email: &str) -> Result<(), ApiError> {
+        sqlx::query("UPDATE users SET email = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
+            .bind(email)
+            .bind(user_id)
+            .execute(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
+    pub async fn update_phone(pool: &DbPool, user_id: i64, phone: &str) -> Result<(), ApiError> {
+        sqlx::query("UPDATE users SET phone = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
+            .bind(phone)
+            .bind(user_id)
+            .execute(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
+    pub async fn update_avatar_url(
+        pool: &DbPool,
+        user_id: i64,
+        avatar_url: &str,
+    ) -> Result<(), ApiError> {
+        sqlx::query(
+            "UPDATE users SET avatar_url = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+        )
+        .bind(avatar_url)
+        .bind(user_id)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
+    pub async fn update_password_hash(
+        pool: &DbPool,
+        user_id: i64,
+        password_hash: &str,
+    ) -> Result<(), ApiError> {
+        sqlx::query(
+            r#"
+            UPDATE users
+            SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+            "#,
+        )
+        .bind(password_hash)
+        .bind(user_id)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(())
+    }
+
+    pub async fn update_two_factor_secret(
+        pool: &DbPool,
+        user_id: i64,
+        secret: &str,
+    ) -> Result<(), ApiError> {
+        sqlx::query("UPDATE users SET two_factor_secret = $1 WHERE id = $2")
+            .bind(secret)
+            .bind(user_id)
+            .execute(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(())
     }
 
     /// Update last login timestamp

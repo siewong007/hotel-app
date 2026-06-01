@@ -3,6 +3,7 @@
 use super::extract_client_ip;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::middleware::require_auth;
 use crate::core::rate_limiter::RateLimiters;
 use crate::handlers;
 use crate::models;
@@ -44,7 +45,8 @@ async fn setup_2fa(
             retry_after,
         ));
     }
-    handlers::two_factor::setup_2fa_handler(State(pool), headers, Json(req)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::two_factor::setup_2fa_handler(State(pool), user_id, Json(req)).await
 }
 
 async fn enable_2fa(
@@ -64,7 +66,8 @@ async fn enable_2fa(
             retry_after,
         ));
     }
-    handlers::two_factor::enable_2fa_handler(State(pool), headers, Json(req)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::two_factor::enable_2fa_handler(State(pool), user_id, Json(req)).await
 }
 
 async fn disable_2fa(
@@ -84,14 +87,16 @@ async fn disable_2fa(
             retry_after,
         ));
     }
-    handlers::two_factor::disable_2fa_handler(State(pool), headers, Json(req)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::two_factor::disable_2fa_handler(State(pool), user_id, Json(req)).await
 }
 
 async fn get_2fa_status(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<models::TwoFactorStatusResponse>, ApiError> {
-    handlers::two_factor::get_2fa_status_handler(State(pool), headers).await
+    let user_id = require_auth(&headers).await?;
+    handlers::two_factor::get_2fa_status_handler(State(pool), user_id).await
 }
 
 async fn verify_2fa(
@@ -111,7 +116,8 @@ async fn verify_2fa(
             retry_after,
         ));
     }
-    handlers::two_factor::verify_2fa_code_handler(State(pool), headers, Json(req)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::two_factor::verify_2fa_code_handler(State(pool), user_id, Json(req)).await
 }
 
 async fn regenerate_backup_codes(
@@ -131,5 +137,6 @@ async fn regenerate_backup_codes(
             retry_after,
         ));
     }
-    handlers::two_factor::regenerate_backup_codes_handler(State(pool), headers, Json(req)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::two_factor::regenerate_backup_codes_handler(State(pool), user_id, Json(req)).await
 }

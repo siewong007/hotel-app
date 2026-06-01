@@ -39,8 +39,8 @@ async fn get_guests(
     headers: HeaderMap,
     query: Query<models::GuestPaginationParams>,
 ) -> Result<Json<models::GuestPaginatedResponse>, ApiError> {
-    // Allow all authenticated users to access guests (filtering happens in handler)
-    handlers::guests::get_guests_handler(State(pool), headers, query).await
+    let user_id = require_auth(&headers).await?;
+    handlers::guests::get_guests_handler(State(pool), Extension(user_id), query).await
 }
 
 async fn create_guest(
@@ -48,15 +48,16 @@ async fn create_guest(
     headers: HeaderMap,
     Json(input): Json<models::GuestInput>,
 ) -> Result<Json<models::Guest>, ApiError> {
-    // Allow all authenticated users to create guests (they will be auto-linked)
-    handlers::guests::create_guest_handler(State(pool), headers, Json(input)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::guests::create_guest_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn get_my_guests(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::Guest>>, ApiError> {
-    handlers::guests::get_my_guests_handler(State(pool), headers).await
+    let user_id = require_auth(&headers).await?;
+    handlers::guests::get_my_guests_handler(State(pool), Extension(user_id)).await
 }
 
 async fn link_guest(
@@ -64,7 +65,8 @@ async fn link_guest(
     headers: HeaderMap,
     Json(input): Json<models::LinkGuestInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::guests::link_guest_handler(State(pool), headers, Json(input)).await
+    let user_id = require_auth(&headers).await?;
+    handlers::guests::link_guest_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn unlink_guest(
@@ -72,7 +74,8 @@ async fn unlink_guest(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::guests::unlink_guest_handler(State(pool), headers, path).await
+    let user_id = require_auth(&headers).await?;
+    handlers::guests::unlink_guest_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn upgrade_guest(
@@ -118,12 +121,14 @@ async fn get_guest_credits(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::guests::get_guest_credits_handler(State(pool), headers, path).await
+    let user_id = require_auth(&headers).await?;
+    handlers::guests::get_guest_credits_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn get_my_guests_with_credits(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    handlers::guests::get_my_guests_with_credits_handler(State(pool), headers).await
+    let user_id = require_auth(&headers).await?;
+    handlers::guests::get_my_guests_with_credits_handler(State(pool), Extension(user_id)).await
 }
