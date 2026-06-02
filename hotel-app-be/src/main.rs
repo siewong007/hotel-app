@@ -168,14 +168,14 @@ async fn main() {
     };
 
     // One-shot backfill: ensure every booking has an invoice row.
-    match hotel_app_be::services::invoice_numbers::backfill_missing_booking_invoices(&pool).await {
+    match services::invoice_numbers::backfill_missing_booking_invoices(&pool).await {
         Ok(0) => {}
         Ok(n) => log::info!("✓ Backfilled invoice numbers for {} booking(s)", n),
         Err(e) => log::warn!("Invoice backfill failed: {}", e),
     }
 
     // One-shot backfill: ensure every customer ledger has a due_date.
-    match hotel_app_be::services::invoice_numbers::backfill_missing_ledger_due_dates(&pool).await {
+    match services::invoice_numbers::backfill_missing_ledger_due_dates(&pool).await {
         Ok(0) => {}
         Ok(n) => log::info!("✓ Backfilled due_date for {} ledger(s)", n),
         Err(e) => log::warn!("Ledger due_date backfill failed: {}", e),
