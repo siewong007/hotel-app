@@ -8,8 +8,6 @@ pub mod analytics;
 pub mod audit;
 pub mod auth;
 pub mod bookings;
-#[allow(dead_code)]
-pub mod bookings_queries;
 pub mod companies;
 pub mod data_transfer;
 pub mod ekyc;
@@ -25,8 +23,6 @@ pub mod profile;
 pub mod rates;
 pub mod rbac;
 pub mod rooms;
-#[allow(dead_code)]
-pub mod rooms_queries;
 pub mod search;
 pub mod settings;
 pub mod two_factor;

@@ -5,9 +5,9 @@
 use crate::core::db::{DbPool, DbRow, opt_decimal_to_db};
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_auth, require_permission_helper};
-use crate::handlers::rooms_queries::*;
 use crate::models::row_mappers::{get_decimal, get_opt_decimal};
 use crate::models::*;
+use crate::repositories::rooms_queries::*;
 use crate::services::audit::AuditLog;
 use axum::{
     extract::{Path, Query, State},

@@ -12,6 +12,8 @@ pub mod booking;
 #[allow(dead_code)]
 pub mod booking_list;
 pub mod bookings;
+#[allow(dead_code)]
+pub mod bookings_queries;
 pub mod company;
 pub mod data_transfer;
 pub mod ekyc;
@@ -32,6 +34,8 @@ pub mod rate;
 pub mod rbac;
 #[allow(dead_code)]
 pub mod room;
+#[allow(dead_code)]
+pub mod rooms_queries;
 pub mod search;
 #[allow(dead_code)]
 pub mod settings;
