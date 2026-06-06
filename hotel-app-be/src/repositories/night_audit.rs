@@ -11,6 +11,7 @@ use crate::models::{
     AuditDetailsResponse, JournalEntry, JournalSection, NightAuditPreview, NightAuditRunWithUser,
     PostedBookingDetail, RevenueBreakdownItem, RoomSnapshot, UnpostedBooking,
 };
+use crate::utils::report_labels::payment_account_label;
 
 /// Get preview data for what will be posted on an audit date.
 pub async fn preview(pool: &DbPool, audit_date: NaiveDate) -> Result<NightAuditPreview, ApiError> {
@@ -795,8 +796,8 @@ pub async fn generate_journal_sections(
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
                             entry_type: "room_charge".to_string(),
-                            debit: room_charge,
-                            credit: Decimal::ZERO,
+                            debit: Decimal::ZERO,
+                            credit: room_charge,
                             description: Some("Room Charge".to_string()),
                         });
                     }
@@ -805,8 +806,8 @@ pub async fn generate_journal_sections(
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
                             entry_type: "service_tax".to_string(),
-                            debit: service_tax,
-                            credit: Decimal::ZERO,
+                            debit: Decimal::ZERO,
+                            credit: service_tax,
                             description: Some("Service Tax".to_string()),
                         });
                     }
@@ -815,8 +816,8 @@ pub async fn generate_journal_sections(
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
                             entry_type: "extra_bed_charge".to_string(),
-                            debit: extra_bed_charge,
-                            credit: Decimal::ZERO,
+                            debit: Decimal::ZERO,
+                            credit: extra_bed_charge,
                             description: Some("Extra Bed Charge".to_string()),
                         });
                     }
@@ -825,8 +826,8 @@ pub async fn generate_journal_sections(
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
                             entry_type: "extra_bed_tax".to_string(),
-                            debit: extra_bed_tax,
-                            credit: Decimal::ZERO,
+                            debit: Decimal::ZERO,
+                            credit: extra_bed_tax,
                             description: Some("Extra Bed Tax".to_string()),
                         });
                     }
@@ -835,8 +836,8 @@ pub async fn generate_journal_sections(
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
                             entry_type: "tourism_tax".to_string(),
-                            debit: tourism_tax,
-                            credit: Decimal::ZERO,
+                            debit: Decimal::ZERO,
+                            credit: tourism_tax,
                             description: Some("Tourism Tax".to_string()),
                         });
                     }
@@ -910,8 +911,8 @@ pub async fn generate_journal_sections(
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
                             entry_type: "room_charge".to_string(),
-                            debit: room_charge,
-                            credit: Decimal::ZERO,
+                            debit: Decimal::ZERO,
+                            credit: room_charge,
                             description: Some("Room Charge".to_string()),
                         });
                     }
@@ -920,8 +921,8 @@ pub async fn generate_journal_sections(
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
                             entry_type: "service_tax".to_string(),
-                            debit: service_tax,
-                            credit: Decimal::ZERO,
+                            debit: Decimal::ZERO,
+                            credit: service_tax,
                             description: Some("Service Tax".to_string()),
                         });
                     }
@@ -934,8 +935,8 @@ pub async fn generate_journal_sections(
                             booking_number: booking_number.clone(),
                             room_number: room_number.clone(),
                             entry_type: "extra_bed_charge".to_string(),
-                            debit: extra_bed_charge,
-                            credit: Decimal::ZERO,
+                            debit: Decimal::ZERO,
+                            credit: extra_bed_charge,
                             description: Some("Extra Bed Charge".to_string()),
                         });
                         if extra_bed_tax > Decimal::ZERO {
@@ -943,8 +944,8 @@ pub async fn generate_journal_sections(
                                 booking_number: booking_number.clone(),
                                 room_number: room_number.clone(),
                                 entry_type: "extra_bed_tax".to_string(),
-                                debit: extra_bed_tax,
-                                credit: Decimal::ZERO,
+                                debit: Decimal::ZERO,
+                                credit: extra_bed_tax,
                                 description: Some("Extra Bed Tax".to_string()),
                             });
                         }
@@ -958,8 +959,8 @@ pub async fn generate_journal_sections(
                                 booking_number: booking_number.clone(),
                                 room_number: room_number.clone(),
                                 entry_type: "tourism_tax".to_string(),
-                                debit: per_night,
-                                credit: Decimal::ZERO,
+                                debit: Decimal::ZERO,
+                                credit: per_night,
                                 description: Some("Tourism Tax".to_string()),
                             });
                         }
@@ -996,6 +997,8 @@ pub async fn generate_journal_sections(
             COALESCE(p.payment_method, '') as payment_method,
             COALESCE(p.payment_type, '') as payment_type,
             COALESCE(p.notes, '') as payment_notes,
+            COALESCE(b.source, '') as source,
+            COALESCE(b.remarks, '') as booking_remarks,
             b.check_in_date,
             b.check_out_date
         FROM payments p
@@ -1022,36 +1025,19 @@ pub async fn generate_journal_sections(
                 let payment_method: String = row.get("payment_method");
                 let payment_type: String = row.get("payment_type");
                 let payment_notes: String = row.get("payment_notes");
+                let source: String = row.get("source");
+                let booking_remarks: String = row.get("booking_remarks");
                 let check_in_date: NaiveDate = row.get("check_in_date");
 
                 if payment_type == "refund" {
                     continue;
                 }
 
-                let entry_type = if payment_method.is_empty() {
-                    "Cash".to_string()
-                } else if payment_method.contains('_') {
-                    payment_method
-                        .replace('_', " ")
-                        .split_whitespace()
-                        .map(|w| {
-                            let mut chars = w.chars();
-                            match chars.next() {
-                                Some(c) => {
-                                    c.to_uppercase().to_string() + &chars.as_str().to_lowercase()
-                                }
-                                None => String::new(),
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                } else {
-                    let mut chars = payment_method.chars();
-                    match chars.next() {
-                        Some(c) => c.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
-                        None => "Cash".to_string(),
-                    }
-                };
+                let account_name = payment_account_label(
+                    Some(&payment_method),
+                    Some(&source),
+                    Some(&booking_remarks),
+                );
 
                 let description = if check_in_date > audit_date {
                     let room_desc = if !payment_notes.is_empty() {
@@ -1071,10 +1057,10 @@ pub async fn generate_journal_sections(
                 entries.push(JournalEntry {
                     booking_number: booking_number.clone(),
                     room_number: room_number.clone(),
-                    entry_type: format!("payment_{}", entry_type),
+                    entry_type: format!("payment_{}", account_name),
                     debit: amount,
                     credit: Decimal::ZERO,
-                    description: description.or_else(|| Some(entry_type.clone())),
+                    description: description.or_else(|| Some(account_name.clone())),
                 });
             }
         }
@@ -1232,7 +1218,7 @@ pub async fn generate_journal_sections(
             let total_credit = type_entries.iter().map(|e| e.credit).sum();
             let display_name = type_entries
                 .first()
-                .and_then(|e| e.description.clone())
+                .map(|_| pt.replace("payment_", ""))
                 .unwrap_or_else(|| pt.replace("payment_", ""));
             sections.push(JournalSection {
                 entry_type: pt.clone(),

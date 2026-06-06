@@ -383,9 +383,8 @@ const NightAuditPage: React.FC = () => {
       const renderSection = (section: JournalSection) => {
         const isRoomCharge = section.entry_type === 'room_charge';
         const isServiceTax = section.entry_type === 'service_tax';
-        const isDepositRefund = section.entry_type === 'deposit_refund';
 
-        // Room Charges: special table with Description, Debit, Service Tax, Room, Check-in, Check-out
+        // Room Charges: special table with Description, Credit, Service Tax, Room, Check-in, Check-out
         if (isRoomCharge) {
           // Find service tax section to merge
           const taxSection = sections.find(s => s.entry_type === 'service_tax');
@@ -403,19 +402,19 @@ const NightAuditPage: React.FC = () => {
               entry.room_number,
               booking ? fmtDate(booking.check_in_date) : '',
               booking ? fmtDate(booking.check_out_date) : '',
-              Number(entry.debit).toFixed(2),
-              taxEntry ? Number(taxEntry.debit).toFixed(2) : '',
+              Number(entry.credit).toFixed(2),
+              taxEntry ? Number(taxEntry.credit).toFixed(2) : '',
             ]);
           }
           // Totals row
-          const totalDebit = Number(section.total_debit).toFixed(2);
-          const totalTax = taxSection ? Number(taxSection.total_debit).toFixed(2) : '';
+          const totalCredit = Number(section.total_credit).toFixed(2);
+          const totalTax = taxSection ? Number(taxSection.total_credit).toFixed(2) : '';
           rows.push([
             '',
             '',
             '',
             '',
-            `Totals : ${totalDebit}`,
+            `Totals : ${totalCredit}`,
             `Totals : ${totalTax}`,
           ]);
 
@@ -426,7 +425,7 @@ const NightAuditPage: React.FC = () => {
 
           autoTable(doc, {
             startY: currentY,
-            head: [['Description', 'Room', 'Check-in', 'Check-out', 'Debit', 'Service Tax']],
+            head: [['Description', 'Room', 'Check-in', 'Check-out', 'Credit', 'Service Tax']],
             body: rows,
             styles: { fontSize: 8, cellPadding: 2, lineColor: [0, 0, 0], lineWidth: 0.3 },
             headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'italic', lineColor: [0, 0, 0], lineWidth: 0.3 },
@@ -505,18 +504,25 @@ const NightAuditPage: React.FC = () => {
           return;
         }
 
+        const isCreditSideSection = [
+          'extra_bed_charge',
+          'extra_bed_tax',
+          'tourism_tax',
+          'deposit_refund',
+        ].includes(section.entry_type);
+
         // All other sections: Description, Amount, Room/Notes
         const displayName = section.display_name;
         const rows: string[][] = [];
         for (const entry of section.entries) {
-          const amount = isDepositRefund ? Number(entry.credit) : Number(entry.debit);
+          const amount = isCreditSideSection ? Number(entry.credit) : Number(entry.debit);
           rows.push([
             displayName,
             amount > 0 ? amount.toFixed(2) : '',
             entry.room_number,
           ]);
         }
-        const total = isDepositRefund ? Number(section.total_credit) : Number(section.total_debit);
+        const total = isCreditSideSection ? Number(section.total_credit) : Number(section.total_debit);
         rows.push(['', `Totals : ${total.toFixed(2)}`, '']);
 
         if (currentY + rows.length * 7 + 15 > pageHeight - 20) {
@@ -556,28 +562,13 @@ const NightAuditPage: React.FC = () => {
       doc.setFont('helvetica', 'normal');
       currentY += 8;
 
-      // Classify each account into Debit or Credit by its type.
-      // Debit: room charges, service tax (and related charges/taxes), deposit refund.
-      // Credit: payment methods (cash, cards, booking.com, boost, traveloka,
-      // agoda, ...), city ledger, and deposits collected.
-      const isDebitAccount = (entryType: string) => {
-        if (entryType === 'deposit_refund') return true;
-        if (entryType.startsWith('payment_')) return false;
-        if (entryType === 'deposit' || entryType === 'city_ledger') return false;
-        return true; // room_charge, service_tax, extra_bed_charge, extra_bed_tax, tourism_tax
-      };
-
-      // Build General Journal summary rows with reclassified debit/credit
+      // Build General Journal summary rows from the report's debit/credit totals.
       const journalRows: string[][] = [];
       let journalTotalDebit = 0;
       let journalTotalCredit = 0;
       for (const section of sections) {
-        const debitTotal = Number(section.total_debit);
-        const creditTotal = Number(section.total_credit);
-        const amount = debitTotal !== 0 ? debitTotal : creditTotal;
-        const asDebit = isDebitAccount(section.entry_type);
-        const debitVal = asDebit ? amount : 0;
-        const creditVal = asDebit ? 0 : amount;
+        const debitVal = Number(section.total_debit);
+        const creditVal = Number(section.total_credit);
         journalTotalDebit += debitVal;
         journalTotalCredit += creditVal;
         journalRows.push([

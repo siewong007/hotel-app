@@ -51,6 +51,7 @@ const DEFAULT_SETTINGS: HotelSettings = {
     'Visa Card',
     'Master Card',
     'Debit Card',
+    'Sarawak Pay',
     'American Express',
     'Bank Transfer',
     'E-Wallet',
