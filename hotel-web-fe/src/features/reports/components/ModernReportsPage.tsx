@@ -314,8 +314,8 @@ const ModernReportsPage: React.FC = () => {
                         {Number(entry.debit) > 0 ? `${currencySymbol}${Number(entry.debit).toFixed(2)}` : '-'}
                       </TableCell>
                       <TableCell align="right">
-                        {Number(entry.credit || entry.contra_amount) > 0
-                          ? `${currencySymbol}${Number(entry.credit || entry.contra_amount).toFixed(2)}`
+                        {Number(entry.credit) > 0
+                          ? `${currencySymbol}${Number(entry.credit).toFixed(2)}`
                           : '-'}
                       </TableCell>
                     </TableRow>

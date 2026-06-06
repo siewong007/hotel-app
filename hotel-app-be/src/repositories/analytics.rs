@@ -8,6 +8,7 @@ use crate::models::ReportQuery;
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 use crate::models::row_mappers;
 use crate::utils::date::parse_date_flexible;
+use crate::utils::report_labels::payment_account_label;
 use chrono::{Local, NaiveDate};
 use rust_decimal::Decimal;
 use sqlx::Row;
@@ -728,6 +729,8 @@ async fn generate_general_journal(
             b.tourism_billable_amount as tourism_tax_amount,
             b.payment_status,
             b.payment_method,
+            b.source,
+            b.remarks as booking_remarks,
             COALESCE(b.deposit_amount, 0) as deposit_amount,
             b.deposit_paid,
             r.room_number,
@@ -766,12 +769,14 @@ async fn generate_general_journal(
 
     for row in rows {
         let date: NaiveDate = row.get("date");
-        let _total_amount: Decimal = row.get("total_amount");
+        let total_amount: Decimal = row.get("total_amount");
         let room_rate: Decimal = row.get("room_rate");
         let tax_amount: Decimal = row.get("tax_amount");
         let tourism_tax_amount: Decimal = row.get("tourism_tax_amount");
         let payment_status: Option<String> = row.get("payment_status");
         let payment_method: Option<String> = row.get("payment_method");
+        let source: Option<String> = row.get("source");
+        let booking_remarks: Option<String> = row.get("booking_remarks");
         let deposit_amount_val: Decimal = row.get("deposit_amount");
         let room_number: String = row.get("room_number");
         let date_str = date.format("%d/%m/%Y").to_string();
@@ -784,68 +789,72 @@ async fn generate_general_journal(
         // Use actual deposit amount from booking
         let deposit_amount = deposit_amount_val;
 
-        // Actual deposit amount paid by guest
-        let paid_amount = deposit_amount_val;
+        let paid_amount =
+            if payment_status.as_deref() == Some("paid") && deposit_amount_val <= Decimal::ZERO {
+                total_amount
+            } else {
+                deposit_amount_val
+            };
 
-        // Guest Ledger entries (Debits)
+        // Guest Ledger entries: payments/platforms debit, charges and taxes credit.
         // Room Charge
         guest_ledger_entries.push(serde_json::json!({
             "date": date_str,
             "account": "Room Charge",
-            "debit": room_charge,
-            "credit": 0,
+            "debit": 0,
+            "credit": room_charge,
             "contra_account": "Room Revenue",
             "contra_amount": room_charge,
             "room_number": room_number
         }));
-        guest_ledger_debit += room_charge;
+        guest_ledger_credit += room_charge;
 
         // Service Tax
         guest_ledger_entries.push(serde_json::json!({
             "date": date_str,
             "account": "Service Tax",
-            "debit": service_tax,
-            "credit": 0,
+            "debit": 0,
+            "credit": service_tax,
             "contra_account": "Sales Tax Payable",
             "contra_amount": service_tax,
             "room_number": room_number
         }));
-        guest_ledger_debit += service_tax;
+        guest_ledger_credit += service_tax;
 
         // Tourism Tax (if applicable)
         if tourism_tax > Decimal::ZERO {
             guest_ledger_entries.push(serde_json::json!({
                 "date": date_str,
                 "account": "Tourism Tax",
-                "debit": tourism_tax,
-                "credit": 0,
+                "debit": 0,
+                "credit": tourism_tax,
                 "contra_account": "Tourism Tax Payable",
                 "contra_amount": tourism_tax,
                 "room_number": room_number
             }));
-            guest_ledger_debit += tourism_tax;
+            guest_ledger_credit += tourism_tax;
         }
 
         // Payment entries based on payment method (use actual amount paid)
-        if let Some(ref method) = payment_method {
-            let account_name = method.as_str();
-
-            // If paid, add payment entry with actual amount paid
-            if (payment_status.as_deref() == Some("paid")
-                || payment_status.as_deref() == Some("partial"))
-                && paid_amount > Decimal::ZERO
-            {
-                guest_ledger_entries.push(serde_json::json!({
-                    "date": date_str,
-                    "account": account_name,
-                    "debit": 0,
-                    "credit": paid_amount,
-                    "contra_account": "Deposits Pending",
-                    "contra_amount": paid_amount,
-                    "room_number": room_number
-                }));
-                guest_ledger_credit += paid_amount;
-            }
+        if (payment_status.as_deref() == Some("paid")
+            || payment_status.as_deref() == Some("partial"))
+            && paid_amount > Decimal::ZERO
+        {
+            let account_name = payment_account_label(
+                payment_method.as_deref(),
+                source.as_deref(),
+                booking_remarks.as_deref(),
+            );
+            guest_ledger_entries.push(serde_json::json!({
+                "date": date_str,
+                "account": account_name,
+                "debit": paid_amount,
+                "credit": 0,
+                "contra_account": "Deposits Pending",
+                "contra_amount": paid_amount,
+                "room_number": room_number
+            }));
+            guest_ledger_debit += paid_amount;
         }
 
         // Room card deposit entry (only if deposit exists)
@@ -863,21 +872,22 @@ async fn generate_general_journal(
         }
 
         // Deposits Pending (Credits)
-        if let Some(ref method) = payment_method {
-            let account_name = method.as_str();
-
-            if deposit_amount > Decimal::ZERO {
-                deposits_pending_entries.push(serde_json::json!({
-                    "date": date_str,
-                    "account": account_name,
-                    "debit": deposit_amount,
-                    "credit": 0,
-                    "contra_account": "Guest Ledger",
-                    "contra_amount": 0,
-                    "room_number": room_number
-                }));
-                deposits_pending_debit += deposit_amount;
-            }
+        if deposit_amount > Decimal::ZERO {
+            let account_name = payment_account_label(
+                payment_method.as_deref(),
+                source.as_deref(),
+                booking_remarks.as_deref(),
+            );
+            deposits_pending_entries.push(serde_json::json!({
+                "date": date_str,
+                "account": account_name,
+                "debit": deposit_amount,
+                "credit": 0,
+                "contra_account": "Guest Ledger",
+                "contra_amount": 0,
+                "room_number": room_number
+            }));
+            deposits_pending_debit += deposit_amount;
         }
 
         // Room Revenue (Credits)
@@ -919,6 +929,45 @@ async fn generate_general_journal(
             }));
             sales_tax_credit += tourism_tax;
         }
+    }
+
+    let refund_rows = sqlx::query(
+        r#"
+        SELECT
+            (p.created_at::date) as date,
+            p.amount,
+            r.room_number
+        FROM payments p
+        JOIN bookings b ON p.booking_id = b.id
+        JOIN rooms r ON b.room_id = r.id
+        WHERE p.payment_type = 'refund'
+          AND p.status = 'refunded'
+          AND b.status != 'voided'
+          AND p.created_at::date >= $1
+          AND p.created_at::date <= $2
+        ORDER BY p.created_at, p.id
+        "#,
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    for row in refund_rows {
+        let date: NaiveDate = row.get("date");
+        let amount: Decimal = row.get("amount");
+        let room_number: String = row.get("room_number");
+        guest_ledger_entries.push(serde_json::json!({
+            "date": date.format("%d/%m/%Y").to_string(),
+            "account": "Deposit Refund",
+            "debit": 0,
+            "credit": amount,
+            "contra_account": "Guest Ledger",
+            "contra_amount": 0,
+            "room_number": room_number
+        }));
+        guest_ledger_credit += amount;
     }
 
     // Build sections array
