@@ -34,6 +34,16 @@ export interface UpdateRbacUserInput {
   password?: string;
 }
 
+export interface SystemSetting {
+  id: number;
+  key: string;
+  value: string;
+  description?: string | null;
+  category?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export class AdminService {
   // RBAC Operations
   static async getRbacSnapshot(): Promise<RbacSnapshot> {
@@ -154,11 +164,11 @@ export class AdminService {
   }
 
   // System Settings
-  static async getSystemSettings(): Promise<any[]> {
-    return await api.get('settings').json();
+  static async getSystemSettings(): Promise<SystemSetting[]> {
+    return await api.get('settings').json<SystemSetting[]>();
   }
 
-  static async updateSystemSetting(key: string, value: string): Promise<any> {
-    return await api.patch(`settings/${key}`, { json: { value } }).json();
+  static async updateSystemSetting(key: string, value: string): Promise<SystemSetting> {
+    return await api.patch(`settings/${key}`, { json: { value } }).json<SystemSetting>();
   }
 }

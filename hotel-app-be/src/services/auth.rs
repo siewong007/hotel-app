@@ -39,7 +39,7 @@ pub async fn login(pool: &DbPool, req: LoginRequest) -> Result<AuthResponse, Api
     if is_locked.unwrap_or(false)
         && let Some(until) = locked_until
     {
-        let now = Utc::now().naive_utc();
+        let now = Utc::now();
         if now < until {
             let remaining_mins = (until - now).num_minutes() + 1;
             let _ = AuditLog::log_login_failure(pool, &req.username, "Account locked", None, None)
@@ -76,7 +76,7 @@ pub async fn login(pool: &DbPool, req: LoginRequest) -> Result<AuthResponse, Api
                 pool,
                 user.id,
                 new_attempts,
-                Utc::now().naive_utc() + Duration::minutes(30),
+                Utc::now() + Duration::minutes(30),
             )
             .await;
 
@@ -204,7 +204,7 @@ pub async fn refresh_token(
     let (is_locked, locked_until, _) = AuthRepository::login_lock_state(pool, user.id).await?;
     if is_locked.unwrap_or(false) {
         if let Some(until) = locked_until {
-            let now = Utc::now().naive_utc();
+            let now = Utc::now();
             if now < until {
                 let remaining_mins = (until - now).num_minutes() + 1;
                 let _ = AuthService::revoke_refresh_token(pool, &req.refresh_token).await;

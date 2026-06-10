@@ -4,7 +4,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::models::{Guest, RegisterRequest, User};
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 
 pub struct AuthRepository;
 
@@ -45,7 +45,7 @@ impl AuthRepository {
     pub async fn login_lock_state(
         pool: &DbPool,
         user_id: i64,
-    ) -> Result<(Option<bool>, Option<NaiveDateTime>, Option<i32>), ApiError> {
+    ) -> Result<(Option<bool>, Option<DateTime<Utc>>, Option<i32>), ApiError> {
         sqlx::query_as(
             "SELECT is_locked, locked_until, failed_login_attempts FROM users WHERE id = $1",
         )
@@ -80,7 +80,7 @@ impl AuthRepository {
         pool: &DbPool,
         user_id: i64,
         attempts: i32,
-        locked_until: NaiveDateTime,
+        locked_until: DateTime<Utc>,
     ) -> Result<(), ApiError> {
         sqlx::query(
             "UPDATE users SET failed_login_attempts = $1, is_locked = true, locked_until = $2 WHERE id = $3",

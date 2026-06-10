@@ -11,17 +11,16 @@ import {
   Divider,
   CircularProgress,
   Chip,
-  Stack,
-  IconButton
+  Stack
 } from '@mui/material';
 import {
   Business as BusinessIcon,
   Schedule as ScheduleIcon,
   AttachMoney as MoneyIcon,
   Save as SaveIcon,
+  Security as SecurityIcon,
   Settings as SettingsIcon,
-  Add as AddIcon,
-  Close as CloseIcon
+  Add as AddIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { setCurrentCurrency, SUPPORTED_CURRENCIES } from '../../../utils/currency';
@@ -76,13 +75,35 @@ const SettingsPage: React.FC = () => {
   const [depositAmount, setDepositAmount] = useState(50);
   const [serviceTaxRate, setServiceTaxRate] = useState(8);
   const [tourismTaxRate, setTourismTaxRate] = useState(10);
+  const [defaultPaymentTermsDays, setDefaultPaymentTermsDays] = useState(30);
+
+  // Security Settings
+  const [maxLoginAttempts, setMaxLoginAttempts] = useState(5);
+  const [totpIssuerName, setTotpIssuerName] = useState('Hotel Management System');
+  const [passkeyRelyingPartyName, setPasskeyRelyingPartyName] = useState('Hotel Management System');
 
   // System Configuration
+  const [rateCodes, setRateCodes] = useState<string[]>([]);
+  const [marketCodes, setMarketCodes] = useState<string[]>([]);
   const [bookingChannels, setBookingChannels] = useState<BookingChannel[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
+  const [newRateCode, setNewRateCode] = useState('');
+  const [newMarketCode, setNewMarketCode] = useState('');
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelAbbreviation, setNewChannelAbbreviation] = useState('');
   const [newPaymentMethod, setNewPaymentMethod] = useState('');
+
+  const addCode = (
+    rawCode: string,
+    values: string[],
+    setValues: React.Dispatch<React.SetStateAction<string[]>>,
+    reset: () => void
+  ) => {
+    const code = rawCode.trim().toUpperCase();
+    if (!code || values.includes(code)) return;
+    setValues([...values, code]);
+    reset();
+  };
 
   const addBookingChannel = () => {
     const name = newChannelName.trim();
@@ -106,6 +127,12 @@ const SettingsPage: React.FC = () => {
     setDepositAmount(settings.deposit_amount);
     setServiceTaxRate(settings.service_tax_rate);
     setTourismTaxRate(settings.tourism_tax_rate);
+    setDefaultPaymentTermsDays(settings.default_payment_terms_days);
+    setMaxLoginAttempts(settings.max_login_attempts);
+    setTotpIssuerName(settings.totp_issuer_name);
+    setPasskeyRelyingPartyName(settings.passkey_relying_party_name);
+    setRateCodes(settings.rate_codes);
+    setMarketCodes(settings.market_codes);
     setBookingChannels(settings.booking_channels);
     setPaymentMethods(settings.payment_methods);
   };
@@ -143,18 +170,25 @@ const SettingsPage: React.FC = () => {
         deposit_amount: depositAmount,
         service_tax_rate: serviceTaxRate,
         tourism_tax_rate: tourismTaxRate,
+        default_payment_terms_days: defaultPaymentTermsDays,
+        max_login_attempts: maxLoginAttempts,
+        totp_issuer_name: totpIssuerName,
+        passkey_relying_party_name: passkeyRelyingPartyName,
+        rate_codes: rateCodes,
+        market_codes: marketCodes,
         booking_channels: bookingChannels,
         payment_methods: paymentMethods
       };
 
-      await saveSettingsMutation.mutateAsync(settings);
+      const result = await saveSettingsMutation.mutateAsync(settings);
+      const savedSettings = result.settings;
 
       // Save currency to localStorage and trigger update
-      setCurrentCurrency(currency);
-      window.dispatchEvent(new CustomEvent('currencyChange', { detail: currency }));
+      setCurrentCurrency(savedSettings.currency);
+      window.dispatchEvent(new CustomEvent('currencyChange', { detail: savedSettings.currency }));
 
       // Trigger hotel settings update event
-      window.dispatchEvent(new CustomEvent('hotelSettingsChange', { detail: settings }));
+      window.dispatchEvent(new CustomEvent('hotelSettingsChange', { detail: savedSettings }));
 
       setSuccess('Settings saved successfully');
 
@@ -407,7 +441,7 @@ const SettingsPage: React.FC = () => {
           <Divider sx={{ mb: 3 }} />
 
           <Grid container spacing={3}>
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
                 label="Service Tax Rate"
@@ -425,7 +459,7 @@ const SettingsPage: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
                 label="Tourism Tax Rate"
@@ -442,7 +476,7 @@ const SettingsPage: React.FC = () => {
                 }}
               />
             </Grid>
-            <Grid size={{ xs: 12, md: 4 }}>
+            <Grid size={{ xs: 12, md: 3 }}>
               <TextField
                 fullWidth
                 label="Default Deposit Amount"
@@ -459,11 +493,78 @@ const SettingsPage: React.FC = () => {
                 }}
               />
             </Grid>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <TextField
+                fullWidth
+                label="Payment Terms"
+                type="number"
+                value={defaultPaymentTermsDays}
+                onChange={(e) => setDefaultPaymentTermsDays(parseInt(e.target.value, 10) || 1)}
+                helperText="Default invoice due-date offset"
+                InputProps={{
+                  endAdornment: <Typography sx={{ ml: 0.5 }}>days</Typography>
+                }}
+                inputProps={{
+                  min: 1,
+                  step: 1
+                }}
+              />
+            </Grid>
           </Grid>
 
           <Alert severity="info" sx={{ mt: 2 }}>
             These amounts will be used as defaults in the quick booking form. Tourism tax is charged per night for guests marked as tourists.
           </Alert>
+        </CardContent>
+      </Card>
+
+      {/* Security & Identity */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <SecurityIcon sx={{ mr: 1, color: 'primary.main' }} />
+            <Typography variant="h6">Security & Identity</Typography>
+          </Box>
+          <Divider sx={{ mb: 3 }} />
+
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <TextField
+                fullWidth
+                label="Max Login Attempts"
+                type="number"
+                value={maxLoginAttempts}
+                onChange={(e) => setMaxLoginAttempts(parseInt(e.target.value, 10) || 1)}
+                helperText="Failed attempts before account lockout"
+                disabled={!isAdmin}
+                inputProps={{
+                  min: 1,
+                  max: 20,
+                  step: 1
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <TextField
+                fullWidth
+                label="Authenticator Issuer"
+                value={totpIssuerName}
+                onChange={(e) => setTotpIssuerName(e.target.value)}
+                helperText="Name shown in TOTP authenticator apps"
+                disabled={!isAdmin}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <TextField
+                fullWidth
+                label="Passkey Display Name"
+                value={passkeyRelyingPartyName}
+                onChange={(e) => setPasskeyRelyingPartyName(e.target.value)}
+                helperText="Name shown during passkey registration"
+                disabled={!isAdmin}
+              />
+            </Grid>
+          </Grid>
         </CardContent>
       </Card>
 
@@ -477,6 +578,92 @@ const SettingsPage: React.FC = () => {
           <Divider sx={{ mb: 3 }} />
 
           <Grid container spacing={3}>
+            {/* Rate Codes */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Typography variant="subtitle1" gutterBottom fontWeight="medium">
+                Rate Codes
+              </Typography>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 2, mb: 2 }}>
+                {rateCodes.map((code, index) => (
+                  <Chip
+                    key={`${code}-${index}`}
+                    label={code}
+                    onDelete={isAdmin ? () => setRateCodes(rateCodes.filter((_, i) => i !== index)) : undefined}
+                    sx={{ mb: 1 }}
+                  />
+                ))}
+              </Stack>
+
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <TextField
+                  size="small"
+                  placeholder="Add rate code"
+                  value={newRateCode}
+                  onChange={(e) => setNewRateCode(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addCode(newRateCode, rateCodes, setRateCodes, () => setNewRateCode(''));
+                    }
+                  }}
+                  disabled={!isAdmin}
+                  sx={{ flex: 1 }}
+                />
+                <Button
+                  variant="outlined"
+                  startIcon={<AddIcon />}
+                  onClick={() => addCode(newRateCode, rateCodes, setRateCodes, () => setNewRateCode(''))}
+                  disabled={!isAdmin || !newRateCode.trim()}
+                >
+                  Add
+                </Button>
+              </Box>
+            </Grid>
+
+            {/* Market Codes */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Typography variant="subtitle1" gutterBottom fontWeight="medium">
+                Market Codes
+              </Typography>
+
+              <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 2, mb: 2 }}>
+                {marketCodes.map((code, index) => (
+                  <Chip
+                    key={`${code}-${index}`}
+                    label={code}
+                    onDelete={isAdmin ? () => setMarketCodes(marketCodes.filter((_, i) => i !== index)) : undefined}
+                    sx={{ mb: 1 }}
+                  />
+                ))}
+              </Stack>
+
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <TextField
+                  size="small"
+                  placeholder="Add market code"
+                  value={newMarketCode}
+                  onChange={(e) => setNewMarketCode(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addCode(newMarketCode, marketCodes, setMarketCodes, () => setNewMarketCode(''));
+                    }
+                  }}
+                  disabled={!isAdmin}
+                  sx={{ flex: 1 }}
+                />
+                <Button
+                  variant="outlined"
+                  startIcon={<AddIcon />}
+                  onClick={() => addCode(newMarketCode, marketCodes, setMarketCodes, () => setNewMarketCode(''))}
+                  disabled={!isAdmin || !newMarketCode.trim()}
+                >
+                  Add
+                </Button>
+              </Box>
+            </Grid>
+
             {/* Booking Channels */}
             <Grid size={12}>
               <Typography variant="subtitle1" gutterBottom fontWeight="medium">

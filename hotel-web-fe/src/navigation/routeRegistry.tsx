@@ -268,9 +268,9 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Company Ledger',
     navLabel: 'Ledger',
     navGroup: 'operations',
-    requiredRoles: ['admin', 'receptionist', 'manager'],
+    requiredRoles: ['superadmin', 'admin', 'manager', 'receptionist'],
     navPermissions: ['ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage'],
-    navRoles: ['admin', 'receptionist', 'manager'],
+    navRoles: ['superadmin', 'admin', 'manager', 'receptionist'],
   },
   {
     id: 'night-audit',
