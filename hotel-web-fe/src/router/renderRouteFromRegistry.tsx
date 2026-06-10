@@ -27,10 +27,11 @@ export function renderRouteContent(route: AppRouteDefinition) {
     return <UnauthOnlyRoute>{content}</UnauthOnlyRoute>;
   }
 
-  if (route.requiredPermission || route.requiredRoles || route.excludeRoles?.length) {
+  if (route.requiredPermission || route.requiredPermissions || route.requiredRoles || route.excludeRoles?.length) {
     return (
       <ProtectedRoute
         requiredPermission={route.requiredPermission}
+        requiredPermissions={route.requiredPermissions}
         requiredRoles={route.requiredRoles}
         excludeRoles={route.excludeRoles}
       >

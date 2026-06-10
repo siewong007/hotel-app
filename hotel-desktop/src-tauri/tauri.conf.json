@@ -45,7 +45,8 @@
       "pgsql/lib/**/*",
       "pgsql/share/**/*",
       "database/migrations/**/*",
-      "database/seed-data/**/*"
+      "database/seed-data/**/*",
+      "database/demo-data/**/*"
     ],
     "windows": {
       "certificateThumbprint": null,

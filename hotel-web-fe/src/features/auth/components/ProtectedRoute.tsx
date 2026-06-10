@@ -6,6 +6,7 @@ import { CircularProgress, Box } from '@mui/material';
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredPermission?: string;
+  requiredPermissions?: string[];
   requiredRole?: string;
   requiredRoles?: string[]; // Array of roles - user needs ANY of these
   excludeRole?: string;
@@ -15,6 +16,7 @@ interface ProtectedRouteProps {
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requiredPermission,
+  requiredPermissions,
   requiredRole,
   requiredRoles,
   excludeRole,
@@ -36,6 +38,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (requiredPermission && !hasPermission(requiredPermission)) {
     return <Navigate to="/" replace />;
+  }
+
+  if (requiredPermissions && requiredPermissions.length > 0) {
+    const hasAnyPermission = requiredPermissions.some(permission => hasPermission(permission));
+    if (!hasAnyPermission) {
+      return <Navigate to="/" replace />;
+    }
   }
 
   if (requiredRole && !hasRole(requiredRole)) {

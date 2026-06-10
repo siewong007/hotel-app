@@ -187,7 +187,7 @@ const AnalyticsDashboard: React.FC = () => {
         averageBookingValue: analyticsData.averageBookingValue || 0,
         totalRevenue: analyticsData.totalRevenue || 0,
         bookingsByRoomType: analyticsData.bookingsByRoomType || {},
-        peakBookingHours: analyticsData.peakBookingHours || [9, 10, 11, 14, 15, 16],
+        peakBookingHours: analyticsData.peakBookingHours || [],
         monthlyTrends: analyticsData.monthlyTrends || []
       };
 
@@ -203,10 +203,10 @@ const AnalyticsDashboard: React.FC = () => {
       };
 
       const revenueChartData: ChartData = {
-        labels: analytics.monthlyTrends.map(t => t.month) || ['Current Month'],
+        labels: analytics.monthlyTrends.map(t => t.month),
         datasets: [{
           label: `Revenue (${currencySymbol})`,
-          data: analytics.monthlyTrends.map(t => t.revenue) || [analytics.totalRevenue],
+          data: analytics.monthlyTrends.map(t => t.revenue),
           borderColor: '#2196f3',
           backgroundColor: 'rgba(33, 150, 243, 0.1)',
           borderWidth: 2
@@ -402,10 +402,14 @@ const AnalyticsDashboard: React.FC = () => {
               • <strong>Revenue Performance:</strong> {formatCurrency(bookingAnalytics?.totalRevenue || 0)} generated this period
             </Typography>
             <Typography variant="body2" sx={{ mb: 1 }}>
-              • <strong>Peak Hours:</strong> Bookings most active during {bookingAnalytics?.peakBookingHours.join(', ')}
+              • <strong>Peak Hours:</strong> {bookingAnalytics?.peakBookingHours.length
+                ? `Bookings most active during ${bookingAnalytics.peakBookingHours.join(', ')}`
+                : 'No booking hour concentration yet'}
             </Typography>
             <Typography variant="body2">
-              • <strong>Recommendation:</strong> Focus on increasing occupancy rate through targeted marketing
+              • <strong>Recommendation:</strong> {occupancyReport && occupancyReport.occupancyRate < 78.5
+                ? 'Review channels and rates for upcoming low-occupancy dates'
+                : 'Maintain rate discipline while occupancy is on target'}
             </Typography>
           </Box>
         </CardContent>

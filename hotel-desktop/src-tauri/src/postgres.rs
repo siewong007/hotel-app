@@ -36,27 +36,6 @@ const CONFIGURED_POSTGRES_MAJOR_VERSION: &str = "18";
 const MAX_STARTUP_WAIT_SECS: u64 = 30;
 const SEED_PLACEHOLDER_PASSWORD_HASH: &str =
     "$2b$12$Fq3zPzZ.mr/wuYrbUPUItOqoC9YvsFfW.mcq4B6U5e3nWsPr4JQdK";
-const BOOTSTRAP_USERNAMES: &[&str] = &[
-    "admin",
-    "superadmin",
-    "manager1",
-    "receptionist1",
-    "receptionist2",
-    "receptionist3",
-    "staff1",
-    "housekeeping1",
-    "maintenance1",
-    "guest1",
-    "guest2",
-    "guest3",
-    "guest4",
-    "guest5",
-    "guest6",
-    "guest7",
-    "guest8",
-    "guest9",
-    "guest10",
-];
 
 static BUNDLED_POSTGRES_MAJOR_VERSION: OnceLock<String> = OnceLock::new();
 
@@ -265,9 +244,7 @@ fn ensure_pgdata_version_compatible(expected_version: &str) -> Result<(), Postgr
     Ok(())
 }
 
-async fn refuse_if_pgdata_version_mismatch(
-    expected_version: &str,
-) -> Result<(), PostgresError> {
+async fn refuse_if_pgdata_version_mismatch(expected_version: &str) -> Result<(), PostgresError> {
     let Some(found_version) = read_pgdata_version()? else {
         return Ok(());
     };
@@ -739,8 +716,12 @@ pub async fn run_migrations_if_needed(app_handle: &AppHandle) -> Result<(), Post
 
     // Only run seed data if database was not previously initialized
     if !already_initialized {
-        log::info!("Running seed data...");
+        log::info!("Running bootstrap seed data...");
         run_sql_files(app_handle, "database/seed-data").await?;
+        if load_demo_data_on_first_run() {
+            log::info!("HOTEL_DESKTOP_LOAD_DEMO_DATA enabled; running demo data...");
+            run_sql_files(app_handle, "database/demo-data").await?;
+        }
         randomize_seed_passwords(app_handle).await?;
     }
 
@@ -748,6 +729,17 @@ pub async fn run_migrations_if_needed(app_handle: &AppHandle) -> Result<(), Post
 
     log::info!("Database migrations completed successfully");
     Ok(())
+}
+
+fn load_demo_data_on_first_run() -> bool {
+    std::env::var("HOTEL_DESKTOP_LOAD_DEMO_DATA")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes"
+            )
+        })
+        .unwrap_or(false)
 }
 
 fn generate_bootstrap_password() -> String {
@@ -823,6 +815,87 @@ async fn run_psql_scalar_sql(
     Ok(output)
 }
 
+pub async fn backup_database(
+    app_handle: &AppHandle,
+    destination: Option<String>,
+) -> Result<PathBuf, PostgresError> {
+    ensure_postgres_running(app_handle).await?;
+
+    let pgsql_bin = get_pgsql_bin_dir(app_handle);
+    let pg_dump_path = pgsql_bin.join(format!("pg_dump{}", EXE_SUFFIX));
+
+    if !pg_dump_path.exists() {
+        return Err(PostgresError::BinaryNotFound(
+            pg_dump_path.to_string_lossy().to_string(),
+        ));
+    }
+
+    let backup_file_name = format!(
+        "hotel-backup-{}.dump",
+        chrono::Local::now().format("%Y%m%d-%H%M%S")
+    );
+    let destination_path = destination
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| get_data_directory().join("backups").join(&backup_file_name));
+    let backup_path = if destination_path.exists() && destination_path.is_dir() {
+        destination_path.join(&backup_file_name)
+    } else {
+        destination_path
+    };
+
+    if let Some(parent) = backup_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!(
+        "{}{}{}",
+        pgsql_bin.to_string_lossy(),
+        PATH_SEP,
+        current_path
+    );
+    let port = POSTGRES_PORT.to_string();
+
+    let mut cmd = tokio::process::Command::new(&pg_dump_path);
+    cmd.args([
+        "-h",
+        "localhost",
+        "-p",
+        &port,
+        "-U",
+        POSTGRES_USER,
+        "-d",
+        POSTGRES_DB,
+        "-F",
+        "c",
+        "-f",
+        &backup_path.to_string_lossy(),
+    ])
+    .env("PATH", &new_path)
+    .current_dir(&pgsql_bin)
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().await?;
+    if !output.status.success() {
+        let details = command_output_details("pg_dump database backup", &output);
+        log::error!("Database backup failed: {}", details);
+        return Err(PostgresError::MigrationFailed(format!(
+            "Database backup failed: {}",
+            details
+        )));
+    }
+
+    log::info!("Database backup written to {:?}", backup_path);
+    Ok(backup_path)
+}
+
 fn bootstrap_password_file_path() -> PathBuf {
     get_data_directory().join("initial-login-password.txt")
 }
@@ -865,16 +938,26 @@ async fn randomize_seed_passwords(app_handle: &AppHandle) -> Result<(), Postgres
     );
 
     run_psql_scalar_sql(app_handle, "psql randomize seed passwords", &sql).await?;
+    let usernames_output = run_psql_scalar_sql(
+        app_handle,
+        "psql list seeded usernames",
+        "SELECT COALESCE(string_agg(username, E'\n' ORDER BY username), '') FROM users;",
+    )
+    .await?;
+    let usernames = trimmed_lossy(&usernames_output.stdout);
+    let username_lines = usernames
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(|username| format!("- {}", username))
+        .collect::<Vec<_>>()
+        .join("\n");
 
     let password_file = bootstrap_password_file_path();
     let contents = format!(
         "Initial desktop login password for seeded accounts:\n{}\n\nSeeded usernames:\n{}\n\nChange account passwords after first login.\n",
         password,
-        BOOTSTRAP_USERNAMES
-            .iter()
-            .map(|username| format!("- {}", username))
-            .collect::<Vec<_>>()
-            .join("\n")
+        username_lines
     );
     std::fs::write(&password_file, contents)?;
     log::info!(

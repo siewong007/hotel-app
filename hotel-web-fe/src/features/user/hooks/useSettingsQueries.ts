@@ -3,7 +3,10 @@ import { AdminService, type SystemSetting } from '../../../api/admin.service';
 import { queryKeys } from '../../../api/queryKeys';
 import {
   getHotelSettings,
+  normalizeBookingChannels,
+  normalizeStringList,
   saveHotelSettings,
+  type BookingChannel,
   type HotelSettings,
 } from '../../../utils/hotelSettings';
 
@@ -14,15 +17,20 @@ const DB_SETTING_KEYS = [
   'hotel_email',
   'check_in_time',
   'check_out_time',
+  'night_shift_time',
   'currency',
   'timezone',
+  'deposit_amount',
   'service_tax_rate',
+  'tourism_tax_rate',
   'default_payment_terms_days',
   'max_login_attempts',
   'totp_issuer_name',
   'passkey_relying_party_name',
   'rate_codes',
   'market_codes',
+  'booking_channels',
+  'payment_methods',
 ] as const;
 
 type DbSettingKey = typeof DB_SETTING_KEYS[number];
@@ -38,13 +46,7 @@ const parseStringListSetting = (value: string | undefined, fallback: string[]) =
   if (!value) return fallback;
   try {
     const parsed = JSON.parse(value);
-    if (Array.isArray(parsed)) {
-      const values = parsed
-        .filter((item): item is string => typeof item === 'string')
-        .map(item => item.trim())
-        .filter(Boolean);
-      return values.length > 0 ? Array.from(new Set(values)) : fallback;
-    }
+    return normalizeStringList(parsed, fallback);
   } catch {
     const values = value
       .split(',')
@@ -53,6 +55,20 @@ const parseStringListSetting = (value: string | undefined, fallback: string[]) =
     return values.length > 0 ? Array.from(new Set(values)) : fallback;
   }
   return fallback;
+};
+
+const parseBookingChannelsSetting = (value: string | undefined, fallback: BookingChannel[]) => {
+  if (!value) return fallback;
+  try {
+    return normalizeBookingChannels(JSON.parse(value));
+  } catch {
+    return normalizeBookingChannels(
+      value
+        .split(',')
+        .map(item => item.trim())
+        .filter(Boolean)
+    );
+  }
 };
 
 const settingsRowsToMap = (rows: SystemSetting[]) =>
@@ -72,9 +88,12 @@ const mergeSystemSettings = (
     hotel_email: values.get('hotel_email') ?? localSettings.hotel_email,
     check_in_time: values.get('check_in_time') ?? localSettings.check_in_time,
     check_out_time: values.get('check_out_time') ?? localSettings.check_out_time,
+    night_shift_time: values.get('night_shift_time') ?? localSettings.night_shift_time,
     currency: values.get('currency') ?? localSettings.currency,
     timezone: values.get('timezone') ?? localSettings.timezone,
+    deposit_amount: parseNumberSetting(values.get('deposit_amount'), localSettings.deposit_amount),
     service_tax_rate: parseNumberSetting(values.get('service_tax_rate'), localSettings.service_tax_rate),
+    tourism_tax_rate: parseNumberSetting(values.get('tourism_tax_rate'), localSettings.tourism_tax_rate),
     default_payment_terms_days: parseNumberSetting(
       values.get('default_payment_terms_days'),
       localSettings.default_payment_terms_days
@@ -85,6 +104,8 @@ const mergeSystemSettings = (
       values.get('passkey_relying_party_name') ?? localSettings.passkey_relying_party_name,
     rate_codes: parseStringListSetting(values.get('rate_codes'), localSettings.rate_codes),
     market_codes: parseStringListSetting(values.get('market_codes'), localSettings.market_codes),
+    booking_channels: parseBookingChannelsSetting(values.get('booking_channels'), localSettings.booking_channels),
+    payment_methods: parseStringListSetting(values.get('payment_methods'), localSettings.payment_methods),
   };
 };
 
