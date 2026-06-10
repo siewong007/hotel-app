@@ -36,6 +36,7 @@ export interface AppRouteDefinition {
   navLabel?: string;
   navGroup?: NavGroup;
   requiredPermission?: string;
+  requiredPermissions?: string[];
   requiredRoles?: string[];
   excludeRoles?: string[];
   navPermissions?: string[];
@@ -162,7 +163,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Reports',
     navLabel: 'Reports',
     navGroup: 'operations',
-    navPermissions: [],
+    requiredPermissions: ['analytics:read', 'reports:execute'],
+    navPermissions: ['analytics:read', 'reports:execute'],
   },
   {
     id: 'loyalty',

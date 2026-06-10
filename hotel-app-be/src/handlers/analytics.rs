@@ -34,6 +34,12 @@ pub async fn get_booking_analytics_handler(
     Ok(Json(analytics::booking_analytics(&pool).await?))
 }
 
+pub async fn get_benchmark_report_handler(
+    State(pool): State<DbPool>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    Ok(Json(analytics::benchmark_report(&pool).await?))
+}
+
 pub async fn get_personalized_report_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,

@@ -237,14 +237,17 @@ pub async fn restart_backend(app_handle: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Backup the database (placeholder for now)
+/// Backup the bundled PostgreSQL database.
 #[tauri::command]
 pub async fn backup_database(
-    _app_handle: AppHandle,
-    _destination: Option<String>,
+    app_handle: AppHandle,
+    destination: Option<String>,
 ) -> Result<String, String> {
-    log::info!("Database backup requested - not implemented for external PostgreSQL");
-    Err("Database backup is only available when using bundled PostgreSQL".into())
+    log::info!("Database backup requested");
+    crate::postgres::backup_database(&app_handle, destination)
+        .await
+        .map(|path| path.to_string_lossy().to_string())
+        .map_err(|err| err.to_string())
 }
 
 /// Get recent log entries

@@ -47,7 +47,7 @@ async fn get_benchmark(
     headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_permission_helper(&pool, &headers, "analytics:read").await?;
-    handlers::analytics::get_occupancy_report_handler(State(pool)).await
+    handlers::analytics::get_benchmark_report_handler(State(pool)).await
 }
 
 async fn get_personalized(

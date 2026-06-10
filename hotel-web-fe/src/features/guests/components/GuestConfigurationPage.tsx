@@ -41,7 +41,6 @@ import {
   Close as CloseIcon,
   Edit as EditIcon,
   FileDownloadOutlined as ExportIcon,
-  FileUploadOutlined as ImportIcon,
   AutoAwesome as ConvertIcon,
   LocationOnOutlined as LocationIcon,
   PublicOutlined as PublicIcon,
@@ -70,7 +69,7 @@ import {
   PersonOutline as NonMemberIcon,
 } from '@mui/icons-material';
 
-// Design tokens from the Guest Configuration Redesign mock.
+// Design tokens for the Guest Configuration surface.
 const GUEST_DESIGN = {
   green700: 'var(--hotel-primary)',
   green600: '#1f8163',
@@ -117,6 +116,11 @@ interface GuestFormData extends GuestCreateRequest {
 }
 
 const PAGE_SIZE = 50;
+
+const csvCell = (value: unknown) => {
+  const text = value == null ? '' : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+};
 
 const GuestConfigurationPage: React.FC = () => {
   const { hasRole, hasPermission } = useAuth();
@@ -262,6 +266,55 @@ const GuestConfigurationPage: React.FC = () => {
       return true;
     });
   }, [guests, segment]);
+
+  const handleExportGuests = () => {
+    if (visibleGuests.length === 0) {
+      emitApiNotification({ message: 'No guests in the current view to export', severity: 'info' });
+      return;
+    }
+
+    const header = [
+      'ID',
+      'Name',
+      'Email',
+      'Phone',
+      'IC / Passport',
+      'Guest Type',
+      'Tourism Type',
+      'Company',
+      'Nationality',
+      'Country',
+      'Bookings',
+      'Last Stay',
+    ];
+    const rows = visibleGuests.map((guest) => [
+      guest.id,
+      guest.full_name,
+      guest.email,
+      guest.phone,
+      guest.ic_number,
+      guest.guest_type,
+      guest.tourism_type,
+      guest.company_name,
+      guest.nationality,
+      guest.country,
+      guest.bookings_count ?? 0,
+      guest.last_stay_date ?? '',
+    ]);
+    const csv = [header, ...rows]
+      .map((row) => row.map(csvCell).join(','))
+      .join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `guests_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    emitApiNotification({ message: 'Guest CSV exported', severity: 'success' });
+  };
 
   // Group visible guests A→Z for the section headers in the list.
   const guestsByLetter = React.useMemo(() => {
@@ -531,26 +584,8 @@ const GuestConfigurationPage: React.FC = () => {
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button
-            startIcon={<ImportIcon />}
-            sx={{
-              px: 1.75,
-              py: 1.1,
-              borderRadius: 1.5,
-              border: `1px solid ${GUEST_DESIGN.rule}`,
-              bgcolor: 'background.paper',
-              color: GUEST_DESIGN.ink2,
-              fontSize: 13,
-              fontWeight: 600,
-              textTransform: 'none',
-              '&:hover': { bgcolor: GUEST_DESIGN.paper2 },
-            }}
-            disabled
-            title="Import guests (coming soon)"
-          >
-            Import
-          </Button>
-          <Button
             startIcon={<ExportIcon />}
+            onClick={handleExportGuests}
             sx={{
               px: 1.75,
               py: 1.1,
@@ -563,10 +598,10 @@ const GuestConfigurationPage: React.FC = () => {
               textTransform: 'none',
               '&:hover': { bgcolor: GUEST_DESIGN.paper2 },
             }}
-            disabled
-            title="Export guests (coming soon)"
+            disabled={loading}
+            title="Export visible guests"
           >
-            Export
+            Export CSV
           </Button>
           <Button
             startIcon={<AddIcon />}
