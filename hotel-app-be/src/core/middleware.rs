@@ -44,6 +44,18 @@ pub async fn check_permission(
         return Ok(());
     }
 
+    if let Some((resource, _)) = permission.split_once(':') {
+        let manage_permission = format!("{}:manage", resource);
+        let has_manage_permission =
+            AuthService::check_permission(pool, user_id, &manage_permission)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if has_manage_permission {
+            return Ok(());
+        }
+    }
+
     Err(ApiError::Forbidden(format!(
         "Missing permission: {}",
         permission

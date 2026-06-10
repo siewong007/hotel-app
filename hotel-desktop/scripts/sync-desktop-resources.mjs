@@ -17,6 +17,11 @@ const syncSets = [
     source: join(repoRoot, 'hotel-app-be', 'database', 'seed-data'),
     target: join(desktopRoot, 'src-tauri', 'database', 'seed-data'),
   },
+  {
+    label: 'demo data',
+    source: join(repoRoot, 'hotel-app-be', 'database', 'demo-data'),
+    target: join(desktopRoot, 'src-tauri', 'database', 'demo-data'),
+  },
 ];
 
 function listSqlFiles(directory) {

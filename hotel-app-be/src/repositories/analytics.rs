@@ -2,11 +2,10 @@
 //!
 //! Query-heavy report generation for analytics dashboards.
 
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, DbRow};
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 use crate::models::ReportQuery;
-#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 use crate::models::row_mappers;
 use crate::utils::date::parse_date_flexible;
 use crate::utils::report_labels::payment_account_label;
@@ -22,6 +21,22 @@ pub async fn websocket_status() -> Result<serde_json::Value, ApiError> {
         "endpoint": "/ws",
         "message": "WebSocket server is running"
     }))
+}
+
+fn decimal_to_f64(value: Decimal) -> f64 {
+    value.to_string().parse::<f64>().unwrap_or(0.0)
+}
+
+fn row_i64(row: &DbRow, col: &str) -> i64 {
+    row.try_get::<i64, _>(col)
+        .or_else(|_| row.try_get::<i32, _>(col).map(i64::from))
+        .unwrap_or(0)
+}
+
+fn row_i32(row: &DbRow, col: &str) -> i32 {
+    row.try_get::<i32, _>(col)
+        .or_else(|_| row.try_get::<i64, _>(col).map(|value| value as i32))
+        .unwrap_or(0)
 }
 
 pub async fn occupancy_report(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
@@ -176,26 +191,233 @@ pub async fn booking_analytics(pool: &DbPool) -> Result<serde_json::Value, ApiEr
         })
         .collect();
 
-    // Monthly trends (simplified - last 6 months)
-    let monthly_trends = vec![serde_json::json!({
-        "month": "Current Month",
-        "bookings": total_bookings,
-        "revenue": total_revenue.to_string().parse::<f64>().unwrap_or(0.0)
-    })];
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let monthly_trend_rows = sqlx::query(
+        r#"
+        SELECT
+            strftime('%Y-%m', check_in_date) as month_label,
+            COUNT(*) as bookings,
+            COALESCE(CAST(SUM(total_amount) AS TEXT), '0') as revenue
+        FROM bookings
+        WHERE status NOT IN ('voided')
+          AND date(check_in_date) >= date('now', 'start of month', '-5 months')
+        GROUP BY month_label
+        ORDER BY month_label
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let monthly_trend_rows = sqlx::query(
+        r#"
+        SELECT
+            to_char(month_start, 'Mon YYYY') as month_label,
+            bookings,
+            revenue
+        FROM (
+            SELECT
+                date_trunc('month', check_in_date)::date as month_start,
+                COUNT(*)::BIGINT as bookings,
+                COALESCE(SUM(total_amount), 0) as revenue
+            FROM bookings
+            WHERE status NOT IN ('voided')
+              AND check_in_date >= (date_trunc('month', CURRENT_DATE) - INTERVAL '5 months')
+            GROUP BY month_start
+        ) trend
+        ORDER BY month_start
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let monthly_trends: Vec<serde_json::Value> = monthly_trend_rows
+        .into_iter()
+        .map(|row| {
+            let month: String = row.get("month_label");
+            let bookings = row_i64(&row, "bookings");
+            let revenue = decimal_to_f64(row_mappers::get_decimal(&row, "revenue"));
+            serde_json::json!({
+                "month": month,
+                "bookings": bookings,
+                "revenue": revenue
+            })
+        })
+        .collect();
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let peak_hour_rows = sqlx::query(
+        r#"
+        SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as bookings
+        FROM bookings
+        WHERE status NOT IN ('voided')
+          AND created_at IS NOT NULL
+        GROUP BY hour
+        ORDER BY bookings DESC, hour
+        LIMIT 6
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let peak_hour_rows = sqlx::query(
+        r#"
+        SELECT EXTRACT(HOUR FROM created_at)::INTEGER as hour, COUNT(*)::BIGINT as bookings
+        FROM bookings
+        WHERE status NOT IN ('voided')
+          AND created_at IS NOT NULL
+        GROUP BY hour
+        ORDER BY bookings DESC, hour
+        LIMIT 6
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let peak_booking_hours: Vec<i32> = peak_hour_rows
+        .into_iter()
+        .map(|row| row_i32(&row, "hour"))
+        .collect();
 
     Ok(serde_json::json!({
         "totalBookings": total_bookings,
-        "averageBookingValue": average_booking_value.to_string().parse::<f64>().unwrap_or(0.0),
-        "totalRevenue": total_revenue.to_string().parse::<f64>().unwrap_or(0.0),
+        "averageBookingValue": decimal_to_f64(average_booking_value),
+        "totalRevenue": decimal_to_f64(total_revenue),
         "bookingsByRoomType": bookings_by_room_type,
-        "peakBookingHours": [9, 10, 11, 14, 15, 16],
+        "peakBookingHours": peak_booking_hours,
         "monthlyTrends": monthly_trends
     }))
+}
+
+pub async fn benchmark_report(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
+    let occupancy = occupancy_report(pool).await?;
+    let bookings = booking_analytics(pool).await?;
+
+    let total_rooms = occupancy
+        .get("totalRooms")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    let occupied_rooms = occupancy
+        .get("occupiedRooms")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    let occupancy_rate = occupancy
+        .get("occupancyRate")
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(0.0);
+    let total_revenue = bookings
+        .get("totalRevenue")
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(0.0);
+    let total_bookings = bookings
+        .get("totalBookings")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    let average_booking_value = bookings
+        .get("averageBookingValue")
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(0.0);
+    let revenue_per_room = if total_rooms > 0 {
+        total_revenue / total_rooms as f64
+    } else {
+        0.0
+    };
+    let revenue_per_occupied_room = if occupied_rooms > 0 {
+        total_revenue / occupied_rooms as f64
+    } else {
+        0.0
+    };
+
+    let occupancy_target = 70.0;
+    let booking_value_target = 150.0;
+    let revenue_per_room_target = 100.0;
+
+    let performance_band = if occupancy_rate >= occupancy_target + 10.0 {
+        "above_target"
+    } else if occupancy_rate >= occupancy_target {
+        "on_target"
+    } else if occupancy_rate >= occupancy_target - 15.0 {
+        "watch"
+    } else {
+        "below_target"
+    };
+
+    Ok(serde_json::json!({
+        "generatedAt": chrono::Utc::now().to_rfc3339(),
+        "summary": {
+            "totalRooms": total_rooms,
+            "occupiedRooms": occupied_rooms,
+            "occupancyRate": occupancy_rate,
+            "totalBookings": total_bookings,
+            "totalRevenue": total_revenue,
+            "averageBookingValue": average_booking_value,
+            "revenuePerRoom": revenue_per_room,
+            "revenuePerOccupiedRoom": revenue_per_occupied_room,
+            "performanceBand": performance_band
+        },
+        "benchmarks": [
+            {
+                "metric": "Occupancy rate",
+                "value": occupancy_rate,
+                "target": occupancy_target,
+                "variance": occupancy_rate - occupancy_target,
+                "unit": "percent"
+            },
+            {
+                "metric": "Average booking value",
+                "value": average_booking_value,
+                "target": booking_value_target,
+                "variance": average_booking_value - booking_value_target,
+                "unit": "currency"
+            },
+            {
+                "metric": "Revenue per room",
+                "value": revenue_per_room,
+                "target": revenue_per_room_target,
+                "variance": revenue_per_room - revenue_per_room_target,
+                "unit": "currency"
+            }
+        ],
+        "source": {
+            "occupancy": occupancy,
+            "bookingAnalytics": bookings
+        }
+    }))
+}
+
+fn report_period_start(period: &str) -> NaiveDate {
+    let today = Local::now().date_naive();
+    let days = match period {
+        "week" => 7,
+        "quarter" => 90,
+        "year" => 365,
+        _ => 30,
+    };
+    today - chrono::Duration::days(days)
+}
+
+fn recent_booking_json(row: &DbRow) -> serde_json::Value {
+    serde_json::json!({
+        "id": row_i64(row, "id"),
+        "guest_name": row.try_get::<String, _>("guest_name").unwrap_or_else(|_| "Guest".to_string()),
+        "room_number": row.try_get::<String, _>("room_number").unwrap_or_else(|_| "-".to_string()),
+        "room_type": row.try_get::<String, _>("room_type").unwrap_or_else(|_| "Room".to_string()),
+        "check_in": row.try_get::<String, _>("check_in").unwrap_or_default(),
+        "check_out": row.try_get::<String, _>("check_out").unwrap_or_default(),
+        "total_price": row.try_get::<String, _>("total_price").unwrap_or_else(|_| "0".to_string()),
+        "status": row.try_get::<String, _>("status").unwrap_or_else(|_| "unknown".to_string())
+    })
 }
 
 // Personalized report handler - generates reports tailored to user role and context
 pub async fn personalized_report(
     pool: &DbPool,
+    user_id: i64,
     has_full_analytics: bool,
     params: std::collections::HashMap<String, String>,
 ) -> Result<serde_json::Value, ApiError> {
@@ -204,98 +426,351 @@ pub async fn personalized_report(
     } else {
         "personal"
     };
+    let period = params.get("period").map(String::as_str).unwrap_or("month");
+    let period_start = report_period_start(period);
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let period_start_text = period_start.to_string();
 
-    // Get date range from query params
-    let period = params.get("period").unwrap_or(&"month".to_string()).clone();
+    let user_roles: Vec<String> = sqlx::query(
+        r#"
+        SELECT r.name
+        FROM user_roles ur
+        INNER JOIN roles r ON ur.role_id = r.id
+        WHERE ur.user_id = $1
+        ORDER BY r.priority DESC, r.name
+        "#,
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .into_iter()
+    .filter_map(|row| row.try_get::<String, _>("name").ok())
+    .collect();
 
-    // Generate personalized occupancy report
-    let (total_rooms, occupied_rooms, total_bookings, total_revenue, recent_bookings, insights) =
-        if report_scope == "all" {
-            // Get total rooms
-            let total_rooms: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms")
-                .fetch_one(pool)
-                .await
-                .map_err(|e| ApiError::Database(e.to_string()))?;
-
-            // Get occupancy
-            let occupied_rooms: i64 = sqlx::query_scalar(
-            "SELECT COUNT(DISTINCT room_id) FROM bookings WHERE status NOT IN ('voided') AND check_in_date <= CURRENT_DATE AND check_out_date > CURRENT_DATE"
-        )
+    let total_rooms: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rooms")
         .fetch_one(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-            // Get total bookings and revenue
-            let total_bookings: i64 =
-                sqlx::query_scalar("SELECT COUNT(*) FROM bookings WHERE status NOT IN ('voided')")
-                    .fetch_one(pool)
-                    .await
-                    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-            let revenue_result: Option<Decimal> = sqlx::query_scalar(
-                "SELECT SUM(total_amount) FROM bookings WHERE status NOT IN ('voided')",
-            )
-            .fetch_one(pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-            // Get recent bookings (last 5)
-            let recent_bookings: Vec<serde_json::Value> = sqlx::query(
-                r#"
-            SELECT b.id, g.full_name as guest_name, b.check_in_date, b.total_amount
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let occupied_rooms: i64 = {
+        let mut query = String::from(
+            r#"
+            SELECT COUNT(DISTINCT b.room_id)
             FROM bookings b
             INNER JOIN guests g ON b.guest_id = g.id
             WHERE b.status NOT IN ('voided')
-            ORDER BY b.created_at DESC LIMIT 5
+              AND b.check_in_date <= date('now')
+              AND b.check_out_date > date('now')
             "#,
-            )
-            .fetch_all(pool)
+        );
+        if !has_full_analytics {
+            query.push_str(
+                r#"
+              AND (
+                  b.created_by = $1
+                  OR b.guest_id = (SELECT guest_id FROM users WHERE id = $1)
+                  OR LOWER(COALESCE(g.email, '')) = (SELECT LOWER(COALESCE(email, '')) FROM users WHERE id = $1)
+              )
+                "#,
+            );
+        }
+
+        let mut sql = sqlx::query_scalar::<_, i64>(&query);
+        if !has_full_analytics {
+            sql = sql.bind(user_id);
+        }
+        sql.fetch_one(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?
-            .into_iter()
-            .map(|row| {
-                serde_json::json!({
-                    "id": row.get::<i64, _>(0),
-                    "guest_name": row.get::<String, _>(1),
-                    "check_in_date": row.get::<NaiveDate, _>(2),
-                    "total_amount": row.get::<Decimal, _>(3).to_string()
-                })
-            })
-            .collect();
+    };
 
-            let insights = vec!["Occupancy rate is stable compared to last month".to_string()];
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let occupied_rooms: i64 = {
+        let mut query = String::from(
+            r#"
+            SELECT COUNT(DISTINCT b.room_id)
+            FROM bookings b
+            INNER JOIN guests g ON b.guest_id = g.id
+            WHERE b.status NOT IN ('voided')
+              AND b.check_in_date <= CURRENT_DATE
+              AND b.check_out_date > CURRENT_DATE
+            "#,
+        );
+        if !has_full_analytics {
+            query.push_str(
+                r#"
+              AND (
+                  b.created_by = $1
+                  OR b.guest_id = (SELECT guest_id FROM users WHERE id = $1)
+                  OR LOWER(COALESCE(g.email, '')) = (SELECT LOWER(COALESCE(email, '')) FROM users WHERE id = $1)
+              )
+                "#,
+            );
+        }
 
-            (
-                total_rooms,
-                occupied_rooms,
-                total_bookings,
-                revenue_result.unwrap_or_default(),
-                recent_bookings,
-                insights,
+        let mut sql = sqlx::query_scalar::<_, i64>(&query);
+        if !has_full_analytics {
+            sql = sql.bind(user_id);
+        }
+        sql.fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?
+    };
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let (total_bookings, total_revenue) = {
+        let row = if has_full_analytics {
+            sqlx::query(
+                r#"
+                SELECT COUNT(*) as total_bookings, COALESCE(CAST(SUM(total_amount) AS TEXT), '0') as total_revenue
+                FROM bookings
+                WHERE status NOT IN ('voided')
+                  AND date(check_in_date) >= date($1)
+                "#,
             )
+            .bind(&period_start_text)
+            .fetch_one(pool)
+            .await
         } else {
-            // Personal report - simplified version
-            (
-                0,
-                0,
-                0,
-                Decimal::ZERO,
-                vec![],
-                vec!["Personal reports coming soon".to_string()],
+            sqlx::query(
+                r#"
+                SELECT COUNT(*) as total_bookings, COALESCE(CAST(SUM(b.total_amount) AS TEXT), '0') as total_revenue
+                FROM bookings b
+                INNER JOIN guests g ON b.guest_id = g.id
+                WHERE b.status NOT IN ('voided')
+                  AND date(b.check_in_date) >= date($1)
+                  AND (
+                      b.created_by = $2
+                      OR b.guest_id = (SELECT guest_id FROM users WHERE id = $2)
+                      OR LOWER(COALESCE(g.email, '')) = (SELECT LOWER(COALESCE(email, '')) FROM users WHERE id = $2)
+                  )
+                "#,
             )
-        };
+            .bind(&period_start_text)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await
+        }
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        (
+            row_i64(&row, "total_bookings"),
+            row_mappers::get_decimal(&row, "total_revenue"),
+        )
+    };
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let (total_bookings, total_revenue) = {
+        let row = if has_full_analytics {
+            sqlx::query(
+                r#"
+                SELECT COUNT(*)::BIGINT as total_bookings, COALESCE(SUM(total_amount), 0) as total_revenue
+                FROM bookings
+                WHERE status NOT IN ('voided')
+                  AND check_in_date >= $1
+                "#,
+            )
+            .bind(period_start)
+            .fetch_one(pool)
+            .await
+        } else {
+            sqlx::query(
+                r#"
+                SELECT COUNT(*)::BIGINT as total_bookings, COALESCE(SUM(b.total_amount), 0) as total_revenue
+                FROM bookings b
+                INNER JOIN guests g ON b.guest_id = g.id
+                WHERE b.status NOT IN ('voided')
+                  AND b.check_in_date >= $1
+                  AND (
+                      b.created_by = $2
+                      OR b.guest_id = (SELECT guest_id FROM users WHERE id = $2)
+                      OR LOWER(COALESCE(g.email, '')) = (SELECT LOWER(COALESCE(email, '')) FROM users WHERE id = $2)
+                  )
+                "#,
+            )
+            .bind(period_start)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await
+        }
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        (
+            row_i64(&row, "total_bookings"),
+            row_mappers::get_decimal(&row, "total_revenue"),
+        )
+    };
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let recent_booking_rows = if has_full_analytics {
+        sqlx::query(
+            r#"
+            SELECT
+                b.id,
+                COALESCE(g.full_name, 'Guest') as guest_name,
+                r.room_number,
+                COALESCE(rt.name, 'Room') as room_type,
+                b.check_in_date as check_in,
+                b.check_out_date as check_out,
+                COALESCE(CAST(b.total_amount AS TEXT), '0') as total_price,
+                b.status
+            FROM bookings b
+            INNER JOIN guests g ON b.guest_id = g.id
+            INNER JOIN rooms r ON b.room_id = r.id
+            LEFT JOIN room_types rt ON r.room_type_id = rt.id
+            WHERE b.status NOT IN ('voided')
+              AND date(b.check_in_date) >= date($1)
+            ORDER BY b.created_at DESC
+            LIMIT 5
+            "#,
+        )
+        .bind(&period_start_text)
+        .fetch_all(pool)
+        .await
+    } else {
+        sqlx::query(
+            r#"
+            SELECT
+                b.id,
+                COALESCE(g.full_name, 'Guest') as guest_name,
+                r.room_number,
+                COALESCE(rt.name, 'Room') as room_type,
+                b.check_in_date as check_in,
+                b.check_out_date as check_out,
+                COALESCE(CAST(b.total_amount AS TEXT), '0') as total_price,
+                b.status
+            FROM bookings b
+            INNER JOIN guests g ON b.guest_id = g.id
+            INNER JOIN rooms r ON b.room_id = r.id
+            LEFT JOIN room_types rt ON r.room_type_id = rt.id
+            WHERE b.status NOT IN ('voided')
+              AND date(b.check_in_date) >= date($1)
+              AND (
+                  b.created_by = $2
+                  OR b.guest_id = (SELECT guest_id FROM users WHERE id = $2)
+                  OR LOWER(COALESCE(g.email, '')) = (SELECT LOWER(COALESCE(email, '')) FROM users WHERE id = $2)
+              )
+            ORDER BY b.created_at DESC
+            LIMIT 5
+            "#,
+        )
+        .bind(&period_start_text)
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+    }
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let recent_booking_rows = if has_full_analytics {
+        sqlx::query(
+            r#"
+            SELECT
+                b.id,
+                COALESCE(g.full_name, b.guest_name, 'Guest') as guest_name,
+                r.room_number,
+                COALESCE(rt.name, 'Room') as room_type,
+                b.check_in_date::text as check_in,
+                b.check_out_date::text as check_out,
+                COALESCE(b.total_amount, 0)::text as total_price,
+                b.status
+            FROM bookings b
+            INNER JOIN guests g ON b.guest_id = g.id
+            INNER JOIN rooms r ON b.room_id = r.id
+            LEFT JOIN room_types rt ON r.room_type_id = rt.id
+            WHERE b.status NOT IN ('voided')
+              AND b.check_in_date >= $1
+            ORDER BY b.created_at DESC
+            LIMIT 5
+            "#,
+        )
+        .bind(period_start)
+        .fetch_all(pool)
+        .await
+    } else {
+        sqlx::query(
+            r#"
+            SELECT
+                b.id,
+                COALESCE(g.full_name, b.guest_name, 'Guest') as guest_name,
+                r.room_number,
+                COALESCE(rt.name, 'Room') as room_type,
+                b.check_in_date::text as check_in,
+                b.check_out_date::text as check_out,
+                COALESCE(b.total_amount, 0)::text as total_price,
+                b.status
+            FROM bookings b
+            INNER JOIN guests g ON b.guest_id = g.id
+            INNER JOIN rooms r ON b.room_id = r.id
+            LEFT JOIN room_types rt ON r.room_type_id = rt.id
+            WHERE b.status NOT IN ('voided')
+              AND b.check_in_date >= $1
+              AND (
+                  b.created_by = $2
+                  OR b.guest_id = (SELECT guest_id FROM users WHERE id = $2)
+                  OR LOWER(COALESCE(g.email, '')) = (SELECT LOWER(COALESCE(email, '')) FROM users WHERE id = $2)
+              )
+            ORDER BY b.created_at DESC
+            LIMIT 5
+            "#,
+        )
+        .bind(period_start)
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+    }
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let recent_bookings: Vec<serde_json::Value> = recent_booking_rows
+        .iter()
+        .map(recent_booking_json)
+        .collect();
+    let total_revenue_value = decimal_to_f64(total_revenue);
+    let average_booking_value = if total_bookings > 0 {
+        total_revenue_value / total_bookings as f64
+    } else {
+        0.0
+    };
+    let occupancy_rate = if total_rooms > 0 {
+        (occupied_rooms as f64 / total_rooms as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    let insights = if total_bookings == 0 {
+        vec![format!(
+            "No {} bookings were found for the selected {} period.",
+            report_scope, period
+        )]
+    } else if has_full_analytics {
+        vec![
+            format!(
+                "{} booking(s) generated revenue during this {} period.",
+                total_bookings, period
+            ),
+            format!("Current occupancy is {:.1}%.", occupancy_rate),
+        ]
+    } else {
+        vec![format!(
+            "{} booking(s) are linked to your account during this {} period.",
+            total_bookings, period
+        )]
+    };
 
     Ok(serde_json::json!({
         "reportScope": report_scope,
         "hasFullAccess": has_full_analytics,
+        "userRoles": user_roles,
         "period": period,
         "summary": {
             "totalRooms": total_rooms,
             "occupiedRooms": occupied_rooms,
-            "occupancyRate": if total_rooms > 0 { (occupied_rooms as f64 / total_rooms as f64) * 100.0 } else { 0.0 },
+            "occupancyRate": occupancy_rate,
             "totalBookings": total_bookings,
-            "totalRevenue": total_revenue.to_string().parse::<f64>().unwrap_or(0.0),
-            "averageBookingValue": if total_bookings > 0 { total_revenue.to_string().parse::<f64>().unwrap_or(0.0) / total_bookings as f64 } else { 0.0 }
+            "totalRevenue": total_revenue_value,
+            "averageBookingValue": average_booking_value
         },
         "recentBookings": recent_bookings,
         "insights": insights,

@@ -73,7 +73,7 @@ const DEFAULT_SETTINGS: HotelSettings = {
 
 const STORAGE_KEY = 'hotelSettings';
 
-const normalizeStringList = (raw: unknown, fallback: string[]): string[] => {
+export const normalizeStringList = (raw: unknown, fallback: string[]): string[] => {
   if (!Array.isArray(raw)) return fallback;
   const values = raw
     .filter((item): item is string => typeof item === 'string')
@@ -83,7 +83,7 @@ const normalizeStringList = (raw: unknown, fallback: string[]): string[] => {
 };
 
 // Migrate legacy string[] booking_channels (or anything malformed) to {name, abbreviation}[].
-const normalizeBookingChannels = (raw: unknown): BookingChannel[] => {
+export const normalizeBookingChannels = (raw: unknown): BookingChannel[] => {
   if (!Array.isArray(raw)) return DEFAULT_SETTINGS.booking_channels;
   const lookup = new Map(DEFAULT_SETTINGS.booking_channels.map(c => [c.name.toLowerCase(), c.abbreviation]));
   const result: BookingChannel[] = [];

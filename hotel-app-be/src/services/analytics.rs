@@ -13,19 +13,26 @@ pub async fn booking_analytics(pool: &DbPool) -> Result<serde_json::Value, ApiEr
     analytics::booking_analytics(pool).await
 }
 
+pub async fn benchmark_report(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
+    analytics::benchmark_report(pool).await
+}
+
 pub async fn personalized_report(
     pool: &DbPool,
     user_id: i64,
     params: HashMap<String, String>,
 ) -> Result<serde_json::Value, ApiError> {
-    let has_full_analytics = AuthService::check_permission(pool, user_id, "analytics:manage")
+    let has_full_analytics = AuthService::check_permission(pool, user_id, "analytics:read")
         .await
         .unwrap_or(false)
+        || AuthService::check_permission(pool, user_id, "analytics:manage")
+            .await
+            .unwrap_or(false)
         || AuthService::check_permission(pool, user_id, "reports:execute")
             .await
             .unwrap_or(false);
 
-    analytics::personalized_report(pool, has_full_analytics, params).await
+    analytics::personalized_report(pool, user_id, has_full_analytics, params).await
 }
 
 pub async fn generate_report(

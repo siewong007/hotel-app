@@ -48,28 +48,21 @@
 \echo '========================================';
 \echo '';
 
--- Load seed data
-\echo 'Loading seed data...';
+-- Load minimal bootstrap data only. Demo operational fixtures live under
+-- demo-data/ and should be applied explicitly for demos/tests.
+\echo 'Loading bootstrap data...';
 \echo '';
 
-\echo '[1/5] System configuration, roles & admin...';
+\echo '[1/2] System configuration, roles & admin...';
 \i /docker-entrypoint-initdb.d/seed-data/01_system_roles_admin.sql
 
-\echo '[2/5] Users and staff accounts...';
-\i /docker-entrypoint-initdb.d/seed-data/02_users_staff.sql
-
-\echo '[3/5] Room types, rooms & rate plans...';
+\echo '[2/2] Room types, rooms & rate plans...';
 \i /docker-entrypoint-initdb.d/seed-data/03_rooms_rates.sql
-
-\echo '[4/5] Guests, bookings & payments...';
-\i /docker-entrypoint-initdb.d/seed-data/04_guests_bookings.sql
-
-\echo '[5/5] Loyalty programs & memberships...';
-\i /docker-entrypoint-initdb.d/seed-data/05_loyalty_data.sql
 
 \echo '';
 \echo '========================================';
-\echo 'Seed data loaded successfully!';
+\echo 'Bootstrap data loaded successfully!';
+\echo 'Demo data is not loaded by default. Apply database/demo-data/*.sql explicitly when needed.';
 \echo '========================================';
 \echo '';
 \echo 'Database initialization complete!';
