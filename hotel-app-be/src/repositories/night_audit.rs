@@ -38,8 +38,10 @@ pub async fn preview(pool: &DbPool, audit_date: NaiveDate) -> Result<NightAuditP
         JOIN rooms r ON b.room_id = r.id
         WHERE b.status NOT IN ('pending', 'confirmed', 'voided')
         AND (
-            (b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1)
-            OR (b.status = 'checked_out' AND b.check_in_date <= $1 AND b.check_out_date >= $1)
+            -- Overnight stay: occupied the room the night of the audit date
+            (b.check_in_date <= $1 AND b.check_out_date > $1)
+            -- Same-day (hourly) checkout: check-in and check-out both on the audit date
+            OR (b.status = 'checked_out' AND b.check_in_date = $1 AND b.check_out_date = $1)
         )
         AND NOT EXISTS (
             SELECT 1 FROM night_audit_posted_nights napn
@@ -861,8 +863,10 @@ pub async fn generate_journal_sections(
             JOIN rooms r ON b.room_id = r.id
             WHERE b.status NOT IN ('pending', 'confirmed', 'voided')
             AND (
-                (b.status IN ('checked_in', 'auto_checked_in') AND b.check_in_date <= $1 AND b.check_out_date > $1)
-                OR (b.status = 'checked_out' AND b.check_in_date <= $1 AND b.check_out_date >= $1)
+                -- Overnight stay: occupied the room the night of the audit date
+                (b.check_in_date <= $1 AND b.check_out_date > $1)
+                -- Same-day (hourly) checkout: check-in and check-out both on the audit date
+                OR (b.status = 'checked_out' AND b.check_in_date = $1 AND b.check_out_date = $1)
             )
             AND NOT EXISTS (
                 SELECT 1 FROM night_audit_posted_nights napn

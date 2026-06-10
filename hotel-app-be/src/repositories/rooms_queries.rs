@@ -168,7 +168,7 @@ INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = true
   AND r.status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning')
-  AND NOT (r.status IN ('occupied', 'reserved') AND $1 <= CURRENT_DATE)
+  AND NOT (r.status = 'occupied' AND $1 <= CURRENT_DATE)
   AND cb.room_id IS NULL
   AND ($4::text IS NULL OR LOWER(rt.name) = LOWER($4) OR LOWER(rt.code) = LOWER($4))
   AND ($5::DOUBLE PRECISION IS NULL OR COALESCE(r.custom_price, rt.base_price) <= $5)
@@ -210,7 +210,7 @@ INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = 1
   AND r.status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning')
-  AND NOT (r.status IN ('occupied', 'reserved') AND ?1 <= date('now'))
+  AND NOT (r.status = 'occupied' AND ?1 <= date('now'))
   AND cb.room_id IS NULL
   AND (?4 IS NULL OR LOWER(rt.name) = LOWER(?4) OR LOWER(rt.code) = LOWER(?4))
   AND (?5 IS NULL OR COALESCE(r.custom_price, rt.base_price) <= ?5)
