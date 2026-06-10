@@ -129,17 +129,22 @@ pub fn booking_channel_label(
 }
 
 /// Return the account label for the debit side of guest-ledger payments.
+///
+/// Groups by how the money was actually received (payment method) rather than
+/// how the reservation was booked. Channel/source is reported separately in the
+/// booking-channel breakdown.
 pub fn payment_account_label(
     payment_method: Option<&str>,
-    source: Option<&str>,
-    booking_remarks: Option<&str>,
+    _source: Option<&str>,
+    _booking_remarks: Option<&str>,
 ) -> String {
-    booking_channel_label(source, booking_remarks).unwrap_or_else(|| {
-        let method = payment_method.unwrap_or("cash").trim();
-        known_label(method)
-            .map(str::to_string)
-            .unwrap_or_else(|| title_case_label(method))
-    })
+    let method = payment_method.unwrap_or("cash").trim();
+    if method.is_empty() {
+        return "Cash".to_string();
+    }
+    known_label(method)
+        .map(str::to_string)
+        .unwrap_or_else(|| title_case_label(method))
 }
 
 #[cfg(test)]
@@ -172,5 +177,29 @@ mod tests {
             payment_account_label(Some("cash"), Some("walk_in"), None),
             "Cash"
         );
+    }
+
+    #[test]
+    fn payment_label_uses_method_even_when_booking_came_from_channel() {
+        // Reservation booked via Booking.com but settled in person with Visa Card —
+        // the journal section must group under the payment method, not the channel.
+        assert_eq!(
+            payment_account_label(
+                Some("visa_card"),
+                Some("online"),
+                Some("Booking.com - Ref: ABC123"),
+            ),
+            "Visa Card"
+        );
+        assert_eq!(
+            payment_account_label(Some("cash"), Some("booking.com"), None),
+            "Cash"
+        );
+    }
+
+    #[test]
+    fn payment_label_falls_back_to_cash_for_missing_method() {
+        assert_eq!(payment_account_label(None, Some("walk_in"), None), "Cash");
+        assert_eq!(payment_account_label(Some(""), None, None), "Cash");
     }
 }
