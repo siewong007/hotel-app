@@ -53,6 +53,9 @@
       "timestampUrl": "",
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installerHooks": "./installer-hooks.nsh"
       }
     }
   },
