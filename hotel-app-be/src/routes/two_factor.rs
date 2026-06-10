@@ -9,11 +9,12 @@ use crate::handlers;
 use crate::models;
 use axum::{
     Router,
-    extract::{Extension, State},
+    extract::{ConnectInfo, Extension, State},
     http::HeaderMap,
     response::Json,
     routing::{get, post},
 };
+use std::net::SocketAddr;
 
 pub fn routes() -> Router<DbPool> {
     Router::new()
@@ -31,10 +32,11 @@ pub fn routes() -> Router<DbPool> {
 async fn setup_2fa(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<models::TwoFactorSetupRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -52,10 +54,11 @@ async fn setup_2fa(
 async fn enable_2fa(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<models::TwoFactorEnableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -73,10 +76,11 @@ async fn enable_2fa(
 async fn disable_2fa(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<models::TwoFactorDisableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -102,10 +106,11 @@ async fn get_2fa_status(
 async fn verify_2fa(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<models::TwoFactorVerifyRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -123,10 +128,11 @@ async fn verify_2fa(
 async fn regenerate_backup_codes(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<models::RegenerateBackupCodesRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(

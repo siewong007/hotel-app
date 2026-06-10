@@ -10,6 +10,7 @@ use crate::core::db::DbPool;
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 use crate::core::db::{decimal_to_db, opt_decimal_to_db};
 use crate::core::error::ApiError;
+use crate::core::settings_cache;
 use crate::models::row_mappers::{
     get_decimal, row_to_customer_ledger, row_to_customer_ledger_payment,
 };
@@ -31,6 +32,10 @@ const LEDGER_SELECT_FIELDS: &str = r#"
     reversal_reason, tax_amount, service_charge, net_amount,
     is_posted, posted_at, void_at, void_by, void_reason
 "#;
+
+async fn default_payment_terms_days(pool: &DbPool) -> i64 {
+    settings_cache::get_positive_i32(pool, "default_payment_terms_days", 30).await as i64
+}
 
 // SQLite query for getting ledger by ID
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
@@ -358,7 +363,7 @@ pub async fn create_customer_ledger(
         .as_ref()
         .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
     // due_date: prefer the caller's value; otherwise look up the company's
-    // payment_terms_days; otherwise fall back to 30 days from posting/today.
+    // payment_terms_days; otherwise fall back to default_payment_terms_days.
     // Without this, auto-created ledgers (company check-in / checkout) leave
     // due_date NULL and the UI shows "-".
     let due_date = match request
@@ -368,6 +373,7 @@ pub async fn create_customer_ledger(
     {
         Some(d) => Some(d),
         None => {
+            let default_terms_days = default_payment_terms_days(pool).await;
             let terms_days: i64 = sqlx::query_scalar::<_, Option<i64>>(
                 "SELECT payment_terms_days FROM companies WHERE company_name = ?1 LIMIT 1",
             )
@@ -377,7 +383,7 @@ pub async fn create_customer_ledger(
             .ok()
             .flatten()
             .flatten()
-            .unwrap_or(30);
+            .unwrap_or(default_terms_days);
             let base = posting_date.unwrap_or_else(|| chrono::Local::now().date_naive());
             Some(base + chrono::Duration::days(terms_days))
         }
@@ -534,7 +540,7 @@ pub async fn create_customer_ledger(
         .as_ref()
         .and_then(|s| NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
     // due_date: prefer the caller's value; otherwise look up the company's
-    // payment_terms_days; otherwise fall back to 30 days from posting/today.
+    // payment_terms_days; otherwise fall back to default_payment_terms_days.
     // Without this, auto-created ledgers (company check-in / checkout) leave
     // due_date NULL and the UI shows "-".
     let due_date = match request
@@ -544,6 +550,7 @@ pub async fn create_customer_ledger(
     {
         Some(d) => Some(d),
         None => {
+            let default_terms_days = default_payment_terms_days(pool).await;
             let terms_days: i32 = sqlx::query_scalar::<_, Option<i32>>(
                 "SELECT payment_terms_days FROM companies WHERE company_name = $1 LIMIT 1",
             )
@@ -553,7 +560,7 @@ pub async fn create_customer_ledger(
             .ok()
             .flatten()
             .flatten()
-            .unwrap_or(30);
+            .unwrap_or(default_terms_days as i32);
             let base = posting_date.unwrap_or_else(|| chrono::Local::now().date_naive());
             Some(base + chrono::Duration::days(terms_days as i64))
         }

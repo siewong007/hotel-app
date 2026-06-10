@@ -11,27 +11,23 @@ mod routes;
 mod services;
 mod utils;
 
-use core::create_pool;
+use core::{AppConfig, AuthService, config, create_pool};
 use routes::create_router;
 use std::io::Write;
-use std::net::TcpListener as StdTcpListener;
+use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::path::PathBuf;
 
 /// Check if we're running in desktop mode
-fn is_desktop_mode() -> bool {
-    std::env::var("HOTEL_DESKTOP_MODE").is_ok()
-}
-
 /// Resolve the directory log files should be written to.
 ///
 /// Order: `HOTEL_LOG_DIR` env override → desktop data dir (`HotelApp/logs/`) →
 /// fallback `./logs/`. The desktop UI's `get_logs` Tauri command reads from
 /// `<data_local>/HotelApp/logs/`, so writing there makes logs visible in-app.
-fn resolve_log_dir() -> PathBuf {
-    if let Ok(dir) = std::env::var("HOTEL_LOG_DIR") {
-        return PathBuf::from(dir);
+fn resolve_log_dir(config: &AppConfig) -> PathBuf {
+    if let Some(dir) = &config.hotel_log_dir {
+        return dir.clone();
     }
-    if is_desktop_mode()
+    if config.desktop_mode
         && let Some(base) = dirs::data_local_dir()
     {
         return base.join("HotelApp").join("logs");
@@ -43,33 +39,27 @@ fn resolve_log_dir() -> PathBuf {
 ///
 /// Falls back to stderr-only if the log dir / file can't be created so a
 /// permission issue never prevents the process from starting.
-fn init_logging() {
+fn init_logging(config: &AppConfig) {
     use simplelog::{
         ColorChoice, CombinedLogger, ConfigBuilder, LevelFilter, TermLogger, TerminalMode,
         WriteLogger,
     };
 
-    let level = match std::env::var("RUST_LOG").ok().as_deref() {
-        Some("trace") => LevelFilter::Trace,
-        Some("debug") => LevelFilter::Debug,
-        Some("warn") => LevelFilter::Warn,
-        Some("error") => LevelFilter::Error,
-        _ => LevelFilter::Info,
-    };
+    let level = config.rust_log.as_level_filter();
 
-    let config = ConfigBuilder::new()
+    let logger_config = ConfigBuilder::new()
         .set_time_format_rfc3339()
         .set_target_level(LevelFilter::Error)
         .build();
 
     let term_logger: Box<dyn simplelog::SharedLogger> = TermLogger::new(
         level,
-        config.clone(),
+        logger_config.clone(),
         TerminalMode::Stderr,
         ColorChoice::Auto,
     );
 
-    let log_dir = resolve_log_dir();
+    let log_dir = resolve_log_dir(config);
     let mut loggers: Vec<Box<dyn simplelog::SharedLogger>> = vec![term_logger];
 
     if let Err(e) = std::fs::create_dir_all(&log_dir) {
@@ -86,7 +76,7 @@ fn init_logging() {
             .append(true)
             .open(&file_path)
         {
-            Ok(file) => loggers.push(WriteLogger::new(level, config, file)),
+            Ok(file) => loggers.push(WriteLogger::new(level, logger_config, file)),
             Err(e) => eprintln!(
                 "warning: could not open log file {}: {} — logging stderr only",
                 file_path.display(),
@@ -128,7 +118,15 @@ async fn main() {
     // Load environment variables from .env file
     dotenvy::dotenv().ok();
 
-    let desktop_mode = is_desktop_mode();
+    let config = match config::init_from_env() {
+        Ok(config) => config,
+        Err(e) => {
+            eprintln!("FATAL: Invalid configuration: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let desktop_mode = config.desktop_mode;
 
     // Print immediately to stdout and stderr
     println!("=== Hotel Management Backend Starting ===");
@@ -143,25 +141,28 @@ async fn main() {
     // AND to a per-day file under the resolved log dir, so warn/error events
     // from swallowed Result paths (e.g. ensure_invoice_for_booking) survive
     // a process exit.
-    init_logging();
+    init_logging(config);
 
     log::info!("Starting Hotel Management API server...");
     if desktop_mode {
         log::info!("Desktop mode enabled");
     }
 
+    if let Err(e) = AuthService::init_jwt_secret(&config.jwt_secret) {
+        log::error!("✗ Invalid JWT configuration: {}", e);
+        eprintln!("FATAL: Invalid JWT configuration: {}", e);
+        std::process::exit(1);
+    }
+
     // Initialize database pool
-    let pool = match create_pool().await {
+    let pool = match create_pool(&config.database).await {
         Ok(pool) => {
             log::info!("✓ Database connection established");
             pool
         }
         Err(e) => {
             log::error!("✗ Failed to create database pool: {}", e);
-            log::error!(
-                "DATABASE_URL configured: {}",
-                std::env::var("DATABASE_URL").is_ok()
-            );
+            log::error!("DATABASE_URL configured: {}", config.database.url.is_some());
             eprintln!("FATAL: Database connection failed: {}", e);
             std::process::exit(1);
         }
@@ -185,10 +186,7 @@ async fn main() {
     let app = create_router(pool);
 
     // Determine bind address and port
-    let preferred_port: u16 = std::env::var("BACKEND_PORT")
-        .ok()
-        .and_then(|p| p.parse().ok())
-        .unwrap_or(3030);
+    let preferred_port: u16 = config.backend_port;
 
     let (bind_address, port) = if desktop_mode {
         // In desktop mode, bind to localhost only and find available port
@@ -217,10 +215,13 @@ async fn main() {
         });
 
     // Serve with graceful shutdown
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .unwrap();
 
     log::info!("Server shutdown complete");
     println!("Server shutdown complete");

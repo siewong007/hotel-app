@@ -8,18 +8,22 @@
 //! - `sql_compat`: SQL compatibility helpers for PostgreSQL/SQLite
 
 pub mod auth;
+pub mod config;
 #[allow(dead_code)]
 pub mod db;
 pub mod error;
 pub mod middleware;
 pub mod rate_limiter;
 pub mod rbac_cache;
+pub mod settings_cache;
 #[allow(dead_code)]
 pub mod sql_compat;
 
 // Re-export commonly used types
 #[allow(unused_imports)]
 pub use auth::{AuthService, Claims};
+#[allow(unused_imports)]
+pub use config::AppConfig;
 pub use db::create_pool;
 #[allow(unused_imports)]
 pub use error::ApiError;

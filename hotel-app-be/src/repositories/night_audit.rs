@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::settings_cache;
 use crate::models::{
     AuditDetailsResponse, JournalEntry, JournalSection, NightAuditPreview, NightAuditRunWithUser,
     PostedBookingDetail, RevenueBreakdownItem, RoomSnapshot, UnpostedBooking,
@@ -419,14 +420,8 @@ pub async fn backfill_booking_posted_nights(
     let tourism_tax_amount: Decimal = row.get("tourism_tax_amount");
     let extra_bed_charge_full: Decimal = row.get("extra_bed_charge");
 
-    let tax_rate_pct: Decimal = sqlx::query_scalar::<_, String>(
-        "SELECT value FROM system_settings WHERE key = 'service_tax_rate'",
-    )
-    .fetch_optional(pool)
-    .await
-    .unwrap_or(None)
-    .and_then(|v| v.parse::<Decimal>().ok())
-    .unwrap_or(Decimal::new(8, 0));
+    let tax_rate_pct =
+        settings_cache::get_positive_decimal(pool, "service_tax_rate", Decimal::new(8, 0)).await;
     let divisor = Decimal::ONE + tax_rate_pct / Decimal::new(100, 0);
 
     let is_hourly = check_in == check_out;
@@ -733,22 +728,8 @@ pub async fn generate_journal_sections(
 ) -> Vec<JournalSection> {
     let mut entries: Vec<JournalEntry> = Vec::new();
 
-    let tax_rate_pct: Decimal = {
-        let raw = sqlx::query_scalar::<_, String>(
-            "SELECT value FROM system_settings WHERE key = 'service_tax_rate'",
-        )
-        .fetch_optional(pool)
-        .await
-        .unwrap_or(None)
-        .and_then(|v| v.parse::<Decimal>().ok())
-        .unwrap_or(Decimal::ZERO);
-
-        if raw > Decimal::ZERO {
-            raw
-        } else {
-            Decimal::new(8, 0)
-        }
-    };
+    let tax_rate_pct =
+        settings_cache::get_positive_decimal(pool, "service_tax_rate", Decimal::new(8, 0)).await;
     let divisor = Decimal::ONE + tax_rate_pct / Decimal::new(100, 0);
 
     let hotel_timezone: String =

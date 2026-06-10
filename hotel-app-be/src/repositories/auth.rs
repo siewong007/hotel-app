@@ -2,6 +2,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::settings_cache;
 use crate::models::{Guest, RegisterRequest, User};
 use chrono::NaiveDateTime;
 
@@ -72,16 +73,7 @@ impl AuthRepository {
     }
 
     pub async fn max_login_attempts(pool: &DbPool) -> i32 {
-        sqlx::query_scalar::<_, Option<String>>(
-            "SELECT value FROM system_settings WHERE key = 'max_login_attempts'",
-        )
-        .fetch_optional(pool)
-        .await
-        .ok()
-        .flatten()
-        .flatten()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(5)
+        settings_cache::get_positive_i32(pool, "max_login_attempts", 5).await
     }
 
     pub async fn lock_user_after_failure(
@@ -159,7 +151,7 @@ impl AuthRepository {
         email: &str,
     ) -> Result<bool, ApiError> {
         let existing = sqlx::query_scalar::<_, i64>(
-            "SELECT id FROM users WHERE username = $1 OR email = $2 LIMIT 1"
+            "SELECT id FROM users WHERE username = $1 OR email = $2 LIMIT 1",
         )
         .bind(username)
         .bind(email)

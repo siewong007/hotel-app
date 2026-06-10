@@ -3,6 +3,7 @@
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::settings_cache;
 use crate::models::{
     RegenerateBackupCodesRequest, TwoFactorDisableRequest, TwoFactorEnableRequest,
     TwoFactorSetupRequest, TwoFactorStatusResponse, TwoFactorVerifyRequest, User,
@@ -26,10 +27,13 @@ pub async fn setup_2fa(
     }
 
     let username = user.username.clone();
-    let (secret, qr_code_url) = AuthService::generate_totp_secret(&username).map_err(|error| {
-        log::error!("Failed to generate TOTP secret: {}", error);
-        ApiError::Internal(format!("Failed to generate TOTP secret: {}", error))
-    })?;
+    let issuer_name =
+        settings_cache::get_string(pool, "totp_issuer_name", "Hotel Management System").await;
+    let (secret, qr_code_url) = AuthService::generate_totp_secret(&username, &issuer_name)
+        .map_err(|error| {
+            log::error!("Failed to generate TOTP secret: {}", error);
+            ApiError::Internal(format!("Failed to generate TOTP secret: {}", error))
+        })?;
     let backup_codes = AuthService::generate_backup_codes();
     let challenge_code = AuthService::create_2fa_challenge(pool, user_id, "setup")
         .await

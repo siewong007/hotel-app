@@ -25,22 +25,20 @@ pub mod search;
 pub mod settings;
 pub mod two_factor;
 
+use crate::core::config::{self, AllowedOrigins};
 use crate::core::db::DbPool;
 use crate::core::rate_limiter::RateLimiters;
 use axum::{Router, http::Method, routing::get};
+use std::net::{IpAddr, SocketAddr};
 use tower::ServiceBuilder;
 use tower_http::{
     cors::CorsLayer, services::ServeDir, set_header::SetResponseHeaderLayer, trace::TraceLayer,
 };
 
-/// Extract client IP from X-Forwarded-For or X-Real-IP headers, defaulting to localhost.
-pub(crate) fn extract_client_ip(headers: &axum::http::HeaderMap) -> std::net::IpAddr {
-    let trust_proxy_headers = std::env::var("TRUST_PROXY_HEADERS")
-        .map(|v| v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
-
-    if !trust_proxy_headers {
-        return std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
+/// Extract client IP from trusted proxy headers or the direct peer address.
+pub(crate) fn extract_client_ip(headers: &axum::http::HeaderMap, peer_addr: SocketAddr) -> IpAddr {
+    if !config::get().trust_proxy_headers {
+        return peer_addr.ip();
     }
 
     headers
@@ -54,7 +52,7 @@ pub(crate) fn extract_client_ip(headers: &axum::http::HeaderMap) -> std::net::Ip
                 .and_then(|v| v.to_str().ok())
                 .and_then(|s| s.trim().parse().ok())
         })
-        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap_or_else(|| peer_addr.ip())
 }
 
 /// Health check handler
@@ -69,51 +67,45 @@ async fn websocket_status_handler() -> axum::response::Json<serde_json::Value> {
 
 /// Create the complete application router by composing all domain routes
 pub fn create_router(pool: DbPool) -> Router {
-    // Get allowed origins from environment variable
-    let allowed_origins = std::env::var("ALLOWED_ORIGINS")
-        .unwrap_or_else(|_| "http://localhost:3000,http://localhost:5173".to_string());
-
-    log::info!("CORS allowed origins config: {:?}", allowed_origins);
+    let allowed_origins = &config::get().allowed_origins;
 
     // CORS configuration - use permissive settings for desktop app (when "*" is specified)
     // or specific origins for web deployment
-    let cors = if allowed_origins.trim() == "*" {
-        log::info!("Using permissive CORS (allow any origin) for desktop mode");
-        CorsLayer::new()
-            .allow_origin(tower_http::cors::Any)
-            .allow_headers(tower_http::cors::Any)
-            .allow_methods([
-                Method::GET,
-                Method::POST,
-                Method::PUT,
-                Method::PATCH,
-                Method::DELETE,
-                Method::OPTIONS,
-            ])
-    } else {
-        let origins: Vec<axum::http::HeaderValue> = allowed_origins
-            .split(',')
-            .filter_map(|s| s.trim().parse().ok())
-            .collect();
+    let cors = match allowed_origins {
+        AllowedOrigins::Any => {
+            log::info!("Using permissive CORS (allow any origin) for desktop mode");
+            CorsLayer::new()
+                .allow_origin(tower_http::cors::Any)
+                .allow_headers(tower_http::cors::Any)
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::PUT,
+                    Method::PATCH,
+                    Method::DELETE,
+                    Method::OPTIONS,
+                ])
+        }
+        AllowedOrigins::List(origins) => {
+            log::info!("CORS allowed origins: {:?}", origins);
 
-        log::info!("CORS allowed origins: {:?}", origins);
-
-        CorsLayer::new()
-            .allow_origin(origins)
-            .allow_headers([
-                axum::http::header::AUTHORIZATION,
-                axum::http::header::CONTENT_TYPE,
-                axum::http::header::ACCEPT,
-            ])
-            .allow_methods([
-                Method::GET,
-                Method::POST,
-                Method::PUT,
-                Method::PATCH,
-                Method::DELETE,
-                Method::OPTIONS,
-            ])
-            .allow_credentials(true)
+            CorsLayer::new()
+                .allow_origin(origins.clone())
+                .allow_headers([
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::CONTENT_TYPE,
+                    axum::http::header::ACCEPT,
+                ])
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::PUT,
+                    Method::PATCH,
+                    Method::DELETE,
+                    Method::OPTIONS,
+                ])
+                .allow_credentials(true)
+        }
     };
 
     // Initialize rate limiters

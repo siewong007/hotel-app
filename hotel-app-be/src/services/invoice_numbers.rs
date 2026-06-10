@@ -82,9 +82,10 @@ pub async fn backfill_missing_booking_invoices(pool: &DbPool) -> Result<usize, A
 
 /// Backfill `customer_ledgers.due_date` for any rows where it's NULL.
 ///
-/// Uses the linked company's `payment_terms_days` (default 30) and adds it to
-/// the row's `posting_date`/`invoice_date`/`created_at` (in that order of
-/// preference). Idempotent — only touches rows where `due_date IS NULL`.
+/// Uses the linked company's `payment_terms_days` (falling back to
+/// `default_payment_terms_days`) and adds it to the row's
+/// `posting_date`/`invoice_date`/`created_at` (in that order of preference).
+/// Idempotent — only touches rows where `due_date IS NULL`.
 #[allow(dead_code)]
 pub async fn backfill_missing_ledger_due_dates(pool: &DbPool) -> Result<usize, ApiError> {
     repo::backfill_ledger_due_dates(pool).await

@@ -2,6 +2,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::settings_cache;
 
 pub async fn max_invoice_sequence(pool: &DbPool, pattern: &str) -> Result<Option<i64>, ApiError> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
@@ -132,6 +133,9 @@ pub async fn insert_booking_invoice(
 }
 
 pub async fn backfill_ledger_due_dates(pool: &DbPool) -> Result<usize, ApiError> {
+    let default_terms_days =
+        settings_cache::get_positive_i32(pool, "default_payment_terms_days", 30).await;
+
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let result = sqlx::query(
         r#"
@@ -140,12 +144,13 @@ pub async fn backfill_ledger_due_dates(pool: &DbPool) -> Result<usize, ApiError>
                COALESCE(posting_date, invoice_date, date(created_at)),
                '+' || COALESCE(
                    (SELECT payment_terms_days FROM companies WHERE companies.company_name = customer_ledgers.company_name LIMIT 1),
-                   30
+                   ?1
                ) || ' days'
            )
          WHERE due_date IS NULL
         "#,
     )
+    .bind(default_terms_days)
     .execute(pool)
     .await
     .map_err(ApiError::from)?;
@@ -160,12 +165,13 @@ pub async fn backfill_ledger_due_dates(pool: &DbPool) -> Result<usize, ApiError>
                    (SELECT payment_terms_days FROM companies
                      WHERE company_name = customer_ledgers.company_name
                      LIMIT 1),
-                   30
+                   $1
                ) * INTERVAL '1 day'
            )::date
          WHERE due_date IS NULL
         "#,
     )
+    .bind(default_terms_days)
     .execute(pool)
     .await
     .map_err(ApiError::from)?;

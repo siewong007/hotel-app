@@ -52,10 +52,7 @@ pub async fn login(pool: &DbPool, req: LoginRequest) -> Result<AuthResponse, Api
         let _ = AuthRepository::unlock_user(pool, user.id).await;
     }
 
-    let skip_email_verification = std::env::var("SKIP_EMAIL_VERIFICATION")
-        .unwrap_or_else(|_| "false".to_string())
-        .to_lowercase()
-        == "true";
+    let skip_email_verification = crate::core::config::get().skip_email_verification;
 
     if !skip_email_verification && !user.is_verified {
         return Err(ApiError::Unauthorized(
@@ -200,7 +197,28 @@ pub async fn refresh_token(
         .ok_or_else(|| ApiError::Unauthorized("User not found".to_string()))?;
 
     if !user.is_active {
+        let _ = AuthService::revoke_all_user_tokens(pool, user.id).await;
         return Err(ApiError::Unauthorized("Account is inactive".to_string()));
+    }
+
+    let (is_locked, locked_until, _) = AuthRepository::login_lock_state(pool, user.id).await?;
+    if is_locked.unwrap_or(false) {
+        if let Some(until) = locked_until {
+            let now = Utc::now().naive_utc();
+            if now < until {
+                let remaining_mins = (until - now).num_minutes() + 1;
+                let _ = AuthService::revoke_refresh_token(pool, &req.refresh_token).await;
+                return Err(ApiError::TooManyRequests(format!(
+                    "Account is locked due to too many failed attempts. Try again in {} minute(s).",
+                    remaining_mins
+                )));
+            }
+        } else {
+            let _ = AuthService::revoke_refresh_token(pool, &req.refresh_token).await;
+            return Err(ApiError::Unauthorized("Account is locked".to_string()));
+        }
+
+        let _ = AuthRepository::unlock_user(pool, user.id).await;
     }
 
     let roles = AuthService::get_user_roles(pool, user.id)
