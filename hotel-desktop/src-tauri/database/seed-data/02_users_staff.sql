@@ -2,7 +2,7 @@
 -- SEED 02: USER & STAFF ACCOUNTS
 -- ============================================================================
 -- Seeded accounts use a non-recoverable placeholder password hash.
--- The desktop app randomizes these after first-time seeding and writes a bootstrap password file.
+-- Set passwords explicitly with: cargo run --bin fix_password -- <username> <new-password>
 -- ============================================================================
 
 -- ============================================================================

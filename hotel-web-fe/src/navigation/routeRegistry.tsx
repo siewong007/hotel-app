@@ -269,7 +269,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     navLabel: 'Ledger',
     navGroup: 'operations',
     requiredRoles: ['admin', 'receptionist', 'manager'],
-    navPermissions: ['ledgers:read', 'ledgers:manage'],
+    navPermissions: ['ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage'],
     navRoles: ['admin', 'receptionist', 'manager'],
   },
   {

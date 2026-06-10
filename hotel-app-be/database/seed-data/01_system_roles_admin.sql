@@ -55,6 +55,11 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('payments:update', 'payments', 'update', 'Update payments', true),
 ('payments:delete', 'payments', 'delete', 'Delete payment records', true),
 ('payments:manage', 'payments', 'manage', 'Full payment management', true),
+('ledgers:read', 'ledgers', 'read', 'View customer ledger entries and payments', true),
+('ledgers:create', 'ledgers', 'create', 'Create customer ledger entries and record ledger payments', true),
+('ledgers:update', 'ledgers', 'update', 'Update customer ledger entries and payment dates', true),
+('ledgers:void', 'ledgers', 'void', 'Void customer ledger entries and create reversals', true),
+('ledgers:manage', 'ledgers', 'manage', 'Full customer ledger management', true),
 ('services:create', 'services', 'create', 'Create new services', true),
 ('services:read', 'services', 'read', 'View service information', true),
 ('services:update', 'services', 'update', 'Update services', true),
@@ -89,7 +94,8 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager' AND p.name IN (
     'users:read', 'users:create', 'users:update', 'rooms:manage', 'bookings:manage', 'guests:manage',
-    'payments:manage', 'services:manage', 'reviews:manage', 'reports:read', 'reports:execute'
+    'payments:manage', 'ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage',
+    'services:manage', 'reviews:manage', 'reports:read', 'reports:execute'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Receptionist permissions
@@ -97,7 +103,8 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'receptionist' AND p.name IN (
     'rooms:read', 'rooms:update', 'bookings:create', 'bookings:read', 'bookings:update',
     'guests:create', 'guests:read', 'guests:update', 'guests:manage', 'payments:create', 'payments:read',
-    'services:read', 'services:create', 'reviews:read', 'settings:read', 'analytics:read', 'reports:execute'
+    'ledgers:read', 'ledgers:create', 'services:read', 'services:create', 'reviews:read', 'settings:read',
+    'analytics:read', 'reports:execute'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Staff permissions
