@@ -95,7 +95,7 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager' AND p.name IN (
     'users:read', 'users:create', 'users:update', 'rooms:manage', 'bookings:manage', 'guests:manage',
     'payments:manage', 'ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage',
-    'services:manage', 'reviews:manage', 'reports:read', 'reports:execute'
+    'services:manage', 'reviews:manage', 'reports:read', 'reports:execute', 'analytics:read'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Receptionist permissions
@@ -157,8 +157,11 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('hotel_email', 'info@grandhotel.com', 'string', 'general', 'Hotel contact email', true),
 ('check_in_time', '15:00', 'string', 'general', 'Standard check-in time', true),
 ('check_out_time', '11:00', 'string', 'general', 'Standard check-out time', true),
+('night_shift_time', '23:00', 'string', 'operations', 'Scheduled night audit posting time', false),
 ('currency', 'USD', 'string', 'general', 'Default currency code', true),
 ('timezone', 'America/New_York', 'string', 'general', 'Hotel timezone', false),
+('deposit_amount', '50', 'number', 'payments', 'Default room card or check-in deposit amount', false),
+('tourism_tax_rate', '10', 'number', 'tax', 'Tourism tax amount charged per night for foreign guests', false),
 ('default_payment_terms_days', '30', 'number', 'ledger', 'Default ledger due-date offset in days when a company has no payment terms', false),
 ('max_login_attempts', '5', 'number', 'security', 'Maximum failed login attempts before lockout', false),
 ('session_timeout', '3600', 'number', 'security', 'Session timeout in seconds', false),
@@ -168,6 +171,8 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('passkey_relying_party_name', 'Hotel Management System', 'string', 'security', 'Display name shown by passkey authenticators during registration', false),
 ('rate_codes', '["RACK","OVR","CORP","GOVT","WKII","PKG","GRP","AAA","PROMO"]', 'json', 'rates', 'Available rate codes', true),
 ('market_codes', '["WKII","CORP","GOVT","OTA","DIRECT","GROUP","EVENTS","LEISURE"]', 'json', 'sales', 'Market segment codes', true),
+('booking_channels', '[{"name":"Booking.com","abbreviation":"B.C"},{"name":"Agoda","abbreviation":"A.C"},{"name":"Traveloka","abbreviation":"T.C"},{"name":"Expedia","abbreviation":"E.C"},{"name":"Hotels.com","abbreviation":"H.C"},{"name":"Airbnb","abbreviation":"AB"},{"name":"Trip.com","abbreviation":"TR"},{"name":"Direct Website","abbreviation":"DW"},{"name":"Other OTA","abbreviation":"OT"}]', 'json', 'sales', 'Online and direct booking channels available to front desk workflows', true),
+('payment_methods', '["Cash","Visa Card","Master Card","Debit Card","Sarawak Pay","American Express","Bank Transfer","E-Wallet","Other"]', 'json', 'payments', 'Payment methods available to walk-in and payment workflows', true),
 ('guest_titles', '["Mr","Mrs","Ms","Miss","Dr","Prof","Rev"]', 'json', 'guests', 'Guest title options', true)
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP;
 
