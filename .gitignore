@@ -38,6 +38,11 @@ hotel-desktop/src-tauri/target/
 hotel-desktop/src-tauri/binaries/
 hotel-desktop/src-tauri/gen/
 
+# Embedded PostgreSQL binaries (downloaded per-platform, not source)
+hotel-desktop/src-tauri/pgsql/
+hotel-desktop/src-tauri/data/
+hotel-desktop/hotel-app-be.exe
+
 # Logs and runtime files
 logs/
 **/logs/
