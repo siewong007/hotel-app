@@ -81,6 +81,9 @@ export const NAVIGATION_PERMISSION_MAPPING: Record<string, NavigationPermissionD
   ],
   'company-ledger': [
     { name: 'ledgers:read', resource: 'ledgers', action: 'read', description: 'View company ledgers' },
+    { name: 'ledgers:create', resource: 'ledgers', action: 'create', description: 'Create ledger entries and record payments' },
+    { name: 'ledgers:update', resource: 'ledgers', action: 'update', description: 'Update ledger entries and payment dates' },
+    { name: 'ledgers:void', resource: 'ledgers', action: 'void', description: 'Void ledger entries and issue credit notes' },
     { name: 'ledgers:manage', resource: 'ledgers', action: 'manage', description: 'Manage company accounts' },
   ],
   'complimentary': [

@@ -133,7 +133,7 @@ Key handlers in `handlers/bookings.rs`:
 
 ## Ledger Workflow
 
-**Routes** (`hotel-app-be/src/routes/ledgers.rs`) — gated by `require_auth` **only**, no permission scope. Any authenticated user can read/create/void/reverse ledger entries.
+**Routes** (`hotel-app-be/src/routes/ledgers.rs`) — gated by ledger-specific RBAC permissions: `ledgers:read` for list/detail/summary/payment reads, `ledgers:create` for ledger/payment creation, `ledgers:update` for edits/payment-date changes, `ledgers:void` for voids/reversals, and `ledgers:manage` for destructive deletes. As with other RBAC resources, `ledgers:manage` implies all ledger actions.
 
 **Data model** (`models/ledger.rs`):
 - `customer_ledgers` — company info, `description`, `expense_type`, `amount`, `paid_amount`, `balance_due` (DB-derived), `status` ∈ {pending, partial, paid, overdue, cancelled}, `due_date`, `invoice_number`, optional `booking_id`/`guest_id`, accounting fields (`folio_type`, `transaction_type`, `post_type`, `is_reversal`, `original_transaction_id`, `void_at/by/reason`).
