@@ -3,6 +3,11 @@
 -- Description: Gate customer ledger reads, mutations, voids, and management.
 -- ============================================================================
 
+-- The original valid_action constraint (002) predates the 'void' action.
+ALTER TABLE permissions DROP CONSTRAINT IF EXISTS valid_action;
+ALTER TABLE permissions ADD CONSTRAINT valid_action
+    CHECK (action IN ('create', 'read', 'update', 'delete', 'manage', 'execute', 'void'));
+
 INSERT INTO permissions (name, resource, action, description, is_system_permission)
 VALUES
     ('ledgers:read', 'ledgers', 'read', 'View customer ledger entries and payments', true),

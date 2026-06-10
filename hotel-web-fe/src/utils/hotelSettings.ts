@@ -18,6 +18,12 @@ export interface HotelSettings {
   deposit_amount: number; // Default deposit amount for check-in
   service_tax_rate: number; // Percentage (e.g., 8 for 8%)
   tourism_tax_rate: number; // Per night tourism tax
+  default_payment_terms_days: number; // Default ledger due-date offset
+  max_login_attempts: number; // Failed login attempts before lockout
+  totp_issuer_name: string; // Issuer shown in authenticator apps
+  passkey_relying_party_name: string; // Display name shown by passkey authenticators
+  rate_codes: string[]; // Available booking rate codes
+  market_codes: string[]; // Available market segment codes
   booking_channels: BookingChannel[]; // Configurable online booking channels (name + abbreviation)
   payment_methods: string[]; // Configurable payment methods for walk-in
 }
@@ -35,6 +41,12 @@ const DEFAULT_SETTINGS: HotelSettings = {
   deposit_amount: 50,
   service_tax_rate: 8, // 8% service tax
   tourism_tax_rate: 10, // RM 10 per night for tourists (Malaysia standard)
+  default_payment_terms_days: 30,
+  max_login_attempts: 5,
+  totp_issuer_name: 'Hotel Management System',
+  passkey_relying_party_name: 'Hotel Management System',
+  rate_codes: ['RACK', 'OVR', 'CORP', 'GOVT', 'WKII', 'PKG', 'GRP', 'AAA', 'PROMO'],
+  market_codes: ['WKII', 'CORP', 'GOVT', 'OTA', 'DIRECT', 'GROUP', 'EVENTS', 'LEISURE'],
   booking_channels: [
     { name: 'Booking.com', abbreviation: 'B.C' },
     { name: 'Agoda', abbreviation: 'A.C' },
@@ -60,6 +72,15 @@ const DEFAULT_SETTINGS: HotelSettings = {
 };
 
 const STORAGE_KEY = 'hotelSettings';
+
+const normalizeStringList = (raw: unknown, fallback: string[]): string[] => {
+  if (!Array.isArray(raw)) return fallback;
+  const values = raw
+    .filter((item): item is string => typeof item === 'string')
+    .map(item => item.trim())
+    .filter(Boolean);
+  return values.length > 0 ? Array.from(new Set(values)) : fallback;
+};
 
 // Migrate legacy string[] booking_channels (or anything malformed) to {name, abbreviation}[].
 const normalizeBookingChannels = (raw: unknown): BookingChannel[] => {
@@ -95,7 +116,12 @@ export const getHotelSettings = (): HotelSettings => {
         deposit_amount: Number(merged.deposit_amount) || DEFAULT_SETTINGS.deposit_amount,
         service_tax_rate: Number(merged.service_tax_rate) || DEFAULT_SETTINGS.service_tax_rate,
         tourism_tax_rate: Number(merged.tourism_tax_rate) || DEFAULT_SETTINGS.tourism_tax_rate,
+        default_payment_terms_days: Number(merged.default_payment_terms_days) || DEFAULT_SETTINGS.default_payment_terms_days,
+        max_login_attempts: Number(merged.max_login_attempts) || DEFAULT_SETTINGS.max_login_attempts,
+        rate_codes: normalizeStringList(merged.rate_codes, DEFAULT_SETTINGS.rate_codes),
+        market_codes: normalizeStringList(merged.market_codes, DEFAULT_SETTINGS.market_codes),
         booking_channels: normalizeBookingChannels(merged.booking_channels),
+        payment_methods: normalizeStringList(merged.payment_methods, DEFAULT_SETTINGS.payment_methods),
       };
     }
   } catch (error) {
