@@ -1292,6 +1292,7 @@ dependencies = [
  "bcrypt",
  "chrono",
  "clap",
+ "constant_time_eq",
  "data-encoding",
  "dirs",
  "dotenvy",

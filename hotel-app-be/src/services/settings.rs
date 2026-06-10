@@ -2,6 +2,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::settings_cache;
 use crate::models::{MarketCodesResponse, RateCodesResponse, SystemSetting, SystemSettingUpdate};
 use crate::repositories::settings::SettingsRepository;
 
@@ -15,9 +16,11 @@ pub async fn update_system_setting(
     input: SystemSettingUpdate,
     user_id: i64,
 ) -> Result<SystemSetting, ApiError> {
-    SettingsRepository::update_value_by_user(pool, key, &input.value, user_id)
+    let setting = SettingsRepository::update_value_by_user(pool, key, &input.value, user_id)
         .await?
-        .ok_or_else(|| ApiError::NotFound(format!("Setting '{}' not found", key)))
+        .ok_or_else(|| ApiError::NotFound(format!("Setting '{}' not found", key)))?;
+    settings_cache::invalidate_key(key);
+    Ok(setting)
 }
 
 pub async fn get_rate_codes(pool: &DbPool) -> Result<RateCodesResponse, ApiError> {

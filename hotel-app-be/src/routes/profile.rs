@@ -2,6 +2,7 @@
 //!
 //! Routes for user profile management, 2FA, and passkeys.
 
+use super::extract_client_ip;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
@@ -10,11 +11,12 @@ use crate::handlers;
 use crate::models;
 use axum::{
     Router,
-    extract::{Extension, Path, State},
+    extract::{ConnectInfo, Extension, Path, State},
     http::HeaderMap,
     response::Json,
     routing::{delete, get, patch, post},
 };
+use std::net::SocketAddr;
 
 /// Create profile routes
 pub fn routes() -> Router<DbPool> {
@@ -58,10 +60,11 @@ async fn update_profile(
 async fn update_password(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(input): Json<models::PasswordUpdateInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -111,10 +114,11 @@ async fn update_passkey(
 async fn setup_2fa(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(input): Json<models::TwoFactorSetupRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -132,10 +136,11 @@ async fn setup_2fa(
 async fn enable_2fa(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(input): Json<models::TwoFactorEnableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -153,10 +158,11 @@ async fn enable_2fa(
 async fn disable_2fa(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(input): Json<models::TwoFactorDisableRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -182,10 +188,11 @@ async fn get_2fa_status(
 async fn verify_2fa(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(input): Json<models::TwoFactorVerifyRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -198,28 +205,4 @@ async fn verify_2fa(
     }
     let user_id = require_auth(&headers).await?;
     handlers::two_factor::verify_2fa_code_handler(State(pool), user_id, Json(input)).await
-}
-
-/// Extract client IP from headers
-fn extract_client_ip(headers: &HeaderMap) -> std::net::IpAddr {
-    let trust_proxy_headers = std::env::var("TRUST_PROXY_HEADERS")
-        .map(|v| v.eq_ignore_ascii_case("true"))
-        .unwrap_or(false);
-
-    if !trust_proxy_headers {
-        return std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
-    }
-
-    headers
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .and_then(|s| s.trim().parse().ok())
-        .or_else(|| {
-            headers
-                .get("x-real-ip")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.trim().parse().ok())
-        })
-        .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
 }

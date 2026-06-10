@@ -1,8 +1,75 @@
-node_modules/
-dist/
-build/
-.next/
-coverage/
+# Environment files
 .env
 .env.*
 !.env.example
+!**/.env.example
+
+# Secrets and local certificates
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Node / frontend artifacts
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+build/
+**/build/
+.vite/
+**/.vite/
+.next/
+coverage/
+**/coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Rust artifacts
+target/
+**/target/
+*.rlib
+*.rmeta
+
+# Tauri generated bundles and sidecars
+hotel-desktop/src-tauri/target/
+hotel-desktop/src-tauri/binaries/
+hotel-desktop/src-tauri/gen/
+
+# Logs and runtime files
+logs/
+**/logs/
+*.log
+hotel-app-be/uploads/
+uploads/
+
+# Local database files
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+hotel_data.db
+hotel_data.db-*
+
+# Docker and local service state
+.docker/
+docker-data/
+pgdata/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor and local tooling
+.idea/
+.vscode/*
+!.vscode/settings.json
+*.swp
+*.swo
+
+# Test and temporary output
+.nyc_output/
+tmp/
+temp/

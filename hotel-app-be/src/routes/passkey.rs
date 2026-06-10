@@ -9,11 +9,12 @@ use crate::handlers;
 use crate::models;
 use axum::{
     Router,
-    extract::{Extension, State},
+    extract::{ConnectInfo, Extension, State},
     http::HeaderMap,
     response::Json,
     routing::post,
 };
+use std::net::SocketAddr;
 
 pub fn routes() -> Router<DbPool> {
     Router::new()
@@ -26,10 +27,11 @@ pub fn routes() -> Router<DbPool> {
 async fn register_start(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<models::PasskeyRegistrationStart>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -48,10 +50,11 @@ async fn register_start(
 async fn register_finish(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<models::PasskeyRegistrationFinish>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -70,10 +73,11 @@ async fn register_finish(
 async fn login_start(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<models::PasskeyLoginStart>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(
@@ -90,10 +94,11 @@ async fn login_start(
 async fn login_finish(
     State(pool): State<DbPool>,
     Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     Json(req): Json<models::PasskeyLoginFinish>,
 ) -> Result<Json<models::AuthResponse>, ApiError> {
-    let ip = extract_client_ip(&headers);
+    let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
     if !allowed {
         return Err(ApiError::TooManyRequestsRetryAfter(

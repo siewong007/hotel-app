@@ -1,3 +1,4 @@
+use super::config;
 use super::db::{DbPool, array_to_json};
 use bcrypt::{DEFAULT_COST, hash, verify};
 use chrono::{Duration, Utc};
@@ -8,7 +9,6 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::Row;
-use std::env;
 use std::sync::OnceLock;
 use totp_rs::{Algorithm, Secret, TOTP};
 
@@ -22,6 +22,19 @@ pub struct Claims {
 }
 
 pub struct AuthService;
+
+const ACCESS_TOKEN_TTL_MINUTES: i64 = 30;
+static JWT_SECRET: OnceLock<String> = OnceLock::new();
+
+fn jwt_secret() -> &'static str {
+    JWT_SECRET
+        .get_or_init(|| {
+            let secret = config::get().jwt_secret.clone();
+            config::validate_jwt_secret(&secret).expect("JWT_SECRET must meet minimum length");
+            secret
+        })
+        .as_str()
+}
 
 fn uppercase_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();
@@ -60,14 +73,20 @@ const WEAK_PASSWORDS: &[&str] = &[
 ];
 
 impl AuthService {
+    pub fn init_jwt_secret(secret: &str) -> Result<(), String> {
+        config::validate_jwt_secret(secret)?;
+
+        let _ = JWT_SECRET.set(secret.to_string());
+        Ok(())
+    }
+
     pub fn generate_jwt(
         user_id: i64,
         username: String,
         roles: Vec<String>,
     ) -> Result<String, jsonwebtoken::errors::Error> {
-        let secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
         let now = Utc::now();
-        let exp = (now + Duration::hours(24)).timestamp() as usize;
+        let exp = (now + Duration::minutes(ACCESS_TOKEN_TTL_MINUTES)).timestamp() as usize;
         let iat = now.timestamp() as usize;
 
         let claims = Claims {
@@ -81,15 +100,14 @@ impl AuthService {
         encode(
             &Header::default(),
             &claims,
-            &EncodingKey::from_secret(secret.as_ref()),
+            &EncodingKey::from_secret(jwt_secret().as_ref()),
         )
     }
 
     pub fn verify_jwt(token: &str) -> Result<Claims, jsonwebtoken::errors::Error> {
-        let secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
         decode::<Claims>(
             token,
-            &DecodingKey::from_secret(secret.as_ref()),
+            &DecodingKey::from_secret(jwt_secret().as_ref()),
             &Validation::default(),
         )
         .map(|data| data.claims)
@@ -390,6 +408,7 @@ impl AuthService {
     /// Generate a new TOTP secret and QR code URL for Google Authenticator setup
     pub fn generate_totp_secret(
         username: &str,
+        issuer_name: &str,
     ) -> Result<(String, String), Box<dyn std::error::Error>> {
         // Generate random secret bytes (20 bytes = 160 bits for SHA1)
         let mut rng = rand::rng();
@@ -404,7 +423,7 @@ impl AuthService {
             1,  // 1 step (30 second window)
             30, // 30 second period
             secret_bytes,
-            Some("Hotel Management System".to_string()),
+            Some(issuer_name.to_string()),
             username.to_string(),
         )?;
 
@@ -413,20 +432,54 @@ impl AuthService {
         Ok((secret_base32, qr_code_url))
     }
 
-    /// Generate backup recovery codes (10 codes, each 8 characters)
+    /// Generate backup recovery codes (10 codes, each 10 random bytes)
     pub fn generate_backup_codes() -> Vec<String> {
         let mut codes = Vec::new();
         let mut rng = rand::rng();
 
         for _ in 0..10 {
-            let code_bytes: [u8; 4] = rng.random();
-            let code = hex::encode(&code_bytes[..4]).to_uppercase();
-            // Format as XXXX-XXXX
-            let formatted = format!("{}-{}", &code[..4], &code[4..]);
+            let code_bytes: [u8; 10] = rng.random();
+            let code = hex::encode(code_bytes).to_uppercase();
+            let formatted = code
+                .as_bytes()
+                .chunks(5)
+                .map(|chunk| std::str::from_utf8(chunk).expect("hex code must be valid UTF-8"))
+                .collect::<Vec<_>>()
+                .join("-");
             codes.push(formatted);
         }
 
         codes
+    }
+
+    pub fn hash_recovery_code(code: &str) -> String {
+        Self::hash_refresh_token(&code.trim().to_uppercase())
+    }
+
+    #[cfg(test)]
+    fn hash_recovery_codes(codes: &[String]) -> Vec<String> {
+        codes
+            .iter()
+            .map(|code| Self::hash_recovery_code(code))
+            .collect()
+    }
+
+    fn is_recovery_code_hash(code: &str) -> bool {
+        code.len() == 64 && code.chars().all(|c| c.is_ascii_hexdigit())
+    }
+
+    fn recovery_codes_for_storage(codes: &[String]) -> Vec<String> {
+        codes
+            .iter()
+            .map(|code| {
+                let trimmed = code.trim();
+                if Self::is_recovery_code_hash(trimmed) {
+                    trimmed.to_ascii_lowercase()
+                } else {
+                    Self::hash_recovery_code(trimmed)
+                }
+            })
+            .collect()
     }
 
     /// Verify a TOTP code against the secret
@@ -467,8 +520,23 @@ impl AuthService {
 
     /// Check if a recovery code matches any of the user's backup codes
     pub fn check_recovery_code(provided_code: &str, stored_codes: &[String]) -> Option<usize> {
+        let provided_hash = Self::hash_recovery_code(provided_code);
+        let provided_normalized = provided_code.trim().to_uppercase();
         for (index, stored_code) in stored_codes.iter().enumerate() {
-            if provided_code == stored_code {
+            let stored_trimmed = stored_code.trim();
+            let matches = if Self::is_recovery_code_hash(stored_trimmed) {
+                constant_time_eq::constant_time_eq(
+                    provided_hash.as_bytes(),
+                    stored_trimmed.to_ascii_lowercase().as_bytes(),
+                )
+            } else {
+                constant_time_eq::constant_time_eq(
+                    provided_normalized.as_bytes(),
+                    stored_trimmed.to_uppercase().as_bytes(),
+                )
+            };
+
+            if matches {
                 return Some(index);
             }
         }
@@ -511,8 +579,9 @@ impl AuthService {
         secret: &str,
         recovery_codes: &[String],
     ) -> Result<(), sqlx::Error> {
+        let recovery_code_hashes = Self::recovery_codes_for_storage(recovery_codes);
         // Convert recovery codes to JSON string for SQLite compatibility
-        let codes_json = array_to_json(recovery_codes);
+        let codes_json = array_to_json(&recovery_code_hashes);
 
         sqlx::query(
             r#"
@@ -558,8 +627,9 @@ impl AuthService {
         user_id: i64,
         recovery_codes: &[String],
     ) -> Result<(), sqlx::Error> {
+        let recovery_code_hashes = Self::recovery_codes_for_storage(recovery_codes);
         // Convert recovery codes to JSON string for SQLite compatibility
-        let codes_json = array_to_json(recovery_codes);
+        let codes_json = array_to_json(&recovery_code_hashes);
 
         sqlx::query(
             r#"
@@ -607,6 +677,7 @@ impl AuthService {
 #[cfg(test)]
 mod tests {
     use super::AuthService;
+    use crate::core::config::validate_jwt_secret;
 
     #[test]
     fn validate_password_accepts_strong_password() {
@@ -645,6 +716,15 @@ mod tests {
     }
 
     #[test]
+    fn jwt_secret_validation_enforces_minimum_length() {
+        let short_secret = "too-short";
+        let valid_secret = "x".repeat(32);
+
+        assert!(validate_jwt_secret(short_secret).is_err());
+        assert!(validate_jwt_secret(&valid_secret).is_ok());
+    }
+
+    #[test]
     fn refresh_tokens_are_hex_encoded_and_hashed_deterministically() {
         let token = AuthService::generate_refresh_token();
 
@@ -673,8 +753,10 @@ mod tests {
         assert_eq!(codes.len(), 10);
         assert_eq!(unique.len(), codes.len());
         assert!(codes.iter().all(|code| {
-            code.len() == 9
-                && code.as_bytes()[4] == b'-'
+            code.len() == 23
+                && code.as_bytes()[5] == b'-'
+                && code.as_bytes()[11] == b'-'
+                && code.as_bytes()[17] == b'-'
                 && code
                     .chars()
                     .filter(|c| *c != '-')
@@ -685,16 +767,34 @@ mod tests {
     #[test]
     fn recovery_code_lookup_returns_matching_index_only() {
         let codes = vec![
-            "AAAA-1111".to_string(),
-            "BBBB-2222".to_string(),
-            "CCCC-3333".to_string(),
+            "AAAAA-11111-BBBBB-22222".to_string(),
+            "CCCCC-33333-DDDDD-44444".to_string(),
+            "EEEEE-55555-FFFFF-66666".to_string(),
         ];
+        let stored_codes = AuthService::hash_recovery_codes(&codes);
+
+        assert!(
+            stored_codes.iter().all(|stored| {
+                stored.len() == 64 && stored.chars().all(|c| c.is_ascii_hexdigit())
+            })
+        );
+        assert_ne!(stored_codes[1], codes[1]);
 
         assert_eq!(
-            AuthService::check_recovery_code("BBBB-2222", &codes),
+            AuthService::check_recovery_code("CCCCC-33333-DDDDD-44444", &stored_codes),
             Some(1)
         );
-        assert_eq!(AuthService::check_recovery_code("bbbb-2222", &codes), None);
-        assert_eq!(AuthService::check_recovery_code("DDDD-4444", &codes), None);
+        assert_eq!(
+            AuthService::check_recovery_code("ccccc-33333-ddddd-44444", &stored_codes),
+            Some(1)
+        );
+        assert_eq!(
+            AuthService::check_recovery_code("GGGGG-77777-HHHHH-88888", &stored_codes),
+            None
+        );
+        assert_eq!(
+            AuthService::check_recovery_code("aaaaa-11111-bbbbb-22222", &codes),
+            Some(0)
+        );
     }
 }

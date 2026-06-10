@@ -6,6 +6,7 @@ use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
+use crate::core::settings_cache;
 use crate::models::*;
 use crate::repositories::booking::BookingRepository;
 use crate::repositories::bookings_queries::*;
@@ -324,6 +325,9 @@ async fn auto_post_company_ledger(
         check_out,
     );
 
+    let default_terms_days =
+        settings_cache::get_positive_i32(pool, "default_payment_terms_days", 30).await as i64;
+
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let terms_days: i64 = sqlx::query_scalar::<_, Option<i32>>(
         "SELECT payment_terms_days FROM companies WHERE company_name = $1 LIMIT 1",
@@ -334,9 +338,19 @@ async fn auto_post_company_ledger(
     .ok()
     .flatten()
     .flatten()
-    .unwrap_or(30) as i64;
+    .map(i64::from)
+    .unwrap_or(default_terms_days);
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let terms_days: i64 = 30;
+    let terms_days: i64 = sqlx::query_scalar::<_, Option<i64>>(
+        "SELECT payment_terms_days FROM companies WHERE company_name = ?1 LIMIT 1",
+    )
+    .bind(company_name)
+    .fetch_optional(pool)
+    .await
+    .ok()
+    .flatten()
+    .flatten()
+    .unwrap_or(default_terms_days);
 
     let today = chrono::Local::now().date_naive();
     let due_date = today + chrono::Duration::days(terms_days);

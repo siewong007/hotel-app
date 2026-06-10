@@ -159,10 +159,13 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('check_out_time', '11:00', 'string', 'general', 'Standard check-out time', true),
 ('currency', 'USD', 'string', 'general', 'Default currency code', true),
 ('timezone', 'America/New_York', 'string', 'general', 'Hotel timezone', false),
+('default_payment_terms_days', '30', 'number', 'ledger', 'Default ledger due-date offset in days when a company has no payment terms', false),
 ('max_login_attempts', '5', 'number', 'security', 'Maximum failed login attempts before lockout', false),
 ('session_timeout', '3600', 'number', 'security', 'Session timeout in seconds', false),
 ('enable_2fa', 'false', 'boolean', 'security', 'Enable two-factor authentication', false),
 ('enable_email_verification', 'true', 'boolean', 'security', 'Require email verification', false),
+('totp_issuer_name', 'Hotel Management System', 'string', 'security', 'Issuer name shown in authenticator apps during TOTP setup', false),
+('passkey_relying_party_name', 'Hotel Management System', 'string', 'security', 'Display name shown by passkey authenticators during registration', false),
 ('rate_codes', '["RACK","OVR","CORP","GOVT","WKII","PKG","GRP","AAA","PROMO"]', 'json', 'rates', 'Available rate codes', true),
 ('market_codes', '["WKII","CORP","GOVT","OTA","DIRECT","GROUP","EVENTS","LEISURE"]', 'json', 'sales', 'Market segment codes', true),
 ('guest_titles', '["Mr","Mrs","Ms","Miss","Dr","Prof","Rev"]', 'json', 'guests', 'Guest title options', true)

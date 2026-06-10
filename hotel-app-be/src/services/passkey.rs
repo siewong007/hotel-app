@@ -1,8 +1,10 @@
 //! Passkey/WebAuthn business workflows.
 
 use crate::core::auth::AuthService;
+use crate::core::config;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::settings_cache;
 use crate::models::{
     AuthResponse, PasskeyInfo, PasskeyLoginFinish, PasskeyLoginStart, PasskeyRegistrationFinish,
     PasskeyRegistrationStart, PasskeyUpdateInput, UserResponse,
@@ -15,7 +17,6 @@ use rand::Rng;
 use ring::signature;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use std::env;
 
 pub async fn list_passkeys(pool: &DbPool, user_id: i64) -> Result<Vec<PasskeyInfo>, ApiError> {
     Ok(PasskeyRepository::list_passkeys(pool, user_id)
@@ -88,10 +89,17 @@ pub async fn register_start(
     )
     .await?;
 
+    let rp_name = settings_cache::get_string(
+        pool,
+        "passkey_relying_party_name",
+        "Hotel Management System",
+    )
+    .await;
+
     Ok(json!({
         "challenge": challenge_b64,
         "rp": {
-            "name": "Hotel Management System",
+            "name": rp_name,
             "id": rp_id(),
         },
         "user": {
@@ -356,7 +364,7 @@ fn json_byte_array(value: &Value, label: &str) -> Result<Vec<u8>, ApiError> {
 }
 
 fn rp_id() -> String {
-    env::var("PASSKEY_RP_ID").unwrap_or_else(|_| "localhost".to_string())
+    config::get().passkey_rp_id.clone()
 }
 
 fn origin_host(origin: &str) -> Option<&str> {

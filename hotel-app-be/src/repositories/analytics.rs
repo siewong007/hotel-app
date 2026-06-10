@@ -4,6 +4,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::settings_cache;
 use crate::models::ReportQuery;
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 use crate::models::row_mappers;
@@ -387,22 +388,8 @@ async fn generate_balance_sheet(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    // Read service tax rate from system_settings (default 8%)
-    let tax_rate_pct: Decimal = {
-        let raw = sqlx::query_scalar::<_, String>(
-            "SELECT value FROM system_settings WHERE key = 'service_tax_rate'",
-        )
-        .fetch_optional(pool)
-        .await
-        .unwrap_or(None)
-        .and_then(|v| v.parse::<Decimal>().ok())
-        .unwrap_or(Decimal::ZERO);
-        if raw > Decimal::ZERO {
-            raw
-        } else {
-            Decimal::new(8, 0)
-        }
-    };
+    let tax_rate_pct =
+        settings_cache::get_positive_decimal(pool, "service_tax_rate", Decimal::new(8, 0)).await;
     let tax_rate = tax_rate_pct / Decimal::new(100, 0);
     let service_tax = room_revenue * tax_rate;
 
@@ -451,22 +438,8 @@ async fn generate_journal_by_type(
     start_date: NaiveDate,
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
-    // Read service tax rate from system_settings (default 8%)
-    let tax_rate_pct: Decimal = {
-        let raw = sqlx::query_scalar::<_, String>(
-            "SELECT value FROM system_settings WHERE key = 'service_tax_rate'",
-        )
-        .fetch_optional(pool)
-        .await
-        .unwrap_or(None)
-        .and_then(|v| v.parse::<Decimal>().ok())
-        .unwrap_or(Decimal::ZERO);
-        if raw > Decimal::ZERO {
-            raw
-        } else {
-            Decimal::new(8, 0)
-        }
-    };
+    let tax_rate_pct =
+        settings_cache::get_positive_decimal(pool, "service_tax_rate", Decimal::new(8, 0)).await;
     let tax_rate = tax_rate_pct / Decimal::new(100, 0);
 
     let rows = sqlx::query(

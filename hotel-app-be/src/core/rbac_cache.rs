@@ -20,7 +20,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
-use super::db::DbPool;
+use super::{config, db::DbPool};
 
 /// A user's resolved permission-name and role-name sets, shared cheaply via `Arc`.
 type RbacSets = (Arc<HashSet<String>>, Arc<HashSet<String>>);
@@ -28,9 +28,8 @@ type RbacSets = (Arc<HashSet<String>>, Arc<HashSet<String>>);
 static CACHE: LazyLock<RbacCache> = LazyLock::new(RbacCache::new);
 
 fn configured_ttl() -> Duration {
-    let secs = std::env::var("RBAC_CACHE_TTL_SECS")
-        .ok()
-        .and_then(|v| v.parse().ok())
+    let secs = config::try_get()
+        .map(|config| config.rbac_cache_ttl_secs)
         .unwrap_or(30);
     Duration::from_secs(secs)
 }
@@ -66,12 +65,7 @@ impl RbacCache {
         }
     }
 
-    fn store(
-        &self,
-        user_id: i64,
-        permissions: Arc<HashSet<String>>,
-        roles: Arc<HashSet<String>>,
-    ) {
+    fn store(&self, user_id: i64, permissions: Arc<HashSet<String>>, roles: Arc<HashSet<String>>) {
         let mut map = self.entries.lock().unwrap();
         map.insert(
             user_id,
