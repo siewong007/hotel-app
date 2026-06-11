@@ -173,6 +173,7 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
         actual_check_out: row.try_get("actual_check_out").ok(),
         daily_rates: row.try_get("daily_rates").ok().flatten(),
         invoice_number: row.try_get("invoice_number").ok(),
+        cleaning_preference: get_opt_bool(row, "cleaning_preference"),
     }
 }
 
@@ -229,6 +230,7 @@ pub fn row_to_booking(row: &DbRow) -> Booking {
         company_name: row.try_get("company_name").ok(),
         payment_note: row.try_get("payment_note").ok(),
         daily_rates: row.try_get("daily_rates").ok().flatten(),
+        cleaning_preference: get_opt_bool(row, "cleaning_preference"),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
         updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
     }

@@ -22,6 +22,8 @@ pub struct Room {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub notes: Option<String>,
+    #[sqlx(default)]
+    pub is_smoking: Option<bool>,
 }
 
 /// Input for creating a room (simple)
@@ -47,6 +49,7 @@ pub struct RoomCreateInput {
     pub floor: Option<i32>,
     pub building: Option<String>,
     pub is_accessible: Option<bool>,
+    pub is_smoking: Option<bool>,
     pub status: Option<String>,
 }
 
@@ -60,6 +63,7 @@ pub struct RoomUpdateInput {
     pub description: Option<String>,
     pub max_occupancy: Option<i32>,
     pub notes: Option<String>,
+    pub is_smoking: Option<bool>,
 }
 
 /// Input for updating room status
@@ -151,6 +155,8 @@ pub struct RoomWithRating {
     pub average_rating: Option<f64>,
     pub review_count: Option<i64>,
     pub notes: Option<String>,
+    #[sqlx(default)]
+    pub is_smoking: Option<bool>,
 }
 
 /// Guest review for a room

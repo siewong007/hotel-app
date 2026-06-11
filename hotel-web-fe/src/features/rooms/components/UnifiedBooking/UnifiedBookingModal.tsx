@@ -581,8 +581,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         source: 'walk_in' as const,
         payment_status: 'unpaid' as const,
         room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
-        is_tourist: isTourist,
-        tourism_tax_amount: perRoomTourismTaxAmount > 0 ? perRoomTourismTaxAmount : undefined,
         extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
         extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
       };
@@ -815,8 +813,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             source: 'walk_in' as const,
             payment_status: 'unpaid' as const,
             room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
-            is_tourist: isTourist,
-            tourism_tax_amount: perRoomTourismTaxAmount > 0 ? perRoomTourismTaxAmount : undefined,
             extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
             extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
           };
@@ -848,8 +844,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             booking_remarks: onlineRemarks,
             special_requests: bookingNotes.trim() || undefined,
             room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
-            is_tourist: isTourist,
-            tourism_tax_amount: tourismTaxAmount > 0 ? tourismTaxAmount : undefined,
             extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
             extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
             payment_status: 'unpaid' as const,
@@ -857,7 +851,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
           await createBookingsForSelectedRooms({
             ...bookingData,
-            tourism_tax_amount: perRoomTourismTaxAmount > 0 ? perRoomTourismTaxAmount : undefined,
             extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
             extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
           });

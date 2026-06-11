@@ -160,6 +160,8 @@ const CustomerLedgerPage: React.FC = () => {
   // Company autocomplete state
   const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
+  const [ledgerRooms, setLedgerRooms] = useState<Room[]>([]);
+  const [loadingLedgerRooms, setLoadingLedgerRooms] = useState(false);
 
   // Tracks whether the company registration dialog was opened from the
   // Create Ledger Entry autocomplete; if true, the newly-registered company
@@ -373,6 +375,21 @@ const CustomerLedgerPage: React.FC = () => {
       }
       return a.room_number.localeCompare(b.room_number);
     });
+  };
+
+  const loadLedgerRooms = async () => {
+    if (ledgerRooms.length > 0) return;
+
+    try {
+      setLoadingLedgerRooms(true);
+      const rooms = await HotelAPIService.getAllRooms();
+      setLedgerRooms(sortRoomsByNumber(rooms));
+    } catch (err) {
+      console.error('Failed to load rooms for ledger entry:', err);
+      setLedgerRooms([]);
+    } finally {
+      setLoadingLedgerRooms(false);
+    }
   };
 
   // Load available rooms for given dates
@@ -1337,6 +1354,12 @@ const CustomerLedgerPage: React.FC = () => {
     }) || null;
   };
 
+  const selectedCreateRoom = useMemo(() => {
+    const roomNumber = (createFormData.room_number || '').trim();
+    if (!roomNumber) return null;
+    return ledgerRooms.find((room) => room.room_number === roomNumber) || null;
+  }, [createFormData.room_number, ledgerRooms]);
+
   // Create ledger handlers
   const handleCreateLedger = async (skipDuplicateCheck = false) => {
     if (!skipDuplicateCheck) {
@@ -2033,6 +2056,11 @@ const CustomerLedgerPage: React.FC = () => {
     });
   };
 
+  const openCreateLedgerDialog = () => {
+    setCreateDialogOpen(true);
+    void loadLedgerRooms();
+  };
+
   const openContextualCreate = (action: 'entry' | 'invoice' | 'payment' | 'checkin' | 'credit') => {
     setCreateMenuAnchor(null);
     if (action === 'checkin') {
@@ -2045,7 +2073,7 @@ const CustomerLedgerPage: React.FC = () => {
     }
     if (action === 'entry') {
       prefillCreateForCompany(activeCompany);
-      setCreateDialogOpen(true);
+      openCreateLedgerDialog();
     } else if (action === 'invoice') {
       handleOpenCompanyInvoiceDialog(activeCompany);
     } else if (action === 'payment') {
@@ -3061,7 +3089,7 @@ const CustomerLedgerPage: React.FC = () => {
                   onClick={() => {
                     if (!activeCompany) return;
                     prefillCreateForCompany(activeCompany);
-                    setCreateDialogOpen(true);
+                    openCreateLedgerDialog();
                   }}
                   disabled={!activeCompany}
                 >
@@ -3651,12 +3679,58 @@ const CustomerLedgerPage: React.FC = () => {
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Room Number"
-                value={createFormData.room_number || ''}
-                onChange={(e) => setCreateFormData({ ...createFormData, room_number: e.target.value })}
-                helperText="Used to detect possible duplicate stay charges"
+              <Autocomplete
+                value={selectedCreateRoom}
+                onOpen={() => { void loadLedgerRooms(); }}
+                onChange={(event, newValue) => setCreateFormData({
+                  ...createFormData,
+                  room_number: newValue?.room_number || undefined,
+                })}
+                options={ledgerRooms}
+                loading={loadingLedgerRooms}
+                getOptionLabel={(option) => `Room ${option.room_number} - ${option.room_type}`}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                renderOption={(props, option) => {
+                  const { key, ...otherProps } = props;
+                  return (
+                    <li key={key} {...otherProps}>
+                      <Box display="flex" justifyContent="space-between" width="100%" gap={2}>
+                        <Box>
+                          <Typography fontWeight="medium">Room {option.room_number}</Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {option.room_type} {option.floor != null ? `| Floor ${option.floor}` : ''}
+                          </Typography>
+                        </Box>
+                        {option.status && (
+                          <Chip label={option.status} size="small" variant="outlined" />
+                        )}
+                      </Box>
+                    </li>
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Room"
+                    placeholder="Choose a room"
+                    helperText="Used to detect possible duplicate stay charges"
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <>
+                          <HotelIcon color="action" sx={{ ml: 1, mr: 0.5 }} />
+                          {params.InputProps.startAdornment}
+                        </>
+                      ),
+                      endAdornment: (
+                        <>
+                          {loadingLedgerRooms ? <CircularProgress color="inherit" size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>

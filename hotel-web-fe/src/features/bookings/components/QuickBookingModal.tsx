@@ -308,8 +308,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
         post_type: postType,
         rate_code: rateCode,
         booking_remarks: remarks || undefined,
-        is_tourist: isTourist,
-        tourism_tax_amount: tourismTax,
         extra_bed_count: extraBedCount,
         extra_bed_charge: extraBedCharge,
 

@@ -19,6 +19,7 @@ import {
 import { BookingWithDetails } from '../../../types';
 import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { getHotelSettings } from '../../../utils/hotelSettings';
 
 interface UpdateCheckoutDateDialogProps {
   open: boolean;
@@ -61,6 +62,9 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
   const pricePerNight = typeof booking.price_per_night === 'string'
     ? parseFloat(booking.price_per_night)
     : booking.price_per_night || 0;
+  const hotelSettings = getHotelSettings();
+  const isForeignTourist = booking.guest_tourism_type === 'foreign' || booking.is_tourist === true;
+  const tourismTaxRate = Number(hotelSettings.tourism_tax_rate) || 0;
 
   const currentNights = Math.max(
     Math.ceil((new Date(currentCheckoutDate).getTime() - new Date(checkInDate).getTime()) / (1000 * 60 * 60 * 24)),
@@ -74,8 +78,13 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
       )
     : currentNights;
 
-  const currentTotal = pricePerNight * currentNights;
-  const newTotal = pricePerNight * Math.max(newNights, 1);
+  const previewNights = Math.max(newNights, 1);
+  const currentRoomTotal = pricePerNight * currentNights;
+  const newRoomTotal = pricePerNight * previewNights;
+  const currentTourismTax = isForeignTourist ? tourismTaxRate * currentNights : 0;
+  const newTourismTax = isForeignTourist ? tourismTaxRate * previewNights : 0;
+  const currentTotal = currentRoomTotal + currentTourismTax;
+  const newTotal = newRoomTotal + newTourismTax;
   const difference = newTotal - currentTotal;
   const isValid = newNights >= 1 && newCheckoutDate !== currentCheckoutDate;
 
@@ -168,20 +177,40 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
               </Grid>
               <Grid size={8}>
                 <Typography variant="body2" color="text.secondary">
-                  Current: {currentNights} night(s)
+                  Current room: {currentNights} night(s)
                 </Typography>
               </Grid>
               <Grid sx={{ textAlign: 'right' }} size={4}>
-                <Typography variant="body2">{formatCurrency(currentTotal)}</Typography>
+                <Typography variant="body2">{formatCurrency(currentRoomTotal)}</Typography>
               </Grid>
               <Grid size={8}>
                 <Typography variant="body2" fontWeight={600}>
-                  New: {Math.max(newNights, 1)} night(s)
+                  New room: {previewNights} night(s)
                 </Typography>
               </Grid>
               <Grid sx={{ textAlign: 'right' }} size={4}>
-                <Typography variant="body2" fontWeight={600}>{formatCurrency(newTotal)}</Typography>
+                <Typography variant="body2" fontWeight={600}>{formatCurrency(newRoomTotal)}</Typography>
               </Grid>
+              {isForeignTourist && (
+                <>
+                  <Grid size={8}>
+                    <Typography variant="body2" color="text.secondary">
+                      Current tourism tax ({formatCurrency(tourismTaxRate)}/night)
+                    </Typography>
+                  </Grid>
+                  <Grid sx={{ textAlign: 'right' }} size={4}>
+                    <Typography variant="body2">{formatCurrency(currentTourismTax)}</Typography>
+                  </Grid>
+                  <Grid size={8}>
+                    <Typography variant="body2" fontWeight={600}>
+                      New tourism tax ({formatCurrency(tourismTaxRate)}/night)
+                    </Typography>
+                  </Grid>
+                  <Grid sx={{ textAlign: 'right' }} size={4}>
+                    <Typography variant="body2" fontWeight={600}>{formatCurrency(newTourismTax)}</Typography>
+                  </Grid>
+                </>
+              )}
               {difference !== 0 && (
                 <>
                   <Grid size={12}><Divider sx={{ my: 0.5 }} /></Grid>
