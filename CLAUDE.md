@@ -85,7 +85,7 @@ The backend compiles for exactly one database at a time in production (default f
 - `src/api/*.service.ts` — one service per backend domain. All HTTP goes through `src/api/client.ts` (a configured `ky` instance). Never call `fetch` directly.
 - `src/api/client.ts` — attaches `Authorization: Bearer <token>` from `storage`, retries idempotent GETs, and dispatches a `window` `auth:unauthorized` event on 401s from protected endpoints so `AuthContext` can navigate to login without a hard redirect.
 - `src/utils/storage.ts` — always use this for localStorage (preserves language preferences on logout; typed getters).
-- `src/store/useAuthStore.ts` — Zustand auth store; `AuthContext` in `src/auth/` wraps it.
+- `src/auth/AuthContext.tsx` — primary auth state, login/logout/passkey handling, and permission helpers.
 - `App.tsx` — all non-critical pages are `React.lazy()`-loaded; add new routes there and keep them inside the `Suspense` + `ErrorBoundary` wrappers.
 - `tsconfig.json` has `"strict": false` — don't assume strict-mode typing; types tighten gradually.
 

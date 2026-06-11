@@ -78,6 +78,123 @@ async fn record_booking_history(
     }
 }
 
+async fn reconcile_room_status_after_booking_release(
+    pool: &DbPool,
+    room_id: i64,
+    released_booking_id: i64,
+) -> Result<(), ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let status_query = r#"
+        SELECT CASE
+            WHEN EXISTS (
+                SELECT 1 FROM bookings
+                WHERE room_id = ?1 AND id != ?2
+                  AND status IN ('checked_in', 'auto_checked_in', 'late_checkout')
+                  AND check_in_date <= date('now')
+                  AND check_out_date >= date('now')
+            ) THEN 'occupied'
+            WHEN EXISTS (
+                SELECT 1 FROM bookings
+                WHERE room_id = ?1 AND id != ?2
+                  AND status IN ('reserved', 'confirmed', 'pending')
+                  AND check_out_date > date('now')
+            ) THEN 'reserved'
+            ELSE 'available'
+        END
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let status_query = r#"
+        SELECT CASE
+            WHEN EXISTS (
+                SELECT 1 FROM bookings
+                WHERE room_id = $1 AND id != $2
+                  AND status IN ('checked_in', 'auto_checked_in', 'late_checkout')
+                  AND check_in_date <= CURRENT_DATE
+                  AND check_out_date >= CURRENT_DATE
+            ) THEN 'occupied'
+            WHEN EXISTS (
+                SELECT 1 FROM bookings
+                WHERE room_id = $1 AND id != $2
+                  AND status IN ('reserved', 'confirmed', 'pending')
+                  AND check_out_date > CURRENT_DATE
+            ) THEN 'reserved'
+            ELSE 'available'
+        END
+    "#;
+
+    let status: String = sqlx::query_scalar(status_query)
+        .bind(room_id)
+        .bind(released_booking_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let status_notes = match status.as_str() {
+        "occupied" => "Room status reconciled: current stay remains",
+        "reserved" => "Room status reconciled: upcoming reservation remains",
+        _ => "Room released after booking update",
+    };
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let update_query = r#"
+        UPDATE rooms
+        SET status = ?1, status_notes = ?2
+        WHERE id = ?3
+          AND status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning')
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let update_query = r#"
+        UPDATE rooms
+        SET status = $1, status_notes = $2
+        WHERE id = $3
+          AND status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning')
+    "#;
+
+    sqlx::query(update_query)
+        .bind(&status)
+        .bind(status_notes)
+        .bind(room_id)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(())
+}
+
+fn billable_nights(check_in: NaiveDate, check_out: NaiveDate) -> i32 {
+    std::cmp::max((check_out - check_in).num_days() as i32, 1)
+}
+
+async fn canonical_tourism_tax_for_guest(
+    pool: &DbPool,
+    guest_id: i64,
+    check_in: NaiveDate,
+    check_out: NaiveDate,
+) -> Result<(bool, Decimal), ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let tourism_type_query = "SELECT tourism_type FROM guests WHERE id = ?1";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let tourism_type_query = "SELECT tourism_type::text FROM guests WHERE id = $1";
+
+    let tourism_type: Option<String> = sqlx::query_scalar(tourism_type_query)
+        .bind(guest_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .flatten();
+
+    let is_tourist = tourism_type.as_deref() == Some("foreign");
+    let tourism_tax_amount = if is_tourist {
+        let rate =
+            settings_cache::get_positive_decimal(pool, "tourism_tax_rate", Decimal::from(10)).await;
+        rate * Decimal::from(billable_nights(check_in, check_out))
+    } else {
+        Decimal::ZERO
+    };
+
+    Ok((is_tourist, tourism_tax_amount))
+}
+
 pub async fn get_booking_timeline_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
@@ -677,6 +794,7 @@ pub async fn create_booking_handler(
         created_at: row.get(8),
         updated_at: row.get(9),
         notes: None,
+        is_smoking: None,
     };
 
     // Only block rooms that are under maintenance or out of order
@@ -689,13 +807,13 @@ pub async fn create_booking_handler(
     }
 
     // Only check for ACTIVE bookings that would conflict
-    // Active statuses: reserved, confirmed, checked_in, pending
+    // Active statuses: reserved, confirmed, checked_in, auto_checked_in, pending
     // Inactive statuses (don't block): voided, checked_out, completed
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let conflict_query = r#"
         SELECT EXISTS(
             SELECT 1 FROM bookings
-            WHERE room_id = ?1 AND status IN ('reserved', 'confirmed', 'checked_in', 'pending') AND status != 'voided'
+            WHERE room_id = ?1 AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending') AND status != 'voided'
             AND ((check_in_date <= ?2 AND check_out_date > ?2)
                 OR (check_in_date < ?3 AND check_out_date >= ?3)
                 OR (check_in_date >= ?2 AND check_out_date <= ?3))
@@ -706,7 +824,7 @@ pub async fn create_booking_handler(
     let conflict_query = r#"
         SELECT EXISTS(
             SELECT 1 FROM bookings
-            WHERE room_id = $1 AND status IN ('reserved', 'confirmed', 'checked_in', 'pending') AND status != 'voided'
+            WHERE room_id = $1 AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending') AND status != 'voided'
             AND ((check_in_date <= $2 AND check_out_date > $2)
                 OR (check_in_date < $3 AND check_out_date >= $3)
                 OR (check_in_date >= $2 AND check_out_date <= $3))
@@ -738,15 +856,8 @@ pub async fn create_booking_handler(
         ));
     }
 
-    // Derive is_tourist from the guest's tourism_type rather than trusting the request.
-    // A guest with tourism_type = 'foreign' is always a tourist regardless of what was sent.
-    let guest_tourism_type: Option<String> =
-        sqlx::query_scalar("SELECT tourism_type::text FROM guests WHERE id = $1")
-            .bind(input.guest_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .unwrap_or(None);
-    let is_tourist = guest_tourism_type.as_deref() == Some("foreign");
+    let (is_tourist, tourism_tax_amount) =
+        canonical_tourism_tax_for_guest(&pool, input.guest_id, check_in, check_out).await?;
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let hotel_today: NaiveDate = {
@@ -829,9 +940,9 @@ pub async fn create_booking_handler(
             INSERT INTO bookings (
                 booking_number, guest_id, room_id, check_in_date, check_out_date,
                 room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
-                deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests, post_type, daily_rates
+                deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests, post_type, daily_rates, cleaning_preference
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'confirmed', ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16, CASE WHEN ?15 THEN datetime('now') ELSE NULL END, ?17, ?17, ?18, ?19, ?20)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'confirmed', ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16, CASE WHEN ?15 THEN datetime('now') ELSE NULL END, ?17, ?17, ?18, ?19, ?20, ?21)
             "#
         )
         .bind(&booking_number)
@@ -854,6 +965,7 @@ pub async fn create_booking_handler(
         .bind(special_requests.as_deref())
         .bind(if is_hourly { Some("hourly") } else { None::<&str> })
         .bind(daily_rates_json.as_ref().map(|v| v.to_string()))
+        .bind(input.cleaning_preference.map(|b| if b { 1i32 } else { 0i32 }))
         .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -880,10 +992,10 @@ pub async fn create_booking_handler(
                 booking_number, guest_id, room_id, check_in_date, check_out_date,
                 room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
                 deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests,
-                is_tourist, tourism_tax_amount, extra_bed_count, extra_bed_charge, post_type, daily_rates
+                is_tourist, tourism_tax_amount, extra_bed_count, extra_bed_charge, post_type, daily_rates, cleaning_preference
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, $12, $13, 1, $14, $15, $16, CASE WHEN $15 THEN CURRENT_TIMESTAMP ELSE NULL END, $17, $17, $18,
-                $19, $20, $21, $22, $23, $24)
+                $19, $20, $21, $22, $23, $24, $25)
             RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type
             "#
         )
@@ -906,24 +1018,19 @@ pub async fn create_booking_handler(
         .bind(rate_override_decimal)
         .bind(special_requests.as_deref())
         .bind(is_tourist)
-        .bind(input.tourism_tax_amount.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
+        .bind(tourism_tax_amount)
         .bind(input.extra_bed_count)
         .bind(input.extra_bed_charge.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
         .bind(if is_hourly { Some("hourly") } else { None::<&str> })
         .bind(&daily_rates_json)
+        .bind(input.cleaning_preference)
         .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
     };
 
-    // Set room status based on check-in date:
-    // - If check-in is today: set to 'occupied' (guest arriving today)
-    // - If check-in is in the future: set to 'reserved'
-    let room_status = if check_in == hotel_today {
-        "occupied"
-    } else {
-        "reserved"
-    };
+    // A confirmed booking reserves the room; only check-in makes it occupied.
+    let room_status = "reserved";
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let update_room_query = "UPDATE rooms SET status = ?1, status_notes = ?2 WHERE id = ?3";
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
@@ -935,7 +1042,7 @@ pub async fn create_booking_handler(
             "Booking #{} - {}",
             booking.booking_number,
             if check_in == hotel_today {
-                "Guest arriving today"
+                "Reservation arriving today"
             } else {
                 "Future reservation"
             }
@@ -1135,7 +1242,7 @@ pub async fn update_booking_handler(
             SELECT EXISTS(
                 SELECT 1 FROM bookings
                 WHERE room_id = ?1 AND id != ?4
-                AND status IN ('reserved', 'confirmed', 'checked_in', 'pending') AND status != 'voided'
+                AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending') AND status != 'voided'
                 AND ((check_in_date <= ?2 AND check_out_date > ?2)
                     OR (check_in_date < ?3 AND check_out_date >= ?3)
                     OR (check_in_date >= ?2 AND check_out_date <= ?3))
@@ -1147,7 +1254,7 @@ pub async fn update_booking_handler(
             SELECT EXISTS(
                 SELECT 1 FROM bookings
                 WHERE room_id = $1 AND id != $4
-                AND status IN ('reserved', 'confirmed', 'checked_in', 'pending') AND status != 'voided'
+                AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending') AND status != 'voided'
                 AND ((check_in_date <= $2 AND check_out_date > $2)
                     OR (check_in_date < $3 AND check_out_date >= $3)
                     OR (check_in_date >= $2 AND check_out_date <= $3))
@@ -1282,6 +1389,10 @@ pub async fn update_booking_handler(
         (None, None, None)
     };
 
+    let (canonical_is_tourist, canonical_tourism_tax_amount) =
+        canonical_tourism_tax_for_guest(&pool, existing_booking.guest_id, check_in, check_out)
+            .await?;
+
     // SQLite version: UPDATE then SELECT
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let booking: Booking = {
@@ -1305,11 +1416,12 @@ pub async fn update_booking_handler(
                 rate_override_weekday = COALESCE(?19, rate_override_weekday),
                 rate_override_weekend = COALESCE(?19, rate_override_weekend),
                 special_requests = COALESCE(?20, special_requests),
-                is_tourist = COALESCE(?21, is_tourist),
-                tourism_tax_amount = COALESCE(?22, tourism_tax_amount),
+                is_tourist = ?21,
+                tourism_tax_amount = ?22,
                 extra_bed_count = COALESCE(?23, extra_bed_count),
                 extra_bed_charge = COALESCE(?24, extra_bed_charge),
                 daily_rates = COALESCE(?25, daily_rates),
+                cleaning_preference = COALESCE(?26, cleaning_preference),
                 actual_check_out = CASE WHEN ?2 = 'checked_out' AND actual_check_out IS NULL THEN datetime('now') ELSE actual_check_out END,
                 updated_at = datetime('now')
             WHERE id = ?7"#
@@ -1334,11 +1446,12 @@ pub async fn update_booking_handler(
         .bind(new_total_amount.map(|t| t.to_f64().unwrap_or(0.0)))
         .bind(input.room_rate_override)
         .bind(&input.special_requests)
-        .bind(input.is_tourist.map(|b| if b { 1i32 } else { 0i32 }))
-        .bind(input.tourism_tax_amount)
+        .bind(if canonical_is_tourist { 1i32 } else { 0i32 })
+        .bind(canonical_tourism_tax_amount.to_f64().unwrap_or(0.0))
         .bind(input.extra_bed_count)
         .bind(input.extra_bed_charge)
         .bind(daily_rates_json.as_ref().map(|v| v.to_string()))
+        .bind(input.cleaning_preference.map(|b| if b { 1i32 } else { 0i32 }))
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -1377,11 +1490,12 @@ pub async fn update_booking_handler(
                 rate_override_weekday = COALESCE($19, rate_override_weekday),
                 rate_override_weekend = COALESCE($19, rate_override_weekend),
                 special_requests = COALESCE($20, special_requests),
-                is_tourist = COALESCE($21, is_tourist),
-                tourism_tax_amount = COALESCE($22, tourism_tax_amount),
+                is_tourist = $21,
+                tourism_tax_amount = $22,
                 extra_bed_count = COALESCE($23, extra_bed_count),
                 extra_bed_charge = COALESCE($24, extra_bed_charge),
                 daily_rates = COALESCE($25, daily_rates),
+                cleaning_preference = COALESCE($26, cleaning_preference),
                 actual_check_out = CASE WHEN $2 = 'checked_out' AND actual_check_out IS NULL THEN CURRENT_TIMESTAMP ELSE actual_check_out END,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $7
@@ -1407,11 +1521,12 @@ pub async fn update_booking_handler(
         .bind(new_total_amount)
         .bind(rate_override_decimal)
         .bind(&input.special_requests)
-        .bind(input.is_tourist)
-        .bind(input.tourism_tax_amount.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
+        .bind(canonical_is_tourist)
+        .bind(canonical_tourism_tax_amount)
         .bind(input.extra_bed_count)
         .bind(input.extra_bed_charge.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
         .bind(&daily_rates_json)
+        .bind(input.cleaning_preference)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
@@ -1421,58 +1536,28 @@ pub async fn update_booking_handler(
     let updated_status = booking.status.as_str();
 
     if new_room_id != existing_booking.room_id {
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let has_other_query = r#"SELECT EXISTS(SELECT 1 FROM bookings WHERE room_id = ?1 AND id != ?2 AND status IN ('confirmed', 'checked_in', 'auto_checked_in') AND check_out_date > date('now'))"#;
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-        let has_other_query = r#"SELECT EXISTS(SELECT 1 FROM bookings WHERE room_id = $1 AND id != $2 AND status IN ('confirmed', 'checked_in', 'auto_checked_in') AND check_out_date > CURRENT_DATE)"#;
-
-        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let has_other_bookings: bool = sqlx::query_scalar::<_, i32>(has_other_query)
-            .bind(existing_booking.room_id)
-            .bind(booking_id)
-            .fetch_one(&pool)
-            .await
-            .map(|v| v != 0)
-            .unwrap_or(false);
-
-        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-        let has_other_bookings: bool = sqlx::query_scalar(has_other_query)
-            .bind(existing_booking.room_id)
-            .bind(booking_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap_or(false);
-
-        if !has_other_bookings {
-            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            let _ = sqlx::query("UPDATE rooms SET status = 'available' WHERE id = ?1")
-                .bind(existing_booking.room_id)
-                .execute(&pool)
-                .await;
-            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-            let _ = sqlx::query("UPDATE rooms SET status = 'available' WHERE id = $1")
-                .bind(existing_booking.room_id)
-                .execute(&pool)
-                .await;
+        if let Err(e) =
+            reconcile_room_status_after_booking_release(&pool, existing_booking.room_id, booking_id)
+                .await
+        {
+            log::warn!(
+                "Failed to reconcile old room {} after moving booking {}: {}",
+                existing_booking.room_id,
+                booking_id,
+                e
+            );
         }
 
         if updated_status == "confirmed" || updated_status == "pending" {
-            // Set room status based on check-in date
-            let today = chrono::Local::now().date_naive();
-            let room_status = if check_in == today {
-                "occupied"
-            } else {
-                "reserved"
-            };
             #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
             let _ = sqlx::query("UPDATE rooms SET status = ?1 WHERE id = ?2")
-                .bind(room_status)
+                .bind("reserved")
                 .bind(new_room_id)
                 .execute(&pool)
                 .await;
             #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             let _ = sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
-                .bind(room_status)
+                .bind("reserved")
                 .bind(new_room_id)
                 .execute(&pool)
                 .await;
@@ -1497,39 +1582,16 @@ pub async fn update_booking_handler(
 
         match updated_status {
             "voided" => {
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let has_other_query2 = r#"SELECT EXISTS(SELECT 1 FROM bookings WHERE room_id = ?1 AND id != ?2 AND status IN ('confirmed', 'checked_in', 'auto_checked_in') AND check_out_date > date('now'))"#;
-                #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-                let has_other_query2 = r#"SELECT EXISTS(SELECT 1 FROM bookings WHERE room_id = $1 AND id != $2 AND status IN ('confirmed', 'checked_in', 'auto_checked_in') AND check_out_date > CURRENT_DATE)"#;
-
-                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let has_other_bookings: bool = sqlx::query_scalar::<_, i32>(has_other_query2)
-                    .bind(new_room_id)
-                    .bind(booking_id)
-                    .fetch_one(&pool)
-                    .await
-                    .map(|v| v != 0)
-                    .unwrap_or(false);
-
-                #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-                let has_other_bookings: bool = sqlx::query_scalar(has_other_query2)
-                    .bind(new_room_id)
-                    .bind(booking_id)
-                    .fetch_one(&pool)
-                    .await
-                    .unwrap_or(false);
-
-                if !has_other_bookings {
-                    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                    let _ = sqlx::query("UPDATE rooms SET status = 'available' WHERE id = ?1")
-                        .bind(new_room_id)
-                        .execute(&pool)
-                        .await;
-                    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-                    let _ = sqlx::query("UPDATE rooms SET status = 'available' WHERE id = $1")
-                        .bind(new_room_id)
-                        .execute(&pool)
-                        .await;
+                if let Err(e) =
+                    reconcile_room_status_after_booking_release(&pool, new_room_id, booking_id)
+                        .await
+                {
+                    log::warn!(
+                        "Failed to reconcile room {} after voiding booking {}: {}",
+                        new_room_id,
+                        booking_id,
+                        e
+                    );
                 }
 
                 // Cancel all linked payments so they don't appear in night audit.
@@ -2818,17 +2880,8 @@ pub async fn book_with_credits_handler(
     .await
     .ok();
 
-    // Update room status based on check-in date:
-    // - If check-in is today: set to 'occupied' (guest arriving today)
-    // - If check-in is in the future: set to 'reserved'
-    let today = chrono::Local::now().date_naive();
-    let room_status = if check_in == today {
-        "occupied"
-    } else {
-        "reserved"
-    };
     sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
-        .bind(room_status)
+        .bind("reserved")
         .bind(input.room_id)
         .execute(&pool)
         .await
@@ -3512,7 +3565,7 @@ pub async fn reactivate_booking_handler(
         SELECT EXISTS(
             SELECT 1 FROM bookings
             WHERE room_id = $1 
-              AND status IN ('reserved', 'confirmed', 'checked_in', 'pending') 
+              AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
               AND status != 'voided'
               AND id != $4
               AND ((check_in_date <= $2 AND check_out_date > $2)
@@ -3552,16 +3605,8 @@ pub async fn reactivate_booking_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    // Update room status based on check-in date
-    let today = chrono::Local::now().date_naive();
-    let room_status = if check_in == today {
-        "occupied"
-    } else {
-        "reserved"
-    };
-
     sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
-        .bind(room_status)
+        .bind("reserved")
         .bind(room_id)
         .execute(&pool)
         .await

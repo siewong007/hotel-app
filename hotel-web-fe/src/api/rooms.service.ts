@@ -199,6 +199,7 @@ export class RoomsService {
     building?: string;
     custom_price?: number;
     is_accessible?: boolean;
+    is_smoking?: boolean;
   }): Promise<Room> {
     try {
       return await api.post('rooms', { json: roomData }).json<Room>();
