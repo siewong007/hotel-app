@@ -45,8 +45,25 @@ pub fn run() {
             commands::open_data_folder,
             commands::shutdown_app,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                // Closing the window must not orphan the sidecar/postgres:
+                // a lingering hotel-app-be.exe locks the install dir and
+                // blocks the NSIS installer from replacing it.
+                log::info!("Application exiting; stopping backend services...");
+                let handle = app_handle.clone();
+                tauri::async_runtime::block_on(async move {
+                    if let Err(e) = commands::stop_backend_sidecar().await {
+                        log::warn!("Failed to stop backend sidecar on exit: {}", e);
+                    }
+                    if let Err(e) = postgres::stop_postgres(&handle).await {
+                        log::warn!("Failed to stop PostgreSQL on exit: {}", e);
+                    }
+                });
+            }
+        });
 }
 
 /// Initialize required data directories
