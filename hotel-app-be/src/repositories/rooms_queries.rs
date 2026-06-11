@@ -139,7 +139,7 @@ pub const SEARCH_ROOMS_WITH_DATES_QUERY: &str = r#"
 WITH conflicting_bookings AS (
     SELECT DISTINCT room_id
     FROM bookings
-    WHERE status NOT IN ('checked_out', 'voided')
+    WHERE status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
       AND (check_in_date < $2 AND check_out_date > $1)
       AND ($3::BIGINT IS NULL OR id != $3)
 )
@@ -168,7 +168,6 @@ INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = true
   AND r.status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning')
-  AND NOT (r.status IN ('occupied', 'reserved') AND $1 <= CURRENT_DATE)
   AND cb.room_id IS NULL
   AND ($4::text IS NULL OR LOWER(rt.name) = LOWER($4) OR LOWER(rt.code) = LOWER($4))
   AND ($5::DOUBLE PRECISION IS NULL OR COALESCE(r.custom_price, rt.base_price) <= $5)
@@ -181,7 +180,7 @@ pub const SEARCH_ROOMS_WITH_DATES_QUERY: &str = r#"
 WITH conflicting_bookings AS (
     SELECT DISTINCT room_id
     FROM bookings
-    WHERE status NOT IN ('checked_out', 'voided')
+    WHERE status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
       AND (check_in_date < ?2 AND check_out_date > ?1)
       AND (?3 IS NULL OR id != ?3)
 )
@@ -210,7 +209,6 @@ INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = 1
   AND r.status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning')
-  AND NOT (r.status IN ('occupied', 'reserved') AND ?1 <= date('now'))
   AND cb.room_id IS NULL
   AND (?4 IS NULL OR LOWER(rt.name) = LOWER(?4) OR LOWER(rt.code) = LOWER(?4))
   AND (?5 IS NULL OR COALESCE(r.custom_price, rt.base_price) <= ?5)

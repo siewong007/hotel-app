@@ -35,7 +35,6 @@ export interface AppRouteDefinition {
   breadcrumbLabel?: string;
   navLabel?: string;
   navGroup?: NavGroup;
-  requiredPermission?: string;
   requiredPermissions?: string[];
   requiredRoles?: string[];
   excludeRoles?: string[];
@@ -95,7 +94,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Reservation Timeline',
     navLabel: 'Timeline',
     navGroup: 'main',
-    requiredPermission: 'rooms:read',
+    requiredPermissions: ['rooms:read'],
     navPermissions: ['navigation_timeline:read', 'bookings:read'],
     navRoles: ['admin', 'receptionist', 'manager'],
   },
@@ -172,7 +171,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     component: LoyaltyPortal,
     animationType: 'grow',
     visibility: 'auth',
-    requiredPermission: 'analytics:read',
+    requiredPermissions: ['analytics:read'],
   },
   {
     id: 'my-rewards',
@@ -216,7 +215,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'eKYC Admin',
     navLabel: 'eKYC Admin',
     navGroup: 'admin',
-    requiredPermission: 'ekyc:manage',
+    requiredPermissions: ['ekyc:manage'],
     navPermissions: ['ekyc:manage'],
   },
   {
@@ -243,7 +242,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Settings',
     navLabel: 'Settings',
     navGroup: 'config',
-    requiredPermission: 'settings:read',
+    requiredPermissions: ['settings:read'],
     navPermissions: ['navigation_settings:read', 'settings:read', 'settings:manage'],
   },
   {
@@ -298,7 +297,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Audit Log',
     navLabel: 'Audit Log',
     navGroup: 'admin',
-    requiredPermission: 'audit:read',
+    requiredPermissions: ['audit:read'],
     navPermissions: ['audit:read'],
     navRoles: ['admin', 'superadmin'],
   },
