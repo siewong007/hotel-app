@@ -56,7 +56,8 @@ SELECT
     r.cleaning_end_date,
     r.reserved_start_date,
     r.reserved_end_date,
-    r.notes
+    r.notes,
+    r.is_smoking
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN current_bookings cb ON cb.room_id = r.id
@@ -122,7 +123,8 @@ SELECT
     r.cleaning_end_date,
     r.reserved_start_date,
     r.reserved_end_date,
-    r.notes
+    r.notes,
+    r.is_smoking
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN current_bookings cb ON cb.room_id = r.id
@@ -162,7 +164,8 @@ SELECT
     r.cleaning_end_date,
     r.reserved_start_date,
     r.reserved_end_date,
-    r.notes
+    r.notes,
+    r.is_smoking
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
@@ -203,7 +206,8 @@ SELECT
     r.cleaning_end_date,
     r.reserved_start_date,
     r.reserved_end_date,
-    r.notes
+    r.notes,
+    r.is_smoking
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
@@ -256,7 +260,8 @@ SELECT
     r.cleaning_end_date,
     r.reserved_start_date,
     r.reserved_end_date,
-    r.notes
+    r.notes,
+    r.is_smoking
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN current_bookings cb ON cb.room_id = r.id
@@ -316,7 +321,8 @@ SELECT
     r.cleaning_end_date,
     r.reserved_start_date,
     r.reserved_end_date,
-    r.notes
+    r.notes,
+    r.is_smoking
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN current_bookings cb ON cb.room_id = r.id
@@ -340,7 +346,7 @@ pub const GET_ROOM_BY_ID_QUERY: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type,
        COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
        CASE WHEN r.status = 'available' THEN true ELSE false END as available,
-       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.notes
+       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.notes, r.is_smoking
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 WHERE r.id = $1
@@ -352,7 +358,7 @@ pub const GET_ROOM_BY_ID_QUERY: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type,
        CAST(COALESCE(r.custom_price, rt.base_price) AS TEXT) as price_per_night,
        CASE WHEN r.status = 'available' THEN 1 ELSE 0 END as available,
-       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.notes
+       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.notes, r.is_smoking
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 WHERE r.id = ?1
@@ -369,8 +375,9 @@ SET room_number = $1,
     custom_price = $2,
     status = $3,
     notes = $4,
+    is_smoking = COALESCE($5, is_smoking),
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $5
+WHERE id = $6
 "#;
 
 /// Update room - SQLite version
@@ -381,8 +388,9 @@ SET room_number = ?1,
     custom_price = ?2,
     status = ?3,
     notes = ?4,
+    is_smoking = COALESCE(?5, is_smoking),
     updated_at = datetime('now')
-WHERE id = ?5
+WHERE id = ?6
 "#;
 
 /// Update room without status - PostgreSQL version
@@ -395,8 +403,9 @@ UPDATE rooms
 SET room_number = $1,
     custom_price = $2,
     notes = $3,
+    is_smoking = COALESCE($4, is_smoking),
     updated_at = CURRENT_TIMESTAMP
-WHERE id = $4
+WHERE id = $5
 "#;
 
 /// Update room without status - SQLite version
@@ -406,8 +415,9 @@ UPDATE rooms
 SET room_number = ?1,
     custom_price = ?2,
     notes = ?3,
+    is_smoking = COALESCE(?4, is_smoking),
     updated_at = datetime('now')
-WHERE id = ?4
+WHERE id = ?5
 "#;
 
 /// Check room exists - PostgreSQL version
@@ -438,16 +448,16 @@ pub const CHECK_ROOM_TYPE_EXISTS: &str = "SELECT id FROM room_types WHERE id = ?
     all(feature = "sqlite", feature = "postgres")
 ))]
 pub const INSERT_ROOM_QUERY: &str = r#"
-INSERT INTO rooms (room_number, room_type_id, floor, building, custom_price, is_accessible, status, is_active)
-VALUES ($1, $2, $3, $4, $5, $6, 'available', true)
+INSERT INTO rooms (room_number, room_type_id, floor, building, custom_price, is_accessible, is_smoking, status, is_active)
+VALUES ($1, $2, $3, $4, $5, $6, $7, 'available', true)
 RETURNING id
 "#;
 
 /// Insert room - SQLite version (no RETURNING, use last_insert_rowid)
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 pub const INSERT_ROOM_QUERY: &str = r#"
-INSERT INTO rooms (room_number, room_type_id, floor, building, custom_price, is_accessible, status, is_active)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'available', 1)
+INSERT INTO rooms (room_number, room_type_id, floor, building, custom_price, is_accessible, is_smoking, status, is_active)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'available', 1)
 "#;
 
 /// Check room exists by ID - PostgreSQL version
@@ -575,7 +585,7 @@ pub const GET_EXISTING_ROOM_FOR_UPDATE: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type,
        COALESCE(r.custom_price, rt.base_price)::text as price_per_night,
        CASE WHEN r.status = 'available' THEN true ELSE false END as available,
-       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.custom_price::text, r.notes
+       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, r.custom_price::text, r.notes, r.is_smoking
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 WHERE r.id = $1
@@ -587,7 +597,7 @@ pub const GET_EXISTING_ROOM_FOR_UPDATE: &str = r#"
 SELECT r.id, r.room_number, rt.name as room_type,
        CAST(COALESCE(r.custom_price, rt.base_price) AS TEXT) as price_per_night,
        CASE WHEN r.status = 'available' THEN 1 ELSE 0 END as available,
-       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, CAST(r.custom_price AS TEXT), r.notes
+       rt.description, rt.max_occupancy, r.status, r.created_at, r.updated_at, CAST(r.custom_price AS TEXT), r.notes, r.is_smoking
 FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 WHERE r.id = ?1

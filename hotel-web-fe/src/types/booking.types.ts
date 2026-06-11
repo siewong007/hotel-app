@@ -57,6 +57,8 @@ export interface Booking {
   remarks?: string;
   source?: string;
   daily_rates?: Record<string, number>;
+  // Guest daily-cleaning preference (true = wants it, false = declined, null/undefined = not set)
+  cleaning_preference?: boolean | null;
   // Night audit posting fields
   is_posted?: boolean;
   posted_date?: string;
@@ -134,6 +136,7 @@ export interface BookingCreateRequest {
   deposit_amount?: number;
   room_rate_override?: number;
   daily_rates?: Record<string, number>;
+  cleaning_preference?: boolean | null;
 }
 
 export interface BookingUpdateRequest {
@@ -167,6 +170,7 @@ export interface BookingUpdateRequest {
   extra_bed_count?: number;
   extra_bed_charge?: number;
   daily_rates?: Record<string, number>;
+  cleaning_preference?: boolean | null;
 }
 
 export interface BookingCancellationRequest {

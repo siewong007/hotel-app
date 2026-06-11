@@ -67,6 +67,8 @@ import {
   Payment as PaymentIcon,
   MoneyOff as MoneyOffIcon,
   MoreHoriz as MoreHorizIcon,
+  SmokingRooms as SmokingIcon,
+  AutoAwesome as SparkleIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../../api';
 
@@ -171,6 +173,8 @@ const RoomManagementPage: React.FC = () => {
   const [bookingNotesDialogOpen, setBookingNotesDialogOpen] = useState(false);
   const [bookingNotesEditBooking, setBookingNotesEditBooking] = useState<BookingWithDetails | null>(null);
   const [editedBookingNotes, setEditedBookingNotes] = useState('');
+  // Cleaning preference edited alongside booking notes (null = not set)
+  const [editedCleaningPreference, setEditedCleaningPreference] = useState<boolean | null>(null);
   const [savingBookingNotes, setSavingBookingNotes] = useState(false);
 
   // Room change state
@@ -322,6 +326,14 @@ const RoomManagementPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('');
   const [processingPayment, setProcessingPayment] = useState(false);
   const [roomStatusFilter, setRoomStatusFilter] = useState<RoomStatusType | 'all'>('all');
+  // Independent quick attribute filters (toggle on/off, combine with status filter)
+  const [attrFilters, setAttrFilters] = useState<{ smoking: boolean; daily: boolean; nodaily: boolean }>({
+    smoking: false,
+    daily: false,
+    nodaily: false,
+  });
+  const toggleAttrFilter = (key: 'smoking' | 'daily' | 'nodaily') =>
+    setAttrFilters((s) => ({ ...s, [key]: !s[key] }));
 
   // Get configurable booking channels and payment methods from hotel settings
   // Can be modified in Settings page or by editing hotelSettings.ts
@@ -1079,6 +1091,7 @@ const RoomManagementPage: React.FC = () => {
     }
     setBookingNotesEditBooking(booking);
     setEditedBookingNotes(booking.remarks || booking.special_requests || '');
+    setEditedCleaningPreference(booking.cleaning_preference ?? null);
     setBookingNotesDialogOpen(true);
   };
 
@@ -1090,11 +1103,13 @@ const RoomManagementPage: React.FC = () => {
     try {
       await HotelAPIService.updateBooking(bookingNotesEditBooking.id, {
         remarks: editedBookingNotes,
+        cleaning_preference: editedCleaningPreference,
       });
       showSnackbar('Notes updated successfully', 'success');
       setBookingNotesDialogOpen(false);
       setBookingNotesEditBooking(null);
       setEditedBookingNotes('');
+      setEditedCleaningPreference(null);
       await loadData();
     } catch (error: any) {
       showSnackbar(error.message || 'Failed to update notes', 'error');
@@ -1793,9 +1808,34 @@ const RoomManagementPage: React.FC = () => {
   const dirtyCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'dirty').length;
   const maintenanceCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'maintenance').length;
   const occupancyRate = rooms.length > 0 ? Math.round((occupiedCount / rooms.length) * 100) : 0;
-  const filteredRooms = roomStatusFilter === 'all'
-    ? rooms
-    : rooms.filter(r => getRoomStatusInfo(r).computedStatus === roomStatusFilter);
+
+  // Quick attribute filter helpers. Smoking is a room attribute; daily/no-daily
+  // cleaning is a guest preference that only applies while the room is occupied.
+  const smokingCount = rooms.filter(r => !!r.is_smoking).length;
+  const dailyCleaningCount = rooms.filter(r => {
+    const info = getRoomStatusInfo(r);
+    return info.computedStatus === 'occupied' && info.booking?.cleaning_preference === true;
+  }).length;
+  const noCleaningCount = rooms.filter(r => {
+    const info = getRoomStatusInfo(r);
+    return info.computedStatus === 'occupied' && info.booking?.cleaning_preference === false;
+  }).length;
+
+  const matchesAttrFilters = (r: typeof rooms[number]): boolean => {
+    if (attrFilters.smoking && !r.is_smoking) return false;
+    if (attrFilters.daily || attrFilters.nodaily) {
+      const info = getRoomStatusInfo(r);
+      const pref = info.computedStatus === 'occupied' ? info.booking?.cleaning_preference : undefined;
+      if (attrFilters.daily && pref !== true) return false;
+      if (attrFilters.nodaily && pref !== false) return false;
+    }
+    return true;
+  };
+
+  const filteredRooms = rooms.filter(r => {
+    if (roomStatusFilter !== 'all' && getRoomStatusInfo(r).computedStatus !== roomStatusFilter) return false;
+    return matchesAttrFilters(r);
+  });
   const filterOptions: Array<{ value: RoomStatusType | 'all'; label: string; count: number; color: string; textColor?: string }> = [
     { value: 'all', label: 'All', count: rooms.length, color: 'transparent' },
     { value: 'occupied', label: 'Occupied', count: occupiedCount, color: '#ec7c32' },
@@ -1963,6 +2003,47 @@ const RoomManagementPage: React.FC = () => {
               );
             })}
           </ToggleButtonGroup>
+
+          {/* Divider between status filters and quick attribute filters */}
+          <Box sx={{ width: '1px', height: 26, bgcolor: 'divider', mx: 0.5 }} />
+
+          {/* Quick attribute filters (independent toggles) */}
+          {([
+            { key: 'smoking' as const, label: 'Smoking', count: smokingCount, color: '#a06a2c', icon: <SmokingIcon sx={{ fontSize: 15 }} /> },
+            { key: 'daily' as const, label: 'Daily cleaning', count: dailyCleaningCount, color: '#2f7a45', icon: <SparkleIcon sx={{ fontSize: 15 }} /> },
+            { key: 'nodaily' as const, label: 'No cleaning', count: noCleaningCount, color: '#8d6e63', icon: <BlockIcon sx={{ fontSize: 15 }} /> },
+          ]).map((item) => {
+            const selected = attrFilters[item.key];
+            return (
+              <Box
+                key={item.key}
+                component="button"
+                onClick={() => toggleAttrFilter(item.key)}
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.75,
+                  px: 1.5,
+                  py: 0.5,
+                  cursor: 'pointer',
+                  border: '1px solid',
+                  borderColor: selected ? alpha(item.color, 0.55) : 'divider',
+                  borderRadius: '999px',
+                  color: 'text.primary',
+                  bgcolor: selected ? alpha(item.color, 0.12) : 'background.paper',
+                  font: 'inherit',
+                  '&:hover': { bgcolor: selected ? alpha(item.color, 0.18) : alpha(item.color, 0.06) },
+                  '& svg': { color: item.color },
+                }}
+              >
+                {item.icon}
+                <Typography variant="caption" sx={{ fontWeight: 700 }}>{item.label}</Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                  {item.count}
+                </Typography>
+              </Box>
+            );
+          })}
         </Box>
       </Paper>
 
@@ -2104,34 +2185,31 @@ const RoomManagementPage: React.FC = () => {
                           />
                         </Box>
                       </Box>
+                      {room.is_smoking && (
+                        <Tooltip title="Designated smoking room" arrow>
+                          <Box
+                            sx={{
+                              alignSelf: 'center',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 0.4,
+                              px: 0.75,
+                              py: 0.3,
+                              borderRadius: 0.75,
+                              bgcolor: 'rgba(35,28,16,0.30)',
+                              border: '1px solid rgba(255,255,255,0.3)',
+                              color: '#fff',
+                            }}
+                          >
+                            <SmokingIcon sx={{ fontSize: 12 }} />
+                            <Typography sx={{ fontSize: '0.55rem', fontWeight: 800, letterSpacing: 0.7 }}>
+                              SMOKING
+                            </Typography>
+                          </Box>
+                        </Tooltip>
+                      )}
                     </Box>
 
-                    {(() => {
-                      // Card itself is solid status color, so the pill becomes a
-                      // translucent white chip with white border + ink.
-                      return (
-                        <Box
-                          sx={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            px: 1.1,
-                            py: 0.35,
-                            borderRadius: 1,
-                            bgcolor: 'rgba(255,255,255,0.2)',
-                            color: '#fff',
-                            border: '1px solid rgba(255,255,255,0.65)',
-                            fontSize: '0.62rem',
-                            fontWeight: 800,
-                            textTransform: 'uppercase',
-                            letterSpacing: 0.8,
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0,
-                          }}
-                        >
-                          {getRoomStatusLabel(displayRoom)}
-                        </Box>
-                      );
-                    })()}
                   </Box>
 
                   {/* Empty-state placeholder for dirty / maintenance rooms with no booking */}
@@ -2243,6 +2321,47 @@ const RoomManagementPage: React.FC = () => {
                           </Box>
                         )}
                       </Box>
+
+                      {/* Cleaning preference chip (guest preference, occupied only) */}
+                      {booking.cleaning_preference != null && (
+                        <Tooltip
+                          title={booking.cleaning_preference ? 'Guest wants the room cleaned every day' : 'Guest declined daily cleaning'}
+                          arrow
+                        >
+                          <Box
+                            sx={{
+                              display: 'inline-flex',
+                              alignSelf: 'flex-start',
+                              alignItems: 'center',
+                              gap: 0.5,
+                              mt: 0.6,
+                              px: 1,
+                              py: 0.3,
+                              borderRadius: 999,
+                              ...(booking.cleaning_preference
+                                ? {
+                                    bgcolor: 'rgba(255,255,255,0.92)',
+                                    color: '#9C6210',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
+                                  }
+                                : {
+                                    bgcolor: 'rgba(0,0,0,0.10)',
+                                    color: '#fff',
+                                    border: '1.5px dashed rgba(255,255,255,0.65)',
+                                  }),
+                            }}
+                          >
+                            {booking.cleaning_preference ? (
+                              <SparkleIcon sx={{ fontSize: 13 }} />
+                            ) : (
+                              <BlockIcon sx={{ fontSize: 13 }} />
+                            )}
+                            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700 }}>
+                              {booking.cleaning_preference ? 'Daily cleaning' : 'No daily cleaning'}
+                            </Typography>
+                          </Box>
+                        </Tooltip>
+                      )}
 
                       {/* Booking Notes - Clickable to edit */}
                       <Tooltip title={booking.remarks || booking.special_requests ? "Click to edit notes" : "Click to add notes"} arrow>
@@ -4033,6 +4152,7 @@ const RoomManagementPage: React.FC = () => {
           setBookingNotesDialogOpen(false);
           setBookingNotesEditBooking(null);
           setEditedBookingNotes('');
+          setEditedCleaningPreference(null);
         }}
         maxWidth="sm"
         fullWidth
@@ -4065,6 +4185,34 @@ const RoomManagementPage: React.FC = () => {
                 onChange={(e) => setEditedBookingNotes(e.target.value)}
                 variant="outlined"
               />
+
+              {/* Daily cleaning preference */}
+              <Box sx={{ mt: 2.5 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                  Daily cleaning preference
+                </Typography>
+                <ToggleButtonGroup
+                  exclusive
+                  size="small"
+                  value={editedCleaningPreference === true ? 'daily' : editedCleaningPreference === false ? 'nodaily' : null}
+                  onChange={(_, val) => {
+                    // Deselecting (val === null) leaves the preference unset locally;
+                    // the backend keeps any prior value (COALESCE), it is not cleared.
+                    setEditedCleaningPreference(val === 'daily' ? true : val === 'nodaily' ? false : null);
+                  }}
+                  sx={{ flexWrap: 'wrap', gap: 0.75 }}
+                >
+                  <ToggleButton value="daily" sx={{ textTransform: 'none', gap: 0.75, borderRadius: '999px !important', px: 1.75 }}>
+                    <SparkleIcon sx={{ fontSize: 16 }} /> Daily cleaning
+                  </ToggleButton>
+                  <ToggleButton value="nodaily" sx={{ textTransform: 'none', gap: 0.75, borderRadius: '999px !important', px: 1.75 }}>
+                    <BlockIcon sx={{ fontSize: 16 }} /> No daily cleaning
+                  </ToggleButton>
+                </ToggleButtonGroup>
+                <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: 'text.secondary' }}>
+                  Shown as a chip on the room card while the guest is checked in.
+                </Typography>
+              </Box>
             </Box>
           )}
         </DialogContent>
@@ -4074,6 +4222,7 @@ const RoomManagementPage: React.FC = () => {
               setBookingNotesDialogOpen(false);
               setBookingNotesEditBooking(null);
               setEditedBookingNotes('');
+              setEditedCleaningPreference(null);
             }}
             variant="outlined"
             disabled={savingBookingNotes}

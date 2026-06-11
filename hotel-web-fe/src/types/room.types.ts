@@ -80,6 +80,8 @@ export interface Room {
   target_room_id?: string;
   status_notes?: string;
   notes?: string;
+  // Designated smoking room (room attribute)
+  is_smoking?: boolean;
 }
 
 export interface RoomWithDisplay extends Room {

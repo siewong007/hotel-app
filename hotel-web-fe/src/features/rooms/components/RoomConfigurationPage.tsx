@@ -43,6 +43,7 @@ import {
   Accessible as AccessibleIcon,
   RemoveCircleOutline as MinusIcon,
   AddCircleOutline as PlusIcon,
+  SmokingRooms as SmokingIcon,
 } from '@mui/icons-material';
 import { Room, RoomType, RoomTypeCreateInput, RoomTypeUpdateInput } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
@@ -145,6 +146,7 @@ interface RoomFormData {
   building: string;
   custom_price: number | '';
   is_accessible: boolean;
+  is_smoking: boolean;
 }
 
 const emptyRoomForm: RoomFormData = {
@@ -153,6 +155,7 @@ const emptyRoomForm: RoomFormData = {
   building: '',
   custom_price: '',
   is_accessible: false,
+  is_smoking: false,
 };
 
 const RoomConfigurationPage: React.FC = () => {
@@ -443,6 +446,7 @@ const RoomConfigurationPage: React.FC = () => {
       building: '',
       custom_price: t && price === toNumber(t.base_price) ? '' : price,
       is_accessible: false,
+      is_smoking: !!r.is_smoking,
     });
   };
 
@@ -463,6 +467,7 @@ const RoomConfigurationPage: React.FC = () => {
         building: roomForm.building || undefined,
         custom_price: roomForm.custom_price !== '' ? Number(roomForm.custom_price) : undefined,
         is_accessible: roomForm.is_accessible,
+        is_smoking: roomForm.is_smoking,
       });
       emitApiNotification({ message: 'Room created successfully', severity: 'success' });
       setAddingRoomFor(null);
@@ -483,6 +488,7 @@ const RoomConfigurationPage: React.FC = () => {
         price_per_night:
           roomForm.custom_price !== '' ? (Number(roomForm.custom_price) as any) : undefined,
         available: editingRoom.available,
+        is_smoking: roomForm.is_smoking,
       } });
       emitApiNotification({ message: 'Room updated successfully', severity: 'success' });
       setEditingRoom(null);
@@ -695,10 +701,30 @@ const RoomConfigurationPage: React.FC = () => {
             title={st}
           />
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: 11, color: C.ink3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: 11, color: C.ink3, flexWrap: 'wrap' }}>
           <span>{t?.code || room.room_type || '—'}</span>
           <Box sx={{ width: 3, height: 3, borderRadius: '50%', bgcolor: C.ink3 }} />
           <span>{bedSummary(t)}</span>
+          {room.is_smoking && (
+            <Tooltip title="Designated smoking room">
+              <Box
+                component="span"
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 24,
+                  height: 20,
+                  color: '#8A5A16',
+                  bgcolor: '#FFF4D7',
+                  border: '1px solid #F2D28B',
+                  borderRadius: '6px',
+                }}
+              >
+                <SmokingIcon sx={{ fontSize: 12 }} />
+              </Box>
+            </Tooltip>
+          )}
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.75, mt: 0.25 }}>
           <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: isCustom ? C.blue : C.ink }}>
@@ -1362,6 +1388,15 @@ const RoomConfigurationPage: React.FC = () => {
               }
               label="Wheelchair accessible"
             />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={roomForm.is_smoking}
+                  onChange={(e) => setRoomForm({ ...roomForm, is_smoking: e.target.checked })}
+                />
+              }
+              label="Smoking room"
+            />
           </Box>
         </DialogContent>
         <DialogActions>
@@ -1394,6 +1429,15 @@ const RoomConfigurationPage: React.FC = () => {
               onChange={(e) => setRoomForm({ ...roomForm, custom_price: e.target.value ? Number(e.target.value) : '' })}
               InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
               helperText="Leave empty to use room type base price"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={roomForm.is_smoking}
+                  onChange={(e) => setRoomForm({ ...roomForm, is_smoking: e.target.checked })}
+                />
+              }
+              label="Smoking room"
             />
             <Alert severity="info">
               Room type, floor, and building cannot be changed after creation. Delete and recreate the room to change these.
