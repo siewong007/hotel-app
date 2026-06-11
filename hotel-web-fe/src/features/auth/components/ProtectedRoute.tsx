@@ -5,21 +5,15 @@ import { CircularProgress, Box } from '@mui/material';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredPermission?: string;
   requiredPermissions?: string[];
-  requiredRole?: string;
   requiredRoles?: string[]; // Array of roles - user needs ANY of these
-  excludeRole?: string;
   excludeRoles?: string[];
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
-  requiredPermission,
   requiredPermissions,
-  requiredRole,
   requiredRoles,
-  excludeRole,
   excludeRoles,
 }) => {
   const { isAuthenticated, isLoading, hasPermission, hasRole } = useAuth();
@@ -36,10 +30,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/" replace />;
   }
 
-  if (requiredPermission && !hasPermission(requiredPermission)) {
-    return <Navigate to="/" replace />;
-  }
-
   if (requiredPermissions && requiredPermissions.length > 0) {
     const hasAnyPermission = requiredPermissions.some(permission => hasPermission(permission));
     if (!hasAnyPermission) {
@@ -47,19 +37,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     }
   }
 
-  if (requiredRole && !hasRole(requiredRole)) {
-    return <Navigate to="/" replace />;
-  }
-
   if (requiredRoles && requiredRoles.length > 0) {
     const hasAnyRole = requiredRoles.some(role => hasRole(role));
     if (!hasAnyRole) {
       return <Navigate to="/" replace />;
     }
-  }
-
-  if (excludeRole && hasRole(excludeRole)) {
-    return <Navigate to="/timeline" replace />;
   }
 
   if (excludeRoles?.some((role) => hasRole(role))) {

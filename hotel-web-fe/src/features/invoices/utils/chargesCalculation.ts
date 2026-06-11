@@ -74,10 +74,7 @@ export function calculateChargesFromInputs(
   const isForeignTourist = booking.guest_tourism_type === 'foreign' || booking.is_tourist === true;
   let tourismTax = 0;
   if (isForeignTourist) {
-    const storedTourismTax = booking.tourism_tax_amount
-      ? (typeof booking.tourism_tax_amount === 'string' ? parseFloat(booking.tourism_tax_amount) : booking.tourism_tax_amount)
-      : 0;
-    tourismTax = storedTourismTax > 0 ? storedTourismTax : nights * hotelSettings.tourism_tax_rate;
+    tourismTax = nights * hotelSettings.tourism_tax_rate;
   }
 
   const extraBedChargeInclTax = booking.extra_bed_charge
