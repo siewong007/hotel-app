@@ -16,7 +16,8 @@ use totp_rs::{Algorithm, Secret, TOTP};
 pub struct Claims {
     pub sub: String, // user_id
     pub username: String,
-    pub exp: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exp: Option<usize>,
     pub iat: usize,
     pub roles: Vec<String>,
 }
@@ -34,6 +35,29 @@ fn jwt_secret() -> &'static str {
             secret
         })
         .as_str()
+}
+
+fn is_desktop_mode() -> bool {
+    config::try_get()
+        .map(|config| config.desktop_mode)
+        .unwrap_or_else(|| std::env::var_os("HOTEL_DESKTOP_MODE").is_some())
+}
+
+fn access_token_expiration(now: chrono::DateTime<Utc>, desktop_mode: bool) -> Option<usize> {
+    if desktop_mode {
+        None
+    } else {
+        Some((now + Duration::minutes(ACCESS_TOKEN_TTL_MINUTES)).timestamp() as usize)
+    }
+}
+
+fn jwt_validation(desktop_mode: bool) -> Validation {
+    let mut validation = Validation::default();
+    if desktop_mode {
+        validation.validate_exp = false;
+        validation.required_spec_claims.remove("exp");
+    }
+    validation
 }
 
 fn uppercase_regex() -> &'static Regex {
@@ -86,7 +110,7 @@ impl AuthService {
         roles: Vec<String>,
     ) -> Result<String, jsonwebtoken::errors::Error> {
         let now = Utc::now();
-        let exp = (now + Duration::minutes(ACCESS_TOKEN_TTL_MINUTES)).timestamp() as usize;
+        let exp = access_token_expiration(now, is_desktop_mode());
         let iat = now.timestamp() as usize;
 
         let claims = Claims {
@@ -108,7 +132,7 @@ impl AuthService {
         decode::<Claims>(
             token,
             &DecodingKey::from_secret(jwt_secret().as_ref()),
-            &Validation::default(),
+            &jwt_validation(is_desktop_mode()),
         )
         .map(|data| data.claims)
     }
@@ -676,7 +700,7 @@ impl AuthService {
 
 #[cfg(test)]
 mod tests {
-    use super::AuthService;
+    use super::{ACCESS_TOKEN_TTL_MINUTES, AuthService, access_token_expiration, jwt_validation};
     use crate::core::config::validate_jwt_secret;
 
     #[test]
@@ -722,6 +746,28 @@ mod tests {
 
         assert!(validate_jwt_secret(short_secret).is_err());
         assert!(validate_jwt_secret(&valid_secret).is_ok());
+    }
+
+    #[test]
+    fn access_tokens_expire_only_outside_desktop_mode() {
+        let now = chrono::DateTime::from_timestamp(1_700_000_000, 0).unwrap();
+
+        assert_eq!(access_token_expiration(now, true), None);
+        assert_eq!(
+            access_token_expiration(now, false),
+            Some((now + chrono::Duration::minutes(ACCESS_TOKEN_TTL_MINUTES)).timestamp() as usize)
+        );
+    }
+
+    #[test]
+    fn jwt_validation_does_not_require_exp_in_desktop_mode() {
+        let desktop_validation = jwt_validation(true);
+        assert!(!desktop_validation.validate_exp);
+        assert!(!desktop_validation.required_spec_claims.contains("exp"));
+
+        let server_validation = jwt_validation(false);
+        assert!(server_validation.validate_exp);
+        assert!(server_validation.required_spec_claims.contains("exp"));
     }
 
     #[test]
