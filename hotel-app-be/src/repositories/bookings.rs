@@ -794,6 +794,7 @@ pub async fn create_booking_handler(
         created_at: row.get(8),
         updated_at: row.get(9),
         notes: None,
+        is_smoking: None,
     };
 
     // Only block rooms that are under maintenance or out of order
@@ -939,9 +940,9 @@ pub async fn create_booking_handler(
             INSERT INTO bookings (
                 booking_number, guest_id, room_id, check_in_date, check_out_date,
                 room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
-                deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests, post_type, daily_rates
+                deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests, post_type, daily_rates, cleaning_preference
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'confirmed', ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16, CASE WHEN ?15 THEN datetime('now') ELSE NULL END, ?17, ?17, ?18, ?19, ?20)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'confirmed', ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16, CASE WHEN ?15 THEN datetime('now') ELSE NULL END, ?17, ?17, ?18, ?19, ?20, ?21)
             "#
         )
         .bind(&booking_number)
@@ -964,6 +965,7 @@ pub async fn create_booking_handler(
         .bind(special_requests.as_deref())
         .bind(if is_hourly { Some("hourly") } else { None::<&str> })
         .bind(daily_rates_json.as_ref().map(|v| v.to_string()))
+        .bind(input.cleaning_preference.map(|b| if b { 1i32 } else { 0i32 }))
         .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -990,10 +992,10 @@ pub async fn create_booking_handler(
                 booking_number, guest_id, room_id, check_in_date, check_out_date,
                 room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
                 deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests,
-                is_tourist, tourism_tax_amount, extra_bed_count, extra_bed_charge, post_type, daily_rates
+                is_tourist, tourism_tax_amount, extra_bed_count, extra_bed_charge, post_type, daily_rates, cleaning_preference
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, $12, $13, 1, $14, $15, $16, CASE WHEN $15 THEN CURRENT_TIMESTAMP ELSE NULL END, $17, $17, $18,
-                $19, $20, $21, $22, $23, $24)
+                $19, $20, $21, $22, $23, $24, $25)
             RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type
             "#
         )
@@ -1021,6 +1023,7 @@ pub async fn create_booking_handler(
         .bind(input.extra_bed_charge.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
         .bind(if is_hourly { Some("hourly") } else { None::<&str> })
         .bind(&daily_rates_json)
+        .bind(input.cleaning_preference)
         .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
@@ -1418,6 +1421,7 @@ pub async fn update_booking_handler(
                 extra_bed_count = COALESCE(?23, extra_bed_count),
                 extra_bed_charge = COALESCE(?24, extra_bed_charge),
                 daily_rates = COALESCE(?25, daily_rates),
+                cleaning_preference = COALESCE(?26, cleaning_preference),
                 actual_check_out = CASE WHEN ?2 = 'checked_out' AND actual_check_out IS NULL THEN datetime('now') ELSE actual_check_out END,
                 updated_at = datetime('now')
             WHERE id = ?7"#
@@ -1447,6 +1451,7 @@ pub async fn update_booking_handler(
         .bind(input.extra_bed_count)
         .bind(input.extra_bed_charge)
         .bind(daily_rates_json.as_ref().map(|v| v.to_string()))
+        .bind(input.cleaning_preference.map(|b| if b { 1i32 } else { 0i32 }))
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -1490,6 +1495,7 @@ pub async fn update_booking_handler(
                 extra_bed_count = COALESCE($23, extra_bed_count),
                 extra_bed_charge = COALESCE($24, extra_bed_charge),
                 daily_rates = COALESCE($25, daily_rates),
+                cleaning_preference = COALESCE($26, cleaning_preference),
                 actual_check_out = CASE WHEN $2 = 'checked_out' AND actual_check_out IS NULL THEN CURRENT_TIMESTAMP ELSE actual_check_out END,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $7
@@ -1520,6 +1526,7 @@ pub async fn update_booking_handler(
         .bind(input.extra_bed_count)
         .bind(input.extra_bed_charge.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
         .bind(&daily_rates_json)
+        .bind(input.cleaning_preference)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?

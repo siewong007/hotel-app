@@ -105,6 +105,8 @@ pub struct Booking {
     pub company_name: Option<String>,
     pub payment_note: Option<String>,
     pub daily_rates: Option<serde_json::Value>,
+    #[sqlx(default)]
+    pub cleaning_preference: Option<bool>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -134,6 +136,7 @@ pub struct BookingInput {
     pub room_rate_override: Option<f64>,
     pub special_requests: Option<String>,
     pub daily_rates: Option<serde_json::Value>,
+    pub cleaning_preference: Option<bool>,
 }
 
 /// Input for cancelling a booking
@@ -176,6 +179,7 @@ pub struct BookingUpdateInput {
     pub source: Option<String>,
     pub room_rate_override: Option<f64>,
     pub daily_rates: Option<serde_json::Value>,
+    pub cleaning_preference: Option<bool>,
 }
 
 /// Payment to record during check-in
@@ -309,6 +313,9 @@ pub struct BookingWithDetails {
     pub daily_rates: Option<serde_json::Value>,
     // Joined from invoices table (set after checkout)
     pub invoice_number: Option<String>,
+    // Per-booking daily-cleaning preference (NULL = not set)
+    #[sqlx(default)]
+    pub cleaning_preference: Option<bool>,
 }
 
 /// Timeline event for a booking workflow.

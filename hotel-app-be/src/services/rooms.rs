@@ -19,6 +19,20 @@ use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sqlx::Row;
 
+fn get_bool_at(row: &DbRow, index: usize) -> Option<bool> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    {
+        row.try_get::<i32, _>(index).ok().map(|value| value != 0)
+    }
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    {
+        row.try_get::<bool, _>(index).ok()
+    }
+}
+
 /// Helper function to map a database row to RoomType
 /// This avoids using FromRow which doesn't work for Decimal in SQLite
 fn row_to_room_type(row: &DbRow) -> RoomType {
@@ -122,6 +136,7 @@ pub async fn get_rooms_handler(
             reserved_start_date,
             reserved_end_date,
             notes: row.try_get::<String, _>(18).ok(),
+            is_smoking: get_bool_at(&row, 19),
         });
     }
 
@@ -204,6 +219,7 @@ pub async fn search_rooms_handler(
             reserved_start_date,
             reserved_end_date,
             notes: row.try_get::<String, _>(18).ok(),
+            is_smoking: get_bool_at(&row, 19),
         });
     }
 
@@ -240,12 +256,14 @@ pub async fn update_room_handler(
     let current_max_occupancy: i32 = existing_row.get(6);
     let current_status: Option<String> = existing_row.get(7);
     let current_notes: Option<String> = existing_row.try_get(11).ok();
+    let current_is_smoking = get_bool_at(&existing_row, 12);
 
     // Check if anything actually changed
     if input.room_number.is_none()
         && input.price_per_night.is_none()
         && input.available.is_none()
         && input.notes.is_none()
+        && input.is_smoking.is_none()
     {
         return Ok(Json(Room {
             id: existing_row.get(0),
@@ -259,6 +277,7 @@ pub async fn update_room_handler(
             created_at: existing_row.get(8),
             updated_at: existing_row.get(9),
             notes: current_notes,
+            is_smoking: current_is_smoking,
         }));
     }
 
@@ -282,6 +301,14 @@ pub async fn update_room_handler(
         None
     };
 
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let is_smoking_for_db = input.is_smoking.map(|b| if b { 1i32 } else { 0i32 });
+    #[cfg(any(
+        all(feature = "postgres", not(feature = "sqlite")),
+        all(feature = "sqlite", feature = "postgres")
+    ))]
+    let is_smoking_for_db = input.is_smoking;
+
     // Check if trying to set room as available while there's an active booking
     if new_status == Some("available") {
         let active_booking: Option<i64> = sqlx::query_scalar(CHECK_ACTIVE_BOOKING)
@@ -303,6 +330,7 @@ pub async fn update_room_handler(
             .bind(opt_decimal_to_db(custom_price))
             .bind(status)
             .bind(&notes)
+            .bind(is_smoking_for_db)
             .bind(room_id)
             .execute(&pool)
             .await
@@ -312,6 +340,7 @@ pub async fn update_room_handler(
             .bind(room_number)
             .bind(opt_decimal_to_db(custom_price))
             .bind(&notes)
+            .bind(is_smoking_for_db)
             .bind(room_id)
             .execute(&pool)
             .await
@@ -345,6 +374,7 @@ pub async fn update_room_handler(
         created_at: row.get(8),
         updated_at: row.get(9),
         notes: row.get(10),
+        is_smoking: get_bool_at(&row, 11),
     }))
 }
 
@@ -393,6 +423,11 @@ pub async fn create_room_handler(
             } else {
                 0i32
             })
+            .bind(if input.is_smoking.unwrap_or(false) {
+                1i32
+            } else {
+                0i32
+            })
             .execute(&pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -414,6 +449,7 @@ pub async fn create_room_handler(
         .bind(&input.building)
         .bind(opt_decimal_to_db(custom_price_decimal))
         .bind(input.is_accessible.unwrap_or(false))
+        .bind(input.is_smoking.unwrap_or(false))
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -445,6 +481,7 @@ pub async fn create_room_handler(
         created_at: row.get(8),
         updated_at: row.get(9),
         notes: row.get(10),
+        is_smoking: get_bool_at(&row, 11),
     }))
 }
 
@@ -1084,6 +1121,7 @@ pub async fn update_room_status_handler(
         created_at: row.get(8),
         updated_at: row.get(9),
         notes: row.get(10),
+        is_smoking: get_bool_at(&row, 11),
     }))
 }
 
@@ -1137,6 +1175,7 @@ pub async fn end_maintenance_handler(
             created_at: row.get(8),
             updated_at: row.get(9),
             notes: row.get(10),
+            is_smoking: get_bool_at(&row, 11),
         }));
     }
 
@@ -1207,6 +1246,7 @@ pub async fn end_maintenance_handler(
         created_at: row.get(8),
         updated_at: row.get(9),
         notes: row.get(10),
+        is_smoking: get_bool_at(&row, 11),
     }))
 }
 
@@ -2065,6 +2105,7 @@ pub async fn get_rooms_with_occupancy_handler(
             created_at: row.get(8),
             updated_at: row.get(9),
             notes: None,
+            is_smoking: None,
         };
 
         rooms_with_occupancy.push(RoomWithOccupancy {
