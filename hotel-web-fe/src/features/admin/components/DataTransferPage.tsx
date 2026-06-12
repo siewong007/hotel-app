@@ -55,7 +55,7 @@ const TABLE_LABELS: Record<string, string> = {
 };
 
 const DataTransferPage: React.FC = () => {
-  const { hasRole } = useAuth();
+  const { hasPermission } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
@@ -67,10 +67,10 @@ const DataTransferPage: React.FC = () => {
   const importDataMutation = useImportDataMutation();
   const loading = exportDataMutation.isPending || importDataMutation.isPending;
 
-  if (!hasRole('admin')) {
+  if (!hasPermission('settings:manage')) {
     return (
       <Alert severity="warning">
-        You do not have permission to access this page. Only administrators can manage data transfer.
+        You do not have permission to manage data transfer.
       </Alert>
     );
   }

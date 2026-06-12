@@ -6,6 +6,8 @@ export const PERMISSION_CATEGORIES: Record<string, { displayName: string; icon: 
   bookings: { displayName: 'Bookings', icon: 'EventNote', color: '#2e7d32' },
   guests: { displayName: 'Guests', icon: 'People', color: '#ed6c02' },
   users: { displayName: 'Users', icon: 'PersonAdd', color: '#7b1fa2' },
+  roles: { displayName: 'Roles', icon: 'Security', color: '#d32f2f' },
+  permissions: { displayName: 'Permissions', icon: 'VpnKey', color: '#c2185b' },
   navigation: { displayName: 'Navigation', icon: 'Navigation', color: '#9c27b0' },
   settings: { displayName: 'Settings', icon: 'Settings', color: '#757575' },
   ekyc: { displayName: 'eKYC', icon: 'VerifiedUser', color: '#0288d1' },
@@ -18,7 +20,7 @@ export const PERMISSION_CATEGORIES: Record<string, { displayName: string; icon: 
 
 // Role colors for visual distinction
 export const ROLE_COLORS: Record<string, string> = {
-  superadmin: '#6a1b9a',
+  super_admin: '#6a1b9a',
   admin: '#d32f2f',
   manager: '#1976d2',
   receptionist: '#2e7d32',
@@ -104,8 +106,10 @@ export const NAVIGATION_PERMISSION_MAPPING: Record<string, NavigationPermissionD
     { name: 'ekyc:manage', resource: 'ekyc', action: 'manage', description: 'Manage eKYC verifications' },
   ],
   'rbac': [
-    { name: 'rbac:read', resource: 'rbac', action: 'read', description: 'View roles and permissions' },
-    { name: 'rbac:manage', resource: 'rbac', action: 'manage', description: 'Manage roles and permissions' },
+    { name: 'roles:read', resource: 'roles', action: 'read', description: 'View roles' },
+    { name: 'roles:manage', resource: 'roles', action: 'manage', description: 'Manage roles' },
+    { name: 'permissions:read', resource: 'permissions', action: 'read', description: 'View permissions' },
+    { name: 'permissions:manage', resource: 'permissions', action: 'manage', description: 'Manage permissions' },
     { name: 'users:read', resource: 'users', action: 'read', description: 'View user accounts' },
     { name: 'users:manage', resource: 'users', action: 'manage', description: 'Manage user accounts and role assignments' },
   ],

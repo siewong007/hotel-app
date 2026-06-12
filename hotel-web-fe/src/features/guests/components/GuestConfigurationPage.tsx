@@ -123,9 +123,9 @@ const csvCell = (value: unknown) => {
 };
 
 const GuestConfigurationPage: React.FC = () => {
-  const { hasRole, hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
   const { format: formatCurrency } = useCurrency();
-  const hasAccess = hasRole('admin') || hasRole('receptionist') || hasRole('manager') || hasPermission('guests:read') || hasPermission('guests:manage');
+  const hasAccess = hasPermission('guests:read') || hasPermission('guests:manage');
 
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');

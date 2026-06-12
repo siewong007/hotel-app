@@ -96,7 +96,6 @@ const routeDefinitions: AppRouteDefinition[] = [
     navGroup: 'main',
     requiredPermissions: ['rooms:read'],
     navPermissions: ['navigation_timeline:read', 'bookings:read'],
-    navRoles: ['admin', 'receptionist', 'manager'],
   },
   {
     id: 'guest-config',
@@ -108,8 +107,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Guest Management',
     navLabel: 'Guests',
     navGroup: 'main',
+    requiredPermissions: ['guests:read', 'guests:manage'],
     navPermissions: ['navigation_guest_config:read', 'guests:read', 'guests:manage'],
-    navRoles: ['admin', 'receptionist', 'manager'],
   },
   {
     id: 'bookings',
@@ -121,9 +120,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Bookings',
     navLabel: 'Bookings',
     navGroup: 'main',
-    requiredRoles: ['admin', 'receptionist', 'manager'],
-    navPermissions: ['navigation_bookings:read', 'bookings:manage'],
-    navRoles: ['admin', 'receptionist', 'manager'],
+    requiredPermissions: ['bookings:read', 'bookings:manage'],
+    navPermissions: ['navigation_bookings:read', 'bookings:read', 'bookings:manage'],
   },
   {
     id: 'my-bookings',
@@ -148,9 +146,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Room Management',
     navLabel: 'Rooms',
     navGroup: 'main',
-    requiredRoles: ['admin', 'receptionist', 'manager'],
+    requiredPermissions: ['rooms:read', 'rooms:manage'],
     navPermissions: ['navigation_room_management:read', 'rooms:read', 'rooms:manage'],
-    navRoles: ['admin', 'receptionist', 'manager'],
   },
   {
     id: 'reports',
@@ -171,7 +168,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     component: LoyaltyPortal,
     animationType: 'grow',
     visibility: 'auth',
-    requiredPermissions: ['analytics:read'],
+    requiredPermissions: ['loyalty:read', 'loyalty:manage', 'analytics:read'],
   },
   {
     id: 'my-rewards',
@@ -228,9 +225,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Room Configuration',
     navLabel: 'Room Configuration',
     navGroup: 'config',
-    requiredRoles: ['admin', 'receptionist', 'manager'],
+    requiredPermissions: ['rooms:update', 'rooms:write', 'rooms:manage'],
     navPermissions: ['navigation_room_config:read', 'rooms:update', 'rooms:write', 'rooms:manage'],
-    navRoles: ['admin', 'receptionist', 'manager'],
   },
   {
     id: 'settings',
@@ -255,9 +251,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Access Control',
     navLabel: 'Access Control',
     navGroup: 'config',
-    requiredRoles: ['admin', 'superadmin'],
-    navPermissions: ['rbac:manage', 'rbac:read', 'users:manage', 'users:read'],
-    navRoles: ['admin', 'superadmin'],
+    requiredPermissions: ['roles:read', 'roles:manage', 'permissions:read', 'permissions:manage', 'users:read', 'users:manage'],
+    navPermissions: ['roles:read', 'roles:manage', 'permissions:read', 'permissions:manage', 'users:read', 'users:manage'],
   },
   {
     id: 'company-ledger',
@@ -269,9 +264,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Company Ledger',
     navLabel: 'Ledger',
     navGroup: 'operations',
-    requiredRoles: ['superadmin', 'admin', 'manager', 'receptionist'],
+    requiredPermissions: ['ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage'],
     navPermissions: ['ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage'],
-    navRoles: ['superadmin', 'admin', 'manager', 'receptionist'],
   },
   {
     id: 'night-audit',
@@ -283,9 +277,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Night Audit',
     navLabel: 'Night Audit',
     navGroup: 'admin',
-    requiredRoles: ['admin', 'manager', 'receptionist'],
+    requiredPermissions: ['night_audit:read', 'night_audit:execute'],
     navPermissions: ['night_audit:read', 'night_audit:execute'],
-    navRoles: ['admin', 'manager', 'receptionist'],
   },
   {
     id: 'audit-log',
@@ -299,7 +292,6 @@ const routeDefinitions: AppRouteDefinition[] = [
     navGroup: 'admin',
     requiredPermissions: ['audit:read'],
     navPermissions: ['audit:read'],
-    navRoles: ['admin', 'superadmin'],
   },
   {
     id: 'complimentary',
@@ -311,9 +303,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Complimentary Nights',
     navLabel: 'Complimentary Nights',
     navGroup: 'admin',
-    requiredRoles: ['admin', 'manager', 'receptionist'],
     navPermissions: ['bookings:read', 'bookings:update'],
-    navRoles: ['admin', 'manager', 'receptionist'],
+    requiredPermissions: ['bookings:read', 'bookings:update'],
   },
   {
     id: 'data-transfer',
@@ -325,9 +316,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Data Transfer',
     navLabel: 'Data Transfer',
     navGroup: 'admin',
-    requiredRoles: ['admin'],
+    requiredPermissions: ['settings:manage'],
     navPermissions: ['settings:manage'],
-    navRoles: ['admin'],
   },
 ];
 

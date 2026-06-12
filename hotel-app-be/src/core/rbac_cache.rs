@@ -133,6 +133,7 @@ pub async fn has_permission(
 }
 
 /// True if the user holds `role_name`.
+#[allow(dead_code)]
 pub async fn has_role(pool: &DbPool, user_id: i64, role_name: &str) -> Result<bool, sqlx::Error> {
     let (_permissions, roles) = resolve(pool, user_id).await?;
     Ok(roles.contains(role_name))

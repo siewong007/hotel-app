@@ -336,6 +336,7 @@ impl AuthService {
     }
 
     /// Check whether a user holds a role. Backed by the same RBAC cache.
+    #[allow(dead_code)]
     pub async fn check_role(
         pool: &DbPool,
         user_id: i64,

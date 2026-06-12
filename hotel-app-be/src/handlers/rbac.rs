@@ -44,9 +44,10 @@ pub async fn create_permission_handler(
 
 pub async fn assign_role_to_user_handler(
     State(pool): State<DbPool>,
+    Extension(actor_user_id): Extension<i64>,
     Json(input): Json<AssignRoleInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    svc::assign_role_to_user(&pool, input).await?;
+    svc::assign_role_to_user(&pool, actor_user_id, input).await?;
 
     Ok(Json(
         serde_json::json!({"message": "Role assigned successfully"}),
@@ -55,9 +56,10 @@ pub async fn assign_role_to_user_handler(
 
 pub async fn remove_role_from_user_handler(
     State(pool): State<DbPool>,
+    Extension(actor_user_id): Extension<i64>,
     Path((user_id, role_id)): Path<(i64, i64)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    svc::remove_role_from_user(&pool, user_id, role_id).await?;
+    svc::remove_role_from_user(&pool, actor_user_id, user_id, role_id).await?;
 
     Ok(Json(
         serde_json::json!({"message": "Role removed successfully"}),
@@ -66,9 +68,10 @@ pub async fn remove_role_from_user_handler(
 
 pub async fn assign_permission_to_role_handler(
     State(pool): State<DbPool>,
+    Extension(actor_user_id): Extension<i64>,
     Json(input): Json<AssignPermissionInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    svc::assign_permission_to_role(&pool, input).await?;
+    svc::assign_permission_to_role(&pool, actor_user_id, input).await?;
 
     Ok(Json(
         serde_json::json!({"message": "Permission assigned successfully"}),
@@ -77,9 +80,10 @@ pub async fn assign_permission_to_role_handler(
 
 pub async fn remove_permission_from_role_handler(
     State(pool): State<DbPool>,
+    Extension(actor_user_id): Extension<i64>,
     Path((role_id, permission_id)): Path<(i64, i64)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    svc::remove_permission_from_role(&pool, role_id, permission_id).await?;
+    svc::remove_permission_from_role(&pool, actor_user_id, role_id, permission_id).await?;
 
     Ok(Json(
         serde_json::json!({"message": "Permission removed successfully"}),
@@ -88,10 +92,12 @@ pub async fn remove_permission_from_role_handler(
 
 pub async fn replace_role_permissions_handler(
     State(pool): State<DbPool>,
+    Extension(actor_user_id): Extension<i64>,
     Path(role_id): Path<i64>,
     Json(input): Json<RolePermissionIdsInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let permission_count = svc::replace_role_permissions(&pool, role_id, input).await?;
+    let permission_count =
+        svc::replace_role_permissions(&pool, actor_user_id, role_id, input).await?;
 
     Ok(Json(serde_json::json!({
         "message": "Role permissions replaced successfully",
@@ -143,17 +149,21 @@ pub async fn get_user_roles_permissions_handler(
 
 pub async fn update_role_handler(
     State(pool): State<DbPool>,
+    Extension(actor_user_id): Extension<i64>,
     Path(role_id): Path<i64>,
     Json(input): Json<RoleInput>,
 ) -> Result<Json<Role>, ApiError> {
-    Ok(Json(svc::update_role(&pool, role_id, input).await?))
+    Ok(Json(
+        svc::update_role(&pool, actor_user_id, role_id, input).await?,
+    ))
 }
 
 pub async fn delete_role_handler(
     State(pool): State<DbPool>,
+    Extension(actor_user_id): Extension<i64>,
     Path(role_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    svc::delete_role(&pool, role_id).await?;
+    svc::delete_role(&pool, actor_user_id, role_id).await?;
 
     Ok(Json(
         serde_json::json!({"message": "Role deleted successfully"}),
