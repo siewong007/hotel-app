@@ -267,7 +267,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   );
 
   const hasPermission = useCallback(
-    (permission: string): boolean => permissionSet.has(normalizeAccessValue(permission)),
+    (permission: string): boolean => {
+      const normalizedPermission = normalizeAccessValue(permission);
+      if (permissionSet.has(normalizedPermission)) {
+        return true;
+      }
+
+      const [resource, action] = normalizedPermission.split(':');
+      return Boolean(
+        resource &&
+          action &&
+          action !== 'manage' &&
+          permissionSet.has(`${resource}:manage`)
+      );
+    },
     [permissionSet]
   );
 

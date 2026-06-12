@@ -48,8 +48,8 @@ const TIMEZONES = [
 ];
 
 const SettingsPage: React.FC = () => {
-  const { hasRole } = useAuth();
-  const isAdmin = hasRole('admin');
+  const { hasPermission } = useAuth();
+  const isAdmin = hasPermission('settings:update') || hasPermission('settings:manage');
   const { symbol: currencySymbol } = useCurrency();
   const settingsQuery = useHotelSettingsQuery();
   const saveSettingsMutation = useSaveHotelSettingsMutation();

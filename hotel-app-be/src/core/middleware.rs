@@ -62,7 +62,27 @@ pub async fn check_permission(
     )))
 }
 
+pub async fn check_any_permission(
+    pool: &DbPool,
+    user_id: i64,
+    permissions: &[&str],
+) -> Result<(), ApiError> {
+    for permission in permissions {
+        match check_permission(pool, user_id, permission).await {
+            Ok(()) => return Ok(()),
+            Err(ApiError::Forbidden(_)) => {}
+            Err(err) => return Err(err),
+        }
+    }
+
+    Err(ApiError::Forbidden(format!(
+        "Missing one of required permissions: {}",
+        permissions.join(", ")
+    )))
+}
+
 // Check if user has admin role
+#[allow(dead_code)]
 pub async fn check_admin_role(pool: &DbPool, user_id: i64) -> Result<(), ApiError> {
     let is_admin = AuthService::check_role(pool, user_id, "admin")
         .await
@@ -92,7 +112,18 @@ pub async fn require_permission_helper(
     Ok(user_id)
 }
 
+pub async fn require_any_permission_helper(
+    pool: &DbPool,
+    headers: &HeaderMap,
+    permissions: &[&str],
+) -> Result<i64, ApiError> {
+    let user_id = require_auth(headers).await?;
+    check_any_permission(pool, user_id, permissions).await?;
+    Ok(user_id)
+}
+
 // Helper function to require admin role
+#[allow(dead_code)]
 pub async fn require_admin_helper(pool: &DbPool, headers: &HeaderMap) -> Result<i64, ApiError> {
     let user_id = require_auth(headers).await?;
     check_admin_role(pool, user_id).await?;

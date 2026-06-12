@@ -52,14 +52,16 @@ impl RbacRepository {
         name: &str,
         description: Option<&str>,
     ) -> Result<Role, ApiError> {
+        let display_name = name.replace('_', " ");
         sqlx::query_as::<_, Role>(
             r#"
-            INSERT INTO roles (name, description)
-            VALUES ($1, $2)
+            INSERT INTO roles (name, display_name, description)
+            VALUES ($1, $2, $3)
             RETURNING id, name, description, created_at
             "#,
         )
         .bind(name)
+        .bind(display_name)
         .bind(description)
         .fetch_one(pool)
         .await
@@ -245,6 +247,42 @@ impl RbacRepository {
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
         Ok(id.is_some())
+    }
+
+    pub async fn role_priority(pool: &DbPool, role_id: i64) -> Result<Option<i64>, ApiError> {
+        let query = crate::sql_query!(
+            postgres: "SELECT priority::BIGINT FROM roles WHERE id = $1",
+            sqlite: "SELECT priority FROM roles WHERE id = ?1"
+        );
+
+        sqlx::query_scalar(query)
+            .bind(role_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    pub async fn max_role_priority_for_user(pool: &DbPool, user_id: i64) -> Result<i64, ApiError> {
+        let query = crate::sql_query!(
+            postgres: r#"
+                SELECT COALESCE(MAX(r.priority), 0)::BIGINT
+                FROM roles r
+                JOIN user_roles ur ON r.id = ur.role_id
+                WHERE ur.user_id = $1
+            "#,
+            sqlite: r#"
+                SELECT COALESCE(MAX(r.priority), 0)
+                FROM roles r
+                JOIN user_roles ur ON r.id = ur.role_id
+                WHERE ur.user_id = ?1
+            "#
+        );
+
+        sqlx::query_scalar(query)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))
     }
 
     pub async fn user_exists(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {

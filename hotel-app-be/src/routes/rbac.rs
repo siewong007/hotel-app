@@ -4,7 +4,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::{require_admin_helper, require_auth};
+use crate::core::middleware::require_any_permission_helper;
 use crate::handlers;
 use crate::models;
 use axum::{
@@ -14,6 +14,32 @@ use axum::{
     response::Json,
     routing::{delete, get, post, put},
 };
+
+const RBAC_SNAPSHOT_PERMISSIONS: &[&str] = &[
+    "roles:read",
+    "roles:manage",
+    "permissions:read",
+    "permissions:manage",
+    "users:read",
+    "users:manage",
+];
+const ROLE_READ_PERMISSIONS: &[&str] = &["roles:read", "roles:manage"];
+const ROLE_CREATE_PERMISSIONS: &[&str] = &["roles:create", "roles:manage"];
+const ROLE_UPDATE_PERMISSIONS: &[&str] = &["roles:update", "roles:manage"];
+const ROLE_DELETE_PERMISSIONS: &[&str] = &["roles:delete", "roles:manage"];
+const PERMISSION_READ_PERMISSIONS: &[&str] = &[
+    "permissions:read",
+    "permissions:manage",
+    "roles:read",
+    "roles:manage",
+];
+const PERMISSION_CREATE_PERMISSIONS: &[&str] = &["permissions:create", "permissions:manage"];
+const PERMISSION_UPDATE_PERMISSIONS: &[&str] = &["permissions:update", "permissions:manage"];
+const PERMISSION_DELETE_PERMISSIONS: &[&str] = &["permissions:delete", "permissions:manage"];
+const PERMISSION_MANAGE_PERMISSIONS: &[&str] = &["permissions:manage"];
+const USER_READ_PERMISSIONS: &[&str] = &["users:read", "users:manage"];
+const USER_CREATE_PERMISSIONS: &[&str] = &["users:create", "users:manage"];
+const USER_ROLE_MANAGE_PERMISSIONS: &[&str] = &["users:update", "users:manage"];
 
 /// Create RBAC routes
 pub fn routes() -> Router<DbPool> {
@@ -56,7 +82,7 @@ async fn get_snapshot(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<models::RbacSnapshot>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, RBAC_SNAPSHOT_PERMISSIONS).await?;
     handlers::rbac::get_rbac_snapshot_handler(State(pool)).await
 }
 
@@ -64,7 +90,7 @@ async fn get_roles(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::Role>>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, ROLE_READ_PERMISSIONS).await?;
     handlers::rbac::get_roles_handler(State(pool)).await
 }
 
@@ -73,7 +99,7 @@ async fn create_role(
     headers: HeaderMap,
     Json(input): Json<models::RoleInput>,
 ) -> Result<Json<models::Role>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, ROLE_CREATE_PERMISSIONS).await?;
     handlers::rbac::create_role_handler(State(pool), Json(input)).await
 }
 
@@ -82,7 +108,7 @@ async fn get_role_permissions(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::RoleWithPermissions>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, ROLE_READ_PERMISSIONS).await?;
     handlers::rbac::get_role_permissions_handler(State(pool), path).await
 }
 
@@ -90,7 +116,7 @@ async fn get_permissions(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::Permission>>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, PERMISSION_READ_PERMISSIONS).await?;
     handlers::rbac::get_permissions_handler(State(pool)).await
 }
 
@@ -99,7 +125,7 @@ async fn create_permission(
     headers: HeaderMap,
     Json(input): Json<models::PermissionInput>,
 ) -> Result<Json<models::Permission>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, PERMISSION_CREATE_PERMISSIONS).await?;
     handlers::rbac::create_permission_handler(State(pool), Json(input)).await
 }
 
@@ -108,8 +134,10 @@ async fn assign_role(
     headers: HeaderMap,
     Json(input): Json<models::AssignRoleInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
-    handlers::rbac::assign_role_to_user_handler(State(pool), Json(input)).await
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_ROLE_MANAGE_PERMISSIONS).await?;
+    handlers::rbac::assign_role_to_user_handler(State(pool), Extension(actor_user_id), Json(input))
+        .await
 }
 
 async fn remove_role(
@@ -117,8 +145,9 @@ async fn remove_role(
     headers: HeaderMap,
     path: Path<(i64, i64)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
-    handlers::rbac::remove_role_from_user_handler(State(pool), path).await
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_ROLE_MANAGE_PERMISSIONS).await?;
+    handlers::rbac::remove_role_from_user_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn replace_user_roles(
@@ -127,10 +156,15 @@ async fn replace_user_roles(
     path: Path<i64>,
     Json(input): Json<models::UserRoleIdsInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
-    let user_id = require_auth(&headers).await?;
-    handlers::rbac::replace_user_roles_handler(State(pool), Extension(user_id), path, Json(input))
-        .await
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_ROLE_MANAGE_PERMISSIONS).await?;
+    handlers::rbac::replace_user_roles_handler(
+        State(pool),
+        Extension(actor_user_id),
+        path,
+        Json(input),
+    )
+    .await
 }
 
 async fn assign_permission(
@@ -138,8 +172,14 @@ async fn assign_permission(
     headers: HeaderMap,
     Json(input): Json<models::AssignPermissionInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
-    handlers::rbac::assign_permission_to_role_handler(State(pool), Json(input)).await
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, PERMISSION_MANAGE_PERMISSIONS).await?;
+    handlers::rbac::assign_permission_to_role_handler(
+        State(pool),
+        Extension(actor_user_id),
+        Json(input),
+    )
+    .await
 }
 
 async fn remove_permission(
@@ -147,8 +187,10 @@ async fn remove_permission(
     headers: HeaderMap,
     path: Path<(i64, i64)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
-    handlers::rbac::remove_permission_from_role_handler(State(pool), path).await
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, PERMISSION_MANAGE_PERMISSIONS).await?;
+    handlers::rbac::remove_permission_from_role_handler(State(pool), Extension(actor_user_id), path)
+        .await
 }
 
 async fn replace_role_permissions(
@@ -157,15 +199,22 @@ async fn replace_role_permissions(
     path: Path<i64>,
     Json(input): Json<models::RolePermissionIdsInput>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
-    handlers::rbac::replace_role_permissions_handler(State(pool), path, Json(input)).await
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, PERMISSION_MANAGE_PERMISSIONS).await?;
+    handlers::rbac::replace_role_permissions_handler(
+        State(pool),
+        Extension(actor_user_id),
+        path,
+        Json(input),
+    )
+    .await
 }
 
 async fn get_users(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::UserResponse>>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, USER_READ_PERMISSIONS).await?;
     handlers::rbac::get_users_handler(State(pool)).await
 }
 
@@ -174,9 +223,9 @@ async fn create_user(
     headers: HeaderMap,
     Json(input): Json<models::UserCreateInput>,
 ) -> Result<Json<models::UserResponse>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
-    let user_id = require_auth(&headers).await?;
-    handlers::rbac::create_user_handler(State(pool), Extension(user_id), Json(input)).await
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_CREATE_PERMISSIONS).await?;
+    handlers::rbac::create_user_handler(State(pool), Extension(actor_user_id), Json(input)).await
 }
 
 async fn get_user(
@@ -184,7 +233,7 @@ async fn get_user(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::UserWithRolesAndPermissions>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, USER_READ_PERMISSIONS).await?;
     handlers::rbac::get_user_roles_permissions_handler(State(pool), path).await
 }
 
@@ -194,8 +243,10 @@ async fn update_role(
     path: Path<i64>,
     Json(input): Json<models::RoleInput>,
 ) -> Result<Json<models::Role>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
-    handlers::rbac::update_role_handler(State(pool), path, Json(input)).await
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, ROLE_UPDATE_PERMISSIONS).await?;
+    handlers::rbac::update_role_handler(State(pool), Extension(actor_user_id), path, Json(input))
+        .await
 }
 
 async fn delete_role(
@@ -203,8 +254,9 @@ async fn delete_role(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
-    handlers::rbac::delete_role_handler(State(pool), path).await
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, ROLE_DELETE_PERMISSIONS).await?;
+    handlers::rbac::delete_role_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn update_permission(
@@ -213,7 +265,7 @@ async fn update_permission(
     path: Path<i64>,
     Json(input): Json<models::PermissionInput>,
 ) -> Result<Json<models::Permission>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, PERMISSION_UPDATE_PERMISSIONS).await?;
     handlers::rbac::update_permission_handler(State(pool), path, Json(input)).await
 }
 
@@ -222,6 +274,6 @@ async fn delete_permission(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, PERMISSION_DELETE_PERMISSIONS).await?;
     handlers::rbac::delete_permission_handler(State(pool), path).await
 }
