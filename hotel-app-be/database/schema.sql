@@ -148,8 +148,13 @@ CREATE TABLE IF NOT EXISTS permissions (
     description TEXT,
     is_system_permission BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT valid_permission_format CHECK (name ~ '^[a-z][a-z0-9_]*:[a-z]+$'),
-    CONSTRAINT valid_action CHECK (action IN ('create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'write', 'verify'))
+    CONSTRAINT valid_permission_format CHECK (name ~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$'),
+    CONSTRAINT valid_action CHECK (action IN (
+        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+        'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
+        'override', 'export', 'download', 'reveal', 'request_resubmission',
+        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+    ))
 );
 
 CREATE TABLE IF NOT EXISTS role_permissions (
@@ -2448,6 +2453,10 @@ $$;
 --   masked-by-default review support, reason codes, and common filter indexes.
 -- ============================================================================
 
+ALTER TABLE permissions DROP CONSTRAINT IF EXISTS valid_permission_format;
+ALTER TABLE permissions ADD CONSTRAINT valid_permission_format
+    CHECK (name ~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$');
+
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS valid_action;
 ALTER TABLE permissions ADD CONSTRAINT valid_action
     CHECK (action IN (
@@ -4269,7 +4278,12 @@ COMMENT ON TABLE audit_logs IS
 -- Keep the flattened schema aligned with the final RBAC action vocabulary.
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS valid_action;
 ALTER TABLE permissions ADD CONSTRAINT valid_action
-    CHECK (action IN ('create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'write', 'verify'));
+    CHECK (action IN (
+        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+        'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
+        'override', 'export', 'download', 'reveal', 'request_resubmission',
+        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+    ));
 
 INSERT INTO permissions (name, resource, action, description, is_system_permission)
 VALUES
@@ -4740,7 +4754,12 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS valid_action;
 ALTER TABLE permissions ADD CONSTRAINT valid_action
-    CHECK (action IN ('create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'write', 'verify'));
+    CHECK (action IN (
+        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+        'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
+        'override', 'export', 'download', 'reveal', 'request_resubmission',
+        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+    ));
 
 CREATE TABLE IF NOT EXISTS route_access_policies (
     route_id VARCHAR(100) PRIMARY KEY,
@@ -4860,7 +4879,7 @@ VALUES
     ('profile', '/profile', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false),
     ('help', '/help', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false),
     ('ekyc', '/ekyc', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false),
-    ('ekyc-admin', '/ekyc-admin', 'eKYC Admin', 'admin', '["ekyc:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_ekyc_admin:read","ekyc:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
+    ('ekyc-admin', '/ekyc-admin', 'eKYC Admin', 'admin', '["ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_ekyc_admin:read","ekyc:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
     ('room-config', '/room-config', 'Room Configuration', 'config', '["rooms:update","rooms:write","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_room_config:read","rooms:update","rooms:write","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
     ('settings', '/settings', 'Settings', 'config', '["settings:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_settings:read","settings:read","settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
     ('rbac', '/rbac', 'Access Control', 'config', '["roles:read","roles:manage","permissions:read","permissions:manage","users:read","users:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_rbac:read","roles:read","roles:manage","permissions:read","permissions:manage","users:read","users:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
