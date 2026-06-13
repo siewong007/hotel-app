@@ -10,7 +10,8 @@ type StorageKey =
   | 'roles'
   | 'routePolicies'
   | 'themeMode'
-  | 'cmdRecents';
+  | 'cmdRecents'
+  | 'ekycAdminFilters';
 
 interface StorageCache {
   [key: string]: any;

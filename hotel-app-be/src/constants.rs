@@ -85,11 +85,39 @@ pub enum TourismType {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
 #[sqlx(type_name = "varchar", rename_all = "snake_case")]
 pub enum EkycStatus {
-    Pending,
-    InProgress,
-    Verified,
+    Draft,
+    Submitted,
+    AutomatedReview,
+    PendingManualReview,
+    InReview,
+    AdditionalInformationRequired,
+    Approved,
     Rejected,
+    Escalated,
     Expired,
+    Cancelled,
+    OnHold,
+}
+
+impl std::fmt::Display for EkycStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EkycStatus::Draft => write!(f, "draft"),
+            EkycStatus::Submitted => write!(f, "submitted"),
+            EkycStatus::AutomatedReview => write!(f, "automated_review"),
+            EkycStatus::PendingManualReview => write!(f, "pending_manual_review"),
+            EkycStatus::InReview => write!(f, "in_review"),
+            EkycStatus::AdditionalInformationRequired => {
+                write!(f, "additional_information_required")
+            }
+            EkycStatus::Approved => write!(f, "approved"),
+            EkycStatus::Rejected => write!(f, "rejected"),
+            EkycStatus::Escalated => write!(f, "escalated"),
+            EkycStatus::Expired => write!(f, "expired"),
+            EkycStatus::Cancelled => write!(f, "cancelled"),
+            EkycStatus::OnHold => write!(f, "on_hold"),
+        }
+    }
 }
 
 /// Import behavior for booking data transfers.
