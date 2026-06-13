@@ -16,6 +16,12 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        // Secure auto-update support. The updater verifies a minisign signature
+        // against `plugins.updater.pubkey` in tauri.conf.json before applying any
+        // downloaded artifact, so releases must be signed with the matching
+        // private key (see UPDATER.md). `process` provides relaunch-after-update.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             let app_handle = app.handle().clone();
 
@@ -44,6 +50,7 @@ pub fn run() {
             commands::get_logs,
             commands::open_data_folder,
             commands::shutdown_app,
+            commands::check_for_updates,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
