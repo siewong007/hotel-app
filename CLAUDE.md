@@ -22,7 +22,7 @@ cargo clippy --all-features -- -D warnings    # CI: lint (warnings are errors)
 cargo build --release                         # CI: release build
 cargo run                                     # Default: PostgreSQL, port 3030
 cargo run --features sqlite --no-default-features   # SQLite mode (requires DATABASE_PATH or defaults to ./hotel_data.db)
-sqlx migrate run                              # Apply PostgreSQL migrations in database/migrations/
+psql "$DATABASE_URL" -f database/schema.sql -f database/data.sql   # Apply the PostgreSQL schema + seed/bootstrap data
 cargo test <name>                             # Run a single test by name substring
 ```
 
@@ -77,7 +77,7 @@ The backend compiles for exactly one database at a time in production (default f
 - Use `param!(1)` / `param!(2)` for placeholders (`$1` vs `?1`).
 - Use `sql_compat::current_timestamp()` / `current_date()` instead of literal `NOW()` / `CURRENT_DATE`.
 - For values that differ between databases (e.g. `Decimal` → `String` on SQLite, UUID generation), use the helpers in `core/db.rs` (`decimal_to_db`, `opt_decimal_to_db`, `generate_uuid`, etc.).
-- PostgreSQL migrations live in `database/migrations/` (run via `sqlx migrate run`). SQLite migrations live in `database/sqlite_migrations/` and are run automatically at startup by `create_pool`. Keep them in sync when changing schema.
+- The PostgreSQL schema is consolidated into `database/schema.sql` (structure) and `database/data.sql` (seed/bootstrap data). These are applied by `docker-compose` as init scripts and, in desktop mode, by `run_migrations_if_needed` via `psql -f` (both are written to be idempotent). There is no `sqlx migrate` step for PostgreSQL. SQLite migrations live in `database/sqlite_migrations/` and are run automatically at startup by `create_pool` via `sqlx::migrate!`. Keep `schema.sql` and the SQLite migrations in sync when changing schema.
 
 ### Frontend structure
 

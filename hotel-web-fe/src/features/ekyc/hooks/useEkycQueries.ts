@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
-import { EkycService } from '../../../api/ekyc.service';
+import { EkycActionPayload, EkycListParams, EkycService } from '../../../api/ekyc.service';
 
 export function useEkycStatus() {
   return useQuery({
@@ -19,11 +19,28 @@ export function useEkycVerificationDetails() {
   });
 }
 
-export function useAllEkycVerifications() {
+export function useAllEkycVerifications(params?: EkycListParams) {
   return useQuery({
-    queryKey: queryKeys.ekyc.allVerifications(),
-    queryFn: () => EkycService.getAllEkycVerifications(),
+    queryKey: queryKeys.ekyc.allVerifications(params),
+    queryFn: () => EkycService.getAllEkycVerifications(params),
     staleTime: queryStaleTime.short,
+  });
+}
+
+export function useEkycApplication(applicationId?: number) {
+  return useQuery({
+    queryKey: applicationId ? queryKeys.ekyc.application(applicationId) : queryKeys.ekyc.application('none'),
+    queryFn: () => EkycService.getEkycApplication(applicationId as number),
+    enabled: Boolean(applicationId),
+    staleTime: queryStaleTime.short,
+  });
+}
+
+export function useEkycReasonCodes() {
+  return useQuery({
+    queryKey: queryKeys.ekyc.reasonCodes(),
+    queryFn: () => EkycService.getReasonCodes(),
+    staleTime: queryStaleTime.standard,
   });
 }
 
@@ -34,6 +51,25 @@ export function useSubmitEkycVerification() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.ekyc.all });
     },
+  });
+}
+
+export function useReviewEkycAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ applicationId, payload }: { applicationId: number; payload: EkycActionPayload }) =>
+      EkycService.performReviewAction(applicationId, payload),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: queryKeys.ekyc.all });
+      qc.invalidateQueries({ queryKey: queryKeys.ekyc.application(variables.applicationId) });
+    },
+  });
+}
+
+export function useRevealEkycField() {
+  return useMutation({
+    mutationFn: ({ applicationId, field, reason }: { applicationId: number; field: string; reason: string }) =>
+      EkycService.revealSensitiveField(applicationId, field, reason),
   });
 }
 

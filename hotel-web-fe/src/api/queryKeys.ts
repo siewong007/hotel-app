@@ -104,7 +104,9 @@ export const queryKeys = {
     all: ekyc,
     myStatus: () => [...ekyc, 'my-status'] as const,
     myVerification: () => [...ekyc, 'my-verification'] as const,
-    allVerifications: () => [...ekyc, 'all-verifications'] as const,
+    allVerifications: (params?: KeyParams) => [...ekyc, 'all-verifications', paramsOrEmpty(params)] as const,
+    application: (id: string | number) => [...ekyc, 'application', String(id)] as const,
+    reasonCodes: () => [...ekyc, 'reason-codes'] as const,
   },
   rbac: {
     all: rbac,

@@ -2435,6 +2435,372 @@ BEGIN
 END;
 $$;
 
+-- ============================================================================
+-- 032_ekyc_admin_workflow.sql
+-- ============================================================================
+
+-- ============================================================================
+-- MIGRATION 032: eKYC ADMIN WORKFLOW, AUDIT, AND RBAC
+-- ============================================================================
+-- Description:
+--   Adds the durable eKYC application tables expected by the Rust services,
+--   granular reviewer/compliance permissions, immutable decision/access records,
+--   masked-by-default review support, reason codes, and common filter indexes.
+-- ============================================================================
+
+ALTER TABLE permissions DROP CONSTRAINT IF EXISTS valid_action;
+ALTER TABLE permissions ADD CONSTRAINT valid_action
+    CHECK (action IN (
+        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+        'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
+        'override', 'export', 'download', 'reveal', 'request_resubmission',
+        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+    ));
+
+INSERT INTO roles (name, display_name, description, is_system_role, priority) VALUES
+    ('compliance_admin', 'Compliance Administrator', 'Compliance administration and eKYC oversight', true, 90),
+    ('ekyc_reviewer', 'eKYC Reviewer', 'Reviews and actions assigned eKYC applications', true, 70),
+    ('senior_reviewer', 'Senior Reviewer', 'Second-level eKYC review and high-risk approvals', true, 75),
+    ('auditor', 'Auditor', 'Read-only audit and compliance access', true, 65),
+    ('support_readonly', 'Read-only Support', 'Read-only operational support access', true, 30)
+ON CONFLICT (name) DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    description = EXCLUDED.description,
+    is_system_role = EXCLUDED.is_system_role,
+    priority = EXCLUDED.priority;
+
+INSERT INTO permissions (name, resource, action, description, is_system_permission)
+VALUES
+    ('ekyc:read', 'ekyc', 'read', 'View masked eKYC applications', true),
+    ('ekyc:review', 'ekyc', 'review', 'Review eKYC application details and notes', true),
+    ('ekyc:view_sensitive', 'ekyc', 'read', 'View sensitive eKYC data when explicitly returned', true),
+    ('ekyc:reveal_sensitive', 'ekyc', 'reveal', 'Reveal masked eKYC identity fields with audit', true),
+    ('ekyc:download_documents', 'ekyc', 'download', 'Download private eKYC documents', true),
+    ('ekyc:assign', 'ekyc', 'assign', 'Claim, assign, or reassign eKYC cases', true),
+    ('ekyc:approve', 'ekyc', 'approve', 'Approve eKYC applications', true),
+    ('ekyc:reject', 'ekyc', 'reject', 'Reject eKYC applications', true),
+    ('ekyc:escalate', 'ekyc', 'escalate', 'Escalate eKYC applications', true),
+    ('ekyc:request_resubmission', 'ekyc', 'request_resubmission', 'Request additional eKYC information', true),
+    ('ekyc:override', 'ekyc', 'override', 'Perform controlled eKYC manual overrides', true),
+    ('ekyc:export', 'ekyc', 'export', 'Export masked eKYC records', true),
+    ('ekyc:manage_reason_codes', 'ekyc', 'manage_reason_codes', 'Manage eKYC reason codes', true),
+    ('ekyc:manage_risk_rules', 'ekyc', 'manage_risk_rules', 'Manage eKYC risk rules', true),
+    ('ekyc:view_provider_raw', 'ekyc', 'view_provider_raw', 'View raw eKYC provider responses', true),
+    ('ekyc:manage', 'ekyc', 'manage', 'Full eKYC administration', true),
+    ('ekyc:verify', 'ekyc', 'verify', 'Legacy eKYC approve or reject permission', true)
+ON CONFLICT (name) DO UPDATE SET
+    resource = EXCLUDED.resource,
+    action = EXCLUDED.action,
+    description = EXCLUDED.description,
+    is_system_permission = EXCLUDED.is_system_permission;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name IN ('admin', 'super_admin')
+  AND p.resource = 'ekyc'
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'compliance_admin'
+  AND p.name IN (
+      'ekyc:read', 'ekyc:review', 'ekyc:view_sensitive', 'ekyc:reveal_sensitive',
+      'ekyc:download_documents', 'ekyc:assign', 'ekyc:approve', 'ekyc:reject',
+      'ekyc:escalate', 'ekyc:request_resubmission', 'ekyc:override',
+      'ekyc:export', 'ekyc:manage_reason_codes', 'ekyc:manage_risk_rules',
+      'ekyc:view_provider_raw', 'navigation_ekyc_admin:read', 'audit:read'
+  )
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'ekyc_reviewer'
+  AND p.name IN (
+      'ekyc:read', 'ekyc:review', 'ekyc:download_documents', 'ekyc:assign',
+      'ekyc:approve', 'ekyc:reject', 'ekyc:escalate',
+      'ekyc:request_resubmission', 'navigation_ekyc_admin:read'
+  )
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'senior_reviewer'
+  AND p.name IN (
+      'ekyc:read', 'ekyc:review', 'ekyc:view_sensitive', 'ekyc:download_documents',
+      'ekyc:assign', 'ekyc:approve', 'ekyc:reject', 'ekyc:escalate',
+      'ekyc:request_resubmission', 'ekyc:override', 'navigation_ekyc_admin:read'
+  )
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'auditor'
+  AND p.name IN ('ekyc:read', 'ekyc:export', 'navigation_ekyc_admin:read', 'audit:read')
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'support_readonly'
+  AND p.name IN ('ekyc:read', 'navigation_ekyc_admin:read')
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+CREATE SEQUENCE IF NOT EXISTS ekyc_verifications_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS ekyc_decision_history_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS ekyc_notes_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS ekyc_sensitive_reveals_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS ekyc_access_events_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS ekyc_idempotency_keys_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS self_checkin_events_id_seq START WITH 1;
+
+CREATE TABLE IF NOT EXISTS ekyc_verifications (
+    id BIGINT PRIMARY KEY DEFAULT nextval('ekyc_verifications_id_seq'),
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    guest_id BIGINT REFERENCES guests(id) ON DELETE SET NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'submitted',
+    assigned_reviewer_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    reviewer_claimed_at TIMESTAMP WITH TIME ZONE,
+    full_name VARCHAR(255),
+    date_of_birth DATE,
+    nationality VARCHAR(100),
+    phone VARCHAR(50),
+    email VARCHAR(255),
+    current_address TEXT,
+    id_type VARCHAR(80),
+    id_number VARCHAR(255),
+    id_issuing_country VARCHAR(100),
+    id_issue_date DATE,
+    id_expiry_date DATE,
+    id_front_image_path TEXT,
+    id_back_image_path TEXT,
+    selfie_image_path TEXT,
+    proof_of_address_path TEXT,
+    provider_name VARCHAR(100),
+    provider_verification_result VARCHAR(80),
+    provider_raw_response JSONB,
+    ocr_data JSONB,
+    user_entered_data JSONB,
+    document_authenticity_result VARCHAR(80),
+    face_match_score DOUBLE PRECISION,
+    face_match_passed BOOLEAN DEFAULT false,
+    liveness_score DOUBLE PRECISION,
+    liveness_passed BOOLEAN DEFAULT false,
+    duplicate_check_result VARCHAR(80),
+    watchlist_result VARCHAR(80),
+    ip_address VARCHAR(64),
+    device_fingerprint VARCHAR(255),
+    geolocation VARCHAR(255),
+    submission_metadata JSONB,
+    auto_verified BOOLEAN DEFAULT false,
+    auto_verification_details JSONB,
+    manual_review_required BOOLEAN DEFAULT true,
+    risk_level VARCHAR(30) DEFAULT 'medium',
+    risk_score INTEGER DEFAULT 0,
+    risk_flags JSONB NOT NULL DEFAULT '[]'::jsonb,
+    recommended_action VARCHAR(100),
+    potential_duplicate BOOLEAN DEFAULT false,
+    fraud_suspected BOOLEAN DEFAULT false,
+    verification_notes TEXT,
+    customer_message TEXT,
+    decision_reason_code VARCHAR(80),
+    decision_reason TEXT,
+    verified_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    verified_at TIMESTAMP WITH TIME ZONE,
+    self_checkin_enabled BOOLEAN DEFAULT false,
+    self_checkin_activated_at TIMESTAMP WITH TIME ZONE,
+    submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT valid_ekyc_status CHECK (status IN (
+        'draft', 'submitted', 'automated_review', 'pending_manual_review',
+        'in_review', 'additional_information_required', 'approved', 'rejected',
+        'escalated', 'expired', 'cancelled', 'on_hold',
+        'pending', 'under_review', 'verified'
+    )),
+    CONSTRAINT valid_ekyc_risk_level CHECK (risk_level IS NULL OR risk_level IN ('low', 'medium', 'high', 'critical'))
+);
+
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS guest_id BIGINT REFERENCES guests(id) ON DELETE SET NULL;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS assigned_reviewer_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS reviewer_claimed_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS current_address TEXT;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS id_issuing_country VARCHAR(100);
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS id_issue_date DATE;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS id_expiry_date DATE;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS id_front_image_path TEXT;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS id_back_image_path TEXT;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS selfie_image_path TEXT;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS proof_of_address_path TEXT;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS provider_name VARCHAR(100);
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS provider_verification_result VARCHAR(80);
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS provider_raw_response JSONB;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS ocr_data JSONB;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS user_entered_data JSONB;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS document_authenticity_result VARCHAR(80);
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS face_match_score DOUBLE PRECISION;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS face_match_passed BOOLEAN DEFAULT false;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS liveness_score DOUBLE PRECISION;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS liveness_passed BOOLEAN DEFAULT false;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS duplicate_check_result VARCHAR(80);
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS watchlist_result VARCHAR(80);
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS ip_address VARCHAR(64);
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS device_fingerprint VARCHAR(255);
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS geolocation VARCHAR(255);
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS submission_metadata JSONB;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS auto_verified BOOLEAN DEFAULT false;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS auto_verification_details JSONB;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS manual_review_required BOOLEAN DEFAULT true;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS risk_level VARCHAR(30) DEFAULT 'medium';
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS risk_score INTEGER DEFAULT 0;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS risk_flags JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS recommended_action VARCHAR(100);
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS potential_duplicate BOOLEAN DEFAULT false;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS fraud_suspected BOOLEAN DEFAULT false;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS customer_message TEXT;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS decision_reason_code VARCHAR(80);
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS decision_reason TEXT;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS self_checkin_enabled BOOLEAN DEFAULT false;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS self_checkin_activated_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE ekyc_verifications ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;
+
+CREATE TABLE IF NOT EXISTS ekyc_decision_history (
+    id BIGINT PRIMARY KEY DEFAULT nextval('ekyc_decision_history_id_seq'),
+    application_id BIGINT NOT NULL REFERENCES ekyc_verifications(id) ON DELETE CASCADE,
+    actor_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    action VARCHAR(100) NOT NULL,
+    from_status VARCHAR(50),
+    to_status VARCHAR(50),
+    reason_code VARCHAR(80),
+    reason TEXT,
+    details JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ekyc_notes (
+    id BIGINT PRIMARY KEY DEFAULT nextval('ekyc_notes_id_seq'),
+    application_id BIGINT NOT NULL REFERENCES ekyc_verifications(id) ON DELETE CASCADE,
+    note_type VARCHAR(40) NOT NULL DEFAULT 'internal',
+    body TEXT NOT NULL,
+    customer_visible BOOLEAN NOT NULL DEFAULT false,
+    created_by BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ekyc_sensitive_reveals (
+    id BIGINT PRIMARY KEY DEFAULT nextval('ekyc_sensitive_reveals_id_seq'),
+    application_id BIGINT NOT NULL REFERENCES ekyc_verifications(id) ON DELETE CASCADE,
+    actor_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    field_name VARCHAR(80) NOT NULL,
+    reason TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ekyc_access_events (
+    id BIGINT PRIMARY KEY DEFAULT nextval('ekyc_access_events_id_seq'),
+    application_id BIGINT REFERENCES ekyc_verifications(id) ON DELETE CASCADE,
+    actor_id BIGINT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    action VARCHAR(100) NOT NULL,
+    details JSONB,
+    ip_address VARCHAR(64),
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ekyc_idempotency_keys (
+    id BIGINT PRIMARY KEY DEFAULT nextval('ekyc_idempotency_keys_id_seq'),
+    application_id BIGINT NOT NULL REFERENCES ekyc_verifications(id) ON DELETE CASCADE,
+    actor_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    idempotency_key VARCHAR(160) NOT NULL,
+    action VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (application_id, actor_id, idempotency_key)
+);
+
+CREATE TABLE IF NOT EXISTS ekyc_reason_codes (
+    code VARCHAR(80) PRIMARY KEY,
+    label VARCHAR(160) NOT NULL,
+    category VARCHAR(80) NOT NULL,
+    requires_details BOOLEAN NOT NULL DEFAULT false,
+    customer_message_template TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS self_checkin_events (
+    id BIGINT PRIMARY KEY DEFAULT nextval('self_checkin_events_id_seq'),
+    booking_id BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    ekyc_verification_id BIGINT REFERENCES ekyc_verifications(id) ON DELETE SET NULL,
+    user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    checked_in_at TIMESTAMP WITH TIME ZONE,
+    room_key_issued BOOLEAN DEFAULT false,
+    digital_key_sent BOOLEAN DEFAULT false,
+    device_type VARCHAR(100),
+    checkin_location VARCHAR(255),
+    event_type VARCHAR(100),
+    event_data TEXT,
+    ip_address VARCHAR(64),
+    user_agent TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO ekyc_reason_codes (code, label, category, requires_details, customer_message_template)
+VALUES
+    ('document_blurry', 'Blurry document', 'resubmission', false, 'Please upload a clearer image of your identity document.'),
+    ('missing_document', 'Missing document', 'resubmission', false, 'Please upload the missing identity document.'),
+    ('expired_document', 'Expired document', 'resubmission', false, 'Please upload a valid, unexpired identity document.'),
+    ('selfie_mismatch', 'Selfie mismatch', 'resubmission', true, 'Please submit a new selfie that clearly matches your identity document.'),
+    ('incomplete_profile', 'Incomplete profile', 'resubmission', false, 'Please complete the missing profile details.'),
+    ('unsupported_document', 'Unsupported document', 'rejection', true, NULL),
+    ('data_mismatch', 'Data mismatch', 'review', true, 'Please review and correct the submitted identity information.'),
+    ('duplicate_identity', 'Potential duplicate identity', 'escalation', true, NULL),
+    ('watchlist_match', 'Watchlist, sanctions, or PEP match', 'escalation', true, NULL),
+    ('provider_error', 'Verification provider error', 'manual_override', true, NULL),
+    ('manual_override', 'Manual override', 'manual_override', true, NULL),
+    ('other', 'Other', 'general', true, NULL)
+ON CONFLICT (code) DO UPDATE SET
+    label = EXCLUDED.label,
+    category = EXCLUDED.category,
+    requires_details = EXCLUDED.requires_details,
+    customer_message_template = EXCLUDED.customer_message_template,
+    is_active = true,
+    updated_at = CURRENT_TIMESTAMP;
+
+CREATE INDEX IF NOT EXISTS idx_ekyc_status ON ekyc_verifications(status);
+CREATE INDEX IF NOT EXISTS idx_ekyc_submitted_at ON ekyc_verifications(submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ekyc_assigned_reviewer ON ekyc_verifications(assigned_reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_ekyc_risk ON ekyc_verifications(risk_level, risk_score DESC);
+CREATE INDEX IF NOT EXISTS idx_ekyc_manual_review ON ekyc_verifications(manual_review_required);
+CREATE INDEX IF NOT EXISTS idx_ekyc_guest ON ekyc_verifications(guest_id);
+CREATE INDEX IF NOT EXISTS idx_ekyc_user ON ekyc_verifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_ekyc_id_number ON ekyc_verifications(id_number);
+CREATE INDEX IF NOT EXISTS idx_ekyc_email ON ekyc_verifications(email);
+CREATE INDEX IF NOT EXISTS idx_ekyc_history_application ON ekyc_decision_history(application_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ekyc_notes_application ON ekyc_notes(application_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ekyc_access_application ON ekyc_access_events(application_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ekyc_reveals_application ON ekyc_sensitive_reveals(application_id, created_at DESC);
+
+UPDATE route_access_policies
+SET required_permissions = '["ekyc:read"]'::jsonb,
+    nav_permissions = '["navigation_ekyc_admin:read","ekyc:read"]'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
+WHERE route_id = 'ekyc-admin';
+
 COMMENT ON FUNCTION auto_check_in_reservations(DATE) IS
     'Auto-checks-in confirmed reservations whose check-in date is on or before '
     'the given date (and check-out date is still in the future). Updates booking '
