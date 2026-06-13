@@ -1,4 +1,5 @@
 // Authentication and User type definitions
+import type { RouteAccessPolicy } from './rbac.types';
 
 export interface User {
   id: string;
@@ -16,7 +17,14 @@ export interface AuthResponse {
   user: User;
   roles: string[];
   permissions: string[];
+  route_policies: RouteAccessPolicy[];
   is_first_login: boolean;
+}
+
+export interface AccessSnapshot {
+  roles: string[];
+  permissions: string[];
+  route_policies: RouteAccessPolicy[];
 }
 
 export interface UserProfile {

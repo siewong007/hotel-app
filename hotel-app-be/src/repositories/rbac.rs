@@ -3,11 +3,59 @@
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
-    Permission, Role, RolePermissionAssignment, User, UserCreateInput, UserRoleAssignment,
-    UserWithRolesAndPermissions,
+    Permission, Role, RolePermissionAssignment, RouteAccessPolicy, RouteAccessPolicyInput, User,
+    UserCreateInput, UserRoleAssignment, UserWithRolesAndPermissions,
 };
+use sqlx::FromRow;
 
 pub struct RbacRepository;
+
+#[derive(Debug, FromRow)]
+struct RouteAccessPolicyRow {
+    route_id: String,
+    path: String,
+    nav_label: Option<String>,
+    nav_group: Option<String>,
+    required_permissions: String,
+    required_roles: String,
+    excluded_roles: String,
+    nav_permissions: String,
+    nav_roles: String,
+    nav_excluded_roles: String,
+    is_navigation: bool,
+}
+
+fn parse_string_array(raw: &str, field_name: &str) -> Result<Vec<String>, ApiError> {
+    serde_json::from_str::<Vec<String>>(raw).map_err(|e| {
+        ApiError::Database(format!(
+            "Invalid route access policy JSON in {field_name}: {e}"
+        ))
+    })
+}
+
+fn route_policy_from_row(row: RouteAccessPolicyRow) -> Result<RouteAccessPolicy, ApiError> {
+    Ok(RouteAccessPolicy {
+        route_id: row.route_id,
+        path: row.path,
+        nav_label: row.nav_label,
+        nav_group: row.nav_group,
+        required_permissions: parse_string_array(
+            &row.required_permissions,
+            "required_permissions",
+        )?,
+        required_roles: parse_string_array(&row.required_roles, "required_roles")?,
+        excluded_roles: parse_string_array(&row.excluded_roles, "excluded_roles")?,
+        nav_permissions: parse_string_array(&row.nav_permissions, "nav_permissions")?,
+        nav_roles: parse_string_array(&row.nav_roles, "nav_roles")?,
+        nav_excluded_roles: parse_string_array(&row.nav_excluded_roles, "nav_excluded_roles")?,
+        is_navigation: row.is_navigation,
+    })
+}
+
+fn json_array(values: &[String]) -> Result<String, ApiError> {
+    serde_json::to_string(values)
+        .map_err(|e| ApiError::BadRequest(format!("Invalid route policy array: {e}")))
+}
 
 impl RbacRepository {
     /// Find all roles
@@ -228,6 +276,140 @@ impl RbacRepository {
         .fetch_all(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    pub async fn find_all_route_access_policies(
+        pool: &DbPool,
+    ) -> Result<Vec<RouteAccessPolicy>, ApiError> {
+        let query = crate::sql_query!(
+            postgres: r#"
+                SELECT
+                    route_id,
+                    path,
+                    nav_label,
+                    nav_group,
+                    required_permissions::text AS required_permissions,
+                    required_roles::text AS required_roles,
+                    excluded_roles::text AS excluded_roles,
+                    nav_permissions::text AS nav_permissions,
+                    nav_roles::text AS nav_roles,
+                    nav_excluded_roles::text AS nav_excluded_roles,
+                    is_navigation
+                FROM route_access_policies
+                ORDER BY route_id
+            "#,
+            sqlite: r#"
+                SELECT
+                    route_id,
+                    path,
+                    nav_label,
+                    nav_group,
+                    required_permissions,
+                    required_roles,
+                    excluded_roles,
+                    nav_permissions,
+                    nav_roles,
+                    nav_excluded_roles,
+                    is_navigation
+                FROM route_access_policies
+                ORDER BY route_id
+            "#
+        );
+
+        let rows = sqlx::query_as::<_, RouteAccessPolicyRow>(query)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        rows.into_iter().map(route_policy_from_row).collect()
+    }
+
+    pub async fn update_route_access_policy(
+        pool: &DbPool,
+        route_id: &str,
+        input: &RouteAccessPolicyInput,
+    ) -> Result<RouteAccessPolicy, ApiError> {
+        let required_permissions = json_array(&input.required_permissions)?;
+        let required_roles = json_array(&input.required_roles)?;
+        let excluded_roles = json_array(&input.excluded_roles)?;
+        let nav_permissions = json_array(&input.nav_permissions)?;
+        let nav_roles = json_array(&input.nav_roles)?;
+        let nav_excluded_roles = json_array(&input.nav_excluded_roles)?;
+
+        let query = crate::sql_query!(
+            postgres: r#"
+                UPDATE route_access_policies
+                SET
+                    nav_label = $2,
+                    nav_group = $3,
+                    required_permissions = $4::jsonb,
+                    required_roles = $5::jsonb,
+                    excluded_roles = $6::jsonb,
+                    nav_permissions = $7::jsonb,
+                    nav_roles = $8::jsonb,
+                    nav_excluded_roles = $9::jsonb,
+                    is_navigation = $10,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE route_id = $1
+                RETURNING
+                    route_id,
+                    path,
+                    nav_label,
+                    nav_group,
+                    required_permissions::text AS required_permissions,
+                    required_roles::text AS required_roles,
+                    excluded_roles::text AS excluded_roles,
+                    nav_permissions::text AS nav_permissions,
+                    nav_roles::text AS nav_roles,
+                    nav_excluded_roles::text AS nav_excluded_roles,
+                    is_navigation
+            "#,
+            sqlite: r#"
+                UPDATE route_access_policies
+                SET
+                    nav_label = ?2,
+                    nav_group = ?3,
+                    required_permissions = ?4,
+                    required_roles = ?5,
+                    excluded_roles = ?6,
+                    nav_permissions = ?7,
+                    nav_roles = ?8,
+                    nav_excluded_roles = ?9,
+                    is_navigation = ?10,
+                    updated_at = datetime('now')
+                WHERE route_id = ?1
+                RETURNING
+                    route_id,
+                    path,
+                    nav_label,
+                    nav_group,
+                    required_permissions,
+                    required_roles,
+                    excluded_roles,
+                    nav_permissions,
+                    nav_roles,
+                    nav_excluded_roles,
+                    is_navigation
+            "#
+        );
+
+        let row = sqlx::query_as::<_, RouteAccessPolicyRow>(query)
+            .bind(route_id)
+            .bind(&input.nav_label)
+            .bind(&input.nav_group)
+            .bind(required_permissions)
+            .bind(required_roles)
+            .bind(excluded_roles)
+            .bind(nav_permissions)
+            .bind(nav_roles)
+            .bind(nav_excluded_roles)
+            .bind(input.is_navigation)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?
+            .ok_or_else(|| ApiError::NotFound("Route access policy not found".to_string()))?;
+
+        route_policy_from_row(row)
     }
 
     pub async fn user_role_assignments(pool: &DbPool) -> Result<Vec<UserRoleAssignment>, ApiError> {

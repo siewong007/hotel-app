@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
+use super::rbac::RouteAccessPolicy;
 use super::user::UserResponse;
 use validator::Validate;
 
@@ -26,7 +27,16 @@ pub struct AuthResponse {
     pub user: UserResponse,
     pub roles: Vec<String>,
     pub permissions: Vec<String>,
+    pub route_policies: Vec<RouteAccessPolicy>,
     pub is_first_login: bool,
+}
+
+/// Current user's dynamic access snapshot.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AccessSnapshot {
+    pub roles: Vec<String>,
+    pub permissions: Vec<String>,
+    pub route_policies: Vec<RouteAccessPolicy>,
 }
 
 /// Refresh token request

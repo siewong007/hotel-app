@@ -62,7 +62,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
     };
 
     const setupEvents = async () => {
-      const { listen } = getTauriEventApi();
+      const { listen } = await getTauriEventApi();
 
       unlistenReady = await listen<string>('backend-ready', (event) => {
         setRuntimeApiBaseUrl(event.payload);
@@ -101,7 +101,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
     setError(null);
 
     try {
-      const { invoke } = getTauriCoreApi();
+      const { invoke } = await getTauriCoreApi();
       await invoke('restart_backend');
       const nextStatus = await getDesktopStatus();
       setStatus(nextStatus);
@@ -114,7 +114,7 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
 
   const openDataFolder = async () => {
     try {
-      const { invoke } = getTauriCoreApi();
+      const { invoke } = await getTauriCoreApi();
       await invoke('open_data_folder');
     } catch (folderError) {
       setError(folderError instanceof Error ? folderError.message : 'Unable to open data folder');

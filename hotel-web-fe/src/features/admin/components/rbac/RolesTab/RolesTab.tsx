@@ -15,7 +15,7 @@ import {
   Stack,
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
-import type { Permission, Role, RoleInput } from '../../../../../types';
+import type { Permission, Role, RouteAccessPolicy, RoleInput } from '../../../../../types';
 import type { RoleWithStats } from '../types';
 import RoleCard from './RoleCard';
 import RoleEditDrawer from './RoleEditDrawer';
@@ -24,6 +24,7 @@ import { useCreateRole, useDeleteRole } from '../hooks/useRBACQueries';
 interface RolesTabProps {
   roles: RoleWithStats[];
   permissions: Permission[];
+  routePolicies?: RouteAccessPolicy[];
   onRoleCreated: (role: Role) => void;
   onRoleUpdated: (role: Role, permissions: Permission[]) => void;
   onRoleDeleted: (roleId: number) => void;
@@ -33,6 +34,7 @@ interface RolesTabProps {
 const RolesTab: React.FC<RolesTabProps> = ({
   roles,
   permissions,
+  routePolicies = [],
   onRoleCreated,
   onRoleUpdated,
   onRoleDeleted,
@@ -155,6 +157,7 @@ const RolesTab: React.FC<RolesTabProps> = ({
         open={editDrawerOpen}
         role={editingRole}
         allPermissions={permissions}
+        routePolicies={routePolicies}
         onClose={() => {
           setEditDrawerOpen(false);
           setEditingRole(null);

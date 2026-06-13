@@ -1,8 +1,8 @@
 import { useCallback, useMemo, type SetStateAction } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Permission, RbacSnapshot, Role, User } from '../../../../../types';
+import type { Permission, RbacSnapshot, Role, RouteAccessPolicy, User } from '../../../../../types';
 import type { PermissionCategory, RolePermissionMap, RoleWithStats } from '../types';
-import { PERMISSION_CATEGORIES, NAVIGATION_ITEMS } from '../constants';
+import { PERMISSION_CATEGORIES } from '../constants';
 import { rbacQueryKeys, useRbacSnapshot } from './useRBACQueries';
 
 interface UserWithRoles extends User {
@@ -13,6 +13,7 @@ interface UseRBACDataReturn {
   // Data
   roles: Role[];
   permissions: Permission[];
+  routePolicies: RouteAccessPolicy[];
   rolePermissions: Record<number, Permission[]>;
   users: UserWithRoles[];
 
@@ -53,6 +54,7 @@ export function useRBACData(): UseRBACDataReturn {
 
   const roles = snapshot?.roles || [];
   const permissions = snapshot?.permissions || [];
+  const routePolicies = snapshot?.route_policies || [];
 
   const rolePermissions = useMemo<Record<number, Permission[]>>(() => {
     const permissionsById = new Map(permissions.map((permission) => [permission.id, permission]));
@@ -204,18 +206,14 @@ export function useRBACData(): UseRBACDataReturn {
 
   // Compute roles with stats
   const rolesWithStats = useMemo<RoleWithStats[]>(() => {
-    const navigationItemIds = new Set(NAVIGATION_ITEMS.map(item => item.id));
-
     return roles.map(role => {
       const perms = rolePermissions[role.id] || [];
+      const permissionNames = new Set(perms.map((permission) => permission.name));
 
-      // Count navigation permissions
-      const navPerms = perms.filter(p => p.resource.startsWith('navigation:'));
-
-      // Get navigation item IDs from permissions
-      const navItems = navPerms
-        .map(p => p.resource.replace('navigation:', ''))
-        .filter(id => navigationItemIds.has(id));
+      const navItems = routePolicies
+        .filter((policy) => policy.is_navigation)
+        .filter((policy) => policy.nav_permissions.some((permission) => permissionNames.has(permission)))
+        .map((policy) => policy.route_id);
 
       return {
         ...role,
@@ -225,7 +223,7 @@ export function useRBACData(): UseRBACDataReturn {
         navigationItems: navItems,
       };
     });
-  }, [roles, rolePermissions]);
+  }, [roles, rolePermissions, routePolicies]);
 
   const reload = useCallback(async () => {
     await refetch();
@@ -234,6 +232,7 @@ export function useRBACData(): UseRBACDataReturn {
   return {
     roles,
     permissions,
+    routePolicies,
     rolePermissions,
     users,
     rolesWithStats,

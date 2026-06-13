@@ -29,6 +29,14 @@ export function useRbacSnapshot() {
   });
 }
 
+export function useRouteAccessPolicies() {
+  return useQuery({
+    queryKey: rbacQueryKeys.routePolicies(),
+    queryFn: () => AdminService.getRouteAccessPolicies(),
+    staleTime: RBAC_STALE_TIME_MS,
+  });
+}
+
 export function useRoles() {
   return useQuery({
     queryKey: rbacQueryKeys.roles(),

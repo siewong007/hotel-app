@@ -119,7 +119,7 @@ npm run build
 
 `desktop:prepare` refreshes the desktop bundle before Tauri builds it:
 
-- syncs backend PostgreSQL migrations and seed data into `hotel-desktop/src-tauri/database/`
+- syncs backend `database/schema.sql` and `database/data.sql` into `hotel-desktop/src-tauri/database/`
 - builds the React frontend in `hotel-web-fe`
 - builds the backend release binary from `hotel-app-be`
 - copies the backend sidecar into `hotel-desktop/src-tauri/binaries/` with the target-triple filename Tauri expects

@@ -35,6 +35,23 @@ pub async fn get_rbac_snapshot_handler(
     Ok(Json(svc::snapshot(&pool).await?))
 }
 
+pub async fn get_route_policies_handler(
+    State(pool): State<DbPool>,
+) -> Result<Json<Vec<RouteAccessPolicy>>, ApiError> {
+    Ok(Json(svc::route_policies(&pool).await?))
+}
+
+pub async fn update_route_policy_handler(
+    State(pool): State<DbPool>,
+    Extension(actor_user_id): Extension<i64>,
+    Path(route_id): Path<String>,
+    Json(input): Json<RouteAccessPolicyInput>,
+) -> Result<Json<RouteAccessPolicy>, ApiError> {
+    Ok(Json(
+        svc::update_route_policy(&pool, actor_user_id, route_id, input).await?,
+    ))
+}
+
 pub async fn create_permission_handler(
     State(pool): State<DbPool>,
     Json(input): Json<PermissionInput>,
