@@ -402,3 +402,44 @@ pub async fn shutdown_app(app_handle: AppHandle) -> Result<(), String> {
 
     Ok(())
 }
+
+/// Information about an available update, returned to the frontend.
+#[derive(serde::Serialize)]
+pub struct UpdateInfo {
+    pub available: bool,
+    pub version: String,
+    pub current_version: String,
+    pub notes: Option<String>,
+}
+
+/// Check the configured update endpoint for a newer, signature-verified release.
+///
+/// This only *checks*; it does not download or install. The signature is
+/// verified by the updater plugin against `plugins.updater.pubkey` in
+/// `tauri.conf.json`. Returns `available: false` when the app is up to date.
+#[tauri::command]
+pub async fn check_for_updates(app_handle: AppHandle) -> Result<UpdateInfo, String> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let current_version = env!("CARGO_PKG_VERSION").to_string();
+
+    let updater = app_handle.updater().map_err(|e| e.to_string())?;
+    match updater.check().await {
+        Ok(Some(update)) => Ok(UpdateInfo {
+            available: true,
+            version: update.version.clone(),
+            current_version,
+            notes: update.body.clone(),
+        }),
+        Ok(None) => Ok(UpdateInfo {
+            available: false,
+            version: current_version.clone(),
+            current_version,
+            notes: None,
+        }),
+        Err(err) => {
+            log::warn!("Update check failed: {}", err);
+            Err(err.to_string())
+        }
+    }
+}
