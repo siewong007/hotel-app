@@ -8,7 +8,7 @@ on:
 
 jobs:
   frontend:
-    name: Frontend — Typecheck & Build
+    name: Frontend — Typecheck, Lint & Build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -28,7 +28,10 @@ jobs:
         run: npm ci
 
       - name: Typecheck
-        run: npx tsc --noEmit
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
 
       - name: Build
         run: npm run build
@@ -68,3 +71,132 @@ jobs:
 
       - name: Cargo build (release)
         run: cargo build --release
+
+  backend-sqlite:
+    name: Backend — SQLite Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hotel-app-be
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          components: clippy
+
+      - name: Cache Cargo dependencies
+        if: ${{ !env.ACT }}
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: hotel-app-be
+
+      - name: Run SQLite-only tests
+        run: cargo test --features sqlite --no-default-features
+
+  backend-postgres-smoke:
+    name: Backend — PostgreSQL Smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hotel-app-be
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: hotel_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hotel_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/hotel_ci
+      JWT_SECRET: ci_jwt_secret_must_be_at_least_32_chars_long
+      BACKEND_PORT: 3030
+      ALLOWED_ORIGINS: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95.0
+
+      - name: Cache Cargo dependencies
+        if: ${{ !env.ACT }}
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: hotel-app-be
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libpq-dev pkg-config libssl-dev postgresql-client curl
+
+      - name: Apply PostgreSQL schema and seed data
+        run: |
+          psql "$DATABASE_URL" -f database/schema.sql
+          psql "$DATABASE_URL" -f database/data.sql
+
+      - name: Reapply PostgreSQL schema and seed data to verify idempotency
+        run: |
+          psql "$DATABASE_URL" -f database/schema.sql
+          psql "$DATABASE_URL" -f database/data.sql
+
+      - name: Run PostgreSQL tests
+        run: cargo test --features postgres --no-default-features
+
+      - name: Start backend and verify PostgreSQL connection
+        run: |
+          cargo run --bin hotel-app-be > /tmp/hotel-app-be.log 2>&1 &
+          backend_pid=$!
+
+          for _ in {1..30}; do
+            if curl -fsS http://127.0.0.1:3030/health; then
+              kill "$backend_pid"
+              wait "$backend_pid" || true
+              exit 0
+            fi
+
+            if ! kill -0 "$backend_pid" 2>/dev/null; then
+              cat /tmp/hotel-app-be.log
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          cat /tmp/hotel-app-be.log
+          kill "$backend_pid" || true
+          exit 1
+
+  desktop:
+    name: Desktop — Cargo Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hotel-desktop/src-tauri
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95.0
+
+      - name: Cache Cargo dependencies
+        if: ${{ !env.ACT }}
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: hotel-desktop/src-tauri
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf pkg-config libssl-dev
+
+      - name: Cargo check
+        run: cargo check

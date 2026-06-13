@@ -96,7 +96,6 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
     if (!open) {
       loadedRoomIdRef.current = null;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, roomId]);
 
   // Load available rooms when room change mode is activated
@@ -104,7 +103,6 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
     if (roomChangeMode) {
       loadAvailableRooms();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomChangeMode]);
 
   const loadAvailableRooms = async () => {
