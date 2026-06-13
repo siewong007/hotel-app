@@ -5,18 +5,16 @@ import { CircularProgress, Box } from '@mui/material';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredPermissions?: string[];
-  requiredRoles?: string[]; // Array of roles - user needs ANY of these
-  excludeRoles?: string[];
+  routeId?: string;
+  requiresPolicy?: boolean;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
-  requiredPermissions,
-  requiredRoles,
-  excludeRoles,
+  routeId,
+  requiresPolicy = false,
 }) => {
-  const { isAuthenticated, isLoading, hasPermission, hasRole } = useAuth();
+  const { isAuthenticated, isLoading, hasPermission, hasRole, getRoutePolicy } = useAuth();
 
   if (isLoading) {
     return (
@@ -30,21 +28,31 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/" replace />;
   }
 
-  if (requiredPermissions && requiredPermissions.length > 0) {
+  const policy = routeId ? getRoutePolicy(routeId) : undefined;
+  if (requiresPolicy && !policy) {
+    return <Navigate to="/" replace />;
+  }
+
+  const requiredPermissions = policy?.required_permissions ?? [];
+  const requiredRoles = policy?.required_roles ?? [];
+  const excludeRoles = policy?.excluded_roles ?? [];
+
+  if (requiredPermissions.length > 0) {
     const hasAnyPermission = requiredPermissions.some(permission => hasPermission(permission));
-    if (!hasAnyPermission) {
+    const hasAnyRole = requiredRoles.some(role => hasRole(role));
+    if (!hasAnyPermission && !hasAnyRole) {
       return <Navigate to="/" replace />;
     }
   }
 
-  if (requiredRoles && requiredRoles.length > 0) {
+  if (requiredPermissions.length === 0 && requiredRoles.length > 0) {
     const hasAnyRole = requiredRoles.some(role => hasRole(role));
     if (!hasAnyRole) {
       return <Navigate to="/" replace />;
     }
   }
 
-  if (excludeRoles?.some((role) => hasRole(role))) {
+  if (excludeRoles.some((role) => hasRole(role))) {
     return <Navigate to="/timeline" replace />;
   }
 

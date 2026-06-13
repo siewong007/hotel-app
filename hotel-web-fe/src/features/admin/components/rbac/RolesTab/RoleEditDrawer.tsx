@@ -12,9 +12,9 @@ import {
   alpha,
 } from '@mui/material';
 import { Close as CloseIcon, Save as SaveIcon } from '@mui/icons-material';
-import type { Permission, Role, RoleInput } from '../../../../../types';
+import type { Permission, Role, RouteAccessPolicy, RoleInput } from '../../../../../types';
 import type { RoleWithStats } from '../types';
-import { getRoleColor, NAVIGATION_PERMISSION_MAPPING } from '../constants';
+import { getRoleColor } from '../constants';
 import NavigationAccessSection from './NavigationAccessSection';
 import PermissionSummarySection from './PermissionSummarySection';
 import { useUpdateRole, useReplaceRolePermissions } from '../hooks/useRBACQueries';
@@ -23,6 +23,7 @@ interface RoleEditDrawerProps {
   open: boolean;
   role: RoleWithStats | null;
   allPermissions: Permission[];
+  routePolicies: RouteAccessPolicy[];
   onClose: () => void;
   onSave: (role: Role, updatedPermissions: Permission[]) => void;
 }
@@ -31,6 +32,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
   open,
   role,
   allPermissions,
+  routePolicies,
   onClose,
   onSave,
 }) => {
@@ -63,27 +65,19 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
     setHasChanges(true);
     setError(null);
 
-    // Get required permissions for this nav item
-    const requiredPerms = NAVIGATION_PERMISSION_MAPPING[navId] || [];
-    const navPermName = `navigation_${navId}:read`;
+    const policy = routePolicies.find((routePolicy) => routePolicy.route_id === navId);
+    const permissionNames = new Set([
+      ...(policy?.nav_permissions || []),
+      ...(policy?.required_permissions || []),
+    ]);
 
     if (enabled) {
       // Add nav item
       setSelectedNavItems((prev) => [...prev, navId]);
 
-      // Find or create the navigation permission
-      let navPerm = allPermissions.find((p) => p.name === navPermName);
-
-      // Add navigation permission and required permissions
       const permsToAdd: Permission[] = [];
-
-      if (navPerm && !permissions.some((p) => p.id === navPerm!.id)) {
-        permsToAdd.push(navPerm);
-      }
-
-      // Add required page permissions
-      requiredPerms.forEach((reqPerm) => {
-        const existingPerm = allPermissions.find((p) => p.name === reqPerm.name);
+      permissionNames.forEach((permissionName) => {
+        const existingPerm = allPermissions.find((p) => p.name === permissionName);
         if (existingPerm && !permissions.some((p) => p.id === existingPerm.id)) {
           permsToAdd.push(existingPerm);
         }
@@ -96,8 +90,8 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
       // Remove nav item
       setSelectedNavItems((prev) => prev.filter((id) => id !== navId));
 
-      // Remove the navigation permission
-      setPermissions((prev) => prev.filter((p) => p.name !== navPermName));
+      const navPermissionNames = new Set(policy?.nav_permissions || []);
+      setPermissions((prev) => prev.filter((p) => !navPermissionNames.has(p.name)));
     }
   };
 
@@ -225,6 +219,7 @@ const RoleEditDrawer: React.FC<RoleEditDrawerProps> = ({
 
           <NavigationAccessSection
             selectedNavItems={selectedNavItems}
+            routePolicies={routePolicies}
             onToggleNavItem={handleToggleNavItem}
             disabled={saving}
           />

@@ -11,6 +11,7 @@ use crate::models::{
 };
 use crate::repositories::auth::AuthRepository;
 use crate::repositories::passkey::PasskeyRepository;
+use crate::repositories::rbac::RbacRepository;
 use base64::Engine;
 use base64::engine::general_purpose;
 use rand::Rng;
@@ -297,6 +298,7 @@ pub async fn login_finish(
     let permissions = AuthService::get_user_permissions(pool, user.id)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+    let route_policies = RbacRepository::find_all_route_access_policies(pool).await?;
     let access_token = AuthService::generate_jwt(user.id, user.username.clone(), roles.clone())
         .map_err(|e| ApiError::Internal(format!("Token generation failed: {}", e)))?;
     let refresh_token = AuthService::generate_refresh_token();
@@ -315,6 +317,7 @@ pub async fn login_finish(
         user: UserResponse::from(user),
         roles,
         permissions,
+        route_policies,
         is_first_login,
     })
 }

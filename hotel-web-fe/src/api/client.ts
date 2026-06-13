@@ -1,7 +1,7 @@
 // Base API client configuration
 import ky from 'ky';
 import { storage } from '../utils/storage';
-import { getApiBaseUrl, resolveApiRequestUrl } from '../desktop/runtimeApi';
+import { apiUrl, getApiBaseUrl, resolveApiRequestUrl } from '../desktop/runtimeApi';
 import {
   emitApiNotification,
   getExplicitApiNotificationMessage,
@@ -24,6 +24,97 @@ export class APIError extends Error {
 // Legacy snapshot for code that only needs to display/debug the current startup base URL.
 // Requests resolve the API base dynamically so Tauri can update it after boot.
 export const API_BASE_URL = getApiBaseUrl();
+
+type RefreshTokenResponse = {
+  access_token: string;
+  refresh_token: string;
+};
+
+let refreshPromise: Promise<RefreshTokenResponse | null> | null = null;
+
+function isAuthEndpoint(url: string): boolean {
+  const pathname = new URL(
+    url,
+    typeof window === 'undefined' ? 'http://localhost' : window.location.origin,
+  ).pathname;
+
+  return [
+    '/auth/login',
+    '/auth/logout',
+    '/auth/passkey',
+    '/auth/refresh',
+    '/auth/register',
+  ].some(endpoint => pathname.includes(endpoint));
+}
+
+function clearStoredAuth(): void {
+  storage.removeItem('accessToken');
+  storage.removeItem('refreshToken');
+  storage.removeItem('user');
+  storage.removeItem('roles');
+  storage.removeItem('permissions');
+  storage.removeItem('routePolicies');
+}
+
+async function refreshStoredAuthTokens(): Promise<RefreshTokenResponse | null> {
+  const refreshToken = storage.getItem<string>('refreshToken');
+  if (!refreshToken) {
+    return null;
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = ky.post(apiUrl('auth/refresh'), {
+      json: { refresh_token: refreshToken },
+      timeout: 30000,
+    })
+      .json<RefreshTokenResponse>()
+      .then(tokens => {
+        storage.setItems({
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+        });
+        storage.invalidateCache();
+        window.dispatchEvent(new CustomEvent('auth:tokens-refreshed', {
+          detail: {
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token,
+          },
+        }));
+        return tokens;
+      })
+      .catch(error => {
+        console.warn('Unable to refresh access token:', error);
+        return null;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
+async function retryWithFreshAccessToken(
+  request: Request,
+  options: Parameters<typeof ky>[1],
+): Promise<Response> {
+  const retryHeaders = new Headers(request.headers);
+  const accessToken = storage.getItem<string>('accessToken');
+  if (accessToken) {
+    retryHeaders.set('Authorization', `Bearer ${accessToken}`);
+  }
+
+  const retryRequest = new Request(request, { headers: retryHeaders });
+
+  return ky(retryRequest, {
+    ...options,
+    throwHttpErrors: false,
+    hooks: {
+      ...options?.hooks,
+      afterResponse: [],
+    },
+  });
+}
 
 async function createRequestWithUrl(request: Request, url: string): Promise<Request> {
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD' && request.body !== null;
@@ -73,21 +164,16 @@ export const api = ky.create({
         if (response.status === 401) {
           console.error('401 Unauthorized response for:', request.method, request.url);
 
-          // Check if this is a login or auth endpoint - don't auto-logout for these
-          const url = request.url;
-          const isAuthEndpoint = url.includes('/auth/login') ||
-                                 url.includes('/auth/passkey') ||
-                                 url.includes('/auth/register');
+          // Only refresh/logout for 401s on protected endpoints, not auth endpoints.
+          if (!isAuthEndpoint(request.url)) {
+            const refreshed = await refreshStoredAuthTokens();
+            if (refreshed) {
+              return retryWithFreshAccessToken(request, options);
+            }
 
-          // Only auto-logout for 401s on protected endpoints, not auth endpoints
-          if (!isAuthEndpoint) {
             console.warn('Auto-logout triggered due to 401 on protected endpoint');
-            // Token expired or invalid - clear only auth data, preserve language preferences
-            storage.removeItem('accessToken');
-            storage.removeItem('refreshToken');
-            storage.removeItem('user');
-            storage.removeItem('roles');
-            storage.removeItem('permissions');
+            // Token expired or invalid - clear only auth data, preserve language preferences.
+            clearStoredAuth();
 
             // Use React Router navigation instead of hard redirect
             // Dispatch a custom event that AuthContext can listen to

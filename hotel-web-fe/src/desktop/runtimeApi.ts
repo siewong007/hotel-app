@@ -14,10 +14,6 @@ type TauriEventApi = {
 };
 
 type TauriWindow = Window & {
-  __TAURI__?: {
-    core?: TauriCoreApi;
-    event?: TauriEventApi;
-  };
   __TAURI_INTERNALS__?: unknown;
 };
 
@@ -47,33 +43,29 @@ export function isTauriRuntime(): boolean {
   }
 
   const tauriWindow = window as TauriWindow;
-  return Boolean(tauriWindow.__TAURI__?.core);
+  return Boolean(tauriWindow.__TAURI_INTERNALS__);
 }
 
 export function shouldUseDesktopRuntime(): boolean {
   return isTauriBuildTarget() || isTauriRuntime();
 }
 
-export function getTauriCoreApi(): TauriCoreApi {
-  const tauriWindow = window as TauriWindow;
-  const core = tauriWindow.__TAURI__?.core;
-
-  if (!core) {
+export async function getTauriCoreApi(): Promise<TauriCoreApi> {
+  if (!shouldUseDesktopRuntime()) {
     throw new Error('Tauri core API is not available');
   }
 
-  return core;
+  const { invoke } = await import('@tauri-apps/api/core');
+  return { invoke };
 }
 
-export function getTauriEventApi(): TauriEventApi {
-  const tauriWindow = window as TauriWindow;
-  const event = tauriWindow.__TAURI__?.event;
-
-  if (!event) {
+export async function getTauriEventApi(): Promise<TauriEventApi> {
+  if (!shouldUseDesktopRuntime()) {
     throw new Error('Tauri event API is not available');
   }
 
-  return event;
+  const { listen } = await import('@tauri-apps/api/event');
+  return { listen };
 }
 
 export function setRuntimeApiBaseUrl(url: string): void {
@@ -129,7 +121,7 @@ export function resolveApiRequestUrl(requestUrl: string): string {
 }
 
 export async function getDesktopStatus(): Promise<DesktopAppStatus> {
-  const { invoke } = getTauriCoreApi();
+  const { invoke } = await getTauriCoreApi();
   const status = await invoke<DesktopAppStatus>('get_status');
 
   if (status.backend_url) {

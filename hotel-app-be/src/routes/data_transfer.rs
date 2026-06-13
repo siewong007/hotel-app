@@ -2,7 +2,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::require_admin_helper;
+use crate::core::middleware::require_permission_helper;
 use crate::handlers;
 use crate::models;
 use axum::{
@@ -26,7 +26,7 @@ async fn export_data(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<models::BookingDataExport>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_permission_helper(&pool, &headers, "settings:manage").await?;
     handlers::data_transfer::export_booking_data_handler(State(pool)).await
 }
 
@@ -35,6 +35,6 @@ async fn import_data(
     headers: HeaderMap,
     Json(input): Json<models::ImportRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_permission_helper(&pool, &headers, "settings:manage").await?;
     handlers::data_transfer::import_booking_data_handler(State(pool), Json(input)).await
 }

@@ -159,18 +159,14 @@ const emptyRoomForm: RoomFormData = {
 };
 
 const RoomConfigurationPage: React.FC = () => {
-  const { hasRole, hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const hasAccess =
-    hasRole('admin') ||
-    hasRole('receptionist') ||
-    hasRole('manager') ||
     hasPermission('rooms:read') ||
     hasPermission('rooms:manage');
   const canEdit =
-    hasRole('admin') ||
-    hasRole('manager') ||
     hasPermission('rooms:write') ||
+    hasPermission('rooms:update') ||
     hasPermission('rooms:manage');
 
   const [error, setError] = useState<string | null>(null);

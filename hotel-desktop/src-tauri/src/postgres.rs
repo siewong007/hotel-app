@@ -3,10 +3,12 @@
 //! Handles the lifecycle of the bundled PostgreSQL server:
 //! - Initialization (initdb)
 //! - Starting/stopping the server
-//! - Running migrations
+//! - Running schema and data bootstrap scripts
 //! - Health checks
 
 use rand::RngCore;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Output, Stdio};
 use std::sync::OnceLock;
@@ -32,6 +34,7 @@ const PATH_SEP: &str = ":";
 const POSTGRES_PORT: u16 = 5433; // Use non-standard port to avoid conflicts
 const POSTGRES_USER: &str = "hotel_admin";
 const POSTGRES_DB: &str = "hotel_management";
+const POSTGRES_PASSWORD_FILE: &str = "postgres-password.txt";
 const CONFIGURED_POSTGRES_MAJOR_VERSION: &str = "18";
 const MAX_STARTUP_WAIT_SECS: u64 = 30;
 const SEED_PLACEHOLDER_PASSWORD_HASH: &str =
@@ -51,7 +54,7 @@ pub enum PostgresError {
     #[error("PostgreSQL server failed to become ready within {seconds} seconds: {details}")]
     StartupTimeout { seconds: u64, details: String },
 
-    #[error("Failed to run migrations: {0}")]
+    #[error("Failed to run database setup: {0}")]
     MigrationFailed(String),
 
     #[error("PostgreSQL binary not found at: {0}")]
@@ -303,6 +306,88 @@ fn postgres_startup_log_details(log_file: &Path) -> String {
     }
 }
 
+fn generate_postgres_password() -> String {
+    let mut bytes = [0u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    hex::encode(bytes)
+}
+
+fn postgres_password_file_path() -> PathBuf {
+    get_data_directory().join(POSTGRES_PASSWORD_FILE)
+}
+
+fn tighten_secret_file_permissions(path: &Path) -> Result<(), std::io::Error> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    }
+
+    Ok(())
+}
+
+fn read_postgres_password_file() -> Result<Option<String>, PostgresError> {
+    let path = postgres_password_file_path();
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    tighten_secret_file_permissions(&path)?;
+    let password = std::fs::read_to_string(path)?.trim().to_string();
+    if password.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(password))
+}
+
+fn write_postgres_password_file(password: &str) -> Result<(), PostgresError> {
+    let path = postgres_password_file_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+
+    let mut file = match options.open(&path) {
+        Ok(file) => file,
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+            tighten_secret_file_permissions(&path)?;
+            return Ok(());
+        }
+        Err(err) => return Err(err.into()),
+    };
+
+    file.write_all(password.as_bytes())?;
+    file.write_all(b"\n")?;
+    file.flush()?;
+    tighten_secret_file_permissions(&path)?;
+    Ok(())
+}
+
+fn read_or_create_postgres_password() -> Result<String, PostgresError> {
+    if let Some(password) = read_postgres_password_file()? {
+        return Ok(password);
+    }
+
+    let password = generate_postgres_password();
+    write_postgres_password_file(&password)?;
+    log::info!(
+        "Generated local PostgreSQL credential at {:?}",
+        postgres_password_file_path()
+    );
+    read_postgres_password_file()?.ok_or_else(|| {
+        PostgresError::MigrationFailed("Failed to persist PostgreSQL credential".to_string())
+    })
+}
+
 /// Initialize PostgreSQL data directory using initdb
 pub async fn init_postgres_data_dir(
     app_handle: &AppHandle,
@@ -326,6 +411,8 @@ pub async fn init_postgres_data_dir(
     }
 
     let pgdata = get_pgdata_dir();
+    let _postgres_password = read_or_create_postgres_password()?;
+    let password_file = postgres_password_file_path();
 
     // Get current PATH and prepend pgsql/bin so initdb can find postgres.exe
     let current_path = std::env::var("PATH").unwrap_or_default();
@@ -345,6 +432,10 @@ pub async fn init_postgres_data_dir(
         "-E",
         "UTF8",
         "--locale=C",
+        "--pwfile",
+        &password_file.to_string_lossy(),
+        "--auth-host=scram-sha-256",
+        "--auth-local=scram-sha-256",
     ])
     .env("PATH", &new_path)
     .current_dir(&pgsql_bin)
@@ -372,7 +463,7 @@ pub async fn init_postgres_data_dir(
     Ok(())
 }
 
-/// Configure PostgreSQL for desktop use (localhost only, no password for local connections)
+/// Configure PostgreSQL for desktop use (localhost-only, password-authenticated).
 fn configure_postgres_for_desktop(pgdata: &PathBuf) -> Result<(), std::io::Error> {
     // Modify postgresql.conf
     let conf_path = pgdata.join("postgresql.conf");
@@ -386,6 +477,7 @@ port = {}
 listen_addresses = 'localhost'
 max_connections = 20
 shared_buffers = 128MB
+password_encryption = 'scram-sha-256'
 log_destination = 'stderr'
 logging_collector = on
 log_directory = 'log'
@@ -395,15 +487,19 @@ log_filename = 'postgresql-%Y-%m-%d.log'
     ));
 
     std::fs::write(&conf_path, conf_content)?;
+    write_pg_hba_for_desktop(pgdata)?;
 
-    // Modify pg_hba.conf for local trust authentication
+    Ok(())
+}
+
+fn write_pg_hba_for_desktop(pgdata: &Path) -> Result<(), std::io::Error> {
     let hba_path = pgdata.join("pg_hba.conf");
     let hba_content = r#"
 # Hotel Desktop App - Local connections only
 # TYPE  DATABASE        USER            ADDRESS                 METHOD
-local   all             all                                     trust
-host    all             all             127.0.0.1/32            trust
-host    all             all             ::1/128                 trust
+local   all             all                                     scram-sha-256
+host    all             all             127.0.0.1/32            scram-sha-256
+host    all             all             ::1/128                 scram-sha-256
 "#;
     std::fs::write(&hba_path, hba_content)?;
 
@@ -493,6 +589,70 @@ pub async fn start_postgres(
         seconds: MAX_STARTUP_WAIT_SECS,
         details,
     })
+}
+
+async fn reload_postgres_config(app_handle: &AppHandle) -> Result<(), PostgresError> {
+    let pgsql_bin = get_pgsql_bin_dir(app_handle);
+    let pg_ctl_path = pgsql_bin.join(format!("pg_ctl{}", EXE_SUFFIX));
+
+    if !pg_ctl_path.exists() {
+        return Err(PostgresError::BinaryNotFound(
+            pg_ctl_path.to_string_lossy().to_string(),
+        ));
+    }
+
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!(
+        "{}{}{}",
+        pgsql_bin.to_string_lossy(),
+        PATH_SEP,
+        current_path
+    );
+    let pgdata = get_pgdata_dir();
+
+    let mut cmd = tokio::process::Command::new(&pg_ctl_path);
+    cmd.args(["reload", "-D", &pgdata.to_string_lossy()])
+        .env("PATH", &new_path)
+        .current_dir(&pgsql_bin)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().await?;
+    if !output.status.success() {
+        let details = command_output_details("pg_ctl reload", &output);
+        log::error!("Failed to reload PostgreSQL config: {}", details);
+        return Err(PostgresError::MigrationFailed(format!(
+            "Failed to reload PostgreSQL config: {}",
+            details
+        )));
+    }
+
+    Ok(())
+}
+
+async fn ensure_postgres_password_auth(app_handle: &AppHandle) -> Result<(), PostgresError> {
+    let password = read_or_create_postgres_password()?;
+    let sql = format!(
+        "SET password_encryption = 'scram-sha-256'; ALTER ROLE {} WITH PASSWORD {};",
+        POSTGRES_USER,
+        sql_string_literal(&password)
+    );
+
+    run_psql_scalar_sql_in_database(
+        app_handle,
+        "postgres",
+        "psql set desktop role password",
+        &sql,
+    )
+    .await?;
+    write_pg_hba_for_desktop(&get_pgdata_dir())?;
+    reload_postgres_config(app_handle).await?;
+
+    log::info!("PostgreSQL desktop role requires SCRAM authentication");
+    Ok(())
 }
 
 /// Stop the PostgreSQL server
@@ -590,6 +750,7 @@ pub async fn ensure_postgres_running(app_handle: &AppHandle) -> Result<(), Postg
     // Check if already running
     if is_postgres_running(app_handle).await {
         log::info!("PostgreSQL is already running");
+        ensure_postgres_password_auth(app_handle).await?;
         return Ok(());
     }
 
@@ -597,7 +758,8 @@ pub async fn ensure_postgres_running(app_handle: &AppHandle) -> Result<(), Postg
     init_postgres_data_dir(app_handle, &bundled_postgres_major_version).await?;
 
     // Start the server (this now includes waiting for ready)
-    start_postgres(app_handle, &bundled_postgres_major_version).await
+    start_postgres(app_handle, &bundled_postgres_major_version).await?;
+    ensure_postgres_password_auth(app_handle).await
 }
 
 /// Create the hotel_management database if it doesn't exist
@@ -635,6 +797,7 @@ pub async fn create_database_if_needed(app_handle: &AppHandle) -> Result<(), Pos
             "-tAc",
             &format!("SELECT 1 FROM pg_database WHERE datname='{}'", POSTGRES_DB),
         ])
+        .env("PGPASSWORD", read_or_create_postgres_password()?)
         .env("PATH", &new_path)
         .current_dir(&pgsql_bin)
         .stdout(Stdio::piped())
@@ -679,6 +842,7 @@ pub async fn create_database_if_needed(app_handle: &AppHandle) -> Result<(), Pos
             "-c",
             &format!("CREATE DATABASE {} ENCODING 'UTF8'", POSTGRES_DB),
         ])
+        .env("PGPASSWORD", read_or_create_postgres_password()?)
         .env("PATH", &new_path)
         .current_dir(&pgsql_bin)
         .stdout(Stdio::piped())
@@ -702,44 +866,31 @@ pub async fn create_database_if_needed(app_handle: &AppHandle) -> Result<(), Pos
     Ok(())
 }
 
-/// Run database migrations if needed
-pub async fn run_migrations_if_needed(app_handle: &AppHandle) -> Result<(), PostgresError> {
+/// Run database schema and data bootstrap scripts if needed
+pub async fn run_database_setup(app_handle: &AppHandle) -> Result<(), PostgresError> {
     // First ensure database exists
     create_database_if_needed(app_handle).await?;
 
     let already_initialized = is_database_initialized(app_handle).await?;
 
-    // Always run migrations - they use IF NOT EXISTS patterns and are idempotent
-    // This ensures new migrations are applied even if the database was initialized before
-    log::info!("Running database migrations...");
-    run_sql_files(app_handle, "database/migrations").await?;
+    // Always run schema and data scripts. They are idempotent and keep fresh
+    // desktop installs and existing databases on the same consolidated path.
+    let resource_dir = clean_resource_dir(app_handle);
 
-    // Only run seed data if database was not previously initialized
+    log::info!("Running database schema...");
+    run_sql_file(app_handle, &resource_dir.join("database/schema.sql")).await?;
+
+    log::info!("Running database data bootstrap...");
+    run_sql_file(app_handle, &resource_dir.join("database/data.sql")).await?;
+
     if !already_initialized {
-        log::info!("Running bootstrap seed data...");
-        run_sql_files(app_handle, "database/seed-data").await?;
-        if load_demo_data_on_first_run() {
-            log::info!("HOTEL_DESKTOP_LOAD_DEMO_DATA enabled; running demo data...");
-            run_sql_files(app_handle, "database/demo-data").await?;
-        }
         randomize_seed_passwords(app_handle).await?;
     }
 
     repair_bootstrap_password_hashes_if_needed(app_handle).await?;
 
-    log::info!("Database migrations completed successfully");
+    log::info!("Database setup completed successfully");
     Ok(())
-}
-
-fn load_demo_data_on_first_run() -> bool {
-    std::env::var("HOTEL_DESKTOP_LOAD_DEMO_DATA")
-        .map(|value| {
-            matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes"
-            )
-        })
-        .unwrap_or(false)
 }
 
 fn generate_bootstrap_password() -> String {
@@ -760,6 +911,15 @@ fn sql_string_literal(value: &str) -> String {
 
 async fn run_psql_scalar_sql(
     app_handle: &AppHandle,
+    label: &str,
+    sql: &str,
+) -> Result<Output, PostgresError> {
+    run_psql_scalar_sql_in_database(app_handle, POSTGRES_DB, label, sql).await
+}
+
+async fn run_psql_scalar_sql_in_database(
+    app_handle: &AppHandle,
+    database: &str,
     label: &str,
     sql: &str,
 ) -> Result<Output, PostgresError> {
@@ -790,10 +950,11 @@ async fn run_psql_scalar_sql(
         "-U",
         POSTGRES_USER,
         "-d",
-        POSTGRES_DB,
+        database,
         "-tAc",
         sql,
     ])
+    .env("PGPASSWORD", read_or_create_postgres_password()?)
     .env("PATH", &new_path)
     .current_dir(&pgsql_bin)
     .stdout(Stdio::piped())
@@ -874,6 +1035,7 @@ pub async fn backup_database(
         "-f",
         &backup_path.to_string_lossy(),
     ])
+    .env("PGPASSWORD", read_or_create_postgres_password()?)
     .env("PATH", &new_path)
     .current_dir(&pgsql_bin)
     .stdout(Stdio::piped())
@@ -1035,6 +1197,7 @@ async fn is_database_initialized(app_handle: &AppHandle) -> Result<bool, Postgre
         "-tAc",
         "SELECT 1 FROM information_schema.tables WHERE table_name = 'users' LIMIT 1",
     ])
+    .env("PGPASSWORD", read_or_create_postgres_password()?)
     .env("PATH", &new_path)
     .current_dir(&pgsql_bin)
     .stdout(Stdio::piped())
@@ -1057,8 +1220,7 @@ async fn is_database_initialized(app_handle: &AppHandle) -> Result<bool, Postgre
     Ok(result)
 }
 
-/// Run SQL files from a directory
-async fn run_sql_files(app_handle: &AppHandle, dir_name: &str) -> Result<(), PostgresError> {
+fn clean_resource_dir(app_handle: &AppHandle) -> PathBuf {
     let resource_dir = app_handle
         .path()
         .resource_dir()
@@ -1066,27 +1228,14 @@ async fn run_sql_files(app_handle: &AppHandle, dir_name: &str) -> Result<(), Pos
 
     // Strip the \\?\ extended-length path prefix on Windows
     let path_str = resource_dir.to_string_lossy();
-    let clean_path = if path_str.starts_with(r"\\?\") {
+    if path_str.starts_with(r"\\?\") {
         PathBuf::from(&path_str[4..])
     } else {
         resource_dir
-    };
-
-    let sql_dir = clean_path.join(dir_name);
-
-    if !sql_dir.exists() {
-        log::warn!("SQL directory not found: {:?}", sql_dir);
-        return Ok(());
     }
+}
 
-    // Get all .sql files and sort them
-    let mut sql_files: Vec<_> = std::fs::read_dir(&sql_dir)?
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "sql"))
-        .collect();
-
-    sql_files.sort_by_key(|e| e.file_name());
-
+async fn run_sql_file(app_handle: &AppHandle, file_path: &Path) -> Result<(), PostgresError> {
     let pgsql_bin = get_pgsql_bin_dir(app_handle);
     let psql_path = pgsql_bin.join(format!("psql{}", EXE_SUFFIX));
     let current_path = std::env::var("PATH").unwrap_or_default();
@@ -1096,58 +1245,59 @@ async fn run_sql_files(app_handle: &AppHandle, dir_name: &str) -> Result<(), Pos
         PATH_SEP,
         current_path
     );
+    let port = POSTGRES_PORT.to_string();
 
-    for entry in sql_files {
-        let file_path = entry.path();
-        log::info!("Running SQL file: {:?}", file_path.file_name());
+    log::info!("Running SQL file: {:?}", file_path.file_name());
 
-        let mut cmd = tokio::process::Command::new(&psql_path);
-        cmd.args([
-            "-h",
-            "localhost",
-            "-p",
-            &POSTGRES_PORT.to_string(),
-            "-U",
-            POSTGRES_USER,
-            "-d",
-            POSTGRES_DB,
-            "-f",
-            &file_path.to_string_lossy(),
-        ])
+    let mut cmd = tokio::process::Command::new(&psql_path);
+    cmd.arg("-h")
+        .arg("localhost")
+        .arg("-p")
+        .arg(&port)
+        .arg("-U")
+        .arg(POSTGRES_USER)
+        .arg("-d")
+        .arg(POSTGRES_DB)
+        .arg("-v")
+        .arg("ON_ERROR_STOP=1")
+        .arg("--single-transaction")
+        .arg("-f")
+        .arg(file_path)
+        .env("PGPASSWORD", read_or_create_postgres_password()?)
         .env("PATH", &new_path)
         .current_dir(&pgsql_bin)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-        #[cfg(windows)]
-        cmd.creation_flags(CREATE_NO_WINDOW);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
 
-        let output = cmd.output().await?;
+    let output = cmd.output().await?;
 
-        if !output.status.success() {
-            let details = command_output_details("psql run SQL file", &output);
-            log::error!(
-                "Failed to run SQL file {:?}: {}",
-                file_path.file_name(),
-                details
-            );
-            return Err(PostgresError::MigrationFailed(format!(
-                "Failed to run SQL file {:?}: {}",
-                file_path.file_name(),
-                details
-            )));
-        }
+    if !output.status.success() {
+        let details = command_output_details("psql run SQL file", &output);
+        log::error!(
+            "Failed to run SQL file {:?}: {}",
+            file_path.file_name(),
+            details
+        );
+        return Err(PostgresError::MigrationFailed(format!(
+            "Failed to run SQL file {:?}: {}",
+            file_path.file_name(),
+            details
+        )));
     }
 
     Ok(())
 }
 
 /// Get the DATABASE_URL for the backend
-pub fn get_database_url() -> String {
-    format!(
-        "postgres://{}@localhost:{}/{}",
-        POSTGRES_USER, POSTGRES_PORT, POSTGRES_DB
-    )
+pub fn get_database_url() -> Result<String, PostgresError> {
+    let password = read_or_create_postgres_password()?;
+    Ok(format!(
+        "postgres://{}:{}@localhost:{}/{}",
+        POSTGRES_USER, password, POSTGRES_PORT, POSTGRES_DB
+    ))
 }
 
 /// Get PostgreSQL status information
@@ -1177,6 +1327,7 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
         "port": POSTGRES_PORT,
         "user": POSTGRES_USER,
         "database": POSTGRES_DB,
+        "password_auth": true,
         "data_directory": pgdata.to_string_lossy(),
     })
 }

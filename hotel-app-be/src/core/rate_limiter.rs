@@ -124,6 +124,47 @@ impl RateLimiter {
     }
 }
 
+/// Thread-safe rate limiter keyed by caller-provided text identifiers.
+#[derive(Clone)]
+pub struct KeyedRateLimiter {
+    entries: Arc<Mutex<HashMap<String, RateLimitEntry>>>,
+    config: RateLimitConfig,
+}
+
+impl KeyedRateLimiter {
+    pub fn new(config: RateLimitConfig) -> Self {
+        let limiter = Self {
+            entries: Arc::new(Mutex::new(HashMap::new())),
+            config,
+        };
+
+        let entries = limiter.entries.clone();
+        let window = limiter.config.window;
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(300)).await;
+                let mut map = entries.lock().await;
+                let now = Instant::now();
+                map.retain(|_, entry| {
+                    entry.timestamps.retain(|t| now.duration_since(*t) < window);
+                    !entry.timestamps.is_empty()
+                });
+            }
+        });
+
+        limiter
+    }
+
+    /// Check if a request for this key is allowed, returning (allowed, retry_after_secs).
+    pub async fn check_with_retry(&self, key: impl Into<String>) -> (bool, u64) {
+        let mut entries = self.entries.lock().await;
+        let entry = entries
+            .entry(key.into())
+            .or_insert_with(RateLimitEntry::new);
+        entry.check_and_record(&self.config)
+    }
+}
+
 /// Global rate limiters for different endpoint categories
 #[derive(Clone)]
 pub struct RateLimiters {
@@ -133,6 +174,10 @@ pub struct RateLimiters {
     pub register: RateLimiter,
     /// Sensitive operations: 10 per 5 minutes per IP (password change, 2FA, refresh)
     pub sensitive: RateLimiter,
+    /// Guest portal verification: 10 attempts per 5 minutes per IP
+    pub guest_portal_verify: RateLimiter,
+    /// Guest portal verification: 5 attempts per 15 minutes per booking number
+    pub guest_portal_booking: KeyedRateLimiter,
     /// General API: 200 per minute per IP (lenient - normal usage)
     #[allow(dead_code)]
     pub api: RateLimiter,
@@ -150,6 +195,8 @@ impl RateLimiters {
             auth: RateLimiter::new(RateLimitConfig::new(5, 60)),
             register: RateLimiter::new(RateLimitConfig::new(3, 600)),
             sensitive: RateLimiter::new(RateLimitConfig::new(10, 300)),
+            guest_portal_verify: RateLimiter::new(RateLimitConfig::new(10, 300)),
+            guest_portal_booking: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             api: RateLimiter::new(RateLimitConfig::new(200, 60)),
         }
     }
@@ -195,5 +242,14 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(1_100)).await;
 
         assert!(limiter.check(ip(1)).await);
+    }
+
+    #[tokio::test]
+    async fn keyed_rate_limiter_tracks_keys_independently() {
+        let limiter = KeyedRateLimiter::new(RateLimitConfig::new(1, 60));
+
+        assert_eq!(limiter.check_with_retry("booking-a").await, (true, 0));
+        assert!(!limiter.check_with_retry("booking-a").await.0);
+        assert_eq!(limiter.check_with_retry("booking-b").await, (true, 0));
     }
 }

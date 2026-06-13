@@ -153,9 +153,9 @@ interface UserLoyaltyMembership {
 }
 
 const LoyaltyDashboard: React.FC = () => {
-  const { hasRole, hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
   const { symbol: currencySymbol } = useCurrency();
-  const isAdmin = hasRole('admin') || hasPermission('analytics:write');
+  const isAdmin = hasPermission('loyalty:manage');
   const loadingRef = useRef(false);
 
   const [activeTab, setActiveTab] = useState(0);

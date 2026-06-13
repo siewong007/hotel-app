@@ -9,7 +9,7 @@ const DashboardRouter: React.FC = () => {
   const navigate = useNavigate();
 
   // Define role groups based on user instructions
-  const isAdminOrSuper = hasRole('admin') || hasRole('superadmin');
+  const isAdminOrSuper = hasRole('admin') || hasRole('super_admin');
   const isExec = hasRole('manager');
   const isEmployee = hasRole('receptionist') || hasRole('employee');
 

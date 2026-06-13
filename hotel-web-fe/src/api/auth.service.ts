@@ -6,6 +6,7 @@ import {
   PasswordUpdate,
   PasskeyInfo,
   PasskeyUpdateInput,
+  AccessSnapshot,
 } from '../types';
 
 export class AuthService {
@@ -56,6 +57,10 @@ export class AuthService {
 
   static async getWebSocketStatus(): Promise<{ status: string; protocol: string; endpoint: string; message: string }> {
     return await api.get('ws/status').json<{ status: string; protocol: string; endpoint: string; message: string }>();
+  }
+
+  static async getAccessSnapshot(): Promise<AccessSnapshot> {
+    return await api.get('auth/access').json<AccessSnapshot>();
   }
 
   // User Profile

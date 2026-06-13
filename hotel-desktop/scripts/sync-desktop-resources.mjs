@@ -1,61 +1,30 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, '..');
 const repoRoot = resolve(desktopRoot, '..');
 
-const syncSets = [
+const syncFiles = [
   {
-    label: 'PostgreSQL migrations',
-    source: join(repoRoot, 'hotel-app-be', 'database', 'migrations'),
-    target: join(desktopRoot, 'src-tauri', 'database', 'migrations'),
+    label: 'database schema',
+    source: join(repoRoot, 'hotel-app-be', 'database', 'schema.sql'),
+    target: join(desktopRoot, 'src-tauri', 'database', 'schema.sql'),
   },
   {
-    label: 'seed data',
-    source: join(repoRoot, 'hotel-app-be', 'database', 'seed-data'),
-    target: join(desktopRoot, 'src-tauri', 'database', 'seed-data'),
-  },
-  {
-    label: 'demo data',
-    source: join(repoRoot, 'hotel-app-be', 'database', 'demo-data'),
-    target: join(desktopRoot, 'src-tauri', 'database', 'demo-data'),
+    label: 'database data',
+    source: join(repoRoot, 'hotel-app-be', 'database', 'data.sql'),
+    target: join(desktopRoot, 'src-tauri', 'database', 'data.sql'),
   },
 ];
 
-function listSqlFiles(directory) {
-  if (!existsSync(directory)) {
-    return [];
-  }
-
-  return readdirSync(directory)
-    .filter((fileName) => fileName.endsWith('.sql'))
-    .sort();
-}
-
-for (const { label, source, target } of syncSets) {
+for (const { label, source, target } of syncFiles) {
   if (!existsSync(source)) {
-    throw new Error(`Source directory not found: ${source}`);
+    throw new Error(`Source file not found: ${source}`);
   }
 
-  mkdirSync(target, { recursive: true });
-
-  const sourceFiles = listSqlFiles(source);
-  const targetFiles = listSqlFiles(target);
-  const sourceFileSet = new Set(sourceFiles);
-
-  for (const fileName of sourceFiles) {
-    copyFileSync(join(source, fileName), join(target, fileName));
-  }
-
-  const desktopOnlyFiles = targetFiles.filter((fileName) => !sourceFileSet.has(fileName));
-
-  console.log(`Synced ${sourceFiles.length} ${label} file(s).`);
-
-  if (desktopOnlyFiles.length > 0) {
-    console.warn(
-      `Desktop-only ${label} left in place: ${desktopOnlyFiles.map((fileName) => basename(fileName)).join(', ')}`
-    );
-  }
+  mkdirSync(dirname(target), { recursive: true });
+  copyFileSync(source, target);
+  console.log(`Synced ${label}.`);
 }

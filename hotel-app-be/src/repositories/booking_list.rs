@@ -164,7 +164,12 @@ pub fn build_booking_list_query(
     );
     let data_sql = format!(
         "{}{} ORDER BY {} {} LIMIT {} OFFSET {}",
-        select_with_count, where_clause, sort_col, sort_dir, pagination.page_size, pagination.offset
+        select_with_count,
+        where_clause,
+        sort_col,
+        sort_dir,
+        pagination.page_size,
+        pagination.offset
     );
 
     BookingListQuery {
