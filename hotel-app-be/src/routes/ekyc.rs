@@ -1,4 +1,4 @@
-//! eKYC routes
+//! eKYC routes.
 //!
 //! Routes for electronic Know Your Customer verification.
 
@@ -9,13 +9,13 @@ use crate::handlers;
 use crate::models;
 use axum::{
     Router,
-    extract::{Multipart, Path, State},
+    extract::{Multipart, Path, Query, State},
     http::HeaderMap,
     response::{Json, Response},
     routing::{get, patch, post},
 };
 
-/// Create eKYC routes
+/// Create eKYC routes.
 pub fn routes() -> Router<DbPool> {
     Router::new()
         // User eKYC routes
@@ -24,6 +24,27 @@ pub fn routes() -> Router<DbPool> {
         .route("/ekyc/status", get(get_status))
         .route("/ekyc/self-checkin", post(self_checkin))
         // Admin eKYC routes
+        .route("/ekyc/admin/dashboard", get(get_dashboard))
+        .route("/ekyc/admin/applications", get(list_admin_applications))
+        .route(
+            "/ekyc/admin/applications/export",
+            get(export_admin_applications),
+        )
+        .route("/ekyc/admin/applications/{id}", get(get_admin_application))
+        .route(
+            "/ekyc/admin/applications/{id}/actions",
+            post(apply_review_action),
+        )
+        .route(
+            "/ekyc/admin/applications/{id}/reveal",
+            post(reveal_sensitive),
+        )
+        .route("/ekyc/admin/reason-codes", get(reason_codes))
+        .route(
+            "/ekyc/admin/applications/{id}/documents/{kind}",
+            get(get_document),
+        )
+        // Legacy admin routes kept for older callers.
         .route("/ekyc/verifications", get(get_all_verifications))
         .route("/ekyc/verifications/{id}", get(get_verification))
         .route(
@@ -48,7 +69,7 @@ async fn submit_ekyc(
     Json(input): Json<models::EkycSubmissionRequest>,
 ) -> Result<Json<models::EkycStatusResponse>, ApiError> {
     let user_id = require_auth(&headers).await?;
-    handlers::ekyc::submit_ekyc_handler(State(pool), user_id, Json(input)).await
+    handlers::ekyc::submit_ekyc_handler(State(pool), headers, user_id, Json(input)).await
 }
 
 async fn get_status(
@@ -68,11 +89,78 @@ async fn self_checkin(
     handlers::ekyc::self_checkin_handler(State(pool), user_id, Json(input)).await
 }
 
+async fn get_dashboard(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<models::EkycDashboardMetrics>, ApiError> {
+    require_permission_helper(&pool, &headers, "ekyc:read").await?;
+    handlers::ekyc::get_dashboard_handler(State(pool)).await
+}
+
+async fn list_admin_applications(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Query(params): Query<models::EkycListQuery>,
+) -> Result<Json<models::EkycAdminListResponse>, ApiError> {
+    let actor_id = require_permission_helper(&pool, &headers, "ekyc:read").await?;
+    handlers::ekyc::list_admin_applications_handler(State(pool), headers, actor_id, Query(params))
+        .await
+}
+
+async fn get_admin_application(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::EkycApplicationDetail>, ApiError> {
+    let actor_id = require_permission_helper(&pool, &headers, "ekyc:read").await?;
+    handlers::ekyc::get_admin_application_handler(State(pool), headers, actor_id, path).await
+}
+
+async fn apply_review_action(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    Json(input): Json<models::EkycReviewActionRequest>,
+) -> Result<Json<models::EkycApplicationDetail>, ApiError> {
+    let actor_id = require_auth(&headers).await?;
+    handlers::ekyc::apply_review_action_handler(State(pool), headers, actor_id, path, Json(input))
+        .await
+}
+
+async fn reveal_sensitive(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    Json(input): Json<models::EkycSensitiveRevealRequest>,
+) -> Result<Json<models::EkycSensitiveRevealResponse>, ApiError> {
+    let actor_id = require_auth(&headers).await?;
+    handlers::ekyc::reveal_sensitive_handler(State(pool), headers, actor_id, path, Json(input))
+        .await
+}
+
+async fn reason_codes(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<models::EkycReasonCode>>, ApiError> {
+    require_permission_helper(&pool, &headers, "ekyc:review").await?;
+    handlers::ekyc::reason_codes_handler(State(pool)).await
+}
+
+async fn export_admin_applications(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Query(params): Query<models::EkycListQuery>,
+) -> Result<Response, ApiError> {
+    let actor_id = require_permission_helper(&pool, &headers, "ekyc:export").await?;
+    handlers::ekyc::export_admin_applications_handler(State(pool), headers, actor_id, Query(params))
+        .await
+}
+
 async fn get_all_verifications(
     State(pool): State<DbPool>,
     headers: HeaderMap,
-) -> Result<Json<Vec<models::EkycVerification>>, ApiError> {
-    require_permission_helper(&pool, &headers, "ekyc:manage").await?;
+) -> Result<Json<Vec<models::EkycApplicationSummary>>, ApiError> {
+    require_permission_helper(&pool, &headers, "ekyc:read").await?;
     handlers::ekyc::get_all_ekyc_handler(State(pool)).await
 }
 
@@ -80,9 +168,9 @@ async fn get_verification(
     State(pool): State<DbPool>,
     headers: HeaderMap,
     path: Path<i64>,
-) -> Result<Json<models::EkycVerification>, ApiError> {
-    require_permission_helper(&pool, &headers, "ekyc:manage").await?;
-    handlers::ekyc::get_ekyc_by_id_handler(State(pool), path).await
+) -> Result<Json<models::EkycApplicationDetail>, ApiError> {
+    let actor_id = require_permission_helper(&pool, &headers, "ekyc:read").await?;
+    handlers::ekyc::get_admin_application_handler(State(pool), headers, actor_id, path).await
 }
 
 async fn get_document(
@@ -90,8 +178,8 @@ async fn get_document(
     headers: HeaderMap,
     path: Path<(i64, String)>,
 ) -> Result<Response, ApiError> {
-    require_permission_helper(&pool, &headers, "ekyc:manage").await?;
-    handlers::ekyc::get_ekyc_document_handler(State(pool), path).await
+    let actor_id = require_permission_helper(&pool, &headers, "ekyc:download_documents").await?;
+    handlers::ekyc::get_ekyc_document_handler(State(pool), headers, actor_id, path).await
 }
 
 async fn update_verification(
@@ -99,7 +187,7 @@ async fn update_verification(
     headers: HeaderMap,
     path: Path<i64>,
     Json(input): Json<models::EkycVerificationUpdate>,
-) -> Result<Json<models::EkycVerification>, ApiError> {
+) -> Result<Json<models::EkycApplicationDetail>, ApiError> {
     let admin_id = require_permission_helper(&pool, &headers, "ekyc:verify").await?;
-    handlers::ekyc::update_ekyc_handler(State(pool), admin_id, path, Json(input)).await
+    handlers::ekyc::update_ekyc_handler(State(pool), headers, admin_id, path, Json(input)).await
 }
