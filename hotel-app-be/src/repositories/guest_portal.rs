@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::row_mappers;
 use crate::models::{Booking, Guest, GuestUpdateInput};
 
 const BOOKING_SELECT: &str = "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, created_at, updated_at FROM bookings";
@@ -15,33 +16,36 @@ impl GuestPortalRepository {
         pool: &DbPool,
         booking_number: &str,
     ) -> Result<Option<Booking>, ApiError> {
-        sqlx::query_as::<_, Booking>(&format!(
+        let row = sqlx::query(&format!(
             "{} WHERE booking_number = $1 AND status IN ('confirmed', 'pending')",
             BOOKING_SELECT
         ))
         .bind(booking_number)
         .fetch_optional(pool)
         .await
-        .map_err(|e| ApiError::Database(format!("Failed to fetch booking: {}", e)))
+        .map_err(|e| ApiError::Database(format!("Failed to fetch booking: {}", e)))?;
+        Ok(row.as_ref().map(row_mappers::row_to_booking))
     }
 
     pub async fn find_booking_by_token(
         pool: &DbPool,
         token: &str,
     ) -> Result<Option<Booking>, ApiError> {
-        sqlx::query_as::<_, Booking>(&format!("{} WHERE pre_checkin_token = $1", BOOKING_SELECT))
+        let row = sqlx::query(&format!("{} WHERE pre_checkin_token = $1", BOOKING_SELECT))
             .bind(token)
             .fetch_optional(pool)
             .await
-            .map_err(|e| ApiError::Database(format!("Failed to fetch booking: {}", e)))
+            .map_err(|e| ApiError::Database(format!("Failed to fetch booking: {}", e)))?;
+        Ok(row.as_ref().map(row_mappers::row_to_booking))
     }
 
     pub async fn find_booking_by_id(pool: &DbPool, booking_id: i64) -> Result<Booking, ApiError> {
-        sqlx::query_as::<_, Booking>(&format!("{} WHERE id = $1", BOOKING_SELECT))
+        let row = sqlx::query(&format!("{} WHERE id = $1", BOOKING_SELECT))
             .bind(booking_id)
             .fetch_one(pool)
             .await
-            .map_err(|e| ApiError::Database(format!("Failed to fetch updated booking: {}", e)))
+            .map_err(|e| ApiError::Database(format!("Failed to fetch updated booking: {}", e)))?;
+        Ok(row_mappers::row_to_booking(&row))
     }
 
     pub async fn find_guest(pool: &DbPool, guest_id: i64) -> Result<Guest, ApiError> {

@@ -267,7 +267,6 @@ const UserProfilePage: React.FC = () => {
       searchParams.delete('edit');
       setSearchParams(searchParams, { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadProfile = async () => {
