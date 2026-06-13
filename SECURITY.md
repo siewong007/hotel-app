@@ -49,3 +49,6 @@ The maintainer will make a best-effort review, confirm whether the issue is vali
 - Use existing auth, RBAC, validation, and sanitization helpers.
 - Return generic client-facing errors for sensitive failures while logging useful internal details.
 - Treat eKYC uploads and guest data as sensitive.
+- Treat the hosted web backend as single-instance unless the in-memory rate limiter and RBAC/settings caches have been externalized.
+- Set `TRUST_PROXY_HEADERS=true` only behind a trusted TLS-terminating proxy that overwrites `X-Forwarded-For` and `X-Real-IP`.
+- The desktop bundle stores its generated local PostgreSQL credential in the app data directory with restrictive file permissions; do not expose or sync that directory to untrusted users.

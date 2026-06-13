@@ -109,6 +109,7 @@ export const queryKeys = {
   rbac: {
     all: rbac,
     snapshot: () => [...rbac, 'snapshot'] as const,
+    routePolicies: () => [...rbac, 'route-policies'] as const,
     roles: () => [...rbac, 'roles'] as const,
     permissions: () => [...rbac, 'permissions'] as const,
     users: () => [...rbac, 'users'] as const,

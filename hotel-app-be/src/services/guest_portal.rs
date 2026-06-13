@@ -12,6 +12,19 @@ use crate::models::{
 };
 use crate::repositories::guest_portal::GuestPortalRepository;
 
+const VERIFY_BOOKING_FAILURE: &str =
+    "Unable to verify booking details. Please check the booking number and email.";
+
+fn verify_booking_failure() -> ApiError {
+    ApiError::Unauthorized(VERIFY_BOOKING_FAILURE.to_string())
+}
+
+fn guest_email_matches(stored_email: Option<&str>, requested_email: &str) -> bool {
+    stored_email
+        .map(str::trim)
+        .is_some_and(|email| email.eq_ignore_ascii_case(requested_email.trim()))
+}
+
 pub async fn verify_guest_booking(
     pool: &DbPool,
     request: GuestPortalVerifyRequest,
@@ -19,13 +32,11 @@ pub async fn verify_guest_booking(
     let booking =
         GuestPortalRepository::find_eligible_booking_by_number(pool, &request.booking_number)
             .await?
-            .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+            .ok_or_else(verify_booking_failure)?;
 
     let guest = GuestPortalRepository::find_guest(pool, booking.guest_id).await?;
-    if guest.email.as_deref() != Some(request.email.as_str()) {
-        return Err(ApiError::Unauthorized(
-            "Email does not match booking".to_string(),
-        ));
+    if !guest_email_matches(guest.email.as_deref(), &request.email) {
+        return Err(verify_booking_failure());
     }
 
     let check_in_date = booking.check_in_date;
@@ -121,5 +132,35 @@ fn normalize_guest_email(request: &mut PreCheckInUpdateRequest) {
         request.guest_update.email = Some(trimmed.to_string());
     } else {
         request.guest_update.email = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn guest_email_match_allows_case_and_whitespace_differences() {
+        assert!(guest_email_matches(
+            Some(" Guest.Example@Hotel.Local "),
+            "guest.example@hotel.local"
+        ));
+    }
+
+    #[test]
+    fn guest_email_match_rejects_missing_or_different_email() {
+        assert!(!guest_email_matches(None, "guest@example.com"));
+        assert!(!guest_email_matches(
+            Some("other@example.com"),
+            "guest@example.com"
+        ));
+    }
+
+    #[test]
+    fn verification_failure_message_is_generic() {
+        let err = verify_booking_failure();
+        assert!(
+            matches!(err, ApiError::Unauthorized(message) if message == VERIFY_BOOKING_FAILURE)
+        );
     }
 }

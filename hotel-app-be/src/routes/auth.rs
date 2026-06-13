@@ -5,6 +5,7 @@
 use super::extract_client_ip;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::core::middleware::require_auth;
 use crate::core::rate_limiter::RateLimiters;
 use crate::handlers;
 use crate::models;
@@ -13,13 +14,14 @@ use axum::{
     extract::{ConnectInfo, Extension, State},
     http::HeaderMap,
     response::Json,
-    routing::post,
+    routing::{get, post},
 };
 use std::net::SocketAddr;
 
 pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/auth/login", post(login))
+        .route("/auth/access", get(access_snapshot))
         .route("/auth/refresh", post(refresh))
         .route("/auth/logout", post(logout))
         .route("/auth/register", post(register))
@@ -28,6 +30,14 @@ pub fn routes() -> Router<DbPool> {
 }
 
 // Basic auth handlers
+
+async fn access_snapshot(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<models::AccessSnapshot>, ApiError> {
+    let user_id = require_auth(&headers).await?;
+    handlers::auth::access_snapshot_handler(State(pool), user_id).await
+}
 
 async fn login(
     State(pool): State<DbPool>,

@@ -16,6 +16,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import SyncAltIcon from '@mui/icons-material/SyncAlt';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import { lazyRoute, type PreloadableRouteComponent } from './lazyRoute';
+import type { RouteAccessPolicy } from '../types';
 
 export type RouteAnimation = 'fade' | 'slide' | 'grow';
 export type NavGroup = 'main' | 'operations' | 'admin' | 'config';
@@ -23,6 +24,7 @@ export type NavGroup = 'main' | 'operations' | 'admin' | 'config';
 interface AccessChecker {
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
+  getRoutePolicy: (routeId: string) => RouteAccessPolicy | undefined;
 }
 
 export interface AppRouteDefinition {
@@ -35,12 +37,7 @@ export interface AppRouteDefinition {
   breadcrumbLabel?: string;
   navLabel?: string;
   navGroup?: NavGroup;
-  requiredPermissions?: string[];
-  requiredRoles?: string[];
-  excludeRoles?: string[];
-  navPermissions?: string[];
-  navRoles?: string[];
-  navExcludeRoles?: string[];
+  accessControlled?: boolean;
 }
 
 const LandingPage = lazyRoute(() => import('../components/layout/LandingPage'));
@@ -94,9 +91,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Reservation Timeline',
     navLabel: 'Timeline',
     navGroup: 'main',
-    requiredPermissions: ['rooms:read'],
-    navPermissions: ['navigation_timeline:read', 'bookings:read'],
-    navRoles: ['admin', 'receptionist', 'manager'],
+    accessControlled: true,
   },
   {
     id: 'guest-config',
@@ -108,8 +103,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Guest Management',
     navLabel: 'Guests',
     navGroup: 'main',
-    navPermissions: ['navigation_guest_config:read', 'guests:read', 'guests:manage'],
-    navRoles: ['admin', 'receptionist', 'manager'],
+    accessControlled: true,
   },
   {
     id: 'bookings',
@@ -121,9 +115,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Bookings',
     navLabel: 'Bookings',
     navGroup: 'main',
-    requiredRoles: ['admin', 'receptionist', 'manager'],
-    navPermissions: ['navigation_bookings:read', 'bookings:manage'],
-    navRoles: ['admin', 'receptionist', 'manager'],
+    accessControlled: true,
   },
   {
     id: 'my-bookings',
@@ -135,8 +127,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'My Bookings',
     navLabel: 'My Bookings',
     navGroup: 'main',
-    navPermissions: ['navigation_my_bookings:read'],
-    navExcludeRoles: ['admin', 'receptionist', 'manager'],
+    accessControlled: true,
   },
   {
     id: 'room-management',
@@ -148,9 +139,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Room Management',
     navLabel: 'Rooms',
     navGroup: 'main',
-    requiredRoles: ['admin', 'receptionist', 'manager'],
-    navPermissions: ['navigation_room_management:read', 'rooms:read', 'rooms:manage'],
-    navRoles: ['admin', 'receptionist', 'manager'],
+    accessControlled: true,
   },
   {
     id: 'reports',
@@ -162,8 +151,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Reports',
     navLabel: 'Reports',
     navGroup: 'operations',
-    requiredPermissions: ['analytics:read', 'reports:execute'],
-    navPermissions: ['analytics:read', 'reports:execute'],
+    accessControlled: true,
   },
   {
     id: 'loyalty',
@@ -171,7 +159,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     component: LoyaltyPortal,
     animationType: 'grow',
     visibility: 'auth',
-    requiredPermissions: ['analytics:read'],
+    accessControlled: true,
   },
   {
     id: 'my-rewards',
@@ -215,8 +203,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'eKYC Admin',
     navLabel: 'eKYC Admin',
     navGroup: 'admin',
-    requiredPermissions: ['ekyc:manage'],
-    navPermissions: ['ekyc:manage'],
+    accessControlled: true,
   },
   {
     id: 'room-config',
@@ -228,9 +215,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Room Configuration',
     navLabel: 'Room Configuration',
     navGroup: 'config',
-    requiredRoles: ['admin', 'receptionist', 'manager'],
-    navPermissions: ['navigation_room_config:read', 'rooms:update', 'rooms:write', 'rooms:manage'],
-    navRoles: ['admin', 'receptionist', 'manager'],
+    accessControlled: true,
   },
   {
     id: 'settings',
@@ -242,8 +227,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Settings',
     navLabel: 'Settings',
     navGroup: 'config',
-    requiredPermissions: ['settings:read'],
-    navPermissions: ['navigation_settings:read', 'settings:read', 'settings:manage'],
+    accessControlled: true,
   },
   {
     id: 'rbac',
@@ -255,9 +239,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Access Control',
     navLabel: 'Access Control',
     navGroup: 'config',
-    requiredRoles: ['admin', 'superadmin'],
-    navPermissions: ['rbac:manage', 'rbac:read', 'users:manage', 'users:read'],
-    navRoles: ['admin', 'superadmin'],
+    accessControlled: true,
   },
   {
     id: 'company-ledger',
@@ -269,9 +251,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Company Ledger',
     navLabel: 'Ledger',
     navGroup: 'operations',
-    requiredRoles: ['superadmin', 'admin', 'manager', 'receptionist'],
-    navPermissions: ['ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage'],
-    navRoles: ['superadmin', 'admin', 'manager', 'receptionist'],
+    accessControlled: true,
   },
   {
     id: 'night-audit',
@@ -283,9 +263,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Night Audit',
     navLabel: 'Night Audit',
     navGroup: 'admin',
-    requiredRoles: ['admin', 'manager', 'receptionist'],
-    navPermissions: ['night_audit:read', 'night_audit:execute'],
-    navRoles: ['admin', 'manager', 'receptionist'],
+    accessControlled: true,
   },
   {
     id: 'audit-log',
@@ -297,9 +275,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Audit Log',
     navLabel: 'Audit Log',
     navGroup: 'admin',
-    requiredPermissions: ['audit:read'],
-    navPermissions: ['audit:read'],
-    navRoles: ['admin', 'superadmin'],
+    accessControlled: true,
   },
   {
     id: 'complimentary',
@@ -311,9 +287,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Complimentary Nights',
     navLabel: 'Complimentary Nights',
     navGroup: 'admin',
-    requiredRoles: ['admin', 'manager', 'receptionist'],
-    navPermissions: ['bookings:read', 'bookings:update'],
-    navRoles: ['admin', 'manager', 'receptionist'],
+    accessControlled: true,
   },
   {
     id: 'data-transfer',
@@ -325,9 +299,7 @@ const routeDefinitions: AppRouteDefinition[] = [
     breadcrumbLabel: 'Data Transfer',
     navLabel: 'Data Transfer',
     navGroup: 'admin',
-    requiredRoles: ['admin'],
-    navPermissions: ['settings:manage'],
-    navRoles: ['admin'],
+    accessControlled: true,
   },
 ];
 
@@ -345,16 +317,21 @@ export function preloadRoute(pathname: string) {
 }
 
 export function canAccessNavigationRoute(route: AppRouteDefinition, access: AccessChecker) {
-  const isExcluded = route.navExcludeRoles?.some((role) => access.hasRole(role)) ?? false;
+  const policy = access.getRoutePolicy(route.id);
+  if (route.accessControlled && !policy) {
+    return false;
+  }
+
+  const isExcluded = policy?.nav_excluded_roles.some((role) => access.hasRole(role)) ?? false;
   if (isExcluded) {
     return false;
   }
 
-  const permissions = route.navPermissions ?? [];
-  const roles = route.navRoles ?? [];
+  const permissions = policy?.nav_permissions ?? [];
+  const roles = policy?.nav_roles ?? [];
 
   if (permissions.length === 0 && roles.length === 0) {
-    return true;
+    return !route.accessControlled;
   }
 
   return permissions.some((permission) => access.hasPermission(permission)) || roles.some((role) => access.hasRole(role));

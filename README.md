@@ -255,6 +255,12 @@ Create project-specific `.env` files from the samples:
 
 Never commit real `.env` files or local credentials.
 
+## Deployment Security Notes
+
+- Run hosted web deployments behind a TLS-terminating reverse proxy and set `TRUST_PROXY_HEADERS=true` only when that proxy overwrites forwarded IP headers.
+- Treat the backend as single-instance until the in-memory rate limiter and RBAC/settings caches are moved to shared infrastructure.
+- The desktop app uses a generated local PostgreSQL password stored under the app data directory. Keep that directory private to the local OS user and exclude it from broad sync/backup tools.
+
 ## Usage Examples
 
 ### Check API Health

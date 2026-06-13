@@ -54,10 +54,10 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
 }: NavigationTabsProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { hasPermission, hasRole, logout, user } = useAuth();
+  const { hasPermission, hasRole, getRoutePolicy, logout, user } = useAuth();
 
   const visibleItems = navigationRouteDefinitions.filter((item) =>
-    canAccessNavigationRoute(item, { hasPermission, hasRole })
+    canAccessNavigationRoute(item, { hasPermission, hasRole, getRoutePolicy })
   );
 
   // Option D: destinations split into visual groups (no "More" dropdown)

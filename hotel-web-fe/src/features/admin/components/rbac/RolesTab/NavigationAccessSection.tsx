@@ -25,53 +25,58 @@ import {
   Security as SecurityIcon,
   Settings as SettingsIcon,
 } from '@mui/icons-material';
-import { NAVIGATION_ITEMS, NAVIGATION_CATEGORY_LABELS, NAVIGATION_PERMISSION_MAPPING } from '../constants';
-import type { NavigationItem } from '../types';
+import type { RouteAccessPolicy } from '../../../../../types';
 
-// Icon mapping
+// Icon mapping by backend route id.
 const NAV_ICON_MAP: Record<string, React.ElementType> = {
-  EventNote: EventNoteIcon,
-  Book: BookIcon,
-  People: PeopleIcon,
-  Hotel: HotelIcon,
-  Category: CategoryIcon,
-  CalendarMonth: CalendarIcon,
-  HomeWork: HomeWorkIcon,
-  AccountBalance: AccountBalanceIcon,
-  CardGiftcard: CardGiftcardIcon,
-  Star: StarIcon,
-  Assessment: AssessmentIcon,
-  VerifiedUser: VerifiedUserIcon,
-  Security: SecurityIcon,
-  Settings: SettingsIcon,
+  timeline: EventNoteIcon,
+  'my-bookings': BookIcon,
+  'guest-config': PeopleIcon,
+  bookings: CalendarIcon,
+  'room-management': HomeWorkIcon,
+  'room-config': HotelIcon,
+  'company-ledger': AccountBalanceIcon,
+  complimentary: CardGiftcardIcon,
+  loyalty: StarIcon,
+  reports: AssessmentIcon,
+  'ekyc-admin': VerifiedUserIcon,
+  rbac: SecurityIcon,
+  settings: SettingsIcon,
+};
+
+const NAVIGATION_CATEGORY_LABELS: Record<string, string> = {
+  main: 'Main',
+  operations: 'Operations',
+  admin: 'Administration',
+  config: 'Configuration',
 };
 
 interface NavigationAccessSectionProps {
   selectedNavItems: string[];
+  routePolicies: RouteAccessPolicy[];
   onToggleNavItem: (navId: string, enabled: boolean) => void;
   disabled?: boolean;
 }
 
 const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
   selectedNavItems,
+  routePolicies,
   onToggleNavItem,
   disabled = false,
 }) => {
   // Group navigation items by category
-  const navByCategory = NAVIGATION_ITEMS.reduce((acc, item) => {
-    if (!acc[item.category]) {
-      acc[item.category] = [];
+  const navByCategory = routePolicies
+    .filter((policy) => policy.is_navigation)
+    .reduce((acc, policy) => {
+    const category = policy.nav_group || 'config';
+    if (!acc[category]) {
+      acc[category] = [];
     }
-    acc[item.category].push(item);
+    acc[category].push(policy);
     return acc;
-  }, {} as Record<string, NavigationItem[]>);
+  }, {} as Record<string, RouteAccessPolicy[]>);
 
-  const categories: Array<'core' | 'management' | 'analytics' | 'system'> = [
-    'core',
-    'management',
-    'analytics',
-    'system',
-  ];
+  const categories = ['main', 'operations', 'admin', 'config'];
 
   return (
     <Box>
@@ -108,17 +113,20 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
               }}
             >
               {items.map((item) => {
-                const isEnabled = selectedNavItems.includes(item.id);
-                const IconComponent = NAV_ICON_MAP[item.icon] || SettingsIcon;
-                const requiredPerms = NAVIGATION_PERMISSION_MAPPING[item.id] || [];
+                const isEnabled = selectedNavItems.includes(item.route_id);
+                const IconComponent = NAV_ICON_MAP[item.route_id] || SettingsIcon;
+                const requiredPerms = Array.from(new Set([
+                  ...item.nav_permissions,
+                  ...item.required_permissions,
+                ]));
 
                 return (
                   <Tooltip
-                    key={item.id}
+                    key={item.route_id}
                     title={
                       requiredPerms.length > 0
-                        ? `Also grants: ${requiredPerms.map((p) => p.name).join(', ')}`
-                        : item.description
+                        ? `Also grants: ${requiredPerms.join(', ')}`
+                        : item.path
                     }
                     placement="right"
                     arrow
@@ -128,7 +136,7 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
                         <Switch
                           size="small"
                           checked={isEnabled}
-                          onChange={(e) => onToggleNavItem(item.id, e.target.checked)}
+                          onChange={(e) => onToggleNavItem(item.route_id, e.target.checked)}
                           disabled={disabled}
                         />
                       }
@@ -147,7 +155,7 @@ const NavigationAccessSection: React.FC<NavigationAccessSectionProps> = ({
                               fontWeight: isEnabled ? 500 : 400,
                             }}
                           >
-                            {item.label}
+                            {item.nav_label || item.route_id}
                           </Typography>
                         </Box>
                       }

@@ -4,7 +4,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::{require_admin_helper, require_auth, require_permission_helper};
+use crate::core::middleware::{require_any_permission_helper, require_auth};
 use crate::handlers;
 use crate::models;
 use axum::{
@@ -15,6 +15,9 @@ use axum::{
     routing::{delete, get, post, put},
 };
 use std::collections::HashMap;
+
+const LOYALTY_READ_PERMISSIONS: &[&str] = &["loyalty:read", "loyalty:manage", "analytics:read"];
+const LOYALTY_MANAGE_PERMISSIONS: &[&str] = &["loyalty:manage", "analytics:write"];
 
 /// Create loyalty routes
 pub fn routes() -> Router<DbPool> {
@@ -48,7 +51,7 @@ async fn get_programs(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::LoyaltyProgram>>, ApiError> {
-    require_permission_helper(&pool, &headers, "analytics:read").await?;
+    require_any_permission_helper(&pool, &headers, LOYALTY_READ_PERMISSIONS).await?;
     handlers::loyalty::get_loyalty_programs_handler(State(pool)).await
 }
 
@@ -56,7 +59,7 @@ async fn get_memberships(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::LoyaltyMembershipWithDetails>>, ApiError> {
-    require_permission_helper(&pool, &headers, "analytics:read").await?;
+    require_any_permission_helper(&pool, &headers, LOYALTY_READ_PERMISSIONS).await?;
     handlers::loyalty::get_loyalty_memberships_handler(State(pool)).await
 }
 
@@ -64,7 +67,7 @@ async fn get_statistics(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<models::LoyaltyStatistics>, ApiError> {
-    require_permission_helper(&pool, &headers, "analytics:read").await?;
+    require_any_permission_helper(&pool, &headers, LOYALTY_READ_PERMISSIONS).await?;
     handlers::loyalty::get_loyalty_statistics_handler(State(pool)).await
 }
 
@@ -74,7 +77,7 @@ async fn add_points(
     path: Path<i64>,
     Json(input): Json<models::AddPointsInput>,
 ) -> Result<Json<models::PointsTransaction>, ApiError> {
-    require_permission_helper(&pool, &headers, "analytics:write").await?;
+    require_any_permission_helper(&pool, &headers, LOYALTY_MANAGE_PERMISSIONS).await?;
     handlers::loyalty::add_points_handler(State(pool), path, Json(input)).await
 }
 
@@ -84,7 +87,7 @@ async fn redeem_points(
     path: Path<i64>,
     Json(input): Json<models::AddPointsInput>,
 ) -> Result<Json<models::PointsTransaction>, ApiError> {
-    require_permission_helper(&pool, &headers, "analytics:write").await?;
+    require_any_permission_helper(&pool, &headers, LOYALTY_MANAGE_PERMISSIONS).await?;
     handlers::loyalty::redeem_points_handler(State(pool), path, Json(input)).await
 }
 
@@ -122,7 +125,7 @@ async fn get_all_rewards(
     headers: HeaderMap,
     query: Query<HashMap<String, String>>,
 ) -> Result<Json<Vec<models::LoyaltyReward>>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, LOYALTY_READ_PERMISSIONS).await?;
     handlers::loyalty::get_rewards_handler(State(pool), query).await
 }
 
@@ -131,7 +134,7 @@ async fn get_single_reward(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::LoyaltyReward>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, LOYALTY_READ_PERMISSIONS).await?;
     handlers::loyalty::get_reward_handler(State(pool), path).await
 }
 
@@ -140,7 +143,7 @@ async fn create_reward(
     headers: HeaderMap,
     Json(input): Json<models::RewardInput>,
 ) -> Result<Json<models::LoyaltyReward>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, LOYALTY_MANAGE_PERMISSIONS).await?;
     handlers::loyalty::create_reward_handler(State(pool), Json(input)).await
 }
 
@@ -150,7 +153,7 @@ async fn update_reward(
     path: Path<i64>,
     Json(input): Json<models::RewardUpdateInput>,
 ) -> Result<Json<models::LoyaltyReward>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, LOYALTY_MANAGE_PERMISSIONS).await?;
     handlers::loyalty::update_reward_handler(State(pool), path, Json(input)).await
 }
 
@@ -159,7 +162,7 @@ async fn delete_reward(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, LOYALTY_MANAGE_PERMISSIONS).await?;
     handlers::loyalty::delete_reward_handler(State(pool), path).await
 }
 
@@ -167,7 +170,7 @@ async fn get_redemptions(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::RewardRedemptionWithDetails>>, ApiError> {
-    require_admin_helper(&pool, &headers).await?;
+    require_any_permission_helper(&pool, &headers, LOYALTY_READ_PERMISSIONS).await?;
     handlers::loyalty::get_reward_redemptions_handler(State(pool)).await
 }
 

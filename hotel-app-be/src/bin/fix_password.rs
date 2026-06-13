@@ -1,7 +1,7 @@
 // Utility to generate a password reset SQL statement.
 // Run with: cargo run --bin fix_password -- <username> <new-password>
 
-use bcrypt::{hash, DEFAULT_COST};
+use bcrypt::{DEFAULT_COST, hash};
 
 fn main() {
     let mut args = std::env::args().skip(1);

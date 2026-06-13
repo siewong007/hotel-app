@@ -8,44 +8,44 @@ how to deploy them safely.
 - **PostgreSQL 18.x** (already targeted; the desktop bundle pins
   `CONFIGURED_POSTGRES_MAJOR_VERSION = "18"` and refuses to start against an
   older data directory).
-- SQLite mode is unaffected — the new migrations are PostgreSQL-only and live
-  under `database/migrations/`, not `database/sqlite_migrations/`.
+- SQLite mode is unaffected. PostgreSQL setup now lives in the consolidated
+  `database/schema.sql` script; SQLite keeps its separate compatibility path.
 
 ## Required extensions
 
-Migration `015_pg18_extensions_uuidv7.sql` enables the following, each guarded
-with `DO $$ EXCEPTION` so the migration succeeds even on stripped-down
+The PG18 extension section in `database/schema.sql` enables the following,
+each guarded with `DO $$ EXCEPTION` so setup succeeds even on stripped-down
 bundled builds:
 
 | Extension | Purpose | Critical? |
 |---|---|---|
 | `pg_stat_statements` | Query-level performance visibility | No — observability only |
-| `pg_trgm` | Trigram GIN indexes that accelerate `ILIKE '%…%'` searches | No — trigram indexes in `016_pg18_indexes.sql` are guarded and skipped if the extension is missing |
+| `pg_trgm` | Trigram GIN indexes that accelerate `ILIKE '%…%'` searches | No — trigram indexes in `database/schema.sql` are guarded and skipped if the extension is missing |
 | `btree_gin` | Reserved for mixed-type GIN indexes (currently unused) | No |
 
 If you operate a hosted Postgres (RDS, Cloud SQL, Supabase, Neon, etc.) and
 want trigram indexes for full search performance benefit, ensure
 `pg_trgm` is in the cluster's `shared_preload_libraries` / available extension
-list before deploying. No manual `CREATE EXTENSION` is needed — the migration
+list before deploying. No manual `CREATE EXTENSION` is needed; `schema.sql`
 will create it.
 
-## Migration order
+## Deployment order
 
-The two new migrations (`015`, `016`) extend the existing sqlx migration
-chain. Apply with the usual command:
+PostgreSQL setup is consolidated into the two active database scripts. Apply
+schema first, then system data:
 
 ```bash
-sqlx migrate run                 # from hotel-app-be/
+psql "$DATABASE_URL" -f database/schema.sql
+psql "$DATABASE_URL" -f database/data.sql
 ```
 
-For desktop builds, the migrations get bundled into
-`hotel-desktop/src-tauri/database/` automatically by the existing sync step
-(`README.md` references this), so a fresh desktop install picks them up
-without additional action.
+For desktop builds, the resource sync copies these two files into
+`hotel-desktop/src-tauri/database/`, and the desktop launcher runs them in
+that order on startup.
 
 ## What changed
 
-### `015_pg18_extensions_uuidv7.sql`
+### PG18 extensions and UUIDv7
 
 - Enables `pg_stat_statements`, `pg_trgm`, `btree_gin` (best-effort).
 - Adds `gen_uuidv7()`, a wrapper that prefers PG 18's native `uuidv7()` with
@@ -55,7 +55,7 @@ without additional action.
 - Hardens `update_updated_at_column()` with `SET search_path = pg_catalog,
   public` to remove a known function-hijack vector.
 
-### `016_pg18_indexes.sql`
+### PG18 indexes
 
 - Adds trigram (GIN) indexes for the columns that the app searches with
   `ILIKE '%…%'`:
@@ -88,9 +88,8 @@ pg_dump --format=custom --file=pre_pg18_indexes.dump $DATABASE_URL
 
 ### Lock behavior
 
-These migrations use plain `CREATE INDEX` (not `CONCURRENTLY`) because every
-existing migration in this project does, and sqlx wraps the run in a
-transaction by default. For tables under heavy write load:
+The consolidated schema uses plain `CREATE INDEX` (not `CONCURRENTLY`) to keep
+setup deterministic. For tables under heavy write load:
 
 | Table | Estimated row count concern | Recommendation |
 |---|---|---|
@@ -99,11 +98,10 @@ transaction by default. For tables under heavy write load:
 | `guests`, `companies`, `users` | Small | Negligible. |
 | `night_audit_posted_nights` | One row per booking-night | Small. |
 
-If you operate at a scale where any of these are >10M rows, run the
-trigram/GIN/BRIN creates with `CREATE INDEX CONCURRENTLY` *outside* the
-sqlx migration runner (sqlx doesn't support concurrent index builds inside a
-transaction). The drops at the end of `016` are also transaction-safe but
-will take an `ACCESS EXCLUSIVE` lock briefly.
+If you operate at a scale where any of these are >10M rows, create the
+trigram/GIN/BRIN indexes with `CREATE INDEX CONCURRENTLY` during a maintenance
+window before applying `schema.sql`. The redundant index drops are
+transaction-safe but will take an `ACCESS EXCLUSIVE` lock briefly.
 
 ### Rollback
 
@@ -133,10 +131,10 @@ DROP INDEX IF EXISTS idx_guests_full_name_trgm;
 DROP FUNCTION IF EXISTS gen_uuidv7();
 ```
 
-## How to verify the migration
+## How to verify setup
 
 ```bash
-sqlx migrate run
+psql "$DATABASE_URL" -f database/schema.sql
 
 # Confirm new objects exist
 psql "$DATABASE_URL" -c "\df gen_uuidv7"
@@ -160,10 +158,10 @@ EXPLAIN (ANALYZE, BUFFERS)
 
 ## Phase B (applied)
 
-The three medium-risk follow-ups from the original Phase A delivery were
-applied in subsequent migrations:
+The three medium-risk follow-ups from the original Phase A delivery are now
+included in `database/schema.sql`:
 
-### `017_pg18_booking_overlap_exclude.sql`
+### Booking overlap exclusion
 
 - Enables `btree_gist` defensively.
 - Adds `bookings_no_room_date_overlap` — a partial `EXCLUDE USING gist`
@@ -172,7 +170,7 @@ applied in subsequent migrations:
   is one of `pending`, `confirmed`, `checked_in`, `auto_checked_in`.
 - Pre-flight `DO` block detects existing violators and raises with a clear
   hint *before* trying to create the constraint, since `EXCLUDE` does not
-  support `NOT VALID`. If the migration fails, fix the surfaced overlapping
+  support `NOT VALID`. If schema setup fails, fix the surfaced overlapping
   bookings (void/move one of each pair) and rerun.
 - The application's existing `SELECT … FOR UPDATE` guard in
   `create_booking_handler` is now backed up by the DB.
@@ -182,7 +180,7 @@ applied in subsequent migrations:
   errored on any full Postgres. Renamed to `overlap_pairs`; the constraint now
   actually gets created on 18.4.
 
-### `018_pg18_uuidv7_defaults.sql`
+### UUIDv7 defaults
 
 - Flips the `DEFAULT` on every UUID column that previously used
   `uuid_generate_v4()` to `gen_uuidv7()` (added in `015`).
@@ -194,7 +192,7 @@ applied in subsequent migrations:
 - Existing rows are not migrated — only new inserts pick up the v7 prefix.
   Mixed v4/v7 values are harmless; both are 128-bit `uuid` values.
 
-### `019_pg18_virtual_generated_columns.sql`
+### Virtual generated columns
 
 - Adds `bookings.tourism_billable_amount` as a **VIRTUAL** generated column
   (PG 18 feature): `CASE WHEN is_tourist THEN COALESCE(tourism_tax_amount,
@@ -206,12 +204,12 @@ applied in subsequent migrations:
   `COALESCE(b.tourism_tax_amount, 0)`, so non-tourist bookings can never post
   tourism tax into the journal.
 
-### `020_pg18_audit_logs_partitioning.sql`
+### Audit log partitioning
 
 - Converts `audit_logs` into a `RANGE`-partitioned table (one partition per
   calendar month on `created_at`), the deferred audit partitioning follow-up.
-  An atomic rename → recreate → copy → drop rewrite wrapped in the migration
-  transaction; preserves existing `id`s via `OVERRIDING SYSTEM VALUE` and
+  An atomic rename -> recreate -> copy -> drop rewrite during schema setup;
+  preserves existing `id`s via `OVERRIDING SYSTEM VALUE` and
   backfills any NULL `created_at`.
 - `id` switches to `GENERATED ALWAYS AS IDENTITY` (PK becomes `(id,
   created_at)` — required because the partition key must be in every unique

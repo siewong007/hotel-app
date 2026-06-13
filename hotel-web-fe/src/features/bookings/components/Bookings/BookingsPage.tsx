@@ -197,10 +197,10 @@ const getBookedViaText = (booking: Pick<BookingWithDetails, 'source' | 'remarks'
 
 const BookingsPage: React.FC = () => {
   const queryClient = useQueryClient();
-  const { hasRole, hasPermission } = useAuth();
+  const { hasPermission } = useAuth();
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const PAYMENT_METHODS = getHotelSettings().payment_methods;
-  const isAdmin = hasRole('admin') || hasRole('receptionist') || hasRole('manager') || hasPermission('bookings:update');
+  const isAdmin = hasPermission('bookings:update') || hasPermission('bookings:manage');
   const updateBookingMutation = useUpdateBooking();
   const reactivateBookingMutation = useReactivateBookingMutation();
   const markComplimentaryMutation = useMarkBookingComplimentaryMutation();

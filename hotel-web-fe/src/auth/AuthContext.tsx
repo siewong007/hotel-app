@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { useQueryClient } from '@tanstack/react-query';
 import { api, HotelAPIService } from '../api';
 import { storage } from '../utils/storage';
+import type { RouteAccessPolicy } from '../types';
 
 export interface User {
   id: string;
@@ -17,6 +18,7 @@ export interface AuthState {
   user: User | null;
   roles: string[];
   permissions: string[];
+  routePolicies: RouteAccessPolicy[];
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
@@ -30,6 +32,7 @@ interface AuthContextType extends AuthState {
   logout: () => void;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
+  getRoutePolicy: (routeId: string) => RouteAccessPolicy | undefined;
   registerPasskey: (username: string) => Promise<void>;
   loginWithPasskey: (username: string) => Promise<boolean>;
   dismissPasskeyPrompt: () => void;
@@ -50,10 +53,21 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+type AuthLoginResponse = {
+  access_token: string;
+  refresh_token: string;
+  user: User;
+  roles: string[];
+  permissions: string[];
+  route_policies: RouteAccessPolicy[];
+  is_first_login: boolean;
+};
+
 const EMPTY_AUTH_STATE: AuthState = {
   user: null,
   roles: [],
   permissions: [],
+  routePolicies: [],
   accessToken: null,
   refreshToken: null,
   isAuthenticated: false,
@@ -75,6 +89,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     storage.removeItem('user');
     storage.removeItem('roles');
     storage.removeItem('permissions');
+    storage.removeItem('routePolicies');
   }, []);
 
   const resetAuthState = useCallback(() => {
@@ -87,11 +102,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const initializeAuth = async () => {
       // Batch read all stored auth data
-      const { accessToken, user, roles, permissions, refreshToken } = storage.getItems([
+      const { accessToken, user, refreshToken } = storage.getItems([
         'accessToken',
         'user',
-        'roles',
-        'permissions',
         'refreshToken',
       ]);
 
@@ -100,13 +113,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           // Verify token by making a profile request.
           // Wait for it to succeed BEFORE setting isAuthenticated to true.
           await HotelAPIService.getUserProfile();
+          const access = await HotelAPIService.getAccessSnapshot();
+
+          storage.setItems({
+            roles: access.roles,
+            permissions: access.permissions,
+            routePolicies: access.route_policies,
+          });
+
+          const latestAccessToken = storage.getItem<string>('accessToken') || accessToken;
+          const latestRefreshToken = storage.getItem<string>('refreshToken') || refreshToken;
           
           setAuthState({
             user,
-            roles: roles || [],
-            permissions: permissions || [],
-            accessToken,
-            refreshToken,
+            roles: access.roles,
+            permissions: access.permissions,
+            routePolicies: access.route_policies,
+            accessToken: latestAccessToken,
+            refreshToken: latestRefreshToken,
             isAuthenticated: true,
             isLoading: false,
             shouldPromptPasskey: false,
@@ -140,6 +164,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     window.addEventListener('auth:unauthorized', handleUnauthorized);
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, [clearStoredAuth, queryClient, resetAuthState]);
+
+  useEffect(() => {
+    const handleTokensRefreshed = (event: Event) => {
+      const detail = (event as CustomEvent<{ accessToken?: string; refreshToken?: string }>).detail;
+      if (!detail?.accessToken || !detail.refreshToken) {
+        return;
+      }
+
+      setAuthState(prev => ({
+        ...prev,
+        accessToken: detail.accessToken || prev.accessToken,
+        refreshToken: detail.refreshToken || prev.refreshToken,
+      }));
+    };
+
+    window.addEventListener('auth:tokens-refreshed', handleTokensRefreshed);
+    return () => window.removeEventListener('auth:tokens-refreshed', handleTokensRefreshed);
+  }, []);
 
   const register = useCallback(async (data: { username: string; email: string; password: string; first_name: string; last_name: string; phone?: string }) => {
     try {
@@ -180,9 +222,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const data = await api.post('auth/login', {
         json: { username, password, totp_code: totpCode },
-      }).json<{ access_token: string; refresh_token: string; user: User; roles: string[]; permissions: string[]; is_first_login: boolean }>();
+      }).json<AuthLoginResponse>();
 
-      const { access_token, refresh_token, user, roles, permissions, is_first_login } = data;
+      const { access_token, refresh_token, user, roles, permissions, route_policies, is_first_login } = data;
 
       // IMPORTANT: Store auth data BEFORE calling checkPasskeys so the API client can use the token
       storage.setItems({
@@ -191,6 +233,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         user,
         roles,
         permissions,
+        routePolicies: route_policies,
       });
 
       // Invalidate cache to ensure immediate availability
@@ -202,6 +245,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         user,
         roles,
         permissions,
+        routePolicies: route_policies,
         accessToken: access_token,
         refreshToken: refresh_token,
         isAuthenticated: true,
@@ -265,15 +309,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     () => new Set(authState.roles.map(normalizeAccessValue)),
     [authState.roles]
   );
+  const routePolicyMap = useMemo(
+    () => new Map(authState.routePolicies.map((policy) => [policy.route_id, policy])),
+    [authState.routePolicies]
+  );
 
   const hasPermission = useCallback(
-    (permission: string): boolean => permissionSet.has(normalizeAccessValue(permission)),
+    (permission: string): boolean => {
+      const normalizedPermission = normalizeAccessValue(permission);
+      if (permissionSet.has(normalizedPermission)) {
+        return true;
+      }
+
+      const [resource, action] = normalizedPermission.split(':');
+      return Boolean(
+        resource &&
+          action &&
+          action !== 'manage' &&
+          permissionSet.has(`${resource}:manage`)
+      );
+    },
     [permissionSet]
   );
 
   const hasRole = useCallback(
     (role: string): boolean => roleSet.has(normalizeAccessValue(role)),
     [roleSet]
+  );
+
+  const getRoutePolicy = useCallback(
+    (routeId: string): RouteAccessPolicy | undefined => routePolicyMap.get(routeId),
+    [routePolicyMap]
   );
 
   const registerPasskey = useCallback(async (username: string) => {
@@ -450,9 +516,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           signature: btoa(String.fromCharCode(...assertionJson.response.signature)),
           challenge,
         },
-      }).json<{ access_token: string; refresh_token: string; user: User; roles: string[]; permissions: string[]; is_first_login: boolean }>();
+      }).json<AuthLoginResponse>();
 
-      const { access_token, refresh_token, user, roles, permissions, is_first_login } = finishResponse;
+      const { access_token, refresh_token, user, roles, permissions, route_policies, is_first_login } = finishResponse;
 
       // Store auth data first
       storage.setItems({
@@ -461,6 +527,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         user,
         roles,
         permissions,
+        routePolicies: route_policies,
       });
 
       // Invalidate cache to ensure immediate availability
@@ -472,6 +539,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         user,
         roles,
         permissions,
+        routePolicies: route_policies,
         accessToken: access_token,
         refreshToken: refresh_token,
         isAuthenticated: true,
@@ -530,6 +598,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     hasPermission,
     hasRole,
+    getRoutePolicy,
     registerPasskey,
     loginWithPasskey,
     dismissPasskeyPrompt,
@@ -541,6 +610,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     hasPermission,
     hasRole,
+    getRoutePolicy,
     registerPasskey,
     loginWithPasskey,
     dismissPasskeyPrompt,

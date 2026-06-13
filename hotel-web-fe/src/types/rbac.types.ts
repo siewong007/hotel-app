@@ -63,6 +63,7 @@ export interface RbacSnapshot {
   users: User[];
   role_permissions: RolePermissionAssignment[];
   user_roles: UserRoleAssignment[];
+  route_policies: RouteAccessPolicy[];
 }
 
 export interface RoleWithPermissions {
@@ -74,4 +75,30 @@ export interface UserWithRolesAndPermissions {
   user: User;
   roles: Role[];
   permissions: Permission[];
+}
+
+export interface RouteAccessPolicy {
+  route_id: string;
+  path: string;
+  nav_label?: string;
+  nav_group?: string;
+  required_permissions: string[];
+  required_roles: string[];
+  excluded_roles: string[];
+  nav_permissions: string[];
+  nav_roles: string[];
+  nav_excluded_roles: string[];
+  is_navigation: boolean;
+}
+
+export interface RouteAccessPolicyInput {
+  nav_label?: string;
+  nav_group?: string;
+  required_permissions: string[];
+  required_roles: string[];
+  excluded_roles: string[];
+  nav_permissions: string[];
+  nav_roles: string[];
+  nav_excluded_roles: string[];
+  is_navigation: boolean;
 }

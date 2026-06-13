@@ -27,19 +27,18 @@ export function renderRouteContent(route: AppRouteDefinition) {
     return <UnauthOnlyRoute>{content}</UnauthOnlyRoute>;
   }
 
-  if (route.requiredPermissions || route.requiredRoles || route.excludeRoles?.length) {
+  if (route.accessControlled) {
     return (
       <ProtectedRoute
-        requiredPermissions={route.requiredPermissions}
-        requiredRoles={route.requiredRoles}
-        excludeRoles={route.excludeRoles}
+        routeId={route.id}
+        requiresPolicy
       >
         {content}
       </ProtectedRoute>
     );
   }
 
-  return <ProtectedRoute>{content}</ProtectedRoute>;
+  return <ProtectedRoute routeId={route.id}>{content}</ProtectedRoute>;
 }
 
 /** Render a route entry by its `id` from `routeRegistry`. */
