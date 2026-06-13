@@ -29,7 +29,12 @@ VALUES
     ('manager'),
     ('receptionist'),
     ('staff'),
-    ('guest');
+    ('guest'),
+    ('compliance_admin'),
+    ('ekyc_reviewer'),
+    ('senior_reviewer'),
+    ('auditor'),
+    ('support_readonly');
 
 -- Current canonical system permissions seeded by migrations and seed data.
 CREATE TEMP TABLE expected_system_permissions (
@@ -46,8 +51,23 @@ VALUES
     ('bookings:manage'),
     ('bookings:read'),
     ('bookings:update'),
+    ('ekyc:approve'),
+    ('ekyc:assign'),
+    ('ekyc:download_documents'),
+    ('ekyc:escalate'),
+    ('ekyc:export'),
     ('ekyc:manage'),
+    ('ekyc:manage_reason_codes'),
+    ('ekyc:manage_risk_rules'),
+    ('ekyc:override'),
+    ('ekyc:read'),
+    ('ekyc:reject'),
+    ('ekyc:request_resubmission'),
+    ('ekyc:reveal_sensitive'),
+    ('ekyc:review'),
     ('ekyc:verify'),
+    ('ekyc:view_provider_raw'),
+    ('ekyc:view_sensitive'),
     ('guests:create'),
     ('guests:delete'),
     ('guests:manage'),
@@ -264,31 +284,46 @@ SELECT
     p.id::TEXT,
     concat_ws(
         '; ',
-        CASE WHEN p.name IS NULL OR p.name !~ '^[a-z][a-z0-9_]*:[a-z]+$' THEN 'Invalid permission name' END,
+        CASE WHEN p.name IS NULL OR p.name !~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$' THEN 'Invalid permission name' END,
         CASE WHEN p.resource IS NULL OR length(trim(p.resource)) = 0 THEN 'Missing resource' END,
-        CASE WHEN p.action IS NULL OR p.action NOT IN ('create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'write', 'verify') THEN 'Invalid action' END
+        CASE WHEN p.action IS NULL OR p.action NOT IN (
+            'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+            'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
+            'override', 'export', 'download', 'reveal', 'request_resubmission',
+            'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+        ) THEN 'Invalid action' END
     ),
     to_jsonb(p)
 FROM permissions p
 WHERE p.is_system_permission IS TRUE
   AND (
       p.name IS NULL
-      OR p.name !~ '^[a-z][a-z0-9_]*:[a-z]+$'
+      OR p.name !~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$'
       OR p.resource IS NULL
       OR length(trim(p.resource)) = 0
       OR p.action IS NULL
-      OR p.action NOT IN ('create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'write', 'verify')
+      OR p.action NOT IN (
+          'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+          'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
+          'override', 'export', 'download', 'reveal', 'request_resubmission',
+          'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+      )
   );
 
 DELETE FROM permissions p
 WHERE p.is_system_permission IS TRUE
   AND (
       p.name IS NULL
-      OR p.name !~ '^[a-z][a-z0-9_]*:[a-z]+$'
+      OR p.name !~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$'
       OR p.resource IS NULL
       OR length(trim(p.resource)) = 0
       OR p.action IS NULL
-      OR p.action NOT IN ('create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'write', 'verify')
+      OR p.action NOT IN (
+          'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+          'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
+          'override', 'export', 'download', 'reveal', 'request_resubmission',
+          'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+      )
   );
 
 -- Quarantine and remove malformed system route policies before reseeding.
@@ -358,7 +393,12 @@ INSERT INTO roles (name, display_name, description, is_system_role, priority) VA
 ('manager', 'Manager', 'Hotel operations management', true, 80),
 ('receptionist', 'Receptionist', 'Front desk and booking management', true, 60),
 ('staff', 'Staff', 'Basic hotel staff access', true, 40),
-('guest', 'Guest', 'Guest user access', true, 20)
+('guest', 'Guest', 'Guest user access', true, 20),
+('compliance_admin', 'Compliance Administrator', 'Compliance administration and eKYC oversight', true, 90),
+('ekyc_reviewer', 'eKYC Reviewer', 'Reviews and actions assigned eKYC applications', true, 70),
+('senior_reviewer', 'Senior Reviewer', 'Second-level eKYC review and high-risk approvals', true, 75),
+('auditor', 'Auditor', 'Read-only audit and compliance access', true, 65),
+('support_readonly', 'Read-only Support', 'Read-only operational support access', true, 30)
 ON CONFLICT (name) DO UPDATE SET
     display_name = EXCLUDED.display_name,
     description = EXCLUDED.description,
@@ -373,6 +413,15 @@ WHERE roles.display_name IS DISTINCT FROM EXCLUDED.display_name
 -- ============================================================================
 -- PERMISSIONS
 -- ============================================================================
+
+ALTER TABLE permissions DROP CONSTRAINT IF EXISTS valid_action;
+ALTER TABLE permissions ADD CONSTRAINT valid_action
+    CHECK (action IN (
+        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+        'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
+        'override', 'export', 'download', 'reveal', 'request_resubmission',
+        'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+    ));
 
 INSERT INTO permissions (name, resource, action, description, is_system_permission) VALUES
 ('users:create', 'users', 'create', 'Create new users', true),
@@ -429,7 +478,24 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('analytics:read', 'analytics', 'read', 'Access to analytics and reports', true),
 ('audit:read', 'audit', 'read', 'View audit logs', true),
 ('night_audit:read', 'night_audit', 'read', 'View night audit data', true),
-('night_audit:execute', 'night_audit', 'execute', 'Execute night audit', true)
+('night_audit:execute', 'night_audit', 'execute', 'Execute night audit', true),
+('ekyc:read', 'ekyc', 'read', 'View masked eKYC applications', true),
+('ekyc:review', 'ekyc', 'review', 'Review eKYC application details and notes', true),
+('ekyc:view_sensitive', 'ekyc', 'read', 'View sensitive eKYC data when explicitly returned', true),
+('ekyc:reveal_sensitive', 'ekyc', 'reveal', 'Reveal masked eKYC identity fields with audit', true),
+('ekyc:download_documents', 'ekyc', 'download', 'Download private eKYC documents', true),
+('ekyc:assign', 'ekyc', 'assign', 'Claim, assign, or reassign eKYC cases', true),
+('ekyc:approve', 'ekyc', 'approve', 'Approve eKYC applications', true),
+('ekyc:reject', 'ekyc', 'reject', 'Reject eKYC applications', true),
+('ekyc:escalate', 'ekyc', 'escalate', 'Escalate eKYC applications', true),
+('ekyc:request_resubmission', 'ekyc', 'request_resubmission', 'Request additional eKYC information', true),
+('ekyc:override', 'ekyc', 'override', 'Perform controlled eKYC manual overrides', true),
+('ekyc:export', 'ekyc', 'export', 'Export masked eKYC records', true),
+('ekyc:manage_reason_codes', 'ekyc', 'manage_reason_codes', 'Manage eKYC reason codes', true),
+('ekyc:manage_risk_rules', 'ekyc', 'manage_risk_rules', 'Manage eKYC risk rules', true),
+('ekyc:view_provider_raw', 'ekyc', 'view_provider_raw', 'View raw eKYC provider responses', true),
+('ekyc:manage', 'ekyc', 'manage', 'Full eKYC administration', true),
+('ekyc:verify', 'ekyc', 'verify', 'Legacy eKYC approve or reject permission', true)
 ON CONFLICT (name) DO UPDATE SET
     description = EXCLUDED.description,
     resource = EXCLUDED.resource,
@@ -476,6 +542,40 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'staff' A
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'guest' AND p.name IN (
     'rooms:read', 'bookings:create', 'bookings:read', 'reviews:create', 'reviews:read', 'reviews:update'
+) ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- eKYC compliance roles
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'compliance_admin' AND p.name IN (
+    'ekyc:read', 'ekyc:review', 'ekyc:view_sensitive', 'ekyc:reveal_sensitive',
+    'ekyc:download_documents', 'ekyc:assign', 'ekyc:approve', 'ekyc:reject',
+    'ekyc:escalate', 'ekyc:request_resubmission', 'ekyc:override',
+    'ekyc:export', 'ekyc:manage_reason_codes', 'ekyc:manage_risk_rules',
+    'ekyc:view_provider_raw', 'navigation_ekyc_admin:read', 'audit:read'
+) ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'ekyc_reviewer' AND p.name IN (
+    'ekyc:read', 'ekyc:review', 'ekyc:download_documents', 'ekyc:assign',
+    'ekyc:approve', 'ekyc:reject', 'ekyc:escalate',
+    'ekyc:request_resubmission', 'navigation_ekyc_admin:read'
+) ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'senior_reviewer' AND p.name IN (
+    'ekyc:read', 'ekyc:review', 'ekyc:view_sensitive', 'ekyc:download_documents',
+    'ekyc:assign', 'ekyc:approve', 'ekyc:reject', 'ekyc:escalate',
+    'ekyc:request_resubmission', 'ekyc:override', 'navigation_ekyc_admin:read'
+) ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'auditor' AND p.name IN (
+    'ekyc:read', 'ekyc:export', 'navigation_ekyc_admin:read', 'audit:read'
+) ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'support_readonly' AND p.name IN (
+    'ekyc:read', 'navigation_ekyc_admin:read'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- ============================================================================
@@ -923,9 +1023,14 @@ BEGIN
         FROM permissions p
         WHERE p.is_system_permission IS TRUE
           AND (
-              p.name !~ '^[a-z][a-z0-9_]*:[a-z]+$'
+              p.name !~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$'
               OR length(trim(p.resource)) = 0
-              OR p.action NOT IN ('create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'write', 'verify')
+              OR p.action NOT IN (
+                  'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+                  'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
+                  'override', 'export', 'download', 'reveal', 'request_resubmission',
+                  'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+              )
           )
         UNION ALL
         SELECT 'route_access_policies' AS source_name

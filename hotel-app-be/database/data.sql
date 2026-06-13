@@ -284,31 +284,46 @@ SELECT
     p.id::TEXT,
     concat_ws(
         '; ',
-        CASE WHEN p.name IS NULL OR p.name !~ '^[a-z][a-z0-9_]*:[a-z]+$' THEN 'Invalid permission name' END,
+        CASE WHEN p.name IS NULL OR p.name !~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$' THEN 'Invalid permission name' END,
         CASE WHEN p.resource IS NULL OR length(trim(p.resource)) = 0 THEN 'Missing resource' END,
-        CASE WHEN p.action IS NULL OR p.action NOT IN ('create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'write', 'verify') THEN 'Invalid action' END
+        CASE WHEN p.action IS NULL OR p.action NOT IN (
+            'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+            'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
+            'override', 'export', 'download', 'reveal', 'request_resubmission',
+            'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+        ) THEN 'Invalid action' END
     ),
     to_jsonb(p)
 FROM permissions p
 WHERE p.is_system_permission IS TRUE
   AND (
       p.name IS NULL
-      OR p.name !~ '^[a-z][a-z0-9_]*:[a-z]+$'
+      OR p.name !~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$'
       OR p.resource IS NULL
       OR length(trim(p.resource)) = 0
       OR p.action IS NULL
-      OR p.action NOT IN ('create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'write', 'verify')
+      OR p.action NOT IN (
+          'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+          'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
+          'override', 'export', 'download', 'reveal', 'request_resubmission',
+          'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+      )
   );
 
 DELETE FROM permissions p
 WHERE p.is_system_permission IS TRUE
   AND (
       p.name IS NULL
-      OR p.name !~ '^[a-z][a-z0-9_]*:[a-z]+$'
+      OR p.name !~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$'
       OR p.resource IS NULL
       OR length(trim(p.resource)) = 0
       OR p.action IS NULL
-      OR p.action NOT IN ('create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'write', 'verify')
+      OR p.action NOT IN (
+          'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+          'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
+          'override', 'export', 'download', 'reveal', 'request_resubmission',
+          'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+      )
   );
 
 -- Quarantine and remove malformed system route policies before reseeding.
@@ -1008,9 +1023,14 @@ BEGIN
         FROM permissions p
         WHERE p.is_system_permission IS TRUE
           AND (
-              p.name !~ '^[a-z][a-z0-9_]*:[a-z]+$'
+              p.name !~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$'
               OR length(trim(p.resource)) = 0
-              OR p.action NOT IN ('create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'write', 'verify')
+              OR p.action NOT IN (
+                  'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+                  'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
+                  'override', 'export', 'download', 'reveal', 'request_resubmission',
+                  'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
+              )
           )
         UNION ALL
         SELECT 'route_access_policies' AS source_name
