@@ -22,6 +22,13 @@ pub async fn refresh_token_handler(
     Ok(Json(svc::refresh_token(&pool, req).await?))
 }
 
+pub async fn access_snapshot_handler(
+    State(pool): State<DbPool>,
+    user_id: i64,
+) -> Result<Json<AccessSnapshot>, ApiError> {
+    Ok(Json(svc::access_snapshot(&pool, user_id).await?))
+}
+
 pub async fn logout_handler(
     State(pool): State<DbPool>,
     Json(req): Json<RefreshTokenRequest>,

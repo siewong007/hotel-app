@@ -44,10 +44,10 @@ const workflowTips = [
 ];
 
 export default function HelpSupportPage() {
-  const { hasPermission, hasRole, user } = useAuth();
+  const { getRoutePolicy, hasPermission, hasRole, user } = useAuth();
 
   const quickLinks = navigationRouteDefinitions
-    .filter((route) => canAccessNavigationRoute(route, { hasPermission, hasRole }))
+    .filter((route) => canAccessNavigationRoute(route, { getRoutePolicy, hasPermission, hasRole }))
     .slice(0, 6);
 
   return (

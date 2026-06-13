@@ -1,4 +1,4 @@
-use bcrypt::{hash, DEFAULT_COST};
+use bcrypt::{DEFAULT_COST, hash};
 
 fn main() {
     let password = std::env::args().nth(1).expect("Please provide a password");

@@ -141,6 +141,8 @@ export class HotelAPIService {
 
   // RBAC operations
   static getRbacSnapshot = AdminService.getRbacSnapshot;
+  static getRouteAccessPolicies = AdminService.getRouteAccessPolicies;
+  static updateRouteAccessPolicy = AdminService.updateRouteAccessPolicy;
   static getAllRoles = AdminService.getAllRoles;
   static createRole = AdminService.createRole;
   static updateRole = AdminService.updateRole;
@@ -171,6 +173,7 @@ export class HotelAPIService {
   static verifyEmail = AuthService.verifyEmail;
   static getHealth = AuthService.getHealth;
   static getWebSocketStatus = AuthService.getWebSocketStatus;
+  static getAccessSnapshot = AuthService.getAccessSnapshot;
   static getUserProfile = AuthService.getUserProfile;
   static updateUserProfile = AuthService.updateUserProfile;
   static updatePassword = AuthService.updatePassword;

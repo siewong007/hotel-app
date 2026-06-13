@@ -67,6 +67,7 @@ export type {
 // Auth types
 export type {
   User,
+  AccessSnapshot,
   AuthResponse,
   UserProfile,
   UserProfileUpdate,
@@ -98,6 +99,8 @@ export type {
   RbacSnapshot,
   RoleWithPermissions,
   UserWithRolesAndPermissions,
+  RouteAccessPolicy,
+  RouteAccessPolicyInput,
 } from './rbac.types';
 
 // Loyalty types

@@ -4,7 +4,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::require_any_permission_helper;
+use crate::core::middleware::{require_any_permission_helper, require_auth};
 use crate::handlers;
 use crate::models;
 use axum::{
@@ -45,6 +45,8 @@ const USER_ROLE_MANAGE_PERMISSIONS: &[&str] = &["users:update", "users:manage"];
 pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/rbac/snapshot", get(get_snapshot))
+        .route("/rbac/route-policies", get(get_route_policies))
+        .route("/rbac/route-policies/{route_id}", put(update_route_policy))
         // Role management
         .route("/rbac/roles", get(get_roles))
         .route("/rbac/roles", post(create_role))
@@ -84,6 +86,31 @@ async fn get_snapshot(
 ) -> Result<Json<models::RbacSnapshot>, ApiError> {
     require_any_permission_helper(&pool, &headers, RBAC_SNAPSHOT_PERMISSIONS).await?;
     handlers::rbac::get_rbac_snapshot_handler(State(pool)).await
+}
+
+async fn get_route_policies(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<models::RouteAccessPolicy>>, ApiError> {
+    require_auth(&headers).await?;
+    handlers::rbac::get_route_policies_handler(State(pool)).await
+}
+
+async fn update_route_policy(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<String>,
+    Json(input): Json<models::RouteAccessPolicyInput>,
+) -> Result<Json<models::RouteAccessPolicy>, ApiError> {
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, PERMISSION_MANAGE_PERMISSIONS).await?;
+    handlers::rbac::update_route_policy_handler(
+        State(pool),
+        Extension(actor_user_id),
+        path,
+        Json(input),
+    )
+    .await
 }
 
 async fn get_roles(

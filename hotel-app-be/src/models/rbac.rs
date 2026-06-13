@@ -90,6 +90,7 @@ pub struct RbacSnapshot {
     pub users: Vec<UserResponse>,
     pub role_permissions: Vec<RolePermissionAssignment>,
     pub user_roles: Vec<UserRoleAssignment>,
+    pub route_policies: Vec<RouteAccessPolicy>,
 }
 
 /// Role with its permissions
@@ -105,4 +106,38 @@ pub struct UserWithRolesAndPermissions {
     pub user: User,
     pub roles: Vec<Role>,
     pub permissions: Vec<Permission>,
+}
+
+/// Dynamic frontend route and navigation access policy.
+///
+/// React owns the route/component registry; the backend owns the RBAC policy
+/// attached to each route id. Permission arrays are OR-semantics: a user needs
+/// any listed permission unless a listed role also grants access.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RouteAccessPolicy {
+    pub route_id: String,
+    pub path: String,
+    pub nav_label: Option<String>,
+    pub nav_group: Option<String>,
+    pub required_permissions: Vec<String>,
+    pub required_roles: Vec<String>,
+    pub excluded_roles: Vec<String>,
+    pub nav_permissions: Vec<String>,
+    pub nav_roles: Vec<String>,
+    pub nav_excluded_roles: Vec<String>,
+    pub is_navigation: bool,
+}
+
+/// Full replacement input for a route access policy.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RouteAccessPolicyInput {
+    pub nav_label: Option<String>,
+    pub nav_group: Option<String>,
+    pub required_permissions: Vec<String>,
+    pub required_roles: Vec<String>,
+    pub excluded_roles: Vec<String>,
+    pub nav_permissions: Vec<String>,
+    pub nav_roles: Vec<String>,
+    pub nav_excluded_roles: Vec<String>,
+    pub is_navigation: bool,
 }

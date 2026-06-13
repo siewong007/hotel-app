@@ -16,6 +16,7 @@ use crate::get_data_directory;
 /// Global state for the backend process
 static BACKEND_RUNNING: AtomicBool = AtomicBool::new(false);
 static BACKEND_STARTING: AtomicBool = AtomicBool::new(false);
+static BACKEND_STOP_REQUESTED: AtomicBool = AtomicBool::new(false);
 static BACKEND_PORT: AtomicU16 = AtomicU16::new(3030);
 
 lazy_static::lazy_static! {
@@ -87,10 +88,12 @@ pub async fn start_backend_sidecar(app_handle: &AppHandle) -> Result<(), String>
 
     log::info!("Starting backend sidecar...");
     BACKEND_STARTING.store(true, Ordering::SeqCst);
+    BACKEND_STOP_REQUESTED.store(false, Ordering::SeqCst);
 
     // Desktop mode owns the bundled PostgreSQL instance. Do not let a user or
     // machine-level DATABASE_URL redirect the sidecar to an external database.
-    let database_url = crate::postgres::get_database_url();
+    let database_url = crate::postgres::get_database_url()
+        .map_err(|e| format!("Failed to read database credential: {}", e))?;
     let preferred_port = std::env::var("BACKEND_PORT")
         .ok()
         .and_then(|port| port.parse::<u16>().ok())
@@ -144,10 +147,20 @@ pub async fn start_backend_sidecar(app_handle: &AppHandle) -> Result<(), String>
                     log::warn!("Backend process terminated with code: {:?}", payload.code);
                     BACKEND_RUNNING.store(false, Ordering::SeqCst);
                     BACKEND_STARTING.store(false, Ordering::SeqCst);
+                    {
+                        let mut process = BACKEND_PROCESS.lock().await;
+                        *process = None;
+                    }
 
                     // Emit event to frontend
                     if let Some(window) = app_handle_clone.get_webview_window("main") {
                         let _ = window.emit("backend-terminated", payload.code);
+                    }
+                    if !BACKEND_STOP_REQUESTED.load(Ordering::SeqCst) {
+                        let restart_handle = app_handle_clone.clone();
+                        tauri::async_runtime::spawn(async move {
+                            restart_backend_with_backoff(restart_handle).await;
+                        });
                     }
                     break;
                 }
@@ -180,6 +193,52 @@ pub async fn start_backend_sidecar(app_handle: &AppHandle) -> Result<(), String>
     Ok(())
 }
 
+async fn restart_backend_with_backoff(app_handle: AppHandle) {
+    for attempt in 1..=3 {
+        let delay_secs = attempt * 2;
+        log::warn!(
+            "Backend sidecar exited unexpectedly; restart attempt {} in {} seconds",
+            attempt,
+            delay_secs
+        );
+        if let Some(window) = app_handle.get_webview_window("main") {
+            let _ = window.emit("backend-restarting", attempt);
+        }
+
+        tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
+        if BACKEND_STOP_REQUESTED.load(Ordering::SeqCst) {
+            log::info!("Skipping backend auto-restart because shutdown was requested");
+            return;
+        }
+
+        let restart_handle = app_handle.clone();
+        let start_result = tauri::async_runtime::spawn_blocking(move || {
+            tauri::async_runtime::block_on(start_backend_sidecar(&restart_handle))
+        })
+        .await
+        .unwrap_or_else(|error| Err(format!("Backend restart task failed: {}", error)));
+
+        match start_result {
+            Ok(()) => {
+                log::info!("Backend sidecar auto-restart succeeded");
+                return;
+            }
+            Err(error) => {
+                log::error!(
+                    "Backend sidecar auto-restart attempt {} failed: {}",
+                    attempt,
+                    error
+                );
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.emit("backend-restart-failed", error);
+                }
+            }
+        }
+    }
+
+    log::error!("Backend sidecar auto-restart exhausted all attempts");
+}
+
 /// Wait for the backend to be ready (health check)
 async fn wait_for_backend_ready(port: u16) -> Result<(), String> {
     let client = reqwest::Client::new();
@@ -206,6 +265,7 @@ async fn wait_for_backend_ready(port: u16) -> Result<(), String> {
 /// Stop the backend sidecar process
 pub async fn stop_backend_sidecar() -> Result<(), String> {
     log::info!("Stopping backend sidecar...");
+    BACKEND_STOP_REQUESTED.store(true, Ordering::SeqCst);
 
     let mut process = BACKEND_PROCESS.lock().await;
     if let Some(child) = process.take() {

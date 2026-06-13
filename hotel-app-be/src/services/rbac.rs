@@ -33,6 +33,7 @@ pub async fn snapshot(pool: &DbPool) -> Result<RbacSnapshot, ApiError> {
         .collect();
     let role_permissions = RbacRepository::role_permission_assignments(pool).await?;
     let user_roles = RbacRepository::user_role_assignments(pool).await?;
+    let route_policies = RbacRepository::find_all_route_access_policies(pool).await?;
 
     Ok(RbacSnapshot {
         roles,
@@ -40,7 +41,34 @@ pub async fn snapshot(pool: &DbPool) -> Result<RbacSnapshot, ApiError> {
         users,
         role_permissions,
         user_roles,
+        route_policies,
     })
+}
+
+pub async fn route_policies(pool: &DbPool) -> Result<Vec<RouteAccessPolicy>, ApiError> {
+    RbacRepository::find_all_route_access_policies(pool).await
+}
+
+pub async fn update_route_policy(
+    pool: &DbPool,
+    actor_user_id: i64,
+    route_id: String,
+    input: RouteAccessPolicyInput,
+) -> Result<RouteAccessPolicy, ApiError> {
+    validate_route_policy_input(&input)?;
+    let policy = RbacRepository::update_route_access_policy(pool, &route_id, &input).await?;
+    let _ = AuditLog::log_event(
+        pool,
+        Some(actor_user_id),
+        "route_policy_updated",
+        "route_access_policy",
+        None,
+        Some(serde_json::json!({ "route_id": policy.route_id })),
+        None,
+        None,
+    )
+    .await;
+    Ok(policy)
 }
 
 pub async fn create_permission(
@@ -333,6 +361,38 @@ fn unique_ids(ids: Vec<i64>) -> Vec<i64> {
     ids.into_iter().filter(|id| seen.insert(*id)).collect()
 }
 
+fn validate_access_code(value: &str, kind: &str) -> Result<(), ApiError> {
+    let valid = value
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_' || c == '-' || c == ':')
+        && value.len() <= 100
+        && !value.is_empty();
+
+    if valid {
+        Ok(())
+    } else {
+        Err(ApiError::BadRequest(format!(
+            "Invalid {kind} value in route policy: {value}"
+        )))
+    }
+}
+
+fn validate_access_codes(values: &[String], kind: &str) -> Result<(), ApiError> {
+    for value in values {
+        validate_access_code(value, kind)?;
+    }
+    Ok(())
+}
+
+fn validate_route_policy_input(input: &RouteAccessPolicyInput) -> Result<(), ApiError> {
+    validate_access_codes(&input.required_permissions, "permission")?;
+    validate_access_codes(&input.nav_permissions, "permission")?;
+    validate_access_codes(&input.required_roles, "role")?;
+    validate_access_codes(&input.excluded_roles, "role")?;
+    validate_access_codes(&input.nav_roles, "role")?;
+    validate_access_codes(&input.nav_excluded_roles, "role")
+}
+
 async fn ensure_actor_can_manage_roles(
     pool: &DbPool,
     actor_user_id: i64,
@@ -350,9 +410,9 @@ async fn ensure_actor_can_manage_roles(
                 ApiError::BadRequest(format!("Role with id {} does not exist", role_id))
             })?;
 
-        if role_priority > actor_priority {
+        if role_priority >= actor_priority {
             return Err(ApiError::Forbidden(
-                "Cannot manage a role above your access priority".to_string(),
+                "Cannot manage a role at or above your access priority".to_string(),
             ));
         }
     }

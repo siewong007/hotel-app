@@ -4,10 +4,11 @@ use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
-    AuthResponse, EmailVerificationConfirm, LoginRequest, RefreshTokenRequest,
+    AccessSnapshot, AuthResponse, EmailVerificationConfirm, LoginRequest, RefreshTokenRequest,
     RefreshTokenResponse, RegisterRequest, ResendVerificationRequest, UserResponse,
 };
 use crate::repositories::auth::AuthRepository;
+use crate::repositories::rbac::RbacRepository;
 use crate::services::audit::AuditLog;
 use crate::utils::sanitization::Sanitizer;
 use chrono::{Duration, Utc};
@@ -149,6 +150,7 @@ pub async fn login(pool: &DbPool, req: LoginRequest) -> Result<AuthResponse, Api
     let permissions = AuthService::get_user_permissions(pool, user.id)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+    let route_policies = RbacRepository::find_all_route_access_policies(pool).await?;
 
     let access_token = AuthService::generate_jwt(user.id, user.username.clone(), roles.clone())
         .map_err(|e| ApiError::Internal(format!("Token generation failed: {}", e)))?;
@@ -176,7 +178,33 @@ pub async fn login(pool: &DbPool, req: LoginRequest) -> Result<AuthResponse, Api
         user: UserResponse::from(user),
         roles,
         permissions,
+        route_policies,
         is_first_login,
+    })
+}
+
+pub async fn access_snapshot(pool: &DbPool, user_id: i64) -> Result<AccessSnapshot, ApiError> {
+    let user = AuthRepository::find_user_by_id(pool, user_id)
+        .await?
+        .ok_or_else(|| ApiError::Unauthorized("User not found".to_string()))?;
+
+    if !user.is_active {
+        let _ = AuthService::revoke_all_user_tokens(pool, user.id).await;
+        return Err(ApiError::Unauthorized("Account is inactive".to_string()));
+    }
+
+    let roles = AuthService::get_user_roles(pool, user.id)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    let permissions = AuthService::get_user_permissions(pool, user.id)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    let route_policies = RbacRepository::find_all_route_access_policies(pool).await?;
+
+    Ok(AccessSnapshot {
+        roles,
+        permissions,
+        route_policies,
     })
 }
 

@@ -11,6 +11,8 @@ import {
   UserRoleIdsInput,
   RoleWithPermissions,
   RbacSnapshot,
+  RouteAccessPolicy,
+  RouteAccessPolicyInput,
   User,
   UserWithRolesAndPermissions,
 } from '../types';
@@ -50,6 +52,23 @@ export class AdminService {
     return await withRetry(
       () => api.get('rbac/snapshot').json<RbacSnapshot>(),
       { maxAttempts: 3, initialDelay: 1000 }
+    );
+  }
+
+  static async getRouteAccessPolicies(): Promise<RouteAccessPolicy[]> {
+    return await withRetry(
+      () => api.get('rbac/route-policies').json<RouteAccessPolicy[]>(),
+      { maxAttempts: 3, initialDelay: 1000 }
+    );
+  }
+
+  static async updateRouteAccessPolicy(
+    routeId: string,
+    input: RouteAccessPolicyInput
+  ): Promise<RouteAccessPolicy> {
+    return await withRetry(
+      () => api.put(`rbac/route-policies/${routeId}`, { json: input }).json<RouteAccessPolicy>(),
+      { maxAttempts: 2, initialDelay: 1000 }
     );
   }
 

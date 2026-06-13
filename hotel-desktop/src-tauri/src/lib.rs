@@ -98,11 +98,11 @@ async fn start_services(app_handle: tauri::AppHandle) -> Result<(), String> {
         .await
         .map_err(|e| format!("Failed to start PostgreSQL: {}", e))?;
 
-    // Run migrations if needed
-    log::info!("Checking database migrations...");
-    postgres::run_migrations_if_needed(&app_handle)
+    // Run the consolidated schema and data scripts.
+    log::info!("Running database setup...");
+    postgres::run_database_setup(&app_handle)
         .await
-        .map_err(|e| format!("Failed to run migrations: {}", e))?;
+        .map_err(|e| format!("Failed to run database setup: {}", e))?;
 
     // Start the backend sidecar
     commands::start_backend_sidecar(&app_handle)
