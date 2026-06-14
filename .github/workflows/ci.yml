@@ -198,5 +198,13 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf pkg-config libssl-dev
 
+      # Tauri's build script validates that the `externalBin` sidecar exists for
+      # the host target triple. The repo only commits the macOS binary, so stage
+      # a placeholder for the Linux CI host. This is a compile-check only — the
+      # real sidecar is built and bundled by `tauri build`, not `cargo check`.
+      - name: Stage placeholder backend sidecar
+        run: |
+          install -D /dev/null "binaries/hotel-app-be-$(rustc -vV | sed -n 's/^host: //p')"
+
       - name: Cargo check
         run: cargo check
