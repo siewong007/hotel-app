@@ -201,13 +201,19 @@ jobs:
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf pkg-config libssl-dev
 
-      # Tauri's build script validates that the `externalBin` sidecar exists for
-      # the host target triple. The repo only commits the macOS binary, so stage
-      # a placeholder for the Linux CI host. This is a compile-check only — the
-      # real sidecar is built and bundled by `tauri build`, not `cargo check`.
-      - name: Stage placeholder backend sidecar
+      # Tauri's build script fails `cargo check` when the `externalBin` sidecar
+      # or the `resources` globs (embedded PostgreSQL under pgsql/) match no
+      # files. Those binaries are downloaded per-platform at release time and are
+      # gitignored, so a clean checkout lacks them. Stage empty placeholders so
+      # the desktop crate type-checks; the real binaries are bundled by
+      # `tauri build`, not by this compile-check job.
+      - name: Stage placeholder desktop resources
         run: |
-          install -D /dev/null "binaries/hotel-app-be-$(rustc -vV | sed -n 's/^host: //p')"
+          triple="$(rustc -vV | sed -n 's/^host: //p')"
+          install -D /dev/null "binaries/hotel-app-be-$triple"
+          install -D /dev/null pgsql/bin/placeholder
+          install -D /dev/null pgsql/lib/placeholder
+          install -D /dev/null pgsql/share/placeholder
 
       - name: Cargo check
         run: cargo check
