@@ -155,9 +155,15 @@ jobs:
       - name: Run PostgreSQL tests
         run: cargo test --features postgres --no-default-features
 
+      # Build the binary in its own step so the health-check loop below only
+      # waits on startup, not a cold compile. `cargo run` compiles first, which
+      # can exceed the 30s probe window and make the check spuriously fail.
+      - name: Build backend binary
+        run: cargo build --bin hotel-app-be
+
       - name: Start backend and verify PostgreSQL connection
         run: |
-          cargo run --bin hotel-app-be > /tmp/hotel-app-be.log 2>&1 &
+          ./target/debug/hotel-app-be > /tmp/hotel-app-be.log 2>&1 &
           backend_pid=$!
 
           for _ in {1..30}; do
