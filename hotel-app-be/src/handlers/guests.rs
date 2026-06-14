@@ -19,6 +19,20 @@ pub async fn get_guests_handler(
     Ok(Json(svc::list_guests(&pool, user_id, params).await?))
 }
 
+pub async fn get_guest_handler(
+    State(pool): State<DbPool>,
+    Path(guest_id): Path<i64>,
+) -> Result<Json<Guest>, ApiError> {
+    Ok(Json(svc::get_guest(&pool, guest_id).await?))
+}
+
+pub async fn get_guest_profile_handler(
+    State(pool): State<DbPool>,
+    Path(guest_id): Path<i64>,
+) -> Result<Json<GuestProfile>, ApiError> {
+    Ok(Json(svc::guest_profile(&pool, guest_id).await?))
+}
+
 pub async fn create_guest_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,

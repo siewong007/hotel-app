@@ -43,6 +43,7 @@ export const queryKeys = {
     list: (params?: KeyParams) => [...guests, 'list', paramsOrEmpty(params)] as const,
     page: (params?: KeyParams) => [...guests, 'page', paramsOrEmpty(params)] as const,
     detail: (id: string | number) => [...guests, 'detail', String(id)] as const,
+    profile: (id: string | number) => [...guests, 'profile', String(id)] as const,
     bookings: (id: string | number) => [...guests, 'bookings', String(id)] as const,
     credits: (id: string | number) => [...guests, 'credits', String(id)] as const,
     mine: () => [...guests, 'mine'] as const,

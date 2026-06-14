@@ -98,13 +98,8 @@ pub async fn manual_checkin_handler(
     Path(booking_id): Path<i64>,
     Json(checkin_data): Json<Option<CheckInRequest>>,
 ) -> Result<Json<Booking>, ApiError> {
-    booking_service::manual_checkin_handler(
-        State(pool),
-        Extension(user_id),
-        Path(booking_id),
-        Json(checkin_data),
-    )
-    .await
+    let booking = booking_service::manual_checkin(&pool, user_id, booking_id, checkin_data).await?;
+    Ok(Json(booking))
 }
 
 pub async fn pre_checkin_update_handler(
