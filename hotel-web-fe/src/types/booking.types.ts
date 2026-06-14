@@ -2,7 +2,14 @@
 import type { GuestUpdateRequest } from './guest.types';
 import type { BookingStatus } from '../constants/booking.constants';
 
-export type PaymentStatus = 'unpaid' | 'unpaid_deposit' | 'paid_rate' | 'paid' | 'partial' | 'refunded';
+export type PaymentStatus =
+  | 'unpaid'
+  | 'unpaid_deposit'
+  | 'paid_rate'
+  | 'paid'
+  | 'partial'
+  | 'refunded'
+  | 'void';
 
 export interface Booking {
   id: string;
