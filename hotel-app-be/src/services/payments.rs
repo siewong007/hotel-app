@@ -1,5 +1,5 @@
 use crate::constants::PaymentMethod;
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::{
     Invoice, InvoicePreview, Payment, PaymentRequest, PaymentSummary, PaymentWorkflowSummary,
@@ -10,6 +10,13 @@ use rust_decimal::Decimal;
 
 pub async fn recompute_payment_status(pool: &DbPool, booking_id: i64) -> Result<(), ApiError> {
     PaymentRepository::recompute_booking_payment_status(pool, booking_id).await
+}
+
+pub async fn recompute_payment_status_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+) -> Result<(), ApiError> {
+    PaymentRepository::recompute_booking_payment_status_tx(tx, booking_id).await
 }
 
 pub async fn calculate_payment_summary(

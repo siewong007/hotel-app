@@ -3,7 +3,7 @@
 //! Query-heavy booking workflows preserved behind the service/handler boundary.
 
 use crate::core::auth::AuthService;
-use crate::core::db::{DbPool, decimal_to_db};
+use crate::core::db::{DbPool, DbTransaction, decimal_to_db};
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::core::settings_cache;
@@ -76,6 +76,56 @@ pub async fn record_booking_history(
             e
         );
     }
+}
+
+pub async fn record_booking_history_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    previous_status: Option<&str>,
+    new_status: &str,
+    changed_by: Option<i64>,
+    change_reason: Option<&str>,
+    metadata: serde_json::Value,
+) -> Result<(), ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    sqlx::query(
+        r#"
+        INSERT INTO booking_history (
+            booking_id, previous_status, new_status, changed_by, change_reason, metadata
+        )
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "#,
+    )
+    .bind(booking_id)
+    .bind(previous_status)
+    .bind(new_status)
+    .bind(changed_by)
+    .bind(change_reason)
+    .bind(metadata.to_string())
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    sqlx::query(
+        r#"
+        INSERT INTO booking_history (
+            booking_id, previous_status, new_status, changed_by, change_reason, metadata
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+    )
+    .bind(booking_id)
+    .bind(previous_status)
+    .bind(new_status)
+    .bind(changed_by)
+    .bind(change_reason)
+    .bind(metadata)
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(())
 }
 
 async fn reconcile_room_status_after_booking_release(
@@ -1700,29 +1750,29 @@ pub async fn update_booking_handler(
                     );
                 }
 
-                // Cancel all linked payments so they don't appear in night audit.
+                // Void all linked payments so they don't appear in night audit.
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let cancel_payments = sqlx::query(
-                    "UPDATE payments SET status = 'cancelled' WHERE booking_id = ?1 AND status != 'cancelled'"
+                let void_payments = sqlx::query(
+                    "UPDATE payments SET status = 'void' WHERE booking_id = ?1 AND status != 'void'"
                 )
                 .bind(booking_id)
                 .execute(&pool)
                 .await;
                 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-                let cancel_payments = sqlx::query(
-                    "UPDATE payments SET status = 'cancelled' WHERE booking_id = $1 AND status != 'cancelled'"
+                let void_payments = sqlx::query(
+                    "UPDATE payments SET status = 'void' WHERE booking_id = $1 AND status != 'void'"
                 )
                 .bind(booking_id)
                 .execute(&pool)
                 .await;
-                if let Err(e) = cancel_payments {
+                if let Err(e) = void_payments {
                     log::warn!(
-                        "Failed to cancel payments for voided booking {}: {}",
+                        "Failed to void payments for voided booking {}: {}",
                         booking_id,
                         e
                     );
                 } else {
-                    // Cancelled payments no longer count toward total_paid —
+                    // Void payments no longer count toward total_paid —
                     // resync so the stored chip flips back to 'voided'/'unpaid'.
                     let _ = crate::handlers::payments::recompute_payment_status(&pool, booking_id)
                         .await;
@@ -1832,7 +1882,7 @@ pub async fn update_booking_handler(
     // ledger UI shows a balance that no longer matches the receipt. We apply
     // the delta — not the raw new total — so any extras already on the row
     // (e.g. late-checkout penalty) are preserved. Skip rows that are paid,
-    // partial-with-too-much-already-paid, or cancelled to respect DB
+    // partial-with-too-much-already-paid, or void to respect DB
     // constraints (positive_amount, paid_amount <= amount).
     if let Some(new_total) = new_total_amount {
         let delta = new_total - existing_booking.total_amount;
@@ -1980,13 +2030,11 @@ pub async fn user_owns_booking(
     Ok(owns_booking)
 }
 
-pub async fn void_booking_and_release_room(
-    pool: &DbPool,
+pub async fn void_booking_and_release_room_tx(
+    tx: &mut DbTransaction<'_>,
     booking: &Booking,
     user_id: i64,
 ) -> Result<i32, ApiError> {
-    let mut tx = pool.begin().await.map_err(ApiError::from)?;
-
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let update_booking_query = r#"
         UPDATE bookings
@@ -2013,7 +2061,7 @@ pub async fn void_booking_and_release_room(
     let result = sqlx::query(update_booking_query)
         .bind(booking.id)
         .bind(user_id)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2028,20 +2076,20 @@ pub async fn void_booking_and_release_room(
 
     sqlx::query(update_room_query)
         .bind(booking.room_id)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let cancel_payments_query =
-        "UPDATE payments SET status = 'cancelled' WHERE booking_id = ?1 AND status != 'cancelled'";
+    let void_payments_query =
+        "UPDATE payments SET status = 'void' WHERE booking_id = ?1 AND status != 'void'";
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let cancel_payments_query =
-        "UPDATE payments SET status = 'cancelled' WHERE booking_id = $1 AND status != 'cancelled'";
+    let void_payments_query =
+        "UPDATE payments SET status = 'void' WHERE booking_id = $1 AND status != 'void'";
 
-    sqlx::query(cancel_payments_query)
+    sqlx::query(void_payments_query)
         .bind(booking.id)
-        .execute(&mut *tx)
+        .execute(&mut **tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2058,7 +2106,7 @@ pub async fn void_booking_and_release_room(
 
         let room_type_id: Option<i64> = sqlx::query_scalar(room_type_query)
             .bind(booking.room_id)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut **tx)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?
             .flatten();
@@ -2085,7 +2133,7 @@ pub async fn void_booking_and_release_room(
                 .bind(booking.guest_id)
                 .bind(room_type_id)
                 .bind(nights)
-                .execute(&mut *tx)
+                .execute(&mut **tx)
                 .await
                 .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2093,18 +2141,16 @@ pub async fn void_booking_and_release_room(
         }
     }
 
-    tx.commit().await.map_err(ApiError::from)?;
-
     Ok(nights_credited)
 }
 
-pub async fn record_booking_void_modification(
-    pool: &DbPool,
+pub async fn record_booking_void_modification_tx(
+    tx: &mut DbTransaction<'_>,
     booking: &Booking,
     user_id: i64,
 ) -> Result<(), ApiError> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let result = sqlx::query(
+    sqlx::query(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES (?1, ?2, ?3, ?4, ?5)"
     )
     .bind(booking.id)
@@ -2116,11 +2162,12 @@ pub async fn record_booking_void_modification(
     }).to_string())
     .bind(serde_json::json!({"status": "voided"}).to_string())
     .bind(user_id)
-    .execute(pool)
-    .await;
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let result = sqlx::query(
+    sqlx::query(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
     )
     .bind(booking.id)
@@ -2132,10 +2179,10 @@ pub async fn record_booking_void_modification(
     }))
     .bind(serde_json::json!({"status": "voided"}))
     .bind(user_id)
-    .execute(pool)
-    .await;
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    result.map_err(|e| ApiError::Database(e.to_string()))?;
     Ok(())
 }
 

@@ -1,7 +1,7 @@
 //! Payment repository for database operations
 
 use crate::constants::PaymentStatus;
-use crate::core::db::{DbPool, DbRow, decimal_to_db};
+use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
@@ -23,7 +23,7 @@ impl PaymentRepository {
         let sql = r#"
             UPDATE bookings AS b
             SET payment_status = CASE
-                WHEN b.status = 'voided' THEN 'voided'
+                WHEN b.status = 'voided' THEN 'void'
                 WHEN COALESCE(b.is_complimentary, 0) = 1 THEN COALESCE(b.payment_status, 'paid')
                 WHEN b.total_amount <= 0 THEN 'paid'
                 WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
@@ -45,7 +45,7 @@ impl PaymentRepository {
         let sql = r#"
             UPDATE bookings AS b
             SET payment_status = CASE
-                WHEN b.status = 'voided' THEN 'voided'
+                WHEN b.status = 'voided' THEN 'void'
                 WHEN COALESCE(b.is_complimentary, false) THEN COALESCE(b.payment_status, 'paid')
                 WHEN b.total_amount <= 0 THEN 'paid'
                 WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
@@ -67,6 +67,64 @@ impl PaymentRepository {
         sqlx::query(sql)
             .bind(booking_id)
             .execute(pool)
+            .await
+            .map_err(ApiError::from)?;
+
+        Ok(())
+    }
+
+    pub async fn recompute_booking_payment_status_tx(
+        tx: &mut DbTransaction<'_>,
+        booking_id: i64,
+    ) -> Result<(), ApiError> {
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let sql = r#"
+            UPDATE bookings AS b
+            SET payment_status = CASE
+                WHEN b.status = 'voided' THEN 'void'
+                WHEN COALESCE(b.is_complimentary, 0) = 1 THEN COALESCE(b.payment_status, 'paid')
+                WHEN b.total_amount <= 0 THEN 'paid'
+                WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
+                        WHERE p.booking_id = b.id
+                          AND p.status = 'completed'
+                          AND COALESCE(p.payment_type, 'booking') != 'refund'), 0)
+                     >= b.total_amount THEN 'paid'
+                WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
+                        WHERE p.booking_id = b.id
+                          AND p.status = 'completed'
+                          AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
+                    THEN 'partial'
+                ELSE 'unpaid'
+            END,
+            updated_at = CURRENT_TIMESTAMP
+            WHERE b.id = ?1
+        "#;
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        let sql = r#"
+            UPDATE bookings AS b
+            SET payment_status = CASE
+                WHEN b.status = 'voided' THEN 'void'
+                WHEN COALESCE(b.is_complimentary, false) THEN COALESCE(b.payment_status, 'paid')
+                WHEN b.total_amount <= 0 THEN 'paid'
+                WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
+                        WHERE p.booking_id = b.id
+                          AND p.status = 'completed'
+                          AND COALESCE(p.payment_type, 'booking') != 'refund'), 0)
+                     >= b.total_amount THEN 'paid'
+                WHEN COALESCE((SELECT SUM(p.amount) FROM payments p
+                        WHERE p.booking_id = b.id
+                          AND p.status = 'completed'
+                          AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
+                    THEN 'partial'
+                ELSE 'unpaid'
+            END,
+            updated_at = CURRENT_TIMESTAMP
+            WHERE b.id = $1
+        "#;
+
+        sqlx::query(sql)
+            .bind(booking_id)
+            .execute(&mut **tx)
             .await
             .map_err(ApiError::from)?;
 

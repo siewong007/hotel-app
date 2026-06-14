@@ -1512,7 +1512,7 @@ const CustomerLedgerPage: React.FC = () => {
   };
 
   const isVoidedLedger = (ledger: CustomerLedger) => {
-    return Boolean(ledger.void_at) || ledger.status === 'cancelled';
+    return Boolean(ledger.void_at) || ledger.status === 'void';
   };
 
   const getLedgerBalanceDue = (ledger: CustomerLedger) => {
@@ -1523,7 +1523,7 @@ const CustomerLedgerPage: React.FC = () => {
     return ledger.status !== 'paid' && !isVoidedLedger(ledger);
   };
 
-  // Mirrors booking canVoid: cannot void what is already voided/cancelled
+  // Mirrors booking canVoid: cannot void what is already voided.
   const canVoid = (ledger: CustomerLedger) => {
     return !isVoidedLedger(ledger);
   };
@@ -3954,7 +3954,7 @@ const CustomerLedgerPage: React.FC = () => {
         <DialogTitle>Void Ledger Entry</DialogTitle>
         <DialogContent>
           <Alert severity="error" sx={{ mb: 2 }}>
-            Voiding a ledger entry marks it as cancelled and removes its outstanding balance. This is reversible only by reactivating from the database.
+            Voiding a ledger entry marks it as void and removes its outstanding balance. This is reversible only by reactivating from the database.
           </Alert>
           <Box sx={{ mb: 2 }}>
             <Typography variant="body2"><strong>Company:</strong> {voidingLedger?.company_name}</Typography>
