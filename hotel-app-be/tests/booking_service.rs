@@ -62,6 +62,8 @@ fn booking_numbers_are_unique() {
 mod sqlite_tests {
     use super::*;
     use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::services::bookings;
+    use sqlx::Row;
 
     #[tokio::test]
     async fn fetch_booking_by_id_returns_not_found_for_missing_id() {
@@ -139,5 +141,599 @@ mod sqlite_tests {
         // total_amount exists in the SQLite schema under the same column name.
         use rust_decimal::Decimal;
         assert_eq!(b.total_amount, Decimal::from(150));
+    }
+
+    async fn seed_room_guest_booking(
+        pool: &sqlx::SqlitePool,
+        booking_id: i64,
+        guest_id: i64,
+        room_id: i64,
+        status: &str,
+        check_in: &str,
+        check_out: &str,
+    ) {
+        sqlx::query(
+            "INSERT OR IGNORE INTO rooms (id, room_number, room_type_id, status) VALUES (?1, ?2, 1, 'available')",
+        )
+        .bind(room_id)
+        .bind(format!("T{room_id}"))
+        .execute(pool)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO guests (id, first_name, last_name) VALUES (?1, ?2, ?3)")
+            .bind(guest_id)
+            .bind("Reactivate")
+            .bind(format!("Guest{guest_id}"))
+            .execute(pool)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO bookings \
+             (id, booking_number, guest_id, room_id, room_type_id, check_in_date, check_out_date, \
+              rate_per_night, total_amount, status, created_by) \
+             VALUES (?1, ?2, ?3, ?4, 1, ?5, ?6, 150.0, 150.0, ?7, 1)",
+        )
+        .bind(booking_id)
+        .bind(format!("BK-20300101-{booking_id}"))
+        .bind(guest_id)
+        .bind(room_id)
+        .bind(check_in)
+        .bind(check_out)
+        .bind(status)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn reactivate_booking_confirms_voided_booking_and_reserves_room() {
+        let pool = common::setup_test_db().await;
+        seed_room_guest_booking(
+            &pool,
+            9910,
+            9910,
+            9910,
+            "voided",
+            "2030-01-10",
+            "2030-01-12",
+        )
+        .await;
+
+        let booking = bookings::reactivate_booking(&pool, 1, 9910)
+            .await
+            .expect("voided booking should reactivate");
+
+        assert_eq!(booking.id, 9910);
+        assert_eq!(booking.status, "confirmed");
+
+        let room_status: String = sqlx::query_scalar("SELECT status FROM rooms WHERE id = ?1")
+            .bind(9910_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(room_status, "reserved");
+
+        let history = sqlx::query(
+            "SELECT previous_status, new_status, change_reason FROM booking_history WHERE booking_id = ?1",
+        )
+        .bind(9910_i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(history.get::<String, _>("previous_status"), "voided");
+        assert_eq!(history.get::<String, _>("new_status"), "confirmed");
+        assert_eq!(
+            history.get::<String, _>("change_reason"),
+            "Booking reactivated"
+        );
+
+        let modification_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM booking_modifications WHERE booking_id = ?1 AND modification_type = 'reactivation'",
+        )
+        .bind(9910_i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(modification_count, 1);
+    }
+
+    #[tokio::test]
+    async fn reactivate_booking_rejects_non_voided_status() {
+        let pool = common::setup_test_db().await;
+        seed_room_guest_booking(
+            &pool,
+            9920,
+            9920,
+            9920,
+            "confirmed",
+            "2030-02-10",
+            "2030-02-12",
+        )
+        .await;
+
+        let result = bookings::reactivate_booking(&pool, 1, 9920).await;
+
+        assert!(
+            matches!(result, Err(ApiError::BadRequest(ref message)) if message.contains("Only voided bookings can be reactivated")),
+            "expected non-voided status rejection, got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn reactivate_booking_rejects_room_date_conflict() {
+        let pool = common::setup_test_db().await;
+        seed_room_guest_booking(
+            &pool,
+            9930,
+            9930,
+            9930,
+            "voided",
+            "2030-03-10",
+            "2030-03-12",
+        )
+        .await;
+        seed_room_guest_booking(
+            &pool,
+            9931,
+            9931,
+            9930,
+            "confirmed",
+            "2030-03-11",
+            "2030-03-13",
+        )
+        .await;
+
+        let result = bookings::reactivate_booking(&pool, 1, 9930).await;
+
+        assert!(
+            matches!(result, Err(ApiError::BadRequest(ref message)) if message.contains("room is already booked")),
+            "expected conflict rejection, got: {result:?}"
+        );
+
+        let status: String = sqlx::query_scalar("SELECT status FROM bookings WHERE id = ?1")
+            .bind(9930_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(status, "voided");
+    }
+
+    #[tokio::test]
+    async fn reactivate_booking_preserves_identity_financials_and_existing_records() {
+        let pool = common::setup_test_db().await;
+        seed_room_guest_booking(
+            &pool,
+            9940,
+            9940,
+            9940,
+            "voided",
+            "2030-04-10",
+            "2030-04-12",
+        )
+        .await;
+
+        sqlx::query(
+            "UPDATE bookings SET rate_per_night = 275.50, total_amount = 551.00, paid_amount = 125.00, deposit_amount = 50.00 WHERE id = ?1",
+        )
+        .bind(9940_i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO payments (payment_number, booking_id, guest_id, amount, payment_method, payment_type, status, processed_by) \
+             VALUES ('PAY-9940-1', ?1, ?2, 125.00, 'cash', 'booking', 'completed', 1)",
+        )
+        .bind(9940_i64)
+        .bind(9940_i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO customer_ledgers (ledger_number, guest_id, booking_id, transaction_type, transaction_date, description, debit_amount, balance, created_by) \
+             VALUES ('LED-9940-1', ?1, ?2, 'room_charge', '2030-04-10', 'Existing ledger', 551.00, 551.00, 1)",
+        )
+        .bind(9940_i64)
+        .bind(9940_i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let before = sqlx::query(
+            "SELECT booking_number, rate_per_night, total_amount, paid_amount, deposit_amount FROM bookings WHERE id = ?1",
+        )
+        .bind(9940_i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let payment_count_before: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE booking_id = ?1")
+                .bind(9940_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let ledger_count_before: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM customer_ledgers WHERE booking_id = ?1")
+                .bind(9940_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        let booking = bookings::reactivate_booking(&pool, 1, 9940)
+            .await
+            .expect("voided booking should reactivate");
+
+        let after = sqlx::query(
+            "SELECT booking_number, rate_per_night, total_amount, paid_amount, deposit_amount FROM bookings WHERE id = ?1",
+        )
+        .bind(9940_i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let payment_count_after: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE booking_id = ?1")
+                .bind(9940_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let ledger_count_after: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM customer_ledgers WHERE booking_id = ?1")
+                .bind(9940_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        assert_eq!(booking.id, 9940);
+        assert_eq!(
+            after.get::<String, _>("booking_number"),
+            before.get::<String, _>("booking_number")
+        );
+        assert_eq!(
+            after.get::<f64, _>("rate_per_night"),
+            before.get::<f64, _>("rate_per_night")
+        );
+        assert_eq!(
+            after.get::<f64, _>("total_amount"),
+            before.get::<f64, _>("total_amount")
+        );
+        assert_eq!(
+            after.get::<f64, _>("paid_amount"),
+            before.get::<f64, _>("paid_amount")
+        );
+        assert_eq!(
+            after.get::<f64, _>("deposit_amount"),
+            before.get::<f64, _>("deposit_amount")
+        );
+        assert_eq!(payment_count_after, payment_count_before);
+        assert_eq!(ledger_count_after, ledger_count_before);
+    }
+
+    #[tokio::test]
+    async fn repeated_reactivation_returns_controlled_error_without_duplicate_audit_rows() {
+        let pool = common::setup_test_db().await;
+        seed_room_guest_booking(
+            &pool,
+            9950,
+            9950,
+            9950,
+            "voided",
+            "2030-05-10",
+            "2030-05-12",
+        )
+        .await;
+
+        bookings::reactivate_booking(&pool, 1, 9950)
+            .await
+            .expect("first reactivation should succeed");
+        let result = bookings::reactivate_booking(&pool, 1, 9950).await;
+
+        assert!(
+            matches!(result, Err(ApiError::BadRequest(ref message)) if message.contains("Only voided bookings can be reactivated")),
+            "expected repeated reactivation rejection, got: {result:?}"
+        );
+
+        let history_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM booking_history WHERE booking_id = ?1")
+                .bind(9950_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let modification_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM booking_modifications WHERE booking_id = ?1 AND modification_type = 'reactivation'",
+        )
+        .bind(9950_i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(history_count, 1);
+        assert_eq!(modification_count, 1);
+    }
+
+    #[tokio::test]
+    async fn reactivate_booking_enforces_service_authorization_boundary() {
+        let pool = common::setup_test_db().await;
+        seed_room_guest_booking(
+            &pool,
+            9960,
+            9960,
+            9960,
+            "voided",
+            "2030-06-10",
+            "2030-06-12",
+        )
+        .await;
+        sqlx::query(
+            "INSERT INTO users (id, uuid, username, email, full_name, user_type, is_active, is_verified) \
+             VALUES (9960, '99600000-0000-4000-8000-000000000000', 'no_role_9960', 'no-role-9960@hotel.local', 'No Role', 'staff', 1, 1)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let result = bookings::reactivate_booking(&pool, 9960, 9960).await;
+
+        assert!(
+            matches!(result, Err(ApiError::Forbidden(ref message)) if message.contains("permission")),
+            "expected forbidden reactivation, got: {result:?}"
+        );
+
+        let status: String = sqlx::query_scalar("SELECT status FROM bookings WHERE id = ?1")
+            .bind(9960_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let history_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM booking_history WHERE booking_id = ?1")
+                .bind(9960_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        assert_eq!(status, "voided");
+        assert_eq!(history_count, 0);
+    }
+
+    #[tokio::test]
+    async fn void_booking_marks_booking_voided_releases_room_and_cancels_payments() {
+        let pool = common::setup_test_db().await;
+        seed_room_guest_booking(
+            &pool,
+            9970,
+            9970,
+            9970,
+            "confirmed",
+            "2030-07-10",
+            "2030-07-12",
+        )
+        .await;
+
+        sqlx::query("UPDATE rooms SET status = 'reserved' WHERE id = ?1")
+            .bind(9970_i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO payments (payment_number, booking_id, guest_id, amount, payment_method, payment_type, status, processed_by) \
+             VALUES ('PAY-9970-1', ?1, ?2, 100.00, 'cash', 'booking', 'completed', 1)",
+        )
+        .bind(9970_i64)
+        .bind(9970_i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO customer_ledgers (ledger_number, guest_id, booking_id, transaction_type, transaction_date, description, debit_amount, balance, created_by) \
+             VALUES ('LED-9970-1', ?1, ?2, 'room_charge', '2030-07-10', 'Existing ledger', 300.00, 300.00, 1)",
+        )
+        .bind(9970_i64)
+        .bind(9970_i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let ledger_count_before: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM customer_ledgers WHERE booking_id = ?1")
+                .bind(9970_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        let result = bookings::void_booking(&pool, 1, 9970, Some("Guest cancelled".to_string()))
+            .await
+            .expect("confirmed booking should void");
+
+        assert_eq!(result["booking_id"].as_i64(), Some(9970));
+        assert_eq!(result["complimentary_nights_credited"].as_i64(), Some(0));
+
+        let booking_status: String =
+            sqlx::query_scalar("SELECT status FROM bookings WHERE id = ?1")
+                .bind(9970_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let room_status: String = sqlx::query_scalar("SELECT status FROM rooms WHERE id = ?1")
+            .bind(9970_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let payment_status: String =
+            sqlx::query_scalar("SELECT status FROM payments WHERE booking_id = ?1")
+                .bind(9970_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let ledger_count_after: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM customer_ledgers WHERE booking_id = ?1")
+                .bind(9970_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let history = sqlx::query(
+            "SELECT previous_status, new_status, change_reason FROM booking_history WHERE booking_id = ?1",
+        )
+        .bind(9970_i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(booking_status, "voided");
+        assert_eq!(room_status, "available");
+        assert_eq!(payment_status, "cancelled");
+        assert_eq!(ledger_count_after, ledger_count_before);
+        assert_eq!(history.get::<String, _>("previous_status"), "confirmed");
+        assert_eq!(history.get::<String, _>("new_status"), "voided");
+        assert_eq!(history.get::<String, _>("change_reason"), "Guest cancelled");
+    }
+
+    #[tokio::test]
+    async fn void_booking_rejects_already_voided_without_duplicate_audit_rows() {
+        let pool = common::setup_test_db().await;
+        seed_room_guest_booking(
+            &pool,
+            9980,
+            9980,
+            9980,
+            "confirmed",
+            "2030-08-10",
+            "2030-08-12",
+        )
+        .await;
+
+        bookings::void_booking(&pool, 1, 9980, None)
+            .await
+            .expect("first void should succeed");
+        let result = bookings::void_booking(&pool, 1, 9980, None).await;
+
+        assert!(
+            matches!(result, Err(ApiError::BadRequest(ref message)) if message.contains("already voided")),
+            "expected repeated void rejection, got: {result:?}"
+        );
+
+        let history_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM booking_history WHERE booking_id = ?1")
+                .bind(9980_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let modification_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM booking_modifications WHERE booking_id = ?1 AND modification_type = 'voided'",
+        )
+        .bind(9980_i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(history_count, 1);
+        assert_eq!(modification_count, 1);
+    }
+
+    #[tokio::test]
+    async fn void_booking_rejects_checked_out_booking() {
+        let pool = common::setup_test_db().await;
+        seed_room_guest_booking(
+            &pool,
+            9985,
+            9985,
+            9985,
+            "checked_out",
+            "2030-08-20",
+            "2030-08-22",
+        )
+        .await;
+
+        let result = bookings::void_booking(&pool, 1, 9985, None).await;
+
+        assert!(
+            matches!(result, Err(ApiError::BadRequest(ref message)) if message.contains("checked_out")),
+            "expected checked-out void rejection, got: {result:?}"
+        );
+
+        let status: String = sqlx::query_scalar("SELECT status FROM bookings WHERE id = ?1")
+            .bind(9985_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(status, "checked_out");
+    }
+
+    #[tokio::test]
+    async fn void_booking_enforces_service_authorization_boundary() {
+        let pool = common::setup_test_db().await;
+        seed_room_guest_booking(
+            &pool,
+            9990,
+            9990,
+            9990,
+            "confirmed",
+            "2030-09-10",
+            "2030-09-12",
+        )
+        .await;
+        sqlx::query(
+            "INSERT INTO users (id, uuid, username, email, full_name, user_type, is_active, is_verified) \
+             VALUES (9990, '99900000-0000-4000-8000-000000000000', 'no_role_9990', 'no-role-9990@hotel.local', 'No Role', 'staff', 1, 1)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let result = bookings::void_booking(&pool, 9990, 9990, None).await;
+
+        assert!(
+            matches!(result, Err(ApiError::Forbidden(ref message)) if message.contains("permission")),
+            "expected forbidden void, got: {result:?}"
+        );
+
+        let status: String = sqlx::query_scalar("SELECT status FROM bookings WHERE id = ?1")
+            .bind(9990_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let history_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM booking_history WHERE booking_id = ?1")
+                .bind(9990_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        assert_eq!(status, "confirmed");
+        assert_eq!(history_count, 0);
+    }
+
+    #[tokio::test]
+    async fn void_booking_restores_complimentary_room_type_credits() {
+        let pool = common::setup_test_db().await;
+        seed_room_guest_booking(
+            &pool,
+            9995,
+            9995,
+            9995,
+            "confirmed",
+            "2030-10-10",
+            "2030-10-12",
+        )
+        .await;
+        sqlx::query("UPDATE bookings SET is_complimentary = 1 WHERE id = ?1")
+            .bind(9995_i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let result = bookings::void_booking(&pool, 1, 9995, None)
+            .await
+            .expect("complimentary booking should void");
+
+        let credits: i64 = sqlx::query_scalar(
+            "SELECT nights_available FROM guest_complimentary_credits WHERE guest_id = ?1 AND room_type_id = 1",
+        )
+        .bind(9995_i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(result["complimentary_nights_credited"].as_i64(), Some(2));
+        assert_eq!(credits, 2);
     }
 }

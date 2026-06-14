@@ -685,10 +685,13 @@ impl PaymentRepository {
         Ok(affected_booking_id)
     }
 
-    pub async fn existing_invoice_number(
-        pool: &DbPool,
+    pub async fn existing_invoice_number<'e, E>(
+        executor: E,
         booking_id: i64,
-    ) -> Result<Option<String>, ApiError> {
+    ) -> Result<Option<String>, ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
         #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
         let sql = "SELECT invoice_number FROM invoices WHERE booking_id = ?1 LIMIT 1";
         #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
@@ -696,15 +699,18 @@ impl PaymentRepository {
 
         sqlx::query_scalar(sql)
             .bind(booking_id)
-            .fetch_optional(pool)
+            .fetch_optional(executor)
             .await
             .map_err(ApiError::from)
     }
 
-    pub async fn ledger_invoice_number(
-        pool: &DbPool,
+    pub async fn ledger_invoice_number<'e, E>(
+        executor: E,
         booking_id: i64,
-    ) -> Result<Option<String>, ApiError> {
+    ) -> Result<Option<String>, ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
         #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
         let sql = "SELECT invoice_number FROM customer_ledgers \
              WHERE booking_id = ?1 AND invoice_number IS NOT NULL \
@@ -716,17 +722,20 @@ impl PaymentRepository {
 
         sqlx::query_scalar(sql)
             .bind(booking_id)
-            .fetch_optional(pool)
+            .fetch_optional(executor)
             .await
             .map_err(ApiError::from)
     }
 
-    pub async fn insert_checkout_invoice(
-        pool: &DbPool,
+    pub async fn insert_checkout_invoice<'e, E>(
+        executor: E,
         booking_id: i64,
         user_id: i64,
         invoice_number: &str,
-    ) -> Result<(), ApiError> {
+    ) -> Result<(), ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
         #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
         {
             sqlx::query(
@@ -743,7 +752,7 @@ impl PaymentRepository {
             .bind(invoice_number)
             .bind(user_id)
             .bind(booking_id)
-            .execute(pool)
+            .execute(executor)
             .await
             .map_err(ApiError::from)?;
         }
@@ -773,7 +782,7 @@ impl PaymentRepository {
             .bind(invoice_number)
             .bind(user_id)
             .bind(booking_id)
-            .execute(pool)
+            .execute(executor)
             .await
             .map_err(ApiError::from)?;
         }

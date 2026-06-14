@@ -4,7 +4,13 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
 
-pub async fn max_invoice_sequence(pool: &DbPool, pattern: &str) -> Result<Option<i64>, ApiError> {
+pub async fn max_invoice_sequence<'e, E>(
+    executor: E,
+    pattern: &str,
+) -> Result<Option<i64>, ApiError>
+where
+    E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+{
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     {
         sqlx::query_scalar(
@@ -19,7 +25,7 @@ pub async fn max_invoice_sequence(pool: &DbPool, pattern: &str) -> Result<Option
             "#,
         )
         .bind(pattern)
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
         .map_err(ApiError::from)
     }
@@ -38,7 +44,7 @@ pub async fn max_invoice_sequence(pool: &DbPool, pattern: &str) -> Result<Option
             "#,
         )
         .bind(pattern)
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
         .map_err(ApiError::from)
     }

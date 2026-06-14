@@ -3283,6 +3283,17 @@ CREATE INDEX IF NOT EXISTS idx_customer_ledgers_transaction_code ON customer_led
 CREATE INDEX IF NOT EXISTS idx_customer_ledgers_department_code ON customer_ledgers(department_code);
 CREATE INDEX IF NOT EXISTS idx_customer_ledger_payments_ledger ON customer_ledger_payments(ledger_id);
 
+-- Enforce one auto-posted company room-charge per booking. This makes the
+-- checkout city-ledger posting idempotent at the database level instead of
+-- relying on a racy application-side EXISTS check (two concurrent checkouts
+-- could otherwise both insert). Reversal rows are excluded so a booking can
+-- still hold its original room_charge plus a later REVERSAL sibling.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_customer_ledgers_booking_room_charge
+ON customer_ledgers (booking_id)
+WHERE post_type = 'room_charge'
+  AND COALESCE(is_reversal, false) = false
+  AND booking_id IS NOT NULL;
+
 -- ============================================================================
 -- COMMENTS
 -- ============================================================================
