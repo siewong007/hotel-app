@@ -410,7 +410,7 @@ pub async fn backfill_booking_posted_nights(
     let status: String = row.get("status");
     if matches!(
         status.as_str(),
-        "pending" | "confirmed" | "cancelled" | "no_show" | "voided"
+        "pending" | "confirmed" | "void" | "no_show" | "voided"
     ) {
         return Ok(0);
     }

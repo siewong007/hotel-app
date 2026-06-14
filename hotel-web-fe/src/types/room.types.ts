@@ -93,7 +93,7 @@ export interface RoomEvent {
   id: string;
   room_id: string;
   event_type: 'reserve' | 'booking' | 'maintenance' | 'inspection' | 'repair' | 'status_change';
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'pending' | 'in_progress' | 'completed' | 'void';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   notes?: string;
   scheduled_date?: string;

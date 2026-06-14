@@ -54,15 +54,14 @@ pub async fn void_booking(
         )));
     }
 
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
     let nights_credited =
-        booking_repo::void_booking_and_release_room(pool, &booking, user_id).await?;
-
-    let _ = payments::recompute_payment_status(pool, booking_id).await;
-    let _ = AuditLog::log_booking_cancelled(pool, user_id, booking_id).await;
+        booking_repo::void_booking_and_release_room_tx(&mut tx, &booking, user_id).await?;
+    payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
 
     let change_reason = reason.as_deref().unwrap_or("Booking voided");
-    booking_repo::record_booking_history(
-        pool,
+    booking_repo::record_booking_history_tx(
+        &mut tx,
         booking_id,
         Some(&booking.status),
         "voided",
@@ -75,9 +74,12 @@ pub async fn void_booking(
             "check_out_date": booking.check_out_date.to_string(),
         }),
     )
-    .await;
+    .await?;
 
-    let _ = booking_repo::record_booking_void_modification(pool, &booking, user_id).await;
+    booking_repo::record_booking_void_modification_tx(&mut tx, &booking, user_id).await?;
+    AuditLog::log_booking_cancelled_tx(&mut tx, user_id, booking_id).await?;
+
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(serde_json::json!({
         "message": "Booking voided successfully",

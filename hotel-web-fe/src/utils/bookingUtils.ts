@@ -236,6 +236,8 @@ export const getPaymentStatusColor = (
       return 'error';
     case 'refunded':
       return 'secondary';
+    case 'void':
+      return 'error';
     default:
       return 'default';
   }
@@ -258,6 +260,8 @@ export const getPaymentStatusText = (status: string | undefined): string => {
       return 'Unpaid';
     case 'refunded':
       return 'Refunded';
+    case 'void':
+      return 'Void';
     default:
       return status || 'Unknown';
   }

@@ -155,7 +155,7 @@ const RoomManagementPage: React.FC = () => {
     error: dataError,
     roomBookings,
     reservedBookings,
-    compCancelledBookings,
+    compVoidBookings,
     allBookingsData,
     reload: loadData,
     reloadRooms: loadRooms,
@@ -1960,7 +1960,7 @@ const RoomManagementPage: React.FC = () => {
       >
         {filteredRooms.map((room) => {
           const { computedStatus, booking, reservedBooking, hasReservationForToday, hasFutureReservation, futureCheckInDate, isOccupied, isReserved, isReservedToday, isComplimentary } = getRoomStatusInfo(room);
-          const compCancelledBooking = compCancelledBookings.get(room.id);
+          const compVoidBooking = compVoidBookings.get(room.id);
 
           // Create a room object with computed status for display
           const displayRoom = { ...room, status: computedStatus };

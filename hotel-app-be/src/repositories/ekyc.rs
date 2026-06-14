@@ -106,7 +106,7 @@ impl EkycRepository {
                 SELECT 1
                 FROM ekyc_verifications
                 WHERE guest_id = $1
-                  AND status NOT IN ('rejected', 'expired', 'cancelled')
+                  AND status NOT IN ('rejected', 'expired', 'void')
             )
             "#,
         )
@@ -292,7 +292,7 @@ impl EkycRepository {
                     ELSE NULL END) AS average_processing_minutes,
                 COALESCE(SUM(CASE WHEN submitted_at <= CURRENT_TIMESTAMP - INTERVAL '20 hours'
                          AND submitted_at > CURRENT_TIMESTAMP - INTERVAL '24 hours'
-                         AND status NOT IN ('approved', 'rejected', 'expired', 'cancelled')
+                         AND status NOT IN ('approved', 'rejected', 'expired', 'void')
                     THEN 1 ELSE 0 END), 0)::BIGINT AS nearing_sla,
                 COALESCE(SUM(CASE WHEN submitted_at::date = CURRENT_DATE THEN 1 ELSE 0 END), 0)::BIGINT AS daily_trend,
                 COALESCE(SUM(CASE WHEN submitted_at >= CURRENT_TIMESTAMP - INTERVAL '7 days' THEN 1 ELSE 0 END), 0)::BIGINT AS weekly_trend,
@@ -314,7 +314,7 @@ impl EkycRepository {
                     ELSE NULL END) AS average_processing_minutes,
                 COALESCE(SUM(CASE WHEN submitted_at <= datetime('now', '-20 hours')
                          AND submitted_at > datetime('now', '-24 hours')
-                         AND status NOT IN ('approved', 'rejected', 'expired', 'cancelled')
+                         AND status NOT IN ('approved', 'rejected', 'expired', 'void')
                     THEN 1 ELSE 0 END), 0) AS nearing_sla,
                 COALESCE(SUM(CASE WHEN date(submitted_at) = date('now') THEN 1 ELSE 0 END), 0) AS daily_trend,
                 COALESCE(SUM(CASE WHEN submitted_at >= datetime('now', '-7 days') THEN 1 ELSE 0 END), 0) AS weekly_trend,
