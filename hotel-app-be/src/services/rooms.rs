@@ -1626,7 +1626,7 @@ pub async fn create_room_event_handler(
         )));
     }
 
-    let valid_statuses = vec!["pending", "in_progress", "completed", "cancelled"];
+    let valid_statuses = vec!["pending", "in_progress", "completed", "void"];
     if !valid_statuses.contains(&input.status.as_str()) {
         return Err(ApiError::BadRequest(format!(
             "Invalid status. Must be one of: {:?}",

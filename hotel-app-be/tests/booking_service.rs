@@ -540,7 +540,7 @@ mod sqlite_tests {
                 .await
                 .unwrap();
 
-        let result = bookings::void_booking(&pool, 1, 9970, Some("Guest cancelled".to_string()))
+        let result = bookings::void_booking(&pool, 1, 9970, Some("Guest voided".to_string()))
             .await
             .expect("confirmed booking should void");
 
@@ -580,11 +580,11 @@ mod sqlite_tests {
 
         assert_eq!(booking_status, "voided");
         assert_eq!(room_status, "available");
-        assert_eq!(payment_status, "cancelled");
+        assert_eq!(payment_status, "void");
         assert_eq!(ledger_count_after, ledger_count_before);
         assert_eq!(history.get::<String, _>("previous_status"), "confirmed");
         assert_eq!(history.get::<String, _>("new_status"), "voided");
-        assert_eq!(history.get::<String, _>("change_reason"), "Guest cancelled");
+        assert_eq!(history.get::<String, _>("change_reason"), "Guest voided");
     }
 
     #[tokio::test]
@@ -735,5 +735,797 @@ mod sqlite_tests {
 
         assert_eq!(result["complimentary_nights_credited"].as_i64(), Some(2));
         assert_eq!(credits, 2);
+    }
+
+    #[tokio::test]
+    async fn void_booking_rolls_back_all_side_effects_when_late_audit_fails() {
+        let pool = common::setup_test_db().await;
+        seed_room_guest_booking(
+            &pool,
+            9996,
+            9996,
+            9996,
+            "confirmed",
+            "2030-11-10",
+            "2030-11-12",
+        )
+        .await;
+        sqlx::query("UPDATE rooms SET status = 'reserved' WHERE id = ?1")
+            .bind(9996_i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "UPDATE bookings SET is_complimentary = 1, payment_status = 'partial' WHERE id = ?1",
+        )
+        .bind(9996_i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO payments (payment_number, booking_id, guest_id, amount, payment_method, payment_type, status, processed_by) \
+             VALUES ('PAY-9996-1', ?1, ?2, 100.00, 'cash', 'booking', 'completed', 1)",
+        )
+        .bind(9996_i64)
+        .bind(9996_i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        sqlx::query("DROP TABLE audit_logs")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let result =
+            bookings::void_booking(&pool, 1, 9996, Some("force rollback".to_string())).await;
+
+        assert!(
+            matches!(result, Err(ApiError::Database(ref message)) if message.contains("audit_logs")),
+            "expected late audit failure, got: {result:?}"
+        );
+
+        let booking = sqlx::query(
+            "SELECT status, payment_status, cancelled_at, cancelled_by FROM bookings WHERE id = ?1",
+        )
+        .bind(9996_i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let room_status: String = sqlx::query_scalar("SELECT status FROM rooms WHERE id = ?1")
+            .bind(9996_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let payment_status: String =
+            sqlx::query_scalar("SELECT status FROM payments WHERE booking_id = ?1")
+                .bind(9996_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let history_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM booking_history WHERE booking_id = ?1")
+                .bind(9996_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let modification_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM booking_modifications WHERE booking_id = ?1")
+                .bind(9996_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let credited_nights: Option<i64> = sqlx::query_scalar(
+            "SELECT nights_available FROM guest_complimentary_credits WHERE guest_id = ?1 AND room_type_id = 1",
+        )
+        .bind(9996_i64)
+        .fetch_optional(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(booking.get::<String, _>("status"), "confirmed");
+        assert_eq!(booking.get::<String, _>("payment_status"), "partial");
+        assert!(booking.get::<Option<String>, _>("cancelled_at").is_none());
+        assert!(booking.get::<Option<i64>, _>("cancelled_by").is_none());
+        assert_eq!(room_status, "reserved");
+        assert_eq!(payment_status, "completed");
+        assert_eq!(history_count, 0);
+        assert_eq!(modification_count, 0);
+        assert_eq!(credited_nights, None);
+    }
+}
+
+#[cfg(all(feature = "postgres", not(feature = "sqlite")))]
+mod postgres_tests {
+    use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::services::bookings;
+    use rust_decimal::Decimal;
+    use sqlx::{PgPool, Row, postgres::PgPoolOptions};
+
+    async fn setup_pg_pool() -> Option<PgPool> {
+        let database_url = match std::env::var("DATABASE_URL") {
+            Ok(url) => url,
+            Err(_) => {
+                eprintln!("Skipping PostgreSQL workflow test because DATABASE_URL is not set");
+                return None;
+            }
+        };
+
+        Some(
+            PgPoolOptions::new()
+                .max_connections(5)
+                .connect(&database_url)
+                .await
+                .expect("failed to connect to PostgreSQL test database"),
+        )
+    }
+
+    async fn ensure_admin_actor(pool: &PgPool, actor_id: i64) {
+        sqlx::query(
+            "INSERT INTO roles (name, display_name, description, is_system_role, priority) \
+             VALUES ('admin', 'Administrator', 'Test admin role', true, 100) \
+             ON CONFLICT (name) DO NOTHING",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO permissions (name, resource, action, description, is_system_permission) VALUES \
+             ('bookings:update', 'bookings', 'update', 'Update bookings', true), \
+             ('bookings:delete', 'bookings', 'delete', 'Delete bookings', true), \
+             ('bookings:manage', 'bookings', 'manage', 'Manage bookings', true) \
+             ON CONFLICT (name) DO NOTHING",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO role_permissions (role_id, permission_id) \
+             SELECT r.id, p.id FROM roles r CROSS JOIN permissions p \
+             WHERE r.name = 'admin' AND p.name IN ('bookings:update', 'bookings:delete', 'bookings:manage') \
+             ON CONFLICT DO NOTHING",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO users (id, username, email, full_name, user_type, is_active, is_verified) \
+             VALUES ($1, $2, $3, $4, 'staff', true, true) \
+             ON CONFLICT (id) DO UPDATE SET \
+                 username = EXCLUDED.username, \
+                 email = EXCLUDED.email, \
+                 full_name = EXCLUDED.full_name, \
+                 is_active = true, \
+                 is_verified = true",
+        )
+        .bind(actor_id)
+        .bind(format!("pg_void_actor_{actor_id}"))
+        .bind(format!("pg-void-actor-{actor_id}@hotel.local"))
+        .bind(format!("PG Void Actor {actor_id}"))
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO user_roles (user_id, role_id) \
+             SELECT $1, id FROM roles WHERE name = 'admin' \
+             ON CONFLICT DO NOTHING",
+        )
+        .bind(actor_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn cleanup_pg_fixture(
+        pool: &PgPool,
+        actor_id: i64,
+        room_type_id: i64,
+        room_ids: &[i64],
+        guest_ids: &[i64],
+        booking_ids: &[i64],
+    ) {
+        for booking_id in booking_ids {
+            sqlx::query("DELETE FROM payments WHERE booking_id = $1")
+                .bind(booking_id)
+                .execute(pool)
+                .await
+                .unwrap();
+            sqlx::query("DELETE FROM booking_history WHERE booking_id = $1")
+                .bind(booking_id)
+                .execute(pool)
+                .await
+                .unwrap();
+            sqlx::query("DELETE FROM booking_modifications WHERE booking_id = $1")
+                .bind(booking_id)
+                .execute(pool)
+                .await
+                .unwrap();
+            sqlx::query(
+                "DELETE FROM audit_logs WHERE resource_type = 'booking' AND resource_id = $1",
+            )
+            .bind(booking_id)
+            .execute(pool)
+            .await
+            .unwrap();
+            sqlx::query("DELETE FROM bookings WHERE id = $1")
+                .bind(booking_id)
+                .execute(pool)
+                .await
+                .unwrap();
+        }
+
+        for guest_id in guest_ids {
+            sqlx::query("DELETE FROM guest_complimentary_credits WHERE guest_id = $1")
+                .bind(guest_id)
+                .execute(pool)
+                .await
+                .unwrap();
+            sqlx::query("DELETE FROM user_guests WHERE guest_id = $1")
+                .bind(guest_id)
+                .execute(pool)
+                .await
+                .unwrap();
+            sqlx::query("DELETE FROM guests WHERE id = $1")
+                .bind(guest_id)
+                .execute(pool)
+                .await
+                .unwrap();
+        }
+
+        for room_id in room_ids {
+            sqlx::query("DELETE FROM rooms WHERE id = $1")
+                .bind(room_id)
+                .execute(pool)
+                .await
+                .unwrap();
+        }
+
+        sqlx::query("DELETE FROM room_types WHERE id = $1")
+            .bind(room_type_id)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM user_roles WHERE user_id = $1")
+            .bind(actor_id)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("DELETE FROM users WHERE id = $1")
+            .bind(actor_id)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
+    async fn seed_pg_booking(
+        pool: &PgPool,
+        actor_id: i64,
+        booking_id: i64,
+        guest_id: i64,
+        room_id: i64,
+        room_type_id: i64,
+        status: &str,
+        is_complimentary: bool,
+    ) {
+        ensure_admin_actor(pool, actor_id).await;
+        sqlx::query(
+            "INSERT INTO room_types (id, code, name, base_price, max_occupancy) \
+             VALUES ($1, $2, $3, 150.00, 2) \
+             ON CONFLICT (id) DO UPDATE SET code = EXCLUDED.code, name = EXCLUDED.name, base_price = EXCLUDED.base_price",
+        )
+        .bind(room_type_id)
+        .bind(format!("PGRT{room_type_id}"))
+        .bind(format!("PG Test Room Type {room_type_id}"))
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO rooms (id, room_number, room_type_id, status) \
+             VALUES ($1, $2, $3, 'reserved') \
+             ON CONFLICT (id) DO UPDATE SET room_number = EXCLUDED.room_number, room_type_id = EXCLUDED.room_type_id, status = EXCLUDED.status",
+        )
+        .bind(room_id)
+        .bind(format!("PG{room_id}"))
+        .bind(room_type_id)
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO guests (id, full_name, first_name, last_name, email) \
+             VALUES ($1, $2, 'Postgres', $3, $4) \
+             ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name, email = EXCLUDED.email",
+        )
+        .bind(guest_id)
+        .bind(format!("Postgres Guest {guest_id}"))
+        .bind(format!("Guest{guest_id}"))
+        .bind(format!("pg-guest-{guest_id}@hotel.local"))
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO bookings (
+                id, booking_number, guest_id, guest_name, guest_email, room_id,
+                check_in_date, check_out_date, adults, children,
+                room_rate, subtotal, total_amount, status, payment_status,
+                is_complimentary, created_by
+             )
+             VALUES ($1, $2, $3, $4, $5, $6, '2031-01-10', '2031-01-12', 1, 0,
+                     150.00, 300.00, 300.00, $7, 'partial', $8, $9)",
+        )
+        .bind(booking_id)
+        .bind(format!("BK-PG-{booking_id}"))
+        .bind(guest_id)
+        .bind(format!("Postgres Guest {guest_id}"))
+        .bind(format!("pg-guest-{guest_id}@hotel.local"))
+        .bind(room_id)
+        .bind(status)
+        .bind(is_complimentary)
+        .bind(actor_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn insert_pg_completed_payment(pool: &PgPool, booking_id: i64, actor_id: i64) {
+        sqlx::query(
+            "INSERT INTO payments (booking_id, amount, payment_method, payment_type, status, created_by, processed_by) \
+             VALUES ($1, $2, 'cash', 'booking', 'completed', $3, $3)",
+        )
+        .bind(booking_id)
+        .bind(Decimal::new(10_000, 2))
+        .bind(actor_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn count_pg_rows(pool: &PgPool, table: &str, booking_id: i64) -> i64 {
+        let query = format!("SELECT COUNT(*) FROM {table} WHERE booking_id = $1");
+        sqlx::query_scalar::<_, i64>(&query)
+            .bind(booking_id)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn postgres_void_booking_updates_workflow_side_effects() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 930_001;
+        let booking_id = 930_101;
+        let guest_id = 930_201;
+        let room_id = 930_301;
+        let room_type_id = 930_401;
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
+        seed_pg_booking(
+            &pool,
+            actor_id,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            "confirmed",
+            false,
+        )
+        .await;
+        insert_pg_completed_payment(&pool, booking_id, actor_id).await;
+
+        let result =
+            bookings::void_booking(&pool, actor_id, booking_id, Some("PG void".to_string()))
+                .await
+                .expect("postgres booking should void");
+
+        let booking = sqlx::query("SELECT status, payment_status FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let room_status: String = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
+            .bind(room_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let payment_status: String =
+            sqlx::query_scalar("SELECT status FROM payments WHERE booking_id = $1")
+                .bind(booking_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let audit_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM audit_logs WHERE resource_type = 'booking' AND resource_id = $1 AND action = 'booking_cancelled'",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(result["booking_id"].as_i64(), Some(booking_id));
+        assert_eq!(booking.get::<String, _>("status"), "voided");
+        assert_eq!(booking.get::<String, _>("payment_status"), "void");
+        assert_eq!(room_status, "available");
+        assert_eq!(payment_status, "void");
+        assert_eq!(count_pg_rows(&pool, "booking_history", booking_id).await, 1);
+        assert_eq!(
+            count_pg_rows(&pool, "booking_modifications", booking_id).await,
+            1
+        );
+        assert_eq!(audit_count, 1);
+
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn postgres_concurrent_void_allows_only_one_success() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 930_002;
+        let booking_id = 930_102;
+        let guest_id = 930_202;
+        let room_id = 930_302;
+        let room_type_id = 930_402;
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
+        seed_pg_booking(
+            &pool,
+            actor_id,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            "confirmed",
+            false,
+        )
+        .await;
+
+        let pool_a = pool.clone();
+        let pool_b = pool.clone();
+        let (first, second) = tokio::join!(
+            bookings::void_booking(&pool_a, actor_id, booking_id, None),
+            bookings::void_booking(&pool_b, actor_id, booking_id, None)
+        );
+
+        let success_count = usize::from(first.is_ok()) + usize::from(second.is_ok());
+        assert_eq!(
+            success_count, 1,
+            "exactly one concurrent void should succeed: first={first:?}, second={second:?}"
+        );
+        let failed = if first.is_ok() { second } else { first };
+        assert!(
+            matches!(failed, Err(ApiError::BadRequest(_))),
+            "second void should return a controlled state error"
+        );
+        assert_eq!(count_pg_rows(&pool, "booking_history", booking_id).await, 1);
+        assert_eq!(
+            count_pg_rows(&pool, "booking_modifications", booking_id).await,
+            1
+        );
+
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn postgres_reactivation_rejects_room_date_conflict() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 930_003;
+        let voided_booking_id = 930_103;
+        let conflicting_booking_id = 930_104;
+        let voided_guest_id = 930_203;
+        let conflicting_guest_id = 930_204;
+        let room_id = 930_303;
+        let room_type_id = 930_403;
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[voided_guest_id, conflicting_guest_id],
+            &[voided_booking_id, conflicting_booking_id],
+        )
+        .await;
+        seed_pg_booking(
+            &pool,
+            actor_id,
+            voided_booking_id,
+            voided_guest_id,
+            room_id,
+            room_type_id,
+            "voided",
+            false,
+        )
+        .await;
+        sqlx::query(
+            "INSERT INTO guests (id, full_name, first_name, last_name, email) \
+             VALUES ($1, $2, 'Conflict', $3, $4)",
+        )
+        .bind(conflicting_guest_id)
+        .bind(format!("Conflict Guest {conflicting_guest_id}"))
+        .bind(format!("Guest{conflicting_guest_id}"))
+        .bind(format!("pg-conflict-{conflicting_guest_id}@hotel.local"))
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO bookings (
+                id, booking_number, guest_id, guest_name, guest_email, room_id,
+                check_in_date, check_out_date, adults, children,
+                room_rate, subtotal, total_amount, status, payment_status, created_by
+             )
+             VALUES ($1, $2, $3, $4, $5, $6, '2031-01-11', '2031-01-13', 1, 0,
+                     150.00, 300.00, 300.00, 'confirmed', 'partial', $7)",
+        )
+        .bind(conflicting_booking_id)
+        .bind(format!("BK-PG-{conflicting_booking_id}"))
+        .bind(conflicting_guest_id)
+        .bind(format!("Conflict Guest {conflicting_guest_id}"))
+        .bind(format!("pg-conflict-{conflicting_guest_id}@hotel.local"))
+        .bind(room_id)
+        .bind(actor_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let result = bookings::reactivate_booking(&pool, actor_id, voided_booking_id).await;
+
+        assert!(
+            matches!(result, Err(ApiError::BadRequest(ref message)) if message.contains("already booked")),
+            "expected conflict rejection, got: {result:?}"
+        );
+        let status: String = sqlx::query_scalar("SELECT status FROM bookings WHERE id = $1")
+            .bind(voided_booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(status, "voided");
+
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[voided_guest_id, conflicting_guest_id],
+            &[voided_booking_id, conflicting_booking_id],
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn postgres_void_restores_complimentary_credits() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 930_004;
+        let booking_id = 930_105;
+        let guest_id = 930_205;
+        let room_id = 930_305;
+        let room_type_id = 930_405;
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
+        seed_pg_booking(
+            &pool,
+            actor_id,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            "confirmed",
+            true,
+        )
+        .await;
+
+        let result = bookings::void_booking(&pool, actor_id, booking_id, None)
+            .await
+            .expect("complimentary postgres booking should void");
+
+        let credits: i64 = sqlx::query_scalar(
+            "SELECT nights_available FROM guest_complimentary_credits WHERE guest_id = $1 AND room_type_id = $2",
+        )
+        .bind(guest_id)
+        .bind(room_type_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(result["complimentary_nights_credited"].as_i64(), Some(2));
+        assert_eq!(credits, 2);
+
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
+    }
+
+    async fn install_audit_failure_trigger(pool: &PgPool, booking_id: i64) {
+        let function_name = format!("fail_void_audit_{booking_id}");
+        let trigger_name = format!("trg_fail_void_audit_{booking_id}");
+        sqlx::query(&format!(
+            "DROP TRIGGER IF EXISTS {trigger_name} ON audit_logs"
+        ))
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(&format!("DROP FUNCTION IF EXISTS {function_name}()"))
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query(&format!(
+            r#"
+            CREATE FUNCTION {function_name}() RETURNS trigger AS $$
+            BEGIN
+                IF NEW.action = 'booking_cancelled'
+                   AND NEW.resource_type = 'booking'
+                   AND NEW.resource_id = {booking_id} THEN
+                    RAISE EXCEPTION 'forced audit failure for booking {booking_id}';
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            "#
+        ))
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(&format!(
+            "CREATE TRIGGER {trigger_name} BEFORE INSERT ON audit_logs \
+             FOR EACH ROW EXECUTE FUNCTION {function_name}()"
+        ))
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn drop_audit_failure_trigger(pool: &PgPool, booking_id: i64) {
+        let function_name = format!("fail_void_audit_{booking_id}");
+        let trigger_name = format!("trg_fail_void_audit_{booking_id}");
+        sqlx::query(&format!(
+            "DROP TRIGGER IF EXISTS {trigger_name} ON audit_logs"
+        ))
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(&format!("DROP FUNCTION IF EXISTS {function_name}()"))
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn postgres_void_rolls_back_when_late_audit_insert_fails() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 930_005;
+        let booking_id = 930_106;
+        let guest_id = 930_206;
+        let room_id = 930_306;
+        let room_type_id = 930_406;
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
+        seed_pg_booking(
+            &pool,
+            actor_id,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            "confirmed",
+            true,
+        )
+        .await;
+        insert_pg_completed_payment(&pool, booking_id, actor_id).await;
+        install_audit_failure_trigger(&pool, booking_id).await;
+
+        let result = bookings::void_booking(&pool, actor_id, booking_id, None).await;
+        drop_audit_failure_trigger(&pool, booking_id).await;
+
+        assert!(
+            matches!(result, Err(ApiError::Database(_))),
+            "expected forced audit failure, got: {result:?}"
+        );
+
+        let booking = sqlx::query(
+            "SELECT status, payment_status, cancelled_at IS NULL AS no_cancelled_at, cancelled_by IS NULL AS no_cancelled_by \
+             FROM bookings WHERE id = $1",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let room_status: String = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
+            .bind(room_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let payment_status: String =
+            sqlx::query_scalar("SELECT status FROM payments WHERE booking_id = $1")
+                .bind(booking_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let credits_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM guest_complimentary_credits WHERE guest_id = $1 AND room_type_id = $2",
+        )
+        .bind(guest_id)
+        .bind(room_type_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(booking.get::<String, _>("status"), "confirmed");
+        assert_eq!(booking.get::<String, _>("payment_status"), "partial");
+        assert!(booking.get::<bool, _>("no_cancelled_at"));
+        assert!(booking.get::<bool, _>("no_cancelled_by"));
+        assert_eq!(room_status, "reserved");
+        assert_eq!(payment_status, "completed");
+        assert_eq!(count_pg_rows(&pool, "booking_history", booking_id).await, 0);
+        assert_eq!(
+            count_pg_rows(&pool, "booking_modifications", booking_id).await,
+            0
+        );
+        assert_eq!(credits_count, 0);
+
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
     }
 }

@@ -1,4 +1,4 @@
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::{
     AuditCategoryCounts, AuditLogEntryWithUser, AuditLogQuery, AuditLogResponse, AuditLogRow,
@@ -63,6 +63,32 @@ impl AuditLog {
 
         // Return Ok even if insert fails - don't block operations due to audit log issues
         Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn log_event_tx(
+        tx: &mut DbTransaction<'_>,
+        user_id: Option<i64>,
+        action: &str,
+        resource_type: &str,
+        resource_id: Option<i64>,
+        details: Option<Value>,
+        ip_address: Option<String>,
+        user_agent: Option<String>,
+    ) -> Result<(), ApiError> {
+        AuditRepository::insert_event_tx(
+            tx,
+            user_id,
+            action,
+            resource_type,
+            resource_id,
+            details,
+            ip_address,
+            user_agent,
+            Utc::now(),
+        )
+        .await
+        .map_err(ApiError::from)
     }
 
     /// Log a successful login attempt
@@ -217,7 +243,7 @@ impl AuditLog {
         .await
     }
 
-    /// Log booking cancellation
+    /// Log booking voiding with the legacy audit action name.
     pub async fn log_booking_cancelled(
         pool: &DbPool,
         user_id: i64,
@@ -225,6 +251,24 @@ impl AuditLog {
     ) -> Result<(), ApiError> {
         Self::log_event(
             pool,
+            Some(user_id),
+            "booking_cancelled",
+            "booking",
+            Some(booking_id),
+            None,
+            None,
+            None,
+        )
+        .await
+    }
+
+    pub async fn log_booking_cancelled_tx(
+        tx: &mut DbTransaction<'_>,
+        user_id: i64,
+        booking_id: i64,
+    ) -> Result<(), ApiError> {
+        Self::log_event_tx(
+            tx,
             Some(user_id),
             "booking_cancelled",
             "booking",

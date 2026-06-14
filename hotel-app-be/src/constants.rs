@@ -19,7 +19,7 @@ pub enum PaymentStatus {
     Completed,
     Failed,
     Refunded,
-    Cancelled,
+    Void,
 }
 
 impl std::fmt::Display for PaymentStatus {
@@ -30,7 +30,7 @@ impl std::fmt::Display for PaymentStatus {
             PaymentStatus::Completed => write!(f, "completed"),
             PaymentStatus::Failed => write!(f, "failed"),
             PaymentStatus::Refunded => write!(f, "refunded"),
-            PaymentStatus::Cancelled => write!(f, "cancelled"),
+            PaymentStatus::Void => write!(f, "void"),
         }
     }
 }
@@ -95,7 +95,7 @@ pub enum EkycStatus {
     Rejected,
     Escalated,
     Expired,
-    Cancelled,
+    Void,
     OnHold,
 }
 
@@ -114,7 +114,7 @@ impl std::fmt::Display for EkycStatus {
             EkycStatus::Rejected => write!(f, "rejected"),
             EkycStatus::Escalated => write!(f, "escalated"),
             EkycStatus::Expired => write!(f, "expired"),
-            EkycStatus::Cancelled => write!(f, "cancelled"),
+            EkycStatus::Void => write!(f, "void"),
             EkycStatus::OnHold => write!(f, "on_hold"),
         }
     }

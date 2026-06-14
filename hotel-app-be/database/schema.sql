@@ -1019,7 +1019,7 @@ CREATE TABLE IF NOT EXISTS reward_redemptions (
     reward_id BIGINT NOT NULL REFERENCES reward_catalog(id),
     booking_id BIGINT,
     points_spent INTEGER NOT NULL,
-    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'used', 'cancelled', 'expired')),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'used', 'void', 'expired')),
     redemption_code VARCHAR(50) UNIQUE,
     redeemed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     used_at TIMESTAMP WITH TIME ZONE,
@@ -1222,7 +1222,7 @@ INSERT INTO room_status_transitions (from_status, to_status, is_allowed, require
     ('available', 'maintenance', true, 'maintenance:write', 'Maintenance required'),
     ('available', 'out_of_order', true, 'rooms:write', 'Room out of service'),
     ('reserved', 'occupied', true, NULL, 'Guest checked in'),
-    ('reserved', 'available', true, NULL, 'Reservation cancelled'),
+    ('reserved', 'available', true, NULL, 'Reservation voided'),
     ('reserved', 'dirty', true, 'housekeeping', 'Previous guest left early, room dirty'),
     ('occupied', 'dirty', true, NULL, 'Guest checked out, room needs cleaning'),
     ('occupied', 'cleaning', true, 'housekeeping', 'Guest checked out, cleaning started'),
@@ -1251,7 +1251,7 @@ CREATE TABLE IF NOT EXISTS housekeeping_tasks (
     room_id BIGINT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
     task_type VARCHAR(50) NOT NULL DEFAULT 'cleaning',
     priority VARCHAR(20) DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
-    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'cancelled')),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'void')),
     assigned_to BIGINT REFERENCES users(id),
     scheduled_date DATE,
     task_date DATE DEFAULT CURRENT_DATE,
@@ -1675,11 +1675,11 @@ CREATE TABLE IF NOT EXISTS bookings (
     -- Status
     status VARCHAR(30) DEFAULT 'pending' CHECK (status IN (
         'pending', 'confirmed', 'checked_in', 'auto_checked_in', 'checked_out',
-        'no_show', 'completed', 'comp_cancelled',
+        'no_show', 'completed', 'comp_void',
         'partial_complimentary', 'fully_complimentary', 'voided'
     )),
     payment_status VARCHAR(30) DEFAULT 'unpaid' CHECK (payment_status IN (
-        'unpaid', 'unpaid_deposit', 'paid_rate', 'partial', 'paid', 'refunded', 'cancelled'
+        'unpaid', 'unpaid_deposit', 'paid_rate', 'partial', 'paid', 'refunded', 'void'
     )),
     payment_method VARCHAR(100),
     payment_note TEXT,
@@ -1995,7 +1995,7 @@ SELECT date_trunc('month', b.check_in_date) as month, COUNT(*) as total_bookings
     SUM(b.total_amount) as total_revenue, SUM(b.subtotal) as room_revenue, SUM(b.tax_amount) as tax_collected,
     AVG(b.total_amount) as average_booking_value,
     SUM(CASE WHEN b.payment_status = 'paid' THEN b.total_amount ELSE 0 END) as collected_revenue
-FROM bookings b WHERE b.status NOT IN ('cancelled', 'no_show')
+FROM bookings b WHERE b.status NOT IN ('voided', 'no_show')
 GROUP BY date_trunc('month', b.check_in_date) ORDER BY month DESC;
 
 -- ============================================================================
@@ -2043,7 +2043,7 @@ COMMENT ON TABLE bookings IS 'Guest reservations and bookings';
 COMMENT ON TABLE booking_guests IS 'Additional guests in a booking';
 COMMENT ON TABLE booking_modifications IS 'History of booking changes';
 COMMENT ON TABLE booking_history IS 'Audit trail of booking status changes';
-COMMENT ON COLUMN bookings.status IS 'Booking status: pending, confirmed, checked_in, checked_out, cancelled, no_show, completed, comp_cancelled, partial_complimentary, fully_complimentary';
+COMMENT ON COLUMN bookings.status IS 'Booking status: pending, confirmed, checked_in, checked_out, voided, no_show, completed, comp_void, partial_complimentary, fully_complimentary';
 COMMENT ON COLUMN bookings.is_tourist IS 'Whether the guest is a tourist (affects tourism tax calculation)';
 COMMENT ON COLUMN bookings.tourism_tax_amount IS 'Tourism tax charged (per night for tourists)';
 COMMENT ON COLUMN bookings.pre_checkin_completed IS 'Guest completed pre-check-in via portal';
@@ -2636,7 +2636,7 @@ CREATE TABLE IF NOT EXISTS ekyc_verifications (
     CONSTRAINT valid_ekyc_status CHECK (status IN (
         'draft', 'submitted', 'automated_review', 'pending_manual_review',
         'in_review', 'additional_information_required', 'approved', 'rejected',
-        'escalated', 'expired', 'cancelled', 'on_hold',
+        'escalated', 'expired', 'void', 'on_hold',
         'pending', 'under_review', 'verified'
     )),
     CONSTRAINT valid_ekyc_risk_level CHECK (risk_level IS NULL OR risk_level IN ('low', 'medium', 'high', 'critical'))
@@ -2868,7 +2868,7 @@ CREATE TABLE IF NOT EXISTS payments (
     gateway_customer_id VARCHAR(255),
     gateway_payment_intent_id VARCHAR(255),
     gateway_charge_id VARCHAR(255),
-    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled')),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded', 'void')),
     failure_reason TEXT,
     refund_amount DECIMAL(12,2),
     refunded_at TIMESTAMP WITH TIME ZONE,
@@ -2908,7 +2908,7 @@ CREATE TABLE IF NOT EXISTS invoices (
     balance_due DECIMAL(12,2) GENERATED ALWAYS AS (total_amount - paid_amount) STORED,
     currency VARCHAR(3) DEFAULT 'USD',
     line_items JSONB NOT NULL,
-    status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'issued', 'paid', 'overdue', 'cancelled', 'refunded')),
+    status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'issued', 'paid', 'overdue', 'void', 'refunded')),
     pdf_url TEXT,
     invoice_type VARCHAR(50) DEFAULT 'booking',
     payment_terms TEXT,
@@ -2955,7 +2955,7 @@ CREATE TABLE IF NOT EXISTS booking_services (
     unit_price DECIMAL(10,2) NOT NULL,
     total_price DECIMAL(10,2) NOT NULL,
     service_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'cancelled')),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'void')),
     notes TEXT,
     delivered_by BIGINT REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -3068,15 +3068,15 @@ CREATE TRIGGER trg_sync_booking_payment_status
 -- ============================================================================
 -- MIGRATION 029: CANCEL PAYMENTS FOR VOIDED BOOKINGS
 -- ============================================================================
--- Description: Mark all payments linked to voided bookings as cancelled
+-- Description: Mark all payments linked to voided bookings as void
 --              so they don't appear in night audit reports.
 -- ============================================================================
 
--- Cancel all payments linked to voided bookings
+-- Void all payments linked to voided bookings
 UPDATE payments
-SET status = 'cancelled'
+SET status = 'void'
 WHERE booking_id IN (SELECT id FROM bookings WHERE status = 'voided')
-  AND status != 'cancelled';
+  AND status != 'void';
 
 
 -- ============================================================================
@@ -3167,7 +3167,7 @@ CREATE TABLE IF NOT EXISTS customer_ledgers (
     -- Constraints
     CONSTRAINT positive_amount CHECK (amount > 0),
     CONSTRAINT valid_paid_amount CHECK (paid_amount >= 0 AND paid_amount <= amount),
-    CONSTRAINT valid_status CHECK (status IN ('pending', 'partial', 'paid', 'overdue', 'cancelled')),
+    CONSTRAINT valid_status CHECK (status IN ('pending', 'partial', 'paid', 'overdue', 'void')),
     CONSTRAINT valid_folio_type CHECK (folio_type IN ('guest_folio', 'master_folio', 'city_ledger', 'group_folio', 'ar_ledger')),
     CONSTRAINT valid_transaction_type CHECK (transaction_type IN ('debit', 'credit')),
     CONSTRAINT valid_post_type CHECK (post_type IS NULL OR post_type IN (
@@ -3775,6 +3775,74 @@ EXCEPTION
 END;
 $$;
 
+-- Normalize legacy "cancelled" status values to "void" and keep generated
+-- check constraints aligned for existing PostgreSQL databases.
+ALTER TABLE reward_redemptions DROP CONSTRAINT IF EXISTS reward_redemptions_status_check;
+UPDATE reward_redemptions SET status = 'void' WHERE status = 'cancelled';
+ALTER TABLE reward_redemptions
+    ADD CONSTRAINT reward_redemptions_status_check
+    CHECK (status IN ('pending', 'confirmed', 'used', 'void', 'expired'));
+
+ALTER TABLE housekeeping_tasks DROP CONSTRAINT IF EXISTS housekeeping_tasks_status_check;
+UPDATE housekeeping_tasks SET status = 'void' WHERE status = 'cancelled';
+ALTER TABLE housekeeping_tasks
+    ADD CONSTRAINT housekeeping_tasks_status_check
+    CHECK (status IN ('pending', 'in_progress', 'completed', 'void'));
+
+ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_status_check;
+UPDATE bookings SET status = 'voided' WHERE status = 'cancelled';
+UPDATE bookings SET status = 'comp_void' WHERE status = 'comp_cancelled';
+ALTER TABLE bookings
+    ADD CONSTRAINT bookings_status_check
+    CHECK (status IN (
+        'pending', 'confirmed', 'checked_in', 'auto_checked_in', 'checked_out',
+        'no_show', 'completed', 'comp_void',
+        'partial_complimentary', 'fully_complimentary', 'voided'
+    ));
+
+ALTER TABLE bookings DROP CONSTRAINT IF EXISTS bookings_payment_status_check;
+UPDATE bookings SET payment_status = 'void' WHERE payment_status = 'cancelled';
+ALTER TABLE bookings
+    ADD CONSTRAINT bookings_payment_status_check
+    CHECK (payment_status IN (
+        'unpaid', 'unpaid_deposit', 'paid_rate', 'partial', 'paid', 'refunded', 'void'
+    ));
+
+ALTER TABLE ekyc_verifications DROP CONSTRAINT IF EXISTS valid_ekyc_status;
+UPDATE ekyc_verifications SET status = 'void' WHERE status = 'cancelled';
+ALTER TABLE ekyc_verifications
+    ADD CONSTRAINT valid_ekyc_status
+    CHECK (status IN (
+        'draft', 'submitted', 'automated_review', 'pending_manual_review',
+        'in_review', 'additional_information_required', 'approved', 'rejected',
+        'escalated', 'expired', 'void', 'on_hold',
+        'pending', 'under_review', 'verified'
+    ));
+
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_status_check;
+UPDATE payments SET status = 'void' WHERE status = 'cancelled';
+ALTER TABLE payments
+    ADD CONSTRAINT payments_status_check
+    CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded', 'void'));
+
+ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_status_check;
+UPDATE invoices SET status = 'void' WHERE status = 'cancelled';
+ALTER TABLE invoices
+    ADD CONSTRAINT invoices_status_check
+    CHECK (status IN ('draft', 'issued', 'paid', 'overdue', 'void', 'refunded'));
+
+ALTER TABLE booking_services DROP CONSTRAINT IF EXISTS booking_services_status_check;
+UPDATE booking_services SET status = 'void' WHERE status = 'cancelled';
+ALTER TABLE booking_services
+    ADD CONSTRAINT booking_services_status_check
+    CHECK (status IN ('pending', 'in_progress', 'completed', 'void'));
+
+ALTER TABLE customer_ledgers DROP CONSTRAINT IF EXISTS valid_status;
+UPDATE customer_ledgers SET status = 'void' WHERE status = 'cancelled';
+ALTER TABLE customer_ledgers
+    ADD CONSTRAINT valid_status
+    CHECK (status IN ('pending', 'partial', 'paid', 'overdue', 'void'));
+
 COMMENT ON FUNCTION gen_uuidv7() IS
     'Time-ordered UUIDv7 (PostgreSQL 18+) with a v4 fallback for older clusters. '
     'Prefer this for new UUID column defaults so writes land sequentially in btree pages.';
@@ -3917,7 +3985,7 @@ DROP INDEX IF EXISTS idx_bookings_occupancy_lookup;
 --
 --   The constraint is partial: it applies only to statuses that *occupy* a
 --   room. Statuses excluded:
---     - voided, no_show, completed, comp_cancelled — historical/terminal
+--     - voided, no_show, completed, comp_void — historical/terminal
 --     - checked_out — the room has been released
 --     - partial_complimentary, fully_complimentary — flagged separately
 --
@@ -5000,7 +5068,7 @@ BEGIN
                COALESCE(b.tourism_tax_amount, 0) as tourism_tax_amount,
                COALESCE(b.extra_bed_charge, 0) as extra_bed_charge
         FROM bookings b
-        WHERE b.status NOT IN ('pending', 'confirmed', 'cancelled', 'no_show', 'voided')
+        WHERE b.status NOT IN ('pending', 'confirmed', 'no_show', 'voided')
         AND b.check_in_date <= p_audit_date
         AND b.check_out_date > p_audit_date
         AND NOT EXISTS (

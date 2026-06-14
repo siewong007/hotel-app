@@ -1057,9 +1057,9 @@ fn validate_transition(from: &str, to: &str, action: &str) -> Result<(), ApiErro
         return Ok(());
     }
 
-    if matches!(from.as_str(), "expired" | "cancelled") {
+    if matches!(from.as_str(), "expired" | "void") {
         return Err(ApiError::Conflict(
-            "Expired or cancelled eKYC applications cannot be changed".to_string(),
+            "Expired or void eKYC applications cannot be changed".to_string(),
         ));
     }
 

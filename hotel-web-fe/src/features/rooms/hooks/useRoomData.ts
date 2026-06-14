@@ -56,11 +56,11 @@ export function useRoomData() {
   const {
     roomBookings,
     reservedBookings,
-    compCancelledBookings,
+    compVoidBookings,
   } = useMemo(() => {
     const bookingsMap = new Map<string, BookingWithDetails>();
     const reservedMap = new Map<string, BookingWithDetails>();
-    const compCancelledMap = new Map<string, BookingWithDetails>();
+    const compVoidMap = new Map<string, BookingWithDetails>();
 
     allBookingsData.forEach((booking: BookingWithDetails) => {
       if (booking.status === 'checked_in' || booking.status === 'auto_checked_in') {
@@ -73,14 +73,14 @@ export function useRoomData() {
         }
       }
       if (booking.status === 'voided') {
-        compCancelledMap.set(booking.room_id, booking);
+        compVoidMap.set(booking.room_id, booking);
       }
     });
 
     return {
       roomBookings: bookingsMap,
       reservedBookings: reservedMap,
-      compCancelledBookings: compCancelledMap,
+      compVoidBookings: compVoidMap,
     };
   }, [allBookingsData]);
 
@@ -91,7 +91,7 @@ export function useRoomData() {
     error: error || (queryError instanceof Error ? queryError.message : null),
     roomBookings,
     reservedBookings,
-    compCancelledBookings,
+    compVoidBookings,
     allBookingsData,
     reload,
     reloadRooms: loadRooms,

@@ -83,7 +83,7 @@ const STATUS_OPTIONS = [
   'rejected',
   'escalated',
   'expired',
-  'cancelled',
+  'void',
   'on_hold',
 ];
 
@@ -134,7 +134,7 @@ function labelize(value?: string | null): string {
 
 function statusColor(status: string): 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' {
   if (status === 'approved') return 'success';
-  if (status === 'rejected' || status === 'expired' || status === 'cancelled') return 'error';
+  if (status === 'rejected' || status === 'expired' || status === 'void') return 'error';
   if (status === 'escalated') return 'warning';
   if (status === 'in_review' || status === 'pending_manual_review') return 'info';
   return 'default';
@@ -745,7 +745,7 @@ const ActionBar: React.FC<{
   onAction: (action: string) => void;
   disabled: boolean;
 }> = ({ detail, onAction, disabled }) => {
-  const final = ['approved', 'rejected', 'expired', 'cancelled'].includes(detail.summary.status);
+  const final = ['approved', 'rejected', 'expired', 'void'].includes(detail.summary.status);
   return (
     <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 1, position: 'sticky', top: 0, zIndex: 1, bgcolor: 'background.paper' }}>
       <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
