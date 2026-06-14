@@ -1,7 +1,8 @@
 //! Loyalty program repository for database operations.
 
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, opt_decimal_to_db};
 use crate::core::error::ApiError;
+use crate::models::row_mappers;
 use crate::models::{
     LoyaltyMembership, LoyaltyMembershipWithDetails, LoyaltyProgram, LoyaltyReward,
     MembershipGrowth, PointsActivity, PointsTransaction, RecentTransaction,
@@ -32,18 +33,22 @@ impl LoyaltyRepository {
     }
 
     pub async fn list_active_programs(pool: &DbPool) -> Result<Vec<LoyaltyProgram>, ApiError> {
-        sqlx::query_as::<_, LoyaltyProgram>(
+        let rows = sqlx::query(
             "SELECT * FROM loyalty_programs WHERE is_active = true ORDER BY tier_level",
         )
         .fetch_all(pool)
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+        Ok(rows
+            .iter()
+            .map(row_mappers::row_to_loyalty_program)
+            .collect())
     }
 
     pub async fn list_active_memberships(
         pool: &DbPool,
     ) -> Result<Vec<LoyaltyMembershipWithDetails>, ApiError> {
-        sqlx::query_as::<_, LoyaltyMembershipWithDetails>(
+        let rows = sqlx::query(
             r#"
             SELECT
                 lm.id,
@@ -69,7 +74,11 @@ impl LoyaltyRepository {
         )
         .fetch_all(pool)
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+        Ok(rows
+            .iter()
+            .map(row_mappers::row_to_loyalty_membership_with_details)
+            .collect())
     }
 
     pub async fn member_counts(pool: &DbPool) -> Result<(i64, i64), ApiError> {
@@ -215,7 +224,7 @@ impl LoyaltyRepository {
         pool: &DbPool,
         id: i64,
     ) -> Result<Option<LoyaltyMembership>, ApiError> {
-        sqlx::query_as::<_, LoyaltyMembership>(
+        let row = sqlx::query(
             r#"
             SELECT id, guest_id, program_id, membership_number, points_balance,
                    lifetime_points, tier_level, status, enrolled_date, expiry_date,
@@ -227,44 +236,48 @@ impl LoyaltyRepository {
         .bind(id)
         .fetch_optional(pool)
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+        Ok(row.as_ref().map(row_mappers::row_to_loyalty_membership))
     }
 
     pub async fn find_active_membership_by_guest_id(
         pool: &DbPool,
         guest_id: i64,
     ) -> Result<Option<LoyaltyMembership>, ApiError> {
-        sqlx::query_as::<_, LoyaltyMembership>(
+        let row = sqlx::query(
             "SELECT * FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active'",
         )
         .bind(guest_id)
         .fetch_optional(pool)
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+        Ok(row.as_ref().map(row_mappers::row_to_loyalty_membership))
     }
 
     pub async fn find_program_by_id(
         pool: &DbPool,
         program_id: i64,
     ) -> Result<LoyaltyProgram, ApiError> {
-        sqlx::query_as::<_, LoyaltyProgram>("SELECT * FROM loyalty_programs WHERE id = $1")
+        let row = sqlx::query("SELECT * FROM loyalty_programs WHERE id = $1")
             .bind(program_id)
             .fetch_one(pool)
             .await
-            .map_err(|e| ApiError::Database(e.to_string()))
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+        Ok(row_mappers::row_to_loyalty_program(&row))
     }
 
     pub async fn find_next_active_program_by_tier(
         pool: &DbPool,
         tier_level: i32,
     ) -> Result<Option<LoyaltyProgram>, ApiError> {
-        sqlx::query_as::<_, LoyaltyProgram>(
+        let row = sqlx::query(
             "SELECT * FROM loyalty_programs WHERE tier_level = $1 AND is_active = true ORDER BY tier_level LIMIT 1",
         )
         .bind(tier_level)
         .fetch_optional(pool)
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+        Ok(row.as_ref().map(row_mappers::row_to_loyalty_program))
     }
 
     pub async fn program_benefits(pool: &DbPool, program_id: i64) -> Result<Vec<String>, ApiError> {
@@ -316,7 +329,7 @@ impl LoyaltyRepository {
         pool: &DbPool,
         tier_level: i32,
     ) -> Result<Vec<LoyaltyReward>, ApiError> {
-        sqlx::query_as::<_, LoyaltyReward>(
+        let rows = sqlx::query(
             r#"
             SELECT * FROM loyalty_rewards
             WHERE is_active = true
@@ -328,7 +341,11 @@ impl LoyaltyRepository {
         .bind(tier_level)
         .fetch_all(pool)
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+        Ok(rows
+            .iter()
+            .map(row_mappers::row_to_loyalty_reward)
+            .collect())
     }
 
     pub async fn list_rewards(
@@ -336,20 +353,28 @@ impl LoyaltyRepository {
         category: Option<&str>,
     ) -> Result<Vec<LoyaltyReward>, ApiError> {
         if let Some(category) = category {
-            sqlx::query_as::<_, LoyaltyReward>(
+            let rows = sqlx::query(
                 "SELECT * FROM loyalty_rewards WHERE category = $1 AND is_active = true ORDER BY category, points_cost",
             )
             .bind(category)
             .fetch_all(pool)
             .await
-            .map_err(|e| ApiError::Database(e.to_string()))
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+            Ok(rows
+                .iter()
+                .map(row_mappers::row_to_loyalty_reward)
+                .collect())
         } else {
-            sqlx::query_as::<_, LoyaltyReward>(
+            let rows = sqlx::query(
                 "SELECT * FROM loyalty_rewards WHERE is_active = true ORDER BY category, points_cost",
             )
             .fetch_all(pool)
             .await
-            .map_err(|e| ApiError::Database(e.to_string()))
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+            Ok(rows
+                .iter()
+                .map(row_mappers::row_to_loyalty_reward)
+                .collect())
         }
     }
 
@@ -357,11 +382,12 @@ impl LoyaltyRepository {
         pool: &DbPool,
         reward_id: i64,
     ) -> Result<Option<LoyaltyReward>, ApiError> {
-        sqlx::query_as::<_, LoyaltyReward>("SELECT * FROM loyalty_rewards WHERE id = $1")
+        let row = sqlx::query("SELECT * FROM loyalty_rewards WHERE id = $1")
             .bind(reward_id)
             .fetch_optional(pool)
             .await
-            .map_err(|e| ApiError::Database(e.to_string()))
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+        Ok(row.as_ref().map(row_mappers::row_to_loyalty_reward))
     }
 
     pub async fn create_reward(
@@ -369,7 +395,7 @@ impl LoyaltyRepository {
         input: &crate::models::RewardInput,
         monetary_value: Option<rust_decimal::Decimal>,
     ) -> Result<LoyaltyReward, ApiError> {
-        sqlx::query_as::<_, LoyaltyReward>(
+        let row = sqlx::query(
             r#"
             INSERT INTO loyalty_rewards
             (name, description, category, points_cost, monetary_value, minimum_tier_level,
@@ -382,14 +408,15 @@ impl LoyaltyRepository {
         .bind(&input.description)
         .bind(&input.category)
         .bind(input.points_cost)
-        .bind(monetary_value)
+        .bind(opt_decimal_to_db(monetary_value))
         .bind(input.minimum_tier_level)
         .bind(input.stock_quantity)
         .bind(&input.image_url)
         .bind(&input.terms_conditions)
         .fetch_one(pool)
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+        Ok(row_mappers::row_to_loyalty_reward(&row))
     }
 
     pub async fn update_reward(
@@ -397,7 +424,7 @@ impl LoyaltyRepository {
         reward_id: i64,
         values: &RewardUpdateValues,
     ) -> Result<LoyaltyReward, ApiError> {
-        sqlx::query_as::<_, LoyaltyReward>(
+        let row = sqlx::query(
             r#"
             UPDATE loyalty_rewards
             SET name = $1,
@@ -419,7 +446,7 @@ impl LoyaltyRepository {
         .bind(&values.description)
         .bind(&values.category)
         .bind(values.points_cost)
-        .bind(values.monetary_value)
+        .bind(opt_decimal_to_db(values.monetary_value))
         .bind(values.minimum_tier_level)
         .bind(values.is_active)
         .bind(values.stock_quantity)
@@ -428,7 +455,8 @@ impl LoyaltyRepository {
         .bind(reward_id)
         .fetch_one(pool)
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+        Ok(row_mappers::row_to_loyalty_reward(&row))
     }
 
     pub async fn deactivate_reward(pool: &DbPool, reward_id: i64) -> Result<bool, ApiError> {
@@ -566,7 +594,7 @@ impl LoyaltyRepository {
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
-        let membership = sqlx::query_as::<_, LoyaltyMembership>(
+        let membership_row = sqlx::query(
             "SELECT * FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active' FOR UPDATE",
         )
         .bind(guest_id)
@@ -574,8 +602,9 @@ impl LoyaltyRepository {
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound("No active loyalty membership found".to_string()))?;
+        let membership = row_mappers::row_to_loyalty_membership(&membership_row);
 
-        let reward = sqlx::query_as::<_, LoyaltyReward>(
+        let reward_row = sqlx::query(
             "SELECT * FROM loyalty_rewards WHERE id = $1 AND is_active = true FOR UPDATE",
         )
         .bind(reward_id)
@@ -583,6 +612,7 @@ impl LoyaltyRepository {
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound(reward_not_found_message.to_string()))?;
+        let reward = row_mappers::row_to_loyalty_reward(&reward_row);
 
         if membership.tier_level < reward.minimum_tier_level {
             return Err(ApiError::BadRequest(

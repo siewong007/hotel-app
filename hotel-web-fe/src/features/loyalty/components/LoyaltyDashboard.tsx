@@ -180,7 +180,6 @@ const LoyaltyDashboard: React.FC = () => {
       loadingRef.current = true;
       loadLoyaltyData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadLoyaltyData = async () => {

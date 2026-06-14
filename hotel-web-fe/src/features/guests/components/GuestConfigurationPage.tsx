@@ -509,6 +509,11 @@ const GuestConfigurationPage: React.FC = () => {
     }
   };
 
+  const guestPagination = React.useMemo(
+    () => getPaginationState({ page: currentPage, pageSize: PAGE_SIZE, totalItems: totalGuests }),
+    [currentPage, totalGuests]
+  );
+
   if (!hasAccess) {
     return (
       <Alert severity="warning">
@@ -550,10 +555,6 @@ const GuestConfigurationPage: React.FC = () => {
     else setFilterType('all');
   };
 
-  const guestPagination = React.useMemo(
-    () => getPaginationState({ page: currentPage, pageSize: PAGE_SIZE, totalItems: totalGuests }),
-    [currentPage, totalGuests]
-  );
   const today = new Date();
   const dateLabel = today.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 

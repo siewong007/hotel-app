@@ -153,7 +153,6 @@ hotel-app/
 | Node.js | 22 LTS recommended | CI uses Node 22. |
 | npm | Bundled with Node.js | Each frontend/desktop project has its own lockfile. |
 | PostgreSQL | 18 recommended | Required for the default backend feature. |
-| SQLx CLI | Compatible with SQLx 0.8 | Needed to run PostgreSQL migrations manually. |
 
 ### Clone
 
@@ -171,11 +170,14 @@ cp .env.example .env
 
 Update `hotel-app-be/.env` with a local `DATABASE_URL` and a `JWT_SECRET` of at least 32 characters.
 
-Run PostgreSQL migrations before starting the default backend:
+Initialize PostgreSQL before starting the default backend. The authoritative PostgreSQL setup uses the idempotent SQL scripts in `hotel-app-be/database/`:
 
 ```bash
-sqlx migrate run
+psql "$DATABASE_URL" -f database/schema.sql
+psql "$DATABASE_URL" -f database/data.sql
 ```
+
+The SQLite feature keeps a separate migration path under `database/sqlite_migrations/` and runs those migrations at backend startup. SQLx migrations are not part of the current PostgreSQL setup flow.
 
 Start the API:
 

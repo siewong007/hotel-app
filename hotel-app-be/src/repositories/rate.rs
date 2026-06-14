@@ -1,6 +1,8 @@
 //! Rate plan repository for database operations.
 
-use crate::core::db::{DbPool, DbRow};
+use crate::core::db::{DbPool, DbRow, decimal_to_db};
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+use crate::core::db::{array_to_json, opt_decimal_to_db};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
@@ -37,7 +39,7 @@ impl RateRepository {
             .bind(&values.description)
             .bind(&values.plan_type)
             .bind(&values.adjustment_type)
-            .bind(values.adjustment_value)
+            .bind(opt_decimal_to_db(values.adjustment_value))
             .bind(values.valid_from)
             .bind(values.valid_to)
             .bind(if values.applies_monday { 1i32 } else { 0i32 })
@@ -51,7 +53,7 @@ impl RateRepository {
             .bind(values.max_nights)
             .bind(values.min_advance_booking)
             .bind(values.max_advance_booking)
-            .bind(&values.blackout_dates)
+            .bind(values.blackout_dates.as_ref().map(|dates| array_to_json(dates)))
             .bind(if values.is_active { 1i32 } else { 0i32 })
             .bind(values.priority)
             .bind(user_id)
@@ -123,7 +125,7 @@ impl RateRepository {
     }
 
     pub async fn list_rate_plans(pool: &DbPool) -> Result<Vec<RatePlan>, ApiError> {
-        sqlx::query_as::<_, RatePlan>(
+        let rows = sqlx::query(
             r#"
             SELECT * FROM rate_plans
             ORDER BY priority DESC, name ASC
@@ -131,14 +133,17 @@ impl RateRepository {
         )
         .fetch_all(pool)
         .await
-        .map_err(ApiError::from)
+        .map_err(ApiError::from)?;
+
+        Ok(rows.iter().map(row_mappers::row_to_rate_plan).collect())
     }
 
     pub async fn find_rate_plan(pool: &DbPool, rate_plan_id: i64) -> Result<RatePlan, ApiError> {
-        sqlx::query_as::<_, RatePlan>("SELECT * FROM rate_plans WHERE id = $1")
+        sqlx::query("SELECT * FROM rate_plans WHERE id = $1")
             .bind(rate_plan_id)
             .fetch_one(pool)
             .await
+            .map(|row| row_mappers::row_to_rate_plan(&row))
             .map_err(map_not_found)
     }
 
@@ -177,7 +182,7 @@ impl RateRepository {
 
         if let Some(adjustment_value) = values.adjustment_value {
             query_builder.push(", adjustment_value = ");
-            query_builder.push_bind(adjustment_value);
+            query_builder.push_bind(decimal_to_db(adjustment_value));
         }
 
         if let Some(valid_from) = values.valid_from {
@@ -260,18 +265,20 @@ impl RateRepository {
         query_builder.push(" RETURNING *");
 
         query_builder
-            .build_query_as::<RatePlan>()
+            .build()
             .fetch_one(pool)
             .await
+            .map(|row| row_mappers::row_to_rate_plan(&row))
             .map_err(map_not_found)
     }
 
     pub async fn delete_rate_plan(pool: &DbPool, rate_plan_id: i64) -> Result<RatePlan, ApiError> {
-        let existing = sqlx::query_as::<_, RatePlan>("SELECT * FROM rate_plans WHERE id = $1")
+        let existing = sqlx::query("SELECT * FROM rate_plans WHERE id = $1")
             .bind(rate_plan_id)
             .fetch_optional(pool)
             .await
             .map_err(ApiError::from)?
+            .map(|row| row_mappers::row_to_rate_plan(&row))
             .ok_or_else(|| ApiError::NotFound("Resource not found".to_string()))?;
 
         let result = sqlx::query("DELETE FROM rate_plans WHERE id = $1")
@@ -291,7 +298,7 @@ impl RateRepository {
         pool: &DbPool,
         values: &RoomRateCreateValues,
     ) -> Result<RoomRate, ApiError> {
-        sqlx::query_as::<_, RoomRate>(
+        sqlx::query(
             r#"
             INSERT INTO room_rates (rate_plan_id, room_type_id, price, effective_from, effective_to)
             VALUES ($1, $2, $3, $4, $5)
@@ -300,20 +307,26 @@ impl RateRepository {
         )
         .bind(values.rate_plan_id)
         .bind(values.room_type_id)
-        .bind(values.price)
+        .bind(decimal_to_db(values.price))
         .bind(values.effective_from)
         .bind(values.effective_to)
         .fetch_one(pool)
         .await
+        .map(|row| row_mappers::row_to_room_rate(&row))
         .map_err(ApiError::from)
     }
 
     pub async fn list_room_rates(pool: &DbPool) -> Result<Vec<RoomRateWithDetails>, ApiError> {
         let query = room_rate_details_query(None);
-        sqlx::query_as::<_, RoomRateWithDetails>(&query)
+        let rows = sqlx::query(&query)
             .fetch_all(pool)
             .await
-            .map_err(ApiError::from)
+            .map_err(ApiError::from)?;
+
+        Ok(rows
+            .iter()
+            .map(row_mappers::row_to_room_rate_with_details)
+            .collect())
     }
 
     pub async fn room_rates_by_plan(
@@ -321,11 +334,16 @@ impl RateRepository {
         rate_plan_id: i64,
     ) -> Result<Vec<RoomRateWithDetails>, ApiError> {
         let query = room_rate_details_query(Some(" WHERE rr.rate_plan_id = $1"));
-        sqlx::query_as::<_, RoomRateWithDetails>(&query)
+        let rows = sqlx::query(&query)
             .bind(rate_plan_id)
             .fetch_all(pool)
             .await
-            .map_err(ApiError::from)
+            .map_err(ApiError::from)?;
+
+        Ok(rows
+            .iter()
+            .map(row_mappers::row_to_room_rate_with_details)
+            .collect())
     }
 
     pub async fn find_room_rate(
@@ -333,10 +351,11 @@ impl RateRepository {
         rate_id: i64,
     ) -> Result<RoomRateWithDetails, ApiError> {
         let query = room_rate_details_query(Some(" WHERE rr.id = $1"));
-        sqlx::query_as::<_, RoomRateWithDetails>(&query)
+        sqlx::query(&query)
             .bind(rate_id)
             .fetch_one(pool)
             .await
+            .map(|row| row_mappers::row_to_room_rate_with_details(&row))
             .map_err(map_not_found)
     }
 
@@ -350,7 +369,7 @@ impl RateRepository {
 
         if let Some(price) = values.price {
             query_builder.push("price = ");
-            query_builder.push_bind(price);
+            query_builder.push_bind(decimal_to_db(price));
             has_previous = true;
         }
 
@@ -376,18 +395,20 @@ impl RateRepository {
         query_builder.push(" RETURNING *");
 
         query_builder
-            .build_query_as::<RoomRate>()
+            .build()
             .fetch_one(pool)
             .await
+            .map(|row| row_mappers::row_to_room_rate(&row))
             .map_err(map_not_found)
     }
 
     pub async fn delete_room_rate(pool: &DbPool, rate_id: i64) -> Result<RoomRate, ApiError> {
-        let existing = sqlx::query_as::<_, RoomRate>("SELECT * FROM room_rates WHERE id = $1")
+        let existing = sqlx::query("SELECT * FROM room_rates WHERE id = $1")
             .bind(rate_id)
             .fetch_optional(pool)
             .await
             .map_err(ApiError::from)?
+            .map(|row| row_mappers::row_to_room_rate(&row))
             .ok_or_else(|| ApiError::NotFound("Resource not found".to_string()))?;
 
         let result = sqlx::query("DELETE FROM room_rates WHERE id = $1")
@@ -424,7 +445,7 @@ impl RateRepository {
         date: NaiveDate,
         day_of_week: i32,
     ) -> Result<Option<RoomRateWithDetails>, ApiError> {
-        sqlx::query_as::<_, RoomRateWithDetails>(
+        sqlx::query(
             r#"
             SELECT
                 rr.id,
@@ -466,6 +487,7 @@ impl RateRepository {
         .bind(day_of_week)
         .fetch_optional(pool)
         .await
+        .map(|row| row.map(|row| row_mappers::row_to_room_rate_with_details(&row)))
         .map_err(ApiError::from)
     }
 

@@ -4,6 +4,7 @@ mod common;
 
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 mod sqlite_tests {
+    use crate::common;
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::services::rbac;
 

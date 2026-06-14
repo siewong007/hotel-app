@@ -7,6 +7,7 @@ mod common;
 
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 mod sqlite_tests {
+    use crate::common;
     use axum::extract::{Query, State};
     use hotel_app_be::handlers::rooms::search_rooms_handler;
     use hotel_app_be::models::SearchQuery;

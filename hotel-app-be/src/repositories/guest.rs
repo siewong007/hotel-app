@@ -2,11 +2,13 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::row_mappers;
 use crate::models::{
     Guest, GuestBookingRow, GuestCreditRow, GuestPaginationParams, GuestRoomCreditRow,
     GuestUpdateState, GuestUpdateValues, LinkGuestInput, LinkedGuestCreditRow,
 };
 use crate::utils::pagination::Pagination;
+use sqlx::Row;
 
 pub struct GuestRepository;
 
@@ -460,7 +462,7 @@ impl GuestRepository {
         pool: &DbPool,
         guest_id: i64,
     ) -> Result<Vec<GuestBookingRow>, ApiError> {
-        sqlx::query_as::<_, GuestBookingRow>(
+        let rows = sqlx::query(
             r#"
             SELECT
                 b.id,
@@ -483,7 +485,23 @@ impl GuestRepository {
         .bind(guest_id)
         .fetch_all(pool)
         .await
-        .map_err(ApiError::from)
+        .map_err(ApiError::from)?;
+
+        Ok(rows
+            .iter()
+            .map(|row| GuestBookingRow {
+                id: row.get("id"),
+                booking_number: row.try_get("booking_number").ok(),
+                check_in_date: row.get("check_in_date"),
+                check_out_date: row.get("check_out_date"),
+                nights: row.try_get("nights").ok(),
+                status: row.get("status"),
+                total_amount: row_mappers::get_decimal(row, "total_amount"),
+                created_at: row.get("created_at"),
+                room_number: row.get("room_number"),
+                room_type: row.try_get("room_type").unwrap_or_default(),
+            })
+            .collect())
     }
 
     pub async fn upsert_link(

@@ -5,9 +5,10 @@ use rust_decimal::Decimal;
 use sqlx::Row;
 use std::collections::HashMap;
 
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, decimal_to_db};
 use crate::core::error::ApiError;
 use crate::core::settings_cache;
+use crate::models::row_mappers;
 use crate::models::{
     AuditDetailsResponse, JournalEntry, JournalSection, NightAuditPreview, NightAuditRunWithUser,
     PostedBookingDetail, RevenueBreakdownItem, RoomSnapshot, UnpostedBooking,
@@ -73,8 +74,8 @@ pub async fn preview(pool: &DbPool, audit_date: NaiveDate) -> Result<NightAuditP
 
         let payment_method: Option<String> = row.get("payment_method");
         let source: Option<String> = row.get("source");
-        let room_rate: Decimal = row.get("room_rate");
-        let extra_bed_charge: Decimal = row.get("extra_bed_charge");
+        let room_rate = row_mappers::get_decimal(row, "room_rate");
+        let extra_bed_charge = row_mappers::get_decimal(row, "extra_bed_charge");
         let status: String = row.get("status");
 
         let night_total = room_rate + extra_bed_charge;
@@ -264,8 +265,8 @@ pub async fn list_audit_runs(
             total_bookings_posted: row.get("total_bookings_posted"),
             total_checkins: row.get("total_checkins"),
             total_checkouts: row.get("total_checkouts"),
-            total_revenue: row.get("total_revenue"),
-            occupancy_rate: row.get("occupancy_rate"),
+            total_revenue: row_mappers::get_decimal(row, "total_revenue"),
+            occupancy_rate: row_mappers::get_decimal(row, "occupancy_rate"),
             rooms_available: row.get("rooms_available"),
             rooms_occupied: row.get("rooms_occupied"),
             rooms_reserved: row.get("rooms_reserved"),
@@ -321,7 +322,7 @@ pub async fn audit_details(pool: &DbPool, audit_id: i64) -> Result<AuditDetailsR
         .iter()
         .map(|row| {
             let source: Option<String> = row.get("source");
-            let total_amount: Decimal = row.get("total_amount");
+            let total_amount = row_mappers::get_decimal(row, "total_amount");
             let pm: String = row.get("payment_method");
 
             PostedBookingDetail {
@@ -416,11 +417,11 @@ pub async fn backfill_booking_posted_nights(
 
     let check_in: NaiveDate = row.get("check_in_date");
     let check_out: NaiveDate = row.get("check_out_date");
-    let room_rate: Decimal = row.get("room_rate");
+    let room_rate = row_mappers::get_decimal(&row, "room_rate");
     let daily_rates: serde_json::Value = row.get("daily_rates");
     let is_tourist: bool = row.get("is_tourist");
-    let tourism_tax_amount: Decimal = row.get("tourism_tax_amount");
-    let extra_bed_charge_full: Decimal = row.get("extra_bed_charge");
+    let tourism_tax_amount = row_mappers::get_decimal(&row, "tourism_tax_amount");
+    let extra_bed_charge_full = row_mappers::get_decimal(&row, "extra_bed_charge");
 
     let tax_rate_pct =
         settings_cache::get_positive_decimal(pool, "service_tax_rate", Decimal::new(8, 0)).await;
@@ -492,13 +493,13 @@ pub async fn backfill_booking_posted_nights(
             )
             .bind(booking_id)
             .bind(date)
-            .bind(night_rate)
-            .bind(room_charge)
-            .bind(service_tax)
-            .bind(tourism_tax_per_night)
-            .bind(eb_charge_per_night)
-            .bind(eb_tax_per_night)
-            .bind(night_total)
+            .bind(decimal_to_db(night_rate))
+            .bind(decimal_to_db(room_charge))
+            .bind(decimal_to_db(service_tax))
+            .bind(decimal_to_db(tourism_tax_per_night))
+            .bind(decimal_to_db(eb_charge_per_night))
+            .bind(decimal_to_db(eb_tax_per_night))
+            .bind(decimal_to_db(night_total))
             .bind(run_id)
             .bind(posted_by)
             .execute(pool)
@@ -515,7 +516,7 @@ pub async fn backfill_booking_posted_nights(
                     "#,
                 )
                 .bind(run_id)
-                .bind(night_total)
+                .bind(decimal_to_db(night_total))
                 .execute(pool)
                 .await
                 .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -645,8 +646,8 @@ pub async fn fetch_audit_run_by_id(
         total_bookings_posted: row.get("total_bookings_posted"),
         total_checkins: row.get("total_checkins"),
         total_checkouts: row.get("total_checkouts"),
-        total_revenue: row.get("total_revenue"),
-        occupancy_rate: row.get("occupancy_rate"),
+        total_revenue: row_mappers::get_decimal(&row, "total_revenue"),
+        occupancy_rate: row_mappers::get_decimal(&row, "occupancy_rate"),
         rooms_available: row.get("rooms_available"),
         rooms_occupied: row.get("rooms_occupied"),
         rooms_reserved: row.get("rooms_reserved"),
@@ -687,7 +688,7 @@ pub async fn fetch_breakdown_for_date(
     for row in &rows {
         let pm: String = row.get("payment_method");
         let src: String = row.get("source");
-        let amt: Decimal = row.get("room_rate");
+        let amt = row_mappers::get_decimal(row, "room_rate");
 
         let e = pm_map.entry(pm).or_insert((0, Decimal::ZERO));
         e.0 += 1;
@@ -766,12 +767,12 @@ pub async fn generate_journal_sections(
                 for row in &rows {
                     let booking_number: String = row.get("booking_number");
                     let room_number: String = row.get("room_number");
-                    let room_charge: Decimal = row.get("room_charge");
-                    let service_tax: Decimal = row.get("service_tax");
-                    let tourism_tax: Decimal = row.get("tourism_tax");
-                    let extra_bed_charge: Decimal = row.get("extra_bed_charge");
-                    let extra_bed_tax: Decimal = row.get("extra_bed_tax");
-                    let deposit_amount: Decimal = row.get("deposit_amount");
+                    let room_charge = row_mappers::get_decimal(row, "room_charge");
+                    let service_tax = row_mappers::get_decimal(row, "service_tax");
+                    let tourism_tax = row_mappers::get_decimal(row, "tourism_tax");
+                    let extra_bed_charge = row_mappers::get_decimal(row, "extra_bed_charge");
+                    let extra_bed_tax = row_mappers::get_decimal(row, "extra_bed_tax");
+                    let deposit_amount = row_mappers::get_decimal(row, "deposit_amount");
                     let check_in_date: NaiveDate = row.get("check_in_date");
 
                     if room_charge > Decimal::ZERO {
@@ -880,13 +881,13 @@ pub async fn generate_journal_sections(
                 for row in &rows {
                     let booking_number: String = row.get("booking_number");
                     let room_number: String = row.get("room_number");
-                    let nightly_rate: Decimal = row.get("room_rate");
-                    let extra_bed_charge_raw: Decimal = row.get("extra_bed_charge");
-                    let deposit_amount: Decimal = row.get("deposit_amount");
+                    let nightly_rate = row_mappers::get_decimal(row, "room_rate");
+                    let extra_bed_charge_raw = row_mappers::get_decimal(row, "extra_bed_charge");
+                    let deposit_amount = row_mappers::get_decimal(row, "deposit_amount");
                     let check_in_date: NaiveDate = row.get("check_in_date");
                     let check_out_date: NaiveDate = row.get("check_out_date");
                     let is_tourist: bool = row.get("is_tourist");
-                    let tourism_tax_amount: Decimal = row.get("tourism_tax_amount");
+                    let tourism_tax_amount = row_mappers::get_decimal(row, "tourism_tax_amount");
 
                     let room_charge = (nightly_rate / divisor).round_dp(2);
                     let service_tax = nightly_rate - room_charge;
@@ -1006,7 +1007,7 @@ pub async fn generate_journal_sections(
             for row in &payment_rows {
                 let booking_number: String = row.get("booking_number");
                 let room_number: String = row.get("room_number");
-                let amount: Decimal = row.get("amount");
+                let amount = row_mappers::get_decimal(row, "amount");
                 let payment_method: String = row.get("payment_method");
                 let payment_type: String = row.get("payment_type");
                 let payment_notes: String = row.get("payment_notes");
@@ -1085,7 +1086,7 @@ pub async fn generate_journal_sections(
             for row in &refund_rows {
                 let booking_number: String = row.get("booking_number");
                 let room_number: String = row.get("room_number");
-                let amount: Decimal = row.get("amount");
+                let amount = row_mappers::get_decimal(row, "amount");
                 let notes: Option<String> = row.try_get("notes").ok();
 
                 entries.push(JournalEntry {
@@ -1131,7 +1132,7 @@ pub async fn generate_journal_sections(
             for row in &clp_rows {
                 let company_name: String = row.get("company_name");
                 let room_number: String = row.get("room_number");
-                let payment_amount: Decimal = row.get("payment_amount");
+                let payment_amount = row_mappers::get_decimal(row, "payment_amount");
                 let payment_method: String = row.get("payment_method");
 
                 entries.push(JournalEntry {

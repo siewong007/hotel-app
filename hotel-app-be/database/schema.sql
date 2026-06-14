@@ -2804,11 +2804,9 @@ CREATE INDEX IF NOT EXISTS idx_ekyc_notes_application ON ekyc_notes(application_
 CREATE INDEX IF NOT EXISTS idx_ekyc_access_application ON ekyc_access_events(application_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ekyc_reveals_application ON ekyc_sensitive_reveals(application_id, created_at DESC);
 
-UPDATE route_access_policies
-SET required_permissions = '["ekyc:read"]'::jsonb,
-    nav_permissions = '["navigation_ekyc_admin:read","ekyc:read"]'::jsonb,
-    updated_at = CURRENT_TIMESTAMP
-WHERE route_id = 'ekyc-admin';
+-- NOTE: the ekyc-admin route_access_policies patch lives after the table is
+-- created and seeded (see end of the 030_dynamic_route_access_policies block).
+-- It must not run here — route_access_policies does not exist yet at this point.
 
 COMMENT ON FUNCTION auto_check_in_reservations(DATE) IS
     'Auto-checks-in confirmed reservations whose check-in date is on or before '
@@ -4889,6 +4887,16 @@ VALUES
     ('complimentary', '/complimentary', 'Complimentary Nights', 'admin', '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_complimentary:read","bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
     ('data-transfer', '/data-transfer', 'Data Transfer', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_data_transfer:read","settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true)
 ON CONFLICT (route_id) DO NOTHING;
+
+-- Patch the ekyc-admin route for databases seeded before its permissions were
+-- corrected. The INSERT above uses ON CONFLICT DO NOTHING, so it won't touch a
+-- pre-existing row; this UPDATE brings any such row up to date. Runs here (not
+-- earlier) because route_access_policies must already exist.
+UPDATE route_access_policies
+SET required_permissions = '["ekyc:read"]'::jsonb,
+    nav_permissions = '["navigation_ekyc_admin:read","ekyc:read"]'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
+WHERE route_id = 'ekyc-admin';
 
 -- ============================================================================
 -- 031_bootstrap_quarantine.sql
