@@ -76,7 +76,7 @@ import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, Boo
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useRoomData } from '../../hooks/useRoomData';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
-import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../../utils/date';
+import { addLocalDays, formatLocalDate } from '../../../../utils/date';
 import { isValidEmail } from '../../../../utils/validation';
 import {
   getUnifiedStatusColor,
@@ -87,7 +87,22 @@ import {
 import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
 import UnifiedBookingModal, { BookingType } from '../UnifiedBooking/UnifiedBookingModal';
 import UpdateCheckoutDateDialog from '../UpdateCheckoutDateDialog';
+import RoomNotesDialog from './RoomNotesDialog';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
+import {
+  buildRoomBlockedDates,
+  calculateNightsBetweenDates,
+  formatMenuBookingDate,
+  getCreditsBookingDates as buildCreditsBookingDates,
+  getNextAvailableDate as findNextAvailableDate,
+  getRatePerNight,
+  getRoomCardFill as resolveRoomCardFill,
+  getRoomStatusInfo as deriveRoomStatusInfo,
+  getRoomTypeCode,
+  getTotalCreditsForRoom as calculateTotalCreditsForRoom,
+  isDateBlocked as isRoomDateBlocked,
+  validateCreditBookingDates,
+} from './roomManagementUtils';
 
 interface RoomAction {
   id: string;
@@ -424,34 +439,8 @@ const RoomManagementPage: React.FC = () => {
     return getUnifiedStatusShortLabel(status).toUpperCase();
   };
 
-  // Dark-mode card fills. The light-mode palette comes straight from
-  // `getRoomStatusColor` (saturated MUI shades). On a dark surface those would
-  // glow, so we substitute deeper jewel-tone equivalents that still take white
-  // ink without losing the status association.
-  const ROOM_FILL_DARK: Record<string, string> = {
-    available: '#2E7D4F',
-    occupied: '#B25E18',
-    reserved: '#1E5A8A',
-    dirty: '#8A6E1D',
-    maintenance: '#4D5358',
-  };
   const getRoomCardFill = (status: string, statusColor: string): string => {
-    if (isDarkMode) return ROOM_FILL_DARK[status] || ROOM_FILL_DARK.available;
-    // Light mode: yellow needs the darker amber so white text stays readable.
-    return status === 'dirty' ? '#a89436' : statusColor;
-  };
-
-
-  const getRoomTypeCode = (roomType: string): string => {
-    const codes: { [key: string]: string } = {
-      'deluxe': 'DLXX',
-      'superior': 'SUP',
-      'standard': 'STD',
-      'suite': 'STE',
-      'standard queen': 'STDQ',
-      'family room': 'FR',
-    };
-    return codes[roomType.toLowerCase()] || roomType.substring(0, 4).toUpperCase();
+    return resolveRoomCardFill(status, statusColor, isDarkMode);
   };
 
   // Room Actions - Unified Booking Modal
@@ -539,13 +528,10 @@ const RoomManagementPage: React.FC = () => {
     try {
       setCreatingBooking(true);
 
-      // Generate list of complimentary dates (all dates in the range)
-      const complimentaryDates: string[] = [];
-      const start = parseLocalDate(complimentaryCheckInDate);
-      const end = parseLocalDate(complimentaryCheckOutDate);
-      for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-        complimentaryDates.push(formatLocalDate(d));
-      }
+      const complimentaryDates = buildCreditsBookingDates(
+        complimentaryCheckInDate,
+        complimentaryCheckOutDate,
+      );
 
       // Use bookWithCredits API which properly deducts credits - creates a RESERVATION (not check-in)
       const bookingResult = await HotelAPIService.bookWithCredits({
@@ -1360,37 +1346,11 @@ const RoomManagementPage: React.FC = () => {
   };
 
   const loadRoomBlockedDates = (roomId: string) => {
-    // Use allBookingsData from state instead of fetching again
-    const roomBookingsFiltered = allBookingsData.filter(b =>
-      b.room_id?.toString() === roomId &&
-      !['checked_out', 'voided'].includes(b.status)
-    );
-
-    const blocked = roomBookingsFiltered.map(b => ({
-      start: b.check_in_date,
-      end: b.check_out_date,
-      status: b.status
-    }));
-
-    setRoomBlockedDates(blocked);
+    setRoomBlockedDates(buildRoomBlockedDates(allBookingsData, roomId));
   };
 
   const isDateBlocked = (dateStr: string): boolean => {
-    const date = new Date(dateStr);
-    date.setHours(0, 0, 0, 0);
-
-    for (const booking of roomBlockedDates) {
-      const start = new Date(booking.start);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(booking.end);
-      end.setHours(0, 0, 0, 0);
-
-      // Date is blocked if it's within the booking range (check-in to check-out - 1)
-      if (date >= start && date < end) {
-        return true;
-      }
-    }
-    return false;
+    return isRoomDateBlocked(dateStr, roomBlockedDates);
   };
 
   const getMinCheckInDate = (): string => {
@@ -1398,59 +1358,26 @@ const RoomManagementPage: React.FC = () => {
   };
 
   const getNextAvailableDate = (fromDate: string): string => {
-    let date = parseLocalDate(fromDate);
-    date.setHours(0, 0, 0, 0);
-
-    // Find the next available date
-    while (isDateBlocked(formatLocalDate(date))) {
-      date.setDate(date.getDate() + 1);
-    }
-    return formatLocalDate(date);
+    return findNextAvailableDate(fromDate, roomBlockedDates);
   };
 
   const validateDateSelection = (): { valid: boolean; message: string } => {
-    if (!creditsBookingForm.check_in_date || !creditsBookingForm.check_out_date) {
-      return { valid: false, message: 'Please select dates' };
-    }
-
-    const checkIn = new Date(creditsBookingForm.check_in_date);
-    const checkOut = new Date(creditsBookingForm.check_out_date);
-
-    if (checkOut <= checkIn) {
-      return { valid: false, message: 'Check-out must be after check-in' };
-    }
-
-    // Check if any date in the range is blocked
-    for (let d = new Date(checkIn); d < checkOut; d.setDate(d.getDate() + 1)) {
-      if (isDateBlocked(formatLocalDate(d))) {
-        return { valid: false, message: `Date ${d.toLocaleDateString()} is already reserved` };
-      }
-    }
-
-    return { valid: true, message: '' };
+    return validateCreditBookingDates(
+      creditsBookingForm.check_in_date,
+      creditsBookingForm.check_out_date,
+      roomBlockedDates,
+    );
   };
 
   const getCreditsBookingDates = (): string[] => {
-    const dates: string[] = [];
-    const start = parseLocalDate(creditsBookingForm.check_in_date);
-    const end = parseLocalDate(creditsBookingForm.check_out_date);
-    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-      dates.push(formatLocalDate(d));
-    }
-    return dates;
+    return buildCreditsBookingDates(
+      creditsBookingForm.check_in_date,
+      creditsBookingForm.check_out_date,
+    );
   };
 
   const getTotalCreditsForRoom = (roomId: string): number => {
-    if (!guestCredits || !roomId) return 0;
-    const room = availableRoomsForCredits.find(r => r.id.toString() === roomId);
-    if (!room) return 0;
-
-    // Find credits for this room type
-    const roomTypeCredits = guestCredits.credits_by_room_type.find(c =>
-      room.room_type?.toLowerCase().includes(c.room_type_name.toLowerCase())
-    );
-
-    return roomTypeCredits?.nights_available || 0;
+    return calculateTotalCreditsForRoom(guestCredits, availableRoomsForCredits, roomId);
   };
 
   const handleCreditsDateToggle = (date: string) => {
@@ -1758,48 +1685,7 @@ const RoomManagementPage: React.FC = () => {
 
   // Single source of truth for computing room status from bookings
   const getRoomStatusInfo = (room: Room) => {
-    const booking = roomBookings.get(room.id);
-    const reservedBooking = reservedBookings.get(room.id);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const hasCheckedInBooking = booking?.status === 'checked_in' || booking?.status === 'auto_checked_in';
-    const hasReservationForToday = reservedBooking && (() => {
-      const checkInDate = new Date(reservedBooking.check_in_date);
-      checkInDate.setHours(0, 0, 0, 0);
-      const isConfirmed = reservedBooking.status === 'confirmed' || reservedBooking.status === 'pending';
-      return isConfirmed && checkInDate <= today;
-    })();
-    const hasFutureReservation = reservedBooking && !hasReservationForToday;
-    const futureCheckInDate = hasFutureReservation ? new Date(reservedBooking.check_in_date) : null;
-
-    const computedStatus = hasCheckedInBooking
-      ? 'occupied'
-      : ['maintenance', 'dirty'].includes(room.status || '')
-        ? room.status!
-        : hasReservationForToday
-          ? 'reserved'
-          : 'available';
-
-    const isOccupied = computedStatus === 'occupied';
-    const isReserved = computedStatus === 'reserved';
-    const isReservedToday = isReserved && !!hasReservationForToday;
-    const isComplimentary = (isOccupied && booking?.is_complimentary === true) ||
-                             (isReserved && reservedBooking?.is_complimentary === true);
-
-    return {
-      computedStatus,
-      booking,
-      reservedBooking,
-      hasCheckedInBooking,
-      hasReservationForToday,
-      hasFutureReservation,
-      futureCheckInDate,
-      isOccupied,
-      isReserved,
-      isReservedToday,
-      isComplimentary,
-    };
+    return deriveRoomStatusInfo(room, roomBookings, reservedBookings);
   };
 
   const availableCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'available').length;
@@ -2747,13 +2633,7 @@ const RoomManagementPage: React.FC = () => {
           const activeBooking = info.booking || info.reservedBooking || null;
           const showAside = info.isOccupied || info.isReservedToday;
 
-          const formatDate = (d: string) =>
-            new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-          const ratePerNight = (() => {
-            const n = Number((activeBooking as any)?.price_per_night ?? (activeBooking as any)?.room_rate);
-            return Number.isFinite(n) && n > 0 ? n : null;
-          })();
+          const ratePerNight = getRatePerNight(activeBooking);
 
           return (
             <Box sx={{ display: 'flex', minWidth: showAside ? 460 : 280, maxWidth: 520 }}>
@@ -2898,7 +2778,7 @@ const RoomManagementPage: React.FC = () => {
                       {info.isOccupied ? 'Current Booking' : 'Next Booking'}
                     </Typography>
                     <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', lineHeight: 1.3 }}>
-                      {formatDate(activeBooking.check_in_date)} – {formatDate(activeBooking.check_out_date)}
+                      {formatMenuBookingDate(activeBooking.check_in_date)} – {formatMenuBookingDate(activeBooking.check_out_date)}
                     </Typography>
                     <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {[activeBooking.source, activeBooking.guest_name].filter(Boolean).join(' · ')}
@@ -3081,10 +2961,7 @@ const RoomManagementPage: React.FC = () => {
                   setWalkInCheckInDate(e.target.value);
                   // Calculate nights if both dates are set
                   if (walkInCheckOutDate) {
-                    const checkIn = new Date(e.target.value);
-                    const checkOut = new Date(walkInCheckOutDate);
-                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-                    setWalkInNumberOfNights(nights);
+                    setWalkInNumberOfNights(calculateNightsBetweenDates(e.target.value, walkInCheckOutDate));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3103,10 +2980,7 @@ const RoomManagementPage: React.FC = () => {
                   setWalkInCheckOutDate(e.target.value);
                   // Calculate nights
                   if (walkInCheckInDate) {
-                    const checkIn = new Date(walkInCheckInDate);
-                    const checkOut = new Date(e.target.value);
-                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-                    setWalkInNumberOfNights(nights);
+                    setWalkInNumberOfNights(calculateNightsBetweenDates(walkInCheckInDate, e.target.value));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3339,10 +3213,7 @@ const RoomManagementPage: React.FC = () => {
                   setOnlineCheckInDate(e.target.value);
                   // Calculate nights if both dates are set
                   if (onlineCheckOutDate) {
-                    const checkIn = new Date(e.target.value);
-                    const checkOut = new Date(onlineCheckOutDate);
-                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-                    setOnlineNumberOfNights(nights);
+                    setOnlineNumberOfNights(calculateNightsBetweenDates(e.target.value, onlineCheckOutDate));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3361,10 +3232,7 @@ const RoomManagementPage: React.FC = () => {
                   setOnlineCheckOutDate(e.target.value);
                   // Calculate nights
                   if (onlineCheckInDate) {
-                    const checkIn = new Date(onlineCheckInDate);
-                    const checkOut = new Date(e.target.value);
-                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-                    setOnlineNumberOfNights(nights);
+                    setOnlineNumberOfNights(calculateNightsBetweenDates(onlineCheckInDate, e.target.value));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3542,10 +3410,7 @@ const RoomManagementPage: React.FC = () => {
                 onChange={(e) => {
                   setComplimentaryCheckInDate(e.target.value);
                   if (complimentaryCheckOutDate) {
-                    const checkIn = new Date(e.target.value);
-                    const checkOut = new Date(complimentaryCheckOutDate);
-                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-                    setComplimentaryNumberOfNights(nights);
+                    setComplimentaryNumberOfNights(calculateNightsBetweenDates(e.target.value, complimentaryCheckOutDate));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3563,10 +3428,7 @@ const RoomManagementPage: React.FC = () => {
                 onChange={(e) => {
                   setComplimentaryCheckOutDate(e.target.value);
                   if (complimentaryCheckInDate) {
-                    const checkIn = new Date(complimentaryCheckInDate);
-                    const checkOut = new Date(e.target.value);
-                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-                    setComplimentaryNumberOfNights(nights);
+                    setComplimentaryNumberOfNights(calculateNightsBetweenDates(complimentaryCheckInDate, e.target.value));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -4113,37 +3975,15 @@ const RoomManagementPage: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Edit Room Notes Dialog */}
-      <Dialog open={notesDialogOpen} onClose={() => setNotesDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <EditIcon sx={{ fontSize: 24 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Room Notes - {selectedRoom?.room_number}
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          <TextField
-            autoFocus
-            fullWidth
-            multiline
-            minRows={3}
-            maxRows={6}
-            label="Notes"
-            value={editingNotes}
-            onChange={(e) => setEditingNotes(e.target.value)}
-            sx={{ mt: 2 }}
-            placeholder="Enter room notes..."
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={() => setNotesDialogOpen(false)} variant="outlined">Cancel</Button>
-          <Button onClick={handleSaveNotes} variant="contained" disabled={savingNotes}>
-            {savingNotes ? 'Saving...' : 'Save'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <RoomNotesDialog
+        open={notesDialogOpen}
+        room={selectedRoom}
+        notes={editingNotes}
+        saving={savingNotes}
+        onClose={() => setNotesDialogOpen(false)}
+        onNotesChange={setEditingNotes}
+        onSubmit={handleSaveNotes}
+      />
 
       {/* Booking Notes Edit Dialog */}
       <Dialog
