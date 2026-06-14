@@ -3,7 +3,7 @@
 //! Query-heavy booking workflows preserved behind the service/handler boundary.
 
 use crate::core::auth::AuthService;
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, decimal_to_db};
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::core::settings_cache;
@@ -856,6 +856,7 @@ pub async fn create_booking_handler(
         ));
     }
 
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let (is_tourist, tourism_tax_amount) =
         canonical_tourism_tax_for_guest(&pool, input.guest_id, check_in, check_out).await?;
 
@@ -1065,7 +1066,7 @@ pub async fn create_booking_handler(
                 "#,
             )
             .bind(booking.id)
-            .bind(payment_amount)
+            .bind(decimal_to_db(payment_amount))
             .bind(payment_method_str)
             .bind(user_id)
             .execute(&mut *tx)
@@ -1835,7 +1836,7 @@ pub async fn update_booking_handler(
     .bind(modification_type)
     .bind(&old_value)
     .bind(&new_value)
-    .bind(price_adj)
+    .bind(decimal_to_db(price_adj))
     .bind(user_id)
     .execute(&pool)
     .await
@@ -2195,7 +2196,7 @@ pub async fn manual_checkin_handler(
         }
     }
 
-    let updated_booking: Booking = sqlx::query_as(
+    let updated_booking_row = sqlx::query(
         r#"
         UPDATE bookings SET status = 'checked_in', actual_check_in = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1
         RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at
@@ -2205,6 +2206,7 @@ pub async fn manual_checkin_handler(
     .fetch_one(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+    let updated_booking = row_mappers::row_to_booking(&updated_booking_row);
 
     // Record payment if provided during check-in
     if let Some(ref checkin) = checkin_data
@@ -2218,7 +2220,7 @@ pub async fn manual_checkin_handler(
                        VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6)"#
                 )
                 .bind(booking_id)
-                .bind(pay_amount)
+                .bind(decimal_to_db(pay_amount))
                 .bind(&payment.payment_method)
                 .bind(pay_type)
                 .bind(&payment.notes)
@@ -2425,10 +2427,10 @@ pub async fn mark_complimentary_handler(
     let is_already_complimentary: Option<bool> = booking_row.get(3);
     let check_in: NaiveDate = booking_row.get(4);
     let check_out: NaiveDate = booking_row.get(5);
-    let room_rate: Decimal = booking_row.get(6);
-    let original_total: Decimal = booking_row.get(7);
-    let _subtotal: Decimal = booking_row.get(8);
-    let tax_amount: Option<Decimal> = booking_row.get(9);
+    let room_rate = row_mappers::get_decimal(&booking_row, "room_rate");
+    let original_total = row_mappers::get_decimal(&booking_row, "total_amount");
+    let _subtotal = row_mappers::get_decimal(&booking_row, "subtotal");
+    let tax_amount = row_mappers::get_opt_decimal(&booking_row, "tax_amount");
     let room_type_id: i64 = booking_row.get(10);
     let room_type_name: String = booking_row.get(11);
 
@@ -2526,9 +2528,9 @@ pub async fn mark_complimentary_handler(
     .bind(comp_start)
     .bind(comp_end)
     .bind(complimentary_nights)
-    .bind(new_subtotal)
-    .bind(new_tax)
-    .bind(new_total)
+    .bind(decimal_to_db(new_subtotal))
+    .bind(decimal_to_db(new_tax))
+    .bind(decimal_to_db(new_total))
     .bind(new_status)
     .bind(payment_status)
     .bind(booking_id)
@@ -2576,7 +2578,7 @@ pub async fn mark_complimentary_handler(
     .bind("mark_complimentary")
     .bind(serde_json::json!({"status": &status, "total_amount": original_total.to_string(), "is_complimentary": false}))
     .bind(serde_json::json!({"status": new_status, "total_amount": new_total.to_string(), "is_complimentary": true, "complimentary_nights": complimentary_nights, "reason": &input.reason}))
-    .bind(new_total - original_total)
+    .bind(decimal_to_db(new_total - original_total))
     .bind(_user_id)
     .execute(&pool)
     .await
@@ -2739,9 +2741,9 @@ pub async fn book_with_credits_handler(
     let complimentary_nights = complimentary_dates.len() as i32;
 
     // Get room info including room type
-    let room_info: Option<(i64, Decimal, String)> = sqlx::query_as(
+    let room_info = sqlx::query(
         r#"
-        SELECT rt.id, COALESCE(r.custom_price, rt.base_price), rt.name
+        SELECT rt.id, COALESCE(r.custom_price, rt.base_price) AS room_rate, rt.name
         FROM rooms r
         INNER JOIN room_types rt ON r.room_type_id = rt.id
         WHERE r.id = $1
@@ -2750,7 +2752,14 @@ pub async fn book_with_credits_handler(
     .bind(input.room_id)
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .map(|row| {
+        (
+            row.get::<i64, _>("id"),
+            row_mappers::get_decimal(&row, "room_rate"),
+            row.get::<String, _>("name"),
+        )
+    });
 
     let (room_type_id, room_rate, room_type_name) =
         room_info.ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
@@ -2851,10 +2860,10 @@ pub async fn book_with_credits_handler(
     .bind(input.room_id)
     .bind(check_in)
     .bind(check_out)
-    .bind(room_rate)
-    .bind(subtotal)
-    .bind(tax_amount)
-    .bind(total_amount)
+    .bind(decimal_to_db(room_rate))
+    .bind(decimal_to_db(subtotal))
+    .bind(decimal_to_db(tax_amount))
+    .bind(decimal_to_db(total_amount))
     .bind(if is_fully_complimentary {
         "paid"
     } else {
@@ -2906,7 +2915,7 @@ pub async fn book_with_credits_handler(
 pub async fn get_complimentary_bookings_handler(
     State(pool): State<DbPool>,
 ) -> Result<Json<Vec<BookingWithDetails>>, ApiError> {
-    let bookings: Vec<BookingWithDetails> = sqlx::query_as(
+    let booking_rows = sqlx::query(
         r#"
         SELECT
             b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
@@ -2932,6 +2941,10 @@ pub async fn get_complimentary_bookings_handler(
     .fetch_all(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+    let bookings: Vec<BookingWithDetails> = booking_rows
+        .iter()
+        .map(row_mappers::row_to_booking_with_details)
+        .collect();
 
     Ok(Json(bookings))
 }
@@ -2965,12 +2978,16 @@ pub async fn get_complimentary_summary_handler(
     .unwrap_or(0);
 
     // Value of complimentary nights (sum of original amounts - adjusted amounts)
-    let value_given: Decimal = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(original_total_amount - total_amount), 0) FROM bookings WHERE is_complimentary = true AND original_total_amount IS NOT NULL"
+    let value_given_row = sqlx::query(
+        "SELECT COALESCE(SUM(original_total_amount - total_amount), 0) AS value_given FROM bookings WHERE is_complimentary = true AND original_total_amount IS NOT NULL"
     )
     .fetch_one(&pool)
     .await
-    .unwrap_or(Decimal::ZERO);
+    .ok();
+    let value_given = value_given_row
+        .as_ref()
+        .map(|row| row_mappers::get_decimal(row, "value_given"))
+        .unwrap_or(Decimal::ZERO);
 
     Ok(Json(serde_json::json!({
         "total_complimentary_bookings": total_bookings,
@@ -3006,8 +3023,8 @@ pub async fn update_complimentary_handler(
 
     let check_in: NaiveDate = booking_row.get(2);
     let check_out: NaiveDate = booking_row.get(3);
-    let room_rate: Decimal = booking_row.get(4);
-    let original_total: Decimal = booking_row.get(5);
+    let room_rate = row_mappers::get_decimal(&booking_row, "room_rate");
+    let original_total = row_mappers::get_decimal(&booking_row, "total_amount");
 
     // Parse new dates if provided
     let comp_start = if let Some(ref date_str) = input.complimentary_start_date {
@@ -3079,9 +3096,9 @@ pub async fn update_complimentary_handler(
         .bind(end)
         .bind(&input.complimentary_reason)
         .bind(complimentary_nights)
-        .bind(new_subtotal)
-        .bind(new_tax)
-        .bind(new_total)
+        .bind(decimal_to_db(new_subtotal))
+        .bind(decimal_to_db(new_tax))
+        .bind(decimal_to_db(new_total))
         .bind(new_status)
         .bind(booking_id)
         .execute(&pool)
@@ -3096,7 +3113,7 @@ pub async fn update_complimentary_handler(
         .bind("update_complimentary")
         .bind(serde_json::json!({"total_amount": original_total.to_string()}))
         .bind(serde_json::json!({"total_amount": new_total.to_string(), "complimentary_nights": complimentary_nights, "status": new_status}))
-        .bind(new_total - original_total)
+        .bind(decimal_to_db(new_total - original_total))
         .bind(_user_id)
         .execute(&pool)
         .await
@@ -3159,7 +3176,7 @@ pub async fn remove_complimentary_handler(
 
     let _guest_id: i64 = booking_row.get(1);
     let is_complimentary: Option<bool> = booking_row.get(2);
-    let original_total: Option<Decimal> = booking_row.get(3);
+    let original_total = row_mappers::get_opt_decimal(&booking_row, "original_total_amount");
     let complimentary_nights: Option<i32> = booking_row.get(4);
     let status: String = booking_row.get(5);
 
@@ -3590,7 +3607,7 @@ pub async fn reactivate_booking_handler(
     }
 
     // Reactivate the booking
-    let booking: Booking = sqlx::query_as(
+    let booking_row = sqlx::query(
         r#"
         UPDATE bookings 
         SET status = 'confirmed', 
@@ -3604,6 +3621,7 @@ pub async fn reactivate_booking_handler(
     .fetch_one(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+    let booking = row_mappers::row_to_booking(&booking_row);
 
     sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
         .bind("reserved")

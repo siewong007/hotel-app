@@ -304,7 +304,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setSelectedRooms([]);
       setAvailableRooms([]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // Sort rooms by room number ascending

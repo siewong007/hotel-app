@@ -85,42 +85,44 @@ mod sqlite_tests {
         // `room_rate` to Decimal::ZERO for SQLite rows, while `total_amount`,
         // `status`, booking identifiers, and date fields all read correctly.
         sqlx::query(
-            "INSERT INTO room_types (id, name, code, base_price) VALUES (1, 'Standard', 'STD', 100.0)",
+            "INSERT INTO room_types (id, name, code, base_price) VALUES (9901, 'Test Standard', 'TSTD9901', 100.0)",
         )
         .execute(&pool)
         .await
         .unwrap();
 
         sqlx::query(
-            "INSERT INTO rooms (id, room_number, room_type_id, status) VALUES (1, '101', 1, 'available')",
+            "INSERT INTO rooms (id, room_number, room_type_id, status) VALUES (9901, 'T9901', 9901, 'available')",
         )
         .execute(&pool)
         .await
         .unwrap();
 
-        sqlx::query("INSERT INTO guests (id, first_name, last_name) VALUES (1, 'Test', 'Guest')")
-            .execute(&pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "INSERT INTO guests (id, first_name, last_name) VALUES (9901, 'Test', 'Guest')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
 
         sqlx::query(
             "INSERT INTO bookings \
              (id, booking_number, guest_id, room_id, \
               check_in_date, check_out_date, rate_per_night, total_amount, status) \
-             VALUES (1, 'BK-20260418-deadbeef', 1, 1, '2026-04-18', '2026-04-19', 150.0, 150.0, 'confirmed')",
+             VALUES (9901, 'BK-20260418-deadbeef', 9901, 9901, '2026-04-18', '2026-04-19', 150.0, 150.0, 'confirmed')",
         )
         .execute(&pool)
         .await
         .unwrap();
 
-        let b = booking::fetch_booking_by_id(&pool, 1)
+        let b = booking::fetch_booking_by_id(&pool, 9901)
             .await
             .expect("fetch_booking_by_id should succeed for existing row");
 
-        assert_eq!(b.id, 1);
+        assert_eq!(b.id, 9901);
         assert_eq!(b.booking_number, "BK-20260418-deadbeef");
-        assert_eq!(b.guest_id, 1);
-        assert_eq!(b.room_id, 1);
+        assert_eq!(b.guest_id, 9901);
+        assert_eq!(b.room_id, 9901);
         assert_eq!(b.status, "confirmed");
 
         // Date fields round-trip correctly.

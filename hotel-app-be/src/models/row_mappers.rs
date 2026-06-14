@@ -507,6 +507,66 @@ pub fn row_to_company(row: &DbRow) -> Company {
 }
 
 // =============================================================================
+// Loyalty mappers
+// =============================================================================
+
+use super::loyalty::{LoyaltyMembership, LoyaltyMembershipWithDetails, LoyaltyProgram};
+
+pub fn row_to_loyalty_program(row: &DbRow) -> LoyaltyProgram {
+    LoyaltyProgram {
+        id: row.try_get("id").unwrap_or_default(),
+        name: row.try_get("name").unwrap_or_default(),
+        description: row.try_get("description").ok(),
+        tier_level: row.try_get("tier_level").unwrap_or_default(),
+        points_multiplier: get_decimal(row, "points_multiplier"),
+        minimum_points_required: row.try_get("minimum_points_required").unwrap_or_default(),
+        is_active: get_bool(row, "is_active"),
+        created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
+        updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
+    }
+}
+
+pub fn row_to_loyalty_membership(row: &DbRow) -> LoyaltyMembership {
+    LoyaltyMembership {
+        id: row.try_get("id").unwrap_or_default(),
+        guest_id: row.try_get("guest_id").unwrap_or_default(),
+        program_id: row.try_get("program_id").unwrap_or_default(),
+        membership_number: row.try_get("membership_number").unwrap_or_default(),
+        points_balance: row.try_get("points_balance").unwrap_or_default(),
+        lifetime_points: row.try_get("lifetime_points").unwrap_or_default(),
+        tier_level: row.try_get("tier_level").unwrap_or_default(),
+        status: row.try_get("status").unwrap_or_default(),
+        enrolled_date: row
+            .try_get("enrolled_date")
+            .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
+        expiry_date: row.try_get("expiry_date").ok(),
+        created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
+        updated_at: row.try_get("updated_at").unwrap_or_else(|_| Utc::now()),
+    }
+}
+
+pub fn row_to_loyalty_membership_with_details(row: &DbRow) -> LoyaltyMembershipWithDetails {
+    LoyaltyMembershipWithDetails {
+        id: row.try_get("id").unwrap_or_default(),
+        guest_id: row.try_get("guest_id").unwrap_or_default(),
+        guest_name: row.try_get("guest_name").unwrap_or_default(),
+        guest_email: row.try_get("guest_email").unwrap_or_default(),
+        program_id: row.try_get("program_id").unwrap_or_default(),
+        program_name: row.try_get("program_name").unwrap_or_default(),
+        program_description: row.try_get("program_description").ok(),
+        membership_number: row.try_get("membership_number").unwrap_or_default(),
+        points_balance: row.try_get("points_balance").unwrap_or_default(),
+        lifetime_points: row.try_get("lifetime_points").unwrap_or_default(),
+        tier_level: row.try_get("tier_level").unwrap_or_default(),
+        points_multiplier: get_decimal(row, "points_multiplier"),
+        status: row.try_get("status").unwrap_or_default(),
+        enrolled_date: row
+            .try_get("enrolled_date")
+            .unwrap_or_else(|_| NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
+    }
+}
+
+// =============================================================================
 // Rewards mapper
 // =============================================================================
 
