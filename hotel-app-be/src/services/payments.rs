@@ -276,23 +276,32 @@ pub async fn delete_payment(pool: &DbPool, payment_id: i64) -> Result<serde_json
     }))
 }
 
-pub async fn ensure_invoice_for_booking(
-    pool: &DbPool,
+/// Ensure a checkout invoice row exists for a booking, transaction-scoped.
+///
+/// Idempotent: returns the existing invoice number if one is already linked
+/// (via the `invoices` table or a prior `customer_ledgers` posting), otherwise
+/// allocates the next number and inserts the invoice row. Every read and the
+/// insert run on the caller's transaction so the checkout invoice commits
+/// atomically with the company ledger posting.
+pub async fn ensure_invoice_for_booking_tx(
+    tx: &mut crate::core::db::DbTransaction<'_>,
     booking_id: i64,
     user_id: i64,
 ) -> Result<String, ApiError> {
     if let Some(invoice_number) =
-        PaymentRepository::existing_invoice_number(pool, booking_id).await?
+        PaymentRepository::existing_invoice_number(&mut **tx, booking_id).await?
     {
         return Ok(invoice_number);
     }
 
-    let invoice_number = match PaymentRepository::ledger_invoice_number(pool, booking_id).await? {
-        Some(number) => number,
-        None => crate::services::invoice_numbers::next_invoice_number(pool).await?,
-    };
+    let invoice_number =
+        match PaymentRepository::ledger_invoice_number(&mut **tx, booking_id).await? {
+            Some(number) => number,
+            None => crate::services::invoice_numbers::next_invoice_number(&mut **tx).await?,
+        };
 
-    PaymentRepository::insert_checkout_invoice(pool, booking_id, user_id, &invoice_number).await?;
+    PaymentRepository::insert_checkout_invoice(&mut **tx, booking_id, user_id, &invoice_number)
+        .await?;
 
     Ok(invoice_number)
 }

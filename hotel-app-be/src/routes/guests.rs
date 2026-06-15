@@ -28,8 +28,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/guests/link", post(link_guest))
         .route("/guests/unlink/{guest_id}", delete(unlink_guest))
         .route("/guests/upgrade", post(upgrade_guest))
+        .route("/guests/{id}", get(get_guest))
         .route("/guests/{id}", patch(update_guest))
         .route("/guests/{id}", delete(delete_guest))
+        .route("/guests/{id}/profile", get(get_guest_profile))
         .route("/guests/{id}/bookings", get(get_guest_bookings))
         .route("/guests/{id}/credits", get(get_guest_credits))
 }
@@ -50,6 +52,24 @@ async fn create_guest(
 ) -> Result<Json<models::Guest>, ApiError> {
     let user_id = require_auth(&headers).await?;
     handlers::guests::create_guest_handler(State(pool), Extension(user_id), Json(input)).await
+}
+
+async fn get_guest(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::Guest>, ApiError> {
+    require_permission_helper(&pool, &headers, "guests:read").await?;
+    handlers::guests::get_guest_handler(State(pool), path).await
+}
+
+async fn get_guest_profile(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::GuestProfile>, ApiError> {
+    require_permission_helper(&pool, &headers, "guests:read").await?;
+    handlers::guests::get_guest_profile_handler(State(pool), path).await
 }
 
 async fn get_my_guests(

@@ -1,6 +1,6 @@
 import { HTTPError } from 'ky';
 import { api, APIError } from './client';
-import { Guest, GuestCreateRequest } from '../types';
+import { Guest, GuestCreateRequest, GuestProfile } from '../types';
 import { withRetry } from '../utils/retry';
 import { getPaginationState, toPaginationSearchParams } from '../utils/pagination';
 
@@ -74,6 +74,25 @@ export class GuestsService {
       () => api.get(`guests/${guestId}`).json<Guest>(),
       { maxAttempts: 3, initialDelay: 1000 }
     );
+  }
+
+  static async getGuestProfile(guestId: number | string): Promise<GuestProfile> {
+    try {
+      return await withRetry(
+        () => api.get(`guests/${guestId}/profile`).json<GuestProfile>(),
+        { maxAttempts: 3, initialDelay: 1000 }
+      );
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to fetch guest profile',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to fetch guest profile');
+    }
   }
 
   static async createGuest(guestData: GuestCreateRequest): Promise<Guest> {

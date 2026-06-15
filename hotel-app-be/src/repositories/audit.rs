@@ -7,6 +7,13 @@ use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::{AuditLogQuery, AuditLogRow, AuditResourceTypeCount, AuditUserOption};
 
+#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+type AuditQueryAs<'q, O> = sqlx::query::QueryAs<'q, sqlx::Postgres, O, sqlx::postgres::PgArguments>;
+
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+type AuditQueryAs<'q, O> =
+    sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'q>>;
+
 pub struct AuditRepository;
 
 impl AuditRepository {
@@ -159,7 +166,16 @@ impl AuditRepository {
             count_sqlx = count_sqlx.bind(format!("%{}%", search));
         }
         if let Some(types) = category_types {
-            count_sqlx = count_sqlx.bind(types.clone());
+            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+            {
+                count_sqlx = count_sqlx.bind(types.clone());
+            }
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            {
+                for resource_type in types {
+                    count_sqlx = count_sqlx.bind(resource_type.clone());
+                }
+            }
         }
 
         let total = count_sqlx
@@ -345,9 +361,26 @@ fn build_log_where_clause(
         ));
         bind_index += 1;
     }
-    if category_types.is_some() {
-        where_clauses.push(format!("a.resource_type = ANY(${})", bind_index));
-        bind_index += 1;
+    if let Some(types) = category_types {
+        if types.is_empty() {
+            where_clauses.push("1 = 0".to_string());
+        } else {
+            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+            {
+                where_clauses.push(format!("a.resource_type = ANY(${})", bind_index));
+                bind_index += 1;
+            }
+
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            {
+                let placeholders = (0..types.len())
+                    .map(|index| format!("${}", bind_index + index as i32))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                where_clauses.push(format!("a.resource_type IN ({})", placeholders));
+                bind_index += types.len() as i32;
+            }
+        }
     }
 
     let where_clause = if where_clauses.is_empty() {
@@ -389,10 +422,10 @@ fn build_category_count_where_clause(params: &AuditLogQuery) -> (String, i32) {
 
 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 fn bind_log_filters<'q, O>(
-    mut query: sqlx::query::QueryAs<'q, sqlx::Postgres, O, sqlx::postgres::PgArguments>,
+    mut query: AuditQueryAs<'q, O>,
     params: &AuditLogQuery,
     category_types: Option<&Vec<String>>,
-) -> sqlx::query::QueryAs<'q, sqlx::Postgres, O, sqlx::postgres::PgArguments> {
+) -> AuditQueryAs<'q, O> {
     if let Some(user_id) = params.user_id {
         query = query.bind(user_id);
     }
@@ -412,7 +445,16 @@ fn bind_log_filters<'q, O>(
         query = query.bind(format!("%{}%", search));
     }
     if let Some(types) = category_types {
-        query = query.bind(types.clone());
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        {
+            query = query.bind(types.clone());
+        }
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        {
+            for resource_type in types {
+                query = query.bind(resource_type.clone());
+            }
+        }
     }
 
     query

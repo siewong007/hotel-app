@@ -138,15 +138,3 @@ pub async fn delete_payment_handler(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(payments::delete_payment(&pool, payment_id).await?))
 }
-
-/// Ensure an invoice row exists for the given booking. Idempotent.
-///
-/// Kept as a public compatibility wrapper because checkout currently calls
-/// this handler helper directly.
-pub async fn ensure_invoice_for_booking(
-    pool: &DbPool,
-    booking_id: i64,
-    user_id: i64,
-) -> Result<String, ApiError> {
-    payments::ensure_invoice_for_booking(pool, booking_id, user_id).await
-}

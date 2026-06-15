@@ -39,6 +39,51 @@ export interface Guest {
   last_stay_date?: string;
 }
 
+export interface GuestSummary {
+  completed_stays: number;
+  total_nights: number;
+  total_room_revenue: string | number;
+  last_stay_at?: string | null;
+  next_stay_at?: string | null;
+  outstanding_balance: string | number;
+  total_bookings: number;
+  active_booking_id?: number | null;
+  active_booking_number?: string | null;
+}
+
+export interface GuestProfileBooking {
+  id: number;
+  booking_number?: string | null;
+  check_in_date: string;
+  check_out_date: string;
+  nights: number;
+  status: string;
+  payment_status?: string | null;
+  total_amount: string | number;
+  total_paid: string | number;
+  balance_due: string | number;
+  created_at: string;
+  room_number: string;
+  room_type: string;
+  special_requests?: string | null;
+  source?: string | null;
+}
+
+export interface GuestDuplicateCandidate {
+  guest: Guest;
+  score: number;
+  match_reasons: string[];
+  blocking_reasons: string[];
+  recommended_action: 'do_not_merge' | 'high_confidence_review' | 'contact_match_review' | 'manual_review' | string;
+}
+
+export interface GuestProfile {
+  guest: Guest;
+  summary: GuestSummary;
+  reservations: GuestProfileBooking[];
+  duplicate_candidates: GuestDuplicateCandidate[];
+}
+
 export interface GuestCreateRequest {
   first_name: string;
   last_name: string;

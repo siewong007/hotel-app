@@ -77,7 +77,19 @@ pub async fn delete_booking_handler(
     Extension(user_id): Extension<i64>,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    booking_service::delete_booking_handler(State(pool), Extension(user_id), Path(booking_id)).await
+    Ok(Json(
+        booking_service::void_booking(&pool, user_id, booking_id, None).await?,
+    ))
+}
+
+pub async fn void_booking_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Json(input): Json<BookingCancellationRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    Ok(Json(
+        booking_service::void_booking(&pool, user_id, input.booking_id, input.reason).await?,
+    ))
 }
 
 pub async fn manual_checkin_handler(
@@ -86,13 +98,8 @@ pub async fn manual_checkin_handler(
     Path(booking_id): Path<i64>,
     Json(checkin_data): Json<Option<CheckInRequest>>,
 ) -> Result<Json<Booking>, ApiError> {
-    booking_service::manual_checkin_handler(
-        State(pool),
-        Extension(user_id),
-        Path(booking_id),
-        Json(checkin_data),
-    )
-    .await
+    let booking = booking_service::manual_checkin(&pool, user_id, booking_id, checkin_data).await?;
+    Ok(Json(booking))
 }
 
 pub async fn pre_checkin_update_handler(
@@ -214,6 +221,7 @@ pub async fn reactivate_booking_handler(
     Extension(user_id): Extension<i64>,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<Booking>, ApiError> {
-    booking_service::reactivate_booking_handler(State(pool), Extension(user_id), Path(booking_id))
-        .await
+    Ok(Json(
+        booking_service::reactivate_booking(&pool, user_id, booking_id).await?,
+    ))
 }

@@ -88,7 +88,7 @@ impl AuditLog {
             Utc::now(),
         )
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+        .map_err(ApiError::from)
     }
 
     /// Log a successful login attempt
@@ -243,7 +243,7 @@ impl AuditLog {
         .await
     }
 
-    /// Log booking cancellation with the legacy audit action name.
+    /// Log booking voiding with the legacy audit action name.
     pub async fn log_booking_cancelled(
         pool: &DbPool,
         user_id: i64,
