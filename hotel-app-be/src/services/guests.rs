@@ -43,6 +43,26 @@ pub async fn list_guests(
     })
 }
 
+pub async fn get_guest(pool: &DbPool, guest_id: i64) -> Result<Guest, ApiError> {
+    GuestRepository::find_by_id(pool, guest_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))
+}
+
+pub async fn guest_profile(pool: &DbPool, guest_id: i64) -> Result<GuestProfile, ApiError> {
+    let guest = get_guest(pool, guest_id).await?;
+    let summary = GuestRepository::guest_summary(pool, guest_id).await?;
+    let reservations = GuestRepository::guest_profile_bookings(pool, guest_id).await?;
+    let duplicate_candidates = duplicate_candidates(pool, &guest).await?;
+
+    Ok(GuestProfile {
+        guest,
+        summary,
+        reservations,
+        duplicate_candidates,
+    })
+}
+
 pub async fn create_guest(
     pool: &DbPool,
     user_id: i64,
@@ -402,4 +422,288 @@ pub async fn my_guests_with_credits(
 
 fn email_regex() -> Regex {
     Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap()
+}
+
+async fn duplicate_candidates(
+    pool: &DbPool,
+    guest: &Guest,
+) -> Result<Vec<GuestDuplicateCandidate>, ApiError> {
+    let normalized_email = guest
+        .email
+        .as_deref()
+        .map(normalize_email)
+        .filter(|value| !value.is_empty());
+    let phone_digits = guest
+        .phone
+        .as_deref()
+        .map(normalize_phone)
+        .filter(|value| !value.is_empty());
+    let identity_document = guest
+        .ic_number
+        .as_deref()
+        .map(normalize_identity_document)
+        .filter(|value| !value.is_empty());
+    let normalized_name = normalize_name(&guest.full_name);
+    let name_pattern = duplicate_name_pattern(&normalized_name);
+
+    let candidates = GuestRepository::duplicate_candidate_pool(
+        pool,
+        guest.id,
+        normalized_email.as_deref(),
+        phone_digits.as_deref(),
+        identity_document.as_deref(),
+        &guest.full_name,
+        &name_pattern,
+    )
+    .await?;
+
+    let mut scored: Vec<GuestDuplicateCandidate> = candidates
+        .into_iter()
+        .filter_map(|candidate| build_duplicate_candidate(guest, candidate))
+        .collect();
+
+    scored.sort_by(|left, right| {
+        right
+            .score
+            .cmp(&left.score)
+            .then_with(|| left.guest.full_name.cmp(&right.guest.full_name))
+    });
+    scored.truncate(10);
+
+    Ok(scored)
+}
+
+fn build_duplicate_candidate(target: &Guest, candidate: Guest) -> Option<GuestDuplicateCandidate> {
+    let mut score = 0;
+    let mut match_reasons = Vec::new();
+    let mut blocking_reasons = Vec::new();
+
+    let target_phone = target.phone.as_deref().map(normalize_phone);
+    let candidate_phone = candidate.phone.as_deref().map(normalize_phone);
+    if matches_nonempty(target_phone.as_deref(), candidate_phone.as_deref()) {
+        score += 60;
+        match_reasons.push("Same normalized phone".to_string());
+    }
+
+    let target_email = target.email.as_deref().map(normalize_email);
+    let candidate_email = candidate.email.as_deref().map(normalize_email);
+    if matches_nonempty(target_email.as_deref(), candidate_email.as_deref()) {
+        score += 60;
+        match_reasons.push("Same normalized email".to_string());
+    }
+
+    let target_identity = target.ic_number.as_deref().map(normalize_identity_document);
+    let candidate_identity = candidate
+        .ic_number
+        .as_deref()
+        .map(normalize_identity_document);
+    if matches_nonempty(target_identity.as_deref(), candidate_identity.as_deref()) {
+        score += 100;
+        match_reasons.push("Same identity document".to_string());
+    } else if target_identity
+        .as_deref()
+        .is_some_and(|value| !value.is_empty())
+        && candidate_identity
+            .as_deref()
+            .is_some_and(|value| !value.is_empty())
+    {
+        blocking_reasons.push("Conflicting identity document".to_string());
+    }
+
+    let target_name = normalize_name(&target.full_name);
+    let candidate_name = normalize_name(&candidate.full_name);
+    if !target_name.is_empty() && target_name == candidate_name {
+        score += 25;
+        match_reasons.push("Same full name".to_string());
+    } else if names_are_similar(&target_name, &candidate_name) {
+        score += 10;
+        match_reasons.push("Similar name".to_string());
+    }
+
+    if score < 25 {
+        return None;
+    }
+
+    let recommended_action = if !blocking_reasons.is_empty() {
+        "do_not_merge".to_string()
+    } else if score >= 100 {
+        "high_confidence_review".to_string()
+    } else if score >= 60 {
+        "contact_match_review".to_string()
+    } else {
+        "manual_review".to_string()
+    };
+
+    Some(GuestDuplicateCandidate {
+        guest: candidate,
+        score,
+        match_reasons,
+        blocking_reasons,
+        recommended_action,
+    })
+}
+
+fn normalize_email(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
+}
+
+fn normalize_phone(value: &str) -> String {
+    value.chars().filter(|ch| ch.is_ascii_digit()).collect()
+}
+
+fn normalize_identity_document(value: &str) -> String {
+    value
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
+        .flat_map(|ch| ch.to_lowercase())
+        .collect()
+}
+
+fn normalize_name(value: &str) -> String {
+    value
+        .split_whitespace()
+        .map(str::to_ascii_lowercase)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn duplicate_name_pattern(normalized_name: &str) -> String {
+    let seed = normalized_name
+        .split_whitespace()
+        .find(|part| part.len() >= 3)
+        .unwrap_or(normalized_name);
+
+    format!("%{}%", seed)
+}
+
+fn matches_nonempty(left: Option<&str>, right: Option<&str>) -> bool {
+    left.zip(right)
+        .is_some_and(|(left, right)| !left.is_empty() && left == right)
+}
+
+fn names_are_similar(left: &str, right: &str) -> bool {
+    if left.is_empty() || right.is_empty() || left == right {
+        return false;
+    }
+
+    let left_parts: Vec<&str> = left.split_whitespace().collect();
+    let right_parts: Vec<&str> = right.split_whitespace().collect();
+
+    match (
+        left_parts.first(),
+        left_parts.last(),
+        right_parts.first(),
+        right_parts.last(),
+    ) {
+        (Some(left_first), Some(left_last), Some(right_first), Some(right_last)) => {
+            left_last == right_last
+                && left_first
+                    .chars()
+                    .next()
+                    .zip(right_first.chars().next())
+                    .is_some_and(|(left_char, right_char)| left_char == right_char)
+        }
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::constants::GuestType;
+    use chrono::Utc;
+
+    fn guest(
+        id: i64,
+        full_name: &str,
+        email: Option<&str>,
+        phone: Option<&str>,
+        ic_number: Option<&str>,
+    ) -> Guest {
+        Guest {
+            id,
+            full_name: full_name.to_string(),
+            email: email.map(str::to_string),
+            phone: phone.map(str::to_string),
+            ic_number: ic_number.map(str::to_string),
+            nationality: None,
+            address_line1: None,
+            city: None,
+            state_province: None,
+            postal_code: None,
+            country: None,
+            title: None,
+            alt_phone: None,
+            is_active: true,
+            guest_type: GuestType::NonMember,
+            tourism_type: None,
+            discount_percentage: 0,
+            company_name: None,
+            complimentary_nights_credit: 0,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            bookings_count: None,
+            last_stay_date: None,
+        }
+    }
+
+    #[test]
+    fn duplicate_score_normalizes_email_phone_and_identity_document() {
+        let target = guest(
+            1,
+            "Davina Wong",
+            Some("DAVINA@EMAIL.COM"),
+            Some("+60 12-345 6789"),
+            Some("A-123"),
+        );
+        let candidate = guest(
+            2,
+            "Davina Wong",
+            Some("davina@email.com"),
+            Some("60123456789"),
+            Some("A123"),
+        );
+
+        let candidate = build_duplicate_candidate(&target, candidate).expect("candidate");
+
+        assert_eq!(candidate.score, 245);
+        assert_eq!(
+            candidate.match_reasons,
+            vec![
+                "Same normalized phone",
+                "Same normalized email",
+                "Same identity document",
+                "Same full name"
+            ]
+        );
+        assert_eq!(candidate.recommended_action, "high_confidence_review");
+    }
+
+    #[test]
+    fn similar_name_alone_is_not_enough_for_duplicate_review() {
+        let target = guest(1, "Davina Wong", None, None, None);
+        let candidate = guest(2, "D Wong", None, None, None);
+
+        assert!(build_duplicate_candidate(&target, candidate).is_none());
+    }
+
+    #[test]
+    fn conflicting_identity_document_blocks_merge_recommendation() {
+        let target = guest(
+            1,
+            "Davina Wong",
+            None,
+            Some("+60 12-345 6789"),
+            Some("A123"),
+        );
+        let candidate = guest(2, "Davina Wong", None, Some("60123456789"), Some("B999"));
+
+        let candidate = build_duplicate_candidate(&target, candidate).expect("candidate");
+
+        assert_eq!(candidate.recommended_action, "do_not_merge");
+        assert_eq!(
+            candidate.blocking_reasons,
+            vec!["Conflicting identity document"]
+        );
+    }
 }

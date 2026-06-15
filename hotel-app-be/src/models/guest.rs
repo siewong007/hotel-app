@@ -1,7 +1,8 @@
 //! Guest-related models
 
 use crate::constants::{GuestType, TourismType};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -38,6 +39,59 @@ pub struct Guest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[sqlx(default)]
     pub last_stay_date: Option<chrono::NaiveDate>,
+}
+
+/// Authoritative metrics for the Guest 360 profile view.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestSummary {
+    pub completed_stays: i64,
+    pub total_nights: i64,
+    pub total_room_revenue: Decimal,
+    pub last_stay_at: Option<NaiveDate>,
+    pub next_stay_at: Option<NaiveDate>,
+    pub outstanding_balance: Decimal,
+    pub total_bookings: i64,
+    pub active_booking_id: Option<i64>,
+    pub active_booking_number: Option<String>,
+}
+
+/// Reservation row shown on the Guest 360 profile.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestProfileBooking {
+    pub id: i64,
+    pub booking_number: Option<String>,
+    pub check_in_date: NaiveDate,
+    pub check_out_date: NaiveDate,
+    pub nights: i64,
+    pub status: String,
+    pub payment_status: Option<String>,
+    pub total_amount: Decimal,
+    pub total_paid: Decimal,
+    pub balance_due: Decimal,
+    pub created_at: DateTime<Utc>,
+    pub room_number: String,
+    pub room_type: String,
+    pub special_requests: Option<String>,
+    pub source: Option<String>,
+}
+
+/// Candidate duplicate profile with transparent scoring reasons.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestDuplicateCandidate {
+    pub guest: Guest,
+    pub score: i32,
+    pub match_reasons: Vec<String>,
+    pub blocking_reasons: Vec<String>,
+    pub recommended_action: String,
+}
+
+/// Guest 360 profile response assembled from source-of-truth records.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestProfile {
+    pub guest: Guest,
+    pub summary: GuestSummary,
+    pub reservations: Vec<GuestProfileBooking>,
+    pub duplicate_candidates: Vec<GuestDuplicateCandidate>,
 }
 
 /// Input for creating a guest
@@ -137,7 +191,7 @@ pub struct GuestBookingRow {
     pub check_out_date: chrono::NaiveDate,
     pub nights: Option<i32>,
     pub status: String,
-    pub total_amount: rust_decimal::Decimal,
+    pub total_amount: Decimal,
     pub created_at: DateTime<Utc>,
     pub room_number: String,
     pub room_type: String,
