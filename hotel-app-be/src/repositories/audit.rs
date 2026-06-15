@@ -420,6 +420,7 @@ fn build_category_count_where_clause(params: &AuditLogQuery) -> (String, i32) {
     (where_clause, bind_index)
 }
 
+#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 fn bind_log_filters<'q, O>(
     mut query: AuditQueryAs<'q, O>,
     params: &AuditLogQuery,
@@ -454,6 +455,43 @@ fn bind_log_filters<'q, O>(
                 query = query.bind(resource_type.clone());
             }
         }
+    }
+
+    query
+}
+
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+fn bind_log_filters<'q, O>(
+    mut query: sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'q>>,
+    params: &AuditLogQuery,
+    category_types: Option<&Vec<String>>,
+) -> sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'q>> {
+    if let Some(user_id) = params.user_id {
+        query = query.bind(user_id);
+    }
+    if let Some(ref action) = params.action {
+        query = query.bind(action.clone());
+    }
+    if let Some(ref resource_type) = params.resource_type {
+        query = query.bind(resource_type.clone());
+    }
+    if let Some(ref start_date) = params.start_date {
+        query = query.bind(start_date.clone());
+    }
+    if let Some(ref end_date) = params.end_date {
+        query = query.bind(end_date.clone());
+    }
+    if let Some(ref search) = params.search {
+        query = query.bind(format!("%{}%", search));
+    }
+    if category_types.is_some() {
+        let joined_types = category_types
+            .into_iter()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(",");
+        query = query.bind(joined_types);
     }
 
     query

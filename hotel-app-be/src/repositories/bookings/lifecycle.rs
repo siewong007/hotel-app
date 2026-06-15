@@ -1,9 +1,8 @@
-//! Booking repository compatibility layer
-//!
-//! Query-heavy booking workflows preserved behind the service/handler boundary.
+//! Booking lifecycle handlers (CRUD, check-in/out, status
+//! transitions) plus their shared private helpers.
 
 use crate::core::auth::AuthService;
-use crate::core::db::{DbPool, DbTransaction, decimal_to_db};
+use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::core::settings_cache;
@@ -12,6 +11,7 @@ use crate::repositories::booking::BookingRepository;
 use crate::repositories::bookings_queries::*;
 use crate::services::audit::AuditLog;
 use crate::services::booking as booking_svc;
+use crate::services::payments;
 use crate::utils::date::parse_date_flexible;
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
@@ -24,7 +24,7 @@ use chrono::{Duration, NaiveDate};
 use rust_decimal::Decimal;
 use sqlx::Row;
 
-pub async fn record_booking_history(
+async fn record_booking_history(
     pool: &DbPool,
     booking_id: i64,
     previous_status: Option<&str>,
@@ -78,7 +78,7 @@ pub async fn record_booking_history(
     }
 }
 
-pub async fn record_booking_history_tx(
+async fn record_booking_history_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
     previous_status: Option<&str>,
@@ -420,64 +420,7 @@ pub async fn get_booking_timeline_handler(
 /// Auto-create a `customer_ledgers` room-charge row for a company-billing
 /// booking on checkout. Idempotent: returns Ok(()) without inserting if a
 /// non-reversal `room_charge` row already exists for the booking.
-/// Post all checkout accounting for a booking inside a single transaction.
-///
-/// Ensures the checkout invoice exists and, for company-billed bookings, posts
-/// the city-ledger room charge. Both writes share one transaction so they
-/// commit atomically — a failure rolls back the invoice and the ledger row
-/// together, never leaving a half-posted checkout.
-async fn post_checkout_accounting(
-    pool: &DbPool,
-    booking: &Booking,
-    is_company_billed: bool,
-    check_in: NaiveDate,
-    check_out: NaiveDate,
-    user_id: i64,
-) -> Result<(), ApiError> {
-    let mut tx = pool
-        .begin()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Every checked-out booking gets an invoice number.
-    crate::services::payments::ensure_invoice_for_booking_tx(&mut tx, booking.id, user_id).await?;
-
-    // Company-billed bookings additionally post the receivable to the city ledger.
-    if is_company_billed && let Some(company_name) = booking.company_name.as_deref() {
-        auto_post_company_ledger(
-            &mut tx,
-            pool,
-            booking,
-            company_name,
-            check_in,
-            check_out,
-            user_id,
-        )
-        .await?;
-    }
-
-    tx.commit()
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(())
-}
-
-/// Post the company room-charge receivable to `customer_ledgers` for a
-/// checked-out, company-billed booking.
-///
-/// Runs inside the caller's transaction (`tx`) so the city-ledger row commits
-/// atomically with the rest of the checkout accounting. Idempotency is enforced
-/// structurally by the partial unique index
-/// `uq_customer_ledgers_booking_room_charge` rather than a racy pre-INSERT
-/// EXISTS check: the INSERT uses `ON CONFLICT DO NOTHING`, and when a row
-/// already exists we re-read it and warn if its amount diverges from the
-/// booking total (a sign the booking changed after posting).
-///
-/// `pool` is passed alongside `tx` only for cached config reads
-/// (`settings_cache`), which are read-only and need not join the transaction.
 async fn auto_post_company_ledger(
-    tx: &mut crate::core::db::DbTransaction<'_>,
     pool: &DbPool,
     booking: &Booking,
     company_name: &str,
@@ -486,6 +429,32 @@ async fn auto_post_company_ledger(
     user_id: i64,
 ) -> Result<(), ApiError> {
     let booking_id = booking.id;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM customer_ledgers \
+         WHERE booking_id = $1 AND post_type = 'room_charge' \
+         AND COALESCE(is_reversal, false) = false)",
+    )
+    .bind(booking_id)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(false);
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let exists: bool = sqlx::query_scalar::<_, i32>(
+        "SELECT EXISTS(SELECT 1 FROM customer_ledgers \
+         WHERE booking_id = ?1 AND post_type = 'room_charge' \
+         AND COALESCE(is_reversal, 0) = 0)",
+    )
+    .bind(booking_id)
+    .fetch_one(pool)
+    .await
+    .map(|v| v != 0)
+    .unwrap_or(false);
+
+    if exists {
+        return Ok(());
+    }
 
     let nights = std::cmp::max((check_out - check_in).num_days(), 1);
 
@@ -496,7 +465,7 @@ async fn auto_post_company_ledger(
          LEFT JOIN guests g ON b.guest_id = g.id WHERE b.id = $1",
     )
     .bind(booking_id)
-    .fetch_optional(&mut **tx)
+    .fetch_optional(pool)
     .await
     .ok()
     .flatten();
@@ -507,7 +476,7 @@ async fn auto_post_company_ledger(
          LEFT JOIN guests g ON b.guest_id = g.id WHERE b.id = ?1",
     )
     .bind(booking_id)
-    .fetch_optional(&mut **tx)
+    .fetch_optional(pool)
     .await
     .ok()
     .flatten();
@@ -531,7 +500,7 @@ async fn auto_post_company_ledger(
         "SELECT payment_terms_days FROM companies WHERE company_name = $1 LIMIT 1",
     )
     .bind(company_name)
-    .fetch_optional(&mut **tx)
+    .fetch_optional(pool)
     .await
     .ok()
     .flatten()
@@ -543,7 +512,7 @@ async fn auto_post_company_ledger(
         "SELECT payment_terms_days FROM companies WHERE company_name = ?1 LIMIT 1",
     )
     .bind(company_name)
-    .fetch_optional(&mut **tx)
+    .fetch_optional(pool)
     .await
     .ok()
     .flatten()
@@ -563,7 +532,7 @@ async fn auto_post_company_ledger(
          ORDER BY created_at LIMIT 1",
     )
     .bind(booking_id)
-    .fetch_optional(&mut **tx)
+    .fetch_optional(pool)
     .await
     .ok()
     .flatten();
@@ -574,25 +543,20 @@ async fn auto_post_company_ledger(
          ORDER BY created_at LIMIT 1",
     )
     .bind(booking_id)
-    .fetch_optional(&mut **tx)
+    .fetch_optional(pool)
     .await
     .ok()
     .flatten();
 
     let invoice_number = match existing_invoice {
         Some(n) => Some(n),
-        None => crate::services::invoice_numbers::next_invoice_number(&mut **tx)
+        None => crate::services::invoice_numbers::next_invoice_number(pool)
             .await
             .ok(),
     };
 
-    // Insert the room-charge row. `ON CONFLICT DO NOTHING` against the partial
-    // unique index `uq_customer_ledgers_booking_room_charge` makes this safe
-    // under concurrent checkouts: at most one non-reversal room_charge row can
-    // exist per booking, and the loser of a race simply inserts nothing.
-    // `RETURNING id` lets us distinguish "inserted" from "already existed".
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let inserted_id: Option<i64> = sqlx::query_scalar(
+    sqlx::query(
         r#"
         INSERT INTO customer_ledgers (
             company_name, description, expense_type, amount,
@@ -608,8 +572,6 @@ async fn auto_post_company_ledger(
                 'city_ledger', 'debit',
                 $7, $7, $7,
                 $8)
-        ON CONFLICT DO NOTHING
-        RETURNING id
         "#,
     )
     .bind(company_name)
@@ -620,12 +582,12 @@ async fn auto_post_company_ledger(
     .bind(&room_number)
     .bind(user_id)
     .bind(&invoice_number)
-    .fetch_optional(&mut **tx)
+    .execute(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let inserted_id: Option<i64> = sqlx::query_scalar(
+    sqlx::query(
         r#"
         INSERT INTO customer_ledgers (
             company_name, description, expense_type, amount,
@@ -641,8 +603,6 @@ async fn auto_post_company_ledger(
                 'city_ledger', 'debit',
                 ?7, ?7, ?7,
                 ?8)
-        ON CONFLICT DO NOTHING
-        RETURNING id
         "#,
     )
     .bind(company_name)
@@ -653,82 +613,17 @@ async fn auto_post_company_ledger(
     .bind(&room_number)
     .bind(user_id)
     .bind(&invoice_number)
-    .fetch_optional(&mut **tx)
+    .execute(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    if inserted_id.is_some() {
-        log::info!(
-            "Auto-posted company ledger for booking {} ({}, amount {})",
-            booking_id,
-            company_name,
-            booking.total_amount
-        );
-    } else {
-        // A non-reversal room_charge row already existed: this is the idempotent
-        // path (retry or concurrent checkout). Re-read it and warn if the stored
-        // amount no longer matches the booking total, since that points at a
-        // posting that needs reconciliation rather than a silent mismatch.
-        verify_existing_room_charge_amount(tx, booking_id, booking.total_amount).await;
-    }
-
+    log::info!(
+        "Auto-posted company ledger for booking {} ({}, amount {})",
+        booking_id,
+        company_name,
+        booking.total_amount
+    );
     Ok(())
-}
-
-/// Re-read the existing non-reversal room_charge ledger row for a booking and
-/// log a warning if its amount diverges from `expected`. Best-effort: any read
-/// error is logged and ignored so it never aborts the surrounding checkout tx.
-async fn verify_existing_room_charge_amount(
-    tx: &mut crate::core::db::DbTransaction<'_>,
-    booking_id: i64,
-    expected: Decimal,
-) {
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let existing: Result<Option<Decimal>, _> = sqlx::query_scalar(
-        "SELECT amount FROM customer_ledgers \
-         WHERE booking_id = $1 AND post_type = 'room_charge' \
-         AND COALESCE(is_reversal, false) = false ORDER BY id LIMIT 1",
-    )
-    .bind(booking_id)
-    .fetch_optional(&mut **tx)
-    .await;
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let existing: Result<Option<Decimal>, _> = {
-        let raw: Result<Option<String>, _> = sqlx::query_scalar(
-            "SELECT amount FROM customer_ledgers \
-             WHERE booking_id = ?1 AND post_type = 'room_charge' \
-             ORDER BY id LIMIT 1",
-        )
-        .bind(booking_id)
-        .fetch_optional(&mut **tx)
-        .await;
-        raw.map(|opt| opt.and_then(|s| s.parse::<Decimal>().ok()))
-    };
-
-    match existing {
-        Ok(Some(amount)) if amount != expected => {
-            log::warn!(
-                "Company ledger for booking {} already posted with amount {} \
-                 but booking total is now {}; row left unchanged (reconcile manually)",
-                booking_id,
-                amount,
-                expected
-            );
-        }
-        Ok(_) => {
-            log::info!(
-                "Company ledger for booking {} already posted; skipping duplicate",
-                booking_id
-            );
-        }
-        Err(e) => {
-            log::warn!(
-                "Could not verify existing company ledger amount for booking {}: {}",
-                booking_id,
-                e
-            );
-        }
-    }
 }
 
 pub async fn get_bookings_handler(
@@ -1011,7 +906,6 @@ pub async fn create_booking_handler(
         ));
     }
 
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let (is_tourist, tourism_tax_amount) =
         canonical_tourism_tax_for_guest(&pool, input.guest_id, check_in, check_out).await?;
 
@@ -1221,7 +1115,7 @@ pub async fn create_booking_handler(
                 "#,
             )
             .bind(booking.id)
-            .bind(decimal_to_db(payment_amount))
+            .bind(payment_amount)
             .bind(payment_method_str)
             .bind(user_id)
             .execute(&mut *tx)
@@ -1362,6 +1256,16 @@ pub async fn update_booking_handler(
         .as_ref()
         .unwrap_or(&existing_booking.status)
         .clone();
+    if matches!(new_status.as_str(), "cancelled" | "comp_cancelled") {
+        return Err(ApiError::BadRequest(
+            "Use 'voided' for booking status or 'comp_void' for complimentary voids; 'cancelled' is no longer accepted.".to_string(),
+        ));
+    }
+    if input.payment_status.as_deref() == Some("cancelled") {
+        return Err(ApiError::BadRequest(
+            "Use 'void' for payment status; 'cancelled' is no longer accepted.".to_string(),
+        ));
+    }
 
     let check_in = if let Some(ref date_str) = input.check_in_date {
         parse_date_flexible(date_str).map_err(|_| {
@@ -1805,36 +1709,43 @@ pub async fn update_booking_handler(
                     Err(e) => log::error!("Failed to set room {} to dirty: {}", new_room_id, e),
                 }
 
-                // Post checkout accounting atomically: the checkout invoice and
-                // (for company-billed bookings) the city-ledger room charge
-                // commit together or not at all. Server-side posting ensures
-                // every checkout path (Bookings page, Rooms grid, future paths)
-                // behaves identically, and the company ledger posting is the
-                // sole authority — the frontend no longer creates ledger rows.
-                //
-                // Best-effort at the outer level: a transient accounting error
-                // is logged but must not fail the checkout response or leave the
-                // room stuck. Duplicate postings are impossible regardless,
-                // thanks to the partial unique index enforced inside the tx.
-                let is_company_billed = booking
-                    .company_name
-                    .as_deref()
-                    .map(|n| !n.trim().is_empty())
-                    .unwrap_or(false)
-                    && booking.total_amount > rust_decimal::Decimal::ZERO;
-
-                if let Err(e) = post_checkout_accounting(
-                    &pool,
-                    &booking,
-                    is_company_billed,
-                    check_in,
-                    check_out,
-                    user_id,
+                // Generate an invoice number for this checked-out booking. Best-effort:
+                // failure here must not block the checkout itself.
+                if let Err(e) = crate::handlers::payments::ensure_invoice_for_booking(
+                    &pool, booking_id, user_id,
                 )
                 .await
                 {
                     log::warn!(
-                        "Failed to post checkout accounting for booking {}: {}",
+                        "Failed to create invoice for checked-out booking {}: {}",
+                        booking_id,
+                        e
+                    );
+                }
+
+                // Auto-post company room charges to customer_ledgers on checkout.
+                //
+                // Why: when a booking with company billing transitions to
+                // checked_out, the receivable must land on the city ledger so
+                // it shows on the company's account. Doing this server-side
+                // ensures every checkout path (Bookings page, Rooms grid,
+                // future paths) gets the same behavior — prior to this only
+                // the Rooms-grid frontend handler created the row, so checkouts
+                // initiated from the Bookings page silently skipped it.
+                //
+                // Idempotent: skip if a non-reversal room_charge row already
+                // exists for this booking. Skip silently when company info is
+                // missing or total_amount is non-positive.
+                if let Some(co_name) = booking.company_name.as_deref()
+                    && !co_name.trim().is_empty()
+                    && booking.total_amount > rust_decimal::Decimal::ZERO
+                    && let Err(e) = auto_post_company_ledger(
+                        &pool, &booking, co_name, check_in, check_out, user_id,
+                    )
+                    .await
+                {
+                    log::warn!(
+                        "Failed to auto-post company ledger for booking {}: {}",
                         booking_id,
                         e
                     );
@@ -1984,7 +1895,7 @@ pub async fn update_booking_handler(
     .bind(modification_type)
     .bind(&old_value)
     .bind(&new_value)
-    .bind(decimal_to_db(price_adj))
+    .bind(price_adj)
     .bind(user_id)
     .execute(&pool)
     .await
@@ -1998,43 +1909,69 @@ pub async fn update_booking_handler(
     Ok(Json(booking))
 }
 
-pub async fn user_owns_booking(
-    pool: &DbPool,
-    user_id: i64,
-    guest_id: i64,
-) -> Result<bool, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let query =
-        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = ?1 AND ug.guest_id = ?2)";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let query =
-        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = $1 AND ug.guest_id = $2)";
+pub async fn delete_booking_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(booking_id): Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let booking_row = booking_svc::fetch_booking_by_id(&pool, booking_id).await?;
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let owns_booking = sqlx::query_scalar::<_, i32>(query)
-        .bind(user_id)
-        .bind(guest_id)
-        .fetch_one(pool)
+    let guest_id: i64 = booking_row.guest_id;
+    let room_id: i64 = booking_row.room_id;
+    let status: String = booking_row.status.clone();
+    let is_complimentary: Option<bool> = booking_row.is_complimentary;
+    let check_in_date: NaiveDate = booking_row.check_in_date;
+    let check_out_date: NaiveDate = booking_row.check_out_date;
+
+    let has_booking_delete = AuthService::check_permission(&pool, user_id, "bookings:delete")
         .await
-        .map(|value| value != 0)
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        .unwrap_or(false)
+        || AuthService::check_permission(&pool, user_id, "bookings:manage")
+            .await
+            .unwrap_or(false);
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let owns_booking: bool = sqlx::query_scalar::<_, i32>(
+        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = ?1 AND ug.guest_id = ?2)",
+    )
+    .bind(user_id)
+    .bind(guest_id)
+    .fetch_one(&pool)
+    .await
+    .map(|v| v != 0)
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let owns_booking = sqlx::query_scalar::<_, bool>(query)
-        .bind(user_id)
-        .bind(guest_id)
-        .fetch_one(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+    let owns_booking: bool = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = $1 AND ug.guest_id = $2)",
+    )
+    .bind(user_id)
+    .bind(guest_id)
+    .fetch_one(&pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(owns_booking)
-}
+    if !has_booking_delete && !owns_booking {
+        return Err(ApiError::Forbidden(
+            "You don't have permission to delete this booking".to_string(),
+        ));
+    }
 
-pub async fn void_booking_tx(
-    tx: &mut DbTransaction<'_>,
-    booking_id: i64,
-    user_id: i64,
-) -> Result<(), ApiError> {
+    if status == "voided" {
+        return Err(ApiError::BadRequest(
+            "Booking is already voided".to_string(),
+        ));
+    }
+
+    if matches!(status.as_str(), "checked_out" | "completed") {
+        return Err(ApiError::BadRequest(format!(
+            "Cannot void booking with status: {}",
+            status
+        )));
+    }
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let update_booking_query = r#"
         UPDATE bookings
@@ -2061,7 +1998,7 @@ pub async fn void_booking_tx(
     let result = sqlx::query(update_booking_query)
         .bind(booking_id)
         .bind(user_id)
-        .execute(&mut **tx)
+        .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2069,10 +2006,6 @@ pub async fn void_booking_tx(
         return Err(ApiError::BadRequest("Booking cannot be voided".to_string()));
     }
 
-    Ok(())
-}
-
-pub async fn release_room_tx(tx: &mut DbTransaction<'_>, room_id: i64) -> Result<(), ApiError> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let update_room_query = "UPDATE rooms SET status = 'available' WHERE id = ?1";
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
@@ -2080,17 +2013,10 @@ pub async fn release_room_tx(tx: &mut DbTransaction<'_>, room_id: i64) -> Result
 
     sqlx::query(update_room_query)
         .bind(room_id)
-        .execute(&mut **tx)
+        .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(())
-}
-
-pub async fn void_booking_payments_tx(
-    tx: &mut DbTransaction<'_>,
-    booking_id: i64,
-) -> Result<(), ApiError> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let void_payments_query =
         "UPDATE payments SET status = 'void' WHERE booking_id = ?1 AND status != 'void'";
@@ -2100,22 +2026,16 @@ pub async fn void_booking_payments_tx(
 
     sqlx::query(void_payments_query)
         .bind(booking_id)
-        .execute(&mut **tx)
+        .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(())
-}
+    payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
 
-pub async fn restore_complimentary_credits_tx(
-    tx: &mut DbTransaction<'_>,
-    booking: &Booking,
-) -> Result<i32, ApiError> {
+    // If the booking was complimentary, convert the nights to room-type specific credits.
     let mut nights_credited = 0;
-    if booking.is_complimentary == Some(true) {
-        let nights = (booking.check_out_date - booking.check_in_date)
-            .num_days()
-            .max(0) as i32;
+    if is_complimentary == Some(true) {
+        let nights = (check_out_date - check_in_date).num_days().max(0) as i32;
 
         #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
         let room_type_query = "SELECT room_type_id FROM rooms WHERE id = ?1";
@@ -2123,13 +2043,13 @@ pub async fn restore_complimentary_credits_tx(
         let room_type_query = "SELECT room_type_id FROM rooms WHERE id = $1";
 
         let room_type_id: Option<i64> = sqlx::query_scalar(room_type_query)
-            .bind(booking.room_id)
-            .fetch_optional(&mut **tx)
+            .bind(room_id)
+            .fetch_optional(&mut *tx)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?
             .flatten();
 
-        if let Some(room_type_id) = room_type_id {
+        if let Some(rt_id) = room_type_id {
             #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
             let credit_query = r#"
                 INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
@@ -2148,39 +2068,47 @@ pub async fn restore_complimentary_credits_tx(
             "#;
 
             sqlx::query(credit_query)
-                .bind(booking.guest_id)
-                .bind(room_type_id)
+                .bind(guest_id)
+                .bind(rt_id)
                 .bind(nights)
-                .execute(&mut **tx)
+                .execute(&mut *tx)
                 .await
                 .map_err(|e| ApiError::Database(e.to_string()))?;
-
             nights_credited = nights;
         }
     }
 
-    Ok(nights_credited)
-}
+    AuditLog::log_booking_voided_tx(&mut tx, user_id, booking_id).await?;
+    record_booking_history_tx(
+        &mut tx,
+        booking_id,
+        Some(&status),
+        "voided",
+        Some(user_id),
+        Some("Booking voided"),
+        serde_json::json!({
+            "room_id": room_id,
+            "guest_id": guest_id,
+            "check_in_date": check_in_date.to_string(),
+            "check_out_date": check_out_date.to_string(),
+        }),
+    )
+    .await?;
 
-pub async fn record_booking_void_modification_tx(
-    tx: &mut DbTransaction<'_>,
-    booking: &Booking,
-    user_id: i64,
-) -> Result<(), ApiError> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     sqlx::query(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES (?1, ?2, ?3, ?4, ?5)"
     )
-    .bind(booking.id)
+    .bind(booking_id)
     .bind("voided")
     .bind(serde_json::json!({
-        "status": &booking.status,
-        "check_in_date": booking.check_in_date.to_string(),
-        "check_out_date": booking.check_out_date.to_string()
+        "status": &status,
+        "check_in_date": check_in_date.to_string(),
+        "check_out_date": check_out_date.to_string()
     }).to_string())
     .bind(serde_json::json!({"status": "voided"}).to_string())
     .bind(user_id)
-    .execute(&mut **tx)
+    .execute(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2188,350 +2116,325 @@ pub async fn record_booking_void_modification_tx(
     sqlx::query(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
     )
-    .bind(booking.id)
+    .bind(booking_id)
     .bind("voided")
     .bind(serde_json::json!({
-        "status": &booking.status,
-        "check_in_date": booking.check_in_date.to_string(),
-        "check_out_date": booking.check_out_date.to_string()
+        "status": &status,
+        "check_in_date": check_in_date.to_string(),
+        "check_out_date": check_out_date.to_string()
     }))
     .bind(serde_json::json!({"status": "voided"}))
     .bind(user_id)
-    .execute(&mut **tx)
+    .execute(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(())
+    tx.commit().await.map_err(ApiError::from)?;
+
+    Ok(Json(serde_json::json!({
+        "message": "Booking voided successfully",
+        "booking_id": booking_id,
+        "complimentary_nights_credited": nights_credited
+    })))
 }
 
-// ---------------------------------------------------------------------------
-// Manual check-in: transaction-scoped helpers
-//
-// Each helper runs on the caller's transaction so the whole check-in commits
-// atomically (see `services::bookings::manual_checkin`). The core transition
-// (`checkin_booking_tx`) is guarded by `status IN ('confirmed','pending')` and
-// requires exactly one affected row, so a concurrent check-in cannot win twice.
-// ---------------------------------------------------------------------------
+pub async fn manual_checkin_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(booking_id): Path<i64>,
+    Json(checkin_data): Json<Option<CheckInRequest>>,
+) -> Result<Json<Booking>, ApiError> {
+    let booking = booking_svc::fetch_booking_by_id(&pool, booking_id).await?;
 
-/// Read a room's current status on the check-in transaction (used to block
-/// check-in into a room under maintenance / out of order).
-pub async fn fetch_room_status_tx(
-    tx: &mut DbTransaction<'_>,
-    room_id: i64,
-) -> Result<Option<String>, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let query = "SELECT status FROM rooms WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let query = "SELECT status FROM rooms WHERE id = $1";
-
-    sqlx::query_scalar(query)
-        .bind(room_id)
-        .fetch_optional(&mut **tx)
+    let has_checkin_permission = AuthService::check_permission(&pool, user_id, "bookings:update")
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
-}
+        .unwrap_or(false)
+        || AuthService::check_permission(&pool, user_id, "bookings:manage")
+            .await
+            .unwrap_or(false);
 
-/// Apply optional guest-profile edits supplied at check-in. PostgreSQL-flavoured
-/// dynamic update (the column set is variable). No-op when nothing changes.
-pub async fn apply_guest_update_tx(
-    tx: &mut DbTransaction<'_>,
-    guest_id: i64,
-    guest_update: &GuestUpdateInput,
-) -> Result<(), ApiError> {
-    let mut updates = vec!["updated_at = CURRENT_TIMESTAMP".to_string()];
-    let mut params: Vec<String> = vec![];
+    let created_booking = booking.created_by == Some(user_id);
 
-    if let Some(ref v) = guest_update.first_name {
-        updates.push(format!("first_name = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-    if let Some(ref v) = guest_update.last_name {
-        updates.push(format!("last_name = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-    if let Some(ref v) = guest_update.email {
-        let trimmed = v.trim();
-        if trimmed.is_empty() {
-            updates.push("email = NULL".to_string());
-        } else {
-            let email_regex =
-                regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
-            if email_regex.is_match(trimmed) {
-                updates.push(format!("email = ${}", params.len() + 1));
-                params.push(trimmed.to_string());
-            }
-            // POLICY: an optional, malformed email on the check-in guest patch is
-            // intentionally ignored (the rest of the check-in still proceeds) — a
-            // front-desk typo must not block a guest's arrival. This is distinct
-            // from required-field validation, which rejects up front. An empty
-            // string clears the email to NULL; a well-formed value updates it.
-        }
-    }
-    if let Some(ref v) = guest_update.phone {
-        updates.push(format!("phone = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-    if let Some(ref v) = guest_update.ic_number {
-        updates.push(format!("ic_number = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-    if let Some(ref v) = guest_update.nationality {
-        updates.push(format!("nationality = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-    if let Some(ref v) = guest_update.address_line1 {
-        updates.push(format!("address_line1 = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-    if let Some(ref v) = guest_update.city {
-        updates.push(format!("city = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-    if let Some(ref v) = guest_update.state_province {
-        updates.push(format!("state_province = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-    if let Some(ref v) = guest_update.postal_code {
-        updates.push(format!("postal_code = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-    if let Some(ref v) = guest_update.country {
-        updates.push(format!("country = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-
-    // Only the timestamp bump means no real field change was requested.
-    if params.is_empty() {
-        return Ok(());
-    }
-
-    let query = format!(
-        "UPDATE guests SET {} WHERE id = ${}",
-        updates.join(", "),
-        params.len() + 1
-    );
-    let mut q = sqlx::query(&query);
-    for p in &params {
-        q = q.bind(p);
-    }
-    q = q.bind(guest_id);
-    q.execute(&mut **tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(())
-}
-
-/// Apply optional booking-level edits supplied at check-in (market code,
-/// payment method, requests, remarks, company). PostgreSQL-flavoured dynamic
-/// update. No-op when nothing changes.
-pub async fn apply_booking_field_update_tx(
-    tx: &mut DbTransaction<'_>,
-    booking_id: i64,
-    booking_update: &BookingUpdateInput,
-) -> Result<(), ApiError> {
-    let mut updates: Vec<String> = vec![];
-    let mut params: Vec<String> = vec![];
-
-    if let Some(ref v) = booking_update.market_code {
-        updates.push(format!("market_code = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-    // Note: rate_code column does not exist in bookings table - skip it.
-    if let Some(ref v) = booking_update.payment_method {
-        updates.push(format!("payment_method = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-    if let Some(ref v) = booking_update.special_requests {
-        updates.push(format!("special_requests = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-    if let Some(ref v) = booking_update.remarks {
-        updates.push(format!("remarks = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-    if let Some(ref v) = booking_update.company_name {
-        updates.push(format!("company_name = ${}", params.len() + 1));
-        params.push(v.clone());
-    }
-
-    if params.is_empty() {
-        return Ok(());
-    }
-
-    let query = format!(
-        "UPDATE bookings SET {} WHERE id = ${}",
-        updates.join(", "),
-        params.len() + 1
-    );
-    let mut q = sqlx::query(&query);
-    for p in &params {
-        q = q.bind(p);
-    }
-    q = q.bind(booking_id);
-    q.execute(&mut **tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(())
-}
-
-/// Atomically transition a booking to `checked_in`, stamping the actual
-/// check-in timestamp. Guarded by `status IN ('confirmed','pending')` and
-/// requires exactly one affected row, so a concurrent check-in (or any other
-/// transition that already moved the row) collapses to a clean `BadRequest`
-/// instead of a double check-in. Returns the refreshed booking row.
-pub async fn checkin_booking_tx(
-    tx: &mut DbTransaction<'_>,
-    booking_id: i64,
-) -> Result<Booking, ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let update_query = r#"
-        UPDATE bookings
-        SET status = 'checked_in',
-            actual_check_in = datetime('now'),
-            updated_at = datetime('now')
-        WHERE id = ?1
-          AND status IN ('confirmed', 'pending')
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let update_query = r#"
-        UPDATE bookings
-        SET status = 'checked_in',
-            actual_check_in = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1
-          AND status IN ('confirmed', 'pending')
-    "#;
-
-    let result = sqlx::query(update_query)
-        .bind(booking_id)
-        .execute(&mut **tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if result.rows_affected() != 1 {
-        return Err(ApiError::BadRequest(
-            "Booking cannot be checked in".to_string(),
+    if !has_checkin_permission && !created_booking {
+        return Err(ApiError::Unauthorized(
+            "You don't have permission to check in this booking".to_string(),
         ));
     }
 
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let select_query = "SELECT * FROM bookings WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let select_query = "SELECT * FROM bookings WHERE id = $1";
+    if booking.status != "confirmed" && booking.status != "pending" {
+        return Err(ApiError::BadRequest(format!(
+            "Cannot check in booking with status: {}",
+            booking.status
+        )));
+    }
 
-    let row = sqlx::query(select_query)
-        .bind(booking_id)
-        .fetch_one(&mut **tx)
+    // Check if room is ready for check-in (only block maintenance/out_of_order)
+    // Note: Dirty/cleaning rooms are allowed for check-in - room will be set to occupied
+    let room_status: Option<String> = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
+        .bind(booking.room_id)
+        .fetch_optional(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(row_mappers::row_to_booking(&row))
-}
+    if let Some(status) = room_status
+        && (status == "maintenance" || status == "out_of_order")
+    {
+        return Err(ApiError::BadRequest(format!(
+            "Cannot check in - room is currently under {}.",
+            status.replace("_", " ")
+        )));
+    }
 
-/// Record an optional payment captured during check-in.
-pub async fn record_checkin_payment_tx(
-    tx: &mut DbTransaction<'_>,
-    booking_id: i64,
-    payment: &CheckInPaymentRecord,
-    user_id: i64,
-) -> Result<(), ApiError> {
-    let pay_amount = Decimal::from_f64_retain(payment.amount).unwrap_or(Decimal::ZERO);
-    let pay_type = payment.payment_type.as_deref().unwrap_or("booking");
+    if let Some(ref checkin) = checkin_data
+        && let Some(ref guest_update) = checkin.guest_update
+    {
+        let mut updates = vec!["updated_at = CURRENT_TIMESTAMP".to_string()];
+        let mut params: Vec<String> = vec![];
 
-    // The two schemas diverge: PostgreSQL keys payments by `uuid` + `created_by`
-    // and stores free text in `notes`; SQLite uses `payment_number` + `processed_by`
-    // and `description`. The bind order is identical — only the column list differs.
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let insert_query = r#"
-        INSERT INTO payments (payment_number, booking_id, amount, payment_method, payment_type, status, description, processed_by)
-        VALUES (?1, ?2, ?3, ?4, ?5, 'completed', ?6, ?7)
-    "#;
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let insert_query = r#"
-        INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
-        VALUES ($1, $2, $3, $4, $5, 'completed', $6, $7)
-    "#;
+        if let Some(ref v) = guest_update.first_name {
+            updates.push(format!("first_name = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
+        if let Some(ref v) = guest_update.last_name {
+            updates.push(format!("last_name = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
+        if let Some(ref v) = guest_update.email {
+            let trimmed = v.trim();
+            if trimmed.is_empty() {
+                // Set to NULL for empty email
+                updates.push("email = NULL".to_string());
+            } else {
+                // Validate email format before updating
+                let email_regex =
+                    regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+                if email_regex.is_match(trimmed) {
+                    updates.push(format!("email = ${}", params.len() + 1));
+                    params.push(trimmed.to_string());
+                }
+                // Invalid email format - skip the update silently
+            }
+        }
+        if let Some(ref v) = guest_update.phone {
+            updates.push(format!("phone = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
+        if let Some(ref v) = guest_update.ic_number {
+            updates.push(format!("ic_number = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
+        if let Some(ref v) = guest_update.nationality {
+            updates.push(format!("nationality = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
+        if let Some(ref v) = guest_update.address_line1 {
+            updates.push(format!("address_line1 = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
+        if let Some(ref v) = guest_update.city {
+            updates.push(format!("city = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
+        if let Some(ref v) = guest_update.state_province {
+            updates.push(format!("state_province = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
+        if let Some(ref v) = guest_update.postal_code {
+            updates.push(format!("postal_code = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
+        if let Some(ref v) = guest_update.country {
+            updates.push(format!("country = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
 
-    sqlx::query(insert_query)
-        .bind(crate::core::db::generate_uuid())
-        .bind(booking_id)
-        .bind(decimal_to_db(pay_amount))
-        .bind(&payment.payment_method)
-        .bind(pay_type)
-        .bind(&payment.notes)
-        .bind(user_id)
-        .execute(&mut **tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        if !params.is_empty() {
+            let query = format!(
+                "UPDATE guests SET {} WHERE id = ${}",
+                updates.join(", "),
+                params.len() + 1
+            );
+            let mut q = sqlx::query(&query);
+            for p in &params {
+                q = q.bind(p);
+            }
+            q = q.bind(booking.guest_id);
+            if let Err(e) = q.execute(&pool).await {
+                log::warn!(
+                    "Failed to update guest {} during check-in: {}",
+                    booking.guest_id,
+                    e
+                );
+            }
+        }
+    }
 
-    Ok(())
-}
+    // Apply booking_update fields if provided (market_code, payment_method, special_requests, etc.)
+    if let Some(ref checkin) = checkin_data
+        && let Some(ref booking_update) = checkin.booking_update
+    {
+        let mut updates = vec![];
+        let mut params: Vec<String> = vec![];
 
-/// Set the room to `occupied` as part of check-in.
-pub async fn set_room_occupied_tx(
-    tx: &mut DbTransaction<'_>,
-    room_id: i64,
-) -> Result<(), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let query = "UPDATE rooms SET status = 'occupied' WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let query = "UPDATE rooms SET status = 'occupied' WHERE id = $1";
+        if let Some(ref v) = booking_update.market_code {
+            updates.push(format!("market_code = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
+        // Note: rate_code column does not exist in bookings table - skip it
+        if let Some(ref v) = booking_update.payment_method {
+            updates.push(format!("payment_method = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
+        if let Some(ref v) = booking_update.special_requests {
+            updates.push(format!("special_requests = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
+        if let Some(ref v) = booking_update.remarks {
+            updates.push(format!("remarks = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
+        if let Some(ref v) = booking_update.company_name {
+            updates.push(format!("company_name = ${}", params.len() + 1));
+            params.push(v.clone());
+        }
 
-    sqlx::query(query)
-        .bind(room_id)
-        .execute(&mut **tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+        if !params.is_empty() {
+            let query = format!(
+                "UPDATE bookings SET {} WHERE id = ${}",
+                updates.join(", "),
+                params.len() + 1
+            );
+            let mut q = sqlx::query(&query);
+            for p in &params {
+                q = q.bind(p);
+            }
+            q = q.bind(booking_id);
+            if let Err(e) = q.execute(&pool).await {
+                log::warn!(
+                    "Failed to update booking {} fields during check-in: {}",
+                    booking_id,
+                    e
+                );
+            }
+        }
+    }
 
-    Ok(())
-}
-
-/// Record the check-in in the `booking_modifications` audit trail.
-pub async fn record_checkin_modification_tx(
-    tx: &mut DbTransaction<'_>,
-    booking: &Booking,
-    user_id: i64,
-) -> Result<(), ApiError> {
-    let old_value = serde_json::json!({
-        "status": &booking.status,
-        "guest_id": booking.guest_id,
-        "room_id": booking.room_id,
-    });
-    let new_value = serde_json::json!({
-        "status": "checked_in",
-        "guest_id": booking.guest_id,
-        "room_id": booking.room_id,
-    });
-
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    sqlx::query(
-        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES (?1, ?2, ?3, ?4, ?5)"
+    let updated_booking: Booking = sqlx::query_as(
+        r#"
+        UPDATE bookings SET status = 'checked_in', actual_check_in = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1
+        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at
+        "#
     )
-    .bind(booking.id)
-    .bind("check_in")
-    .bind(old_value.to_string())
-    .bind(new_value.to_string())
-    .bind(user_id)
-    .execute(&mut **tx)
+    .bind(booking_id)
+    .fetch_one(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    // Record payment if provided during check-in
+    if let Some(ref checkin) = checkin_data
+        && let Some(ref payment) = checkin.payment_record
+        && payment.amount > 0.0
+    {
+        let pay_amount = Decimal::from_f64_retain(payment.amount).unwrap_or(Decimal::ZERO);
+        let pay_type = payment.payment_type.as_deref().unwrap_or("booking");
+        if let Err(e) = sqlx::query(
+                    r#"INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
+                       VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6)"#
+                )
+                .bind(booking_id)
+                .bind(pay_amount)
+                .bind(&payment.payment_method)
+                .bind(pay_type)
+                .bind(&payment.notes)
+                .bind(user_id)
+                .execute(&pool)
+                .await
+                {
+                    log::warn!("Failed to record check-in payment for booking {}: {}", booking_id, e);
+                } else {
+                    let _ = crate::handlers::payments::recompute_payment_status(
+                        &pool, booking_id,
+                    )
+                    .await;
+                }
+    }
+
+    // Only update room status for current/future bookings (skip back-dated)
+    let today = chrono::Local::now().date_naive();
+    if booking.check_out_date >= today
+        && let Err(e) = sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
+            .bind(booking.room_id)
+            .execute(&pool)
+            .await
+    {
+        log::warn!(
+            "Failed to update room {} to occupied during check-in: {}",
+            booking.room_id,
+            e
+        );
+    }
+
+    // Back-fill night audit postings for any past nights whose audit already closed.
+    // Covers same-day walk-ins created after their own 00:00 audit ran.
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    sqlx::query(
+    if let Err(e) =
+        crate::services::night_audit::backfill_booking_posted_nights(&pool, booking_id, user_id)
+            .await
+    {
+        log::warn!(
+            "Failed to backfill posted nights for booking {}: {}",
+            booking_id,
+            e
+        );
+    }
+
+    // Log check-in
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "booking_checkin",
+        "booking",
+        Some(booking_id),
+        Some(serde_json::json!({"guest_id": booking.guest_id, "room_id": booking.room_id})),
+        None,
+        None,
+    )
+    .await;
+    record_booking_history(
+        &pool,
+        booking_id,
+        Some(&booking.status),
+        "checked_in",
+        Some(user_id),
+        Some("Guest checked in"),
+        serde_json::json!({
+            "guest_id": booking.guest_id,
+            "room_id": booking.room_id,
+            "payment_recorded": checkin_data
+                .as_ref()
+                .and_then(|data| data.payment_record.as_ref())
+                .map(|p| p.amount)
+                .unwrap_or(0.0),
+        }),
+    )
+    .await;
+
+    // Record in booking_modifications audit trail
+    if let Err(e) = sqlx::query(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
     )
-    .bind(booking.id)
+    .bind(booking_id)
     .bind("check_in")
-    .bind(old_value)
-    .bind(new_value)
+    .bind(serde_json::json!({"status": &booking.status, "guest_id": booking.guest_id, "room_id": booking.room_id}))
+    .bind(serde_json::json!({"status": "checked_in", "guest_id": booking.guest_id, "room_id": booking.room_id}))
     .bind(user_id)
-    .execute(&mut **tx)
+    .execute(&pool)
     .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    {
+        log::warn!("Failed to record check-in audit trail for booking {}: {}", booking_id, e);
+    }
 
-    Ok(())
+    Ok(Json(updated_booking))
 }
 
 pub async fn pre_checkin_update_handler(
@@ -2617,1181 +2520,54 @@ pub async fn pre_checkin_update_handler(
     })))
 }
 
-pub async fn mark_complimentary_handler(
+/// Reactivate a voided booking
+/// Changes status from 'voided' to 'confirmed' and reserves the room
+pub async fn reactivate_booking_handler(
     State(pool): State<DbPool>,
-    Extension(_user_id): Extension<i64>,
+    Extension(user_id): Extension<i64>,
     Path(booking_id): Path<i64>,
-    Json(input): Json<MarkComplimentaryRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    // Check if booking exists and is in a valid state, get room and rate info
-    let booking_row = sqlx::query(
-        r#"
-        SELECT b.id, b.guest_id, b.status, b.is_complimentary, b.check_in_date, b.check_out_date,
-               b.room_rate, b.total_amount, b.subtotal, b.tax_amount,
-               r.room_type_id, rt.name as room_type_name
-        FROM bookings b
-        INNER JOIN rooms r ON b.room_id = r.id
-        INNER JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE b.id = $1
-        "#,
-    )
-    .bind(booking_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
-
-    let guest_id: i64 = booking_row.get(1);
-    let status: String = booking_row.get(2);
-    let is_already_complimentary: Option<bool> = booking_row.get(3);
-    let check_in: NaiveDate = booking_row.get(4);
-    let check_out: NaiveDate = booking_row.get(5);
-    let room_rate = row_mappers::get_decimal(&booking_row, "room_rate");
-    let original_total = row_mappers::get_decimal(&booking_row, "total_amount");
-    let _subtotal = row_mappers::get_decimal(&booking_row, "subtotal");
-    let tax_amount = row_mappers::get_opt_decimal(&booking_row, "tax_amount");
-    let room_type_id: i64 = booking_row.get(10);
-    let room_type_name: String = booking_row.get(11);
-
-    // Only allow marking as complimentary if booking is confirmed/pending (not checked in yet)
-    if status != "confirmed" && status != "pending" {
-        return Err(ApiError::BadRequest(format!(
-            "Cannot mark booking as complimentary with status: {}. Only confirmed or pending bookings can be marked.",
-            status
-        )));
-    }
-
-    if is_already_complimentary == Some(true) {
-        return Err(ApiError::BadRequest(
-            "Booking is already marked as complimentary".to_string(),
-        ));
-    }
-
-    // Parse and validate complimentary date range
-    let comp_start = NaiveDate::parse_from_str(&input.complimentary_start_date, "%Y-%m-%d")
-        .map_err(|_| {
-            ApiError::BadRequest(
-                "Invalid complimentary_start_date format. Use YYYY-MM-DD".to_string(),
-            )
-        })?;
-    let comp_end =
-        NaiveDate::parse_from_str(&input.complimentary_end_date, "%Y-%m-%d").map_err(|_| {
-            ApiError::BadRequest(
-                "Invalid complimentary_end_date format. Use YYYY-MM-DD".to_string(),
-            )
-        })?;
-
-    // Validate date range is within booking period
-    if comp_start < check_in || comp_end > check_out {
-        return Err(ApiError::BadRequest(format!(
-            "Complimentary dates must be within booking period ({} to {})",
-            check_in, check_out
-        )));
-    }
-    if comp_start >= comp_end {
-        return Err(ApiError::BadRequest(
-            "Complimentary end date must be after start date".to_string(),
-        ));
-    }
-
-    // Calculate nights
-    let total_nights = (check_out - check_in).num_days() as i32;
-    let complimentary_nights = (comp_end - comp_start).num_days() as i32;
-    let paid_nights = total_nights - complimentary_nights;
-
-    // Determine new status
-    let new_status = if complimentary_nights == total_nights {
-        "fully_complimentary"
-    } else {
-        "partial_complimentary"
-    };
-
-    // Calculate new pricing
-    let new_subtotal = room_rate * Decimal::from(paid_nights);
-    // Calculate tax proportionally (if there was tax before)
-    let tax_rate = if original_total > Decimal::ZERO && total_nights > 0 {
-        tax_amount.unwrap_or(Decimal::ZERO) / (room_rate * Decimal::from(total_nights))
-    } else {
-        Decimal::new(10, 2) // Default 10% if we can't calculate
-    };
-    let new_tax = new_subtotal * tax_rate;
-    let new_total = new_subtotal + new_tax;
-
-    // Determine payment status
-    let payment_status = if complimentary_nights == total_nights {
-        "paid" // Fully complimentary = nothing to pay
-    } else {
-        "partial" // Partial complimentary = partial payment needed
-    };
-
-    // Update booking with all new fields
-    sqlx::query(
-        r#"
-        UPDATE bookings
-        SET is_complimentary = true,
-            complimentary_reason = $1,
-            complimentary_start_date = $2,
-            complimentary_end_date = $3,
-            complimentary_nights = $4,
-            original_total_amount = total_amount,
-            subtotal = $5,
-            tax_amount = $6,
-            total_amount = $7,
-            status = $8,
-            payment_status = $9,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $10
-        "#,
-    )
-    .bind(&input.reason)
-    .bind(comp_start)
-    .bind(comp_end)
-    .bind(complimentary_nights)
-    .bind(decimal_to_db(new_subtotal))
-    .bind(decimal_to_db(new_tax))
-    .bind(decimal_to_db(new_total))
-    .bind(new_status)
-    .bind(payment_status)
-    .bind(booking_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Add room type specific credits to guest for the complimentary nights
-    let rows_affected = sqlx::query(
-        r#"
-        UPDATE guest_complimentary_credits
-        SET nights_available = nights_available + $1, updated_at = CURRENT_TIMESTAMP
-        WHERE guest_id = $2 AND room_type_id = $3
-        "#,
-    )
-    .bind(complimentary_nights)
-    .bind(guest_id)
-    .bind(room_type_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .rows_affected();
-
-    if rows_affected == 0 {
-        // No existing record, insert new one
-        sqlx::query(
-            r#"
-            INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, created_at, updated_at)
-            VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            "#
-        )
-        .bind(guest_id)
-        .bind(room_type_id)
-        .bind(complimentary_nights)
-        .execute(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-    }
-
-    // Record in booking_modifications audit trail
-    sqlx::query(
-        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, price_adjustment, modified_by) VALUES ($1, $2, $3, $4, $5, $6)"
-    )
-    .bind(booking_id)
-    .bind("mark_complimentary")
-    .bind(serde_json::json!({"status": &status, "total_amount": original_total.to_string(), "is_complimentary": false}))
-    .bind(serde_json::json!({"status": new_status, "total_amount": new_total.to_string(), "is_complimentary": true, "complimentary_nights": complimentary_nights, "reason": &input.reason}))
-    .bind(decimal_to_db(new_total - original_total))
-    .bind(_user_id)
-    .execute(&pool)
-    .await
-    .ok();
-
-    let status_display = new_status.replace("_", " ");
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "message": format!("Booking marked as {}.", status_display),
-        "booking_id": booking_id,
-        "status": new_status,
-        "total_nights": total_nights,
-        "complimentary_nights": complimentary_nights,
-        "paid_nights": paid_nights,
-        "complimentary_start_date": comp_start.to_string(),
-        "complimentary_end_date": comp_end.to_string(),
-        "original_total": original_total.to_string(),
-        "new_total": new_total.to_string(),
-        "payment_status": payment_status,
-        "nights_credited": complimentary_nights,
-        "room_type": room_type_name
-    })))
-}
-
-pub async fn convert_complimentary_to_credits_handler(
-    State(pool): State<DbPool>,
-    Extension(_user_id): Extension<i64>,
-    Path(booking_id): Path<i64>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    // Get booking details with room info
-    let booking_row = sqlx::query(
-        r#"
-        SELECT b.id, b.guest_id, b.room_id, b.status, b.is_complimentary, b.check_in_date, b.check_out_date,
-               r.room_type_id, rt.name as room_type_name
-        FROM bookings b
-        JOIN rooms r ON b.room_id = r.id
-        JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE b.id = $1
-        "#
-    )
-    .bind(booking_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
-
-    let guest_id: i64 = booking_row.get("guest_id");
-    let status: String = booking_row.get("status");
-    let is_complimentary: Option<bool> = booking_row.get("is_complimentary");
-    let check_in: NaiveDate = booking_row.get("check_in_date");
-    let check_out: NaiveDate = booking_row.get("check_out_date");
-    let room_type_id: i64 = booking_row.get("room_type_id");
-    let room_type_name: String = booking_row.get("room_type_name");
-
-    if is_complimentary != Some(true) {
-        return Err(ApiError::BadRequest(
-            "Only complimentary bookings can be converted to credits".to_string(),
-        ));
-    }
-
-    // Only allow conversion for voided bookings
-    if status != "voided" {
-        return Err(ApiError::BadRequest(format!(
-            "Can only convert complimentary bookings with status voided. Current status: {}",
-            status
-        )));
-    }
-
-    // Calculate number of nights
-    let nights = (check_out - check_in).num_days() as i32;
-
-    // Add to room-type specific credits
-    sqlx::query(
-        r#"
-        INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
-        VALUES ($1, $2, $3, 'Converted from voided complimentary booking', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT (guest_id, room_type_id)
-        DO UPDATE SET nights_available = guest_complimentary_credits.nights_available + $3, updated_at = CURRENT_TIMESTAMP
-        "#
-    )
-    .bind(guest_id)
-    .bind(room_type_id)
-    .bind(nights)
-    .execute(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "message": format!("{} complimentary night(s) converted to {} credits for guest", nights, room_type_name),
-        "nights_credited": nights,
-        "guest_id": guest_id,
-        "room_type": room_type_name
-    })))
-}
-
-/// Book a room using complimentary credits
-pub async fn book_with_credits_handler(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    Json(input): Json<BookWithCreditsRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let user_id = require_auth(&headers).await?;
-
-    // Verify user has access to this guest
-    let has_access: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM user_guests WHERE user_id = $1 AND guest_id = $2)",
-    )
-    .bind(user_id)
-    .bind(input.guest_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if !has_access {
-        return Err(ApiError::Unauthorized(
-            "You don't have access to this guest profile".to_string(),
-        ));
-    }
-
-    // Calculate total nights
-    let check_in = NaiveDate::parse_from_str(&input.check_in_date, "%Y-%m-%d")
-        .map_err(|_| ApiError::BadRequest("Invalid check-in date. Use YYYY-MM-DD".to_string()))?;
-    let check_out = NaiveDate::parse_from_str(&input.check_out_date, "%Y-%m-%d")
-        .map_err(|_| ApiError::BadRequest("Invalid check-out date. Use YYYY-MM-DD".to_string()))?;
-
-    let total_nights = (check_out - check_in).num_days() as i32;
-    if total_nights <= 0 {
-        return Err(ApiError::BadRequest(
-            "Check-out date must be after check-in date".to_string(),
-        ));
-    }
-
-    // Validate complimentary dates
-    if input.complimentary_dates.is_empty() {
-        return Err(ApiError::BadRequest(
-            "You must select at least 1 complimentary date".to_string(),
-        ));
-    }
-
-    // Parse and validate all complimentary dates
-    let mut complimentary_dates: Vec<NaiveDate> = Vec::new();
-    for date_str in &input.complimentary_dates {
-        let date = NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
-            .map_err(|_| ApiError::BadRequest(format!("Invalid date format: {}", date_str)))?;
-
-        // Check date is within booking range (check_in <= date < check_out)
-        if date < check_in || date >= check_out {
-            return Err(ApiError::BadRequest(format!(
-                "Date {} is outside the booking range ({} to {})",
-                date_str, input.check_in_date, input.check_out_date
-            )));
-        }
-
-        if !complimentary_dates.contains(&date) {
-            complimentary_dates.push(date);
-        }
-    }
-
-    let complimentary_nights = complimentary_dates.len() as i32;
-
-    // Get room info including room type
-    let room_info = sqlx::query(
-        r#"
-        SELECT rt.id, COALESCE(r.custom_price, rt.base_price) AS room_rate, rt.name
-        FROM rooms r
-        INNER JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE r.id = $1
-        "#,
-    )
-    .bind(input.room_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .map(|row| {
-        (
-            row.get::<i64, _>("id"),
-            row_mappers::get_decimal(&row, "room_rate"),
-            row.get::<String, _>("name"),
-        )
-    });
-
-    let (room_type_id, room_rate, room_type_name) =
-        room_info.ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
-
-    // Check guest's complimentary credits for this room type
-    let available_credits: i32 = sqlx::query_scalar(
-        "SELECT COALESCE(nights_available, 0) FROM guest_complimentary_credits WHERE guest_id = $1 AND room_type_id = $2"
-    )
-    .bind(input.guest_id)
-    .bind(room_type_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .unwrap_or(0);
-
-    if available_credits < complimentary_nights {
-        return Err(ApiError::BadRequest(format!(
-            "Insufficient complimentary credits for {}. Requested: {} nights, Available: {} nights",
-            room_type_name, complimentary_nights, available_credits
-        )));
-    }
-
-    // Check room availability
-    let room_available: bool = sqlx::query_scalar(
-        r#"
-        SELECT NOT EXISTS(
-            SELECT 1 FROM bookings
-            WHERE room_id = $1
-              AND status NOT IN ('checked_out', 'voided')
-              AND check_in_date < $3
-              AND check_out_date > $2
-        )
-        "#,
-    )
-    .bind(input.room_id)
-    .bind(check_in)
-    .bind(check_out)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if !room_available {
-        return Err(ApiError::BadRequest(
-            "Room is not available for the selected dates".to_string(),
-        ));
-    }
-
-    // Calculate charges for non-complimentary nights
-    let paid_nights = total_nights - complimentary_nights;
-    let subtotal = room_rate * Decimal::from(paid_nights);
-    let tax_amount = subtotal * Decimal::from_str_exact("0.10").unwrap_or_default();
-    let total_amount = subtotal + tax_amount;
-
-    // Generate booking number
-    let booking_number = format!("COMP-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
-
-    // Format complimentary dates for storage
-    let complimentary_dates_str: Vec<String> = complimentary_dates
-        .iter()
-        .map(|d| d.format("%Y-%m-%d").to_string())
-        .collect();
-    let _complimentary_dates_json =
-        serde_json::to_string(&complimentary_dates_str).unwrap_or_default();
-
-    // Determine if booking is fully or partially complimentary
-    let is_fully_complimentary = complimentary_nights == total_nights;
-    let complimentary_reason = if is_fully_complimentary {
-        format!(
-            "Free Gift - {} complimentary night(s) for {}",
-            complimentary_nights, room_type_name
-        )
-    } else {
-        format!(
-            "Partial Free Gift - {} of {} nights complimentary for {} (dates: {})",
-            complimentary_nights,
-            total_nights,
-            room_type_name,
-            complimentary_dates_str.join(", ")
-        )
-    };
-
-    // Create the booking
-    let booking_id: i64 = sqlx::query_scalar(
-        r#"
-        INSERT INTO bookings (
-            booking_number, guest_id, room_id, check_in_date, check_out_date,
-            room_rate, subtotal, tax_amount, discount_amount, total_amount,
-            status, payment_status, adults, children, special_requests,
-            source, is_complimentary, complimentary_reason, created_by
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, $9, 'confirmed', $10, $11, $12, $13,
-                'complimentary_credits', true, $14, $15)
-        RETURNING id
-        "#,
-    )
-    .bind(&booking_number)
-    .bind(input.guest_id)
-    .bind(input.room_id)
-    .bind(check_in)
-    .bind(check_out)
-    .bind(decimal_to_db(room_rate))
-    .bind(decimal_to_db(subtotal))
-    .bind(decimal_to_db(tax_amount))
-    .bind(decimal_to_db(total_amount))
-    .bind(if is_fully_complimentary {
-        "paid"
-    } else {
-        "unpaid"
-    })
-    .bind(input.adults.unwrap_or(1))
-    .bind(input.children.unwrap_or(0))
-    .bind(&input.special_requests)
-    .bind(&complimentary_reason)
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Deduct credits from room-type specific credits
-    sqlx::query(
-        "UPDATE guest_complimentary_credits SET nights_available = nights_available - $1, updated_at = CURRENT_TIMESTAMP WHERE guest_id = $2 AND room_type_id = $3"
-    )
-    .bind(complimentary_nights)
-    .bind(input.guest_id)
-    .bind(room_type_id)
-    .execute(&pool)
-    .await
-    .ok();
-
-    sqlx::query("UPDATE rooms SET status = $1 WHERE id = $2")
-        .bind("reserved")
-        .bind(input.room_id)
-        .execute(&pool)
-        .await
-        .ok();
-
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "message": format!("Successfully booked room using {} complimentary night(s)", complimentary_nights),
-        "booking_id": booking_id,
-        "booking_number": booking_number,
-        "total_nights": total_nights,
-        "complimentary_nights": complimentary_nights,
-        "complimentary_dates": complimentary_dates_str,
-        "paid_nights": paid_nights,
-        "total_amount": total_amount.to_string(),
-        "room_type": room_type_name,
-        "is_free_gift": is_fully_complimentary
-    })))
-}
-
-/// Get all complimentary bookings
-pub async fn get_complimentary_bookings_handler(
-    State(pool): State<DbPool>,
-) -> Result<Json<Vec<BookingWithDetails>>, ApiError> {
-    let booking_rows = sqlx::query(
-        r#"
-        SELECT
-            b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
-            g.guest_type::text as guest_type, g.tourism_type::text as guest_tourism_type,
-            b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
-            b.check_in_date, b.check_out_date, b.room_rate, b.total_amount, b.status,
-            b.payment_status, b.payment_method, b.source, b.remarks, b.special_requests, b.is_complimentary, b.complimentary_reason,
-            b.complimentary_start_date, b.complimentary_end_date, b.original_total_amount, b.complimentary_nights,
-            b.deposit_paid, b.deposit_amount, b.room_card_deposit, b.company_id, b.company_name, b.payment_note,
-            b.created_at, b.is_posted, b.posted_date,
-            b.is_tourist, b.tourism_tax_amount, b.extra_bed_count, b.extra_bed_charge,
-            b.rate_override_weekday, b.rate_override_weekend, b.actual_check_out,
-            (SELECT inv.invoice_number FROM invoices inv WHERE inv.booking_id = b.id ORDER BY inv.created_at DESC LIMIT 1) AS invoice_number
-        FROM bookings b
-        INNER JOIN guests g ON b.guest_id = g.id
-        INNER JOIN rooms r ON b.room_id = r.id
-        INNER JOIN room_types rt ON r.room_type_id = rt.id
-        WHERE b.is_complimentary = true
-           OR b.status IN ('partial_complimentary', 'fully_complimentary')
-        ORDER BY b.created_at DESC
-        "#
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-    let bookings: Vec<BookingWithDetails> = booking_rows
-        .iter()
-        .map(row_mappers::row_to_booking_with_details)
-        .collect();
-
-    Ok(Json(bookings))
-}
-
-/// Get complimentary statistics summary
-pub async fn get_complimentary_summary_handler(
-    State(pool): State<DbPool>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    // Total complimentary bookings
-    let total_bookings: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM bookings WHERE is_complimentary = true OR status IN ('partial_complimentary', 'fully_complimentary')"
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap_or(0);
-
-    // Total complimentary nights
-    let total_nights: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(complimentary_nights), 0) FROM bookings WHERE is_complimentary = true OR status IN ('partial_complimentary', 'fully_complimentary')"
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap_or(0);
-
-    // Total credits available (sum of all room-type specific credits)
-    let total_credits_available: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(nights_available), 0) FROM guest_complimentary_credits",
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap_or(0);
-
-    // Value of complimentary nights (sum of original amounts - adjusted amounts)
-    let value_given_row = sqlx::query(
-        "SELECT COALESCE(SUM(original_total_amount - total_amount), 0) AS value_given FROM bookings WHERE is_complimentary = true AND original_total_amount IS NOT NULL"
-    )
-    .fetch_one(&pool)
-    .await
-    .ok();
-    let value_given = value_given_row
-        .as_ref()
-        .map(|row| row_mappers::get_decimal(row, "value_given"))
-        .unwrap_or(Decimal::ZERO);
-
-    Ok(Json(serde_json::json!({
-        "total_complimentary_bookings": total_bookings,
-        "total_complimentary_nights": total_nights,
-        "total_credits_available": total_credits_available,
-        "value_of_complimentary_nights": value_given.to_string()
-    })))
-}
-
-/// Update complimentary dates for a booking
-pub async fn update_complimentary_handler(
-    State(pool): State<DbPool>,
-    Extension(_user_id): Extension<i64>,
-    Path(booking_id): Path<i64>,
-    Json(input): Json<UpdateComplimentaryRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    // Get current booking
-    let booking_row = sqlx::query(
-        "SELECT id, is_complimentary, check_in_date, check_out_date, room_rate, total_amount FROM bookings WHERE id = $1"
-    )
-    .bind(booking_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
-
-    let is_complimentary: Option<bool> = booking_row.get(1);
-    if is_complimentary != Some(true) {
-        return Err(ApiError::BadRequest(
-            "Booking is not marked as complimentary".to_string(),
-        ));
-    }
-
-    let check_in: NaiveDate = booking_row.get(2);
-    let check_out: NaiveDate = booking_row.get(3);
-    let room_rate = row_mappers::get_decimal(&booking_row, "room_rate");
-    let original_total = row_mappers::get_decimal(&booking_row, "total_amount");
-
-    // Parse new dates if provided
-    let comp_start = if let Some(ref date_str) = input.complimentary_start_date {
-        Some(
-            NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
-                ApiError::BadRequest("Invalid complimentary start date. Use YYYY-MM-DD".to_string())
-            })?,
-        )
-    } else {
-        None
-    };
-
-    let comp_end = if let Some(ref date_str) = input.complimentary_end_date {
-        Some(
-            NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
-                ApiError::BadRequest("Invalid complimentary end date. Use YYYY-MM-DD".to_string())
-            })?,
-        )
-    } else {
-        None
-    };
-
-    // Validate dates if both provided
-    if let (Some(start), Some(end)) = (comp_start, comp_end) {
-        if start < check_in || end > check_out {
-            return Err(ApiError::BadRequest(format!(
-                "Complimentary dates must be within booking period ({} to {})",
-                check_in, check_out
-            )));
-        }
-        if start >= end {
-            return Err(ApiError::BadRequest(
-                "Complimentary end date must be after start date".to_string(),
-            ));
-        }
-
-        // Recalculate amounts
-        let total_nights = (check_out - check_in).num_days() as i32;
-        let complimentary_nights = (end - start).num_days() as i32;
-        let paid_nights = total_nights - complimentary_nights;
-
-        let new_status = if complimentary_nights == total_nights {
-            "fully_complimentary"
-        } else {
-            "partial_complimentary"
-        };
-
-        let new_subtotal = room_rate * Decimal::from(paid_nights);
-        let tax_rate = Decimal::from_str_exact("0.10").unwrap_or_default();
-        let new_tax = new_subtotal * tax_rate;
-        let new_total = new_subtotal + new_tax;
-
-        sqlx::query(
-            r#"
-            UPDATE bookings
-            SET complimentary_start_date = $1,
-                complimentary_end_date = $2,
-                complimentary_reason = COALESCE($3, complimentary_reason),
-                complimentary_nights = $4,
-                subtotal = $5,
-                tax_amount = $6,
-                total_amount = $7,
-                status = $8,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = $9
-            "#,
-        )
-        .bind(start)
-        .bind(end)
-        .bind(&input.complimentary_reason)
-        .bind(complimentary_nights)
-        .bind(decimal_to_db(new_subtotal))
-        .bind(decimal_to_db(new_tax))
-        .bind(decimal_to_db(new_total))
-        .bind(new_status)
-        .bind(booking_id)
-        .execute(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        // Record in booking_modifications audit trail
-        sqlx::query(
-            "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, price_adjustment, modified_by) VALUES ($1, $2, $3, $4, $5, $6)"
-        )
-        .bind(booking_id)
-        .bind("update_complimentary")
-        .bind(serde_json::json!({"total_amount": original_total.to_string()}))
-        .bind(serde_json::json!({"total_amount": new_total.to_string(), "complimentary_nights": complimentary_nights, "status": new_status}))
-        .bind(decimal_to_db(new_total - original_total))
-        .bind(_user_id)
-        .execute(&pool)
-        .await
-        .ok();
-
-        return Ok(Json(serde_json::json!({
-            "success": true,
-            "message": "Complimentary dates updated",
-            "booking_id": booking_id,
-            "complimentary_nights": complimentary_nights,
-            "new_total": new_total.to_string()
-        })));
-    }
-
-    // Just update reason if no dates provided
-    if let Some(ref reason) = input.complimentary_reason {
-        sqlx::query("UPDATE bookings SET complimentary_reason = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2")
-            .bind(reason)
-            .bind(booking_id)
-            .execute(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-        // Record in booking_modifications audit trail
-        sqlx::query(
-            "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
-        )
-        .bind(booking_id)
-        .bind("update_complimentary")
-        .bind(serde_json::json!({}))
-        .bind(serde_json::json!({"complimentary_reason": reason}))
-        .bind(_user_id)
-        .execute(&pool)
-        .await
-        .ok();
-    }
-
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "message": "Complimentary booking updated",
-        "booking_id": booking_id
-    })))
-}
-
-/// Remove complimentary status from a booking
-pub async fn remove_complimentary_handler(
-    State(pool): State<DbPool>,
-    Extension(_user_id): Extension<i64>,
-    Path(booking_id): Path<i64>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    // Get current booking
-    let booking_row = sqlx::query(
-        "SELECT id, guest_id, is_complimentary, original_total_amount, complimentary_nights, status FROM bookings WHERE id = $1"
-    )
-    .bind(booking_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
-
-    let _guest_id: i64 = booking_row.get(1);
-    let is_complimentary: Option<bool> = booking_row.get(2);
-    let original_total = row_mappers::get_opt_decimal(&booking_row, "original_total_amount");
-    let complimentary_nights: Option<i32> = booking_row.get(4);
-    let status: String = booking_row.get(5);
-
-    if is_complimentary != Some(true) {
-        return Err(ApiError::BadRequest(
-            "Booking is not marked as complimentary".to_string(),
-        ));
-    }
-
-    // Only allow removal for non-checked-in bookings
-    if status == "checked_in" || status == "checked_out" {
-        return Err(ApiError::BadRequest(format!(
-            "Cannot remove complimentary status from booking with status: {}",
-            status
-        )));
-    }
-
-    // Restore original amount and clear complimentary fields
-    sqlx::query(
-        r#"
-        UPDATE bookings
-        SET is_complimentary = false,
-            complimentary_reason = NULL,
-            complimentary_start_date = NULL,
-            complimentary_end_date = NULL,
-            complimentary_nights = NULL,
-            total_amount = COALESCE(original_total_amount, total_amount),
-            original_total_amount = NULL,
-            status = 'confirmed',
-            payment_status = 'unpaid',
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1
-        "#,
-    )
-    .bind(booking_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Remove any credits that were added (if applicable)
-    // Note: This is a simplification - in production you might want more sophisticated tracking
-
-    // Record in booking_modifications audit trail
-    sqlx::query(
-        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
-    )
-    .bind(booking_id)
-    .bind("remove_complimentary")
-    .bind(serde_json::json!({"status": &status, "is_complimentary": true, "complimentary_nights": complimentary_nights}))
-    .bind(serde_json::json!({"status": "confirmed", "is_complimentary": false, "total_amount": original_total.map(|d| d.to_string())}))
-    .bind(_user_id)
-    .execute(&pool)
-    .await
-    .ok();
-
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "message": "Complimentary status removed",
-        "booking_id": booking_id,
-        "restored_total": original_total.map(|d| d.to_string())
-    })))
-}
-
-/// Get all guests with complimentary credits
-pub async fn get_guests_with_credits_handler(
-    State(pool): State<DbPool>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    // Get room type specific credits
-    let credits: Vec<serde_json::Value> = sqlx::query(
-        r#"
-        SELECT gc.guest_id, g.full_name as guest_name, g.email,
-               gc.room_type_id, rt.name as room_type_name, rt.code as room_type_code,
-               gc.nights_available, gc.notes
-        FROM guest_complimentary_credits gc
-        INNER JOIN guests g ON gc.guest_id = g.id
-        INNER JOIN room_types rt ON gc.room_type_id = rt.id
-        WHERE gc.nights_available > 0
-        ORDER BY g.full_name, rt.name
-        "#,
-    )
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?
-    .iter()
-    .map(|row| {
-        serde_json::json!({
-            "guest_id": row.get::<i64, _>("guest_id"),
-            "guest_name": row.get::<String, _>("guest_name"),
-            "email": row.get::<Option<String>, _>("email"),
-            "room_type_id": row.get::<i64, _>("room_type_id"),
-            "room_type_name": row.get::<String, _>("room_type_name"),
-            "room_type_code": row.get::<Option<String>, _>("room_type_code"),
-            "nights_available": row.get::<i32, _>("nights_available"),
-            "notes": row.get::<Option<String>, _>("notes")
-        })
-    })
-    .collect();
-
-    Ok(Json(serde_json::json!({
-        "credits": credits
-    })))
-}
-
-/// Add complimentary credits to a guest
-pub async fn add_guest_credits_handler(
-    State(pool): State<DbPool>,
-    Json(input): Json<AddGuestCreditsRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    // Validate guest exists
-    let guest_exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM guests WHERE id = $1)")
-            .bind(input.guest_id)
-            .fetch_one(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if !guest_exists {
-        return Err(ApiError::NotFound(format!(
-            "Guest with id {} not found",
-            input.guest_id
-        )));
-    }
-
-    // Validate room type exists
-    let room_type_exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM room_types WHERE id = $1)")
-            .bind(input.room_type_id)
-            .fetch_one(&pool)
-            .await
-            .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if !room_type_exists {
-        return Err(ApiError::NotFound(format!(
-            "Room type with id {} not found",
-            input.room_type_id
-        )));
-    }
-
-    if input.nights <= 0 {
-        return Err(ApiError::BadRequest(
-            "Nights must be greater than 0".to_string(),
-        ));
-    }
-
-    // Upsert credits
-    sqlx::query(
-        r#"
-        INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT (guest_id, room_type_id)
-        DO UPDATE SET nights_available = guest_complimentary_credits.nights_available + $3,
-                      notes = COALESCE($4, guest_complimentary_credits.notes),
-                      updated_at = CURRENT_TIMESTAMP
-        "#
-    )
-    .bind(input.guest_id)
-    .bind(input.room_type_id)
-    .bind(input.nights)
-    .bind(&input.notes)
-    .execute(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Get updated credit info
-    let credit = sqlx::query(
-        r#"
-        SELECT gc.guest_id, g.full_name as guest_name, gc.room_type_id, rt.name as room_type_name,
-               gc.nights_available, gc.notes
-        FROM guest_complimentary_credits gc
-        INNER JOIN guests g ON gc.guest_id = g.id
-        INNER JOIN room_types rt ON gc.room_type_id = rt.id
-        WHERE gc.guest_id = $1 AND gc.room_type_id = $2
-        "#,
-    )
-    .bind(input.guest_id)
-    .bind(input.room_type_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "message": format!("Added {} nights to guest credits", input.nights),
-        "credit": {
-            "guest_id": credit.get::<i64, _>("guest_id"),
-            "guest_name": credit.get::<String, _>("guest_name"),
-            "room_type_id": credit.get::<i64, _>("room_type_id"),
-            "room_type_name": credit.get::<String, _>("room_type_name"),
-            "nights_available": credit.get::<i32, _>("nights_available"),
-            "notes": credit.get::<Option<String>, _>("notes")
-        }
-    })))
-}
-
-/// Update guest complimentary credits
-pub async fn update_guest_credits_handler(
-    State(pool): State<DbPool>,
-    Path((guest_id, room_type_id)): Path<(i64, i64)>,
-    Json(input): Json<UpdateGuestCreditsRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    // Check if credit record exists
-    let credit_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM guest_complimentary_credits WHERE guest_id = $1 AND room_type_id = $2)"
-    )
-    .bind(guest_id)
-    .bind(room_type_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    if !credit_exists {
-        return Err(ApiError::NotFound(format!(
-            "Credit record not found for guest {} and room type {}",
-            guest_id, room_type_id
-        )));
-    }
-
-    if let Some(nights) = input.nights_available
-        && nights < 0
-    {
-        return Err(ApiError::BadRequest(
-            "Nights available cannot be negative".to_string(),
-        ));
-    }
-
-    // Build update query dynamically
-    let mut updates = Vec::new();
-    let mut param_count = 0;
-
-    if input.nights_available.is_some() {
-        param_count += 1;
-        updates.push(format!("nights_available = ${}", param_count));
-    }
-    if input.notes.is_some() {
-        param_count += 1;
-        updates.push(format!("notes = ${}", param_count));
-    }
-
-    if updates.is_empty() {
-        return Err(ApiError::BadRequest("No fields to update".to_string()));
-    }
-
-    updates.push("updated_at = CURRENT_TIMESTAMP".to_string());
-
-    let query = format!(
-        "UPDATE guest_complimentary_credits SET {} WHERE guest_id = ${} AND room_type_id = ${}",
-        updates.join(", "),
-        param_count + 1,
-        param_count + 2
-    );
-
-    let mut q = sqlx::query(&query);
-
-    if let Some(nights) = input.nights_available {
-        q = q.bind(nights);
-    }
-    if let Some(ref notes) = input.notes {
-        q = q.bind(notes);
-    }
-
-    q = q.bind(guest_id).bind(room_type_id);
-
-    q.execute(&pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    // Get updated credit info
-    let credit = sqlx::query(
-        r#"
-        SELECT gc.guest_id, g.full_name as guest_name, gc.room_type_id, rt.name as room_type_name,
-               gc.nights_available, gc.notes
-        FROM guest_complimentary_credits gc
-        INNER JOIN guests g ON gc.guest_id = g.id
-        INNER JOIN room_types rt ON gc.room_type_id = rt.id
-        WHERE gc.guest_id = $1 AND gc.room_type_id = $2
-        "#,
-    )
-    .bind(guest_id)
-    .bind(room_type_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "message": "Credits updated successfully",
-        "credit": {
-            "guest_id": credit.get::<i64, _>("guest_id"),
-            "guest_name": credit.get::<String, _>("guest_name"),
-            "room_type_id": credit.get::<i64, _>("room_type_id"),
-            "room_type_name": credit.get::<String, _>("room_type_name"),
-            "nights_available": credit.get::<i32, _>("nights_available"),
-            "notes": credit.get::<Option<String>, _>("notes")
-        }
-    })))
-}
-
-/// Delete guest complimentary credits
-pub async fn delete_guest_credits_handler(
-    State(pool): State<DbPool>,
-    Path((guest_id, room_type_id)): Path<(i64, i64)>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    // Check if credit record exists
-    let credit = sqlx::query(
-        r#"
-        SELECT gc.nights_available, g.full_name as guest_name, rt.name as room_type_name
-        FROM guest_complimentary_credits gc
-        INNER JOIN guests g ON gc.guest_id = g.id
-        INNER JOIN room_types rt ON gc.room_type_id = rt.id
-        WHERE gc.guest_id = $1 AND gc.room_type_id = $2
-        "#,
-    )
-    .bind(guest_id)
-    .bind(room_type_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    let credit = match credit {
-        Some(c) => c,
-        None => {
-            return Err(ApiError::NotFound(format!(
-                "Credit record not found for guest {} and room type {}",
-                guest_id, room_type_id
-            )));
-        }
-    };
-
-    let nights_deleted = credit.get::<i32, _>("nights_available");
-    let guest_name = credit.get::<String, _>("guest_name");
-    let room_type_name = credit.get::<String, _>("room_type_name");
-
-    // Delete the credit record
-    sqlx::query(
-        "DELETE FROM guest_complimentary_credits WHERE guest_id = $1 AND room_type_id = $2",
-    )
-    .bind(guest_id)
-    .bind(room_type_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
-
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "message": format!("Deleted {} nights of {} credits for {}", nights_deleted, room_type_name, guest_name),
-        "deleted": {
-            "guest_id": guest_id,
-            "guest_name": guest_name,
-            "room_type_id": room_type_id,
-            "room_type_name": room_type_name,
-            "nights_deleted": nights_deleted
-        }
-    })))
-}
-
-#[derive(Debug, Clone)]
-pub struct BookingReactivationCandidate {
-    pub guest_id: i64,
-    pub room_id: i64,
-    pub status: String,
-    pub check_in: NaiveDate,
-    pub check_out: NaiveDate,
-}
-
-pub async fn find_reactivation_candidate(
-    pool: &DbPool,
-    booking_id: i64,
-) -> Result<BookingReactivationCandidate, ApiError> {
+) -> Result<Json<Booking>, ApiError> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let query = "SELECT guest_id, room_id, status, check_in_date, check_out_date FROM bookings WHERE id = ?1";
+    let existing_query = "SELECT id, guest_id, room_id, status, check_in_date, check_out_date FROM bookings WHERE id = ?1";
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let query = "SELECT guest_id, room_id, status, check_in_date, check_out_date FROM bookings WHERE id = $1";
+    let existing_query = "SELECT id, guest_id, room_id, status, check_in_date, check_out_date FROM bookings WHERE id = $1";
 
-    let row = sqlx::query(query)
+    let existing_row = sqlx::query(existing_query)
         .bind(booking_id)
-        .fetch_optional(pool)
+        .fetch_optional(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
 
-    Ok(BookingReactivationCandidate {
-        guest_id: row.get("guest_id"),
-        room_id: row.get("room_id"),
-        status: row.get("status"),
-        check_in: row.get("check_in_date"),
-        check_out: row.get("check_out_date"),
-    })
-}
+    let guest_id: i64 = existing_row.get("guest_id");
+    let room_id: i64 = existing_row.get("room_id");
+    let status: String = existing_row.get("status");
+    let check_in: NaiveDate = existing_row.get("check_in_date");
+    let check_out: NaiveDate = existing_row.get("check_out_date");
 
-pub async fn has_reactivation_conflict(
-    pool: &DbPool,
-    booking_id: i64,
-    room_id: i64,
-    check_in: NaiveDate,
-    check_out: NaiveDate,
-) -> Result<bool, ApiError> {
+    if status != "voided" {
+        return Err(ApiError::BadRequest(format!(
+            "Cannot reactivate booking with status: {}. Only voided bookings can be reactivated.",
+            status
+        )));
+    }
+
+    // Check permissions
+    let has_booking_update = AuthService::check_permission(&pool, user_id, "bookings:update")
+        .await
+        .unwrap_or(false)
+        || AuthService::check_permission(&pool, user_id, "bookings:manage")
+            .await
+            .unwrap_or(false);
+
+    if !has_booking_update {
+        return Err(ApiError::Forbidden(
+            "You don't have permission to reactivate this booking".to_string(),
+        ));
+    }
+
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let conflict_query = r#"
         SELECT EXISTS(
@@ -3820,54 +2596,52 @@ pub async fn has_reactivation_conflict(
     "#;
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let conflict = sqlx::query_scalar::<_, i32>(conflict_query)
+    let conflict: bool = sqlx::query_scalar::<_, i32>(conflict_query)
         .bind(room_id)
         .bind(check_in)
         .bind(check_out)
         .bind(booking_id)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await
-        .map(|value| value != 0)
+        .map(|v| v != 0)
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let conflict = sqlx::query_scalar::<_, bool>(conflict_query)
+    let conflict: bool = sqlx::query_scalar::<_, bool>(conflict_query)
         .bind(room_id)
         .bind(check_in)
         .bind(check_out)
         .bind(booking_id)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(conflict)
-}
-
-pub async fn confirm_reactivated_booking_and_reserve_room(
-    pool: &DbPool,
-    booking_id: i64,
-    room_id: i64,
-) -> Result<Booking, ApiError> {
-    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    if conflict {
+        return Err(ApiError::BadRequest(
+            "Cannot reactivate booking - room is already booked for these dates".to_string(),
+        ));
+    }
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let update_booking_query = r#"
+    let reactivate_query = r#"
         UPDATE bookings
         SET status = 'confirmed',
             updated_at = datetime('now'),
             booking_remarks = COALESCE(booking_remarks, '') || ' | Reactivated from voided status'
-        WHERE id = ?1 AND status = 'voided'
+        WHERE id = ?1
+          AND status = 'voided'
     "#;
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let update_booking_query = r#"
+    let reactivate_query = r#"
         UPDATE bookings
         SET status = 'confirmed',
             updated_at = CURRENT_TIMESTAMP,
             remarks = COALESCE(remarks, '') || ' | Reactivated from voided status'
-        WHERE id = $1 AND status = 'voided'
+        WHERE id = $1
+          AND status = 'voided'
     "#;
 
-    let result = sqlx::query(update_booking_query)
+    let result = sqlx::query(reactivate_query)
         .bind(booking_id)
         .execute(&mut *tx)
         .await
@@ -3875,7 +2649,7 @@ pub async fn confirm_reactivated_booking_and_reserve_room(
 
     if result.rows_affected() != 1 {
         return Err(ApiError::BadRequest(
-            "Booking is no longer voided and cannot be reactivated".to_string(),
+            "Booking cannot be reactivated".to_string(),
         ));
     }
 
@@ -3891,38 +2665,35 @@ pub async fn confirm_reactivated_booking_and_reserve_room(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    AuditLog::log_event_tx(
+        &mut tx,
+        Some(user_id),
+        "booking_reactivated",
+        "booking",
+        Some(booking_id),
+        Some(serde_json::json!({"guest_id": guest_id, "room_id": room_id, "previous_status": "voided"})),
+        None,
+        None,
+    )
+    .await?;
+    record_booking_history_tx(
+        &mut tx,
+        booking_id,
+        Some("voided"),
+        "confirmed",
+        Some(user_id),
+        Some("Booking reactivated"),
+        serde_json::json!({
+            "guest_id": guest_id,
+            "room_id": room_id,
+            "check_in_date": check_in.to_string(),
+            "check_out_date": check_out.to_string(),
+        }),
+    )
+    .await?;
+
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let select_booking_query = "SELECT * FROM bookings WHERE id = ?1";
-    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let select_booking_query = "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, \
-        room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, \
-        payment_method, adults, children, special_requests, remarks, source, market_code, \
-        discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, \
-        pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, \
-        is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, \
-        original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, \
-        company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type \
-        FROM bookings WHERE id = $1";
-
-    let booking_row = sqlx::query(select_booking_query)
-        .bind(booking_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
-    let booking = row_mappers::row_to_booking(&booking_row);
-
-    tx.commit().await.map_err(ApiError::from)?;
-
-    Ok(booking)
-}
-
-pub async fn record_booking_reactivation_modification(
-    pool: &DbPool,
-    booking_id: i64,
-    user_id: i64,
-) -> Result<(), ApiError> {
-    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-    let result = sqlx::query(
+    sqlx::query(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES (?1, ?2, ?3, ?4, ?5)"
     )
     .bind(booking_id)
@@ -3930,11 +2701,12 @@ pub async fn record_booking_reactivation_modification(
     .bind(serde_json::json!({"status": "voided"}).to_string())
     .bind(serde_json::json!({"status": "confirmed"}).to_string())
     .bind(user_id)
-    .execute(pool)
-    .await;
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    let result = sqlx::query(
+    sqlx::query(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
     )
     .bind(booking_id)
@@ -3942,9 +2714,13 @@ pub async fn record_booking_reactivation_modification(
     .bind(serde_json::json!({"status": "voided"}))
     .bind(serde_json::json!({"status": "confirmed"}))
     .bind(user_id)
-    .execute(pool)
-    .await;
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    result.map_err(|e| ApiError::Database(e.to_string()))?;
-    Ok(())
+    tx.commit().await.map_err(ApiError::from)?;
+
+    let booking = booking_svc::fetch_booking_by_id(&pool, booking_id).await?;
+
+    Ok(Json(booking))
 }
