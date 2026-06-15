@@ -262,7 +262,8 @@ impl AuditLog {
         .await
     }
 
-    pub async fn log_booking_cancelled_tx(
+    /// Log booking voiding with the current audit action name.
+    pub async fn log_booking_voided_tx(
         tx: &mut DbTransaction<'_>,
         user_id: i64,
         booking_id: i64,
@@ -270,7 +271,7 @@ impl AuditLog {
         Self::log_event_tx(
             tx,
             Some(user_id),
-            "booking_cancelled",
+            "booking_voided",
             "booking",
             Some(booking_id),
             None,

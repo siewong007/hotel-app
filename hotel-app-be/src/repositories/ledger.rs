@@ -1105,7 +1105,7 @@ pub async fn delete_customer_ledger(
             }
             if paid_amount > Decimal::ZERO {
                 return Err(ApiError::BadRequest(
-                    "Cannot delete a ledger with partial payments. Mark it as void instead."
+                    "Cannot delete a ledger with partial payments. Mark it as voided instead."
                         .to_string(),
                 ));
             }

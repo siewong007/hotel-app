@@ -84,65 +84,30 @@ import {
   getUnifiedStatusShortLabel,
   RoomStatusType
 } from '../../config';
+import {
+  buildBlockedDateRangesForRoom,
+  type BlockedDateRange,
+  calculateNightCount,
+  deriveRoomStatusInfo,
+  getCreditBookingDates as getCreditBookingDateRange,
+  getNextAvailableDate as getNextOpenCreditDate,
+  getPositiveRatePerNight,
+  getRoomTypeCode,
+  getTotalCreditsForRoom as getCreditsForRoomType,
+  isDateBlockedByRanges,
+  validateCreditDateSelection,
+} from '../../utils/roomManagementUtils';
 import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
 import UnifiedBookingModal, { BookingType } from '../UnifiedBooking/UnifiedBookingModal';
 import UpdateCheckoutDateDialog from '../UpdateCheckoutDateDialog';
 import RoomNotesDialog from './RoomNotesDialog';
 import RoomStatusDialog from './RoomStatusDialog';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
-import {
-  buildRoomBlockedDates,
-  calculateNightsBetweenDates,
-  formatMenuBookingDate,
-  getCreditsBookingDates as buildCreditsBookingDates,
-  getNextAvailableDate as findNextAvailableDate,
-  getRatePerNight,
-  getRoomCardFill as resolveRoomCardFill,
-  getRoomStatusInfo as deriveRoomStatusInfo,
-  getRoomTypeCode,
-  getTotalCreditsForRoom as calculateTotalCreditsForRoom,
-  isDateBlocked as isRoomDateBlocked,
-  validateCreditBookingDates,
-} from './roomManagementUtils';
-
-interface RoomAction {
-  id: string;
-  label: string;
-  icon: React.ReactNode;
-  color?: string;
-  onClick: (room: Room) => void;
-  secondary?: string;
-  badge?: string | number;
-}
-
-interface MenuSection {
-  title: string;
-  actions: RoomAction[];
-}
-
-interface MenuLayout {
-  primary?: {
-    label: string;
-    icon: React.ReactNode;
-    onClick: (room: Room) => void;
-    color?: 'primary' | 'success' | 'error' | 'warning' | 'info';
-    dark?: boolean;
-  };
-  sections: MenuSection[];
-}
-
-interface GuestWithCredits {
-  id: number;
-  full_name: string;
-  email: string;
-  total_complimentary_credits: number;
-  credits_by_room_type: {
-    room_type_id: number;
-    room_type_name: string;
-    room_type_code: string;
-    nights_available: number;
-  }[];
-}
+import { RoomAction, MenuSection, MenuLayout, GuestWithCredits } from './types';
+import RoomNotesDialog from './components/RoomNotesDialog';
+import RoomDetailsDialog from './components/RoomDetailsDialog';
+import RoomHistoryDialog from './components/RoomHistoryDialog';
+import BookingNotesDialog from './components/BookingNotesDialog';
 
 const RoomManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -310,7 +275,7 @@ const RoomManagementPage: React.FC = () => {
     booking_number: string;
     complimentary_nights: number;
   } | null>(null);
-  const [roomBlockedDates, setRoomBlockedDates] = useState<{ start: string; end: string; status: string }[]>([]);
+  const [roomBlockedDates, setRoomBlockedDates] = useState<BlockedDateRange[]>([]);
 
   // Enhanced check-in modal state
 
@@ -444,7 +409,9 @@ const RoomManagementPage: React.FC = () => {
   };
 
   const getRoomCardFill = (status: string, statusColor: string): string => {
-    return resolveRoomCardFill(status, statusColor, isDarkMode);
+    if (isDarkMode) return ROOM_FILL_DARK[status] || ROOM_FILL_DARK.available;
+    // Light mode: yellow needs the darker amber so white text stays readable.
+    return status === 'dirty' ? '#a89436' : statusColor;
   };
 
   // Room Actions - Unified Booking Modal
@@ -1379,11 +1346,11 @@ const RoomManagementPage: React.FC = () => {
   };
 
   const loadRoomBlockedDates = (roomId: string) => {
-    setRoomBlockedDates(buildRoomBlockedDates(allBookingsData, roomId));
+    setRoomBlockedDates(buildBlockedDateRangesForRoom(allBookingsData, roomId));
   };
 
   const isDateBlocked = (dateStr: string): boolean => {
-    return isRoomDateBlocked(dateStr, roomBlockedDates);
+    return isDateBlockedByRanges(dateStr, roomBlockedDates);
   };
 
   const getMinCheckInDate = (): string => {
@@ -1391,11 +1358,11 @@ const RoomManagementPage: React.FC = () => {
   };
 
   const getNextAvailableDate = (fromDate: string): string => {
-    return findNextAvailableDate(fromDate, roomBlockedDates);
+    return getNextOpenCreditDate(fromDate, roomBlockedDates);
   };
 
   const validateDateSelection = (): { valid: boolean; message: string } => {
-    return validateCreditBookingDates(
+    return validateCreditDateSelection(
       creditsBookingForm.check_in_date,
       creditsBookingForm.check_out_date,
       roomBlockedDates,
@@ -1403,14 +1370,14 @@ const RoomManagementPage: React.FC = () => {
   };
 
   const getCreditsBookingDates = (): string[] => {
-    return buildCreditsBookingDates(
+    return getCreditBookingDateRange(
       creditsBookingForm.check_in_date,
       creditsBookingForm.check_out_date,
     );
   };
 
   const getTotalCreditsForRoom = (roomId: string): number => {
-    return calculateTotalCreditsForRoom(guestCredits, availableRoomsForCredits, roomId);
+    return getCreditsForRoomType(guestCredits, availableRoomsForCredits, roomId);
   };
 
   const handleCreditsDateToggle = (date: string) => {
@@ -1700,7 +1667,11 @@ const RoomManagementPage: React.FC = () => {
 
   // Single source of truth for computing room status from bookings
   const getRoomStatusInfo = (room: Room) => {
-    return deriveRoomStatusInfo(room, roomBookings, reservedBookings);
+    return deriveRoomStatusInfo({
+      room,
+      booking: roomBookings.get(room.id),
+      reservedBooking: reservedBookings.get(room.id),
+    });
   };
 
   const availableCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'available').length;
@@ -2648,7 +2619,10 @@ const RoomManagementPage: React.FC = () => {
           const activeBooking = info.booking || info.reservedBooking || null;
           const showAside = info.isOccupied || info.isReservedToday;
 
-          const ratePerNight = getRatePerNight(activeBooking);
+          const formatDate = (d: string) =>
+            new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+          const ratePerNight = getPositiveRatePerNight(activeBooking);
 
           return (
             <Box sx={{ display: 'flex', minWidth: showAside ? 460 : 280, maxWidth: 520 }}>
@@ -2976,7 +2950,7 @@ const RoomManagementPage: React.FC = () => {
                   setWalkInCheckInDate(e.target.value);
                   // Calculate nights if both dates are set
                   if (walkInCheckOutDate) {
-                    setWalkInNumberOfNights(calculateNightsBetweenDates(e.target.value, walkInCheckOutDate));
+                    setWalkInNumberOfNights(calculateNightCount(e.target.value, walkInCheckOutDate));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -2995,7 +2969,7 @@ const RoomManagementPage: React.FC = () => {
                   setWalkInCheckOutDate(e.target.value);
                   // Calculate nights
                   if (walkInCheckInDate) {
-                    setWalkInNumberOfNights(calculateNightsBetweenDates(walkInCheckInDate, e.target.value));
+                    setWalkInNumberOfNights(calculateNightCount(walkInCheckInDate, e.target.value));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3228,7 +3202,7 @@ const RoomManagementPage: React.FC = () => {
                   setOnlineCheckInDate(e.target.value);
                   // Calculate nights if both dates are set
                   if (onlineCheckOutDate) {
-                    setOnlineNumberOfNights(calculateNightsBetweenDates(e.target.value, onlineCheckOutDate));
+                    setOnlineNumberOfNights(calculateNightCount(e.target.value, onlineCheckOutDate));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3247,7 +3221,7 @@ const RoomManagementPage: React.FC = () => {
                   setOnlineCheckOutDate(e.target.value);
                   // Calculate nights
                   if (onlineCheckInDate) {
-                    setOnlineNumberOfNights(calculateNightsBetweenDates(onlineCheckInDate, e.target.value));
+                    setOnlineNumberOfNights(calculateNightCount(onlineCheckInDate, e.target.value));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3425,7 +3399,7 @@ const RoomManagementPage: React.FC = () => {
                 onChange={(e) => {
                   setComplimentaryCheckInDate(e.target.value);
                   if (complimentaryCheckOutDate) {
-                    setComplimentaryNumberOfNights(calculateNightsBetweenDates(e.target.value, complimentaryCheckOutDate));
+                    setComplimentaryNumberOfNights(calculateNightCount(e.target.value, complimentaryCheckOutDate));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3443,7 +3417,7 @@ const RoomManagementPage: React.FC = () => {
                 onChange={(e) => {
                   setComplimentaryCheckOutDate(e.target.value);
                   if (complimentaryCheckInDate) {
-                    setComplimentaryNumberOfNights(calculateNightsBetweenDates(complimentaryCheckInDate, e.target.value));
+                    setComplimentaryNumberOfNights(calculateNightCount(complimentaryCheckInDate, e.target.value));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3755,246 +3729,33 @@ const RoomManagementPage: React.FC = () => {
       />
 
       {/* Room History Dialog - Enhanced */}
-      <Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, flexDirection: 'column' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <HistoryIcon sx={{ fontSize: 28 }} />
-                <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-                  Room History - {selectedRoom?.room_number}
-                </Typography>
-              </Box>
-              <Typography variant="caption" sx={{ opacity: 0.9, ml: 5 }}>
-                {selectedRoom?.room_type} • Current Status: {selectedRoom?.status || 'Unknown'}
-              </Typography>
-            </Box>
-            <IconButton
-              onClick={() => setHistoryDialogOpen(false)}
-              sx={{ color: 'white' }}
-            >
-              <CancelIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ p: 0 }}>
-          {loadingHistory ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-              <CircularProgress />
-            </Box>
-          ) : roomHistory.length === 0 ? (
-            <Alert severity="info" sx={{ m: 2 }}>
-              No history records found for this room
-            </Alert>
-          ) : (
-            <Box sx={{ p: 2 }}>
-              {/* Current Status Section */}
-              {selectedRoom && (
-                <Paper sx={{ p: 2, mb: 2, bgcolor: 'primary.50', borderLeft: 4, borderColor: 'primary.main' }}>
-                  <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                    Current Status
-                  </Typography>
-                  <Grid container spacing={2}>
-                    <Grid size={6}>
-                      <Typography variant="caption" color="text.secondary">Status</Typography>
-                      <Typography variant="body2" fontWeight={600}>
-                        {selectedRoom.status?.toUpperCase() || 'UNKNOWN'}
-                      </Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="caption" color="text.secondary">Available</Typography>
-                      <Typography variant="body2" fontWeight={600}>
-                        {selectedRoom.available ? 'Yes' : 'No'}
-                      </Typography>
-                    </Grid>
-                    {selectedRoom.status_notes && (
-                      <Grid size={12}>
-                        <Typography variant="caption" color="text.secondary">Notes</Typography>
-                        <Typography variant="body2">{selectedRoom.status_notes}</Typography>
-                      </Grid>
-                    )}
-                    {roomBookings.get(selectedRoom.id) && (
-                      <>
-                        <Grid size={12}>
-                          <Divider sx={{ my: 1 }} />
-                        </Grid>
-                        <Grid size={6}>
-                          <Typography variant="caption" color="text.secondary">Guest</Typography>
-                          <Typography variant="body2" fontWeight={600}>
-                            {roomBookings.get(selectedRoom.id)?.guest_name}
-                          </Typography>
-                        </Grid>
-                        <Grid size={6}>
-                          <Typography variant="caption" color="text.secondary">Booking Period</Typography>
-                          <Typography variant="body2">
-                            {new Date(roomBookings.get(selectedRoom.id)!.check_in_date).toLocaleDateString()} - {new Date(roomBookings.get(selectedRoom.id)!.check_out_date).toLocaleDateString()}
-                          </Typography>
-                        </Grid>
-                        <Grid size={12}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<PersonIcon />}
-                            onClick={() => handleViewGuestDetails(roomBookings.get(selectedRoom.id)!.guest_id)}
-                          >
-                            View Guest Details
-                          </Button>
-                        </Grid>
-                      </>
-                    )}
-                  </Grid>
-                </Paper>
-              )}
-
-              {/* History Timeline */}
-              <Typography variant="subtitle2" fontWeight={600} gutterBottom sx={{ mt: 2, mb: 1 }}>
-                History Timeline
-              </Typography>
-              <Stack spacing={1}>
-                {roomHistory.map((entry) => {
-                  const statusIcon = entry.to_status === 'occupied' ? <LoginIcon /> :
-                                   entry.to_status === 'available' ? <CheckCircleIcon /> :
-                                   entry.to_status === 'cleaning' ? <CleaningIcon /> :
-                                   entry.to_status === 'maintenance' ? <MaintenanceIcon /> :
-                                   entry.to_status === 'reserved' ? <BookingIcon /> :
-                                   <HistoryIcon />;
-
-                  const statusColor = entry.to_status === 'occupied' ? '#FFA726' :
-                                    entry.to_status === 'available' ? '#66BB6A' :
-                                    entry.to_status === 'cleaning' ? '#FFEB3B' :
-                                    entry.to_status === 'maintenance' ? '#EF5350' :
-                                    entry.to_status === 'reserved' ? '#42A5F5' :
-                                    '#BDBDBD';
-
-                  return (
-                    <Paper
-                      key={entry.id}
-                      sx={{
-                        p: 2,
-                        borderLeft: 4,
-                        borderColor: statusColor,
-                        cursor: entry.guest_id ? 'pointer' : 'default',
-                        '&:hover': entry.guest_id ? {
-                          bgcolor: 'grey.50',
-                          boxShadow: 2,
-                        } : {},
-                      }}
-                      onClick={() => entry.guest_id && handleViewGuestDetails(entry.guest_id)}
-                    >
-                      <Grid container spacing={1} alignItems="center">
-                        <Grid>
-                          <Box
-                            sx={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: '50%',
-                              bgcolor: statusColor,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: 'white',
-                            }}
-                          >
-                            {statusIcon}
-                          </Box>
-                        </Grid>
-                        <Grid size="grow">
-                          <Typography variant="body2" fontWeight={600}>
-                            {entry.from_status ? `${entry.from_status.toUpperCase()} → ${entry.to_status.toUpperCase()}` : entry.to_status.toUpperCase()}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {new Date(entry.created_at).toLocaleString()}
-                            {entry.changed_by_name && ` • By: ${entry.changed_by_name}`}
-                          </Typography>
-                          {entry.guest_name && (
-                            <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
-                              Guest: {entry.guest_name}
-                              {entry.start_date && entry.end_date && (
-                                <> • {new Date(entry.start_date).toLocaleDateString()} - {new Date(entry.end_date).toLocaleDateString()}</>
-                              )}
-                            </Typography>
-                          )}
-                          {entry.notes && (
-                            <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-                              {entry.notes}
-                            </Typography>
-                          )}
-                          {entry.guest_id && (
-                            <Chip
-                              label="Click to view guest details"
-                              size="small"
-                              sx={{ mt: 1 }}
-                              icon={<PersonIcon />}
-                            />
-                          )}
-                        </Grid>
-                      </Grid>
-                    </Paper>
-                  );
-                })}
-              </Stack>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={() => setHistoryDialogOpen(false)} variant="outlined">Close</Button>
-        </DialogActions>
-      </Dialog>
+      <RoomHistoryDialog
+        open={historyDialogOpen}
+        onClose={() => setHistoryDialogOpen(false)}
+        room={selectedRoom}
+        loading={loadingHistory}
+        history={roomHistory}
+        currentBooking={selectedRoom ? roomBookings.get(selectedRoom.id) : undefined}
+        onViewGuestDetails={handleViewGuestDetails}
+      />
 
       {/* Room Properties Dialog - Placeholder */}
-      <Dialog open={roomDetailsDialogOpen} onClose={() => setRoomDetailsDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <SettingsIcon sx={{ fontSize: 28 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Room Properties - {selectedRoom?.room_number}
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          {selectedRoom && (
-            <Box sx={{ mt: 2 }}>
-              <Grid container spacing={2}>
-                <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Room Number</Typography>
-                  <Typography variant="body1" fontWeight={600}>{selectedRoom.room_number}</Typography>
-                </Grid>
-                <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Room Type</Typography>
-                  <Typography variant="body1" fontWeight={600}>{selectedRoom.room_type}</Typography>
-                </Grid>
-                <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Price per Night</Typography>
-                  <Typography variant="body1" fontWeight={600}>{formatCurrency(Number(selectedRoom.price_per_night))}</Typography>
-                </Grid>
-                <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Max Occupancy</Typography>
-                  <Typography variant="body1" fontWeight={600}>{selectedRoom.max_occupancy} guests</Typography>
-                </Grid>
-                <Grid size={12}>
-                  <Typography variant="caption" color="text.secondary">Status</Typography>
-                  <Typography variant="body1" fontWeight={600}>{selectedRoom.status}</Typography>
-                </Grid>
-                {selectedRoom.description && (
-                  <Grid size={12}>
-                    <Typography variant="caption" color="text.secondary">Description</Typography>
-                    <Typography variant="body2">{selectedRoom.description}</Typography>
-                  </Grid>
-                )}
-              </Grid>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={() => setRoomDetailsDialogOpen(false)} variant="outlined">Close</Button>
-        </DialogActions>
-      </Dialog>
+      <RoomDetailsDialog
+        open={roomDetailsDialogOpen}
+        onClose={() => setRoomDetailsDialogOpen(false)}
+        room={selectedRoom}
+        formatCurrency={formatCurrency}
+      />
 
+      {/* Edit Room Notes Dialog */}
       <RoomNotesDialog
         open={notesDialogOpen}
-        room={selectedRoom}
         onClose={() => setNotesDialogOpen(false)}
-        onSubmit={handleSaveNotes}
+        roomNumber={selectedRoom?.room_number}
+        notes={editingNotes}
+        onNotesChange={setEditingNotes}
+        onSave={handleSaveNotes}
+        saving={savingNotes}
       />
 
       <RoomStatusDialog
@@ -4005,7 +3766,7 @@ const RoomManagementPage: React.FC = () => {
       />
 
       {/* Booking Notes Edit Dialog */}
-      <Dialog
+      <BookingNotesDialog
         open={bookingNotesDialogOpen}
         onClose={() => {
           setBookingNotesDialogOpen(false);
@@ -4013,91 +3774,14 @@ const RoomManagementPage: React.FC = () => {
           setEditedBookingNotes('');
           setEditedCleaningPreference(null);
         }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <NotesIcon sx={{ fontSize: 24 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Edit Booking Notes
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          {bookingNotesEditBooking && (
-            <Box>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <Typography variant="body2">
-                  <strong>Guest:</strong> {bookingNotesEditBooking.guest_name}<br />
-                  <strong>Room:</strong> {bookingNotesEditBooking.room_number}<br />
-                  <strong>Stay:</strong> {new Date(bookingNotesEditBooking.check_in_date).toLocaleDateString()} - {new Date(bookingNotesEditBooking.check_out_date).toLocaleDateString()}
-                </Typography>
-              </Alert>
-              <TextField
-                fullWidth
-                multiline
-                rows={4}
-                label="Notes"
-                placeholder="Enter booking notes, special requests, or remarks..."
-                value={editedBookingNotes}
-                onChange={(e) => setEditedBookingNotes(e.target.value)}
-                variant="outlined"
-              />
-
-              {/* Daily cleaning preference */}
-              <Box sx={{ mt: 2.5 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                  Daily cleaning preference
-                </Typography>
-                <ToggleButtonGroup
-                  exclusive
-                  size="small"
-                  value={editedCleaningPreference === true ? 'daily' : editedCleaningPreference === false ? 'nodaily' : null}
-                  onChange={(_, val) => {
-                    // Deselecting (val === null) leaves the preference unset locally;
-                    // the backend keeps any prior value (COALESCE), it is not cleared.
-                    setEditedCleaningPreference(val === 'daily' ? true : val === 'nodaily' ? false : null);
-                  }}
-                  sx={{ flexWrap: 'wrap', gap: 0.75 }}
-                >
-                  <ToggleButton value="daily" sx={{ textTransform: 'none', gap: 0.75, borderRadius: '999px !important', px: 1.75 }}>
-                    <SparkleIcon sx={{ fontSize: 16 }} /> Daily cleaning
-                  </ToggleButton>
-                  <ToggleButton value="nodaily" sx={{ textTransform: 'none', gap: 0.75, borderRadius: '999px !important', px: 1.75 }}>
-                    <BlockIcon sx={{ fontSize: 16 }} /> No daily cleaning
-                  </ToggleButton>
-                </ToggleButtonGroup>
-                <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: 'text.secondary' }}>
-                  Shown as a chip on the room card while the guest is checked in.
-                </Typography>
-              </Box>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button
-            onClick={() => {
-              setBookingNotesDialogOpen(false);
-              setBookingNotesEditBooking(null);
-              setEditedBookingNotes('');
-              setEditedCleaningPreference(null);
-            }}
-            variant="outlined"
-            disabled={savingBookingNotes}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSaveBookingNotes}
-            variant="contained"
-            disabled={savingBookingNotes}
-            startIcon={savingBookingNotes ? <CircularProgress size={16} /> : <SaveIcon />}
-          >
-            {savingBookingNotes ? 'Saving...' : 'Save Notes'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        booking={bookingNotesEditBooking}
+        notes={editedBookingNotes}
+        onNotesChange={setEditedBookingNotes}
+        cleaningPreference={editedCleaningPreference}
+        onCleaningPreferenceChange={setEditedCleaningPreference}
+        onSave={handleSaveBookingNotes}
+        saving={savingBookingNotes}
+      />
 
       {/* Upcoming Bookings Dialog */}
       <Dialog
