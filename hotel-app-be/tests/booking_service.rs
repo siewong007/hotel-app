@@ -833,6 +833,392 @@ mod sqlite_tests {
         assert_eq!(modification_count, 0);
         assert_eq!(credited_nights, None);
     }
+
+    // -----------------------------------------------------------------------
+    // Manual check-in
+    // -----------------------------------------------------------------------
+
+    use hotel_app_be::models::CheckInRequest;
+
+    /// Seed a confirmed/pending booking ready for check-in. Future dates keep
+    /// the room-occupied path active and `created_by = 1` (the seeded admin).
+    async fn seed_checkin_booking(pool: &sqlx::SqlitePool, id: i64, status: &str) {
+        seed_room_guest_booking(pool, id, id, id, status, "2030-12-10", "2030-12-12").await;
+    }
+
+    #[tokio::test]
+    async fn checkin_marks_booking_checked_in_sets_timestamp_and_occupies_room() {
+        let pool = common::setup_test_db().await;
+        seed_checkin_booking(&pool, 8010, "confirmed").await;
+
+        let booking = bookings::manual_checkin(&pool, 1, 8010, None)
+            .await
+            .expect("confirmed booking should check in");
+        assert_eq!(booking.status, "checked_in");
+
+        let row = sqlx::query("SELECT status, actual_check_in FROM bookings WHERE id = ?1")
+            .bind(8010_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(row.get::<String, _>("status"), "checked_in");
+        assert!(
+            row.get::<Option<String>, _>("actual_check_in").is_some(),
+            "actual_check_in should be stamped"
+        );
+
+        let room_status: String = sqlx::query_scalar("SELECT status FROM rooms WHERE id = ?1")
+            .bind(8010_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(room_status, "occupied");
+
+        let history = sqlx::query(
+            "SELECT previous_status, new_status FROM booking_history WHERE booking_id = ?1",
+        )
+        .bind(8010_i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(history.get::<String, _>("previous_status"), "confirmed");
+        assert_eq!(history.get::<String, _>("new_status"), "checked_in");
+
+        let modification_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM booking_modifications WHERE booking_id = ?1 AND modification_type = 'check_in'",
+        )
+        .bind(8010_i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(modification_count, 1);
+    }
+
+    #[tokio::test]
+    async fn checkin_returns_not_found_for_missing_booking() {
+        let pool = common::setup_test_db().await;
+        let result = bookings::manual_checkin(&pool, 1, 4040, None).await;
+        assert!(
+            matches!(result, Err(ApiError::NotFound(_))),
+            "expected NotFound, got: {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn checkin_enforces_service_authorization_boundary() {
+        let pool = common::setup_test_db().await;
+        seed_checkin_booking(&pool, 8030, "confirmed").await;
+        // An authenticated staff user with no booking role, who did not create
+        // the booking (created_by = 1) → 403 Forbidden, not 401.
+        sqlx::query(
+            "INSERT INTO users (id, uuid, username, email, full_name, user_type, is_active, is_verified) \
+             VALUES (8030, '80300000-0000-4000-8000-000000000000', 'no_role_8030', 'no-role-8030@hotel.local', 'No Role', 'staff', 1, 1)",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let result = bookings::manual_checkin(&pool, 8030, 8030, None).await;
+        assert!(
+            matches!(result, Err(ApiError::Forbidden(ref m)) if m.contains("permission")),
+            "expected Forbidden, got: {result:?}"
+        );
+
+        let status: String = sqlx::query_scalar("SELECT status FROM bookings WHERE id = ?1")
+            .bind(8030_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let history_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM booking_history WHERE booking_id = ?1")
+                .bind(8030_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(status, "confirmed");
+        assert_eq!(history_count, 0);
+    }
+
+    #[tokio::test]
+    async fn checkin_rejects_invalid_source_state() {
+        let pool = common::setup_test_db().await;
+        seed_checkin_booking(&pool, 8040, "checked_out").await;
+
+        let result = bookings::manual_checkin(&pool, 1, 8040, None).await;
+        assert!(
+            matches!(result, Err(ApiError::BadRequest(ref m)) if m.contains("checked_out")),
+            "expected invalid-state rejection, got: {result:?}"
+        );
+
+        let status: String = sqlx::query_scalar("SELECT status FROM bookings WHERE id = ?1")
+            .bind(8040_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(status, "checked_out");
+    }
+
+    #[tokio::test]
+    async fn repeated_checkin_is_rejected_without_duplicate_side_effects() {
+        let pool = common::setup_test_db().await;
+        seed_checkin_booking(&pool, 8050, "confirmed").await;
+
+        bookings::manual_checkin(&pool, 1, 8050, None)
+            .await
+            .expect("first check-in succeeds");
+        let result = bookings::manual_checkin(&pool, 1, 8050, None).await;
+        assert!(
+            matches!(result, Err(ApiError::BadRequest(ref m)) if m.contains("checked_in")),
+            "expected repeated check-in rejection, got: {result:?}"
+        );
+
+        let history_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM booking_history WHERE booking_id = ?1")
+                .bind(8050_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let modification_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM booking_modifications WHERE booking_id = ?1 AND modification_type = 'check_in'",
+        )
+        .bind(8050_i64)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(history_count, 1);
+        assert_eq!(modification_count, 1);
+    }
+
+    #[tokio::test]
+    async fn checkin_rejects_room_under_maintenance() {
+        let pool = common::setup_test_db().await;
+        seed_checkin_booking(&pool, 8060, "confirmed").await;
+        sqlx::query("UPDATE rooms SET status = 'maintenance' WHERE id = ?1")
+            .bind(8060_i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let result = bookings::manual_checkin(&pool, 1, 8060, None).await;
+        assert!(
+            matches!(result, Err(ApiError::BadRequest(ref m)) if m.contains("maintenance")),
+            "expected maintenance rejection, got: {result:?}"
+        );
+
+        let status: String = sqlx::query_scalar("SELECT status FROM bookings WHERE id = ?1")
+            .bind(8060_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(status, "confirmed");
+    }
+
+    #[tokio::test]
+    async fn checkin_persists_guest_and_booking_field_edits() {
+        let pool = common::setup_test_db().await;
+        seed_checkin_booking(&pool, 8070, "confirmed").await;
+
+        let checkin: CheckInRequest = serde_json::from_value(serde_json::json!({
+            "guest_update": {"email": "arrival@example.com", "city": "Penang"},
+            "booking_update": {"market_code": "WALKIN", "special_requests": "High floor"}
+        }))
+        .unwrap();
+        bookings::manual_checkin(&pool, 1, 8070, Some(checkin))
+            .await
+            .expect("check-in with edits succeeds");
+
+        let guest = sqlx::query("SELECT email, city FROM guests WHERE id = ?1")
+            .bind(8070_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(
+            guest.get::<Option<String>, _>("email"),
+            Some("arrival@example.com".to_string())
+        );
+        assert_eq!(
+            guest.get::<Option<String>, _>("city"),
+            Some("Penang".to_string())
+        );
+
+        let booking =
+            sqlx::query("SELECT market_code, special_requests, status FROM bookings WHERE id = ?1")
+                .bind(8070_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            booking.get::<Option<String>, _>("market_code"),
+            Some("WALKIN".to_string())
+        );
+        assert_eq!(
+            booking.get::<Option<String>, _>("special_requests"),
+            Some("High floor".to_string())
+        );
+        assert_eq!(booking.get::<String, _>("status"), "checked_in");
+    }
+
+    #[tokio::test]
+    async fn checkin_records_payment_once_and_recomputes_status() {
+        let pool = common::setup_test_db().await;
+        seed_checkin_booking(&pool, 8080, "confirmed").await;
+
+        let checkin: CheckInRequest = serde_json::from_value(serde_json::json!({
+            "payment_record": {"amount": 150.0, "payment_method": "cash", "payment_type": "booking", "notes": "full"}
+        }))
+        .unwrap();
+        bookings::manual_checkin(&pool, 1, 8080, Some(checkin))
+            .await
+            .expect("check-in with payment succeeds");
+
+        let payment_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE booking_id = ?1")
+                .bind(8080_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(payment_count, 1, "exactly one payment should be recorded");
+
+        let amount: f64 = sqlx::query_scalar("SELECT amount FROM payments WHERE booking_id = ?1")
+            .bind(8080_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(amount, 150.0);
+
+        // Seeded total is 150.0; a 150.0 payment recomputed in the same tx → paid.
+        let payment_status: String =
+            sqlx::query_scalar("SELECT payment_status FROM bookings WHERE id = ?1")
+                .bind(8080_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(payment_status, "paid");
+    }
+
+    #[tokio::test]
+    async fn checkin_does_not_duplicate_existing_financial_records() {
+        let pool = common::setup_test_db().await;
+        seed_checkin_booking(&pool, 8090, "confirmed").await;
+        sqlx::query(
+            "INSERT INTO payments (payment_number, booking_id, guest_id, amount, payment_method, payment_type, status, processed_by) \
+             VALUES ('PAY-8090-1', ?1, ?1, 100.00, 'cash', 'booking', 'completed', 1)",
+        )
+        .bind(8090_i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO customer_ledgers (ledger_number, guest_id, booking_id, transaction_type, transaction_date, description, debit_amount, balance, created_by) \
+             VALUES ('LED-8090-1', ?1, ?1, 'room_charge', '2030-12-10', 'Existing', 300.00, 300.00, 1)",
+        )
+        .bind(8090_i64)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // Check-in without a payment_record must not touch existing financials.
+        bookings::manual_checkin(&pool, 1, 8090, None)
+            .await
+            .expect("check-in succeeds");
+
+        let payment_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE booking_id = ?1")
+                .bind(8090_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let ledger_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM customer_ledgers WHERE booking_id = ?1")
+                .bind(8090_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(payment_count, 1);
+        assert_eq!(ledger_count, 1);
+    }
+
+    #[tokio::test]
+    async fn checkin_rolls_back_all_side_effects_when_late_audit_fails() {
+        let pool = common::setup_test_db().await;
+        seed_checkin_booking(&pool, 8100, "confirmed").await;
+        sqlx::query("UPDATE rooms SET status = 'reserved' WHERE id = ?1")
+            .bind(8100_i64)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        // Force the in-transaction audit write (which runs after the booking
+        // transition, payment, and guest edit) to fail.
+        sqlx::query("DROP TABLE audit_logs")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let checkin: CheckInRequest = serde_json::from_value(serde_json::json!({
+            "guest_update": {"city": "ShouldRollBack"},
+            "payment_record": {"amount": 75.0, "payment_method": "cash", "payment_type": "booking"}
+        }))
+        .unwrap();
+        let result = bookings::manual_checkin(&pool, 1, 8100, Some(checkin)).await;
+        assert!(
+            matches!(result, Err(ApiError::Database(ref m)) if m.contains("audit_logs")),
+            "expected late audit failure, got: {result:?}"
+        );
+
+        let status: String = sqlx::query_scalar("SELECT status FROM bookings WHERE id = ?1")
+            .bind(8100_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let actual_check_in: Option<String> =
+            sqlx::query_scalar("SELECT actual_check_in FROM bookings WHERE id = ?1")
+                .bind(8100_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let room_status: String = sqlx::query_scalar("SELECT status FROM rooms WHERE id = ?1")
+            .bind(8100_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let payment_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE booking_id = ?1")
+                .bind(8100_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let history_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM booking_history WHERE booking_id = ?1")
+                .bind(8100_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let modification_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM booking_modifications WHERE booking_id = ?1")
+                .bind(8100_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let city: Option<String> = sqlx::query_scalar("SELECT city FROM guests WHERE id = ?1")
+            .bind(8100_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+        // Every preceding write — status, timestamp, room, payment, history,
+        // modification, and the guest edit — must roll back as one unit.
+        assert_eq!(status, "confirmed");
+        assert!(
+            actual_check_in.is_none(),
+            "actual_check_in must not be stamped after rollback"
+        );
+        assert_eq!(room_status, "reserved");
+        assert_eq!(payment_count, 0, "the check-in payment must roll back");
+        assert_eq!(history_count, 0);
+        assert_eq!(modification_count, 0);
+        assert!(city.is_none(), "the guest edit must roll back");
+    }
 }
 
 #[cfg(all(feature = "postgres", not(feature = "sqlite")))]
@@ -1517,6 +1903,293 @@ mod postgres_tests {
             0
         );
         assert_eq!(credits_count, 0);
+
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
+    }
+
+    // -----------------------------------------------------------------------
+    // Manual check-in (PostgreSQL)
+    // -----------------------------------------------------------------------
+
+    async fn install_checkin_audit_failure_trigger(pool: &PgPool, booking_id: i64) {
+        let function_name = format!("fail_checkin_audit_{booking_id}");
+        let trigger_name = format!("trg_fail_checkin_audit_{booking_id}");
+        sqlx::query(&format!(
+            "DROP TRIGGER IF EXISTS {trigger_name} ON audit_logs"
+        ))
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(&format!("DROP FUNCTION IF EXISTS {function_name}()"))
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query(&format!(
+            r#"
+            CREATE FUNCTION {function_name}() RETURNS trigger AS $$
+            BEGIN
+                IF NEW.action = 'booking_checkin'
+                   AND NEW.resource_type = 'booking'
+                   AND NEW.resource_id = {booking_id} THEN
+                    RAISE EXCEPTION 'forced audit failure for booking {booking_id}';
+                END IF;
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            "#
+        ))
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(&format!(
+            "CREATE TRIGGER {trigger_name} BEFORE INSERT ON audit_logs \
+             FOR EACH ROW EXECUTE FUNCTION {function_name}()"
+        ))
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn drop_checkin_audit_failure_trigger(pool: &PgPool, booking_id: i64) {
+        let function_name = format!("fail_checkin_audit_{booking_id}");
+        let trigger_name = format!("trg_fail_checkin_audit_{booking_id}");
+        sqlx::query(&format!(
+            "DROP TRIGGER IF EXISTS {trigger_name} ON audit_logs"
+        ))
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(&format!("DROP FUNCTION IF EXISTS {function_name}()"))
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn postgres_checkin_updates_workflow_side_effects() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_001;
+        let booking_id = 940_101;
+        let guest_id = 940_201;
+        let room_id = 940_301;
+        let room_type_id = 940_401;
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
+        seed_pg_booking(
+            &pool,
+            actor_id,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            "confirmed",
+            false,
+        )
+        .await;
+
+        let checkin: hotel_app_be::models::CheckInRequest =
+            serde_json::from_value(serde_json::json!({
+                "payment_record": {"amount": 150.0, "payment_method": "cash", "payment_type": "booking", "notes": "pg full"}
+            }))
+            .unwrap();
+        let booking = bookings::manual_checkin(&pool, actor_id, booking_id, Some(checkin))
+            .await
+            .expect("postgres booking should check in");
+        assert_eq!(booking.status, "checked_in");
+
+        let row = sqlx::query(
+            "SELECT status, actual_check_in IS NOT NULL AS has_actual FROM bookings WHERE id = $1",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let room_status: String = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
+            .bind(room_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let audit_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM audit_logs WHERE resource_type = 'booking' AND resource_id = $1 AND action = 'booking_checkin'",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(row.get::<String, _>("status"), "checked_in");
+        assert!(row.get::<bool, _>("has_actual"));
+        assert_eq!(room_status, "occupied");
+        assert_eq!(count_pg_rows(&pool, "payments", booking_id).await, 1);
+        assert_eq!(count_pg_rows(&pool, "booking_history", booking_id).await, 1);
+        assert_eq!(
+            count_pg_rows(&pool, "booking_modifications", booking_id).await,
+            1
+        );
+        assert_eq!(audit_count, 1);
+
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn postgres_concurrent_checkin_allows_only_one_success() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_002;
+        let booking_id = 940_102;
+        let guest_id = 940_202;
+        let room_id = 940_302;
+        let room_type_id = 940_402;
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
+        seed_pg_booking(
+            &pool,
+            actor_id,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            "confirmed",
+            false,
+        )
+        .await;
+
+        let pool_a = pool.clone();
+        let pool_b = pool.clone();
+        let (first, second) = tokio::join!(
+            bookings::manual_checkin(&pool_a, actor_id, booking_id, None),
+            bookings::manual_checkin(&pool_b, actor_id, booking_id, None)
+        );
+
+        let success_count = usize::from(first.is_ok()) + usize::from(second.is_ok());
+        assert_eq!(
+            success_count, 1,
+            "exactly one concurrent check-in should succeed: first={first:?}, second={second:?}"
+        );
+        let failed = if first.is_ok() { second } else { first };
+        assert!(
+            matches!(failed, Err(ApiError::BadRequest(_))),
+            "the losing check-in should return a controlled state error, got: {failed:?}"
+        );
+        assert_eq!(count_pg_rows(&pool, "booking_history", booking_id).await, 1);
+        assert_eq!(
+            count_pg_rows(&pool, "booking_modifications", booking_id).await,
+            1
+        );
+
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn postgres_checkin_rolls_back_when_late_audit_insert_fails() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_003;
+        let booking_id = 940_103;
+        let guest_id = 940_203;
+        let room_id = 940_303;
+        let room_type_id = 940_403;
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            room_type_id,
+            &[room_id],
+            &[guest_id],
+            &[booking_id],
+        )
+        .await;
+        seed_pg_booking(
+            &pool,
+            actor_id,
+            booking_id,
+            guest_id,
+            room_id,
+            room_type_id,
+            "confirmed",
+            false,
+        )
+        .await;
+        install_checkin_audit_failure_trigger(&pool, booking_id).await;
+
+        let checkin: hotel_app_be::models::CheckInRequest =
+            serde_json::from_value(serde_json::json!({
+                "payment_record": {"amount": 75.0, "payment_method": "cash", "payment_type": "booking"}
+            }))
+            .unwrap();
+        let result = bookings::manual_checkin(&pool, actor_id, booking_id, Some(checkin)).await;
+        drop_checkin_audit_failure_trigger(&pool, booking_id).await;
+
+        assert!(
+            matches!(result, Err(ApiError::Database(_))),
+            "expected forced audit failure, got: {result:?}"
+        );
+
+        let row = sqlx::query(
+            "SELECT status, actual_check_in IS NULL AS no_actual FROM bookings WHERE id = $1",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        let room_status: String = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
+            .bind(room_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+        // The whole check-in unwinds: status, timestamp, room, payment, and the
+        // history/modification writes all roll back together.
+        assert_eq!(row.get::<String, _>("status"), "confirmed");
+        assert!(row.get::<bool, _>("no_actual"));
+        assert_eq!(room_status, "reserved");
+        assert_eq!(count_pg_rows(&pool, "payments", booking_id).await, 0);
+        assert_eq!(count_pg_rows(&pool, "booking_history", booking_id).await, 0);
+        assert_eq!(
+            count_pg_rows(&pool, "booking_modifications", booking_id).await,
+            0
+        );
 
         cleanup_pg_fixture(
             &pool,

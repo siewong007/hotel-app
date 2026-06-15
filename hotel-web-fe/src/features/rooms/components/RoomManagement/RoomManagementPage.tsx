@@ -88,6 +88,7 @@ import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceMo
 import UnifiedBookingModal, { BookingType } from '../UnifiedBooking/UnifiedBookingModal';
 import UpdateCheckoutDateDialog from '../UpdateCheckoutDateDialog';
 import RoomNotesDialog from './RoomNotesDialog';
+import RoomStatusDialog from './RoomStatusDialog';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
 import {
   buildRoomBlockedDates,
@@ -176,11 +177,14 @@ const RoomManagementPage: React.FC = () => {
   const [updateCheckoutDialogOpen, setUpdateCheckoutDialogOpen] = useState(false);
   const [updateCheckoutBooking, setUpdateCheckoutBooking] = useState<BookingWithDetails | null>(null);
   const [complimentaryDialogOpen, setComplimentaryDialogOpen] = useState(false);
+
+  // Notes and status editing state
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+  const [roomStatusDialogOpen, setRoomStatusDialogOpen] = useState(false);
   const [complimentaryReason, setComplimentaryReason] = useState('');
   const [markingComplimentary, setMarkingComplimentary] = useState(false);
 
   // Room notes state
-  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [editingNotes, setEditingNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
 
@@ -1151,6 +1155,35 @@ const RoomManagementPage: React.FC = () => {
     }
   };
 
+  const handleUpdateStatus = (room: Room) => {
+    setSelectedRoom(room);
+    setRoomStatusDialogOpen(true);
+    handleMenuClose();
+  };
+
+  const handleSaveRoomStatus = async (status: string, notes: string) => {
+    if (!selectedRoom) return;
+    
+    // If setting to available but there's an upcoming booking, it should be 'reserved'
+    let finalStatus = status;
+    if (status === 'available') {
+      const upcomingBooking = Array.from(reservedBookings.values()).find(
+        b => String(b.room_id) === String(selectedRoom.id)
+      );
+      if (upcomingBooking) {
+        finalStatus = 'reserved';
+      }
+    }
+    
+    await HotelAPIService.updateRoomStatus(selectedRoom.id, {
+      status: finalStatus as 'maintenance' | 'reserved' | 'available' | 'occupied' | 'dirty',
+      notes,
+    });
+
+    showSnackbar(`Room status updated to ${finalStatus}`, 'success');
+    loadData();
+  };
+
   const handleMakeDirty = async (room: Room) => {
     try {
       // Update room status to dirty (needs cleaning)
@@ -1461,27 +1494,17 @@ const RoomManagementPage: React.FC = () => {
   const handleEditNotes = (room: Room) => {
     console.log('Opening notes dialog for room:', { roomId: room.id, roomNumber: room.room_number, existingNotes: room.notes });
     setSelectedRoom(room);
-    setEditingNotes(room.notes || '');
     setNotesDialogOpen(true);
     handleMenuClose();
   };
 
-  const handleSaveNotes = async () => {
+  const handleSaveNotes = async (notes: string) => {
     if (!selectedRoom) return;
-    setSavingNotes(true);
-    try {
-      console.log('Saving notes:', { roomId: selectedRoom.id, notes: editingNotes });
-      const updatedRoom = await HotelAPIService.updateRoom(selectedRoom.id, { notes: editingNotes || '' } as Partial<Room>);
-      console.log('Updated room response:', updatedRoom);
-      showSnackbar('Room notes updated', 'success');
-      setNotesDialogOpen(false);
-      loadData();
-    } catch (error: any) {
-      console.error('Failed to save notes:', error);
-      showSnackbar(error.message || 'Failed to update notes', 'error');
-    } finally {
-      setSavingNotes(false);
-    }
+    const updatedRoom = await HotelAPIService.updateRoom(selectedRoom.id, { notes: notes || '' } as Partial<Room>);
+    console.log('Updated room response:', updatedRoom);
+    showSnackbar('Room notes updated', 'success');
+    loadData();
+    setNotesDialogOpen(false);
   };
 
   const handleChangeRoom = (room: Room) => {
@@ -1651,15 +1674,7 @@ const RoomManagementPage: React.FC = () => {
 
     // HOUSEKEEPING section
     const hkActions: RoomAction[] = [];
-    if (!isOccupied && computedStatus !== 'available') {
-      hkActions.push({ id: 'clean', label: 'Mark as clean', icon: <CheckCircleIcon />, color: '#43A047', onClick: handleMakeClean });
-    }
-    hkActions.push({ id: 'dirty', label: 'Mark as dirty', icon: <CleaningIcon />, onClick: handleMakeDirty });
-    if (!isMaintenance) {
-      hkActions.push({ id: 'maintenance', label: 'Set maintenance', icon: <MaintenanceIcon />, onClick: handleMaintenance });
-    } else {
-      hkActions.push({ id: 'clear-maintenance', label: 'Clear maintenance', icon: <CheckCircleIcon />, color: '#43A047', onClick: handleMakeClean });
-    }
+    hkActions.push({ id: 'update-status', label: 'Update status / block', icon: <BuildIcon />, onClick: handleUpdateStatus });
     layout.sections.push({ title: 'Housekeeping', actions: hkActions });
 
     // ROOM section
@@ -3978,11 +3993,15 @@ const RoomManagementPage: React.FC = () => {
       <RoomNotesDialog
         open={notesDialogOpen}
         room={selectedRoom}
-        notes={editingNotes}
-        saving={savingNotes}
         onClose={() => setNotesDialogOpen(false)}
-        onNotesChange={setEditingNotes}
         onSubmit={handleSaveNotes}
+      />
+
+      <RoomStatusDialog
+        open={roomStatusDialogOpen}
+        room={selectedRoom}
+        onClose={() => setRoomStatusDialogOpen(false)}
+        onSubmit={handleSaveRoomStatus}
       />
 
       {/* Booking Notes Edit Dialog */}

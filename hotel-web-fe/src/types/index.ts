@@ -23,7 +23,17 @@ export type {
 } from './room.types';
 
 // Guest types
-export type { Guest, GuestCreateRequest, GuestUpdateRequest, GuestType, TourismType } from './guest.types';
+export type {
+  Guest,
+  GuestCreateRequest,
+  GuestDuplicateCandidate,
+  GuestProfile,
+  GuestProfileBooking,
+  GuestSummary,
+  GuestUpdateRequest,
+  GuestType,
+  TourismType,
+} from './guest.types';
 export { GUEST_TYPE_CONFIG, TOURISM_TYPE_CONFIG } from '../constants/guest.constants';
 
 // Booking runtime constants and types

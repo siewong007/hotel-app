@@ -18,20 +18,25 @@ import {
   InputAdornment,
   Pagination,
   Stack,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
   Search as SearchIcon,
+  Visibility as VisibilityIcon,
 } from '@mui/icons-material';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { getPaginationState, normalizePage, toPaginationSearchParams } from '../../../utils/pagination';
 import { useGuestsPage } from '../hooks/useGuestQueries';
+import GuestProfileDialog from './GuestProfileDialog';
 
 const PAGE_SIZE = 50;
 
 const GuestsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedGuestId, setSelectedGuestId] = useState<number | null>(null);
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 700);
   const guestQueryParams = useMemo(() => ({
     ...toPaginationSearchParams({ page: normalizePage(currentPage), pageSize: PAGE_SIZE }),
@@ -124,20 +129,22 @@ const GuestsPage: React.FC = () => {
               <TableCell><strong>Name</strong></TableCell>
               <TableCell><strong>Email</strong></TableCell>
               <TableCell><strong>Phone</strong></TableCell>
+              <TableCell><strong>Stays</strong></TableCell>
               <TableCell><strong>Status</strong></TableCell>
               <TableCell><strong>Registered Date</strong></TableCell>
+              <TableCell align="right"><strong>Actions</strong></TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
                   <CircularProgress size={32} />
                 </TableCell>
               </TableRow>
             ) : guests.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
                   <Typography variant="body1" color="text.secondary">
                     {searchQuery ? `No guests found matching "${searchQuery}"` : 'No guest users registered yet'}
                   </Typography>
@@ -150,6 +157,19 @@ const GuestsPage: React.FC = () => {
                   <TableCell>{guest.full_name || 'N/A'}</TableCell>
                   <TableCell>{guest.email}</TableCell>
                   <TableCell>{guest.phone || 'N/A'}</TableCell>
+                  <TableCell>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {guest.bookings_count ?? 0}
+                    </Typography>
+                    {guest.last_stay_date && (
+                      <Typography variant="caption" color="text.secondary">
+                        Last {new Date(guest.last_stay_date).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </Typography>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Box
                       component="span"
@@ -172,6 +192,18 @@ const GuestsPage: React.FC = () => {
                       month: 'short',
                       day: 'numeric',
                     })}
+                  </TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="Open guest profile">
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => setSelectedGuestId(guest.id)}
+                        aria-label={`Open profile for ${guest.full_name || `guest ${guest.id}`}`}
+                      >
+                        <VisibilityIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))
@@ -197,6 +229,12 @@ const GuestsPage: React.FC = () => {
           />
         </Stack>
       )}
+
+      <GuestProfileDialog
+        open={selectedGuestId != null}
+        guestId={selectedGuestId}
+        onClose={() => setSelectedGuestId(null)}
+      />
     </Box>
   );
 };

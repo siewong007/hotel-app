@@ -2030,11 +2030,11 @@ pub async fn user_owns_booking(
     Ok(owns_booking)
 }
 
-pub async fn void_booking_and_release_room_tx(
+pub async fn void_booking_tx(
     tx: &mut DbTransaction<'_>,
-    booking: &Booking,
+    booking_id: i64,
     user_id: i64,
-) -> Result<i32, ApiError> {
+) -> Result<(), ApiError> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let update_booking_query = r#"
         UPDATE bookings
@@ -2059,7 +2059,7 @@ pub async fn void_booking_and_release_room_tx(
     "#;
 
     let result = sqlx::query(update_booking_query)
-        .bind(booking.id)
+        .bind(booking_id)
         .bind(user_id)
         .execute(&mut **tx)
         .await
@@ -2069,17 +2069,28 @@ pub async fn void_booking_and_release_room_tx(
         return Err(ApiError::BadRequest("Booking cannot be voided".to_string()));
     }
 
+    Ok(())
+}
+
+pub async fn release_room_tx(tx: &mut DbTransaction<'_>, room_id: i64) -> Result<(), ApiError> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let update_room_query = "UPDATE rooms SET status = 'available' WHERE id = ?1";
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_room_query = "UPDATE rooms SET status = 'available' WHERE id = $1";
 
     sqlx::query(update_room_query)
-        .bind(booking.room_id)
+        .bind(room_id)
         .execute(&mut **tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    Ok(())
+}
+
+pub async fn void_booking_payments_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+) -> Result<(), ApiError> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let void_payments_query =
         "UPDATE payments SET status = 'void' WHERE booking_id = ?1 AND status != 'void'";
@@ -2088,11 +2099,18 @@ pub async fn void_booking_and_release_room_tx(
         "UPDATE payments SET status = 'void' WHERE booking_id = $1 AND status != 'void'";
 
     sqlx::query(void_payments_query)
-        .bind(booking.id)
+        .bind(booking_id)
         .execute(&mut **tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    Ok(())
+}
+
+pub async fn restore_complimentary_credits_tx(
+    tx: &mut DbTransaction<'_>,
+    booking: &Booking,
+) -> Result<i32, ApiError> {
     let mut nights_credited = 0;
     if booking.is_complimentary == Some(true) {
         let nights = (booking.check_out_date - booking.check_in_date)
@@ -2186,304 +2204,334 @@ pub async fn record_booking_void_modification_tx(
     Ok(())
 }
 
-pub async fn manual_checkin_handler(
-    State(pool): State<DbPool>,
-    Extension(user_id): Extension<i64>,
-    Path(booking_id): Path<i64>,
-    Json(checkin_data): Json<Option<CheckInRequest>>,
-) -> Result<Json<Booking>, ApiError> {
-    let booking = booking_svc::fetch_booking_by_id(&pool, booking_id).await?;
+// ---------------------------------------------------------------------------
+// Manual check-in: transaction-scoped helpers
+//
+// Each helper runs on the caller's transaction so the whole check-in commits
+// atomically (see `services::bookings::manual_checkin`). The core transition
+// (`checkin_booking_tx`) is guarded by `status IN ('confirmed','pending')` and
+// requires exactly one affected row, so a concurrent check-in cannot win twice.
+// ---------------------------------------------------------------------------
 
-    let has_checkin_permission = AuthService::check_permission(&pool, user_id, "bookings:update")
+/// Read a room's current status on the check-in transaction (used to block
+/// check-in into a room under maintenance / out of order).
+pub async fn fetch_room_status_tx(
+    tx: &mut DbTransaction<'_>,
+    room_id: i64,
+) -> Result<Option<String>, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let query = "SELECT status FROM rooms WHERE id = ?1";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let query = "SELECT status FROM rooms WHERE id = $1";
+
+    sqlx::query_scalar(query)
+        .bind(room_id)
+        .fetch_optional(&mut **tx)
         .await
-        .unwrap_or(false)
-        || AuthService::check_permission(&pool, user_id, "bookings:manage")
-            .await
-            .unwrap_or(false);
+        .map_err(|e| ApiError::Database(e.to_string()))
+}
 
-    let created_booking = booking.created_by == Some(user_id);
+/// Apply optional guest-profile edits supplied at check-in. PostgreSQL-flavoured
+/// dynamic update (the column set is variable). No-op when nothing changes.
+pub async fn apply_guest_update_tx(
+    tx: &mut DbTransaction<'_>,
+    guest_id: i64,
+    guest_update: &GuestUpdateInput,
+) -> Result<(), ApiError> {
+    let mut updates = vec!["updated_at = CURRENT_TIMESTAMP".to_string()];
+    let mut params: Vec<String> = vec![];
 
-    if !has_checkin_permission && !created_booking {
-        return Err(ApiError::Unauthorized(
-            "You don't have permission to check in this booking".to_string(),
-        ));
+    if let Some(ref v) = guest_update.first_name {
+        updates.push(format!("first_name = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.last_name {
+        updates.push(format!("last_name = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.email {
+        let trimmed = v.trim();
+        if trimmed.is_empty() {
+            updates.push("email = NULL".to_string());
+        } else {
+            let email_regex =
+                regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+            if email_regex.is_match(trimmed) {
+                updates.push(format!("email = ${}", params.len() + 1));
+                params.push(trimmed.to_string());
+            }
+            // POLICY: an optional, malformed email on the check-in guest patch is
+            // intentionally ignored (the rest of the check-in still proceeds) — a
+            // front-desk typo must not block a guest's arrival. This is distinct
+            // from required-field validation, which rejects up front. An empty
+            // string clears the email to NULL; a well-formed value updates it.
+        }
+    }
+    if let Some(ref v) = guest_update.phone {
+        updates.push(format!("phone = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.ic_number {
+        updates.push(format!("ic_number = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.nationality {
+        updates.push(format!("nationality = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.address_line1 {
+        updates.push(format!("address_line1 = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.city {
+        updates.push(format!("city = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.state_province {
+        updates.push(format!("state_province = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.postal_code {
+        updates.push(format!("postal_code = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.country {
+        updates.push(format!("country = ${}", params.len() + 1));
+        params.push(v.clone());
     }
 
-    if booking.status != "confirmed" && booking.status != "pending" {
-        return Err(ApiError::BadRequest(format!(
-            "Cannot check in booking with status: {}",
-            booking.status
-        )));
+    // Only the timestamp bump means no real field change was requested.
+    if params.is_empty() {
+        return Ok(());
     }
 
-    // Check if room is ready for check-in (only block maintenance/out_of_order)
-    // Note: Dirty/cleaning rooms are allowed for check-in - room will be set to occupied
-    let room_status: Option<String> = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
-        .bind(booking.room_id)
-        .fetch_optional(&pool)
+    let query = format!(
+        "UPDATE guests SET {} WHERE id = ${}",
+        updates.join(", "),
+        params.len() + 1
+    );
+    let mut q = sqlx::query(&query);
+    for p in &params {
+        q = q.bind(p);
+    }
+    q = q.bind(guest_id);
+    q.execute(&mut **tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    if let Some(status) = room_status
-        && (status == "maintenance" || status == "out_of_order")
-    {
-        return Err(ApiError::BadRequest(format!(
-            "Cannot check in - room is currently under {}.",
-            status.replace("_", " ")
-        )));
+    Ok(())
+}
+
+/// Apply optional booking-level edits supplied at check-in (market code,
+/// payment method, requests, remarks, company). PostgreSQL-flavoured dynamic
+/// update. No-op when nothing changes.
+pub async fn apply_booking_field_update_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    booking_update: &BookingUpdateInput,
+) -> Result<(), ApiError> {
+    let mut updates: Vec<String> = vec![];
+    let mut params: Vec<String> = vec![];
+
+    if let Some(ref v) = booking_update.market_code {
+        updates.push(format!("market_code = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    // Note: rate_code column does not exist in bookings table - skip it.
+    if let Some(ref v) = booking_update.payment_method {
+        updates.push(format!("payment_method = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = booking_update.special_requests {
+        updates.push(format!("special_requests = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = booking_update.remarks {
+        updates.push(format!("remarks = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = booking_update.company_name {
+        updates.push(format!("company_name = ${}", params.len() + 1));
+        params.push(v.clone());
     }
 
-    if let Some(ref checkin) = checkin_data
-        && let Some(ref guest_update) = checkin.guest_update
-    {
-        let mut updates = vec!["updated_at = CURRENT_TIMESTAMP".to_string()];
-        let mut params: Vec<String> = vec![];
-
-        if let Some(ref v) = guest_update.first_name {
-            updates.push(format!("first_name = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-        if let Some(ref v) = guest_update.last_name {
-            updates.push(format!("last_name = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-        if let Some(ref v) = guest_update.email {
-            let trimmed = v.trim();
-            if trimmed.is_empty() {
-                // Set to NULL for empty email
-                updates.push("email = NULL".to_string());
-            } else {
-                // Validate email format before updating
-                let email_regex =
-                    regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
-                if email_regex.is_match(trimmed) {
-                    updates.push(format!("email = ${}", params.len() + 1));
-                    params.push(trimmed.to_string());
-                }
-                // Invalid email format - skip the update silently
-            }
-        }
-        if let Some(ref v) = guest_update.phone {
-            updates.push(format!("phone = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-        if let Some(ref v) = guest_update.ic_number {
-            updates.push(format!("ic_number = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-        if let Some(ref v) = guest_update.nationality {
-            updates.push(format!("nationality = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-        if let Some(ref v) = guest_update.address_line1 {
-            updates.push(format!("address_line1 = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-        if let Some(ref v) = guest_update.city {
-            updates.push(format!("city = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-        if let Some(ref v) = guest_update.state_province {
-            updates.push(format!("state_province = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-        if let Some(ref v) = guest_update.postal_code {
-            updates.push(format!("postal_code = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-        if let Some(ref v) = guest_update.country {
-            updates.push(format!("country = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-
-        if !params.is_empty() {
-            let query = format!(
-                "UPDATE guests SET {} WHERE id = ${}",
-                updates.join(", "),
-                params.len() + 1
-            );
-            let mut q = sqlx::query(&query);
-            for p in &params {
-                q = q.bind(p);
-            }
-            q = q.bind(booking.guest_id);
-            if let Err(e) = q.execute(&pool).await {
-                log::warn!(
-                    "Failed to update guest {} during check-in: {}",
-                    booking.guest_id,
-                    e
-                );
-            }
-        }
+    if params.is_empty() {
+        return Ok(());
     }
 
-    // Apply booking_update fields if provided (market_code, payment_method, special_requests, etc.)
-    if let Some(ref checkin) = checkin_data
-        && let Some(ref booking_update) = checkin.booking_update
-    {
-        let mut updates = vec![];
-        let mut params: Vec<String> = vec![];
+    let query = format!(
+        "UPDATE bookings SET {} WHERE id = ${}",
+        updates.join(", "),
+        params.len() + 1
+    );
+    let mut q = sqlx::query(&query);
+    for p in &params {
+        q = q.bind(p);
+    }
+    q = q.bind(booking_id);
+    q.execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
 
-        if let Some(ref v) = booking_update.market_code {
-            updates.push(format!("market_code = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-        // Note: rate_code column does not exist in bookings table - skip it
-        if let Some(ref v) = booking_update.payment_method {
-            updates.push(format!("payment_method = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-        if let Some(ref v) = booking_update.special_requests {
-            updates.push(format!("special_requests = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-        if let Some(ref v) = booking_update.remarks {
-            updates.push(format!("remarks = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
-        if let Some(ref v) = booking_update.company_name {
-            updates.push(format!("company_name = ${}", params.len() + 1));
-            params.push(v.clone());
-        }
+    Ok(())
+}
 
-        if !params.is_empty() {
-            let query = format!(
-                "UPDATE bookings SET {} WHERE id = ${}",
-                updates.join(", "),
-                params.len() + 1
-            );
-            let mut q = sqlx::query(&query);
-            for p in &params {
-                q = q.bind(p);
-            }
-            q = q.bind(booking_id);
-            if let Err(e) = q.execute(&pool).await {
-                log::warn!(
-                    "Failed to update booking {} fields during check-in: {}",
-                    booking_id,
-                    e
-                );
-            }
-        }
+/// Atomically transition a booking to `checked_in`, stamping the actual
+/// check-in timestamp. Guarded by `status IN ('confirmed','pending')` and
+/// requires exactly one affected row, so a concurrent check-in (or any other
+/// transition that already moved the row) collapses to a clean `BadRequest`
+/// instead of a double check-in. Returns the refreshed booking row.
+pub async fn checkin_booking_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+) -> Result<Booking, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let update_query = r#"
+        UPDATE bookings
+        SET status = 'checked_in',
+            actual_check_in = datetime('now'),
+            updated_at = datetime('now')
+        WHERE id = ?1
+          AND status IN ('confirmed', 'pending')
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let update_query = r#"
+        UPDATE bookings
+        SET status = 'checked_in',
+            actual_check_in = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+          AND status IN ('confirmed', 'pending')
+    "#;
+
+    let result = sqlx::query(update_query)
+        .bind(booking_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if result.rows_affected() != 1 {
+        return Err(ApiError::BadRequest(
+            "Booking cannot be checked in".to_string(),
+        ));
     }
 
-    let updated_booking_row = sqlx::query(
-        r#"
-        UPDATE bookings SET status = 'checked_in', actual_check_in = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1
-        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at
-        "#
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let select_query = "SELECT * FROM bookings WHERE id = ?1";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let select_query = "SELECT * FROM bookings WHERE id = $1";
+
+    let row = sqlx::query(select_query)
+        .bind(booking_id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(row_mappers::row_to_booking(&row))
+}
+
+/// Record an optional payment captured during check-in.
+pub async fn record_checkin_payment_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    payment: &CheckInPaymentRecord,
+    user_id: i64,
+) -> Result<(), ApiError> {
+    let pay_amount = Decimal::from_f64_retain(payment.amount).unwrap_or(Decimal::ZERO);
+    let pay_type = payment.payment_type.as_deref().unwrap_or("booking");
+
+    // The two schemas diverge: PostgreSQL keys payments by `uuid` + `created_by`
+    // and stores free text in `notes`; SQLite uses `payment_number` + `processed_by`
+    // and `description`. The bind order is identical — only the column list differs.
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let insert_query = r#"
+        INSERT INTO payments (payment_number, booking_id, amount, payment_method, payment_type, status, description, processed_by)
+        VALUES (?1, ?2, ?3, ?4, ?5, 'completed', ?6, ?7)
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let insert_query = r#"
+        INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
+        VALUES ($1, $2, $3, $4, $5, 'completed', $6, $7)
+    "#;
+
+    sqlx::query(insert_query)
+        .bind(crate::core::db::generate_uuid())
+        .bind(booking_id)
+        .bind(decimal_to_db(pay_amount))
+        .bind(&payment.payment_method)
+        .bind(pay_type)
+        .bind(&payment.notes)
+        .bind(user_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(())
+}
+
+/// Set the room to `occupied` as part of check-in.
+pub async fn set_room_occupied_tx(
+    tx: &mut DbTransaction<'_>,
+    room_id: i64,
+) -> Result<(), ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let query = "UPDATE rooms SET status = 'occupied' WHERE id = ?1";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let query = "UPDATE rooms SET status = 'occupied' WHERE id = $1";
+
+    sqlx::query(query)
+        .bind(room_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(())
+}
+
+/// Record the check-in in the `booking_modifications` audit trail.
+pub async fn record_checkin_modification_tx(
+    tx: &mut DbTransaction<'_>,
+    booking: &Booking,
+    user_id: i64,
+) -> Result<(), ApiError> {
+    let old_value = serde_json::json!({
+        "status": &booking.status,
+        "guest_id": booking.guest_id,
+        "room_id": booking.room_id,
+    });
+    let new_value = serde_json::json!({
+        "status": "checked_in",
+        "guest_id": booking.guest_id,
+        "room_id": booking.room_id,
+    });
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES (?1, ?2, ?3, ?4, ?5)"
     )
-    .bind(booking_id)
-    .fetch_one(&pool)
+    .bind(booking.id)
+    .bind("check_in")
+    .bind(old_value.to_string())
+    .bind(new_value.to_string())
+    .bind(user_id)
+    .execute(&mut **tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
-    let updated_booking = row_mappers::row_to_booking(&updated_booking_row);
 
-    // Record payment if provided during check-in
-    if let Some(ref checkin) = checkin_data
-        && let Some(ref payment) = checkin.payment_record
-        && payment.amount > 0.0
-    {
-        let pay_amount = Decimal::from_f64_retain(payment.amount).unwrap_or(Decimal::ZERO);
-        let pay_type = payment.payment_type.as_deref().unwrap_or("booking");
-        if let Err(e) = sqlx::query(
-                    r#"INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
-                       VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6)"#
-                )
-                .bind(booking_id)
-                .bind(decimal_to_db(pay_amount))
-                .bind(&payment.payment_method)
-                .bind(pay_type)
-                .bind(&payment.notes)
-                .bind(user_id)
-                .execute(&pool)
-                .await
-                {
-                    log::warn!("Failed to record check-in payment for booking {}: {}", booking_id, e);
-                } else {
-                    let _ = crate::handlers::payments::recompute_payment_status(
-                        &pool, booking_id,
-                    )
-                    .await;
-                }
-    }
-
-    // Only update room status for current/future bookings (skip back-dated)
-    let today = chrono::Local::now().date_naive();
-    if booking.check_out_date >= today
-        && let Err(e) = sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
-            .bind(booking.room_id)
-            .execute(&pool)
-            .await
-    {
-        log::warn!(
-            "Failed to update room {} to occupied during check-in: {}",
-            booking.room_id,
-            e
-        );
-    }
-
-    // Back-fill night audit postings for any past nights whose audit already closed.
-    // Covers same-day walk-ins created after their own 00:00 audit ran.
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-    if let Err(e) =
-        crate::services::night_audit::backfill_booking_posted_nights(&pool, booking_id, user_id)
-            .await
-    {
-        log::warn!(
-            "Failed to backfill posted nights for booking {}: {}",
-            booking_id,
-            e
-        );
-    }
-
-    // Log check-in
-    let _ = AuditLog::log_event(
-        &pool,
-        Some(user_id),
-        "booking_checkin",
-        "booking",
-        Some(booking_id),
-        Some(serde_json::json!({"guest_id": booking.guest_id, "room_id": booking.room_id})),
-        None,
-        None,
-    )
-    .await;
-    record_booking_history(
-        &pool,
-        booking_id,
-        Some(&booking.status),
-        "checked_in",
-        Some(user_id),
-        Some("Guest checked in"),
-        serde_json::json!({
-            "guest_id": booking.guest_id,
-            "room_id": booking.room_id,
-            "payment_recorded": checkin_data
-                .as_ref()
-                .and_then(|data| data.payment_record.as_ref())
-                .map(|p| p.amount)
-                .unwrap_or(0.0),
-        }),
-    )
-    .await;
-
-    // Record in booking_modifications audit trail
-    if let Err(e) = sqlx::query(
+    sqlx::query(
         "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
     )
-    .bind(booking_id)
+    .bind(booking.id)
     .bind("check_in")
-    .bind(serde_json::json!({"status": &booking.status, "guest_id": booking.guest_id, "room_id": booking.room_id}))
-    .bind(serde_json::json!({"status": "checked_in", "guest_id": booking.guest_id, "room_id": booking.room_id}))
+    .bind(old_value)
+    .bind(new_value)
     .bind(user_id)
-    .execute(&pool)
+    .execute(&mut **tx)
     .await
-    {
-        log::warn!("Failed to record check-in audit trail for booking {}: {}", booking_id, e);
-    }
+    .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    Ok(Json(updated_booking))
+    Ok(())
 }
 
 pub async fn pre_checkin_update_handler(
