@@ -221,9 +221,9 @@ pub async fn list_customer_ledgers(
         } else {
             "AND (?8 IS NULL OR 1=1)"
         };
-        let invoice_clause = "AND (?9 IS NULL OR (?9 = 'uninvoiced' AND invoice_number IS NULL AND void_at IS NULL AND status <> 'cancelled') OR (?9 = 'invoiced' AND invoice_number IS NOT NULL AND void_at IS NULL AND status <> 'cancelled'))";
-        let balance_clause = "AND (?10 IS NULL OR (?10 = 'outstanding' AND COALESCE(balance_due, 0) > 0 AND void_at IS NULL AND status <> 'cancelled') OR (?10 = 'clear' AND COALESCE(balance_due, 0) <= 0))";
-        let ui_status_clause = "AND (?11 IS NULL OR (?11 = 'voided' AND (void_at IS NOT NULL OR status = 'cancelled')) OR (?11 = 'paid' AND void_at IS NULL AND (status = 'paid' OR COALESCE(balance_due, 0) <= 0)) OR (?11 = 'overdue' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND (status = 'overdue' OR due_date < date('now'))) OR (?11 = 'partial' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) > 0 AND status <> 'overdue' AND (due_date IS NULL OR due_date >= date('now'))) OR (?11 = 'invoiced' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NOT NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= date('now'))) OR (?11 = 'ready_to_invoice' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= date('now'))) OR (?11 = 'draft' AND void_at IS NULL AND COALESCE(balance_due, 0) <= 0 AND status <> 'paid'))";
+        let invoice_clause = "AND (?9 IS NULL OR (?9 = 'uninvoiced' AND invoice_number IS NULL AND void_at IS NULL AND status <> 'void') OR (?9 = 'invoiced' AND invoice_number IS NOT NULL AND void_at IS NULL AND status <> 'void'))";
+        let balance_clause = "AND (?10 IS NULL OR (?10 = 'outstanding' AND COALESCE(balance_due, 0) > 0 AND void_at IS NULL AND status <> 'void') OR (?10 = 'clear' AND COALESCE(balance_due, 0) <= 0))";
+        let ui_status_clause = "AND (?11 IS NULL OR (?11 = 'voided' AND (void_at IS NOT NULL OR status = 'void')) OR (?11 = 'paid' AND void_at IS NULL AND (status = 'paid' OR COALESCE(balance_due, 0) <= 0)) OR (?11 = 'overdue' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND (status = 'overdue' OR due_date < date('now'))) OR (?11 = 'partial' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) > 0 AND status <> 'overdue' AND (due_date IS NULL OR due_date >= date('now'))) OR (?11 = 'invoiced' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NOT NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= date('now'))) OR (?11 = 'ready_to_invoice' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= date('now'))) OR (?11 = 'draft' AND void_at IS NULL AND COALESCE(balance_due, 0) <= 0 AND status <> 'paid'))";
         let base_where = format!(
             "WHERE (?1 IS NULL OR status = ?1) AND (?2 IS NULL OR company_name LIKE '%' || ?2 || '%') AND (?3 IS NULL OR expense_type = ?3) AND (?4 IS NULL OR folio_type = ?4) AND (?5 IS NULL OR post_type = ?5) AND (?6 IS NULL OR department_code = ?6) AND (?7 IS NULL OR room_number = ?7) {search_clause} {invoice_clause} {balance_clause} {ui_status_clause}"
         );
@@ -241,9 +241,9 @@ pub async fn list_customer_ledgers(
         } else {
             "AND ($8::text IS NULL OR TRUE)"
         };
-        let invoice_clause = "AND ($9::text IS NULL OR ($9 = 'uninvoiced' AND invoice_number IS NULL AND void_at IS NULL AND status <> 'cancelled') OR ($9 = 'invoiced' AND invoice_number IS NOT NULL AND void_at IS NULL AND status <> 'cancelled'))";
-        let balance_clause = "AND ($10::text IS NULL OR ($10 = 'outstanding' AND COALESCE(balance_due, 0) > 0 AND void_at IS NULL AND status <> 'cancelled') OR ($10 = 'clear' AND COALESCE(balance_due, 0) <= 0))";
-        let ui_status_clause = "AND ($11::text IS NULL OR ($11 = 'voided' AND (void_at IS NOT NULL OR status = 'cancelled')) OR ($11 = 'paid' AND void_at IS NULL AND (status = 'paid' OR COALESCE(balance_due, 0) <= 0)) OR ($11 = 'overdue' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND (status = 'overdue' OR due_date < CURRENT_DATE)) OR ($11 = 'partial' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) > 0 AND status <> 'overdue' AND (due_date IS NULL OR due_date >= CURRENT_DATE)) OR ($11 = 'invoiced' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NOT NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= CURRENT_DATE)) OR ($11 = 'ready_to_invoice' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= CURRENT_DATE)) OR ($11 = 'draft' AND void_at IS NULL AND COALESCE(balance_due, 0) <= 0 AND status <> 'paid'))";
+        let invoice_clause = "AND ($9::text IS NULL OR ($9 = 'uninvoiced' AND invoice_number IS NULL AND void_at IS NULL AND status <> 'void') OR ($9 = 'invoiced' AND invoice_number IS NOT NULL AND void_at IS NULL AND status <> 'void'))";
+        let balance_clause = "AND ($10::text IS NULL OR ($10 = 'outstanding' AND COALESCE(balance_due, 0) > 0 AND void_at IS NULL AND status <> 'void') OR ($10 = 'clear' AND COALESCE(balance_due, 0) <= 0))";
+        let ui_status_clause = "AND ($11::text IS NULL OR ($11 = 'voided' AND (void_at IS NOT NULL OR status = 'void')) OR ($11 = 'paid' AND void_at IS NULL AND (status = 'paid' OR COALESCE(balance_due, 0) <= 0)) OR ($11 = 'overdue' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND (status = 'overdue' OR due_date < CURRENT_DATE)) OR ($11 = 'partial' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) > 0 AND status <> 'overdue' AND (due_date IS NULL OR due_date >= CURRENT_DATE)) OR ($11 = 'invoiced' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NOT NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= CURRENT_DATE)) OR ($11 = 'ready_to_invoice' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= CURRENT_DATE)) OR ($11 = 'draft' AND void_at IS NULL AND COALESCE(balance_due, 0) <= 0 AND status <> 'paid'))";
         let base_where = format!(
             "WHERE ($1::text IS NULL OR status = $1) AND ($2::text IS NULL OR company_name ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR expense_type = $3) AND ($4::text IS NULL OR folio_type = $4) AND ($5::text IS NULL OR post_type = $5) AND ($6::text IS NULL OR department_code = $6) AND ($7::text IS NULL OR room_number = $7) {search_clause} {invoice_clause} {balance_clause} {ui_status_clause}"
         );
@@ -1105,7 +1105,7 @@ pub async fn delete_customer_ledger(
             }
             if paid_amount > Decimal::ZERO {
                 return Err(ApiError::BadRequest(
-                    "Cannot delete a ledger with partial payments. Mark it as cancelled instead."
+                    "Cannot delete a ledger with partial payments. Mark it as voided instead."
                         .to_string(),
                 ));
             }
@@ -1159,7 +1159,7 @@ pub async fn create_ledger_payment(
         None => return Err(ApiError::NotFound("Customer ledger not found".to_string())),
     };
 
-    if current_status == "cancelled" || is_voided {
+    if current_status == "void" || is_voided {
         return Err(ApiError::BadRequest(
             "Cannot record payment for a voided ledger".to_string(),
         ));
@@ -1316,7 +1316,7 @@ pub async fn create_ledger_payment(
         None => return Err(ApiError::NotFound("Customer ledger not found".to_string())),
     };
 
-    if current_status == "cancelled" || is_voided {
+    if current_status == "void" || is_voided {
         return Err(ApiError::BadRequest(
             "Cannot record payment for a voided ledger".to_string(),
         ));
@@ -1472,7 +1472,7 @@ pub async fn get_ledger_summary(pool: &DbPool) -> Result<serde_json::Value, ApiE
             SUM(CASE WHEN status = 'partial' THEN 1 ELSE 0 END) as partial_count,
             SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) as overdue_count
         FROM customer_ledgers
-        WHERE status NOT IN ('cancelled')
+        WHERE status NOT IN ('void')
         "#,
     )
     .fetch_one(pool)
@@ -1512,7 +1512,7 @@ pub async fn get_ledger_summary(pool: &DbPool) -> Result<serde_json::Value, ApiE
             COUNT(*) FILTER (WHERE status = 'partial') as partial_count,
             COUNT(*) FILTER (WHERE status = 'overdue') as overdue_count
         FROM customer_ledgers
-        WHERE status NOT IN ('cancelled')
+        WHERE status NOT IN ('void')
         "#,
     )
     .fetch_one(pool)
@@ -1570,7 +1570,7 @@ pub async fn void_ledger(
         SET void_at = datetime('now'),
             void_by = ?1,
             void_reason = ?2,
-            status = 'cancelled',
+            status = 'void',
             updated_at = datetime('now'),
             updated_by = ?1
         WHERE id = ?3
@@ -1622,7 +1622,7 @@ pub async fn void_ledger(
         SET void_at = CURRENT_TIMESTAMP,
             void_by = $1,
             void_reason = $2,
-            status = 'cancelled',
+            status = 'void',
             updated_at = CURRENT_TIMESTAMP,
             updated_by = $1
         WHERE id = $3

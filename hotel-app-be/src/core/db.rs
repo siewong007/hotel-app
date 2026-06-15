@@ -22,6 +22,12 @@ pub type DbRow = sqlx::postgres::PgRow;
 #[cfg(all(feature = "sqlite", feature = "postgres"))]
 pub type DbRow = sqlx::postgres::PgRow;
 
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+pub type DbTransaction<'a> = sqlx::Transaction<'a, sqlx::Sqlite>;
+
+#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+pub type DbTransaction<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
+
 /// Creates a database connection pool based on the enabled feature
 pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error> {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]

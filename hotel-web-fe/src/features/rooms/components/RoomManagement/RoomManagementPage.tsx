@@ -84,49 +84,28 @@ import {
   getUnifiedStatusShortLabel,
   RoomStatusType
 } from '../../config';
+import {
+  buildBlockedDateRangesForRoom,
+  type BlockedDateRange,
+  calculateNightCount,
+  deriveRoomStatusInfo,
+  getCreditBookingDates as getCreditBookingDateRange,
+  getNextAvailableDate as getNextOpenCreditDate,
+  getPositiveRatePerNight,
+  getRoomTypeCode,
+  getTotalCreditsForRoom as getCreditsForRoomType,
+  isDateBlockedByRanges,
+  validateCreditDateSelection,
+} from '../../utils/roomManagementUtils';
 import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
 import UnifiedBookingModal, { BookingType } from '../UnifiedBooking/UnifiedBookingModal';
 import UpdateCheckoutDateDialog from '../UpdateCheckoutDateDialog';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
-
-interface RoomAction {
-  id: string;
-  label: string;
-  icon: React.ReactNode;
-  color?: string;
-  onClick: (room: Room) => void;
-  secondary?: string;
-  badge?: string | number;
-}
-
-interface MenuSection {
-  title: string;
-  actions: RoomAction[];
-}
-
-interface MenuLayout {
-  primary?: {
-    label: string;
-    icon: React.ReactNode;
-    onClick: (room: Room) => void;
-    color?: 'primary' | 'success' | 'error' | 'warning' | 'info';
-    dark?: boolean;
-  };
-  sections: MenuSection[];
-}
-
-interface GuestWithCredits {
-  id: number;
-  full_name: string;
-  email: string;
-  total_complimentary_credits: number;
-  credits_by_room_type: {
-    room_type_id: number;
-    room_type_name: string;
-    room_type_code: string;
-    nights_available: number;
-  }[];
-}
+import { RoomAction, MenuSection, MenuLayout, GuestWithCredits } from './types';
+import RoomNotesDialog from './components/RoomNotesDialog';
+import RoomDetailsDialog from './components/RoomDetailsDialog';
+import RoomHistoryDialog from './components/RoomHistoryDialog';
+import BookingNotesDialog from './components/BookingNotesDialog';
 
 const RoomManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -140,7 +119,6 @@ const RoomManagementPage: React.FC = () => {
     error: dataError,
     roomBookings,
     reservedBookings,
-    compCancelledBookings,
     allBookingsData,
     reload: loadData,
     reloadRooms: loadRooms,
@@ -291,7 +269,7 @@ const RoomManagementPage: React.FC = () => {
     booking_number: string;
     complimentary_nights: number;
   } | null>(null);
-  const [roomBlockedDates, setRoomBlockedDates] = useState<{ start: string; end: string; status: string }[]>([]);
+  const [roomBlockedDates, setRoomBlockedDates] = useState<BlockedDateRange[]>([]);
 
   // Enhanced check-in modal state
 
@@ -439,19 +417,6 @@ const RoomManagementPage: React.FC = () => {
     if (isDarkMode) return ROOM_FILL_DARK[status] || ROOM_FILL_DARK.available;
     // Light mode: yellow needs the darker amber so white text stays readable.
     return status === 'dirty' ? '#a89436' : statusColor;
-  };
-
-
-  const getRoomTypeCode = (roomType: string): string => {
-    const codes: { [key: string]: string } = {
-      'deluxe': 'DLXX',
-      'superior': 'SUP',
-      'standard': 'STD',
-      'suite': 'STE',
-      'standard queen': 'STDQ',
-      'family room': 'FR',
-    };
-    return codes[roomType.toLowerCase()] || roomType.substring(0, 4).toUpperCase();
   };
 
   // Room Actions - Unified Booking Modal
@@ -1360,37 +1325,11 @@ const RoomManagementPage: React.FC = () => {
   };
 
   const loadRoomBlockedDates = (roomId: string) => {
-    // Use allBookingsData from state instead of fetching again
-    const roomBookingsFiltered = allBookingsData.filter(b =>
-      b.room_id?.toString() === roomId &&
-      !['checked_out', 'voided'].includes(b.status)
-    );
-
-    const blocked = roomBookingsFiltered.map(b => ({
-      start: b.check_in_date,
-      end: b.check_out_date,
-      status: b.status
-    }));
-
-    setRoomBlockedDates(blocked);
+    setRoomBlockedDates(buildBlockedDateRangesForRoom(allBookingsData, roomId));
   };
 
   const isDateBlocked = (dateStr: string): boolean => {
-    const date = new Date(dateStr);
-    date.setHours(0, 0, 0, 0);
-
-    for (const booking of roomBlockedDates) {
-      const start = new Date(booking.start);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(booking.end);
-      end.setHours(0, 0, 0, 0);
-
-      // Date is blocked if it's within the booking range (check-in to check-out - 1)
-      if (date >= start && date < end) {
-        return true;
-      }
-    }
-    return false;
+    return isDateBlockedByRanges(dateStr, roomBlockedDates);
   };
 
   const getMinCheckInDate = (): string => {
@@ -1398,59 +1337,26 @@ const RoomManagementPage: React.FC = () => {
   };
 
   const getNextAvailableDate = (fromDate: string): string => {
-    let date = parseLocalDate(fromDate);
-    date.setHours(0, 0, 0, 0);
-
-    // Find the next available date
-    while (isDateBlocked(formatLocalDate(date))) {
-      date.setDate(date.getDate() + 1);
-    }
-    return formatLocalDate(date);
+    return getNextOpenCreditDate(fromDate, roomBlockedDates);
   };
 
   const validateDateSelection = (): { valid: boolean; message: string } => {
-    if (!creditsBookingForm.check_in_date || !creditsBookingForm.check_out_date) {
-      return { valid: false, message: 'Please select dates' };
-    }
-
-    const checkIn = new Date(creditsBookingForm.check_in_date);
-    const checkOut = new Date(creditsBookingForm.check_out_date);
-
-    if (checkOut <= checkIn) {
-      return { valid: false, message: 'Check-out must be after check-in' };
-    }
-
-    // Check if any date in the range is blocked
-    for (let d = new Date(checkIn); d < checkOut; d.setDate(d.getDate() + 1)) {
-      if (isDateBlocked(formatLocalDate(d))) {
-        return { valid: false, message: `Date ${d.toLocaleDateString()} is already reserved` };
-      }
-    }
-
-    return { valid: true, message: '' };
+    return validateCreditDateSelection(
+      creditsBookingForm.check_in_date,
+      creditsBookingForm.check_out_date,
+      roomBlockedDates,
+    );
   };
 
   const getCreditsBookingDates = (): string[] => {
-    const dates: string[] = [];
-    const start = parseLocalDate(creditsBookingForm.check_in_date);
-    const end = parseLocalDate(creditsBookingForm.check_out_date);
-    for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-      dates.push(formatLocalDate(d));
-    }
-    return dates;
+    return getCreditBookingDateRange(
+      creditsBookingForm.check_in_date,
+      creditsBookingForm.check_out_date,
+    );
   };
 
   const getTotalCreditsForRoom = (roomId: string): number => {
-    if (!guestCredits || !roomId) return 0;
-    const room = availableRoomsForCredits.find(r => r.id.toString() === roomId);
-    if (!room) return 0;
-
-    // Find credits for this room type
-    const roomTypeCredits = guestCredits.credits_by_room_type.find(c =>
-      room.room_type?.toLowerCase().includes(c.room_type_name.toLowerCase())
-    );
-
-    return roomTypeCredits?.nights_available || 0;
+    return getCreditsForRoomType(guestCredits, availableRoomsForCredits, roomId);
   };
 
   const handleCreditsDateToggle = (date: string) => {
@@ -1758,48 +1664,11 @@ const RoomManagementPage: React.FC = () => {
 
   // Single source of truth for computing room status from bookings
   const getRoomStatusInfo = (room: Room) => {
-    const booking = roomBookings.get(room.id);
-    const reservedBooking = reservedBookings.get(room.id);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const hasCheckedInBooking = booking?.status === 'checked_in' || booking?.status === 'auto_checked_in';
-    const hasReservationForToday = reservedBooking && (() => {
-      const checkInDate = new Date(reservedBooking.check_in_date);
-      checkInDate.setHours(0, 0, 0, 0);
-      const isConfirmed = reservedBooking.status === 'confirmed' || reservedBooking.status === 'pending';
-      return isConfirmed && checkInDate <= today;
-    })();
-    const hasFutureReservation = reservedBooking && !hasReservationForToday;
-    const futureCheckInDate = hasFutureReservation ? new Date(reservedBooking.check_in_date) : null;
-
-    const computedStatus = hasCheckedInBooking
-      ? 'occupied'
-      : ['maintenance', 'dirty'].includes(room.status || '')
-        ? room.status!
-        : hasReservationForToday
-          ? 'reserved'
-          : 'available';
-
-    const isOccupied = computedStatus === 'occupied';
-    const isReserved = computedStatus === 'reserved';
-    const isReservedToday = isReserved && !!hasReservationForToday;
-    const isComplimentary = (isOccupied && booking?.is_complimentary === true) ||
-                             (isReserved && reservedBooking?.is_complimentary === true);
-
-    return {
-      computedStatus,
-      booking,
-      reservedBooking,
-      hasCheckedInBooking,
-      hasReservationForToday,
-      hasFutureReservation,
-      futureCheckInDate,
-      isOccupied,
-      isReserved,
-      isReservedToday,
-      isComplimentary,
-    };
+    return deriveRoomStatusInfo({
+      room,
+      booking: roomBookings.get(room.id),
+      reservedBooking: reservedBookings.get(room.id),
+    });
   };
 
   const availableCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'available').length;
@@ -2074,7 +1943,6 @@ const RoomManagementPage: React.FC = () => {
       >
         {filteredRooms.map((room) => {
           const { computedStatus, booking, reservedBooking, hasReservationForToday, hasFutureReservation, futureCheckInDate, isOccupied, isReserved, isReservedToday, isComplimentary } = getRoomStatusInfo(room);
-          const compCancelledBooking = compCancelledBookings.get(room.id);
 
           // Create a room object with computed status for display
           const displayRoom = { ...room, status: computedStatus };
@@ -2750,10 +2618,7 @@ const RoomManagementPage: React.FC = () => {
           const formatDate = (d: string) =>
             new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-          const ratePerNight = (() => {
-            const n = Number((activeBooking as any)?.price_per_night ?? (activeBooking as any)?.room_rate);
-            return Number.isFinite(n) && n > 0 ? n : null;
-          })();
+          const ratePerNight = getPositiveRatePerNight(activeBooking);
 
           return (
             <Box sx={{ display: 'flex', minWidth: showAside ? 460 : 280, maxWidth: 520 }}>
@@ -3081,10 +2946,7 @@ const RoomManagementPage: React.FC = () => {
                   setWalkInCheckInDate(e.target.value);
                   // Calculate nights if both dates are set
                   if (walkInCheckOutDate) {
-                    const checkIn = new Date(e.target.value);
-                    const checkOut = new Date(walkInCheckOutDate);
-                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-                    setWalkInNumberOfNights(nights);
+                    setWalkInNumberOfNights(calculateNightCount(e.target.value, walkInCheckOutDate));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3103,10 +2965,7 @@ const RoomManagementPage: React.FC = () => {
                   setWalkInCheckOutDate(e.target.value);
                   // Calculate nights
                   if (walkInCheckInDate) {
-                    const checkIn = new Date(walkInCheckInDate);
-                    const checkOut = new Date(e.target.value);
-                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-                    setWalkInNumberOfNights(nights);
+                    setWalkInNumberOfNights(calculateNightCount(walkInCheckInDate, e.target.value));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3339,10 +3198,7 @@ const RoomManagementPage: React.FC = () => {
                   setOnlineCheckInDate(e.target.value);
                   // Calculate nights if both dates are set
                   if (onlineCheckOutDate) {
-                    const checkIn = new Date(e.target.value);
-                    const checkOut = new Date(onlineCheckOutDate);
-                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-                    setOnlineNumberOfNights(nights);
+                    setOnlineNumberOfNights(calculateNightCount(e.target.value, onlineCheckOutDate));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3361,10 +3217,7 @@ const RoomManagementPage: React.FC = () => {
                   setOnlineCheckOutDate(e.target.value);
                   // Calculate nights
                   if (onlineCheckInDate) {
-                    const checkIn = new Date(onlineCheckInDate);
-                    const checkOut = new Date(e.target.value);
-                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-                    setOnlineNumberOfNights(nights);
+                    setOnlineNumberOfNights(calculateNightCount(onlineCheckInDate, e.target.value));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3542,10 +3395,7 @@ const RoomManagementPage: React.FC = () => {
                 onChange={(e) => {
                   setComplimentaryCheckInDate(e.target.value);
                   if (complimentaryCheckOutDate) {
-                    const checkIn = new Date(e.target.value);
-                    const checkOut = new Date(complimentaryCheckOutDate);
-                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-                    setComplimentaryNumberOfNights(nights);
+                    setComplimentaryNumberOfNights(calculateNightCount(e.target.value, complimentaryCheckOutDate));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3563,10 +3413,7 @@ const RoomManagementPage: React.FC = () => {
                 onChange={(e) => {
                   setComplimentaryCheckOutDate(e.target.value);
                   if (complimentaryCheckInDate) {
-                    const checkIn = new Date(complimentaryCheckInDate);
-                    const checkOut = new Date(e.target.value);
-                    const nights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-                    setComplimentaryNumberOfNights(nights);
+                    setComplimentaryNumberOfNights(calculateNightCount(complimentaryCheckInDate, e.target.value));
                   }
                 }}
                 InputLabelProps={{ shrink: true }}
@@ -3878,275 +3725,37 @@ const RoomManagementPage: React.FC = () => {
       />
 
       {/* Room History Dialog - Enhanced */}
-      <Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, flexDirection: 'column' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <HistoryIcon sx={{ fontSize: 28 }} />
-                <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-                  Room History - {selectedRoom?.room_number}
-                </Typography>
-              </Box>
-              <Typography variant="caption" sx={{ opacity: 0.9, ml: 5 }}>
-                {selectedRoom?.room_type} • Current Status: {selectedRoom?.status || 'Unknown'}
-              </Typography>
-            </Box>
-            <IconButton
-              onClick={() => setHistoryDialogOpen(false)}
-              sx={{ color: 'white' }}
-            >
-              <CancelIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ p: 0 }}>
-          {loadingHistory ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-              <CircularProgress />
-            </Box>
-          ) : roomHistory.length === 0 ? (
-            <Alert severity="info" sx={{ m: 2 }}>
-              No history records found for this room
-            </Alert>
-          ) : (
-            <Box sx={{ p: 2 }}>
-              {/* Current Status Section */}
-              {selectedRoom && (
-                <Paper sx={{ p: 2, mb: 2, bgcolor: 'primary.50', borderLeft: 4, borderColor: 'primary.main' }}>
-                  <Typography variant="subtitle2" fontWeight={600} gutterBottom>
-                    Current Status
-                  </Typography>
-                  <Grid container spacing={2}>
-                    <Grid size={6}>
-                      <Typography variant="caption" color="text.secondary">Status</Typography>
-                      <Typography variant="body2" fontWeight={600}>
-                        {selectedRoom.status?.toUpperCase() || 'UNKNOWN'}
-                      </Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="caption" color="text.secondary">Available</Typography>
-                      <Typography variant="body2" fontWeight={600}>
-                        {selectedRoom.available ? 'Yes' : 'No'}
-                      </Typography>
-                    </Grid>
-                    {selectedRoom.status_notes && (
-                      <Grid size={12}>
-                        <Typography variant="caption" color="text.secondary">Notes</Typography>
-                        <Typography variant="body2">{selectedRoom.status_notes}</Typography>
-                      </Grid>
-                    )}
-                    {roomBookings.get(selectedRoom.id) && (
-                      <>
-                        <Grid size={12}>
-                          <Divider sx={{ my: 1 }} />
-                        </Grid>
-                        <Grid size={6}>
-                          <Typography variant="caption" color="text.secondary">Guest</Typography>
-                          <Typography variant="body2" fontWeight={600}>
-                            {roomBookings.get(selectedRoom.id)?.guest_name}
-                          </Typography>
-                        </Grid>
-                        <Grid size={6}>
-                          <Typography variant="caption" color="text.secondary">Booking Period</Typography>
-                          <Typography variant="body2">
-                            {new Date(roomBookings.get(selectedRoom.id)!.check_in_date).toLocaleDateString()} - {new Date(roomBookings.get(selectedRoom.id)!.check_out_date).toLocaleDateString()}
-                          </Typography>
-                        </Grid>
-                        <Grid size={12}>
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            startIcon={<PersonIcon />}
-                            onClick={() => handleViewGuestDetails(roomBookings.get(selectedRoom.id)!.guest_id)}
-                          >
-                            View Guest Details
-                          </Button>
-                        </Grid>
-                      </>
-                    )}
-                  </Grid>
-                </Paper>
-              )}
-
-              {/* History Timeline */}
-              <Typography variant="subtitle2" fontWeight={600} gutterBottom sx={{ mt: 2, mb: 1 }}>
-                History Timeline
-              </Typography>
-              <Stack spacing={1}>
-                {roomHistory.map((entry) => {
-                  const statusIcon = entry.to_status === 'occupied' ? <LoginIcon /> :
-                                   entry.to_status === 'available' ? <CheckCircleIcon /> :
-                                   entry.to_status === 'cleaning' ? <CleaningIcon /> :
-                                   entry.to_status === 'maintenance' ? <MaintenanceIcon /> :
-                                   entry.to_status === 'reserved' ? <BookingIcon /> :
-                                   <HistoryIcon />;
-
-                  const statusColor = entry.to_status === 'occupied' ? '#FFA726' :
-                                    entry.to_status === 'available' ? '#66BB6A' :
-                                    entry.to_status === 'cleaning' ? '#FFEB3B' :
-                                    entry.to_status === 'maintenance' ? '#EF5350' :
-                                    entry.to_status === 'reserved' ? '#42A5F5' :
-                                    '#BDBDBD';
-
-                  return (
-                    <Paper
-                      key={entry.id}
-                      sx={{
-                        p: 2,
-                        borderLeft: 4,
-                        borderColor: statusColor,
-                        cursor: entry.guest_id ? 'pointer' : 'default',
-                        '&:hover': entry.guest_id ? {
-                          bgcolor: 'grey.50',
-                          boxShadow: 2,
-                        } : {},
-                      }}
-                      onClick={() => entry.guest_id && handleViewGuestDetails(entry.guest_id)}
-                    >
-                      <Grid container spacing={1} alignItems="center">
-                        <Grid>
-                          <Box
-                            sx={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: '50%',
-                              bgcolor: statusColor,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: 'white',
-                            }}
-                          >
-                            {statusIcon}
-                          </Box>
-                        </Grid>
-                        <Grid size="grow">
-                          <Typography variant="body2" fontWeight={600}>
-                            {entry.from_status ? `${entry.from_status.toUpperCase()} → ${entry.to_status.toUpperCase()}` : entry.to_status.toUpperCase()}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {new Date(entry.created_at).toLocaleString()}
-                            {entry.changed_by_name && ` • By: ${entry.changed_by_name}`}
-                          </Typography>
-                          {entry.guest_name && (
-                            <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
-                              Guest: {entry.guest_name}
-                              {entry.start_date && entry.end_date && (
-                                <> • {new Date(entry.start_date).toLocaleDateString()} - {new Date(entry.end_date).toLocaleDateString()}</>
-                              )}
-                            </Typography>
-                          )}
-                          {entry.notes && (
-                            <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
-                              {entry.notes}
-                            </Typography>
-                          )}
-                          {entry.guest_id && (
-                            <Chip
-                              label="Click to view guest details"
-                              size="small"
-                              sx={{ mt: 1 }}
-                              icon={<PersonIcon />}
-                            />
-                          )}
-                        </Grid>
-                      </Grid>
-                    </Paper>
-                  );
-                })}
-              </Stack>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={() => setHistoryDialogOpen(false)} variant="outlined">Close</Button>
-        </DialogActions>
-      </Dialog>
+      <RoomHistoryDialog
+        open={historyDialogOpen}
+        onClose={() => setHistoryDialogOpen(false)}
+        room={selectedRoom}
+        loading={loadingHistory}
+        history={roomHistory}
+        currentBooking={selectedRoom ? roomBookings.get(selectedRoom.id) : undefined}
+        onViewGuestDetails={handleViewGuestDetails}
+      />
 
       {/* Room Properties Dialog - Placeholder */}
-      <Dialog open={roomDetailsDialogOpen} onClose={() => setRoomDetailsDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <SettingsIcon sx={{ fontSize: 28 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Room Properties - {selectedRoom?.room_number}
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          {selectedRoom && (
-            <Box sx={{ mt: 2 }}>
-              <Grid container spacing={2}>
-                <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Room Number</Typography>
-                  <Typography variant="body1" fontWeight={600}>{selectedRoom.room_number}</Typography>
-                </Grid>
-                <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Room Type</Typography>
-                  <Typography variant="body1" fontWeight={600}>{selectedRoom.room_type}</Typography>
-                </Grid>
-                <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Price per Night</Typography>
-                  <Typography variant="body1" fontWeight={600}>{formatCurrency(Number(selectedRoom.price_per_night))}</Typography>
-                </Grid>
-                <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Max Occupancy</Typography>
-                  <Typography variant="body1" fontWeight={600}>{selectedRoom.max_occupancy} guests</Typography>
-                </Grid>
-                <Grid size={12}>
-                  <Typography variant="caption" color="text.secondary">Status</Typography>
-                  <Typography variant="body1" fontWeight={600}>{selectedRoom.status}</Typography>
-                </Grid>
-                {selectedRoom.description && (
-                  <Grid size={12}>
-                    <Typography variant="caption" color="text.secondary">Description</Typography>
-                    <Typography variant="body2">{selectedRoom.description}</Typography>
-                  </Grid>
-                )}
-              </Grid>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={() => setRoomDetailsDialogOpen(false)} variant="outlined">Close</Button>
-        </DialogActions>
-      </Dialog>
+      <RoomDetailsDialog
+        open={roomDetailsDialogOpen}
+        onClose={() => setRoomDetailsDialogOpen(false)}
+        room={selectedRoom}
+        formatCurrency={formatCurrency}
+      />
 
       {/* Edit Room Notes Dialog */}
-      <Dialog open={notesDialogOpen} onClose={() => setNotesDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <EditIcon sx={{ fontSize: 24 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Room Notes - {selectedRoom?.room_number}
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          <TextField
-            autoFocus
-            fullWidth
-            multiline
-            minRows={3}
-            maxRows={6}
-            label="Notes"
-            value={editingNotes}
-            onChange={(e) => setEditingNotes(e.target.value)}
-            sx={{ mt: 2 }}
-            placeholder="Enter room notes..."
-          />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={() => setNotesDialogOpen(false)} variant="outlined">Cancel</Button>
-          <Button onClick={handleSaveNotes} variant="contained" disabled={savingNotes}>
-            {savingNotes ? 'Saving...' : 'Save'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <RoomNotesDialog
+        open={notesDialogOpen}
+        onClose={() => setNotesDialogOpen(false)}
+        roomNumber={selectedRoom?.room_number}
+        notes={editingNotes}
+        onNotesChange={setEditingNotes}
+        onSave={handleSaveNotes}
+        saving={savingNotes}
+      />
 
       {/* Booking Notes Edit Dialog */}
-      <Dialog
+      <BookingNotesDialog
         open={bookingNotesDialogOpen}
         onClose={() => {
           setBookingNotesDialogOpen(false);
@@ -4154,91 +3763,14 @@ const RoomManagementPage: React.FC = () => {
           setEditedBookingNotes('');
           setEditedCleaningPreference(null);
         }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <NotesIcon sx={{ fontSize: 24 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Edit Booking Notes
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          {bookingNotesEditBooking && (
-            <Box>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <Typography variant="body2">
-                  <strong>Guest:</strong> {bookingNotesEditBooking.guest_name}<br />
-                  <strong>Room:</strong> {bookingNotesEditBooking.room_number}<br />
-                  <strong>Stay:</strong> {new Date(bookingNotesEditBooking.check_in_date).toLocaleDateString()} - {new Date(bookingNotesEditBooking.check_out_date).toLocaleDateString()}
-                </Typography>
-              </Alert>
-              <TextField
-                fullWidth
-                multiline
-                rows={4}
-                label="Notes"
-                placeholder="Enter booking notes, special requests, or remarks..."
-                value={editedBookingNotes}
-                onChange={(e) => setEditedBookingNotes(e.target.value)}
-                variant="outlined"
-              />
-
-              {/* Daily cleaning preference */}
-              <Box sx={{ mt: 2.5 }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
-                  Daily cleaning preference
-                </Typography>
-                <ToggleButtonGroup
-                  exclusive
-                  size="small"
-                  value={editedCleaningPreference === true ? 'daily' : editedCleaningPreference === false ? 'nodaily' : null}
-                  onChange={(_, val) => {
-                    // Deselecting (val === null) leaves the preference unset locally;
-                    // the backend keeps any prior value (COALESCE), it is not cleared.
-                    setEditedCleaningPreference(val === 'daily' ? true : val === 'nodaily' ? false : null);
-                  }}
-                  sx={{ flexWrap: 'wrap', gap: 0.75 }}
-                >
-                  <ToggleButton value="daily" sx={{ textTransform: 'none', gap: 0.75, borderRadius: '999px !important', px: 1.75 }}>
-                    <SparkleIcon sx={{ fontSize: 16 }} /> Daily cleaning
-                  </ToggleButton>
-                  <ToggleButton value="nodaily" sx={{ textTransform: 'none', gap: 0.75, borderRadius: '999px !important', px: 1.75 }}>
-                    <BlockIcon sx={{ fontSize: 16 }} /> No daily cleaning
-                  </ToggleButton>
-                </ToggleButtonGroup>
-                <Typography variant="caption" sx={{ display: 'block', mt: 0.75, color: 'text.secondary' }}>
-                  Shown as a chip on the room card while the guest is checked in.
-                </Typography>
-              </Box>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button
-            onClick={() => {
-              setBookingNotesDialogOpen(false);
-              setBookingNotesEditBooking(null);
-              setEditedBookingNotes('');
-              setEditedCleaningPreference(null);
-            }}
-            variant="outlined"
-            disabled={savingBookingNotes}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSaveBookingNotes}
-            variant="contained"
-            disabled={savingBookingNotes}
-            startIcon={savingBookingNotes ? <CircularProgress size={16} /> : <SaveIcon />}
-          >
-            {savingBookingNotes ? 'Saving...' : 'Save Notes'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        booking={bookingNotesEditBooking}
+        notes={editedBookingNotes}
+        onNotesChange={setEditedBookingNotes}
+        cleaningPreference={editedCleaningPreference}
+        onCleaningPreferenceChange={setEditedCleaningPreference}
+        onSave={handleSaveBookingNotes}
+        saving={savingBookingNotes}
+      />
 
       {/* Upcoming Bookings Dialog */}
       <Dialog

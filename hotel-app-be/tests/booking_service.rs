@@ -139,3 +139,308 @@ mod sqlite_tests {
         assert_eq!(b.total_amount, Decimal::from(150));
     }
 }
+
+#[cfg(all(feature = "postgres", not(feature = "sqlite")))]
+mod postgres_tests {
+    use axum::extract::{Extension, Path, State};
+    use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::services::bookings;
+    use sqlx::postgres::PgPoolOptions;
+    use sqlx::{PgPool, Row};
+
+    async fn setup_pg_pool() -> Option<PgPool> {
+        let database_url = match std::env::var("DATABASE_URL") {
+            Ok(url) => url,
+            Err(_) => {
+                eprintln!("skipping PostgreSQL booking workflow test; DATABASE_URL is not set");
+                return None;
+            }
+        };
+
+        Some(
+            PgPoolOptions::new()
+                .max_connections(5)
+                .connect(&database_url)
+                .await
+                .expect("connect to PostgreSQL test database"),
+        )
+    }
+
+    async fn cleanup_pg_fixture(
+        pool: &PgPool,
+        actor_id: i64,
+        role_name: &str,
+        room_type_id: i64,
+        room_id: i64,
+        guest_id: i64,
+        booking_id: i64,
+    ) {
+        sqlx::query("DELETE FROM audit_logs WHERE resource_type = 'booking' AND resource_id = $1")
+            .bind(booking_id)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM booking_modifications WHERE booking_id = $1")
+            .bind(booking_id)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM booking_history WHERE booking_id = $1")
+            .bind(booking_id)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM rooms WHERE id = $1")
+            .bind(room_id)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM room_types WHERE id = $1")
+            .bind(room_type_id)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM guests WHERE id = $1")
+            .bind(guest_id)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query(
+            "DELETE FROM user_roles WHERE user_id = $1 OR role_id IN (SELECT id FROM roles WHERE name = $2)",
+        )
+        .bind(actor_id)
+        .bind(role_name)
+        .execute(pool)
+        .await
+        .ok();
+        sqlx::query(
+            "DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE name = $1)",
+        )
+        .bind(role_name)
+        .execute(pool)
+        .await
+        .ok();
+        sqlx::query("DELETE FROM roles WHERE name = $1")
+            .bind(role_name)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM users WHERE id = $1")
+            .bind(actor_id)
+            .execute(pool)
+            .await
+            .ok();
+    }
+
+    async fn seed_pg_reactivation_fixture(
+        pool: &PgPool,
+        actor_id: i64,
+        role_name: &str,
+        room_type_id: i64,
+        room_id: i64,
+        guest_id: i64,
+        booking_id: i64,
+    ) {
+        sqlx::query(
+            "INSERT INTO users (id, username, email, full_name, is_active, is_verified) \
+             VALUES ($1, $2, $3, 'Reactivation Actor', true, true)",
+        )
+        .bind(actor_id)
+        .bind(format!("reactivation_actor_{actor_id}"))
+        .bind(format!("reactivation_actor_{actor_id}@example.com"))
+        .execute(pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO permissions (name, resource, action, description, is_system_permission) \
+             VALUES ('bookings:update', 'bookings', 'update', 'Update bookings', true) \
+             ON CONFLICT (name) DO NOTHING",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+
+        let role_id: i64 = sqlx::query_scalar(
+            "INSERT INTO roles (name, display_name, is_system_role) \
+             VALUES ($1, 'Reactivation Test Role', false) \
+             RETURNING id",
+        )
+        .bind(role_name)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO role_permissions (role_id, permission_id) \
+             SELECT $1, id FROM permissions WHERE name = 'bookings:update'",
+        )
+        .bind(role_id)
+        .execute(pool)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)")
+            .bind(actor_id)
+            .bind(role_id)
+            .execute(pool)
+            .await
+            .unwrap();
+
+        sqlx::query("INSERT INTO guests (id, full_name) VALUES ($1, 'Reactivation Guest')")
+            .bind(guest_id)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO room_types (id, code, name, base_price) VALUES ($1, $2, $3, 100.00)",
+        )
+        .bind(room_type_id)
+        .bind(format!("RCT{room_type_id}"))
+        .bind(format!("Reactivation Room Type {room_type_id}"))
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO rooms (id, room_number, room_type_id, status) VALUES ($1, $2, $3, 'available')")
+            .bind(room_id)
+            .bind(format!("RCT-{room_id}"))
+            .bind(room_type_id)
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO bookings (
+                id, booking_number, guest_id, room_id, check_in_date, check_out_date,
+                room_rate, subtotal, total_amount, status, payment_status
+             )
+             VALUES ($1, $2, $3, $4, CURRENT_DATE + 30, CURRENT_DATE + 32, 100.00, 200.00, 200.00, 'voided', 'void')",
+        )
+        .bind(booking_id)
+        .bind(format!("BK-RCT-{booking_id}"))
+        .bind(guest_id)
+        .bind(room_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn postgres_concurrent_reactivation_allows_only_one_success() {
+        let Some(pool) = setup_pg_pool().await else {
+            return;
+        };
+        let actor_id = 940_001;
+        let role_name = "reactivation_test_role_940001";
+        let room_type_id = 940_101;
+        let room_id = 940_201;
+        let guest_id = 940_301;
+        let booking_id = 940_401;
+
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            role_name,
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+        )
+        .await;
+        seed_pg_reactivation_fixture(
+            &pool,
+            actor_id,
+            role_name,
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+        )
+        .await;
+
+        let first = bookings::reactivate_booking_handler(
+            State(pool.clone()),
+            Extension(actor_id),
+            Path(booking_id),
+        );
+        let second = bookings::reactivate_booking_handler(
+            State(pool.clone()),
+            Extension(actor_id),
+            Path(booking_id),
+        );
+        let (first_result, second_result) = tokio::join!(first, second);
+
+        let successes = [first_result.as_ref(), second_result.as_ref()]
+            .iter()
+            .filter(|result| result.is_ok())
+            .count();
+        assert_eq!(
+            successes, 1,
+            "exactly one concurrent reactivation should succeed"
+        );
+
+        let failures = [first_result, second_result]
+            .into_iter()
+            .filter_map(Result::err)
+            .collect::<Vec<_>>();
+        assert_eq!(failures.len(), 1);
+        assert!(
+            matches!(failures[0], ApiError::BadRequest(_)),
+            "repeated reactivation should return a controlled bad request: {:?}",
+            failures[0]
+        );
+
+        let booking = sqlx::query("SELECT status FROM bookings WHERE id = $1")
+            .bind(booking_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(booking.get::<String, _>("status"), "confirmed");
+
+        let room_status: String = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
+            .bind(room_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(room_status, "reserved");
+
+        let history_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM booking_history WHERE booking_id = $1")
+                .bind(booking_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let modification_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM booking_modifications WHERE booking_id = $1")
+                .bind(booking_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let audit_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM audit_logs WHERE resource_type = 'booking' AND resource_id = $1 AND action = 'booking_reactivated'",
+        )
+        .bind(booking_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(history_count, 1);
+        assert_eq!(modification_count, 1);
+        assert_eq!(audit_count, 1);
+
+        cleanup_pg_fixture(
+            &pool,
+            actor_id,
+            role_name,
+            room_type_id,
+            room_id,
+            guest_id,
+            booking_id,
+        )
+        .await;
+    }
+}
