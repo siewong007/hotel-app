@@ -389,7 +389,7 @@ use super::ledger::{CustomerLedger, CustomerLedgerPayment};
 pub fn row_to_customer_ledger(row: &DbRow) -> CustomerLedger {
     let status: String = row.try_get("status").unwrap_or_default();
     let void_at = row.try_get("void_at").ok();
-    let balance_due = if status == "cancelled" || void_at.is_some() {
+    let balance_due = if status == "void" || void_at.is_some() {
         Decimal::ZERO
     } else {
         get_decimal(row, "balance_due")

@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::{AuditLogQuery, AuditLogRow, AuditResourceTypeCount, AuditUserOption};
 
@@ -39,6 +39,63 @@ impl AuditRepository {
         .bind(created_at)
         .execute(pool)
         .await?;
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_event_tx(
+        tx: &mut DbTransaction<'_>,
+        user_id: Option<i64>,
+        action: &str,
+        resource_type: &str,
+        resource_id: Option<i64>,
+        details: Option<Value>,
+        ip_address: Option<String>,
+        user_agent: Option<String>,
+        created_at: DateTime<Utc>,
+    ) -> Result<(), sqlx::Error> {
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        {
+            sqlx::query(
+                r#"
+                INSERT INTO audit_logs
+                (user_id, action, entity_type, entity_id, new_values, ip_address, user_agent, created_at)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                "#,
+            )
+            .bind(user_id)
+            .bind(action)
+            .bind(resource_type)
+            .bind(resource_id.map(|id| id.to_string()))
+            .bind(details.map(|value| value.to_string()))
+            .bind(ip_address)
+            .bind(user_agent)
+            .bind(created_at.to_rfc3339())
+            .execute(&mut **tx)
+            .await?;
+        }
+
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        {
+            sqlx::query(
+                r#"
+                INSERT INTO audit_logs
+                (user_id, action, resource_type, resource_id, details, ip_address, user_agent, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6::inet, $7, $8)
+                "#,
+            )
+            .bind(user_id)
+            .bind(action)
+            .bind(resource_type)
+            .bind(resource_id)
+            .bind(details)
+            .bind(ip_address)
+            .bind(user_agent)
+            .bind(created_at)
+            .execute(&mut **tx)
+            .await?;
+        }
 
         Ok(())
     }
@@ -330,6 +387,7 @@ fn build_category_count_where_clause(params: &AuditLogQuery) -> (String, i32) {
     (where_clause, bind_index)
 }
 
+#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 fn bind_log_filters<'q, O>(
     mut query: sqlx::query::QueryAs<'q, sqlx::Postgres, O, sqlx::postgres::PgArguments>,
     params: &AuditLogQuery,
@@ -355,6 +413,43 @@ fn bind_log_filters<'q, O>(
     }
     if let Some(types) = category_types {
         query = query.bind(types.clone());
+    }
+
+    query
+}
+
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+fn bind_log_filters<'q, O>(
+    mut query: sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'q>>,
+    params: &AuditLogQuery,
+    category_types: Option<&Vec<String>>,
+) -> sqlx::query::QueryAs<'q, sqlx::Sqlite, O, sqlx::sqlite::SqliteArguments<'q>> {
+    if let Some(user_id) = params.user_id {
+        query = query.bind(user_id);
+    }
+    if let Some(ref action) = params.action {
+        query = query.bind(action.clone());
+    }
+    if let Some(ref resource_type) = params.resource_type {
+        query = query.bind(resource_type.clone());
+    }
+    if let Some(ref start_date) = params.start_date {
+        query = query.bind(start_date.clone());
+    }
+    if let Some(ref end_date) = params.end_date {
+        query = query.bind(end_date.clone());
+    }
+    if let Some(ref search) = params.search {
+        query = query.bind(format!("%{}%", search));
+    }
+    if category_types.is_some() {
+        let joined_types = category_types
+            .into_iter()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(",");
+        query = query.bind(joined_types);
     }
 
     query

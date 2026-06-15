@@ -74,7 +74,7 @@ export const asMoney = (value: number | string | null | undefined): number => {
   return Number.isFinite(parsed) ? Number(parsed) : 0;
 };
 
-export const isLedgerVoided = (ledger: CustomerLedger) => Boolean(ledger.void_at) || ledger.status === 'cancelled';
+export const isLedgerVoided = (ledger: CustomerLedger) => Boolean(ledger.void_at) || ledger.status === 'void';
 
 export const isDateOverdue = (dateString: string | null | undefined) => {
   if (!dateString) return false;

@@ -30,12 +30,27 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Test
+        run: npm run test -- --run
+
       - name: Build
         run: npm run build
 
   backend:
     name: Backend — Check, Lint & Build
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.4
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: hotel-app-be
@@ -55,13 +70,30 @@ jobs:
           workspaces: hotel-app-be
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libpq-dev pkg-config libssl-dev
+        run: sudo apt-get update && sudo apt-get install -y libpq-dev postgresql-client pkg-config libssl-dev
 
       - name: Cargo check
         run: cargo check --all-features
 
       - name: Cargo test
         run: cargo test --all-features
+
+      - name: PostgreSQL schema smoke
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          HOTEL_RUN_PG_SCHEMA_SMOKE: "1"
+        run: cargo test --features postgres --no-default-features --test status_vocabulary postgres_schema_reruns_and_normalizes_legacy_cancelled_statuses
+
+      - name: Prepare PostgreSQL workflow database
+        run: |
+          psql postgres://postgres:postgres@localhost:5432/postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS hotel_workflow_test WITH (FORCE)"
+          psql postgres://postgres:postgres@localhost:5432/postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE hotel_workflow_test"
+          psql postgres://postgres:postgres@localhost:5432/hotel_workflow_test -v ON_ERROR_STOP=1 -f database/schema.sql
+
+      - name: PostgreSQL booking workflow tests
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/hotel_workflow_test
+        run: cargo test --features postgres --no-default-features --test booking_service postgres_concurrent_reactivation_allows_only_one_success
 
       - name: Cargo clippy
         run: cargo clippy --all-features -- -D warnings
