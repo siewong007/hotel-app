@@ -13,13 +13,16 @@ use crate::repositories::invoice_numbers as repo;
 /// Compute the next invoice number for the current month.
 ///
 /// Format: `INV-YYYYMM-XXXX` (e.g. `INV-202604-0001`).
-pub async fn next_invoice_number(pool: &DbPool) -> Result<String, ApiError> {
+pub async fn next_invoice_number<'e, E>(executor: E) -> Result<String, ApiError>
+where
+    E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+{
     let now = chrono::Local::now();
     let yyyymm = now.format("%Y%m").to_string();
     let prefix = format!("INV-{}-", yyyymm);
     let pattern = format!("{}%", prefix);
 
-    let max_seq = repo::max_invoice_sequence(pool, &pattern).await?;
+    let max_seq = repo::max_invoice_sequence(executor, &pattern).await?;
     let next = max_seq.unwrap_or(0) + 1;
     Ok(format!("{}{:04}", prefix, next))
 }

@@ -257,8 +257,7 @@ export default function EnhancedCheckInModal({
     billing_address: '',
   });
 
-  // Company Ledger state
-  const [creatingLedger, setCreatingLedger] = useState(false);
+  // Company Ledger state (ledger creation moved to backend/admin UI)
 
   // Extra bed state (UI form state, not loaded data)
   const [extraBedCount, setExtraBedCount] = useState(0);
@@ -608,42 +607,10 @@ export default function EnhancedCheckInModal({
         }
       }
 
-      // Automatically create company ledger if Direct Billing with a company selected
-      if (paymentType === 'Direct Billing' && selectedCompany) {
-        try {
-          const totalAmount = typeof booking.total_amount === 'string'
-            ? parseFloat(booking.total_amount)
-            : booking.total_amount;
-
-          const ledgerData: CustomerLedgerCreateRequest = {
-            company_name: selectedCompany.company_name,
-            company_registration_number: selectedCompany.registration_number,
-            contact_person: selectedCompany.contact_person,
-            contact_email: selectedCompany.contact_email,
-            contact_phone: selectedCompany.contact_phone,
-            billing_address_line1: selectedCompany.billing_address,
-            billing_city: selectedCompany.billing_city,
-            billing_state: selectedCompany.billing_state,
-            billing_postal_code: selectedCompany.billing_postal_code,
-            billing_country: selectedCompany.billing_country,
-            description: `Room charge for booking ${booking.booking_number || booking.id} - ${guest?.full_name || 'Guest'}`,
-            expense_type: 'accommodation',
-            amount: totalAmount || 0,
-            booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
-            guest_id: typeof booking.guest_id === 'string' ? parseInt(booking.guest_id) : booking.guest_id,
-            due_date: format(new Date(new Date().getTime() + (selectedCompany.payment_terms_days || 30) * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
-            folio_type: 'city_ledger',
-            transaction_type: 'debit',
-            post_type: 'room_charge',
-            room_number: (booking as any).room_number || String(booking.room_id),
-          };
-
-          await LedgerService.createCustomerLedger(ledgerData);
-        } catch (ledgerErr: any) {
-          console.error('Failed to create company ledger:', ledgerErr);
-          // Don't fail check-in if ledger creation fails, but log the error
-        }
-      }
+      // Company-ledger creation is now handled server-side during checkout.
+      // Frontend must not create company ledger entries here to avoid duplicate
+      // postings or race conditions. Leave any admin-ledger creation to the
+      // dedicated ledger UI.
 
       onCheckInSuccess();
       onClose();
@@ -654,54 +621,7 @@ export default function EnhancedCheckInModal({
     }
   };
 
-  const handleCreateCompanyLedger = async () => {
-    if (!booking || !selectedCompany) {
-      setError('Please select a company for Direct Billing first');
-      return;
-    }
-
-    setCreatingLedger(true);
-    setError(null);
-
-    try {
-      const totalAmount = typeof booking.total_amount === 'string'
-        ? parseFloat(booking.total_amount)
-        : booking.total_amount;
-
-      const ledgerData: CustomerLedgerCreateRequest = {
-        company_name: selectedCompany.company_name,
-        company_registration_number: selectedCompany.registration_number,
-        contact_person: selectedCompany.contact_person,
-        contact_email: selectedCompany.contact_email,
-        contact_phone: selectedCompany.contact_phone,
-        billing_address_line1: selectedCompany.billing_address,
-        billing_city: selectedCompany.billing_city,
-        billing_state: selectedCompany.billing_state,
-        billing_postal_code: selectedCompany.billing_postal_code,
-        billing_country: selectedCompany.billing_country,
-        description: `Room charge for booking ${booking.booking_number || booking.id} - ${guest?.full_name || 'Guest'}`,
-        expense_type: 'accommodation',
-        amount: totalAmount || 0,
-        booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
-        guest_id: typeof booking.guest_id === 'string' ? parseInt(booking.guest_id) : booking.guest_id,
-        due_date: format(new Date(new Date().getTime() + (selectedCompany.payment_terms_days || 30) * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
-        folio_type: 'city_ledger',
-        transaction_type: 'debit',
-        post_type: 'room_charge',
-        room_number: (booking as any).room_number || String(booking.room_id),
-      };
-
-      await LedgerService.createCustomerLedger(ledgerData);
-      emitApiNotification({
-        message: `Company ledger created for ${selectedCompany.company_name}`,
-        severity: 'success',
-      });
-    } catch (err: any) {
-      setError(err.message || 'Failed to create company ledger');
-    } finally {
-      setCreatingLedger(false);
-    }
-  };
+  // Manual company-ledger creation from the booking UI has been removed.
 
   const calculateNights = () => {
     if (!booking) return 0;
@@ -1874,15 +1794,7 @@ export default function EnhancedCheckInModal({
           </Button>
         </Box>
         <Box>
-          <Button
-            variant="outlined"
-            disabled={loading || creatingLedger || paymentType !== 'Direct Billing' || !selectedCompany}
-            onClick={handleCreateCompanyLedger}
-            sx={{ mr: 1 }}
-            startIcon={creatingLedger ? <CircularProgress size={16} /> : <BusinessIcon />}
-          >
-            {creatingLedger ? 'Creating...' : 'Company Ledger'}
-          </Button>
+          {/* Company Ledger creation removed — handled by backend or admin UI */}
           <Button
             variant="contained"
             onClick={handleCheckIn}

@@ -45,6 +45,15 @@ export function useGuest(id?: string | number | null, enabled = true) {
   });
 }
 
+export function useGuestProfile(id?: string | number | null, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.guests.profile(id ?? ''),
+    queryFn: () => GuestsService.getGuestProfile(id as string | number),
+    enabled: enabled && id != null && id !== '',
+    staleTime: queryStaleTime.short,
+  });
+}
+
 export function useGuestBookings(guestId?: string | number | null, enabled = true) {
   return useQuery({
     queryKey: queryKeys.guests.bookings(guestId ?? ''),
@@ -96,6 +105,7 @@ export function useUpdateGuest() {
       GuestsService.updateGuest(guestId, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.guests.detail(variables.guestId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.guests.profile(variables.guestId) });
       invalidateGuestDependencies(queryClient);
     },
   });

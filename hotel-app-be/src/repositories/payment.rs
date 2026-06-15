@@ -1,7 +1,7 @@
 //! Payment repository for database operations
 
 use crate::constants::PaymentStatus;
-use crate::core::db::{DbPool, DbRow, DbTransaction};
+use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
@@ -151,7 +151,7 @@ impl PaymentRepository {
     }
 
     pub async fn room_pricing(pool: &DbPool, room_id: i64) -> Result<PaymentRoomPricing, ApiError> {
-        let (base_price, keycard_deposit, service_charge_percentage) = sqlx::query_as(
+        let row = sqlx::query(
             r#"
             SELECT rt.base_price, rt.keycard_deposit_amount, rt.service_charge_percentage
             FROM rooms r
@@ -165,9 +165,9 @@ impl PaymentRepository {
         .map_err(ApiError::from)?;
 
         Ok(PaymentRoomPricing {
-            base_price,
-            keycard_deposit,
-            service_charge_percentage,
+            base_price: row_mappers::get_decimal(&row, "base_price"),
+            keycard_deposit: row_mappers::get_decimal(&row, "keycard_deposit_amount"),
+            service_charge_percentage: row_mappers::get_decimal(&row, "service_charge_percentage"),
         })
     }
 
@@ -195,7 +195,7 @@ impl PaymentRepository {
             ));
         }
 
-        let payment = sqlx::query_as::<_, Payment>(
+        let payment = sqlx::query(
             r#"
             INSERT INTO payments (
                 booking_id, user_id, payment_method, payment_status,
@@ -211,11 +211,11 @@ impl PaymentRepository {
         .bind(user_id)
         .bind(request.payment_method.to_string())
         .bind(PaymentStatus::Completed.to_string())
-        .bind(summary.subtotal)
-        .bind(summary.service_charge)
-        .bind(summary.tax_amount)
-        .bind(summary.keycard_deposit)
-        .bind(summary.total_amount)
+        .bind(decimal_to_db(summary.subtotal))
+        .bind(decimal_to_db(summary.service_charge))
+        .bind(decimal_to_db(summary.tax_amount))
+        .bind(decimal_to_db(summary.keycard_deposit))
+        .bind(decimal_to_db(summary.total_amount))
         .bind(&request.transaction_reference)
         .bind(payment_gateway)
         .bind(&request.card_last_four)
@@ -225,6 +225,7 @@ impl PaymentRepository {
         .bind(&request.notes)
         .fetch_one(&mut *tx)
         .await
+        .map(|row| row_mappers::row_to_payment(&row))
         .map_err(ApiError::from)?;
 
         if summary.keycard_deposit > Decimal::ZERO {
@@ -236,7 +237,7 @@ impl PaymentRepository {
             )
             .bind(request.booking_id)
             .bind(payment.id)
-            .bind(summary.keycard_deposit)
+            .bind(decimal_to_db(summary.keycard_deposit))
             .execute(&mut *tx)
             .await
             .map_err(ApiError::from)?;
@@ -286,7 +287,7 @@ impl PaymentRepository {
             "#,
         )
         .bind(request.booking_id)
-        .bind(amount)
+        .bind(decimal_to_db(amount))
         .bind(&request.payment_method)
         .bind(payment_type)
         .bind(&request.transaction_reference)
@@ -415,7 +416,7 @@ impl PaymentRepository {
             "#,
         )
         .bind(booking_id)
-        .bind(deposit_amount)
+        .bind(decimal_to_db(deposit_amount))
         .bind(payment_method)
         .bind(user_id)
         .fetch_one(&mut *tx)
@@ -432,13 +433,15 @@ impl PaymentRepository {
         pool: &DbPool,
         booking_id: i64,
     ) -> Result<Option<Payment>, ApiError> {
-        sqlx::query_as::<_, Payment>(
+        let row = sqlx::query(
             "SELECT * FROM payments WHERE booking_id = $1 ORDER BY created_at DESC LIMIT 1",
         )
         .bind(booking_id)
         .fetch_optional(pool)
         .await
-        .map_err(ApiError::from)
+        .map_err(ApiError::from)?;
+
+        Ok(row.as_ref().map(row_mappers::row_to_payment))
     }
 
     pub async fn create_generated_invoice(
@@ -449,12 +452,13 @@ impl PaymentRepository {
     ) -> Result<Invoice, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
-        if let Some(existing) =
-            sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE booking_id = $1")
-                .bind(booking_id)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(ApiError::from)?
+        if let Some(existing) = sqlx::query("SELECT * FROM invoices WHERE booking_id = $1")
+            .bind(booking_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(ApiError::from)?
+            .as_ref()
+            .map(row_mappers::row_to_invoice)
         {
             return Ok(existing);
         }
@@ -500,27 +504,32 @@ impl PaymentRepository {
             room_type,
         ) = booking_details;
 
-        let payment = sqlx::query_as::<_, Payment>(
+        let payment = sqlx::query(
             "SELECT * FROM payments WHERE booking_id = $1 ORDER BY created_at DESC LIMIT 1",
         )
         .bind(booking_id)
         .fetch_optional(&mut *tx)
         .await
-        .map_err(ApiError::from)?;
+        .map_err(ApiError::from)?
+        .as_ref()
+        .map(row_mappers::row_to_payment);
 
-        let (base_price, keycard_deposit, service_charge_pct): (Decimal, Decimal, Decimal) =
-            sqlx::query_as(
-                r#"
+        let pricing_row = sqlx::query(
+            r#"
                 SELECT rt.base_price, rt.keycard_deposit_amount, rt.service_charge_percentage
                 FROM rooms r
                 JOIN room_types rt ON r.room_type_id = rt.id
                 WHERE r.id = $1
                 "#,
-            )
-            .bind(room_id)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(ApiError::from)?;
+        )
+        .bind(room_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(ApiError::from)?;
+        let base_price = row_mappers::get_decimal(&pricing_row, "base_price");
+        let keycard_deposit = row_mappers::get_decimal(&pricing_row, "keycard_deposit_amount");
+        let service_charge_pct =
+            row_mappers::get_decimal(&pricing_row, "service_charge_percentage");
 
         let nights = (check_out.date() - check_in.date()).num_days() as i32;
         let subtotal = base_price * Decimal::from(nights);
@@ -549,7 +558,7 @@ impl PaymentRepository {
             }
         ]);
 
-        let invoice = sqlx::query_as::<_, Invoice>(
+        let invoice = sqlx::query(
             r#"
             INSERT INTO invoices (
                 invoice_number, booking_id, payment_id, user_id,
@@ -567,13 +576,13 @@ impl PaymentRepository {
         .bind(booking_id)
         .bind(payment.as_ref().map(|p| p.id))
         .bind(user_id)
-        .bind(subtotal)
-        .bind(service_charge)
-        .bind(service_charge_pct)
-        .bind(tax_amount)
-        .bind(Decimal::ZERO)
-        .bind(keycard_deposit)
-        .bind(total)
+        .bind(decimal_to_db(subtotal))
+        .bind(decimal_to_db(service_charge))
+        .bind(decimal_to_db(service_charge_pct))
+        .bind(decimal_to_db(tax_amount))
+        .bind(decimal_to_db(Decimal::ZERO))
+        .bind(decimal_to_db(keycard_deposit))
+        .bind(decimal_to_db(total))
         .bind(&line_items)
         .bind(&customer_name)
         .bind(&customer_email)
@@ -586,6 +595,7 @@ impl PaymentRepository {
         .bind(if payment.is_some() { "paid" } else { "draft" })
         .fetch_one(&mut *tx)
         .await
+        .map(|row| row_mappers::row_to_invoice(&row))
         .map_err(ApiError::from)?;
 
         tx.commit().await.map_err(ApiError::from)?;
@@ -597,21 +607,24 @@ impl PaymentRepository {
         pool: &DbPool,
         booking_id: i64,
     ) -> Result<Option<Invoice>, ApiError> {
-        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE booking_id = $1")
+        let row = sqlx::query("SELECT * FROM invoices WHERE booking_id = $1")
             .bind(booking_id)
             .fetch_optional(pool)
             .await
-            .map_err(ApiError::from)
+            .map_err(ApiError::from)?;
+
+        Ok(row.as_ref().map(row_mappers::row_to_invoice))
     }
 
     pub async fn find_user_invoices(pool: &DbPool, user_id: i64) -> Result<Vec<Invoice>, ApiError> {
-        sqlx::query_as::<_, Invoice>(
-            "SELECT * FROM invoices WHERE user_id = $1 ORDER BY invoice_date DESC",
-        )
-        .bind(user_id)
-        .fetch_all(pool)
-        .await
-        .map_err(ApiError::from)
+        let rows =
+            sqlx::query("SELECT * FROM invoices WHERE user_id = $1 ORDER BY invoice_date DESC")
+                .bind(user_id)
+                .fetch_all(pool)
+                .await
+                .map_err(ApiError::from)?;
+
+        Ok(rows.iter().map(row_mappers::row_to_invoice).collect())
     }
 
     pub async fn update_payment(
@@ -669,7 +682,7 @@ impl PaymentRepository {
         if let Some(amount) = request.amount {
             let amount_decimal = Decimal::from_f64_retain(amount)
                 .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
-            query_builder = query_builder.bind(amount_decimal);
+            query_builder = query_builder.bind(decimal_to_db(amount_decimal));
         }
         if let Some(ref method) = request.payment_method {
             query_builder = query_builder.bind(method);
@@ -730,10 +743,13 @@ impl PaymentRepository {
         Ok(affected_booking_id)
     }
 
-    pub async fn existing_invoice_number(
-        pool: &DbPool,
+    pub async fn existing_invoice_number<'e, E>(
+        executor: E,
         booking_id: i64,
-    ) -> Result<Option<String>, ApiError> {
+    ) -> Result<Option<String>, ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
         #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
         let sql = "SELECT invoice_number FROM invoices WHERE booking_id = ?1 LIMIT 1";
         #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
@@ -741,15 +757,18 @@ impl PaymentRepository {
 
         sqlx::query_scalar(sql)
             .bind(booking_id)
-            .fetch_optional(pool)
+            .fetch_optional(executor)
             .await
             .map_err(ApiError::from)
     }
 
-    pub async fn ledger_invoice_number(
-        pool: &DbPool,
+    pub async fn ledger_invoice_number<'e, E>(
+        executor: E,
         booking_id: i64,
-    ) -> Result<Option<String>, ApiError> {
+    ) -> Result<Option<String>, ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
         #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
         let sql = "SELECT invoice_number FROM customer_ledgers \
              WHERE booking_id = ?1 AND invoice_number IS NOT NULL \
@@ -761,17 +780,20 @@ impl PaymentRepository {
 
         sqlx::query_scalar(sql)
             .bind(booking_id)
-            .fetch_optional(pool)
+            .fetch_optional(executor)
             .await
             .map_err(ApiError::from)
     }
 
-    pub async fn insert_checkout_invoice(
-        pool: &DbPool,
+    pub async fn insert_checkout_invoice<'e, E>(
+        executor: E,
         booking_id: i64,
         user_id: i64,
         invoice_number: &str,
-    ) -> Result<(), ApiError> {
+    ) -> Result<(), ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
         #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
         {
             sqlx::query(
@@ -788,7 +810,7 @@ impl PaymentRepository {
             .bind(invoice_number)
             .bind(user_id)
             .bind(booking_id)
-            .execute(pool)
+            .execute(executor)
             .await
             .map_err(ApiError::from)?;
         }
@@ -818,7 +840,7 @@ impl PaymentRepository {
             .bind(invoice_number)
             .bind(user_id)
             .bind(booking_id)
-            .execute(pool)
+            .execute(executor)
             .await
             .map_err(ApiError::from)?;
         }
@@ -831,11 +853,13 @@ impl PaymentRepository {
         pool: &DbPool,
         invoice_number: &str,
     ) -> Result<Option<Invoice>, ApiError> {
-        sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE invoice_number = $1")
+        let row = sqlx::query("SELECT * FROM invoices WHERE invoice_number = $1")
             .bind(invoice_number)
             .fetch_optional(pool)
             .await
-            .map_err(ApiError::from)
+            .map_err(ApiError::from)?;
+
+        Ok(row.as_ref().map(row_mappers::row_to_invoice))
     }
 
     #[allow(dead_code)]

@@ -842,8 +842,8 @@ async fn generate_balance_sheet(
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
     // Get total room revenue
-    let room_revenue: Decimal = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(total_amount), 0) FROM bookings
+    let room_revenue_row = sqlx::query(
+        "SELECT COALESCE(SUM(total_amount), 0) AS room_revenue FROM bookings
          WHERE check_in_date >= $1 AND check_in_date <= $2 AND status IN ('confirmed', 'checked_in', 'checked_out')"
     )
     .bind(start_date)
@@ -851,10 +851,11 @@ async fn generate_balance_sheet(
     .fetch_one(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+    let room_revenue = row_mappers::get_decimal(&room_revenue_row, "room_revenue");
 
     // Get deposit total (simplified - you'd track actual deposits in production)
-    let deposits: Decimal = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(total_amount * 0.2), 0) FROM bookings
+    let deposits_row = sqlx::query(
+        "SELECT COALESCE(SUM(total_amount * 0.2), 0) AS deposits FROM bookings
          WHERE check_in_date >= $1 AND check_in_date <= $2 AND status IN ('confirmed', 'pending')",
     )
     .bind(start_date)
@@ -862,6 +863,7 @@ async fn generate_balance_sheet(
     .fetch_one(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+    let deposits = row_mappers::get_decimal(&deposits_row, "deposits");
 
     let tax_rate_pct =
         settings_cache::get_positive_decimal(pool, "service_tax_rate", Decimal::new(8, 0)).await;
@@ -943,7 +945,7 @@ async fn generate_journal_by_type(
     let mut total_credit = Decimal::ZERO;
 
     for row in rows {
-        let amount: Decimal = row.get("total_amount");
+        let amount = row_mappers::get_decimal(&row, "total_amount");
         let folio: Option<String> = row.get("folio");
         let room: String = row.get("room");
         let date: NaiveDate = row.get("date");
@@ -1032,10 +1034,10 @@ async fn generate_shift_report(
         let guest_name: String = row.get("guest_name");
         let room_number: String = row.get("room_number");
         let room_type: Option<String> = row.get("room_type");
-        let total_amount: Decimal = row.get("total_amount");
+        let total_amount = row_mappers::get_decimal(row, "total_amount");
         let payment_method: Option<String> = row.get("payment_method");
         let payment_status: Option<String> = row.get("payment_status");
-        let deposit_amount: Option<Decimal> = row.get("deposit_amount");
+        let deposit_amount = row_mappers::get_opt_decimal(row, "deposit_amount");
         let deposit_paid: Option<bool> = row.get("deposit_paid");
         let booking_status: String = row.get("booking_status");
         let source: Option<String> = row.get("source");
@@ -1217,15 +1219,15 @@ async fn generate_general_journal(
 
     for row in rows {
         let date: NaiveDate = row.get("date");
-        let total_amount: Decimal = row.get("total_amount");
-        let room_rate: Decimal = row.get("room_rate");
-        let tax_amount: Decimal = row.get("tax_amount");
-        let tourism_tax_amount: Decimal = row.get("tourism_tax_amount");
+        let total_amount = row_mappers::get_decimal(&row, "total_amount");
+        let room_rate = row_mappers::get_decimal(&row, "room_rate");
+        let tax_amount = row_mappers::get_decimal(&row, "tax_amount");
+        let tourism_tax_amount = row_mappers::get_decimal(&row, "tourism_tax_amount");
         let payment_status: Option<String> = row.get("payment_status");
         let payment_method: Option<String> = row.get("payment_method");
         let source: Option<String> = row.get("source");
         let booking_remarks: Option<String> = row.get("booking_remarks");
-        let deposit_amount_val: Decimal = row.get("deposit_amount");
+        let deposit_amount_val = row_mappers::get_decimal(&row, "deposit_amount");
         let room_number: String = row.get("room_number");
         let date_str = date.format("%d/%m/%Y").to_string();
 
@@ -1404,7 +1406,7 @@ async fn generate_general_journal(
 
     for row in refund_rows {
         let date: NaiveDate = row.get("date");
-        let amount: Decimal = row.get("amount");
+        let amount = row_mappers::get_decimal(&row, "amount");
         let room_number: String = row.get("room_number");
         guest_ledger_entries.push(serde_json::json!({
             "date": date.format("%d/%m/%Y").to_string(),
@@ -1670,9 +1672,9 @@ async fn generate_occupancy_report(
     let total_rooms = total_rooms.unwrap_or(0);
 
     // Rooms sold and revenue
-    let stats: (Option<i64>, Option<Decimal>) = sqlx::query_as(
+    let stats = sqlx::query(
         r#"
-        SELECT COUNT(*)::bigint, SUM(total_amount)
+        SELECT COUNT(*)::bigint AS rooms_sold, SUM(total_amount) AS total_revenue
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
         AND status NOT IN ('voided')
@@ -1684,8 +1686,9 @@ async fn generate_occupancy_report(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let rooms_sold = stats.0.unwrap_or(0);
-    let total_revenue = stats.1.unwrap_or(Decimal::ZERO);
+    let rooms_sold = row_i64(&stats, "rooms_sold");
+    let total_revenue =
+        row_mappers::get_opt_decimal(&stats, "total_revenue").unwrap_or(Decimal::ZERO);
 
     // Calculate days in range
     let days_in_range = (end_date - start_date).num_days() + 1;
@@ -1711,9 +1714,9 @@ async fn generate_occupancy_report(
     };
 
     // Occupancy by room type
-    let by_room_type: Vec<(String, i64, Option<Decimal>)> = sqlx::query_as(
+    let by_room_type = sqlx::query(
         r#"
-        SELECT rt.name, COUNT(*), SUM(b.total_amount)
+        SELECT rt.name AS room_type, COUNT(*) AS bookings, SUM(b.total_amount) AS revenue
         FROM bookings b
         JOIN rooms r ON b.room_id = r.id
         JOIN room_types rt ON r.room_type_id = rt.id
@@ -1729,20 +1732,22 @@ async fn generate_occupancy_report(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let by_room_type_json: Vec<serde_json::Value> = by_room_type.into_iter()
-        .map(|(room_type, count, revenue)| {
+    let by_room_type_json: Vec<serde_json::Value> = by_room_type
+        .iter()
+        .map(|row| {
+            let revenue = row_mappers::get_opt_decimal(row, "revenue").unwrap_or(Decimal::ZERO);
             serde_json::json!({
-                "room_type": room_type,
-                "bookings": count,
-                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+                "room_type": row.get::<String, _>("room_type"),
+                "bookings": row_i64(row, "bookings"),
+                "revenue": revenue.to_string().parse::<f64>().unwrap_or(0.0)
             })
         })
         .collect();
 
     // Daily breakdown
-    let daily_data: Vec<(NaiveDate, i64, Option<Decimal>)> = sqlx::query_as(
+    let daily_data = sqlx::query(
         r#"
-        SELECT check_in_date, COUNT(*), SUM(total_amount)
+        SELECT check_in_date, COUNT(*) AS bookings, SUM(total_amount) AS revenue
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
         AND status NOT IN ('voided')
@@ -1756,12 +1761,16 @@ async fn generate_occupancy_report(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let daily_json: Vec<serde_json::Value> = daily_data.into_iter()
-        .map(|(date, count, revenue)| {
+    let daily_json: Vec<serde_json::Value> = daily_data
+        .iter()
+        .map(|row| {
+            let date: NaiveDate = row.get("check_in_date");
+            let count = row_i64(row, "bookings");
+            let revenue = row_mappers::get_opt_decimal(row, "revenue").unwrap_or(Decimal::ZERO);
             serde_json::json!({
                 "date": date.to_string(),
                 "bookings": count,
-                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0),
+                "revenue": revenue.to_string().parse::<f64>().unwrap_or(0.0),
                 "occupancy_rate": if total_rooms > 0 { (count as f64 / total_rooms as f64) * 100.0 } else { 0.0 }
             })
         })
@@ -1794,9 +1803,9 @@ async fn generate_revenue_report(
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
     // Total revenue
-    let total_revenue: Option<Decimal> = sqlx::query_scalar(
+    let total_revenue_row = sqlx::query(
         r#"
-        SELECT SUM(total_amount) FROM bookings
+        SELECT SUM(total_amount) AS total_revenue FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
         AND status NOT IN ('voided')
         "#,
@@ -1807,12 +1816,13 @@ async fn generate_revenue_report(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let total = total_revenue.unwrap_or(Decimal::ZERO);
+    let total =
+        row_mappers::get_opt_decimal(&total_revenue_row, "total_revenue").unwrap_or(Decimal::ZERO);
 
     // Revenue by room type
-    let by_room_type: Vec<(String, i64, Option<Decimal>)> = sqlx::query_as(
+    let by_room_type = sqlx::query(
         r#"
-        SELECT rt.name, COUNT(*), SUM(b.total_amount)
+        SELECT rt.name AS room_type, COUNT(*) AS bookings, SUM(b.total_amount) AS revenue
         FROM bookings b
         JOIN rooms r ON b.room_id = r.id
         JOIN room_types rt ON r.room_type_id = rt.id
@@ -1829,9 +1839,9 @@ async fn generate_revenue_report(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Revenue by source
-    let by_source: Vec<(Option<String>, i64, Option<Decimal>)> = sqlx::query_as(
+    let by_source = sqlx::query(
         r#"
-        SELECT source, COUNT(*), SUM(total_amount)
+        SELECT source, COUNT(*) AS bookings, SUM(total_amount) AS revenue
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
         AND status NOT IN ('voided')
@@ -1846,9 +1856,9 @@ async fn generate_revenue_report(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Revenue by payment status
-    let by_payment_status: Vec<(Option<String>, i64, Option<Decimal>)> = sqlx::query_as(
+    let by_payment_status = sqlx::query(
         r#"
-        SELECT payment_status, COUNT(*), SUM(total_amount)
+        SELECT payment_status, COUNT(*) AS bookings, SUM(total_amount) AS revenue
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
         AND status NOT IN ('voided')
@@ -1863,9 +1873,9 @@ async fn generate_revenue_report(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Daily revenue
-    let daily_data: Vec<(NaiveDate, i64, Option<Decimal>)> = sqlx::query_as(
+    let daily_data = sqlx::query(
         r#"
-        SELECT check_in_date, COUNT(*), SUM(total_amount)
+        SELECT check_in_date, COUNT(*) AS bookings, SUM(total_amount) AS revenue
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
         AND status NOT IN ('voided')
@@ -1879,42 +1889,51 @@ async fn generate_revenue_report(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let by_room_type_json: Vec<serde_json::Value> = by_room_type.into_iter()
-        .map(|(room_type, count, revenue)| {
+    let by_room_type_json: Vec<serde_json::Value> = by_room_type
+        .iter()
+        .map(|row| {
+            let revenue = row_mappers::get_opt_decimal(row, "revenue").unwrap_or(Decimal::ZERO);
             serde_json::json!({
-                "room_type": room_type,
-                "bookings": count,
-                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+                "room_type": row.get::<String, _>("room_type"),
+                "bookings": row_i64(row, "bookings"),
+                "revenue": revenue.to_string().parse::<f64>().unwrap_or(0.0)
             })
         })
         .collect();
 
-    let by_source_json: Vec<serde_json::Value> = by_source.into_iter()
-        .map(|(source, count, revenue)| {
+    let by_source_json: Vec<serde_json::Value> = by_source
+        .iter()
+        .map(|row| {
+            let revenue = row_mappers::get_opt_decimal(row, "revenue").unwrap_or(Decimal::ZERO);
             serde_json::json!({
-                "source": source.unwrap_or_else(|| "unknown".to_string()),
-                "bookings": count,
-                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+                "source": row.try_get::<Option<String>, _>("source").ok().flatten().unwrap_or_else(|| "unknown".to_string()),
+                "bookings": row_i64(row, "bookings"),
+                "revenue": revenue.to_string().parse::<f64>().unwrap_or(0.0)
             })
         })
         .collect();
 
-    let by_payment_status_json: Vec<serde_json::Value> = by_payment_status.into_iter()
-        .map(|(status, count, revenue)| {
+    let by_payment_status_json: Vec<serde_json::Value> = by_payment_status
+        .iter()
+        .map(|row| {
+            let revenue = row_mappers::get_opt_decimal(row, "revenue").unwrap_or(Decimal::ZERO);
             serde_json::json!({
-                "payment_status": status.unwrap_or_else(|| "unknown".to_string()),
-                "bookings": count,
-                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+                "payment_status": row.try_get::<Option<String>, _>("payment_status").ok().flatten().unwrap_or_else(|| "unknown".to_string()),
+                "bookings": row_i64(row, "bookings"),
+                "revenue": revenue.to_string().parse::<f64>().unwrap_or(0.0)
             })
         })
         .collect();
 
-    let daily_json: Vec<serde_json::Value> = daily_data.into_iter()
-        .map(|(date, count, revenue)| {
+    let daily_json: Vec<serde_json::Value> = daily_data
+        .iter()
+        .map(|row| {
+            let date: NaiveDate = row.get("check_in_date");
+            let revenue = row_mappers::get_opt_decimal(row, "revenue").unwrap_or(Decimal::ZERO);
             serde_json::json!({
                 "date": date.to_string(),
-                "bookings": count,
-                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+                "bookings": row_i64(row, "bookings"),
+                "revenue": revenue.to_string().parse::<f64>().unwrap_or(0.0)
             })
         })
         .collect();
@@ -1939,9 +1958,9 @@ async fn generate_payment_status_report(
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
     // Bookings by payment status
-    let by_status: Vec<(Option<String>, i64, Option<Decimal>)> = sqlx::query_as(
+    let by_status = sqlx::query(
         r#"
-        SELECT payment_status, COUNT(*), SUM(total_amount)
+        SELECT payment_status, COUNT(*) AS bookings, SUM(total_amount) AS total_amount
         FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
         AND status NOT IN ('voided')
@@ -1956,9 +1975,9 @@ async fn generate_payment_status_report(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Calculate outstanding balance (unpaid bookings)
-    let outstanding: Option<Decimal> = sqlx::query_scalar(
+    let outstanding_row = sqlx::query(
         r#"
-        SELECT SUM(total_amount) FROM bookings
+        SELECT SUM(total_amount) AS outstanding_balance FROM bookings
         WHERE check_in_date >= $1 AND check_in_date <= $2
         AND status NOT IN ('voided')
         AND payment_status IN ('unpaid', 'unpaid_deposit', 'partial')
@@ -1969,12 +1988,13 @@ async fn generate_payment_status_report(
     .fetch_one(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+    let outstanding = row_mappers::get_opt_decimal(&outstanding_row, "outstanding_balance");
 
     // Overdue payments (past check-out with unpaid status)
-    #[allow(clippy::type_complexity)]
-    let overdue: Vec<(i64, String, String, String, Decimal, NaiveDate, Option<String>)> = sqlx::query_as(
+    let overdue = sqlx::query(
         r#"
-        SELECT b.id, b.booking_number, g.full_name, r.room_number, b.total_amount, b.check_out_date, b.payment_status
+        SELECT b.id, b.booking_number, g.full_name AS guest_name, r.room_number,
+               b.total_amount, b.check_out_date, b.payment_status
         FROM bookings b
         JOIN guests g ON b.guest_id = g.id
         JOIN rooms r ON b.room_id = r.id
@@ -1983,37 +2003,39 @@ async fn generate_payment_status_report(
         AND b.payment_status IN ('unpaid', 'unpaid_deposit', 'partial')
         ORDER BY b.check_out_date DESC
         LIMIT 50
-        "#
+        "#,
     )
     .fetch_all(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let by_status_json: Vec<serde_json::Value> = by_status.into_iter()
-        .map(|(status, count, amount)| {
+    let by_status_json: Vec<serde_json::Value> = by_status
+        .iter()
+        .map(|row| {
+            let amount = row_mappers::get_opt_decimal(row, "total_amount").unwrap_or(Decimal::ZERO);
             serde_json::json!({
-                "payment_status": status.unwrap_or_else(|| "unknown".to_string()),
-                "count": count,
-                "total_amount": amount.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+                "payment_status": row.try_get::<Option<String>, _>("payment_status").ok().flatten().unwrap_or_else(|| "unknown".to_string()),
+                "count": row_i64(row, "bookings"),
+                "total_amount": amount.to_string().parse::<f64>().unwrap_or(0.0)
             })
         })
         .collect();
 
     let overdue_json: Vec<serde_json::Value> = overdue
-        .into_iter()
-        .map(
-            |(id, booking_number, guest_name, room_number, amount, check_out, payment_status)| {
-                serde_json::json!({
-                    "id": id,
-                    "booking_number": booking_number,
-                    "guest_name": guest_name,
-                    "room_number": room_number,
-                    "total_amount": amount.to_string().parse::<f64>().unwrap_or(0.0),
-                    "check_out_date": check_out.to_string(),
-                    "payment_status": payment_status
-                })
-            },
-        )
+        .iter()
+        .map(|row| {
+            let amount = row_mappers::get_decimal(row, "total_amount");
+            let check_out: NaiveDate = row.get("check_out_date");
+            serde_json::json!({
+                "id": row.get::<i64, _>("id"),
+                "booking_number": row.get::<String, _>("booking_number"),
+                "guest_name": row.get::<String, _>("guest_name"),
+                "room_number": row.get::<String, _>("room_number"),
+                "total_amount": amount.to_string().parse::<f64>().unwrap_or(0.0),
+                "check_out_date": check_out.to_string(),
+                "payment_status": row.try_get::<Option<String>, _>("payment_status").ok().flatten()
+            })
+        })
         .collect();
 
     Ok(serde_json::json!({
@@ -2035,25 +2057,9 @@ async fn generate_complimentary_report(
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
     // All complimentary bookings
-    #[allow(clippy::type_complexity)]
-    let complimentary: Vec<(
-        i64,
-        String,
-        String,
-        String,
-        NaiveDate,
-        NaiveDate,
-        Option<bool>,
-        Option<String>,
-        Option<NaiveDate>,
-        Option<NaiveDate>,
-        Option<Decimal>,
-        Decimal,
-        Option<i32>,
-        String,
-    )> = sqlx::query_as(
+    let complimentary = sqlx::query(
         r#"
-        SELECT b.id, b.booking_number, g.full_name, r.room_number,
+        SELECT b.id, b.booking_number, g.full_name AS guest_name, r.room_number,
                b.check_in_date, b.check_out_date,
                b.is_complimentary, b.complimentary_reason,
                b.complimentary_start_date, b.complimentary_end_date,
@@ -2080,9 +2086,23 @@ async fn generate_complimentary_report(
     let mut full_count = 0i64;
     let mut reasons_map: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
 
-    let bookings_json: Vec<serde_json::Value> = complimentary.into_iter()
-        .map(|(id, booking_number, guest_name, room_number, check_in, check_out,
-               is_complimentary, reason, comp_start, comp_end, original, actual, nights, status)| {
+    let bookings_json: Vec<serde_json::Value> = complimentary
+        .iter()
+        .map(|row| {
+            let id: i64 = row.get("id");
+            let booking_number: String = row.get("booking_number");
+            let guest_name: String = row.get("guest_name");
+            let room_number: String = row.get("room_number");
+            let check_in: NaiveDate = row.get("check_in_date");
+            let check_out: NaiveDate = row.get("check_out_date");
+            let is_complimentary: Option<bool> = row.try_get("is_complimentary").ok();
+            let reason: Option<String> = row.try_get("complimentary_reason").ok();
+            let comp_start: Option<NaiveDate> = row.try_get("complimentary_start_date").ok();
+            let comp_end: Option<NaiveDate> = row.try_get("complimentary_end_date").ok();
+            let original = row_mappers::get_opt_decimal(row, "original_total_amount");
+            let actual = row_mappers::get_decimal(row, "total_amount");
+            let nights: Option<i32> = row.try_get("complimentary_nights").ok();
+            let status: String = row.get("status");
 
             total_complimentary_nights += nights.unwrap_or(0);
             total_original_amount += original.unwrap_or(Decimal::ZERO);
@@ -2259,9 +2279,9 @@ async fn generate_guest_statistics_report(
         .collect();
 
     // Top guests by bookings
-    let top_guests: Vec<(i64, String, i64, Option<Decimal>)> = sqlx::query_as(
+    let top_guests = sqlx::query(
         r#"
-        SELECT g.id, g.full_name, COUNT(*) as booking_count, SUM(b.total_amount)
+        SELECT g.id, g.full_name, COUNT(*) AS booking_count, SUM(b.total_amount) AS total_spent
         FROM bookings b
         JOIN guests g ON b.guest_id = g.id
         WHERE b.check_in_date >= $1 AND b.check_in_date <= $2
@@ -2277,13 +2297,15 @@ async fn generate_guest_statistics_report(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let top_guests_json: Vec<serde_json::Value> = top_guests.into_iter()
-        .map(|(id, name, bookings, revenue)| {
+    let top_guests_json: Vec<serde_json::Value> = top_guests
+        .iter()
+        .map(|row| {
+            let revenue = row_mappers::get_opt_decimal(row, "total_spent").unwrap_or(Decimal::ZERO);
             serde_json::json!({
-                "id": id,
-                "name": name,
-                "bookings": bookings,
-                "total_spent": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+                "id": row.get::<i64, _>("id"),
+                "name": row.get::<String, _>("full_name"),
+                "bookings": row_i64(row, "booking_count"),
+                "total_spent": revenue.to_string().parse::<f64>().unwrap_or(0.0)
             })
         })
         .collect();
@@ -2313,9 +2335,9 @@ async fn generate_room_performance_report(
     end_date: NaiveDate,
 ) -> Result<serde_json::Value, ApiError> {
     // Performance by room number
-    let by_room: Vec<(String, String, i64, Option<Decimal>)> = sqlx::query_as(
+    let by_room = sqlx::query(
         r#"
-        SELECT r.room_number, rt.name as room_type, COUNT(*), SUM(b.total_amount)
+        SELECT r.room_number, rt.name as room_type, COUNT(*) AS bookings, SUM(b.total_amount) AS revenue
         FROM bookings b
         JOIN rooms r ON b.room_id = r.id
         JOIN room_types rt ON r.room_type_id = rt.id
@@ -2332,9 +2354,10 @@ async fn generate_room_performance_report(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     // Performance by room type
-    let by_type: Vec<(String, i64, i64, Option<Decimal>)> = sqlx::query_as(
+    let by_type = sqlx::query(
         r#"
-        SELECT rt.name, COUNT(DISTINCT r.id) as room_count, COUNT(b.id), SUM(b.total_amount)
+        SELECT rt.name AS room_type, COUNT(DISTINCT r.id) AS room_count,
+               COUNT(b.id) AS bookings, SUM(b.total_amount) AS revenue
         FROM rooms r
         JOIN room_types rt ON r.room_type_id = rt.id
         LEFT JOIN bookings b ON b.room_id = r.id
@@ -2372,24 +2395,28 @@ async fn generate_room_performance_report(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let by_room_json: Vec<serde_json::Value> = by_room.into_iter()
-        .map(|(room_number, room_type, bookings, revenue)| {
+    let by_room_json: Vec<serde_json::Value> = by_room
+        .iter()
+        .map(|row| {
+            let revenue = row_mappers::get_opt_decimal(row, "revenue").unwrap_or(Decimal::ZERO);
             serde_json::json!({
-                "room_number": room_number,
-                "room_type": room_type,
-                "bookings": bookings,
-                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+                "room_number": row.get::<String, _>("room_number"),
+                "room_type": row.get::<String, _>("room_type"),
+                "bookings": row_i64(row, "bookings"),
+                "revenue": revenue.to_string().parse::<f64>().unwrap_or(0.0)
             })
         })
         .collect();
 
-    let by_type_json: Vec<serde_json::Value> = by_type.into_iter()
-        .map(|(room_type, room_count, bookings, revenue)| {
+    let by_type_json: Vec<serde_json::Value> = by_type
+        .iter()
+        .map(|row| {
+            let revenue = row_mappers::get_opt_decimal(row, "revenue").unwrap_or(Decimal::ZERO);
             serde_json::json!({
-                "room_type": room_type,
-                "room_count": room_count,
-                "bookings": bookings,
-                "revenue": revenue.unwrap_or(Decimal::ZERO).to_string().parse::<f64>().unwrap_or(0.0)
+                "room_type": row.get::<String, _>("room_type"),
+                "room_count": row_i64(row, "room_count"),
+                "bookings": row_i64(row, "bookings"),
+                "revenue": revenue.to_string().parse::<f64>().unwrap_or(0.0)
             })
         })
         .collect();
@@ -2425,7 +2452,7 @@ async fn generate_company_ledger_statement(
 ) -> Result<serde_json::Value, ApiError> {
     // If no company specified, return list of companies with ledgers
     if company_name.is_none() {
-        let companies: Vec<(String, i64, Decimal)> = sqlx::query_as(
+        let companies = sqlx::query(
             r#"
             SELECT company_name, COUNT(*) as entry_count, COALESCE(SUM(balance_due), 0) as total_balance
             FROM customer_ledgers
@@ -2439,12 +2466,12 @@ async fn generate_company_ledger_statement(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
         let company_list: Vec<serde_json::Value> = companies
-            .into_iter()
-            .map(|(name, count, balance)| {
+            .iter()
+            .map(|row| {
                 serde_json::json!({
-                    "company_name": name,
-                    "entry_count": count,
-                    "total_balance": balance
+                    "company_name": row.get::<String, _>("company_name"),
+                    "entry_count": row_i64(row, "entry_count"),
+                    "total_balance": row_mappers::get_decimal(row, "total_balance")
                 })
             })
             .collect();
@@ -2503,20 +2530,7 @@ async fn generate_company_ledger_statement(
     })?;
 
     // Get all ledger entries for this company
-    #[allow(clippy::type_complexity)]
-    let ledger_entries: Vec<(
-        i64,
-        String,
-        String,
-        Decimal,
-        Decimal,
-        Decimal,
-        String,
-        Option<String>,
-        Option<NaiveDate>,
-        Option<NaiveDate>,
-        chrono::NaiveDateTime,
-    )> = sqlx::query_as(
+    let ledger_entries = sqlx::query(
         r#"
         SELECT
             id, description, expense_type, amount, paid_amount, balance_due, status,
@@ -2545,42 +2559,40 @@ async fn generate_company_ledger_statement(
     let mut total_open = Decimal::ZERO;
 
     for entry in &ledger_entries {
-        let (
-            id,
-            description,
-            expense_type,
-            amount,
-            paid_amount,
-            balance_due,
-            status,
-            invoice_number,
-            invoice_date,
-            due_date,
-            created_at,
-        ) = entry;
+        let id: i64 = entry.get("id");
+        let description: String = entry.get("description");
+        let expense_type: String = entry.get("expense_type");
+        let amount = row_mappers::get_decimal(entry, "amount");
+        let paid_amount = row_mappers::get_decimal(entry, "paid_amount");
+        let balance_due = row_mappers::get_decimal(entry, "balance_due");
+        let status: String = entry.get("status");
+        let invoice_number: Option<String> = entry.try_get("invoice_number").ok();
+        let invoice_date: Option<NaiveDate> = entry.try_get("invoice_date").ok();
+        let due_date: Option<NaiveDate> = entry.try_get("due_date").ok();
+        let created_at: chrono::NaiveDateTime = entry.get("created_at");
 
         // Calculate days old
         let entry_date = invoice_date.unwrap_or(created_at.date());
         let days_old = (today - entry_date).num_days();
 
         // Categorize into aging buckets
-        if *balance_due > Decimal::ZERO {
+        if balance_due > Decimal::ZERO {
             if days_old <= 30 {
-                open_balance += *balance_due;
+                open_balance += balance_due;
             } else if days_old <= 60 {
-                days_31_60 += *balance_due;
+                days_31_60 += balance_due;
             } else if days_old <= 90 {
-                days_61_90 += *balance_due;
+                days_61_90 += balance_due;
             } else if days_old <= 120 {
-                days_91_120 += *balance_due;
+                days_91_120 += balance_due;
             } else {
-                over_120_days += *balance_due;
+                over_120_days += balance_due;
             }
         }
 
-        total_original += *amount;
-        total_payments += *paid_amount;
-        total_open += *balance_due;
+        total_original += amount;
+        total_payments += paid_amount;
+        total_open += balance_due;
 
         transactions.push(serde_json::json!({
             "id": id,
@@ -2599,7 +2611,7 @@ async fn generate_company_ledger_statement(
     }
 
     // Get last payment info
-    let last_payment: Option<(Decimal, chrono::NaiveDateTime)> = sqlx::query_as(
+    let last_payment = sqlx::query(
         r#"
         SELECT payment_amount, clp.created_at
         FROM customer_ledger_payments clp
@@ -2615,7 +2627,12 @@ async fn generate_company_ledger_statement(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     let (last_payment_amount, last_payment_date) = last_payment
-        .map(|(amt, date)| (amt, Some(date.format("%d/%m/%Y").to_string())))
+        .as_ref()
+        .map(|row| {
+            let amount = row_mappers::get_decimal(row, "payment_amount");
+            let date: chrono::NaiveDateTime = row.get("created_at");
+            (amount, Some(date.format("%d/%m/%Y").to_string()))
+        })
         .unwrap_or((Decimal::ZERO, None));
 
     Ok(serde_json::json!({

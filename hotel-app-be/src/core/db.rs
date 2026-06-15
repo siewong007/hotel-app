@@ -22,11 +22,20 @@ pub type DbRow = sqlx::postgres::PgRow;
 #[cfg(all(feature = "sqlite", feature = "postgres"))]
 pub type DbRow = sqlx::postgres::PgRow;
 
+// Re-export the active sqlx `Database` so query helpers can be generic over an
+// executor (`&DbPool` or `&mut DbTransaction`) under either feature flag.
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-pub type DbTransaction<'a> = sqlx::Transaction<'a, sqlx::Sqlite>;
+pub type DbDatabase = sqlx::Sqlite;
 
-#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-pub type DbTransaction<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
+#[cfg(all(feature = "postgres", not(feature = "sqlite")))]
+pub type DbDatabase = sqlx::Postgres;
+
+#[cfg(all(feature = "sqlite", feature = "postgres"))]
+pub type DbDatabase = sqlx::Postgres;
+
+/// A database transaction over the active backend. Lets callers run several
+/// writes atomically and pass `&mut *tx` to executor-generic query helpers.
+pub type DbTransaction<'c> = sqlx::Transaction<'c, DbDatabase>;
 
 /// Creates a database connection pool based on the enabled feature
 pub async fn create_pool(config: &DatabaseConfig) -> Result<DbPool, sqlx::Error> {

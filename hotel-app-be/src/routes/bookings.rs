@@ -136,12 +136,7 @@ async fn void_booking(
     Json(input): Json<models::BookingCancellationRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
-    handlers::bookings::delete_booking_handler(
-        State(pool),
-        Extension(user_id),
-        Path(input.booking_id),
-    )
-    .await
+    handlers::bookings::void_booking_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 async fn manual_checkin(

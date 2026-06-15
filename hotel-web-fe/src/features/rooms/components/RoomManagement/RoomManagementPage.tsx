@@ -76,7 +76,7 @@ import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, Boo
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useRoomData } from '../../hooks/useRoomData';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
-import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../../utils/date';
+import { addLocalDays, formatLocalDate } from '../../../../utils/date';
 import { isValidEmail } from '../../../../utils/validation';
 import {
   getUnifiedStatusColor,
@@ -100,6 +100,8 @@ import {
 import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
 import UnifiedBookingModal, { BookingType } from '../UnifiedBooking/UnifiedBookingModal';
 import UpdateCheckoutDateDialog from '../UpdateCheckoutDateDialog';
+import RoomNotesDialog from './RoomNotesDialog';
+import RoomStatusDialog from './RoomStatusDialog';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
 import { RoomAction, MenuSection, MenuLayout, GuestWithCredits } from './types';
 import RoomNotesDialog from './components/RoomNotesDialog';
@@ -119,6 +121,7 @@ const RoomManagementPage: React.FC = () => {
     error: dataError,
     roomBookings,
     reservedBookings,
+    compVoidBookings,
     allBookingsData,
     reload: loadData,
     reloadRooms: loadRooms,
@@ -139,11 +142,14 @@ const RoomManagementPage: React.FC = () => {
   const [updateCheckoutDialogOpen, setUpdateCheckoutDialogOpen] = useState(false);
   const [updateCheckoutBooking, setUpdateCheckoutBooking] = useState<BookingWithDetails | null>(null);
   const [complimentaryDialogOpen, setComplimentaryDialogOpen] = useState(false);
+
+  // Notes and status editing state
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+  const [roomStatusDialogOpen, setRoomStatusDialogOpen] = useState(false);
   const [complimentaryReason, setComplimentaryReason] = useState('');
   const [markingComplimentary, setMarkingComplimentary] = useState(false);
 
   // Room notes state
-  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [editingNotes, setEditingNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
 
@@ -402,17 +408,6 @@ const RoomManagementPage: React.FC = () => {
     return getUnifiedStatusShortLabel(status).toUpperCase();
   };
 
-  // Dark-mode card fills. The light-mode palette comes straight from
-  // `getRoomStatusColor` (saturated MUI shades). On a dark surface those would
-  // glow, so we substitute deeper jewel-tone equivalents that still take white
-  // ink without losing the status association.
-  const ROOM_FILL_DARK: Record<string, string> = {
-    available: '#2E7D4F',
-    occupied: '#B25E18',
-    reserved: '#1E5A8A',
-    dirty: '#8A6E1D',
-    maintenance: '#4D5358',
-  };
   const getRoomCardFill = (status: string, statusColor: string): string => {
     if (isDarkMode) return ROOM_FILL_DARK[status] || ROOM_FILL_DARK.available;
     // Light mode: yellow needs the darker amber so white text stays readable.
@@ -504,13 +499,10 @@ const RoomManagementPage: React.FC = () => {
     try {
       setCreatingBooking(true);
 
-      // Generate list of complimentary dates (all dates in the range)
-      const complimentaryDates: string[] = [];
-      const start = parseLocalDate(complimentaryCheckInDate);
-      const end = parseLocalDate(complimentaryCheckOutDate);
-      for (let d = new Date(start); d < end; d.setDate(d.getDate() + 1)) {
-        complimentaryDates.push(formatLocalDate(d));
-      }
+      const complimentaryDates = buildCreditsBookingDates(
+        complimentaryCheckInDate,
+        complimentaryCheckOutDate,
+      );
 
       // Use bookWithCredits API which properly deducts credits - creates a RESERVATION (not check-in)
       const bookingResult = await HotelAPIService.bookWithCredits({
@@ -1130,6 +1122,35 @@ const RoomManagementPage: React.FC = () => {
     }
   };
 
+  const handleUpdateStatus = (room: Room) => {
+    setSelectedRoom(room);
+    setRoomStatusDialogOpen(true);
+    handleMenuClose();
+  };
+
+  const handleSaveRoomStatus = async (status: string, notes: string) => {
+    if (!selectedRoom) return;
+    
+    // If setting to available but there's an upcoming booking, it should be 'reserved'
+    let finalStatus = status;
+    if (status === 'available') {
+      const upcomingBooking = Array.from(reservedBookings.values()).find(
+        b => String(b.room_id) === String(selectedRoom.id)
+      );
+      if (upcomingBooking) {
+        finalStatus = 'reserved';
+      }
+    }
+    
+    await HotelAPIService.updateRoomStatus(selectedRoom.id, {
+      status: finalStatus as 'maintenance' | 'reserved' | 'available' | 'occupied' | 'dirty',
+      notes,
+    });
+
+    showSnackbar(`Room status updated to ${finalStatus}`, 'success');
+    loadData();
+  };
+
   const handleMakeDirty = async (room: Room) => {
     try {
       // Update room status to dirty (needs cleaning)
@@ -1440,27 +1461,17 @@ const RoomManagementPage: React.FC = () => {
   const handleEditNotes = (room: Room) => {
     console.log('Opening notes dialog for room:', { roomId: room.id, roomNumber: room.room_number, existingNotes: room.notes });
     setSelectedRoom(room);
-    setEditingNotes(room.notes || '');
     setNotesDialogOpen(true);
     handleMenuClose();
   };
 
-  const handleSaveNotes = async () => {
+  const handleSaveNotes = async (notes: string) => {
     if (!selectedRoom) return;
-    setSavingNotes(true);
-    try {
-      console.log('Saving notes:', { roomId: selectedRoom.id, notes: editingNotes });
-      const updatedRoom = await HotelAPIService.updateRoom(selectedRoom.id, { notes: editingNotes || '' } as Partial<Room>);
-      console.log('Updated room response:', updatedRoom);
-      showSnackbar('Room notes updated', 'success');
-      setNotesDialogOpen(false);
-      loadData();
-    } catch (error: any) {
-      console.error('Failed to save notes:', error);
-      showSnackbar(error.message || 'Failed to update notes', 'error');
-    } finally {
-      setSavingNotes(false);
-    }
+    const updatedRoom = await HotelAPIService.updateRoom(selectedRoom.id, { notes: notes || '' } as Partial<Room>);
+    console.log('Updated room response:', updatedRoom);
+    showSnackbar('Room notes updated', 'success');
+    loadData();
+    setNotesDialogOpen(false);
   };
 
   const handleChangeRoom = (room: Room) => {
@@ -1630,15 +1641,7 @@ const RoomManagementPage: React.FC = () => {
 
     // HOUSEKEEPING section
     const hkActions: RoomAction[] = [];
-    if (!isOccupied && computedStatus !== 'available') {
-      hkActions.push({ id: 'clean', label: 'Mark as clean', icon: <CheckCircleIcon />, color: '#43A047', onClick: handleMakeClean });
-    }
-    hkActions.push({ id: 'dirty', label: 'Mark as dirty', icon: <CleaningIcon />, onClick: handleMakeDirty });
-    if (!isMaintenance) {
-      hkActions.push({ id: 'maintenance', label: 'Set maintenance', icon: <MaintenanceIcon />, onClick: handleMaintenance });
-    } else {
-      hkActions.push({ id: 'clear-maintenance', label: 'Clear maintenance', icon: <CheckCircleIcon />, color: '#43A047', onClick: handleMakeClean });
-    }
+    hkActions.push({ id: 'update-status', label: 'Update status / block', icon: <BuildIcon />, onClick: handleUpdateStatus });
     layout.sections.push({ title: 'Housekeeping', actions: hkActions });
 
     // ROOM section
@@ -1943,6 +1946,7 @@ const RoomManagementPage: React.FC = () => {
       >
         {filteredRooms.map((room) => {
           const { computedStatus, booking, reservedBooking, hasReservationForToday, hasFutureReservation, futureCheckInDate, isOccupied, isReserved, isReservedToday, isComplimentary } = getRoomStatusInfo(room);
+          const compVoidBooking = compVoidBookings.get(room.id);
 
           // Create a room object with computed status for display
           const displayRoom = { ...room, status: computedStatus };
@@ -2763,7 +2767,7 @@ const RoomManagementPage: React.FC = () => {
                       {info.isOccupied ? 'Current Booking' : 'Next Booking'}
                     </Typography>
                     <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', lineHeight: 1.3 }}>
-                      {formatDate(activeBooking.check_in_date)} – {formatDate(activeBooking.check_out_date)}
+                      {formatMenuBookingDate(activeBooking.check_in_date)} – {formatMenuBookingDate(activeBooking.check_out_date)}
                     </Typography>
                     <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {[activeBooking.source, activeBooking.guest_name].filter(Boolean).join(' · ')}
@@ -3752,6 +3756,13 @@ const RoomManagementPage: React.FC = () => {
         onNotesChange={setEditingNotes}
         onSave={handleSaveNotes}
         saving={savingNotes}
+      />
+
+      <RoomStatusDialog
+        open={roomStatusDialogOpen}
+        room={selectedRoom}
+        onClose={() => setRoomStatusDialogOpen(false)}
+        onSubmit={handleSaveRoomStatus}
       />
 
       {/* Booking Notes Edit Dialog */}

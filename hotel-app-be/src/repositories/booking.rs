@@ -1,6 +1,6 @@
 //! Booking repository for database operations
 
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, decimal_to_db};
 use crate::core::error::ApiError;
 use crate::models::{Booking, BookingPaginationParams, BookingWithDetails, row_mappers};
 use crate::repositories::booking_list;
@@ -85,7 +85,7 @@ impl BookingRepository {
 
     /// Find all bookings with details
     pub async fn find_all_with_details(pool: &DbPool) -> Result<Vec<BookingWithDetails>, ApiError> {
-        sqlx::query_as::<_, BookingWithDetails>(
+        let rows = sqlx::query(
             r#"
             SELECT b.id, b.booking_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
                    b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
@@ -100,12 +100,17 @@ impl BookingRepository {
         )
         .fetch_all(pool)
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(rows
+            .iter()
+            .map(row_mappers::row_to_booking_with_details)
+            .collect())
     }
 
     /// Find booking by ID
     pub async fn find_by_id(pool: &DbPool, id: i64) -> Result<Option<Booking>, ApiError> {
-        sqlx::query_as::<_, Booking>(
+        let row = sqlx::query(
             r#"
             SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date,
                    room_rate, subtotal, tax_amount, discount_amount, total_amount, status,
@@ -120,7 +125,9 @@ impl BookingRepository {
         .bind(id)
         .fetch_optional(pool)
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(row.as_ref().map(row_mappers::row_to_booking))
     }
 
     /// Find booking by ID using the compatibility row mapper.
@@ -153,7 +160,7 @@ impl BookingRepository {
         pool: &DbPool,
         id: i64,
     ) -> Result<Option<BookingWithDetails>, ApiError> {
-        sqlx::query_as::<_, BookingWithDetails>(
+        let row = sqlx::query(
             r#"
             SELECT b.id, b.booking_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
                    b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
@@ -169,7 +176,9 @@ impl BookingRepository {
         .bind(id)
         .fetch_optional(pool)
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(row.as_ref().map(row_mappers::row_to_booking_with_details))
     }
 
     /// Find bookings by guest ID
@@ -177,7 +186,7 @@ impl BookingRepository {
         pool: &DbPool,
         guest_id: i64,
     ) -> Result<Vec<BookingWithDetails>, ApiError> {
-        sqlx::query_as::<_, BookingWithDetails>(
+        let rows = sqlx::query(
             r#"
             SELECT b.id, b.booking_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
                    b.room_id, r.room_number, rt.name as room_type, rt.code as room_type_code,
@@ -194,7 +203,12 @@ impl BookingRepository {
         .bind(guest_id)
         .fetch_all(pool)
         .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(rows
+            .iter()
+            .map(row_mappers::row_to_booking_with_details)
+            .collect())
     }
 
     /// Create a new booking
@@ -212,7 +226,7 @@ impl BookingRepository {
             chrono::Utc::now().format("%Y%m%d"),
             rand::random::<u32>() % 1000000
         );
-        sqlx::query_as::<_, Booking>(
+        sqlx::query(
             r#"
             INSERT INTO bookings (booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, total_amount, status, created_by, adults)
             VALUES ($1, $2, $3, $4, $5, $6, $6, $6, 'pending', $7, 1)
@@ -229,10 +243,11 @@ impl BookingRepository {
         .bind(room_id)
         .bind(check_in_date)
         .bind(check_out_date)
-        .bind(total_amount)
+        .bind(decimal_to_db(total_amount))
         .bind(created_by)
         .fetch_one(pool)
         .await
+        .map(|row| row_mappers::row_to_booking(&row))
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
