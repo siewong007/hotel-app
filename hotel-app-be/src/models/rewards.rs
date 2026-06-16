@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 /// Loyalty reward in the catalog
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoyaltyReward {
     pub id: i64,
     pub name: String,
@@ -116,4 +116,35 @@ pub struct RewardRedemptionWithDetails {
     pub redeemed_at: Option<DateTime<Utc>>,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+
+impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for LoyaltyReward {
+    fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+        Ok(LoyaltyReward {
+            id: row.try_get("id")?,
+            name: row.try_get("name")?,
+            description: row.try_get("description")?,
+            category: row.try_get("category")?,
+            points_cost: row.try_get("points_cost")?,
+            monetary_value: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("monetary_value")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("monetary_value")?;
+                val
+            },
+            minimum_tier_level: row.try_get("minimum_tier_level")?,
+            is_active: row.try_get("is_active")?,
+            stock_quantity: row.try_get("stock_quantity")?,
+            image_url: row.try_get("image_url")?,
+            terms_conditions: row.try_get("terms_conditions")?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+        })
+    }
 }

@@ -34,10 +34,10 @@ pub struct Guest {
     /// the bookings table). These stay `None` for endpoints that don't compute
     /// them so we don't pay the cost on every per-guest fetch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[sqlx(default)]
+
     pub bookings_count: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[sqlx(default)]
+
     pub last_stay_date: Option<chrono::NaiveDate>,
 }
 
@@ -183,7 +183,7 @@ pub struct GuestUpdateValues {
 }
 
 /// Guest booking row for the guest detail endpoint.
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug)]
 pub struct GuestBookingRow {
     pub id: i64,
     pub booking_number: Option<String>,
@@ -299,4 +299,32 @@ pub struct GuestPaginatedResponse {
     pub total: i64,
     pub page: i64,
     pub page_size: i64,
+}
+
+
+impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for GuestBookingRow {
+    fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+        Ok(GuestBookingRow {
+            id: row.try_get("id")?,
+            booking_number: row.try_get("booking_number")?,
+            check_in_date: row.try_get("check_in_date")?,
+            check_out_date: row.try_get("check_out_date")?,
+            nights: row.try_get("nights")?,
+            status: row.try_get("status")?,
+            total_amount: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("total_amount")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("total_amount")?;
+                val
+            },
+            created_at: row.try_get("created_at")?,
+            room_number: row.try_get("room_number")?,
+            room_type: row.try_get("room_type")?,
+        })
+    }
 }

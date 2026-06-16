@@ -1115,7 +1115,7 @@ pub async fn create_booking_handler(
                 "#,
             )
             .bind(booking.id)
-            .bind(payment_amount)
+            .bind(crate::core::db::decimal_to_db(payment_amount))
             .bind(payment_method_str)
             .bind(user_id)
             .execute(&mut *tx)
@@ -1895,7 +1895,7 @@ pub async fn update_booking_handler(
     .bind(modification_type)
     .bind(&old_value)
     .bind(&new_value)
-    .bind(price_adj)
+    .bind(crate::core::db::decimal_to_db(price_adj))
     .bind(user_id)
     .execute(&pool)
     .await
@@ -2344,7 +2344,7 @@ pub async fn manual_checkin_handler(
                        VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6)"#
                 )
                 .bind(booking_id)
-                .bind(pay_amount)
+                .bind(crate::core::db::decimal_to_db(pay_amount))
                 .bind(&payment.payment_method)
                 .bind(pay_type)
                 .bind(&payment.notes)

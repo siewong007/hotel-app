@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 /// Loyalty program configuration
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LoyaltyProgram {
     pub id: i64,
     pub name: String,
@@ -37,7 +37,7 @@ pub struct LoyaltyMembership {
 }
 
 /// Membership with related details
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct LoyaltyMembershipWithDetails {
     pub id: i64,
     pub guest_id: i64,
@@ -172,4 +172,63 @@ pub struct TierInfo {
     pub minimum_points: i32,
     pub benefits: Vec<String>,
     pub points_multiplier: Decimal,
+}
+
+
+impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for LoyaltyProgram {
+    fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+        Ok(LoyaltyProgram {
+            id: row.try_get("id")?,
+            name: row.try_get("name")?,
+            description: row.try_get("description")?,
+            tier_level: row.try_get("tier_level")?,
+            points_multiplier: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("points_multiplier")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("points_multiplier")?;
+                val
+            },
+            minimum_points_required: row.try_get("minimum_points_required")?,
+            is_active: row.try_get("is_active")?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+        })
+    }
+}
+
+
+impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for LoyaltyMembershipWithDetails {
+    fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+        Ok(LoyaltyMembershipWithDetails {
+            id: row.try_get("id")?,
+            guest_id: row.try_get("guest_id")?,
+            guest_name: row.try_get("guest_name")?,
+            guest_email: row.try_get("guest_email")?,
+            program_id: row.try_get("program_id")?,
+            program_name: row.try_get("program_name")?,
+            program_description: row.try_get("program_description")?,
+            membership_number: row.try_get("membership_number")?,
+            points_balance: row.try_get("points_balance")?,
+            lifetime_points: row.try_get("lifetime_points")?,
+            tier_level: row.try_get("tier_level")?,
+            points_multiplier: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("points_multiplier")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("points_multiplier")?;
+                val
+            },
+            status: row.try_get("status")?,
+            enrolled_date: row.try_get("enrolled_date")?,
+        })
+    }
 }
