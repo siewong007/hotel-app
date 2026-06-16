@@ -79,7 +79,7 @@ pub async fn void_booking(
     .await?;
 
     booking_repo::record_booking_void_modification_tx(&mut tx, &booking, user_id).await?;
-    AuditLog::log_booking_cancelled_tx(&mut tx, user_id, booking_id).await?;
+    AuditLog::log_booking_voided_tx(&mut tx, user_id, booking_id).await?;
 
     tx.commit().await.map_err(ApiError::from)?;
 

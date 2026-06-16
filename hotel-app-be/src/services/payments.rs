@@ -283,6 +283,19 @@ pub async fn delete_payment(pool: &DbPool, payment_id: i64) -> Result<serde_json
 /// allocates the next number and inserts the invoice row. Every read and the
 /// insert run on the caller's transaction so the checkout invoice commits
 /// atomically with the company ledger posting.
+pub async fn ensure_invoice_for_booking(
+    pool: &DbPool,
+    booking_id: i64,
+    user_id: i64,
+) -> Result<String, ApiError> {
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+    let result = ensure_invoice_for_booking_tx(&mut tx, booking_id, user_id).await;
+    if result.is_ok() {
+        tx.commit().await.map_err(ApiError::from)?;
+    }
+    result
+}
+
 pub async fn ensure_invoice_for_booking_tx(
     tx: &mut crate::core::db::DbTransaction<'_>,
     booking_id: i64,

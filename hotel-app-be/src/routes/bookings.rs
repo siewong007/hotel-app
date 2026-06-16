@@ -161,16 +161,16 @@ async fn pre_checkin_update(
 
 async fn get_rate_codes(
     State(pool): State<DbPool>,
-) -> Result<Json<models::RateCodesResponse>, ApiError> {
+) -> Result<Json<crate::modules::settings::models::RateCodesResponse>, ApiError> {
     // Public endpoint - no authentication required
-    handlers::settings::get_rate_codes_handler(State(pool)).await
+    crate::modules::settings::handlers::get_rate_codes_handler(State(pool)).await
 }
 
 async fn get_market_codes(
     State(pool): State<DbPool>,
-) -> Result<Json<models::MarketCodesResponse>, ApiError> {
+) -> Result<Json<crate::modules::settings::models::MarketCodesResponse>, ApiError> {
     // Public endpoint - no authentication required
-    handlers::settings::get_market_codes_handler(State(pool)).await
+    crate::modules::settings::handlers::get_market_codes_handler(State(pool)).await
 }
 
 async fn mark_complimentary(

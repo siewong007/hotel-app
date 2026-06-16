@@ -29,7 +29,6 @@ pub mod room;
 #[allow(dead_code)]
 pub mod row_mappers;
 pub mod search;
-pub mod settings;
 #[allow(dead_code)]
 pub mod user;
 
@@ -53,5 +52,4 @@ pub use rbac::*;
 pub use rewards::*;
 pub use room::*;
 pub use search::*;
-pub use settings::*;
 pub use user::*;
