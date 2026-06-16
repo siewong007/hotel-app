@@ -38,6 +38,5 @@ pub mod room;
 pub mod rooms_queries;
 pub mod search;
 #[allow(dead_code)]
-pub mod settings;
 #[allow(dead_code)]
 pub mod user;

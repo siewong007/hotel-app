@@ -2,10 +2,10 @@
 //!
 //! Handles system configuration and settings management.
 
+use super::models::*;
+use super::service as settings_service;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::*;
-use crate::services::settings as settings_service;
 use axum::{
     extract::{Path, State},
     response::Json,

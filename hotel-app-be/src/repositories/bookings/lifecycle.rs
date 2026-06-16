@@ -1711,7 +1711,7 @@ pub async fn update_booking_handler(
 
                 // Generate an invoice number for this checked-out booking. Best-effort:
                 // failure here must not block the checkout itself.
-                if let Err(e) = crate::handlers::payments::ensure_invoice_for_booking(
+                if let Err(e) = crate::services::payments::ensure_invoice_for_booking(
                     &pool, booking_id, user_id,
                 )
                 .await

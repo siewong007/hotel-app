@@ -22,7 +22,6 @@ pub mod rates;
 pub mod rbac;
 pub mod rooms;
 pub mod search;
-pub mod settings;
 pub mod two_factor;
 
 use crate::core::config::{self, AllowedOrigins};
@@ -130,7 +129,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(rbac::routes())
         .merge(profile::routes())
         .merge(analytics::routes())
-        .merge(settings::routes())
+        .merge(crate::modules::settings::routes::routes())
         .merge(ekyc::routes())
         .merge(guest_portal::routes())
         .merge(companies::routes())

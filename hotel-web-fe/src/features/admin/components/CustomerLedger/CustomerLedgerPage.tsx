@@ -106,6 +106,21 @@ import {
   getLedgerUiStatus,
 } from './helpers';
 import { LedgerStatusBadge, InfoField } from './StatusPill';
+import {
+  printCompanyInvoice,
+  downloadCompanyInvoice,
+  printCompanyStatement,
+  printSingleReceipt,
+} from './customerLedgerPrint';
+import DuplicateLedgerDialog from './components/DuplicateLedgerDialog';
+import VoidLedgerDialog from './components/VoidLedgerDialog';
+import EditLedgerDialog from './components/EditLedgerDialog';
+import DeleteCompanyDialog from './components/DeleteCompanyDialog';
+import CreditNoteDialog from './components/CreditNoteDialog';
+import CompanyFormDialog from './components/CompanyFormDialog';
+import CreateLedgerDialog from './components/CreateLedgerDialog';
+import PaymentDialog from './components/PaymentDialog';
+import CompanyCheckInDialog from './components/CompanyCheckInDialog';
 
 const CustomerLedgerPage: React.FC = () => {
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
@@ -423,6 +438,17 @@ const CustomerLedgerPage: React.FC = () => {
       await loadCompanyBookings(company.id);
     }
     await loadAvailableRooms(checkInDate, checkOutDate);
+  };
+
+  // Company selection from the check-in Autocomplete. Loads that company's
+  // bookings (API) on select — kept page-side so the dialog stays presentational.
+  const handleCheckInCompanyChange = (newValue: Company | null) => {
+    setCheckInCompany(newValue);
+    if (newValue) {
+      loadCompanyBookings(newValue.id);
+    } else {
+      setCompanyBookings([]);
+    }
   };
 
   // Handle company check-in
@@ -986,352 +1012,23 @@ const CustomerLedgerPage: React.FC = () => {
   };
 
   const handlePrintCompanyInvoice = () => {
-    const invoiceContent = document.getElementById('company-invoice-content');
-    if (!invoiceContent) return;
-
-    // Use iframe for printing (works in Tauri desktop apps)
-    const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'absolute';
-    printFrame.style.top = '-10000px';
-    printFrame.style.left = '-10000px';
-    printFrame.style.width = '0';
-    printFrame.style.height = '0';
-    document.body.appendChild(printFrame);
-
-    const printDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
-    if (!printDoc) {
-      document.body.removeChild(printFrame);
-      return;
-    }
-
-    printDoc.open();
-    printDoc.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Invoice - ${invoiceNumber}</title>
-          <style>
-            * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-            }
-            body {
-              font-family: Arial, sans-serif;
-              padding: 20px;
-              color: #333;
-            }
-            .invoice-header, [class*="header"] {
-              text-align: center;
-              margin-bottom: 30px;
-              border-bottom: 2px solid #1976d2 !important;
-              padding-bottom: 20px;
-            }
-            .invoice-header h1, [class*="header"] h4, [class*="header"] h5 {
-              color: #1976d2;
-              font-size: 28px;
-              margin-bottom: 5px;
-            }
-            .invoice-header p, [class*="header"] p {
-              color: #666;
-              font-size: 14px;
-            }
-            .invoice-meta {
-              display: flex;
-              justify-content: space-between;
-              margin-bottom: 30px;
-            }
-            .invoice-meta div {
-              flex: 1;
-            }
-            .invoice-meta h3 {
-              font-size: 14px;
-              color: #1976d2;
-              margin-bottom: 10px;
-              text-transform: uppercase;
-            }
-            .invoice-meta p {
-              font-size: 13px;
-              margin: 5px 0;
-              line-height: 1.6;
-            }
-            .invoice-meta .label {
-              color: #666;
-              display: inline-block;
-              min-width: 120px;
-            }
-            .invoice-meta .value {
-              font-weight: 600;
-              color: #333;
-            }
-            /* MUI overrides for print */
-            .MuiGrid-container {
-              display: flex !important;
-              flex-wrap: wrap !important;
-              width: 100% !important;
-              margin-bottom: 20px !important;
-            }
-            .MuiGrid-item {
-              padding: 8px !important;
-            }
-            [class*="MuiGrid-grid-xs-6"] {
-              flex: 0 0 50% !important;
-              max-width: 50% !important;
-            }
-            [class*="MuiTypography-overline"] {
-              font-size: 11px !important;
-              text-transform: uppercase !important;
-              letter-spacing: 1px !important;
-              color: #1976d2 !important;
-              font-weight: 600 !important;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin: 20px 0;
-            }
-            th {
-              background-color: #1976d2 !important;
-              color: white !important;
-              padding: 12px;
-              text-align: left;
-              font-size: 13px;
-              text-transform: uppercase;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            td {
-              padding: 12px;
-              border-bottom: 1px solid #ddd;
-              font-size: 13px;
-            }
-            .amount, [class*="amount"] {
-              text-align: right;
-              font-weight: 600;
-            }
-            .total-row, tr:last-child {
-              background-color: #f5f5f5 !important;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            .total-row td {
-              border-top: 3px double #1976d2;
-              font-size: 16px;
-              font-weight: 700;
-              padding: 15px 12px;
-              color: #1976d2;
-            }
-            /* MUI Paper/Table overrides */
-            .MuiPaper-root, .MuiTableContainer-root {
-              box-shadow: none !important;
-              border: 1px solid #ddd !important;
-              border-radius: 0 !important;
-            }
-            .MuiTableHead-root .MuiTableRow-root {
-              background-color: #1976d2 !important;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            .MuiTableHead-root .MuiTableCell-root {
-              background-color: #1976d2 !important;
-              color: white !important;
-              font-weight: 700 !important;
-              text-transform: uppercase !important;
-              font-size: 13px !important;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-            .MuiTableBody-root .MuiTableCell-root {
-              padding: 12px !important;
-              border-bottom: 1px solid #ddd !important;
-              font-size: 13px !important;
-            }
-            .MuiDivider-root {
-              border-color: #ddd !important;
-              margin: 15px 0 !important;
-            }
-            .footer, [class*="footer"] {
-              margin-top: 40px;
-              text-align: center;
-              padding-top: 20px;
-              border-top: 1px solid #ddd;
-              font-size: 12px;
-              color: #666;
-            }
-            .footer strong {
-              display: block;
-              font-size: 14px;
-              color: #1976d2;
-              margin-bottom: 5px;
-            }
-            /* Hide MUI visual-only elements */
-            .MuiChip-root { display: none !important; }
-            hr { border: none; border-top: 1px solid #ddd; margin: 15px 0; }
-            @media print {
-              body { padding: 0; }
-            }
-          </style>
-        </head>
-        <body>
-          ${invoiceContent.innerHTML}
-        </body>
-      </html>
-    `);
-    printDoc.close();
-
-    // Wait for content to load, then print
-    setTimeout(() => {
-      printFrame.contentWindow?.focus();
-      printFrame.contentWindow?.print();
-
-      // Clean up the iframe after printing
-      setTimeout(() => {
-        document.body.removeChild(printFrame);
-      }, 1000);
-    }, 250);
+    printCompanyInvoice(invoiceNumber);
   };
 
   const handleDownloadCompanyInvoice = () => {
-    const invoiceContent = document.getElementById('company-invoice-content');
-    if (!invoiceContent) return;
-
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Invoice - ${invoiceNumber}</title>
-          <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: Arial, sans-serif; padding: 30px; color: #333; max-width: 800px; margin: 0 auto; }
-            .invoice-header { text-align: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid #1976d2; }
-            .invoice-header h1 { color: #1976d2; font-size: 28px; margin-bottom: 4px; }
-            .invoice-header p { color: #666; font-size: 13px; margin: 2px 0; }
-            .title-bar { background-color: #1976d2; color: white; padding: 8px 16px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
-            .title-bar h2 { font-size: 18px; letter-spacing: 2px; text-transform: uppercase; margin: 0; }
-            .title-bar span { font-size: 15px; font-weight: 600; }
-            .meta { display: flex; justify-content: space-between; margin-bottom: 25px; }
-            .meta-left { flex: 1; }
-            .meta-right { min-width: 220px; text-align: right; }
-            .meta h3 { font-size: 11px; color: #1976d2; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
-            .meta p { font-size: 13px; margin: 4px 0; line-height: 1.5; }
-            .meta .label { color: #666; display: inline-block; min-width: 70px; }
-            .meta .value { font-weight: 600; }
-            .detail-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px; }
-            .detail-row .dlabel { color: #666; }
-            .detail-row .dvalue { font-weight: 600; margin-left: 12px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 0; border: 1px solid #ddd; }
-            th { background-color: #1976d2; color: white; padding: 10px 12px; text-align: left; font-size: 12px; text-transform: uppercase; font-weight: 700; }
-            th.right { text-align: right; }
-            td { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 13px; }
-            td.right { text-align: right; font-weight: 600; }
-            tr.alt { background-color: #fafafa; }
-            tr.subtotal td { border-top: 2px solid #ddd; padding-top: 14px; font-weight: 600; }
-            tr.total { background-color: #f5f5f5; }
-            tr.total td { border-top: 3px double #1976d2; font-size: 16px; font-weight: 700; color: #1976d2; padding: 14px 12px; }
-            .notes { margin-top: 25px; padding: 12px 16px; background: #fff3cd; border-left: 4px solid #ffc107; }
-            .notes strong { display: block; color: #856404; margin-bottom: 4px; font-size: 13px; }
-            .notes p { color: #856404; font-size: 13px; white-space: pre-wrap; }
-            .footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; }
-            .footer .thanks { font-weight: 600; color: #1976d2; font-size: 14px; margin-bottom: 4px; }
-            .footer p { color: #666; font-size: 12px; margin: 3px 0; }
-            .green { color: #2e7d32; }
-            .red { color: #d32f2f; }
-            @media print { body { padding: 0; } }
-          </style>
-        </head>
-        <body>
-          <div class="invoice-header">
-            <h1>${hotelSettings.hotel_name}</h1>
-            <p>${hotelSettings.hotel_address}</p>
-            <p>Phone: ${hotelSettings.hotel_phone} | Email: ${hotelSettings.hotel_email}</p>
-          </div>
-
-          <div class="title-bar">
-            <h2>Invoice</h2>
-            <span>#${invoiceNumber}</span>
-          </div>
-
-          <div class="meta">
-            <div class="meta-left">
-              <h3>Bill To</h3>
-              <p><strong>${invoiceCompany?.company_name || ''}</strong></p>
-              ${invoiceCompany?.registration_number ? `<p>Reg No: ${invoiceCompany.registration_number}</p>` : ''}
-              ${invoiceCompany?.billing_address ? `<p>${invoiceCompany.billing_address}</p>` : ''}
-              ${[invoiceCompany?.billing_city, invoiceCompany?.billing_state, invoiceCompany?.billing_postal_code].filter(Boolean).length > 0
-                ? `<p>${[invoiceCompany?.billing_city, invoiceCompany?.billing_state, invoiceCompany?.billing_postal_code].filter(Boolean).join(', ')}</p>` : ''}
-              ${invoiceCompany?.contact_person ? `<p><span class="label">Attn:</span> <span class="value">${invoiceCompany.contact_person}</span></p>` : ''}
-              ${invoiceCompany?.contact_email ? `<p><span class="label">Email:</span> ${invoiceCompany.contact_email}</p>` : ''}
-              ${invoiceCompany?.contact_phone ? `<p><span class="label">Phone:</span> ${invoiceCompany.contact_phone}</p>` : ''}
-            </div>
-            <div class="meta-right">
-              <h3>Invoice Details</h3>
-              <div class="detail-row"><span class="dlabel">Invoice Date:</span><span class="dvalue">${formatDateForDisplay(invoiceDate)}</span></div>
-              <div class="detail-row"><span class="dlabel">Due Date:</span><span class="dvalue">${formatDateForDisplay(invoiceDueDate)}</span></div>
-              <div class="detail-row"><span class="dlabel">Terms:</span><span class="dvalue">${invoiceCompany?.payment_terms_days || 30} days</span></div>
-              <div class="detail-row"><span class="dlabel">Status:</span><span class="dvalue ${getSelectedLedgerBalanceDue() > 0 ? 'red' : 'green'}">${getSelectedLedgerBalanceDue() > 0 ? 'Outstanding' : 'Settled'}</span></div>
-            </div>
-          </div>
-
-          <table>
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th>Date</th>
-                <th>Room</th>
-                <th class="right">Amount</th>
-                <th class="right">Paid</th>
-                <th class="right">Balance</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${invoiceLedgerEntries
-                .filter(l => selectedInvoiceLedgers.includes(l.id))
-                .map((ledger, idx) => {
-                  const amount = typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount;
-                  const paidAmount = typeof ledger.paid_amount === 'string' ? parseFloat(ledger.paid_amount) : (ledger.paid_amount || 0);
-                  const balanceDue = typeof ledger.balance_due === 'string' ? parseFloat(ledger.balance_due) : (ledger.balance_due || 0);
-                  return `<tr class="${idx % 2 !== 0 ? 'alt' : ''}">
-                    <td>${ledger.description}</td>
-                    <td>${formatDateForDisplay(ledger.created_at)}</td>
-                    <td>${ledger.room_number || '-'}</td>
-                    <td class="right">${formatCurrency(amount)}</td>
-                    <td class="right green">${paidAmount > 0 ? formatCurrency(paidAmount) : '-'}</td>
-                    <td class="right ${balanceDue > 0 ? 'red' : 'green'}">${formatCurrency(balanceDue)}</td>
-                  </tr>`;
-                }).join('')}
-              <tr class="subtotal">
-                <td colspan="3" style="text-align:right">Subtotal:</td>
-                <td class="right">${formatCurrency(getSelectedLedgerTotal())}</td>
-                <td colspan="2"></td>
-              </tr>
-              <tr class="total">
-                <td colspan="5" style="text-align:right">Total Amount Due:</td>
-                <td class="right">${formatCurrency(getSelectedLedgerBalanceDue())}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          ${invoiceNotes ? `<div class="notes"><strong>Notes:</strong><p>${invoiceNotes}</p></div>` : ''}
-
-          <div class="footer">
-            <p class="thanks">Thank you for your business!</p>
-            <p>Please make payment within ${invoiceCompany?.payment_terms_days || 30} days of invoice date.</p>
-            <p>This is a computer-generated invoice. | ${hotelSettings.hotel_name}</p>
-          </div>
-        </body>
-      </html>
-    `;
-
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Invoice-${invoiceNumber}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadCompanyInvoice({
+      invoiceNumber,
+      hotelSettings,
+      invoiceCompany,
+      invoiceDate,
+      invoiceDueDate,
+      invoiceNotes,
+      invoiceLedgerEntries,
+      selectedInvoiceLedgers,
+      selectedLedgerTotal: getSelectedLedgerTotal(),
+      selectedLedgerBalanceDue: getSelectedLedgerBalanceDue(),
+      formatCurrency,
+    });
   };
 
   const findPossibleDuplicateLedger = () => {
@@ -1359,6 +1056,53 @@ const CustomerLedgerPage: React.FC = () => {
     if (!roomNumber) return null;
     return ledgerRooms.find((room) => room.room_number === roomNumber) || null;
   }, [createFormData.room_number, ledgerRooms]);
+
+  // Company selection from the create-entry Autocomplete. Owns the decision to
+  // either prefill the create form from an existing company or open the full
+  // registration dialog for a brand-new one — kept in the page so the create
+  // dialog stays presentational.
+  const handleCreateCompanyChange = (newValue: CompanyOption | null) => {
+    if (newValue) {
+      if (newValue.isNew) {
+        // User selected "Add new company" option; open the full
+        // registration dialog with the typed name prefilled.
+        setCompanyRegForm({
+          company_name: newValue.inputValue || '',
+          registration_number: '',
+          contact_person: '',
+          contact_email: '',
+          contact_phone: '',
+          billing_address: '',
+          billing_city: '',
+          billing_state: '',
+          billing_postal_code: '',
+          credit_limit: '',
+          payment_terms_days: '30',
+          notes: '',
+        });
+        setCompanyRegPrefillCreate(true);
+        setCompanyRegDialogOpen(true);
+      } else {
+        // User selected an existing company
+        setSelectedCompany(newValue);
+        setCreateFormData({
+          ...createFormData,
+          company_name: newValue.company_name,
+          company_registration_number: newValue.company_registration_number,
+          contact_person: newValue.contact_person,
+          contact_email: newValue.contact_email,
+          contact_phone: newValue.contact_phone,
+          billing_address_line1: newValue.billing_address_line1,
+        });
+      }
+    } else {
+      setSelectedCompany(null);
+      setCreateFormData({
+        ...createFormData,
+        company_name: '',
+      });
+    }
+  };
 
   // Create ledger handlers
   const handleCreateLedger = async (skipDuplicateCheck = false) => {
@@ -1511,6 +1255,23 @@ const CustomerLedgerPage: React.FC = () => {
     }
   };
 
+  // Delete a payment from the history tab (lifted out of the dialog JSX so the
+  // API call stays page-side). Refreshes history + ledger totals on success.
+  const handleDeletePayment = async (payment: CustomerLedgerPayment) => {
+    if (!paymentLedger) return;
+    if (!window.confirm('Are you sure you want to delete this payment?')) return;
+    try {
+      await HotelAPIService.deleteLedgerPayment(paymentLedger.id, payment.id);
+      showSnackbar('Payment deleted successfully');
+      // Refresh payment history
+      const payments = await HotelAPIService.getLedgerPayments(paymentLedger.id);
+      setPaymentHistory(payments);
+      await loadData();
+    } catch (error: any) {
+      showSnackbar(error.message || 'Failed to delete payment', 'error');
+    }
+  };
+
   const isVoidedLedger = (ledger: CustomerLedger) => {
     return Boolean(ledger.void_at) || ledger.status === 'void';
   };
@@ -1573,247 +1334,18 @@ const CustomerLedgerPage: React.FC = () => {
 
   // Print company ledger statement
   const handlePrintCompanyStatement = (companyName: string) => {
-    const entries = ledgers.filter(l => l.company_name === companyName);
-    if (entries.length === 0) {
-      showSnackbar('No ledger entries to print for this company.', 'info');
-      return;
-    }
-    const totalAmount = entries.reduce((sum, e) => sum + parseFloat(String(e.amount)), 0);
-    const totalPaid = entries.reduce((sum, e) => sum + parseFloat(String(e.paid_amount)), 0);
-    const totalBalance = entries.reduce((sum, e) => sum + parseFloat(String(e.balance_due)), 0);
-
-    const htmlContent = `
-      <html>
-        <head>
-          <title>Company Ledger Statement - ${companyName}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-            .header h1 { margin: 0; color: #333; }
-            .header h2 { margin: 10px 0 0; color: #666; font-weight: normal; }
-            .company-info { margin-bottom: 20px; }
-            .summary { display: flex; justify-content: space-between; margin-bottom: 20px; background: #f5f5f5; padding: 15px; border-radius: 4px; }
-            .summary-item { text-align: center; }
-            .summary-item .label { font-size: 12px; color: #666; }
-            .summary-item .value { font-size: 18px; font-weight: bold; }
-            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-            th { background-color: #26a69a; color: white; }
-            tr:nth-child(even) { background-color: #f9f9f9; }
-            .text-right { text-align: right; }
-            .status-paid { color: green; }
-            .status-pending { color: orange; }
-            .status-overdue { color: red; }
-            .footer { margin-top: 30px; text-align: center; color: #666; font-size: 12px; }
-            @media print {
-              body { padding: 0; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>${hotelSettings.hotel_name}</h1>
-            <h2>Company Ledger Statement</h2>
-          </div>
-          <div class="company-info">
-            <h3>${companyName}</h3>
-            <p>Statement Date: ${new Date().toLocaleDateString()}</p>
-          </div>
-          <div class="summary">
-            <div class="summary-item">
-              <div class="label">Total Entries</div>
-              <div class="value">${entries.length}</div>
-            </div>
-            <div class="summary-item">
-              <div class="label">Total Amount</div>
-              <div class="value">${formatCurrency(totalAmount)}</div>
-            </div>
-            <div class="summary-item">
-              <div class="label">Total Paid</div>
-              <div class="value" style="color: green;">${formatCurrency(totalPaid)}</div>
-            </div>
-            <div class="summary-item">
-              <div class="label">Balance Due</div>
-              <div class="value" style="color: ${totalBalance > 0 ? 'red' : 'green'};">${formatCurrency(totalBalance)}</div>
-            </div>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Invoice #</th>
-                <th>Date</th>
-                <th>Description</th>
-                <th>Type</th>
-                <th class="text-right">Amount</th>
-                <th class="text-right">Paid</th>
-                <th class="text-right">Balance</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${entries.map(entry => `
-                <tr>
-                  <td>${entry.invoice_number || '-'}</td>
-                  <td>${new Date(entry.created_at).toLocaleDateString()}</td>
-                  <td>${entry.description}</td>
-                  <td>${entry.expense_type}</td>
-                  <td class="text-right">${formatCurrency(parseFloat(String(entry.amount)))}</td>
-                  <td class="text-right">${formatCurrency(parseFloat(String(entry.paid_amount)))}</td>
-                  <td class="text-right">${formatCurrency(parseFloat(String(entry.balance_due)))}</td>
-                  <td class="status-${entry.status}">${entry.status.toUpperCase()}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          <div class="footer">
-            <p>Generated on ${new Date().toLocaleString()}</p>
-            <p>${hotelSettings.hotel_name} - Hotel Management System</p>
-          </div>
-        </body>
-      </html>
-    `;
-
-    // Use iframe for printing (works in Tauri desktop apps)
-    const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'absolute';
-    printFrame.style.top = '-10000px';
-    printFrame.style.left = '-10000px';
-    printFrame.style.width = '0';
-    printFrame.style.height = '0';
-    document.body.appendChild(printFrame);
-
-    const frameDoc = printFrame.contentWindow?.document;
-    if (frameDoc) {
-      frameDoc.open();
-      frameDoc.write(htmlContent);
-      frameDoc.close();
-
-      setTimeout(() => {
-        printFrame.contentWindow?.print();
-        setTimeout(() => {
-          document.body.removeChild(printFrame);
-        }, 1000);
-      }, 250);
-    }
+    printCompanyStatement({
+      companyName,
+      ledgers,
+      hotelSettings,
+      formatCurrency,
+      onEmpty: () => showSnackbar('No ledger entries to print for this company.', 'info'),
+    });
   };
 
   // Print a single receipt
   const handlePrintSingleReceipt = (entry: CustomerLedger) => {
-    const htmlContent = `
-      <html>
-        <head>
-          <title>Receipt - ${entry.invoice_number || entry.folio_number || `#${entry.id}`}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
-            .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 15px; }
-            .header h1 { margin: 0; color: #333; font-size: 24px; }
-            .header h2 { margin: 5px 0 0; color: #666; font-weight: normal; font-size: 16px; }
-            .receipt-info { margin-bottom: 20px; }
-            .receipt-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
-            .receipt-row .label { color: #666; font-weight: 500; }
-            .receipt-row .value { font-weight: 600; }
-            .amount-section { background: #f5f5f5; padding: 15px; border-radius: 4px; margin-top: 20px; }
-            .amount-row { display: flex; justify-content: space-between; padding: 5px 0; }
-            .amount-row.total { font-size: 18px; font-weight: bold; border-top: 2px solid #333; margin-top: 10px; padding-top: 10px; }
-            .status { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
-            .status-paid { background: #e8f5e9; color: #2e7d32; }
-            .status-pending { background: #e3f2fd; color: #1565c0; }
-            .status-partial { background: #fff3e0; color: #e65100; }
-            .status-overdue { background: #ffebee; color: #c62828; }
-            .footer { margin-top: 30px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #ddd; padding-top: 15px; }
-            @media print { body { padding: 0; } }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>${hotelSettings.hotel_name}</h1>
-            <h2>Payment Receipt</h2>
-          </div>
-          <div class="receipt-info">
-            <div class="receipt-row">
-              <span class="label">Receipt / Invoice #</span>
-              <span class="value">${entry.invoice_number || entry.folio_number || `#${entry.id}`}</span>
-            </div>
-            <div class="receipt-row">
-              <span class="label">Company</span>
-              <span class="value">${entry.company_name}</span>
-            </div>
-            <div class="receipt-row">
-              <span class="label">Description</span>
-              <span class="value">${entry.description}</span>
-            </div>
-            <div class="receipt-row">
-              <span class="label">Expense Type</span>
-              <span class="value">${entry.expense_type}</span>
-            </div>
-            <div class="receipt-row">
-              <span class="label">Date Created</span>
-              <span class="value">${new Date(entry.created_at).toLocaleDateString()}</span>
-            </div>
-            ${entry.payment_date ? `
-            <div class="receipt-row">
-              <span class="label">Payment Date</span>
-              <span class="value">${new Date(entry.payment_date).toLocaleDateString()}</span>
-            </div>` : ''}
-            ${entry.payment_method ? `
-            <div class="receipt-row">
-              <span class="label">Payment Method</span>
-              <span class="value">${entry.payment_method}</span>
-            </div>` : ''}
-            ${entry.payment_reference ? `
-            <div class="receipt-row">
-              <span class="label">Payment Reference</span>
-              <span class="value">${entry.payment_reference}</span>
-            </div>` : ''}
-            <div class="receipt-row">
-              <span class="label">Status</span>
-              <span class="value"><span class="status status-${entry.status}">${entry.status}</span></span>
-            </div>
-          </div>
-          <div class="amount-section">
-            <div class="amount-row">
-              <span>Total Amount</span>
-              <span>${formatCurrency(parseFloat(String(entry.amount)))}</span>
-            </div>
-            <div class="amount-row">
-              <span>Paid Amount</span>
-              <span style="color: green;">${formatCurrency(parseFloat(String(entry.paid_amount)))}</span>
-            </div>
-            <div class="amount-row total">
-              <span>Balance Due</span>
-              <span style="color: ${parseFloat(String(entry.balance_due)) > 0 ? 'red' : 'green'};">${formatCurrency(parseFloat(String(entry.balance_due)))}</span>
-            </div>
-          </div>
-          ${entry.notes ? `<div style="margin-top: 15px;"><strong>Notes:</strong> ${entry.notes}</div>` : ''}
-          <div class="footer">
-            <p>Generated on ${new Date().toLocaleString()}</p>
-            <p>${hotelSettings.hotel_name} - Hotel Management System</p>
-          </div>
-        </body>
-      </html>
-    `;
-
-    const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'absolute';
-    printFrame.style.top = '-10000px';
-    printFrame.style.left = '-10000px';
-    printFrame.style.width = '0';
-    printFrame.style.height = '0';
-    document.body.appendChild(printFrame);
-
-    const frameDoc = printFrame.contentWindow?.document;
-    if (frameDoc) {
-      frameDoc.open();
-      frameDoc.write(htmlContent);
-      frameDoc.close();
-
-      setTimeout(() => {
-        printFrame.contentWindow?.print();
-        setTimeout(() => {
-          document.body.removeChild(printFrame);
-        }, 1000);
-      }, 250);
-    }
+    printSingleReceipt({ entry, hotelSettings, formatCurrency });
   };
 
   // Ledger summary computed from the rows we already have; keeps the strip
@@ -3491,1099 +3023,114 @@ const CustomerLedgerPage: React.FC = () => {
       </Box>
 
       {/* Create Ledger Dialog */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Create New Ledger Entry</DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Autocomplete
-                value={selectedCompany}
-                onChange={(event, newValue) => {
-                  if (newValue) {
-                    if (newValue.isNew) {
-                      // User selected "Add new company" option; open the full
-                      // registration dialog with the typed name prefilled.
-                      setCompanyRegForm({
-                        company_name: newValue.inputValue || '',
-                        registration_number: '',
-                        contact_person: '',
-                        contact_email: '',
-                        contact_phone: '',
-                        billing_address: '',
-                        billing_city: '',
-                        billing_state: '',
-                        billing_postal_code: '',
-                        credit_limit: '',
-                        payment_terms_days: '30',
-                        notes: '',
-                      });
-                      setCompanyRegPrefillCreate(true);
-                      setCompanyRegDialogOpen(true);
-                    } else {
-                      // User selected an existing company
-                      setSelectedCompany(newValue);
-                      setCreateFormData({
-                        ...createFormData,
-                        company_name: newValue.company_name,
-                        company_registration_number: newValue.company_registration_number,
-                        contact_person: newValue.contact_person,
-                        contact_email: newValue.contact_email,
-                        contact_phone: newValue.contact_phone,
-                        billing_address_line1: newValue.billing_address_line1,
-                      });
-                    }
-                  } else {
-                    setSelectedCompany(null);
-                    setCreateFormData({
-                      ...createFormData,
-                      company_name: '',
-                    });
-                  }
-                }}
-                filterOptions={(options, state) => {
-                  const inputValue = state.inputValue.toLowerCase();
-                  const filtered = options.filter(option =>
-                    option.company_name.toLowerCase().includes(inputValue)
-                  );
-                  // Suggest creating a new company if no exact match
-                  const isExisting = options.some(option =>
-                    option.company_name.toLowerCase() === inputValue
-                  );
-                  if (inputValue !== '' && !isExisting) {
-                    filtered.push({
-                      inputValue: state.inputValue,
-                      company_name: `Add "${state.inputValue}" as new company`,
-                      isNew: true,
-                    });
-                  }
-                  return filtered;
-                }}
-                selectOnFocus
-                clearOnBlur
-                handleHomeEndKeys
-                options={companyOptions}
-                getOptionLabel={(option) => option.isNew ? option.inputValue || '' : option.company_name}
-                isOptionEqualToValue={(option, value) => option.company_name === value.company_name}
-                renderOption={(props, option) => {
-                  const { key, ...otherProps } = props;
-                  return (
-                    <li key={key} {...otherProps}>
-                      {option.isNew ? (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <PersonAddIcon color="primary" fontSize="small" />
-                          <Typography color="primary">{option.company_name}</Typography>
-                        </Box>
-                      ) : (
-                        <Box>
-                          <Typography>{option.company_name}</Typography>
-                          {option.contact_person && (
-                            <Typography variant="caption" color="text.secondary">
-                              Contact: {option.contact_person}
-                            </Typography>
-                          )}
-                        </Box>
-                      )}
-                    </li>
-                  );
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    required
-                    label="Company Name"
-                    placeholder="Type to search or add new company"
-                    helperText="Select existing company or type new name"
-                  />
-                )}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Registration Number"
-                value={createFormData.company_registration_number || ''}
-                onChange={(e) => setCreateFormData({ ...createFormData, company_registration_number: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Contact Person"
-                value={createFormData.contact_person || ''}
-                onChange={(e) => setCreateFormData({ ...createFormData, contact_person: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Contact Email"
-                type="email"
-                value={createFormData.contact_email || ''}
-                onChange={(e) => setCreateFormData({ ...createFormData, contact_email: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Contact Phone"
-                value={createFormData.contact_phone || ''}
-                onChange={(e) => setCreateFormData({ ...createFormData, contact_phone: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Billing Address"
-                value={createFormData.billing_address_line1 || ''}
-                onChange={(e) => setCreateFormData({ ...createFormData, billing_address_line1: e.target.value })}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                required
-                label="Description"
-                multiline
-                rows={2}
-                value={createFormData.description}
-                onChange={(e) => setCreateFormData({ ...createFormData, description: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth required>
-                <InputLabel>Expense Type</InputLabel>
-                <Select
-                  value={createFormData.expense_type}
-                  label="Expense Type"
-                  onChange={(e) => setCreateFormData({ ...createFormData, expense_type: e.target.value })}
-                >
-                  {EXPENSE_TYPES.map((type) => (
-                    <MenuItem key={type.value} value={type.value}>
-                      {type.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                required
-                label="Amount"
-                type="number"
-                value={createFormData.amount}
-                onChange={(e) => setCreateFormData({ ...createFormData, amount: parseFloat(e.target.value) || 0 })}
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <Autocomplete
-                value={selectedCreateRoom}
-                onOpen={() => { void loadLedgerRooms(); }}
-                onChange={(event, newValue) => setCreateFormData({
-                  ...createFormData,
-                  room_number: newValue?.room_number || undefined,
-                })}
-                options={ledgerRooms}
-                loading={loadingLedgerRooms}
-                getOptionLabel={(option) => `Room ${option.room_number} - ${option.room_type}`}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
-                renderOption={(props, option) => {
-                  const { key, ...otherProps } = props;
-                  return (
-                    <li key={key} {...otherProps}>
-                      <Box display="flex" justifyContent="space-between" width="100%" gap={2}>
-                        <Box>
-                          <Typography fontWeight="medium">Room {option.room_number}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {option.room_type} {option.floor != null ? `| Floor ${option.floor}` : ''}
-                          </Typography>
-                        </Box>
-                        {option.status && (
-                          <Chip label={option.status} size="small" variant="outlined" />
-                        )}
-                      </Box>
-                    </li>
-                  );
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Room"
-                    placeholder="Choose a room"
-                    helperText="Used to detect possible duplicate stay charges"
-                    InputProps={{
-                      ...params.InputProps,
-                      startAdornment: (
-                        <>
-                          <HotelIcon color="action" sx={{ ml: 1, mr: 0.5 }} />
-                          {params.InputProps.startAdornment}
-                        </>
-                      ),
-                      endAdornment: (
-                        <>
-                          {loadingLedgerRooms ? <CircularProgress color="inherit" size={20} /> : null}
-                          {params.InputProps.endAdornment}
-                        </>
-                      ),
-                    }}
-                  />
-                )}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Stay / Ledger Date"
-                type="date"
-                value={createFormData.posting_date || ''}
-                onChange={(e) => setCreateFormData({
-                  ...createFormData,
-                  posting_date: e.target.value,
-                  transaction_date: e.target.value,
-                })}
-                InputLabelProps={{ shrink: true }}
-                helperText="Company + room + date + amount is checked for duplicates"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Invoice Date"
-                type="date"
-                value={createFormData.invoice_date || ''}
-                onChange={(e) => setCreateFormData({ ...createFormData, invoice_date: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Due Date"
-                type="date"
-                value={createFormData.due_date || ''}
-                onChange={(e) => setCreateFormData({ ...createFormData, due_date: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Notes"
-                multiline
-                rows={2}
-                value={createFormData.notes || ''}
-                onChange={(e) => setCreateFormData({ ...createFormData, notes: e.target.value })}
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setCreateDialogOpen(false); resetCreateForm(); }}>Cancel</Button>
-          <Button
-            onClick={() => handleCreateLedger()}
-            variant="contained"
-            disabled={creating || !createFormData.company_name || !createFormData.description || createFormData.amount <= 0}
-          >
-            {creating ? 'Creating...' : 'Create Entry'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <CreateLedgerDialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        createFormData={createFormData}
+        setCreateFormData={setCreateFormData}
+        selectedCompany={selectedCompany}
+        onCompanyChange={handleCreateCompanyChange}
+        selectedCreateRoom={selectedCreateRoom}
+        companyOptions={companyOptions}
+        ledgerRooms={ledgerRooms}
+        loadingLedgerRooms={loadingLedgerRooms}
+        loadLedgerRooms={loadLedgerRooms}
+        creating={creating}
+        onSubmit={() => handleCreateLedger()}
+        onCancel={() => { setCreateDialogOpen(false); resetCreateForm(); }}
+        currencySymbol={currencySymbol}
+      />
 
       {/* Possible Duplicate Ledger Dialog */}
-      <Dialog open={duplicateDialogOpen} onClose={() => setDuplicateDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Possible duplicate ledger entry found</DialogTitle>
-        <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            A ledger entry already exists for the same company, room, stay date, and amount.
-          </Alert>
-          {possibleDuplicateLedger && (
-            <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-              <Typography sx={{ fontWeight: 700 }}>{possibleDuplicateLedger.description}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Room {possibleDuplicateLedger.room_number || '-'} / {formatDateForDisplay(possibleDuplicateLedger.posting_date || possibleDuplicateLedger.created_at)}
-              </Typography>
-              <Typography variant="body2" sx={{ mt: 1 }}>
-                {formatCurrency(asMoney(possibleDuplicateLedger.amount))} / {possibleDuplicateLedger.invoice_number || 'Not invoiced'}
-              </Typography>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => {
-              if (possibleDuplicateLedger) {
-                setSelectedCompanyId(activeCompany?.id || selectedCompanyId);
-                setEntriesSearch(possibleDuplicateLedger.invoice_number || possibleDuplicateLedger.description);
-              }
-              setDuplicateDialogOpen(false);
-            }}
-          >
-            View existing
-          </Button>
-          <Button onClick={() => setDuplicateDialogOpen(false)}>Cancel</Button>
-          <Button onClick={() => handleCreateLedger(true)} variant="contained" disabled={creating}>
-            Create anyway
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <DuplicateLedgerDialog
+        open={duplicateDialogOpen}
+        onClose={() => setDuplicateDialogOpen(false)}
+        duplicate={possibleDuplicateLedger}
+        creating={creating}
+        onViewExisting={() => {
+          if (possibleDuplicateLedger) {
+            setSelectedCompanyId(activeCompany?.id || selectedCompanyId);
+            setEntriesSearch(possibleDuplicateLedger.invoice_number || possibleDuplicateLedger.description);
+          }
+          setDuplicateDialogOpen(false);
+        }}
+        onCreateAnyway={() => handleCreateLedger(true)}
+        formatCurrency={formatCurrency}
+      />
 
       {/* Edit Ledger Dialog */}
-      <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>Edit Ledger Entry - {editingLedger?.invoice_number || `#${editingLedger?.id}`}</DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Company Name"
-                value={editFormData.company_name || ''}
-                onChange={(e) => setEditFormData({ ...editFormData, company_name: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Registration Number"
-                value={editFormData.company_registration_number || ''}
-                onChange={(e) => setEditFormData({ ...editFormData, company_registration_number: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Contact Person"
-                value={editFormData.contact_person || ''}
-                onChange={(e) => setEditFormData({ ...editFormData, contact_person: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Contact Email"
-                type="email"
-                value={editFormData.contact_email || ''}
-                onChange={(e) => setEditFormData({ ...editFormData, contact_email: e.target.value })}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Description"
-                multiline
-                rows={2}
-                value={editFormData.description || ''}
-                onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth>
-                <InputLabel>Expense Type</InputLabel>
-                <Select
-                  value={editFormData.expense_type || ''}
-                  label="Expense Type"
-                  onChange={(e) => setEditFormData({ ...editFormData, expense_type: e.target.value })}
-                >
-                  {EXPENSE_TYPES.map((type) => (
-                    <MenuItem key={type.value} value={type.value}>
-                      {type.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <FormControl fullWidth>
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={editFormData.status || ''}
-                  label="Status"
-                  onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
-                >
-                  <MenuItem value="pending">Pending</MenuItem>
-                  <MenuItem value="partial">Partial</MenuItem>
-                  <MenuItem value="paid">Paid</MenuItem>
-                  <MenuItem value="overdue">Overdue</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Due Date"
-                type="date"
-                value={editFormData.due_date || ''}
-                onChange={(e) => setEditFormData({ ...editFormData, due_date: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Notes"
-                multiline
-                rows={2}
-                value={editFormData.notes || ''}
-                onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Internal Notes (Staff Only)"
-                multiline
-                rows={2}
-                value={editFormData.internal_notes || ''}
-                onChange={(e) => setEditFormData({ ...editFormData, internal_notes: e.target.value })}
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleUpdateLedger} variant="contained" disabled={updating}>
-            {updating ? 'Updating...' : 'Update Entry'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <EditLedgerDialog
+        open={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        editingLedger={editingLedger}
+        editFormData={editFormData}
+        setEditFormData={setEditFormData}
+        updating={updating}
+        onUpdate={handleUpdateLedger}
+      />
 
       {/* Void Ledger Dialog */}
-      <Dialog open={voidDialogOpen} onClose={() => setVoidDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Void Ledger Entry</DialogTitle>
-        <DialogContent>
-          <Alert severity="error" sx={{ mb: 2 }}>
-            Voiding a ledger entry marks it as void and removes its outstanding balance. This is reversible only by reactivating from the database.
-          </Alert>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body2"><strong>Company:</strong> {voidingLedger?.company_name}</Typography>
-            <Typography variant="body2"><strong>Amount:</strong> {formatCurrency(parseFloat(String(voidingLedger?.amount || 0)))}</Typography>
-            <Typography variant="body2"><strong>Description:</strong> {voidingLedger?.description}</Typography>
-          </Box>
-          <TextField
-            fullWidth
-            multiline
-            rows={3}
-            label="Void Reason (Optional)"
-            value={voidReason}
-            onChange={(e) => setVoidReason(e.target.value)}
-            placeholder="Enter reason for voiding..."
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setVoidDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleConfirmVoidLedger} variant="contained" color="error" disabled={voiding}>
-            {voiding ? 'Voiding...' : 'Void Entry'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <VoidLedgerDialog
+        open={voidDialogOpen}
+        onClose={() => setVoidDialogOpen(false)}
+        voidingLedger={voidingLedger}
+        voidReason={voidReason}
+        onVoidReasonChange={setVoidReason}
+        voiding={voiding}
+        onConfirm={handleConfirmVoidLedger}
+        formatCurrency={formatCurrency}
+      />
 
       {/* Payment Dialog */}
-      <Dialog open={paymentDialogOpen} onClose={() => setPaymentDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          Payment - {paymentLedger?.company_name}
-        </DialogTitle>
-        <DialogContent>
-          <Tabs value={paymentTab} onChange={(e, v) => setPaymentTab(v)} sx={{ mb: 2 }}>
-            <Tab label="Record Payment" />
-            <Tab label="Payment History" />
-          </Tabs>
-
-          {paymentTab === 0 && (
-            <Box>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <Typography variant="body2">
-                  <strong>Total Amount:</strong> {formatCurrency(parseFloat(String(paymentLedger?.amount || 0)))}<br />
-                  <strong>Already Paid:</strong> {formatCurrency(parseFloat(String(paymentLedger?.paid_amount || 0)))}<br />
-                  <strong>Balance Due:</strong> {formatCurrency(parseFloat(String(paymentLedger?.balance_due || 0)))}
-                </Typography>
-              </Alert>
-
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="Payment Amount"
-                    type="number"
-                    value={paymentFormData.payment_amount}
-                    onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_amount: parseFloat(e.target.value) || 0 })}
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                    }}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <FormControl fullWidth required>
-                    <InputLabel>Payment Method</InputLabel>
-                    <Select
-                      value={paymentFormData.payment_method}
-                      label="Payment Method"
-                      onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_method: e.target.value })}
-                    >
-                      {PAYMENT_METHODS.map((method) => (
-                        <MenuItem key={method.value} value={method.value}>
-                          {method.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Payment Reference"
-                    value={paymentFormData.payment_reference || ''}
-                    onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_reference: e.target.value })}
-                    placeholder="Transaction ID, cheque number, etc."
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Receipt Number"
-                    value={paymentFormData.receipt_number || ''}
-                    onChange={(e) => setPaymentFormData({ ...paymentFormData, receipt_number: e.target.value })}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Payment Date"
-                    type="date"
-                    value={paymentFormData.payment_date || ''}
-                    onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_date: e.target.value })}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-                <Grid size={12}>
-                  <TextField
-                    fullWidth
-                    label="Notes"
-                    multiline
-                    rows={2}
-                    value={paymentFormData.notes || ''}
-                    onChange={(e) => setPaymentFormData({ ...paymentFormData, notes: e.target.value })}
-                  />
-                </Grid>
-              </Grid>
-            </Box>
-          )}
-
-          {paymentTab === 1 && (
-            <Box>
-              {paymentHistory.length === 0 ? (
-                <Typography color="text.secondary" textAlign="center" py={3}>
-                  No payment history yet
-                </Typography>
-              ) : (
-                <List>
-                  {paymentHistory.map((payment, index) => (
-                    <React.Fragment key={payment.id}>
-                      <ListItem
-                        secondaryAction={
-                          editingPaymentId === payment.id ? (
-                            <Box display="flex" gap={0.5}>
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                onClick={() => handleSavePaymentDate(payment)}
-                                disabled={savingPaymentDate}
-                              >
-                                {savingPaymentDate ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
-                              </IconButton>
-                              <IconButton
-                                size="small"
-                                onClick={() => setEditingPaymentId(null)}
-                              >
-                                <CloseIcon fontSize="small" />
-                              </IconButton>
-                            </Box>
-                          ) : (
-                            <Box display="flex" gap={0.5}>
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                onClick={() => {
-                                  setEditingPaymentId(payment.id);
-                                  setEditingPaymentDate(formatDateForInput(payment.payment_date));
-                                }}
-                                title="Edit payment date"
-                              >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={async () => {
-                                  if (!paymentLedger) return;
-                                  if (!window.confirm('Are you sure you want to delete this payment?')) return;
-                                  try {
-                                    await HotelAPIService.deleteLedgerPayment(paymentLedger.id, payment.id);
-                                    showSnackbar('Payment deleted successfully');
-                                    // Refresh payment history
-                                    const payments = await HotelAPIService.getLedgerPayments(paymentLedger.id);
-                                    setPaymentHistory(payments);
-                                    await loadData();
-                                  } catch (error: any) {
-                                    showSnackbar(error.message || 'Failed to delete payment', 'error');
-                                  }
-                                }}
-                                title="Delete payment"
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Box>
-                          )
-                        }
-                      >
-                        <ListItemText
-                          primary={
-                            <Box display="flex" justifyContent="space-between" alignItems="center" pr={6}>
-                              <Typography variant="body1" fontWeight="medium">
-                                {formatCurrency(parseFloat(String(payment.payment_amount)))}
-                              </Typography>
-                              <Chip label={payment.payment_method} size="small" variant="outlined" />
-                            </Box>
-                          }
-                          secondary={
-                            <>
-                              {editingPaymentId === payment.id ? (
-                                <TextField
-                                  size="small"
-                                  type="date"
-                                  label="Payment Date"
-                                  value={editingPaymentDate}
-                                  onChange={(e) => setEditingPaymentDate(e.target.value)}
-                                  InputLabelProps={{ shrink: true }}
-                                  sx={{ mt: 1 }}
-                                />
-                              ) : (
-                                <Typography variant="body2" color="text.secondary">
-                                  {new Date(payment.payment_date).toLocaleString()}
-                                </Typography>
-                              )}
-                              {payment.payment_reference && (
-                                <Typography variant="caption" color="text.secondary">
-                                  Ref: {payment.payment_reference}
-                                </Typography>
-                              )}
-                              {payment.notes && (
-                                <Typography variant="caption" display="block" color="text.secondary">
-                                  {payment.notes}
-                                </Typography>
-                              )}
-                            </>
-                          }
-                        />
-                      </ListItem>
-                      {index < paymentHistory.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </List>
-              )}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPaymentDialogOpen(false)}>Close</Button>
-          {paymentTab === 0 && (
-            <Button
-              onClick={handleRecordPayment}
-              variant="contained"
-              disabled={
-                processingPayment ||
-                paymentFormData.payment_amount <= 0 ||
-                (paymentLedger ? paymentFormData.payment_amount > getLedgerBalanceDue(paymentLedger) : true)
-              }
-            >
-              {processingPayment ? 'Processing...' : 'Record Payment'}
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
+      <PaymentDialog
+        open={paymentDialogOpen}
+        onClose={() => setPaymentDialogOpen(false)}
+        paymentTab={paymentTab}
+        setPaymentTab={setPaymentTab}
+        paymentFormData={paymentFormData}
+        setPaymentFormData={setPaymentFormData}
+        paymentLedger={paymentLedger}
+        paymentHistory={paymentHistory}
+        editingPaymentId={editingPaymentId}
+        setEditingPaymentId={setEditingPaymentId}
+        editingPaymentDate={editingPaymentDate}
+        setEditingPaymentDate={setEditingPaymentDate}
+        savingPaymentDate={savingPaymentDate}
+        processingPayment={processingPayment}
+        onRecordPayment={handleRecordPayment}
+        onSavePaymentDate={handleSavePaymentDate}
+        onDeletePayment={handleDeletePayment}
+        currencySymbol={currencySymbol}
+        formatCurrency={formatCurrency}
+        getLedgerBalanceDue={getLedgerBalanceDue}
+      />
 
       {/* Company Check-In Dialog */}
-      <Dialog
+      <CompanyCheckInDialog
         open={checkInDialogOpen}
         onClose={() => { setCheckInDialogOpen(false); resetCheckInForm(); }}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <CheckInIcon color="success" />
-            Company Check-In
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Grid container spacing={3} sx={{ mt: 0.5 }}>
-            {/* Company Selection */}
-            <Grid size={12}>
-              <Autocomplete
-                value={checkInCompany}
-                onChange={(event, newValue) => {
-                  setCheckInCompany(newValue);
-                  if (newValue) {
-                    loadCompanyBookings(newValue.id);
-                  } else {
-                    setCompanyBookings([]);
-                  }
-                }}
-                options={companies}
-                getOptionLabel={(option) => option.company_name}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
-                renderOption={(props, option) => {
-                  const { key, ...otherProps } = props;
-                  return (
-                    <li key={key} {...otherProps}>
-                      <Box>
-                        <Typography fontWeight="medium">{option.company_name}</Typography>
-                        {option.contact_person && (
-                          <Typography variant="caption" color="text.secondary">
-                            Contact: {option.contact_person}
-                          </Typography>
-                        )}
-                      </Box>
-                    </li>
-                  );
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    required
-                    label="Select Company"
-                    placeholder="Search for a company"
-                    InputProps={{
-                      ...params.InputProps,
-                      startAdornment: (
-                        <>
-                          <BusinessIcon color="action" sx={{ ml: 1, mr: 0.5 }} />
-                          {params.InputProps.startAdornment}
-                        </>
-                      ),
-                    }}
-                  />
-                )}
-              />
-            </Grid>
-
-            {/* Company Info */}
-            {checkInCompany && (
-              <Grid size={12}>
-                <Alert severity="info" icon={<BusinessIcon />}>
-                  <Typography variant="subtitle2">{checkInCompany.company_name}</Typography>
-                  {checkInCompany.contact_person && (
-                    <Typography variant="body2">Contact: {checkInCompany.contact_person}</Typography>
-                  )}
-                  {checkInCompany.contact_email && (
-                    <Typography variant="body2">Email: {checkInCompany.contact_email}</Typography>
-                  )}
-                  {companyBookings.length > 0 && (
-                    <Typography variant="body2" sx={{ mt: 1 }}>
-                      Active Bookings: {companyBookings.filter(b => b.status === 'checked_in').length}
-                    </Typography>
-                  )}
-                </Alert>
-              </Grid>
-            )}
-
-            <Grid size={12}>
-              <Divider>
-                <Chip label="Guest Details" size="small" />
-              </Divider>
-            </Grid>
-
-            {/* Guest Selection */}
-            <Grid size={12}>
-              <Box display="flex" alignItems="center" gap={2} mb={2}>
-                <Button
-                  variant={!isCreatingNewCheckInGuest ? 'contained' : 'outlined'}
-                  size="small"
-                  onClick={() => setIsCreatingNewCheckInGuest(false)}
-                >
-                  Select Existing Guest
-                </Button>
-                <Button
-                  variant={isCreatingNewCheckInGuest ? 'contained' : 'outlined'}
-                  size="small"
-                  startIcon={<PersonAddIcon />}
-                  onClick={() => setIsCreatingNewCheckInGuest(true)}
-                >
-                  New Guest
-                </Button>
-              </Box>
-
-              {!isCreatingNewCheckInGuest ? (
-                <Autocomplete
-                  value={checkInGuest}
-                  onChange={(event, newValue) => setCheckInGuest(newValue)}
-                  options={guests}
-                  getOptionLabel={(option) => option.full_name}
-                  isOptionEqualToValue={(option, value) => option.id === value.id}
-                  renderOption={(props, option) => {
-                    const { key, ...otherProps } = props;
-                    return (
-                      <li key={key} {...otherProps}>
-                        <Box>
-                          <Typography>{option.full_name}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {option.email} {option.phone && `| ${option.phone}`}
-                          </Typography>
-                        </Box>
-                      </li>
-                    );
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Select Guest"
-                      placeholder="Search for a guest"
-                      InputProps={{
-                        ...params.InputProps,
-                        startAdornment: (
-                          <>
-                            <PersonIcon color="action" sx={{ ml: 1, mr: 0.5 }} />
-                            {params.InputProps.startAdornment}
-                          </>
-                        ),
-                      }}
-                    />
-                  )}
-                />
-              ) : (
-                <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      required
-                      label="First Name"
-                      value={newCheckInGuestForm.first_name}
-                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, first_name: e.target.value })}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      required
-                      label="Last Name"
-                      value={newCheckInGuestForm.last_name}
-                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, last_name: e.target.value })}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Email (Optional)"
-                      type="email"
-                      value={newCheckInGuestForm.email}
-                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, email: e.target.value })}
-                      helperText="Used for sending booking confirmations and invoices"
-                      error={newCheckInGuestForm.email !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email)}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Phone"
-                      value={newCheckInGuestForm.phone}
-                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, phone: e.target.value })}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="IC/Passport Number"
-                      value={newCheckInGuestForm.ic_number}
-                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, ic_number: e.target.value })}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Nationality"
-                      value={newCheckInGuestForm.nationality}
-                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, nationality: e.target.value })}
-                      placeholder="e.g. Malaysian"
-                    />
-                  </Grid>
-                  <Grid size={12}>
-                    <TextField
-                      fullWidth
-                      label="Address"
-                      value={newCheckInGuestForm.address_line1}
-                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, address_line1: e.target.value })}
-                      placeholder="Street address"
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="City"
-                      value={newCheckInGuestForm.city}
-                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, city: e.target.value })}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="State/Province"
-                      value={newCheckInGuestForm.state_province}
-                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, state_province: e.target.value })}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Postal Code"
-                      value={newCheckInGuestForm.postal_code}
-                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, postal_code: e.target.value })}
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField
-                      fullWidth
-                      label="Country"
-                      value={newCheckInGuestForm.country}
-                      onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, country: e.target.value })}
-                    />
-                  </Grid>
-                </Grid>
-              )}
-            </Grid>
-
-            <Grid size={12}>
-              <Divider>
-                <Chip label="Room & Dates" size="small" />
-              </Divider>
-            </Grid>
-
-            {/* Dates */}
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                required
-                label="Check-In Date"
-                type="date"
-                value={checkInDate}
-                onChange={(e) => handleCheckInDateChange(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                required
-                label="Check-Out Date"
-                type="date"
-                value={checkOutDate}
-                onChange={(e) => handleCheckOutDateChange(e.target.value)}
-                InputLabelProps={{ shrink: true }}
-                inputProps={{ min: checkInDate }}
-              />
-            </Grid>
-
-            {/* Room Selection */}
-            <Grid size={12}>
-              <Autocomplete
-                value={checkInRoom}
-                onChange={(event, newValue) => setCheckInRoom(newValue)}
-                options={availableRooms}
-                getOptionLabel={(option) => `Room ${option.room_number} - ${option.room_type}`}
-                isOptionEqualToValue={(option, value) => option.id === value.id}
-                renderOption={(props, option) => {
-                  const { key, ...otherProps } = props;
-                  const price = typeof option.price_per_night === 'string'
-                    ? parseFloat(option.price_per_night)
-                    : option.price_per_night;
-                  return (
-                    <li key={key} {...otherProps}>
-                      <Box display="flex" justifyContent="space-between" width="100%">
-                        <Box>
-                          <Typography fontWeight="medium">Room {option.room_number}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {option.room_type} | Max: {option.max_occupancy} guests
-                          </Typography>
-                        </Box>
-                        <Typography color="primary.main" fontWeight="medium">
-                          {formatCurrency(price)}/night
-                        </Typography>
-                      </Box>
-                    </li>
-                  );
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    required
-                    label="Select Room"
-                    placeholder="Choose an available room"
-                    helperText={availableRooms.length === 0 ? 'No rooms available for selected dates' : `${availableRooms.length} room(s) available`}
-                    InputProps={{
-                      ...params.InputProps,
-                      startAdornment: (
-                        <>
-                          <HotelIcon color="action" sx={{ ml: 1, mr: 0.5 }} />
-                          {params.InputProps.startAdornment}
-                        </>
-                      ),
-                    }}
-                  />
-                )}
-              />
-            </Grid>
-
-            {/* Summary */}
-            {checkInCompany && checkInRoom && (checkInGuest || (isCreatingNewCheckInGuest && newCheckInGuestForm.first_name)) && (
-              <Grid size={12}>
-                <Alert severity="success">
-                  <Typography variant="subtitle2">Ready to Check-In</Typography>
-                  <Typography variant="body2">
-                    Guest: {isCreatingNewCheckInGuest ? `${newCheckInGuestForm.first_name} ${newCheckInGuestForm.last_name}` : checkInGuest?.full_name}
-                  </Typography>
-                  <Typography variant="body2">
-                    Email: {isCreatingNewCheckInGuest ? newCheckInGuestForm.email : checkInGuest?.email}
-                  </Typography>
-                  <Typography variant="body2">
-                    Room: {checkInRoom.room_number} ({checkInRoom.room_type})
-                  </Typography>
-                  <Typography variant="body2">
-                    Company: {checkInCompany.company_name}
-                  </Typography>
-                  <Typography variant="body2">
-                    Dates: {formatDateForDisplay(checkInDate)} to {formatDateForDisplay(checkOutDate)}
-                  </Typography>
-                </Alert>
-              </Grid>
-            )}
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setCheckInDialogOpen(false); resetCheckInForm(); }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleCompanyCheckIn}
-            variant="contained"
-            color="success"
-            disabled={
-              processingCheckIn ||
-              !checkInCompany ||
-              !checkInRoom ||
-              (!checkInGuest && !isCreatingNewCheckInGuest) ||
-              (isCreatingNewCheckInGuest && (
-                !newCheckInGuestForm.first_name ||
-                !newCheckInGuestForm.last_name ||
-                Boolean(newCheckInGuestForm.email && newCheckInGuestForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email))
-              ))
-            }
-            startIcon={processingCheckIn ? <CircularProgress size={20} /> : <CheckInIcon />}
-          >
-            {processingCheckIn ? 'Processing...' : 'Check-In Guest'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        checkInCompany={checkInCompany}
+        onCompanyChange={handleCheckInCompanyChange}
+        isCreatingNewCheckInGuest={isCreatingNewCheckInGuest}
+        setIsCreatingNewCheckInGuest={setIsCreatingNewCheckInGuest}
+        checkInGuest={checkInGuest}
+        setCheckInGuest={setCheckInGuest}
+        newCheckInGuestForm={newCheckInGuestForm}
+        setNewCheckInGuestForm={setNewCheckInGuestForm}
+        checkInDate={checkInDate}
+        onCheckInDateChange={handleCheckInDateChange}
+        checkOutDate={checkOutDate}
+        onCheckOutDateChange={handleCheckOutDateChange}
+        checkInRoom={checkInRoom}
+        setCheckInRoom={setCheckInRoom}
+        companies={companies}
+        guests={guests}
+        availableRooms={availableRooms}
+        companyBookings={companyBookings}
+        processingCheckIn={processingCheckIn}
+        onSubmit={handleCompanyCheckIn}
+        formatCurrency={formatCurrency}
+      />
 
       {/* Checkout Invoice Modal */}
       <CheckoutInvoiceModal
@@ -4608,407 +3155,39 @@ const CustomerLedgerPage: React.FC = () => {
       />
 
       {/* Company Registration Dialog */}
-      <Dialog
+      <CompanyFormDialog
         open={companyRegDialogOpen}
         onClose={() => { setCompanyRegDialogOpen(false); resetCompanyRegForm(); setCompanyRegPrefillCreate(false); }}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <BusinessIcon color="primary" />
-            Register New Company
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 0.5 }}>
-            {/* Company Basic Info */}
-            <Grid size={12}>
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Company Information
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                required
-                label="Company Name"
-                value={companyRegForm.company_name}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, company_name: e.target.value })}
-                placeholder="Enter company name"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Registration Number"
-                value={companyRegForm.registration_number}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, registration_number: e.target.value })}
-                placeholder="Business registration number"
-              />
-            </Grid>
-
-            {/* Contact Information */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Contact Information
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Contact Person"
-                value={companyRegForm.contact_person}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, contact_person: e.target.value })}
-                placeholder="Primary contact name"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Contact Email"
-                type="email"
-                value={companyRegForm.contact_email}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, contact_email: e.target.value })}
-                placeholder="email@company.com"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Contact Phone"
-                value={companyRegForm.contact_phone}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, contact_phone: e.target.value })}
-                placeholder="+60 12-345 6789"
-              />
-            </Grid>
-
-            {/* Billing Address */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Billing Address
-              </Typography>
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Street Address"
-                value={companyRegForm.billing_address}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_address: e.target.value })}
-                placeholder="Street address, building, floor"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="City"
-                value={companyRegForm.billing_city}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_city: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="State"
-                value={companyRegForm.billing_state}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_state: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Postal Code"
-                value={companyRegForm.billing_postal_code}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_postal_code: e.target.value })}
-              />
-            </Grid>
-
-            {/* Billing Terms */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Billing Terms
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Credit Limit"
-                type="number"
-                value={companyRegForm.credit_limit}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, credit_limit: e.target.value })}
-                placeholder="0.00"
-                InputProps={{
-                  startAdornment: <Typography sx={{ mr: 1 }}>{currencySymbol}</Typography>,
-                }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Payment Terms (Days)"
-                type="number"
-                value={companyRegForm.payment_terms_days}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, payment_terms_days: e.target.value })}
-                helperText="Number of days for payment after invoice"
-              />
-            </Grid>
-
-            {/* Notes */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={2}
-                label="Notes"
-                value={companyRegForm.notes}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, notes: e.target.value })}
-                placeholder="Additional notes about this company..."
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setCompanyRegDialogOpen(false); resetCompanyRegForm(); }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleRegisterCompany}
-            variant="contained"
-            disabled={creatingCompany || !companyRegForm.company_name.trim()}
-            startIcon={creatingCompany ? <CircularProgress size={20} /> : <AddIcon />}
-          >
-            {creatingCompany ? 'Registering...' : 'Register Company'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onCancel={() => { setCompanyRegDialogOpen(false); resetCompanyRegForm(); }}
+        mode="create"
+        form={companyRegForm}
+        setForm={setCompanyRegForm}
+        submitting={creatingCompany}
+        currencySymbol={currencySymbol}
+        onSubmit={handleRegisterCompany}
+      />
 
       {/* Edit Company Dialog */}
-      <Dialog
+      <CompanyFormDialog
         open={companyEditDialogOpen}
         onClose={() => { setCompanyEditDialogOpen(false); resetCompanyEditForm(); }}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <EditIcon color="primary" />
-            Edit Company
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 0.5 }}>
-            {/* Company Basic Info */}
-            <Grid size={12}>
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Company Information
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                required
-                label="Company Name"
-                value={companyEditForm.company_name}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, company_name: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Registration Number"
-                value={companyEditForm.registration_number}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, registration_number: e.target.value })}
-              />
-            </Grid>
-
-            {/* Contact Information */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Contact Information
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Contact Person"
-                value={companyEditForm.contact_person}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, contact_person: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Contact Email"
-                type="email"
-                value={companyEditForm.contact_email}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, contact_email: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Contact Phone"
-                value={companyEditForm.contact_phone}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, contact_phone: e.target.value })}
-              />
-            </Grid>
-
-            {/* Billing Address */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Billing Address
-              </Typography>
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Street Address"
-                value={companyEditForm.billing_address}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_address: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="City"
-                value={companyEditForm.billing_city}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_city: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="State"
-                value={companyEditForm.billing_state}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_state: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Postal Code"
-                value={companyEditForm.billing_postal_code}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_postal_code: e.target.value })}
-              />
-            </Grid>
-
-            {/* Billing Terms */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Billing Terms
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Credit Limit"
-                type="number"
-                value={companyEditForm.credit_limit}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, credit_limit: e.target.value })}
-                InputProps={{
-                  startAdornment: <Typography sx={{ mr: 1 }}>{currencySymbol}</Typography>,
-                }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Payment Terms (Days)"
-                type="number"
-                value={companyEditForm.payment_terms_days}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, payment_terms_days: e.target.value })}
-              />
-            </Grid>
-
-            {/* Notes */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={2}
-                label="Notes"
-                value={companyEditForm.notes}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, notes: e.target.value })}
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setCompanyEditDialogOpen(false); resetCompanyEditForm(); }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleUpdateCompany}
-            variant="contained"
-            disabled={updatingCompany || !companyEditForm.company_name.trim()}
-            startIcon={updatingCompany ? <CircularProgress size={20} /> : <EditIcon />}
-          >
-            {updatingCompany ? 'Updating...' : 'Update Company'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onCancel={() => { setCompanyEditDialogOpen(false); resetCompanyEditForm(); }}
+        mode="edit"
+        form={companyEditForm}
+        setForm={setCompanyEditForm}
+        submitting={updatingCompany}
+        currencySymbol={currencySymbol}
+        onSubmit={handleUpdateCompany}
+      />
 
       {/* Delete Company Confirmation Dialog */}
-      <Dialog
+      <DeleteCompanyDialog
         open={companyDeleteDialogOpen}
         onClose={() => { setCompanyDeleteDialogOpen(false); setDeletingCompanyData(null); }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <DeleteIcon color="error" />
-            Delete Company
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            This action cannot be undone.
-          </Alert>
-          <Typography>
-            Are you sure you want to delete the company <strong>"{deletingCompanyData?.company_name}"</strong>?
-          </Typography>
-          {deletingCompanyData && (
-            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Contact:</strong> {deletingCompanyData.contact_person || 'N/A'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Email:</strong> {deletingCompanyData.contact_email || 'N/A'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Phone:</strong> {deletingCompanyData.contact_phone || 'N/A'}
-              </Typography>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setCompanyDeleteDialogOpen(false); setDeletingCompanyData(null); }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleDeleteCompany}
-            variant="contained"
-            color="error"
-            disabled={deletingCompany}
-            startIcon={deletingCompany ? <CircularProgress size={20} /> : <DeleteIcon />}
-          >
-            {deletingCompany ? 'Deleting...' : 'Delete Company'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        company={deletingCompanyData}
+        deleting={deletingCompany}
+        onConfirm={handleDeleteCompany}
+      />
 
       {/* Record Payment Dialog */}
       <Dialog
@@ -5817,101 +3996,21 @@ const CustomerLedgerPage: React.FC = () => {
       </Dialog>
 
       {/* Credit Note Dialog — posts to the backend reversal endpoint */}
-      <Dialog
+      <CreditNoteDialog
         open={creditNoteDialogOpen}
         onClose={() => setCreditNoteDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <CreditNoteIcon color="error" />
-            Issue Credit Note
-            {activeCompany && (
-              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                · {activeCompany.company_name}
-              </Typography>
-            )}
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            A credit note posts a <strong>reversal entry</strong> against an existing ledger
-            row. The original entry stays in the ledger and the reversal is audit-tracked.
-            Reversals cannot be issued against another reversal.
-          </Alert>
-          <Grid container spacing={2}>
-            <Grid size={12}>
-              <TextField
-                select
-                fullWidth
-                required
-                label="Original ledger entry"
-                value={creditNoteLedgerId}
-                onChange={(e) => setCreditNoteLedgerId(e.target.value === '' ? '' : Number(e.target.value))}
-                helperText="Pick the entry to reverse"
-              >
-                {activeCompanyAllEntries
-                  .filter(l => !isVoidedLedger(l) && !l.is_reversal)
-                  .map(l => (
-                    <MenuItem key={l.id} value={l.id}>
-                      {l.invoice_number || l.folio_number || `#${l.id}`} · {l.description.slice(0, 48)}
-                      {l.description.length > 48 ? '…' : ''} · {formatCurrency(asMoney(l.amount))}
-                    </MenuItem>
-                  ))}
-              </TextField>
-              {activeCompanyAllEntries.filter(l => !isVoidedLedger(l) && !l.is_reversal).length === 0 && (
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                  No reversible entries for this company.
-                </Typography>
-              )}
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                select
-                fullWidth
-                required
-                label="Reason"
-                value={creditNoteReason}
-                onChange={(e) => setCreditNoteReason(e.target.value)}
-              >
-                <MenuItem value="">Pick a reason…</MenuItem>
-                <MenuItem value="Refund — early checkout">Refund — early checkout</MenuItem>
-                <MenuItem value="Room downgrade">Room downgrade</MenuItem>
-                <MenuItem value="Service not rendered">Service not rendered</MenuItem>
-                <MenuItem value="Billing error">Billing error</MenuItem>
-                <MenuItem value="Goodwill / discount">Goodwill / discount</MenuItem>
-                <MenuItem value="Other">Other</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Details (optional)"
-                value={creditNoteNotes}
-                onChange={(e) => setCreditNoteNotes(e.target.value)}
-                placeholder="Explain the credit — appears on the reversal record."
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreditNoteDialogOpen(false)} disabled={processingCreditNote}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmitCreditNote}
-            variant="contained"
-            color="error"
-            disabled={processingCreditNote || !creditNoteLedgerId || !creditNoteReason}
-            startIcon={processingCreditNote ? <CircularProgress size={18} /> : <CreditNoteIcon />}
-          >
-            {processingCreditNote ? 'Issuing…' : 'Issue credit note'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        activeCompany={activeCompany}
+        reversibleEntries={activeCompanyAllEntries.filter(l => !isVoidedLedger(l) && !l.is_reversal)}
+        creditNoteLedgerId={creditNoteLedgerId}
+        setCreditNoteLedgerId={setCreditNoteLedgerId}
+        creditNoteReason={creditNoteReason}
+        setCreditNoteReason={setCreditNoteReason}
+        creditNoteNotes={creditNoteNotes}
+        setCreditNoteNotes={setCreditNoteNotes}
+        processingCreditNote={processingCreditNote}
+        onSubmit={handleSubmitCreditNote}
+        formatCurrency={formatCurrency}
+      />
 
     </Box>
   );
