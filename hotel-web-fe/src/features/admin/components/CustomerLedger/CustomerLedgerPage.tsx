@@ -112,6 +112,8 @@ import {
   printCompanyStatement,
   printSingleReceipt,
 } from './customerLedgerPrint';
+import DuplicateLedgerDialog from './components/DuplicateLedgerDialog';
+import VoidLedgerDialog from './components/VoidLedgerDialog';
 
 const CustomerLedgerPage: React.FC = () => {
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
@@ -3241,42 +3243,21 @@ const CustomerLedgerPage: React.FC = () => {
       </Dialog>
 
       {/* Possible Duplicate Ledger Dialog */}
-      <Dialog open={duplicateDialogOpen} onClose={() => setDuplicateDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Possible duplicate ledger entry found</DialogTitle>
-        <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            A ledger entry already exists for the same company, room, stay date, and amount.
-          </Alert>
-          {possibleDuplicateLedger && (
-            <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-              <Typography sx={{ fontWeight: 700 }}>{possibleDuplicateLedger.description}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Room {possibleDuplicateLedger.room_number || '-'} / {formatDateForDisplay(possibleDuplicateLedger.posting_date || possibleDuplicateLedger.created_at)}
-              </Typography>
-              <Typography variant="body2" sx={{ mt: 1 }}>
-                {formatCurrency(asMoney(possibleDuplicateLedger.amount))} / {possibleDuplicateLedger.invoice_number || 'Not invoiced'}
-              </Typography>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => {
-              if (possibleDuplicateLedger) {
-                setSelectedCompanyId(activeCompany?.id || selectedCompanyId);
-                setEntriesSearch(possibleDuplicateLedger.invoice_number || possibleDuplicateLedger.description);
-              }
-              setDuplicateDialogOpen(false);
-            }}
-          >
-            View existing
-          </Button>
-          <Button onClick={() => setDuplicateDialogOpen(false)}>Cancel</Button>
-          <Button onClick={() => handleCreateLedger(true)} variant="contained" disabled={creating}>
-            Create anyway
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <DuplicateLedgerDialog
+        open={duplicateDialogOpen}
+        onClose={() => setDuplicateDialogOpen(false)}
+        duplicate={possibleDuplicateLedger}
+        creating={creating}
+        onViewExisting={() => {
+          if (possibleDuplicateLedger) {
+            setSelectedCompanyId(activeCompany?.id || selectedCompanyId);
+            setEntriesSearch(possibleDuplicateLedger.invoice_number || possibleDuplicateLedger.description);
+          }
+          setDuplicateDialogOpen(false);
+        }}
+        onCreateAnyway={() => handleCreateLedger(true)}
+        formatCurrency={formatCurrency}
+      />
 
       {/* Edit Ledger Dialog */}
       <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} maxWidth="md" fullWidth>
@@ -3398,34 +3379,16 @@ const CustomerLedgerPage: React.FC = () => {
       </Dialog>
 
       {/* Void Ledger Dialog */}
-      <Dialog open={voidDialogOpen} onClose={() => setVoidDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Void Ledger Entry</DialogTitle>
-        <DialogContent>
-          <Alert severity="error" sx={{ mb: 2 }}>
-            Voiding a ledger entry marks it as void and removes its outstanding balance. This is reversible only by reactivating from the database.
-          </Alert>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="body2"><strong>Company:</strong> {voidingLedger?.company_name}</Typography>
-            <Typography variant="body2"><strong>Amount:</strong> {formatCurrency(parseFloat(String(voidingLedger?.amount || 0)))}</Typography>
-            <Typography variant="body2"><strong>Description:</strong> {voidingLedger?.description}</Typography>
-          </Box>
-          <TextField
-            fullWidth
-            multiline
-            rows={3}
-            label="Void Reason (Optional)"
-            value={voidReason}
-            onChange={(e) => setVoidReason(e.target.value)}
-            placeholder="Enter reason for voiding..."
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setVoidDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleConfirmVoidLedger} variant="contained" color="error" disabled={voiding}>
-            {voiding ? 'Voiding...' : 'Void Entry'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <VoidLedgerDialog
+        open={voidDialogOpen}
+        onClose={() => setVoidDialogOpen(false)}
+        voidingLedger={voidingLedger}
+        voidReason={voidReason}
+        onVoidReasonChange={setVoidReason}
+        voiding={voiding}
+        onConfirm={handleConfirmVoidLedger}
+        formatCurrency={formatCurrency}
+      />
 
       {/* Payment Dialog */}
       <Dialog open={paymentDialogOpen} onClose={() => setPaymentDialogOpen(false)} maxWidth="md" fullWidth>
