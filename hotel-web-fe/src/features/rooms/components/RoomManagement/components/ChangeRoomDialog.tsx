@@ -1,0 +1,248 @@
+import React from 'react';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Box,
+  Typography,
+  Grid,
+  Paper,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TextField,
+  Button,
+  CircularProgress,
+} from '@mui/material';
+import { Hotel as HotelIcon } from '@mui/icons-material';
+import { Room } from '../../../../../types';
+
+interface ChangeRoomDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onCancel: () => void;
+  currentRoom: Room | null;
+  rooms: Room[];
+  selectedNewRoom: Room | null;
+  onSelectNewRoom: (room: Room | null) => void;
+  customRate: string;
+  onCustomRateChange: (value: string) => void;
+  currencySymbol: string;
+  changing: boolean;
+  onConfirm: () => void;
+}
+
+const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
+  open,
+  onClose,
+  onCancel,
+  currentRoom,
+  rooms,
+  selectedNewRoom,
+  onSelectNewRoom,
+  customRate,
+  onCustomRateChange,
+  currencySymbol,
+  changing,
+  onConfirm,
+}) => {
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+    >
+      <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <HotelIcon sx={{ fontSize: 28 }} />
+          <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+            Change Room - Current: {currentRoom?.room_number || 'N/A'}
+          </Typography>
+        </Box>
+      </DialogTitle>
+
+      <DialogContent sx={{ pt: 3 }}>
+        <Grid container spacing={3}>
+          {/* Current Room Info */}
+          <Grid size={12}>
+            <Paper sx={{ p: 2, bgcolor: 'grey.100' }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Current Room
+              </Typography>
+              <Grid container spacing={1}>
+                <Grid size={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Room Number:
+                  </Typography>
+                </Grid>
+                <Grid size={6}>
+                  <Typography variant="body2" fontWeight="bold">
+                    {currentRoom?.room_number}
+                  </Typography>
+                </Grid>
+                <Grid size={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Room Type:
+                  </Typography>
+                </Grid>
+                <Grid size={6}>
+                  <Typography variant="body2">
+                    {currentRoom?.room_type}
+                  </Typography>
+                </Grid>
+                <Grid size={6}>
+                  <Typography variant="body2" color="text.secondary">
+                    Current Rate:
+                  </Typography>
+                </Grid>
+                <Grid size={6}>
+                  <Typography variant="body2">
+                    {currencySymbol}{currentRoom?.price_per_night} / night
+                  </Typography>
+                </Grid>
+              </Grid>
+            </Paper>
+          </Grid>
+
+          {/* New Room Selection */}
+          <Grid size={12}>
+            <FormControl fullWidth required>
+              <InputLabel>Select New Room</InputLabel>
+              <Select
+                value={selectedNewRoom?.id || ''}
+                onChange={(e) => {
+                  const room = rooms.find(r => r.id === e.target.value);
+                  onSelectNewRoom(room || null);
+                }}
+                label="Select New Room"
+              >
+                {rooms
+                  .filter(r => r.status === 'available' && r.id !== currentRoom?.id)
+                  .sort((a, b) => {
+                    const numA = parseInt(a.room_number, 10);
+                    const numB = parseInt(b.room_number, 10);
+                    if (!isNaN(numA) && !isNaN(numB)) {
+                      return numA - numB;
+                    }
+                    return a.room_number.localeCompare(b.room_number);
+                  })
+                  .map((room) => (
+                    <MenuItem key={room.id} value={room.id}>
+                      Room {room.room_number} - {room.room_type} ({currencySymbol}{room.price_per_night}/night)
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          {/* Custom Rate */}
+          <Grid size={12}>
+            <TextField
+              fullWidth
+              label="Custom Rate (per night)"
+              type="number"
+              value={customRate}
+              onChange={(e) => onCustomRateChange(e.target.value)}
+              placeholder={selectedNewRoom ? String(selectedNewRoom.price_per_night) : ''}
+              helperText={selectedNewRoom ? `Default room rate: ${currencySymbol}${selectedNewRoom.price_per_night}/night. Leave empty to use default.` : 'Select a room first, or enter a custom rate.'}
+              InputProps={{
+                startAdornment: <Typography sx={{ mr: 0.5, color: 'text.secondary' }}>{currencySymbol}</Typography>,
+              }}
+              inputProps={{ min: 0, step: '0.01' }}
+            />
+          </Grid>
+
+          {/* Price Difference */}
+          {selectedNewRoom && currentRoom && (
+            <>
+              <Grid size={12}>
+                <Paper sx={{ p: 2, bgcolor: 'info.lighter' }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Price Summary
+                  </Typography>
+                  <Grid container spacing={1}>
+                    <Grid size={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        New Rate:
+                      </Typography>
+                    </Grid>
+                    <Grid size={6}>
+                      <Typography variant="body2" fontWeight="bold">
+                        {currencySymbol}{customRate && !isNaN(parseFloat(customRate)) ? parseFloat(customRate).toFixed(2) : selectedNewRoom.price_per_night} / night
+                        {customRate && !isNaN(parseFloat(customRate)) && (
+                          <Typography component="span" variant="caption" color="text.secondary"> (custom)</Typography>
+                        )}
+                      </Typography>
+                    </Grid>
+                    <Grid size={6}>
+                      <Typography variant="body2" color="text.secondary">
+                        Difference per Night:
+                      </Typography>
+                    </Grid>
+                    <Grid size={6}>
+                      <Typography
+                        variant="body2"
+                        fontWeight="bold"
+                        color={(() => {
+                          const oldPrice = typeof currentRoom.price_per_night === 'string'
+                            ? parseFloat(currentRoom.price_per_night)
+                            : currentRoom.price_per_night;
+                          const effectiveRate = customRate && !isNaN(parseFloat(customRate))
+                            ? parseFloat(customRate)
+                            : typeof selectedNewRoom.price_per_night === 'string'
+                              ? parseFloat(selectedNewRoom.price_per_night)
+                              : selectedNewRoom.price_per_night;
+                          const diff = effectiveRate - oldPrice;
+                          return diff > 0 ? 'error.main' : diff < 0 ? 'success.main' : 'text.primary';
+                        })()}
+                      >
+                        {(() => {
+                          const oldPrice = typeof currentRoom.price_per_night === 'string'
+                            ? parseFloat(currentRoom.price_per_night)
+                            : currentRoom.price_per_night;
+                          const effectiveRate = customRate && !isNaN(parseFloat(customRate))
+                            ? parseFloat(customRate)
+                            : typeof selectedNewRoom.price_per_night === 'string'
+                              ? parseFloat(selectedNewRoom.price_per_night)
+                              : selectedNewRoom.price_per_night;
+                          const diff = effectiveRate - oldPrice;
+                          return diff > 0
+                            ? `+${currencySymbol}${diff.toFixed(2)} (Additional Charge)`
+                            : diff < 0
+                            ? `-${currencySymbol}${Math.abs(diff).toFixed(2)} (Credit)`
+                            : `${currencySymbol}0.00 (No Change)`;
+                        })()}
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              </Grid>
+            </>
+          )}
+        </Grid>
+      </DialogContent>
+
+      <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
+        <Button onClick={onCancel} disabled={changing}>
+          Cancel
+        </Button>
+        <Box sx={{ flex: 1 }} />
+        <Button
+          variant="contained"
+          onClick={onConfirm}
+          disabled={!selectedNewRoom || changing}
+          startIcon={changing ? <CircularProgress size={20} /> : null}
+          size="large"
+          color="warning"
+        >
+          {changing ? 'Changing Room...' : 'Confirm Room Change'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default ChangeRoomDialog;
