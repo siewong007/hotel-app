@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 /// Rate plan configuration
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RatePlan {
     pub id: i64,
     pub name: String,
@@ -148,7 +148,7 @@ pub struct RatePlanWithRates {
 }
 
 /// Room rate configuration
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoomRate {
     pub id: i64,
     pub rate_plan_id: i64,
@@ -196,7 +196,7 @@ pub struct RoomRateUpdateValues {
 }
 
 /// Room rate with related details
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RoomRateWithDetails {
     pub id: i64,
     pub rate_plan_id: i64,
@@ -215,4 +215,99 @@ pub struct RoomRateWithDetails {
 pub struct ApplicableRateQuery {
     pub room_type_id: i64,
     pub date: String,
+}
+
+
+impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RatePlan {
+    fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+        Ok(RatePlan {
+            id: row.try_get("id")?,
+            name: row.try_get("name")?,
+            code: row.try_get("code")?,
+            description: row.try_get("description")?,
+            plan_type: row.try_get("plan_type")?,
+            adjustment_type: row.try_get("adjustment_type")?,
+            adjustment_value: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("adjustment_value")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("adjustment_value")?;
+                val
+            },
+            valid_from: row.try_get("valid_from")?,
+            valid_to: row.try_get("valid_to")?,
+            applies_monday: row.try_get("applies_monday")?,
+            applies_tuesday: row.try_get("applies_tuesday")?,
+            applies_wednesday: row.try_get("applies_wednesday")?,
+            applies_thursday: row.try_get("applies_thursday")?,
+            applies_friday: row.try_get("applies_friday")?,
+            applies_saturday: row.try_get("applies_saturday")?,
+            applies_sunday: row.try_get("applies_sunday")?,
+            min_nights: row.try_get("min_nights")?,
+            max_nights: row.try_get("max_nights")?,
+            min_advance_booking: row.try_get("min_advance_booking")?,
+            max_advance_booking: row.try_get("max_advance_booking")?,
+            is_active: row.try_get("is_active")?,
+            priority: row.try_get("priority")?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+        })
+    }
+}
+
+
+impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RoomRate {
+    fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+        Ok(RoomRate {
+            id: row.try_get("id")?,
+            rate_plan_id: row.try_get("rate_plan_id")?,
+            room_type_id: row.try_get("room_type_id")?,
+            price: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("price")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("price")?;
+                val
+            },
+            effective_from: row.try_get("effective_from")?,
+            effective_to: row.try_get("effective_to")?,
+            created_at: row.try_get("created_at")?,
+        })
+    }
+}
+
+
+impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RoomRateWithDetails {
+    fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+        Ok(RoomRateWithDetails {
+            id: row.try_get("id")?,
+            rate_plan_id: row.try_get("rate_plan_id")?,
+            rate_plan_name: row.try_get("rate_plan_name")?,
+            rate_plan_code: row.try_get("rate_plan_code")?,
+            room_type_id: row.try_get("room_type_id")?,
+            room_type_name: row.try_get("room_type_name")?,
+            room_type_code: row.try_get("room_type_code")?,
+            price: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("price")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("price")?;
+                val
+            },
+            effective_from: row.try_get("effective_from")?,
+            effective_to: row.try_get("effective_to")?,
+        })
+    }
 }

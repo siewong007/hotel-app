@@ -62,7 +62,7 @@ pub struct PaginatedResponse<T: Serialize> {
 }
 
 /// Core booking entity
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Booking {
     pub id: i64,
     pub booking_number: String,
@@ -105,7 +105,7 @@ pub struct Booking {
     pub company_name: Option<String>,
     pub payment_note: Option<String>,
     pub daily_rates: Option<serde_json::Value>,
-    #[sqlx(default)]
+
     pub cleaning_preference: Option<bool>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -254,7 +254,7 @@ pub struct UpdateGuestCreditsRequest {
 }
 
 /// Booking with related details (guest, room info)
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BookingWithDetails {
     pub id: i64,
     pub booking_number: String,
@@ -314,7 +314,7 @@ pub struct BookingWithDetails {
     // Joined from invoices table (set after checkout)
     pub invoice_number: Option<String>,
     // Per-booking daily-cleaning preference (NULL = not set)
-    #[sqlx(default)]
+
     pub cleaning_preference: Option<bool>,
 }
 
@@ -332,4 +332,315 @@ pub struct BookingTimelineEntry {
     pub actor_id: Option<i64>,
     pub metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
+}
+
+
+impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Booking {
+    fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+        Ok(Booking {
+            id: row.try_get("id")?,
+            booking_number: row.try_get("booking_number")?,
+            guest_id: row.try_get("guest_id")?,
+            room_id: row.try_get("room_id")?,
+            check_in_date: row.try_get("check_in_date")?,
+            check_out_date: row.try_get("check_out_date")?,
+            room_rate: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("room_rate")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("room_rate")?;
+                val
+            },
+            subtotal: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("subtotal")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("subtotal")?;
+                val
+            },
+            tax_amount: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("tax_amount")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("tax_amount")?;
+                val
+            },
+            discount_amount: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("discount_amount")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("discount_amount")?;
+                val
+            },
+            total_amount: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("total_amount")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("total_amount")?;
+                val
+            },
+            status: row.try_get("status")?,
+            payment_status: row.try_get("payment_status")?,
+            payment_method: row.try_get("payment_method")?,
+            adults: row.try_get("adults")?,
+            children: row.try_get("children")?,
+            special_requests: row.try_get("special_requests")?,
+            remarks: row.try_get("remarks")?,
+            source: row.try_get("source")?,
+            market_code: row.try_get("market_code")?,
+            discount_percentage: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("discount_percentage")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("discount_percentage")?;
+                val
+            },
+            rate_override_weekday: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("rate_override_weekday")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("rate_override_weekday")?;
+                val
+            },
+            rate_override_weekend: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("rate_override_weekend")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("rate_override_weekend")?;
+                val
+            },
+            pre_checkin_completed: row.try_get("pre_checkin_completed")?,
+            pre_checkin_completed_at: row.try_get("pre_checkin_completed_at")?,
+            pre_checkin_token: row.try_get("pre_checkin_token")?,
+            pre_checkin_token_expires_at: row.try_get("pre_checkin_token_expires_at")?,
+            created_by: row.try_get("created_by")?,
+            is_complimentary: row.try_get("is_complimentary")?,
+            complimentary_reason: row.try_get("complimentary_reason")?,
+            complimentary_start_date: row.try_get("complimentary_start_date")?,
+            complimentary_end_date: row.try_get("complimentary_end_date")?,
+            original_total_amount: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("original_total_amount")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("original_total_amount")?;
+                val
+            },
+            complimentary_nights: row.try_get("complimentary_nights")?,
+            deposit_paid: row.try_get("deposit_paid")?,
+            deposit_amount: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("deposit_amount")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("deposit_amount")?;
+                val
+            },
+            deposit_paid_at: row.try_get("deposit_paid_at")?,
+            company_id: row.try_get("company_id")?,
+            company_name: row.try_get("company_name")?,
+            payment_note: row.try_get("payment_note")?,
+            daily_rates: row.try_get("daily_rates")?,
+            cleaning_preference: row.try_get("cleaning_preference")?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+        })
+    }
+}
+
+
+impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for BookingWithDetails {
+    fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+        Ok(BookingWithDetails {
+            id: row.try_get("id")?,
+            booking_number: row.try_get("booking_number")?,
+            folio_number: row.try_get("folio_number")?,
+            guest_id: row.try_get("guest_id")?,
+            guest_name: row.try_get("guest_name")?,
+            guest_email: row.try_get("guest_email")?,
+            guest_type: row.try_get("guest_type")?,
+            guest_tourism_type: row.try_get("guest_tourism_type")?,
+            room_id: row.try_get("room_id")?,
+            room_number: row.try_get("room_number")?,
+            room_type: row.try_get("room_type")?,
+            room_type_code: row.try_get("room_type_code")?,
+            check_in_date: row.try_get("check_in_date")?,
+            check_out_date: row.try_get("check_out_date")?,
+            room_rate: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("room_rate")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("room_rate")?;
+                val
+            },
+            total_amount: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("total_amount")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("total_amount")?;
+                val
+            },
+            status: row.try_get("status")?,
+            payment_status: row.try_get("payment_status")?,
+            payment_method: row.try_get("payment_method")?,
+            source: row.try_get("source")?,
+            remarks: row.try_get("remarks")?,
+            special_requests: row.try_get("special_requests")?,
+            is_complimentary: row.try_get("is_complimentary")?,
+            complimentary_reason: row.try_get("complimentary_reason")?,
+            complimentary_start_date: row.try_get("complimentary_start_date")?,
+            complimentary_end_date: row.try_get("complimentary_end_date")?,
+            original_total_amount: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("original_total_amount")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("original_total_amount")?;
+                val
+            },
+            complimentary_nights: row.try_get("complimentary_nights")?,
+            deposit_paid: row.try_get("deposit_paid")?,
+            deposit_amount: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("deposit_amount")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("deposit_amount")?;
+                val
+            },
+            room_card_deposit: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("room_card_deposit")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("room_card_deposit")?;
+                val
+            },
+            total_paid: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("total_paid")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("total_paid")?;
+                val
+            },
+            total_refunded: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("total_refunded")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("total_refunded")?;
+                val
+            },
+            balance_due: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("balance_due")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("balance_due")?;
+                val
+            },
+            deposit_refunded: row.try_get("deposit_refunded")?,
+            company_id: row.try_get("company_id")?,
+            company_name: row.try_get("company_name")?,
+            payment_note: row.try_get("payment_note")?,
+            created_at: row.try_get("created_at")?,
+            is_posted: row.try_get("is_posted")?,
+            posted_date: row.try_get("posted_date")?,
+            is_tourist: row.try_get("is_tourist")?,
+            tourism_tax_amount: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("tourism_tax_amount")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("tourism_tax_amount")?;
+                val
+            },
+            extra_bed_count: row.try_get("extra_bed_count")?,
+            extra_bed_charge: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("extra_bed_charge")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("extra_bed_charge")?;
+                val
+            },
+            rate_override_weekday: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("rate_override_weekday")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("rate_override_weekday")?;
+                val
+            },
+            rate_override_weekend: {
+                #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("rate_override_weekend")?);
+                #[cfg(any(
+                    all(feature = "postgres", not(feature = "sqlite")),
+                    all(feature = "sqlite", feature = "postgres")
+                ))]
+                let val = row.try_get("rate_override_weekend")?;
+                val
+            },
+            actual_check_out: row.try_get("actual_check_out")?,
+            daily_rates: row.try_get("daily_rates")?,
+            invoice_number: row.try_get("invoice_number")?,
+            cleaning_preference: row.try_get("cleaning_preference")?,
+        })
+    }
 }

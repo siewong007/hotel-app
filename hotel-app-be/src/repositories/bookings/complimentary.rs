@@ -10,6 +10,7 @@ use axum::{
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::Row;
+use crate::core::db::DbRowExt;
 
 pub async fn mark_complimentary_handler(
     State(pool): State<DbPool>,
@@ -40,10 +41,10 @@ pub async fn mark_complimentary_handler(
     let is_already_complimentary: Option<bool> = booking_row.get(3);
     let check_in: NaiveDate = booking_row.get(4);
     let check_out: NaiveDate = booking_row.get(5);
-    let room_rate: Decimal = booking_row.get(6);
-    let original_total: Decimal = booking_row.get(7);
-    let _subtotal: Decimal = booking_row.get(8);
-    let tax_amount: Option<Decimal> = booking_row.get(9);
+    let room_rate: Decimal = booking_row.get_decimal(6);
+    let original_total: Decimal = booking_row.get_decimal(7);
+    let _subtotal: Decimal = booking_row.get_decimal(8);
+    let tax_amount: Option<Decimal> = booking_row.get_opt_decimal(9);
     let room_type_id: i64 = booking_row.get(10);
     let room_type_name: String = booking_row.get(11);
 
@@ -141,9 +142,9 @@ pub async fn mark_complimentary_handler(
     .bind(comp_start)
     .bind(comp_end)
     .bind(complimentary_nights)
-    .bind(new_subtotal)
-    .bind(new_tax)
-    .bind(new_total)
+    .bind(crate::core::db::decimal_to_db(new_subtotal))
+    .bind(crate::core::db::decimal_to_db(new_tax))
+    .bind(crate::core::db::decimal_to_db(new_total))
     .bind(new_status)
     .bind(payment_status)
     .bind(booking_id)
@@ -191,7 +192,7 @@ pub async fn mark_complimentary_handler(
     .bind("mark_complimentary")
     .bind(serde_json::json!({"status": &status, "total_amount": original_total.to_string(), "is_complimentary": false}))
     .bind(serde_json::json!({"status": new_status, "total_amount": new_total.to_string(), "is_complimentary": true, "complimentary_nights": complimentary_nights, "reason": &input.reason}))
-    .bind(new_total - original_total)
+    .bind(crate::core::db::decimal_to_db(new_total - original_total))
     .bind(_user_id)
     .execute(&pool)
     .await
@@ -351,11 +352,12 @@ pub async fn get_complimentary_summary_handler(
     .unwrap_or(0);
 
     // Value of complimentary nights (sum of original amounts - adjusted amounts)
-    let value_given: Decimal = sqlx::query_scalar(
+    let value_given: Decimal = sqlx::query(
         "SELECT COALESCE(SUM(original_total_amount - total_amount), 0) FROM bookings WHERE is_complimentary = true AND original_total_amount IS NOT NULL"
     )
     .fetch_one(&pool)
     .await
+    .map(|row| row.get_decimal(0))
     .unwrap_or(Decimal::ZERO);
 
     Ok(Json(serde_json::json!({
@@ -392,8 +394,8 @@ pub async fn update_complimentary_handler(
 
     let check_in: NaiveDate = booking_row.get(2);
     let check_out: NaiveDate = booking_row.get(3);
-    let room_rate: Decimal = booking_row.get(4);
-    let original_total: Decimal = booking_row.get(5);
+    let room_rate: Decimal = booking_row.get_decimal(4);
+    let original_total: Decimal = booking_row.get_decimal(5);
 
     // Parse new dates if provided
     let comp_start = if let Some(ref date_str) = input.complimentary_start_date {
@@ -465,9 +467,9 @@ pub async fn update_complimentary_handler(
         .bind(end)
         .bind(&input.complimentary_reason)
         .bind(complimentary_nights)
-        .bind(new_subtotal)
-        .bind(new_tax)
-        .bind(new_total)
+        .bind(crate::core::db::decimal_to_db(new_subtotal))
+        .bind(crate::core::db::decimal_to_db(new_tax))
+        .bind(crate::core::db::decimal_to_db(new_total))
         .bind(new_status)
         .bind(booking_id)
         .execute(&pool)
@@ -482,7 +484,7 @@ pub async fn update_complimentary_handler(
         .bind("update_complimentary")
         .bind(serde_json::json!({"total_amount": original_total.to_string()}))
         .bind(serde_json::json!({"total_amount": new_total.to_string(), "complimentary_nights": complimentary_nights, "status": new_status}))
-        .bind(new_total - original_total)
+        .bind(crate::core::db::decimal_to_db(new_total - original_total))
         .bind(_user_id)
         .execute(&pool)
         .await
@@ -545,7 +547,7 @@ pub async fn remove_complimentary_handler(
 
     let _guest_id: i64 = booking_row.get(1);
     let is_complimentary: Option<bool> = booking_row.get(2);
-    let original_total: Option<Decimal> = booking_row.get(3);
+    let original_total: Option<Decimal> = booking_row.get_opt_decimal(3);
     let complimentary_nights: Option<i32> = booking_row.get(4);
     let status: String = booking_row.get(5);
 

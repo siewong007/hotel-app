@@ -12,6 +12,7 @@ use axum::{
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::Row;
+use crate::core::db::DbRowExt;
 
 /// Book a room using complimentary credits
 pub async fn book_with_credits_handler(
@@ -79,7 +80,7 @@ pub async fn book_with_credits_handler(
     let complimentary_nights = complimentary_dates.len() as i32;
 
     // Get room info including room type
-    let room_info: Option<(i64, Decimal, String)> = sqlx::query_as(
+    let room_info: Option<(i64, Decimal, String)> = sqlx::query(
         r#"
         SELECT rt.id, COALESCE(r.custom_price, rt.base_price), rt.name
         FROM rooms r
@@ -90,7 +91,12 @@ pub async fn book_with_credits_handler(
     .bind(input.room_id)
     .fetch_optional(&pool)
     .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    .map_err(|e| ApiError::Database(e.to_string()))?
+    .map(|r| {
+        use sqlx::Row;
+        use crate::core::db::DbRowExt;
+        (r.get(0), r.get_decimal(1), r.get(2))
+    });
 
     let (room_type_id, room_rate, room_type_name) =
         room_info.ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
@@ -191,10 +197,10 @@ pub async fn book_with_credits_handler(
     .bind(input.room_id)
     .bind(check_in)
     .bind(check_out)
-    .bind(room_rate)
-    .bind(subtotal)
-    .bind(tax_amount)
-    .bind(total_amount)
+    .bind(crate::core::db::decimal_to_db(room_rate))
+    .bind(crate::core::db::decimal_to_db(subtotal))
+    .bind(crate::core::db::decimal_to_db(tax_amount))
+    .bind(crate::core::db::decimal_to_db(total_amount))
     .bind(if is_fully_complimentary {
         "paid"
     } else {
