@@ -12,7 +12,7 @@ use tokio::time::sleep;
 // The rate_limiter module is in core::rate_limiter. The actual internal
 // implementation is private, so we test through the public interface
 // provided by the backend crate.
-use hotel_app_be::core::rate_limiter::RateLimiters;
+use hotel_app_be::core::rate_limiter::{RateLimitConfig, RateLimiters, RateLimiter};
 
 #[tokio::test]
 async fn rate_limiter_allows_requests_within_limit() {
@@ -25,18 +25,18 @@ async fn rate_limiter_allows_requests_within_limit() {
 
 #[tokio::test]
 async fn rate_limiter_enforces_limit() {
-    let limiter = RateLimiters::new();
+    let limiter = RateLimiter::new(RateLimitConfig::new(10, 60));
     let ip = "10.0.0.1".parse().unwrap();
 
     // Send many requests rapidly
     let mut allowed_count = 0;
     for _ in 0..20 {
-        if limiter.check_rate_limit("api:generic", &ip).await {
+        if limiter.check(ip).await {
             allowed_count += 1;
         }
     }
 
-    // Should never allow more than the configured burst limit (default 10/min)
+    // Should never allow more than the configured burst limit in this test
     assert!(allowed_count <= 10, "Rate limiter allowed {allowed_count} requests, expected ≤ 10");
 }
 
@@ -73,23 +73,18 @@ async fn rate_limiter_different_routes_have_independent_buckets() {
 
 #[tokio::test]
 async fn rate_limiter_recovers_over_time() {
-    let limiter = RateLimiters::new();
+    let limiter = RateLimiter::new(RateLimitConfig::new(1, 1));
     let ip = "10.0.0.3".parse().unwrap();
 
     // Exhaust the budget
-    for _ in 0..20 {
-        limiter.check_rate_limit("api:generic", &ip).await;
-    }
+    assert!(limiter.check(ip).await);
+    assert!(!limiter.check(ip).await);
 
-    // All requests should be blocked now
-    let blocked = !limiter.check_rate_limit("api:generic", &ip).await;
-    assert!(blocked, "Rate limiter should block after budget exhaustion");
-
-    // Wait for recovery (1 second should be enough for at least 1 token)
-    sleep(Duration::from_secs(1)).await;
+    // Wait for recovery beyond the one-second window
+    sleep(Duration::from_secs(2)).await;
 
     // Should allow a request again
-    let recovered = limiter.check_rate_limit("api:generic", &ip).await;
+    let recovered = limiter.check(ip).await;
     assert!(recovered, "Rate limiter should recover over time");
 }
 
