@@ -69,6 +69,7 @@ import {
   MoreHoriz as MoreHorizIcon,
   SmokingRooms as SmokingIcon,
   AutoAwesome as SparkleIcon,
+  Build as BuildIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../../api';
 
@@ -96,11 +97,11 @@ import {
   getTotalCreditsForRoom as getCreditsForRoomType,
   isDateBlockedByRanges,
   validateCreditDateSelection,
+  formatMenuBookingDate,
 } from '../../utils/roomManagementUtils';
 import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
 import UnifiedBookingModal, { BookingType } from '../UnifiedBooking/UnifiedBookingModal';
 import UpdateCheckoutDateDialog from '../UpdateCheckoutDateDialog';
-import RoomNotesDialog from './RoomNotesDialog';
 import RoomStatusDialog from './RoomStatusDialog';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
 import { RoomAction, MenuSection, MenuLayout, GuestWithCredits } from './types';
@@ -417,6 +418,14 @@ const RoomManagementPage: React.FC = () => {
     return getUnifiedStatusShortLabel(status).toUpperCase();
   };
 
+  const ROOM_FILL_DARK: Record<string, string> = {
+    available: '#2E7D4F',
+    occupied: '#B25E18',
+    reserved: '#1E5A8A',
+    dirty: '#8A6E1D',
+    maintenance: '#4D5358',
+  };
+
   const getRoomCardFill = (status: string, statusColor: string): string => {
     if (isDarkMode) return ROOM_FILL_DARK[status] || ROOM_FILL_DARK.available;
     // Light mode: yellow needs the darker amber so white text stays readable.
@@ -508,7 +517,7 @@ const RoomManagementPage: React.FC = () => {
     try {
       setCreatingBooking(true);
 
-      const complimentaryDates = buildCreditsBookingDates(
+      const complimentaryDates = getCreditBookingDateRange(
         complimentaryCheckInDate,
         complimentaryCheckOutDate,
       );
@@ -2982,7 +2991,7 @@ const RoomManagementPage: React.FC = () => {
         roomNumber={selectedRoom?.room_number}
         notes={editingNotes}
         onNotesChange={setEditingNotes}
-        onSave={handleSaveNotes}
+        onSave={() => handleSaveNotes(editingNotes)}
         saving={savingNotes}
       />
 

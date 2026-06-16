@@ -57,6 +57,9 @@ export const getRoomTypeCode = (roomType?: string | null): string => {
   return codes[normalized] || normalized.slice(0, 4).toUpperCase();
 };
 
+export const formatMenuBookingDate = (date: string): string =>
+  parseLocalDate(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
 export const calculateNightCount = (checkInDate?: string, checkOutDate?: string): number => {
   if (!checkInDate || !checkOutDate) return 1;
 
