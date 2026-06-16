@@ -3181,7 +3181,7 @@ pub async fn record_checkin_payment_tx(
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let insert_query = r#"
         INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
-        VALUES ($1, $2, $3, $4, $5, 'completed', $6, $7)
+        VALUES ($1::uuid, $2, $3, $4, $5, 'completed', $6, $7)
     "#;
 
     sqlx::query(insert_query)
