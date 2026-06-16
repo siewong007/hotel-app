@@ -1,8 +1,8 @@
 //! System settings repository for database operations
 
+use super::models::SystemSetting;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::SystemSetting;
 
 pub struct SettingsRepository;
 

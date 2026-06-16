@@ -24,5 +24,4 @@ pub mod rates;
 pub mod rbac;
 pub mod rooms;
 pub mod search;
-pub mod settings;
 pub mod two_factor;

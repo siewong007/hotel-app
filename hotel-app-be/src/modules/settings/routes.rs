@@ -2,11 +2,11 @@
 //!
 //! Routes for system configuration and settings.
 
+use super::handlers;
+use super::models;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::{require_auth, require_permission_helper};
-use crate::handlers;
-use crate::models;
 use axum::{
     Router,
     extract::{Path, State},
@@ -28,7 +28,7 @@ async fn get_settings(
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::SystemSetting>>, ApiError> {
     require_permission_helper(&pool, &headers, "settings:read").await?;
-    handlers::settings::get_system_settings_handler(State(pool)).await
+    handlers::get_system_settings_handler(State(pool)).await
 }
 
 async fn update_setting(
@@ -38,7 +38,7 @@ async fn update_setting(
     Json(input): Json<models::SystemSettingUpdate>,
 ) -> Result<Json<models::SystemSetting>, ApiError> {
     let user_id = require_permission_helper(&pool, &headers, "settings:update").await?;
-    handlers::settings::update_system_setting_handler(State(pool), path, user_id, Json(input)).await
+    handlers::update_system_setting_handler(State(pool), path, user_id, Json(input)).await
 }
 
 async fn process_checkins(
@@ -47,5 +47,5 @@ async fn process_checkins(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     // Require authentication - only authenticated users can trigger auto check-in/checkout
     let _user_id = require_auth(&headers).await?;
-    handlers::settings::process_auto_checkin_checkout_handler(State(pool)).await
+    handlers::process_auto_checkin_checkout_handler(State(pool)).await
 }
