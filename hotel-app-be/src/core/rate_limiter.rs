@@ -204,6 +204,7 @@ impl RateLimiters {
     /// Check an endpoint-specific rate limit by category.
     ///
     /// This helper is primarily used by legacy tests and simple route checks.
+    #[allow(dead_code)]
     pub async fn check_rate_limit(&self, category: &str, ip: &IpAddr) -> bool {
         match category {
             "auth:login" | "auth:register" | "auth:passkey" => {
