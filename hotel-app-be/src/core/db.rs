@@ -211,6 +211,36 @@ pub fn opt_decimal_to_db(d: Option<rust_decimal::Decimal>) -> Option<rust_decima
     d
 }
 
+use sqlx::Row;
+
+pub trait DbRowExt {
+    fn get_decimal(&self, index: usize) -> rust_decimal::Decimal;
+    fn get_opt_decimal(&self, index: usize) -> Option<rust_decimal::Decimal>;
+}
+
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+impl DbRowExt for DbRow {
+    fn get_decimal(&self, index: usize) -> rust_decimal::Decimal {
+        parse_decimal(&self.get::<String, _>(index))
+    }
+    fn get_opt_decimal(&self, index: usize) -> Option<rust_decimal::Decimal> {
+        self.get::<Option<String>, _>(index).map(|s| parse_decimal(&s))
+    }
+}
+
+#[cfg(any(
+    all(feature = "postgres", not(feature = "sqlite")),
+    all(feature = "sqlite", feature = "postgres")
+))]
+impl DbRowExt for DbRow {
+    fn get_decimal(&self, index: usize) -> rust_decimal::Decimal {
+        self.get::<rust_decimal::Decimal, _>(index)
+    }
+    fn get_opt_decimal(&self, index: usize) -> Option<rust_decimal::Decimal> {
+        self.get::<Option<rust_decimal::Decimal>, _>(index)
+    }
+}
+
 /// Helper to parse a string to Decimal (used when reading from SQLite)
 pub fn parse_decimal(s: &str) -> rust_decimal::Decimal {
     s.parse().unwrap_or_default()
