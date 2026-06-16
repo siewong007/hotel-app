@@ -2,7 +2,7 @@
 
 const POSTGRES_SCHEMA: &str = include_str!("../database/schema.sql");
 const SQLITE_VOID_MIGRATION: &str =
-    include_str!("../database/sqlite_migrations/012_void_status_names.sql");
+    include_str!("../database/sqlite_migrations/016_void_status_names.sql");
 
 fn status_check_blocks(sql: &str) -> Vec<String> {
     let mut blocks = Vec::new();
@@ -155,9 +155,17 @@ mod postgres_smoke {
 
         let result = async {
             let pool = PgPool::connect(&temp_url).await?;
-            sqlx::raw_sql(POSTGRES_SCHEMA).execute(&pool).await?;
+            // `sqlx::raw_sql` runs the script over the simple-query protocol, which
+            // (unlike `psql -f`) does not understand psql meta-commands such as
+            // `\set ON_ERROR_STOP on`. Strip backslash-command lines before sending.
+            let server_schema: String = POSTGRES_SCHEMA
+                .lines()
+                .filter(|line| !line.trim_start().starts_with('\\'))
+                .collect::<Vec<_>>()
+                .join("\n");
+            sqlx::raw_sql(&server_schema).execute(&pool).await?;
             seed_legacy_status_rows(&pool).await?;
-            sqlx::raw_sql(POSTGRES_SCHEMA).execute(&pool).await?;
+            sqlx::raw_sql(&server_schema).execute(&pool).await?;
 
             let booking_statuses: Vec<(String, Option<String>)> = sqlx::query_as(
                 "SELECT status, payment_status FROM bookings WHERE id IN (970301, 970302) ORDER BY id",
@@ -167,7 +175,11 @@ mod postgres_smoke {
             assert_eq!(
                 booking_statuses,
                 vec![
-                    ("voided".to_string(), Some("void".to_string())),
+                    // Booking 970301's only payment is normalized to `void`, which
+                    // fires `sync_booking_payment_status` and recomputes the booking
+                    // to `unpaid` (no completed payments) — the legacy `cancelled`
+                    // value is gone, which is what this smoke test guards.
+                    ("voided".to_string(), Some("unpaid".to_string())),
                     ("comp_void".to_string(), Some("paid".to_string())),
                 ]
             );

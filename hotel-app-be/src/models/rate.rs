@@ -3,7 +3,6 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 
 /// Rate plan configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

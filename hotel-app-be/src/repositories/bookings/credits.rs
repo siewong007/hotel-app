@@ -12,7 +12,6 @@ use axum::{
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::Row;
-use crate::core::db::DbRowExt;
 
 /// Book a room using complimentary credits
 pub async fn book_with_credits_handler(
