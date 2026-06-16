@@ -115,6 +115,8 @@ import {
 import DuplicateLedgerDialog from './components/DuplicateLedgerDialog';
 import VoidLedgerDialog from './components/VoidLedgerDialog';
 import EditLedgerDialog from './components/EditLedgerDialog';
+import DeleteCompanyDialog from './components/DeleteCompanyDialog';
+import CreditNoteDialog from './components/CreditNoteDialog';
 
 const CustomerLedgerPage: React.FC = () => {
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
@@ -4265,54 +4267,13 @@ const CustomerLedgerPage: React.FC = () => {
       </Dialog>
 
       {/* Delete Company Confirmation Dialog */}
-      <Dialog
+      <DeleteCompanyDialog
         open={companyDeleteDialogOpen}
         onClose={() => { setCompanyDeleteDialogOpen(false); setDeletingCompanyData(null); }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <DeleteIcon color="error" />
-            Delete Company
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            This action cannot be undone.
-          </Alert>
-          <Typography>
-            Are you sure you want to delete the company <strong>"{deletingCompanyData?.company_name}"</strong>?
-          </Typography>
-          {deletingCompanyData && (
-            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Contact:</strong> {deletingCompanyData.contact_person || 'N/A'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Email:</strong> {deletingCompanyData.contact_email || 'N/A'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Phone:</strong> {deletingCompanyData.contact_phone || 'N/A'}
-              </Typography>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setCompanyDeleteDialogOpen(false); setDeletingCompanyData(null); }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleDeleteCompany}
-            variant="contained"
-            color="error"
-            disabled={deletingCompany}
-            startIcon={deletingCompany ? <CircularProgress size={20} /> : <DeleteIcon />}
-          >
-            {deletingCompany ? 'Deleting...' : 'Delete Company'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        company={deletingCompanyData}
+        deleting={deletingCompany}
+        onConfirm={handleDeleteCompany}
+      />
 
       {/* Record Payment Dialog */}
       <Dialog
@@ -5121,101 +5082,21 @@ const CustomerLedgerPage: React.FC = () => {
       </Dialog>
 
       {/* Credit Note Dialog — posts to the backend reversal endpoint */}
-      <Dialog
+      <CreditNoteDialog
         open={creditNoteDialogOpen}
         onClose={() => setCreditNoteDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <CreditNoteIcon color="error" />
-            Issue Credit Note
-            {activeCompany && (
-              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
-                · {activeCompany.company_name}
-              </Typography>
-            )}
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            A credit note posts a <strong>reversal entry</strong> against an existing ledger
-            row. The original entry stays in the ledger and the reversal is audit-tracked.
-            Reversals cannot be issued against another reversal.
-          </Alert>
-          <Grid container spacing={2}>
-            <Grid size={12}>
-              <TextField
-                select
-                fullWidth
-                required
-                label="Original ledger entry"
-                value={creditNoteLedgerId}
-                onChange={(e) => setCreditNoteLedgerId(e.target.value === '' ? '' : Number(e.target.value))}
-                helperText="Pick the entry to reverse"
-              >
-                {activeCompanyAllEntries
-                  .filter(l => !isVoidedLedger(l) && !l.is_reversal)
-                  .map(l => (
-                    <MenuItem key={l.id} value={l.id}>
-                      {l.invoice_number || l.folio_number || `#${l.id}`} · {l.description.slice(0, 48)}
-                      {l.description.length > 48 ? '…' : ''} · {formatCurrency(asMoney(l.amount))}
-                    </MenuItem>
-                  ))}
-              </TextField>
-              {activeCompanyAllEntries.filter(l => !isVoidedLedger(l) && !l.is_reversal).length === 0 && (
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
-                  No reversible entries for this company.
-                </Typography>
-              )}
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                select
-                fullWidth
-                required
-                label="Reason"
-                value={creditNoteReason}
-                onChange={(e) => setCreditNoteReason(e.target.value)}
-              >
-                <MenuItem value="">Pick a reason…</MenuItem>
-                <MenuItem value="Refund — early checkout">Refund — early checkout</MenuItem>
-                <MenuItem value="Room downgrade">Room downgrade</MenuItem>
-                <MenuItem value="Service not rendered">Service not rendered</MenuItem>
-                <MenuItem value="Billing error">Billing error</MenuItem>
-                <MenuItem value="Goodwill / discount">Goodwill / discount</MenuItem>
-                <MenuItem value="Other">Other</MenuItem>
-              </TextField>
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Details (optional)"
-                value={creditNoteNotes}
-                onChange={(e) => setCreditNoteNotes(e.target.value)}
-                placeholder="Explain the credit — appears on the reversal record."
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreditNoteDialogOpen(false)} disabled={processingCreditNote}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmitCreditNote}
-            variant="contained"
-            color="error"
-            disabled={processingCreditNote || !creditNoteLedgerId || !creditNoteReason}
-            startIcon={processingCreditNote ? <CircularProgress size={18} /> : <CreditNoteIcon />}
-          >
-            {processingCreditNote ? 'Issuing…' : 'Issue credit note'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        activeCompany={activeCompany}
+        reversibleEntries={activeCompanyAllEntries.filter(l => !isVoidedLedger(l) && !l.is_reversal)}
+        creditNoteLedgerId={creditNoteLedgerId}
+        setCreditNoteLedgerId={setCreditNoteLedgerId}
+        creditNoteReason={creditNoteReason}
+        setCreditNoteReason={setCreditNoteReason}
+        creditNoteNotes={creditNoteNotes}
+        setCreditNoteNotes={setCreditNoteNotes}
+        processingCreditNote={processingCreditNote}
+        onSubmit={handleSubmitCreditNote}
+        formatCurrency={formatCurrency}
+      />
 
     </Box>
   );
