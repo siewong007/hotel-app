@@ -2204,7 +2204,7 @@ mod postgres_tests {
 }
 
 #[cfg(all(feature = "postgres", not(feature = "sqlite")))]
-mod postgres_tests {
+mod postgres_reactivation_tests {
     use axum::extract::{Extension, Path, State};
     use hotel_app_be::core::error::ApiError;
     use hotel_app_be::services::bookings;
