@@ -2,7 +2,7 @@
 
 const POSTGRES_SCHEMA: &str = include_str!("../database/schema.sql");
 const SQLITE_VOID_MIGRATION: &str =
-    include_str!("../database/sqlite_migrations/016_void_status_names.sql");
+    include_str!("../database/sqlite_migrations/001_initial_schema.sql");
 
 fn status_check_blocks(sql: &str) -> Vec<String> {
     let mut blocks = Vec::new();
