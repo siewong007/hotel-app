@@ -119,6 +119,7 @@ import DeleteCompanyDialog from './components/DeleteCompanyDialog';
 import CreditNoteDialog from './components/CreditNoteDialog';
 import CompanyFormDialog from './components/CompanyFormDialog';
 import CreateLedgerDialog from './components/CreateLedgerDialog';
+import PaymentDialog from './components/PaymentDialog';
 
 const CustomerLedgerPage: React.FC = () => {
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
@@ -1239,6 +1240,23 @@ const CustomerLedgerPage: React.FC = () => {
       showSnackbar(err.message || 'Failed to update payment date', 'error');
     } finally {
       setSavingPaymentDate(false);
+    }
+  };
+
+  // Delete a payment from the history tab (lifted out of the dialog JSX so the
+  // API call stays page-side). Refreshes history + ledger totals on success.
+  const handleDeletePayment = async (payment: CustomerLedgerPayment) => {
+    if (!paymentLedger) return;
+    if (!window.confirm('Are you sure you want to delete this payment?')) return;
+    try {
+      await HotelAPIService.deleteLedgerPayment(paymentLedger.id, payment.id);
+      showSnackbar('Payment deleted successfully');
+      // Refresh payment history
+      const payments = await HotelAPIService.getLedgerPayments(paymentLedger.id);
+      setPaymentHistory(payments);
+      await loadData();
+    } catch (error: any) {
+      showSnackbar(error.message || 'Failed to delete payment', 'error');
     }
   };
 
@@ -3052,229 +3070,28 @@ const CustomerLedgerPage: React.FC = () => {
       />
 
       {/* Payment Dialog */}
-      <Dialog open={paymentDialogOpen} onClose={() => setPaymentDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          Payment - {paymentLedger?.company_name}
-        </DialogTitle>
-        <DialogContent>
-          <Tabs value={paymentTab} onChange={(e, v) => setPaymentTab(v)} sx={{ mb: 2 }}>
-            <Tab label="Record Payment" />
-            <Tab label="Payment History" />
-          </Tabs>
-
-          {paymentTab === 0 && (
-            <Box>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <Typography variant="body2">
-                  <strong>Total Amount:</strong> {formatCurrency(parseFloat(String(paymentLedger?.amount || 0)))}<br />
-                  <strong>Already Paid:</strong> {formatCurrency(parseFloat(String(paymentLedger?.paid_amount || 0)))}<br />
-                  <strong>Balance Due:</strong> {formatCurrency(parseFloat(String(paymentLedger?.balance_due || 0)))}
-                </Typography>
-              </Alert>
-
-              <Grid container spacing={2}>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="Payment Amount"
-                    type="number"
-                    value={paymentFormData.payment_amount}
-                    onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_amount: parseFloat(e.target.value) || 0 })}
-                    InputProps={{
-                      startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                    }}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <FormControl fullWidth required>
-                    <InputLabel>Payment Method</InputLabel>
-                    <Select
-                      value={paymentFormData.payment_method}
-                      label="Payment Method"
-                      onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_method: e.target.value })}
-                    >
-                      {PAYMENT_METHODS.map((method) => (
-                        <MenuItem key={method.value} value={method.value}>
-                          {method.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Payment Reference"
-                    value={paymentFormData.payment_reference || ''}
-                    onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_reference: e.target.value })}
-                    placeholder="Transaction ID, cheque number, etc."
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Receipt Number"
-                    value={paymentFormData.receipt_number || ''}
-                    onChange={(e) => setPaymentFormData({ ...paymentFormData, receipt_number: e.target.value })}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Payment Date"
-                    type="date"
-                    value={paymentFormData.payment_date || ''}
-                    onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_date: e.target.value })}
-                    InputLabelProps={{ shrink: true }}
-                  />
-                </Grid>
-                <Grid size={12}>
-                  <TextField
-                    fullWidth
-                    label="Notes"
-                    multiline
-                    rows={2}
-                    value={paymentFormData.notes || ''}
-                    onChange={(e) => setPaymentFormData({ ...paymentFormData, notes: e.target.value })}
-                  />
-                </Grid>
-              </Grid>
-            </Box>
-          )}
-
-          {paymentTab === 1 && (
-            <Box>
-              {paymentHistory.length === 0 ? (
-                <Typography color="text.secondary" textAlign="center" py={3}>
-                  No payment history yet
-                </Typography>
-              ) : (
-                <List>
-                  {paymentHistory.map((payment, index) => (
-                    <React.Fragment key={payment.id}>
-                      <ListItem
-                        secondaryAction={
-                          editingPaymentId === payment.id ? (
-                            <Box display="flex" gap={0.5}>
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                onClick={() => handleSavePaymentDate(payment)}
-                                disabled={savingPaymentDate}
-                              >
-                                {savingPaymentDate ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
-                              </IconButton>
-                              <IconButton
-                                size="small"
-                                onClick={() => setEditingPaymentId(null)}
-                              >
-                                <CloseIcon fontSize="small" />
-                              </IconButton>
-                            </Box>
-                          ) : (
-                            <Box display="flex" gap={0.5}>
-                              <IconButton
-                                size="small"
-                                color="primary"
-                                onClick={() => {
-                                  setEditingPaymentId(payment.id);
-                                  setEditingPaymentDate(formatDateForInput(payment.payment_date));
-                                }}
-                                title="Edit payment date"
-                              >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={async () => {
-                                  if (!paymentLedger) return;
-                                  if (!window.confirm('Are you sure you want to delete this payment?')) return;
-                                  try {
-                                    await HotelAPIService.deleteLedgerPayment(paymentLedger.id, payment.id);
-                                    showSnackbar('Payment deleted successfully');
-                                    // Refresh payment history
-                                    const payments = await HotelAPIService.getLedgerPayments(paymentLedger.id);
-                                    setPaymentHistory(payments);
-                                    await loadData();
-                                  } catch (error: any) {
-                                    showSnackbar(error.message || 'Failed to delete payment', 'error');
-                                  }
-                                }}
-                                title="Delete payment"
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </Box>
-                          )
-                        }
-                      >
-                        <ListItemText
-                          primary={
-                            <Box display="flex" justifyContent="space-between" alignItems="center" pr={6}>
-                              <Typography variant="body1" fontWeight="medium">
-                                {formatCurrency(parseFloat(String(payment.payment_amount)))}
-                              </Typography>
-                              <Chip label={payment.payment_method} size="small" variant="outlined" />
-                            </Box>
-                          }
-                          secondary={
-                            <>
-                              {editingPaymentId === payment.id ? (
-                                <TextField
-                                  size="small"
-                                  type="date"
-                                  label="Payment Date"
-                                  value={editingPaymentDate}
-                                  onChange={(e) => setEditingPaymentDate(e.target.value)}
-                                  InputLabelProps={{ shrink: true }}
-                                  sx={{ mt: 1 }}
-                                />
-                              ) : (
-                                <Typography variant="body2" color="text.secondary">
-                                  {new Date(payment.payment_date).toLocaleString()}
-                                </Typography>
-                              )}
-                              {payment.payment_reference && (
-                                <Typography variant="caption" color="text.secondary">
-                                  Ref: {payment.payment_reference}
-                                </Typography>
-                              )}
-                              {payment.notes && (
-                                <Typography variant="caption" display="block" color="text.secondary">
-                                  {payment.notes}
-                                </Typography>
-                              )}
-                            </>
-                          }
-                        />
-                      </ListItem>
-                      {index < paymentHistory.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
-                </List>
-              )}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPaymentDialogOpen(false)}>Close</Button>
-          {paymentTab === 0 && (
-            <Button
-              onClick={handleRecordPayment}
-              variant="contained"
-              disabled={
-                processingPayment ||
-                paymentFormData.payment_amount <= 0 ||
-                (paymentLedger ? paymentFormData.payment_amount > getLedgerBalanceDue(paymentLedger) : true)
-              }
-            >
-              {processingPayment ? 'Processing...' : 'Record Payment'}
-            </Button>
-          )}
-        </DialogActions>
-      </Dialog>
+      <PaymentDialog
+        open={paymentDialogOpen}
+        onClose={() => setPaymentDialogOpen(false)}
+        paymentTab={paymentTab}
+        setPaymentTab={setPaymentTab}
+        paymentFormData={paymentFormData}
+        setPaymentFormData={setPaymentFormData}
+        paymentLedger={paymentLedger}
+        paymentHistory={paymentHistory}
+        editingPaymentId={editingPaymentId}
+        setEditingPaymentId={setEditingPaymentId}
+        editingPaymentDate={editingPaymentDate}
+        setEditingPaymentDate={setEditingPaymentDate}
+        savingPaymentDate={savingPaymentDate}
+        processingPayment={processingPayment}
+        onRecordPayment={handleRecordPayment}
+        onSavePaymentDate={handleSavePaymentDate}
+        onDeletePayment={handleDeletePayment}
+        currencySymbol={currencySymbol}
+        formatCurrency={formatCurrency}
+        getLedgerBalanceDue={getLedgerBalanceDue}
+      />
 
       {/* Company Check-In Dialog */}
       <Dialog
