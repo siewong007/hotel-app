@@ -108,6 +108,15 @@ import RoomNotesDialog from './components/RoomNotesDialog';
 import RoomDetailsDialog from './components/RoomDetailsDialog';
 import RoomHistoryDialog from './components/RoomHistoryDialog';
 import BookingNotesDialog from './components/BookingNotesDialog';
+import CollectDepositDialog from './components/CollectDepositDialog';
+import MarkComplimentaryDialog from './components/MarkComplimentaryDialog';
+import UpcomingBookingsDialog from './components/UpcomingBookingsDialog';
+import ChangeRoomDialog from './components/ChangeRoomDialog';
+import ComplimentaryCheckInDialog from './components/ComplimentaryCheckInDialog';
+import ReservedCheckInDialog from './components/ReservedCheckInDialog';
+import WalkInCheckInDialog from './components/WalkInCheckInDialog';
+import OnlineCheckInDialog from './components/OnlineCheckInDialog';
+import GuestDetailsDialog from './components/GuestDetailsDialog';
 
 const RoomManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -2790,713 +2799,111 @@ const RoomManagementPage: React.FC = () => {
       </Menu>
 
       {/* Walk-in Guest Dialog */}
-      <Dialog
+      <WalkInCheckInDialog
         open={walkInDialogOpen}
         onClose={handleCloseWalkInDialog}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <LoginIcon sx={{ fontSize: 28 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Walk-in Check-in - Room {selectedRoom?.room_number || 'N/A'}
-            </Typography>
-          </Box>
-        </DialogTitle>
-
-        <DialogContent sx={{ pt: 3 }}>
-          <Grid container spacing={3}>
-            {/* Toggle between existing guest and new guest */}
-            <Grid size={12}>
-              <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                <Button
-                  variant={!isCreatingNewGuest ? 'contained' : 'outlined'}
-                  onClick={() => setIsCreatingNewGuest(false)}
-                  size="small"
-                >
-                  Select Existing Guest
-                </Button>
-                <Button
-                  variant={isCreatingNewGuest ? 'contained' : 'outlined'}
-                  onClick={() => setIsCreatingNewGuest(true)}
-                  size="small"
-                >
-                  Register New Guest
-                </Button>
-              </Stack>
-            </Grid>
-
-            {/* Guest Selection (Existing Guest) */}
-            {!isCreatingNewGuest && (
-              <Grid size={12}>
-                <Autocomplete
-                  value={walkInGuest}
-                  onChange={(_, newValue) => {
-                    setWalkInGuest(newValue);
-                    // Reset room card deposit to 0 for members (waived)
-                    if (newValue?.guest_type === 'member') {
-                      setWalkInRoomCardDeposit(0);
-                    }
-                  }}
-                  options={guests}
-                  getOptionLabel={(option) =>
-                    option.email ? `${option.full_name} - ${option.email}` : option.full_name
-                  }
-                  renderOption={(props, option) => {
-                    const { key, ...otherProps } = props;
-                    return (
-                      <Box component="li" key={key} {...otherProps} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="body2">{option.full_name}</Typography>
-                          {option.email && <Typography variant="caption" color="text.secondary">{option.email}</Typography>}
-                        </Box>
-                        {option.guest_type === 'member' && (
-                          <Chip
-                            label="Member"
-                            size="small"
-                            color="success"
-                            sx={{ fontSize: '0.65rem', height: 20 }}
-                          />
-                        )}
-                      </Box>
-                    );
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Select Guest *"
-                      placeholder="Search by name or email"
-                    />
-                  )}
-                />
-                {/* Member indicator */}
-                {walkInGuest?.guest_type === 'member' && (
-                  <Alert severity="success" sx={{ mt: 1 }} icon={<GiftIcon />}>
-                    <Typography variant="body2">
-                      <strong>{walkInGuest.full_name}</strong> is a Member — Room card deposit is <strong>waived</strong>
-                    </Typography>
-                  </Alert>
-                )}
-              </Grid>
-            )}
-
-            {/* New Guest Registration Form */}
-            {isCreatingNewGuest && (
-              <>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="First Name"
-                    value={newGuestForm.first_name}
-                    onChange={(e) => setNewGuestForm({ ...newGuestForm, first_name: e.target.value })}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="Last Name"
-                    value={newGuestForm.last_name}
-                    onChange={(e) => setNewGuestForm({ ...newGuestForm, last_name: e.target.value })}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Email"
-                    type="email"
-                    value={newGuestForm.email}
-                    onChange={(e) => setNewGuestForm({ ...newGuestForm, email: e.target.value })}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Phone"
-                    value={newGuestForm.phone}
-                    onChange={(e) => setNewGuestForm({ ...newGuestForm, phone: e.target.value })}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="IC/Passport Number"
-                    value={newGuestForm.ic_number}
-                    onChange={(e) => setNewGuestForm({ ...newGuestForm, ic_number: e.target.value })}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Nationality"
-                    value={newGuestForm.nationality}
-                    onChange={(e) => setNewGuestForm({ ...newGuestForm, nationality: e.target.value })}
-                  />
-                </Grid>
-              </>
-            )}
-
-            {/* Check-in Date */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                required
-                type="date"
-                label="Check-in Date"
-                value={walkInCheckInDate}
-                onChange={(e) => {
-                  setWalkInCheckInDate(e.target.value);
-                  // Calculate nights if both dates are set
-                  if (walkInCheckOutDate) {
-                    setWalkInNumberOfNights(calculateNightCount(e.target.value, walkInCheckOutDate));
-                  }
-                }}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-
-            {/* Check-out Date */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                required
-                type="date"
-                label="Check-out Date"
-                value={walkInCheckOutDate}
-                onChange={(e) => {
-                  setWalkInCheckOutDate(e.target.value);
-                  // Calculate nights
-                  if (walkInCheckInDate) {
-                    setWalkInNumberOfNights(calculateNightCount(walkInCheckInDate, e.target.value));
-                  }
-                }}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-
-            {/* Summary */}
-            <Grid size={12}>
-              <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Booking Summary
-                </Typography>
-                <Grid container spacing={1}>
-                  <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Number of Nights:
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      {walkInNumberOfNights}
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Room Rate:
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      {currencySymbol}{selectedRoom?.price_per_night || 0} / night
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Room Charges:
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      {currencySymbol}{(() => {
-                        const price = selectedRoom?.price_per_night || 0;
-                        const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-                        return (numPrice * walkInNumberOfNights).toFixed(2);
-                      })()}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-            </Grid>
-
-          </Grid>
-        </DialogContent>
-
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={handleCloseWalkInDialog} disabled={creatingBooking}>
-            Cancel
-          </Button>
-          <Box sx={{ flex: 1 }} />
-          <Button
-            variant="contained"
-            onClick={handleWalkInGuestSelected}
-            disabled={
-              creatingBooking ||
-              (!isCreatingNewGuest && !walkInGuest) ||
-              (isCreatingNewGuest && (!newGuestForm.first_name || !newGuestForm.last_name))
-            }
-            startIcon={creatingBooking ? <CircularProgress size={20} /> : null}
-            size="large"
-          >
-            {creatingBooking ? 'Processing...' : 'Check In & Collect Deposit'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        roomNumber={selectedRoom?.room_number}
+        roomPricePerNight={selectedRoom?.price_per_night}
+        isCreatingNewGuest={isCreatingNewGuest}
+        onModeChange={setIsCreatingNewGuest}
+        guests={guests}
+        selectedGuest={walkInGuest}
+        onSelectGuest={(guest) => {
+          setWalkInGuest(guest);
+          // Reset room card deposit to 0 for members (waived)
+          if (guest?.guest_type === 'member') {
+            setWalkInRoomCardDeposit(0);
+          }
+        }}
+        newGuestForm={newGuestForm}
+        onNewGuestFieldChange={(field, value) => setNewGuestForm(prev => ({ ...prev, [field]: value }))}
+        checkInDate={walkInCheckInDate}
+        onCheckInDateChange={(value) => {
+          setWalkInCheckInDate(value);
+          if (walkInCheckOutDate) {
+            setWalkInNumberOfNights(calculateNightCount(value, walkInCheckOutDate));
+          }
+        }}
+        checkOutDate={walkInCheckOutDate}
+        onCheckOutDateChange={(value) => {
+          setWalkInCheckOutDate(value);
+          if (walkInCheckInDate) {
+            setWalkInNumberOfNights(calculateNightCount(walkInCheckInDate, value));
+          }
+        }}
+        numberOfNights={walkInNumberOfNights}
+        currencySymbol={currencySymbol}
+        creating={creatingBooking}
+        onSubmit={handleWalkInGuestSelected}
+      />
 
       {/* Online Check-in Dialog */}
-      <Dialog
+      <OnlineCheckInDialog
         open={onlineCheckInDialogOpen}
         onClose={handleCloseOnlineCheckInDialog}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <BookingIcon sx={{ fontSize: 28 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Online Booking - Room {selectedRoom?.room_number || 'N/A'}
-            </Typography>
-          </Box>
-        </DialogTitle>
-
-        <DialogContent sx={{ pt: 3 }}>
-          <Grid container spacing={3}>
-            {/* Toggle between existing guest and new guest */}
-            <Grid size={12}>
-              <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-                <Button
-                  variant={!isCreatingNewOnlineGuest ? 'contained' : 'outlined'}
-                  onClick={() => setIsCreatingNewOnlineGuest(false)}
-                  size="small"
-                >
-                  Select Existing Guest
-                </Button>
-                <Button
-                  variant={isCreatingNewOnlineGuest ? 'contained' : 'outlined'}
-                  onClick={() => setIsCreatingNewOnlineGuest(true)}
-                  size="small"
-                >
-                  Register New Guest
-                </Button>
-              </Stack>
-            </Grid>
-
-            {/* Guest Selection (Existing Guest) */}
-            {!isCreatingNewOnlineGuest && (
-              <Grid size={12}>
-                <Autocomplete
-                  value={onlineCheckInGuest}
-                  onChange={(_, newValue) => setOnlineCheckInGuest(newValue)}
-                  options={guests}
-                  getOptionLabel={(option) =>
-                    option.email ? `${option.full_name} - ${option.email}` : option.full_name
-                  }
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Select Guest *"
-                      placeholder="Search by name or email"
-                    />
-                  )}
-                />
-              </Grid>
-            )}
-
-            {/* New Guest Registration Form */}
-            {isCreatingNewOnlineGuest && (
-              <>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="First Name"
-                    value={newOnlineGuestForm.first_name}
-                    onChange={(e) => setNewOnlineGuestForm({ ...newOnlineGuestForm, first_name: e.target.value })}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    required
-                    label="Last Name"
-                    value={newOnlineGuestForm.last_name}
-                    onChange={(e) => setNewOnlineGuestForm({ ...newOnlineGuestForm, last_name: e.target.value })}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Email"
-                    type="email"
-                    value={newOnlineGuestForm.email}
-                    onChange={(e) => setNewOnlineGuestForm({ ...newOnlineGuestForm, email: e.target.value })}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Phone"
-                    value={newOnlineGuestForm.phone}
-                    onChange={(e) => setNewOnlineGuestForm({ ...newOnlineGuestForm, phone: e.target.value })}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="IC/Passport Number"
-                    value={newOnlineGuestForm.ic_number}
-                    onChange={(e) => setNewOnlineGuestForm({ ...newOnlineGuestForm, ic_number: e.target.value })}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Nationality"
-                    value={newOnlineGuestForm.nationality}
-                    onChange={(e) => setNewOnlineGuestForm({ ...newOnlineGuestForm, nationality: e.target.value })}
-                  />
-                </Grid>
-              </>
-            )}
-
-            {/* Booking Channel */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <FormControl fullWidth required>
-                <InputLabel>Booking Channel</InputLabel>
-                <Select
-                  value={onlineCheckInBookingChannel}
-                  onChange={(e) => setOnlineCheckInBookingChannel(e.target.value)}
-                  label="Booking Channel"
-                >
-                  {BOOKING_CHANNELS.map((channel) => (
-                    <MenuItem key={channel.name} value={channel.name}>
-                      {channel.abbreviation ? `${channel.name} (${channel.abbreviation})` : channel.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {/* Booking Reference */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="Booking Reference"
-                value={onlineReference}
-                onChange={(e) => setOnlineReference(e.target.value)}
-                placeholder="e.g., OL-123456"
-              />
-            </Grid>
-
-            {/* Check-in Date */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                required
-                type="date"
-                label="Check-in Date"
-                value={onlineCheckInDate}
-                onChange={(e) => {
-                  setOnlineCheckInDate(e.target.value);
-                  // Calculate nights if both dates are set
-                  if (onlineCheckOutDate) {
-                    setOnlineNumberOfNights(calculateNightCount(e.target.value, onlineCheckOutDate));
-                  }
-                }}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-
-            {/* Check-out Date */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                required
-                type="date"
-                label="Check-out Date"
-                value={onlineCheckOutDate}
-                onChange={(e) => {
-                  setOnlineCheckOutDate(e.target.value);
-                  // Calculate nights
-                  if (onlineCheckInDate) {
-                    setOnlineNumberOfNights(calculateNightCount(onlineCheckInDate, e.target.value));
-                  }
-                }}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-
-            {/* Summary */}
-            <Grid size={12}>
-              <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Booking Summary
-                </Typography>
-                <Grid container spacing={1}>
-                  <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Number of Nights:
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      {onlineNumberOfNights}
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Room Rate:
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      {currencySymbol}{selectedRoom?.price_per_night || 0} / night
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Total Amount:
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2" fontWeight="bold">
-                      {currencySymbol}{(() => {
-                        const price = selectedRoom?.price_per_night || 0;
-                        const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-                        return (numPrice * onlineNumberOfNights).toFixed(2);
-                      })()}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-            </Grid>
-          </Grid>
-        </DialogContent>
-
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={handleCloseOnlineCheckInDialog} disabled={creatingBooking}>
-            Cancel
-          </Button>
-          <Box sx={{ flex: 1 }} />
-          <Button
-            variant="contained"
-            onClick={handleOnlineGuestSelected}
-            disabled={
-              creatingBooking ||
-              !onlineCheckInBookingChannel ||
-              (!isCreatingNewOnlineGuest && !onlineCheckInGuest) ||
-              (isCreatingNewOnlineGuest && (!newOnlineGuestForm.first_name || !newOnlineGuestForm.last_name))
-            }
-            startIcon={creatingBooking ? <CircularProgress size={20} /> : null}
-            size="large"
-          >
-            {creatingBooking ? 'Processing...' : 'Create Reservation'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        roomNumber={selectedRoom?.room_number}
+        roomPricePerNight={selectedRoom?.price_per_night}
+        isCreatingNewGuest={isCreatingNewOnlineGuest}
+        onModeChange={setIsCreatingNewOnlineGuest}
+        guests={guests}
+        selectedGuest={onlineCheckInGuest}
+        onSelectGuest={setOnlineCheckInGuest}
+        newGuestForm={newOnlineGuestForm}
+        onNewGuestFieldChange={(field, value) => setNewOnlineGuestForm(prev => ({ ...prev, [field]: value }))}
+        bookingChannels={BOOKING_CHANNELS}
+        bookingChannel={onlineCheckInBookingChannel}
+        onBookingChannelChange={setOnlineCheckInBookingChannel}
+        reference={onlineReference}
+        onReferenceChange={setOnlineReference}
+        checkInDate={onlineCheckInDate}
+        onCheckInDateChange={(value) => {
+          setOnlineCheckInDate(value);
+          if (onlineCheckOutDate) {
+            setOnlineNumberOfNights(calculateNightCount(value, onlineCheckOutDate));
+          }
+        }}
+        checkOutDate={onlineCheckOutDate}
+        onCheckOutDateChange={(value) => {
+          setOnlineCheckOutDate(value);
+          if (onlineCheckInDate) {
+            setOnlineNumberOfNights(calculateNightCount(onlineCheckInDate, value));
+          }
+        }}
+        numberOfNights={onlineNumberOfNights}
+        currencySymbol={currencySymbol}
+        creating={creatingBooking}
+        onSubmit={handleOnlineGuestSelected}
+      />
 
       {/* Complimentary Check-in Dialog */}
-      <Dialog
+      <ComplimentaryCheckInDialog
         open={complimentaryCheckInDialogOpen}
         onClose={handleCloseComplimentaryCheckInDialog}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: 'secondary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <GiftIcon sx={{ fontSize: 28 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Complimentary Booking - Room {selectedRoom?.room_number || 'N/A'}
-            </Typography>
-          </Box>
-        </DialogTitle>
-
-        <DialogContent sx={{ pt: 3 }}>
-          <Grid container spacing={3}>
-            {/* Info Banner */}
-            <Grid size={12}>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <Typography variant="body2">
-                  This booking uses the guest's <strong>Free Room Credits</strong>. Only guests with available credits are shown below.
-                </Typography>
-              </Alert>
-            </Grid>
-
-            {/* Guest Selection (Only guests with credits) */}
-            <Grid size={12}>
-              {loadingGuestsWithCredits ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-                  <CircularProgress size={24} />
-                  <Typography sx={{ ml: 1 }}>Loading guests with credits...</Typography>
-                </Box>
-              ) : (
-                <Autocomplete
-                  value={complimentaryCheckInGuest}
-                  onChange={(_, newValue) => setComplimentaryCheckInGuest(newValue)}
-                  options={guestsWithCredits}
-                  getOptionLabel={(option) => {
-                    return option.email
-                      ? `${option.full_name} - ${option.email} (${option.total_complimentary_credits} credits)`
-                      : `${option.full_name} (${option.total_complimentary_credits} credits)`;
-                  }}
-                  renderOption={(props, option) => {
-                    const { key, ...otherProps } = props;
-                    return (
-                      <Box component="li" key={key} {...otherProps}>
-                        <Box sx={{ width: '100%' }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Box>
-                              <Typography variant="body1">{option.full_name}</Typography>
-                              {option.email && <Typography variant="caption" color="text.secondary">{option.email}</Typography>}
-                            </Box>
-                            <Chip
-                              icon={<GiftIcon sx={{ fontSize: 14 }} />}
-                              label={`${option.total_complimentary_credits} night${option.total_complimentary_credits !== 1 ? 's' : ''}`}
-                              size="small"
-                              color="secondary"
-                            />
-                          </Box>
-                          {/* Show room-type-specific credits breakdown */}
-                          {option.credits_by_room_type.length > 0 && (
-                            <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                              {option.credits_by_room_type.map((credit) => (
-                                <Chip
-                                  key={credit.room_type_id}
-                                  label={`${credit.room_type_name}: ${credit.nights_available}`}
-                                  size="small"
-                                  variant="outlined"
-                                  sx={{ fontSize: '0.65rem', height: 20 }}
-                                />
-                              ))}
-                            </Box>
-                          )}
-                        </Box>
-                      </Box>
-                    );
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Select Guest with Free Room Credits *"
-                      placeholder="Search by name or email"
-                    />
-                  )}
-                  noOptionsText="No guests with free room credits found"
-                />
-              )}
-            </Grid>
-
-            {/* Check-in Date */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                required
-                type="date"
-                label="Check-in Date"
-                value={complimentaryCheckInDate}
-                onChange={(e) => {
-                  setComplimentaryCheckInDate(e.target.value);
-                  if (complimentaryCheckOutDate) {
-                    setComplimentaryNumberOfNights(calculateNightCount(e.target.value, complimentaryCheckOutDate));
-                  }
-                }}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-
-            {/* Check-out Date */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                required
-                type="date"
-                label="Check-out Date"
-                value={complimentaryCheckOutDate}
-                onChange={(e) => {
-                  setComplimentaryCheckOutDate(e.target.value);
-                  if (complimentaryCheckInDate) {
-                    setComplimentaryNumberOfNights(calculateNightCount(complimentaryCheckInDate, e.target.value));
-                  }
-                }}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-
-            {/* Summary */}
-            <Grid size={12}>
-              <Paper sx={{ p: 2, bgcolor: 'secondary.light' }}>
-                <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <GiftIcon /> Booking Summary
-                </Typography>
-                <Grid container spacing={1}>
-                  <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">Number of Nights:</Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">{complimentaryNumberOfNights}</Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">Room Rate:</Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2" sx={{ textDecoration: 'line-through', color: 'text.disabled' }}>
-                      {currencySymbol}{selectedRoom?.price_per_night || 0} / night
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">Total Amount:</Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2" fontWeight="bold" color="success.main">
-                      FREE (Complimentary)
-                    </Typography>
-                  </Grid>
-                  {complimentaryCheckInGuest && (
-                    <>
-                      <Grid size={6}>
-                        <Typography variant="body2" color="text.secondary">Credits Available:</Typography>
-                      </Grid>
-                      <Grid size={6}>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                          {complimentaryCheckInGuest.credits_by_room_type.map((credit) => (
-                            <Chip
-                              key={credit.room_type_id}
-                              size="small"
-                              label={`${credit.room_type_name}: ${credit.nights_available}`}
-                              color="secondary"
-                              variant="outlined"
-                              sx={{ fontSize: '0.7rem' }}
-                            />
-                          ))}
-                        </Box>
-                      </Grid>
-                    </>
-                  )}
-                </Grid>
-              </Paper>
-            </Grid>
-          </Grid>
-        </DialogContent>
-
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={handleCloseComplimentaryCheckInDialog} disabled={creatingBooking}>
-            Cancel
-          </Button>
-          <Box sx={{ flex: 1 }} />
-          <Button
-            variant="contained"
-            color="secondary"
-            onClick={handleComplimentaryBookingSubmit}
-            disabled={creatingBooking || !complimentaryCheckInGuest}
-            startIcon={creatingBooking ? <CircularProgress size={20} /> : <GiftIcon />}
-            size="large"
-          >
-            {creatingBooking ? 'Processing...' : 'Create Reservation'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        roomNumber={selectedRoom?.room_number}
+        roomPricePerNight={selectedRoom?.price_per_night}
+        loadingGuests={loadingGuestsWithCredits}
+        guestsWithCredits={guestsWithCredits}
+        selectedGuest={complimentaryCheckInGuest}
+        onSelectGuest={setComplimentaryCheckInGuest}
+        checkInDate={complimentaryCheckInDate}
+        onCheckInDateChange={(value) => {
+          setComplimentaryCheckInDate(value);
+          if (complimentaryCheckOutDate) {
+            setComplimentaryNumberOfNights(calculateNightCount(value, complimentaryCheckOutDate));
+          }
+        }}
+        checkOutDate={complimentaryCheckOutDate}
+        onCheckOutDateChange={(value) => {
+          setComplimentaryCheckOutDate(value);
+          if (complimentaryCheckInDate) {
+            setComplimentaryNumberOfNights(calculateNightCount(complimentaryCheckInDate, value));
+          }
+        }}
+        numberOfNights={complimentaryNumberOfNights}
+        currencySymbol={currencySymbol}
+        creating={creatingBooking}
+        onSubmit={handleComplimentaryBookingSubmit}
+      />
 
       {/* Update Checkout Date Dialog */}
       <UpdateCheckoutDateDialog
@@ -3510,199 +2917,20 @@ const RoomManagementPage: React.FC = () => {
       />
 
       {/* Change Room Dialog */}
-      <Dialog
+      <ChangeRoomDialog
         open={changeRoomDialogOpen}
         onClose={() => !changingRoom && setChangeRoomDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <HotelIcon sx={{ fontSize: 28 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Change Room - Current: {selectedRoom?.room_number || 'N/A'}
-            </Typography>
-          </Box>
-        </DialogTitle>
-
-        <DialogContent sx={{ pt: 3 }}>
-          <Grid container spacing={3}>
-            {/* Current Room Info */}
-            <Grid size={12}>
-              <Paper sx={{ p: 2, bgcolor: 'grey.100' }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  Current Room
-                </Typography>
-                <Grid container spacing={1}>
-                  <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Room Number:
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2" fontWeight="bold">
-                      {selectedRoom?.room_number}
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Room Type:
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      {selectedRoom?.room_type}
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Current Rate:
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="body2">
-                      {currencySymbol}{selectedRoom?.price_per_night} / night
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-            </Grid>
-
-            {/* New Room Selection */}
-            <Grid size={12}>
-              <FormControl fullWidth required>
-                <InputLabel>Select New Room</InputLabel>
-                <Select
-                  value={newSelectedRoom?.id || ''}
-                  onChange={(e) => {
-                    const room = rooms.find(r => r.id === e.target.value);
-                    setNewSelectedRoom(room || null);
-                  }}
-                  label="Select New Room"
-                >
-                  {rooms
-                    .filter(r => r.status === 'available' && r.id !== selectedRoom?.id)
-                    .sort((a, b) => {
-                      const numA = parseInt(a.room_number, 10);
-                      const numB = parseInt(b.room_number, 10);
-                      if (!isNaN(numA) && !isNaN(numB)) {
-                        return numA - numB;
-                      }
-                      return a.room_number.localeCompare(b.room_number);
-                    })
-                    .map((room) => (
-                      <MenuItem key={room.id} value={room.id}>
-                        Room {room.room_number} - {room.room_type} ({currencySymbol}{room.price_per_night}/night)
-                      </MenuItem>
-                    ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {/* Custom Rate */}
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Custom Rate (per night)"
-                type="number"
-                value={changeRoomCustomRate}
-                onChange={(e) => setChangeRoomCustomRate(e.target.value)}
-                placeholder={newSelectedRoom ? String(newSelectedRoom.price_per_night) : ''}
-                helperText={newSelectedRoom ? `Default room rate: ${currencySymbol}${newSelectedRoom.price_per_night}/night. Leave empty to use default.` : 'Select a room first, or enter a custom rate.'}
-                InputProps={{
-                  startAdornment: <Typography sx={{ mr: 0.5, color: 'text.secondary' }}>{currencySymbol}</Typography>,
-                }}
-                inputProps={{ min: 0, step: '0.01' }}
-              />
-            </Grid>
-
-            {/* Price Difference */}
-            {newSelectedRoom && selectedRoom && (
-              <>
-                <Grid size={12}>
-                  <Paper sx={{ p: 2, bgcolor: 'info.lighter' }}>
-                    <Typography variant="subtitle2" gutterBottom>
-                      Price Summary
-                    </Typography>
-                    <Grid container spacing={1}>
-                      <Grid size={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          New Rate:
-                        </Typography>
-                      </Grid>
-                      <Grid size={6}>
-                        <Typography variant="body2" fontWeight="bold">
-                          {currencySymbol}{changeRoomCustomRate && !isNaN(parseFloat(changeRoomCustomRate)) ? parseFloat(changeRoomCustomRate).toFixed(2) : newSelectedRoom.price_per_night} / night
-                          {changeRoomCustomRate && !isNaN(parseFloat(changeRoomCustomRate)) && (
-                            <Typography component="span" variant="caption" color="text.secondary"> (custom)</Typography>
-                          )}
-                        </Typography>
-                      </Grid>
-                      <Grid size={6}>
-                        <Typography variant="body2" color="text.secondary">
-                          Difference per Night:
-                        </Typography>
-                      </Grid>
-                      <Grid size={6}>
-                        <Typography
-                          variant="body2"
-                          fontWeight="bold"
-                          color={(() => {
-                            const oldPrice = typeof selectedRoom.price_per_night === 'string'
-                              ? parseFloat(selectedRoom.price_per_night)
-                              : selectedRoom.price_per_night;
-                            const effectiveRate = changeRoomCustomRate && !isNaN(parseFloat(changeRoomCustomRate))
-                              ? parseFloat(changeRoomCustomRate)
-                              : typeof newSelectedRoom.price_per_night === 'string'
-                                ? parseFloat(newSelectedRoom.price_per_night)
-                                : newSelectedRoom.price_per_night;
-                            const diff = effectiveRate - oldPrice;
-                            return diff > 0 ? 'error.main' : diff < 0 ? 'success.main' : 'text.primary';
-                          })()}
-                        >
-                          {(() => {
-                            const oldPrice = typeof selectedRoom.price_per_night === 'string'
-                              ? parseFloat(selectedRoom.price_per_night)
-                              : selectedRoom.price_per_night;
-                            const effectiveRate = changeRoomCustomRate && !isNaN(parseFloat(changeRoomCustomRate))
-                              ? parseFloat(changeRoomCustomRate)
-                              : typeof newSelectedRoom.price_per_night === 'string'
-                                ? parseFloat(newSelectedRoom.price_per_night)
-                                : newSelectedRoom.price_per_night;
-                            const diff = effectiveRate - oldPrice;
-                            return diff > 0
-                              ? `+${currencySymbol}${diff.toFixed(2)} (Additional Charge)`
-                              : diff < 0
-                              ? `-${currencySymbol}${Math.abs(diff).toFixed(2)} (Credit)`
-                              : `${currencySymbol}0.00 (No Change)`;
-                          })()}
-                        </Typography>
-                      </Grid>
-                    </Grid>
-                  </Paper>
-                </Grid>
-              </>
-            )}
-          </Grid>
-        </DialogContent>
-
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={() => setChangeRoomDialogOpen(false)} disabled={changingRoom}>
-            Cancel
-          </Button>
-          <Box sx={{ flex: 1 }} />
-          <Button
-            variant="contained"
-            onClick={handleConfirmRoomChange}
-            disabled={!newSelectedRoom || changingRoom}
-            startIcon={changingRoom ? <CircularProgress size={20} /> : null}
-            size="large"
-            color="warning"
-          >
-            {changingRoom ? 'Changing Room...' : 'Confirm Room Change'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onCancel={() => setChangeRoomDialogOpen(false)}
+        currentRoom={selectedRoom}
+        rooms={rooms}
+        selectedNewRoom={newSelectedRoom}
+        onSelectNewRoom={setNewSelectedRoom}
+        customRate={changeRoomCustomRate}
+        onCustomRateChange={setChangeRoomCustomRate}
+        currencySymbol={currencySymbol}
+        changing={changingRoom}
+        onConfirm={handleConfirmRoomChange}
+      />
 
       {/* Unified Booking Modal */}
       <UnifiedBookingModal
@@ -3784,176 +3012,35 @@ const RoomManagementPage: React.FC = () => {
       />
 
       {/* Upcoming Bookings Dialog */}
-      <Dialog
+      <UpcomingBookingsDialog
         open={upcomingBookingsDialogOpen}
         onClose={() => setUpcomingBookingsDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: 'info.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <CalendarIcon sx={{ fontSize: 28 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Upcoming Bookings - Room {selectedRoom?.room_number}
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          {loadingUpcomingBookings ? (
-            <Box display="flex" justifyContent="center" alignItems="center" py={4}>
-              <CircularProgress />
-            </Box>
-          ) : upcomingBookingsForRoom.length === 0 ? (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              No upcoming bookings for this room.
-            </Alert>
-          ) : (
-            <Box sx={{ mt: 1 }}>
-              {upcomingBookingsForRoom.map((booking, index) => (
-                <Paper
-                  key={booking.id}
-                  elevation={1}
-                  sx={{
-                    p: 2,
-                    mb: 2,
-                    borderLeft: 4,
-                    borderColor: booking.status === 'checked_in' ? 'warning.main' : 'info.main',
-                  }}
-                >
-                  <Grid container spacing={2} alignItems="center">
-                    <Grid size={{ xs: 12, sm: 6 }}>
-                      <Typography variant="subtitle1" fontWeight={600}>
-                        {booking.guest_name || 'Unknown Guest'}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {booking.guest_email || ''} {booking.guest_phone ? `• ${booking.guest_phone}` : ''}
-                      </Typography>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 3 }}>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        Check-in
-                      </Typography>
-                      <Typography variant="body2" fontWeight={500}>
-                        {new Date(booking.check_in_date).toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </Typography>
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 3 }}>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        Check-out
-                      </Typography>
-                      <Typography variant="body2" fontWeight={500}>
-                        {new Date(booking.check_out_date).toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </Typography>
-                    </Grid>
-                    <Grid size={12}>
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
-                        {(() => {
-                          const checkInDate = new Date(booking.check_in_date);
-                          checkInDate.setHours(0, 0, 0, 0);
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          const isToday = checkInDate.getTime() === today.getTime();
-                          const canCheckIn = isToday && (booking.status === 'confirmed' || booking.status === 'pending');
-
-                          if (booking.status === 'checked_in' || booking.status === 'auto_checked_in') {
-                            return (
-                              <Chip
-                                label="Currently Occupied"
-                                size="small"
-                                color="warning"
-                              />
-                            );
-                          } else if (canCheckIn) {
-                            return (
-                              <Button
-                                size="small"
-                                variant="contained"
-                                color="success"
-                                startIcon={<LoginIcon />}
-                                onClick={() => {
-                                  setUpcomingBookingsDialogOpen(false);
-                                  // Directly open the check-in dialog with this booking
-                                  setReservedCheckInBooking(booking);
-                                  setDepositPaymentMethod('');
-                                  setCollectingDeposit(false);
-                                  const amt = Number(booking.total_amount || 0);
-                                  const sDeposit = getHotelSettings().deposit_amount;
-                                  setRcPaymentChoice(booking.payment_status === 'paid' ? 'pay_now' : 'pay_later');
-                                  setRcPaymentMethod(booking.payment_method || 'Cash');
-                                  setRcAmountPaid(amt);
-                                  setRcDepositChoice('receive');
-                                  setRcDepositAmount(sDeposit);
-                                  setRcDepositMethod('Cash');
-                                  setRcWaiveReason('');
-                                  setReservedCheckInDialogOpen(true);
-                                }}
-                                sx={{ fontWeight: 600 }}
-                              >
-                                Check-In Now
-                              </Button>
-                            );
-                          } else {
-                            return (
-                              <Chip
-                                label={booking.status === 'confirmed' ? 'Confirmed' : 'Pending'}
-                                size="small"
-                                color={booking.status === 'confirmed' ? 'info' : 'default'}
-                              />
-                            );
-                          }
-                        })()}
-                        {booking.is_complimentary && (
-                          <Chip
-                            icon={<GiftIcon />}
-                            label="Free Gift"
-                            size="small"
-                            color="secondary"
-                          />
-                        )}
-                        <Chip
-                          label={formatCurrency(Number(booking.total_amount || 0))}
-                          size="small"
-                          variant="outlined"
-                        />
-                      </Stack>
-                    </Grid>
-                    {booking.special_requests && (
-                      <Grid size={12}>
-                        <Typography variant="caption" color="text.secondary">
-                          <strong>Notes:</strong> {booking.special_requests}
-                        </Typography>
-                      </Grid>
-                    )}
-                  </Grid>
-                </Paper>
-              ))}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button
-            onClick={() => navigate(`/bookings?room=${selectedRoom?.room_number}`)}
-            variant="outlined"
-            color="primary"
-          >
-            View All in Bookings Page
-          </Button>
-          <Button onClick={() => setUpcomingBookingsDialogOpen(false)} variant="contained">
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
+        roomNumber={selectedRoom?.room_number}
+        loading={loadingUpcomingBookings}
+        bookings={upcomingBookingsForRoom}
+        formatCurrency={formatCurrency}
+        onViewAllInBookings={() => navigate(`/bookings?room=${selectedRoom?.room_number}`)}
+        onCheckInBooking={(booking) => {
+          setUpcomingBookingsDialogOpen(false);
+          // Directly open the check-in dialog with this booking
+          setReservedCheckInBooking(booking);
+          setDepositPaymentMethod('');
+          setCollectingDeposit(false);
+          const amt = Number(booking.total_amount || 0);
+          const sDeposit = getHotelSettings().deposit_amount;
+          setRcPaymentChoice(booking.payment_status === 'paid' ? 'pay_now' : 'pay_later');
+          setRcPaymentMethod(booking.payment_method || 'Cash');
+          setRcAmountPaid(amt);
+          setRcDepositChoice('receive');
+          setRcDepositAmount(sDeposit);
+          setRcDepositMethod('Cash');
+          setRcWaiveReason('');
+          setReservedCheckInDialogOpen(true);
+        }}
+      />
 
       {/* Reserved Check-In Dialog - Streamlined check-in for reserved rooms */}
-      <Dialog
+      <ReservedCheckInDialog
         open={reservedCheckInDialogOpen}
         onClose={() => {
           if (!processingReservedCheckIn) {
@@ -3963,241 +3050,34 @@ const RoomManagementPage: React.FC = () => {
             setDepositPaymentMethod('');
           }
         }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: 'success.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <LoginIcon sx={{ fontSize: 28 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Check-In - Room {reservedCheckInBooking?.room_number}
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          {reservedCheckInBooking && (
-            <Box>
-              {/* Booking Summary */}
-              <Paper elevation={0} sx={{ p: 2, mb: 2, bgcolor: 'grey.50', borderRadius: 2 }}>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                  Booking #{reservedCheckInBooking.booking_number}
-                </Typography>
-
-                <Grid container spacing={2} sx={{ mt: 1 }}>
-                  <Grid size={12}>
-                    <Typography variant="h6" fontWeight={600}>
-                      {reservedCheckInBooking.guest_name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {reservedCheckInBooking.guest_email}
-                      {reservedCheckInBooking.guest_phone && ` • ${reservedCheckInBooking.guest_phone}`}
-                    </Typography>
-                  </Grid>
-
-                  <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">Check-in</Typography>
-                    <Typography variant="body2" fontWeight={500}>
-                      {new Date(reservedCheckInBooking.check_in_date).toLocaleDateString('en-US', {
-                        weekday: 'short', month: 'short', day: 'numeric'
-                      })}
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">Check-out</Typography>
-                    <Typography variant="body2" fontWeight={500}>
-                      {new Date(reservedCheckInBooking.check_out_date).toLocaleDateString('en-US', {
-                        weekday: 'short', month: 'short', day: 'numeric'
-                      })}
-                    </Typography>
-                  </Grid>
-
-                  <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">Room Type</Typography>
-                    <Typography variant="body2" fontWeight={500}>
-                      {reservedCheckInBooking.room_type}
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">Total Amount</Typography>
-                    <Typography variant="body2" fontWeight={500}>
-                      {formatCurrency(Number(reservedCheckInBooking.total_amount || 0))}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-
-              {/* Payment Section */}
-              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Payment</Typography>
-              <ToggleButtonGroup
-                value={rcPaymentChoice}
-                exclusive
-                onChange={(_, val) => { if (val) setRcPaymentChoice(val); }}
-                fullWidth
-                size="small"
-                sx={{ mb: 1.5 }}
-              >
-                <ToggleButton value="pay_now" color="success" sx={{ py: 1, fontWeight: 600 }}>
-                  <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} />
-                  Make Payment Now
-                </ToggleButton>
-                <ToggleButton value="pay_later" color="warning" sx={{ py: 1, fontWeight: 600 }}>
-                  <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} />
-                  Pay Later
-                </ToggleButton>
-              </ToggleButtonGroup>
-
-              {rcPaymentChoice === 'pay_now' && (
-                <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-                  <Grid size={6}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Payment Method</InputLabel>
-                      <Select
-                        value={rcPaymentMethod}
-                        onChange={(e) => setRcPaymentMethod(e.target.value)}
-                        label="Payment Method"
-                      >
-                        {PAYMENT_METHODS.map(method => (
-                          <MenuItem key={method} value={method}>{method}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid size={6}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Amount Paid"
-                      type="number"
-                      value={rcAmountPaid}
-                      onChange={(e) => setRcAmountPaid(parseFloat(e.target.value) || 0)}
-                      InputProps={{
-                        startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                        inputProps: { min: 0, step: 0.01 },
-                      }}
-                    />
-                  </Grid>
-                </Grid>
-              )}
-
-              {rcPaymentChoice === 'pay_later' && (
-                <Alert severity="info" sx={{ mb: 1.5, py: 0 }}>
-                  Payment will be collected later. Guest checks in with unpaid status.
-                </Alert>
-              )}
-
-              {/* Deposit Section */}
-              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Deposit</Typography>
-              <ToggleButtonGroup
-                value={rcDepositChoice}
-                exclusive
-                onChange={(_, val) => { if (val) setRcDepositChoice(val); }}
-                fullWidth
-                size="small"
-                sx={{ mb: 1.5 }}
-              >
-                <ToggleButton value="receive" color="success" sx={{ py: 1, fontWeight: 600 }}>
-                  <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} />
-                  Receive Deposit
-                </ToggleButton>
-                <ToggleButton value="waive" color="error" sx={{ py: 1, fontWeight: 600 }}>
-                  <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} />
-                  Waive Deposit
-                </ToggleButton>
-              </ToggleButtonGroup>
-
-              {rcDepositChoice === 'receive' && (
-                <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
-                  <Grid size={6}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Deposit Method</InputLabel>
-                      <Select
-                        value={rcDepositMethod}
-                        onChange={(e) => setRcDepositMethod(e.target.value)}
-                        label="Deposit Method"
-                      >
-                        {PAYMENT_METHODS.map(method => (
-                          <MenuItem key={method} value={method}>{method}</MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid size={6}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Deposit Amount"
-                      type="number"
-                      value={rcDepositAmount}
-                      onChange={(e) => setRcDepositAmount(parseFloat(e.target.value) || 0)}
-                      InputProps={{
-                        startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
-                        inputProps: { min: 0, step: 0.01 },
-                      }}
-                    />
-                  </Grid>
-                </Grid>
-              )}
-
-              {rcDepositChoice === 'waive' && (
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Reason for Waiving Deposit"
-                  value={rcWaiveReason}
-                  onChange={(e) => setRcWaiveReason(e.target.value)}
-                  multiline
-                  rows={2}
-                  placeholder="e.g., Returning guest, Company account, Manager approval..."
-                  helperText="Optional: provide a reason for waiving the deposit"
-                  sx={{ mb: 1.5 }}
-                />
-              )}
-
-              {/* Complimentary Badge if applicable */}
-              {reservedCheckInBooking.is_complimentary && (
-                <Alert severity="info" icon={<GiftIcon />} sx={{ mb: 2 }}>
-                  <strong>Complimentary Stay</strong>
-                  {reservedCheckInBooking.complimentary_reason && (
-                    <Typography variant="body2">
-                      Reason: {reservedCheckInBooking.complimentary_reason}
-                    </Typography>
-                  )}
-                </Alert>
-              )}
-
-              {/* Special Requests */}
-              {reservedCheckInBooking.special_requests && (
-                <Alert severity="warning" sx={{ mb: 2 }}>
-                  <strong>Special Requests:</strong> {reservedCheckInBooking.special_requests}
-                </Alert>
-              )}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button
-            onClick={() => {
-              setReservedCheckInDialogOpen(false);
-              setReservedCheckInBooking(null);
-            }}
-            disabled={processingReservedCheckIn}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            color="success"
-            onClick={() => handleReservedCheckIn(false)}
-            disabled={processingReservedCheckIn}
-            startIcon={processingReservedCheckIn ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}
-          >
-            {processingReservedCheckIn ? 'Processing...' : 'Check-In Now'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onCancel={() => {
+          setReservedCheckInDialogOpen(false);
+          setReservedCheckInBooking(null);
+        }}
+        booking={reservedCheckInBooking}
+        formatCurrency={formatCurrency}
+        currencySymbol={currencySymbol}
+        paymentMethods={PAYMENT_METHODS}
+        paymentChoice={rcPaymentChoice}
+        onPaymentChoiceChange={setRcPaymentChoice}
+        paymentMethod={rcPaymentMethod}
+        onPaymentMethodChange={setRcPaymentMethod}
+        amountPaid={rcAmountPaid}
+        onAmountPaidChange={setRcAmountPaid}
+        depositChoice={rcDepositChoice}
+        onDepositChoiceChange={setRcDepositChoice}
+        depositMethod={rcDepositMethod}
+        onDepositMethodChange={setRcDepositMethod}
+        depositAmount={rcDepositAmount}
+        onDepositAmountChange={setRcDepositAmount}
+        waiveReason={rcWaiveReason}
+        onWaiveReasonChange={setRcWaiveReason}
+        processing={processingReservedCheckIn}
+        onCheckIn={() => handleReservedCheckIn(false)}
+      />
 
       {/* Payment Collection Dialog */}
-      <Dialog
+      <CollectDepositDialog
         open={paymentDialogOpen}
         onClose={() => {
           if (!processingPayment) {
@@ -4206,628 +3086,83 @@ const RoomManagementPage: React.FC = () => {
             setPaymentMethod('');
           }
         }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: 'warning.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <ReceiptIcon sx={{ fontSize: 28 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Collect Deposit - Room {paymentBooking?.room_number}
-            </Typography>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          {paymentBooking && (
-            <Box>
-              {/* Booking Summary */}
-              <Paper elevation={0} sx={{ p: 2, mb: 3, bgcolor: 'grey.50', borderRadius: 2 }}>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                  Booking #{paymentBooking.booking_number}
-                </Typography>
-
-                <Grid container spacing={2} sx={{ mt: 1 }}>
-                  <Grid size={12}>
-                    <Typography variant="h6" fontWeight={600}>
-                      {paymentBooking.guest_name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {paymentBooking.guest_email}
-                    </Typography>
-                  </Grid>
-
-                  <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">Check-in</Typography>
-                    <Typography variant="body2" fontWeight={500}>
-                      {new Date(paymentBooking.check_in_date).toLocaleDateString('en-US', {
-                        weekday: 'short', month: 'short', day: 'numeric'
-                      })}
-                    </Typography>
-                  </Grid>
-                  <Grid size={6}>
-                    <Typography variant="caption" color="text.secondary">Check-out</Typography>
-                    <Typography variant="body2" fontWeight={500}>
-                      {new Date(paymentBooking.check_out_date).toLocaleDateString('en-US', {
-                        weekday: 'short', month: 'short', day: 'numeric'
-                      })}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-
-              {/* Deposit Amount */}
-              {/* Payment Method Selection */}
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Payment Method *</InputLabel>
-                <Select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  label="Payment Method *"
-                >
-                  {PAYMENT_METHODS.map((method) => (
-                    <MenuItem key={method} value={method}>
-                      {method}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <Alert severity="info" sx={{ mt: 2 }}>
-                After deposit is collected, the guest can be checked in.
-              </Alert>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button
-            onClick={() => {
-              setPaymentDialogOpen(false);
-              setPaymentBooking(null);
-              setPaymentMethod('');
-            }}
-            disabled={processingPayment}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            color="warning"
-            onClick={handleCollectPayment}
-            disabled={processingPayment || !paymentMethod}
-            startIcon={processingPayment ? <CircularProgress size={20} color="inherit" /> : <ReceiptIcon />}
-          >
-            {processingPayment ? 'Processing...' : 'Collect Deposit'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onCancel={() => {
+          setPaymentDialogOpen(false);
+          setPaymentBooking(null);
+          setPaymentMethod('');
+        }}
+        booking={paymentBooking}
+        paymentMethod={paymentMethod}
+        onPaymentMethodChange={setPaymentMethod}
+        paymentMethods={PAYMENT_METHODS}
+        processing={processingPayment}
+        onCollect={handleCollectPayment}
+      />
 
       {/* Guest Details Dialog with Tabs */}
-      <Dialog
+      <GuestDetailsDialog
         open={guestDetailsDialogOpen}
         onClose={() => setGuestDetailsDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: 'primary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <PersonIcon sx={{ fontSize: 28 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              {selectedGuestDetails?.full_name || 'Guest Details'}
-            </Typography>
-          </Box>
-        </DialogTitle>
-
-        <Tabs
-          value={guestDetailsTab}
-          onChange={(_, v) => {
-            setGuestDetailsTab(v);
-            if (v === 1) {
-              loadAvailableRoomsForCredits();
-            }
-          }}
-          sx={{
-            borderBottom: 1,
-            borderColor: 'divider',
-            px: 3,
-            '& .MuiTab-root': {
-              textTransform: 'none',
-              fontSize: '0.95rem',
-              fontWeight: 500,
-              minHeight: 56,
-              px: 3,
-            }
-          }}
-        >
-          <Tab label="Guest Info" icon={<PersonIcon />} iconPosition="start" />
-          <Tab
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <span>Free Gift Credits</span>
-                {guestCredits && guestCredits.total_nights > 0 && (
-                  <Chip
-                    label={guestCredits.total_nights}
-                    size="small"
-                    color="secondary"
-                  />
-                )}
-              </Box>
-            }
-            icon={<GiftIcon />}
-            iconPosition="start"
-          />
-        </Tabs>
-
-        <DialogContent sx={{ pt: 3, pb: 3, minHeight: 400 }}>
-          {/* Tab 0: Guest Info */}
-          {guestDetailsTab === 0 && selectedGuestDetails && (
-            <Grid container spacing={2}>
-              <Grid size={6}>
-                <Typography variant="caption" color="text.secondary">Email</Typography>
-                <Typography variant="body2">{selectedGuestDetails.email}</Typography>
-              </Grid>
-              <Grid size={6}>
-                <Typography variant="caption" color="text.secondary">Phone</Typography>
-                <Typography variant="body2">{selectedGuestDetails.phone || 'N/A'}</Typography>
-              </Grid>
-              {selectedGuestDetails.address_line1 && (
-                <Grid size={12}>
-                  <Typography variant="caption" color="text.secondary">Address</Typography>
-                  <Typography variant="body2">
-                    {selectedGuestDetails.address_line1}
-                    {selectedGuestDetails.city && `, ${selectedGuestDetails.city}`}
-                    {selectedGuestDetails.state_province && `, ${selectedGuestDetails.state_province}`}
-                    {selectedGuestDetails.postal_code && ` ${selectedGuestDetails.postal_code}`}
-                  </Typography>
-                </Grid>
-              )}
-              {selectedGuestDetails.country && (
-                <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Country</Typography>
-                  <Typography variant="body2">{selectedGuestDetails.country}</Typography>
-                </Grid>
-              )}
-              {selectedGuestDetails.nationality && (
-                <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Nationality</Typography>
-                  <Typography variant="body2">{selectedGuestDetails.nationality}</Typography>
-                </Grid>
-              )}
-              {selectedGuestDetails.ic_number && (
-                <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">IC Number</Typography>
-                  <Typography variant="body2">{selectedGuestDetails.ic_number}</Typography>
-                </Grid>
-              )}
-              {selectedGuestDetails.company_name && (
-                <Grid size={6}>
-                  <Typography variant="caption" color="text.secondary">Company</Typography>
-                  <Typography variant="body2">{selectedGuestDetails.company_name}</Typography>
-                </Grid>
-              )}
-              <Grid size={12}>
-                <Divider sx={{ my: 1 }} />
-              </Grid>
-              <Grid size={12}>
-                <Typography variant="caption" color="text.secondary">Member Since</Typography>
-                <Typography variant="body2">
-                  {new Date(selectedGuestDetails.created_at).toLocaleDateString()}
-                </Typography>
-              </Grid>
-            </Grid>
-          )}
-
-          {/* Tab 1: Free Gift Credits */}
-          {guestDetailsTab === 1 && (
-            <Box>
-              {loadingCredits ? (
-                <Box display="flex" justifyContent="center" py={4}>
-                  <CircularProgress />
-                </Box>
-              ) : creditsBookingSuccess ? (
-                /* Booking Success - Show Check-in Option */
-                <Box>
-                  <Alert severity="success" sx={{ mb: 3 }}>
-                    <Typography variant="subtitle1" fontWeight={600}>
-                      🎉 Booking Created Successfully!
-                    </Typography>
-                    <Typography variant="body2">
-                      Booking #{creditsBookingSuccess.booking_number} - {creditsBookingSuccess.complimentary_nights} night(s) are complimentary
-                    </Typography>
-                  </Alert>
-
-                  <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      size="large"
-                      startIcon={<LoginIcon />}
-                      onClick={handleCheckInFromCreditsBooking}
-                    >
-                      Check In Now
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      onClick={() => {
-                        setCreditsBookingSuccess(null);
-                        setSelectedComplimentaryDates([]);
-                      }}
-                    >
-                      Book Another Room
-                    </Button>
-                  </Box>
-                </Box>
-              ) : (
-                <Grid container spacing={3}>
-                  {/* Credits Summary */}
-                  <Grid size={12}>
-                    <Paper sx={{ p: 2, bgcolor: 'secondary.light' }}>
-                      <Typography variant="subtitle1" fontWeight={600} gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <GiftIcon /> Available Free Gift Credits
-                      </Typography>
-                      {guestCredits && guestCredits.total_nights > 0 ? (
-                        <Box>
-                          {guestCredits.credits_by_room_type.map((credit) => (
-                            <Chip
-                              key={credit.id}
-                              icon={<GiftIcon />}
-                              label={`${credit.room_type_name}: ${credit.nights_available} night(s)`}
-                              color="success"
-                              sx={{ mr: 1, mb: 1 }}
-                            />
-                          ))}
-                        </Box>
-                      ) : (
-                        <Typography variant="body2" color="text.secondary">
-                          No complimentary credits available
-                        </Typography>
-                      )}
-                    </Paper>
-                  </Grid>
-
-                  {/* Booking Form */}
-                  {guestCredits && guestCredits.total_nights > 0 && (
-                    <>
-                      <Grid size={12}>
-                        <Typography variant="subtitle1" fontWeight={600}>
-                          Book a Room with Free Gift Credits
-                        </Typography>
-                      </Grid>
-
-                      <Grid size={6}>
-                        <TextField
-                          label="Check-in Date"
-                          type="date"
-                          fullWidth
-                          value={creditsBookingForm.check_in_date}
-                          onChange={(e) => {
-                            setCreditsBookingForm({ ...creditsBookingForm, check_in_date: e.target.value });
-                            setSelectedComplimentaryDates([]);
-                          }}
-                          InputLabelProps={{ shrink: true }}
-                        />
-                      </Grid>
-                      <Grid size={6}>
-                        <TextField
-                          label="Check-out Date"
-                          type="date"
-                          fullWidth
-                          value={creditsBookingForm.check_out_date}
-                          onChange={(e) => {
-                            setCreditsBookingForm({ ...creditsBookingForm, check_out_date: e.target.value });
-                            setSelectedComplimentaryDates([]);
-                          }}
-                          InputLabelProps={{ shrink: true }}
-                        />
-                      </Grid>
-
-                      <Grid size={12}>
-                        <FormControl fullWidth>
-                          <InputLabel>Select Room</InputLabel>
-                          <Select
-                            value={creditsBookingForm.room_id}
-                            onChange={(e) => {
-                              setCreditsBookingForm({ ...creditsBookingForm, room_id: e.target.value });
-                              setSelectedComplimentaryDates([]);
-                              setRoomBlockedDates([]);
-                              if (e.target.value) {
-                                loadRoomBlockedDates(e.target.value);
-                              }
-                            }}
-                            label="Select Room"
-                          >
-                            {[...availableRoomsForCredits]
-                              .sort((a, b) => {
-                                const numA = parseInt(a.room_number, 10);
-                                const numB = parseInt(b.room_number, 10);
-                                if (!isNaN(numA) && !isNaN(numB)) {
-                                  return numA - numB;
-                                }
-                                return a.room_number.localeCompare(b.room_number);
-                              })
-                              .map((room) => (
-                                <MenuItem key={room.id} value={room.id.toString()}>
-                                  Room {room.room_number} - {room.room_type}
-                                </MenuItem>
-                              ))}
-                          </Select>
-                        </FormControl>
-                      </Grid>
-
-                      {/* Date Selection for Complimentary Nights */}
-                      {creditsBookingForm.room_id && getCreditsBookingDates().length > 0 && (
-                        <Grid size={12}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                            <Typography variant="subtitle2">
-                              Select Complimentary Dates (Available: {getTotalCreditsForRoom(creditsBookingForm.room_id)})
-                            </Typography>
-                            <Button size="small" onClick={selectAllCreditsAvailable}>
-                              Select All Available
-                            </Button>
-                          </Box>
-                          <Paper variant="outlined" sx={{ p: 2, maxHeight: 180, overflow: 'auto' }}>
-                            {roomBlockedDates.length > 0 && (
-                              <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                <Box sx={{ width: 12, height: 12, backgroundColor: 'error.light', borderRadius: 0.5 }} />
-                                <Typography variant="caption" color="text.secondary">
-                                  Reserved (unavailable)
-                                </Typography>
-                              </Box>
-                            )}
-                            <FormGroup row>
-                              {getCreditsBookingDates().map((date) => {
-                                const isSelected = selectedComplimentaryDates.includes(date);
-                                const isBlocked = isDateBlocked(date);
-                                const canSelect = !isBlocked && (isSelected || selectedComplimentaryDates.length < getTotalCreditsForRoom(creditsBookingForm.room_id));
-
-                                // Show blocked dates with a block icon instead of checkbox
-                                if (isBlocked) {
-                                  return (
-                                    <Box
-                                      key={date}
-                                      sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 0.5,
-                                        backgroundColor: 'rgba(211, 47, 47, 0.12)',
-                                        borderRadius: 1,
-                                        mr: 1,
-                                        mb: 1,
-                                        px: 1,
-                                        py: 0.5,
-                                        border: '1px solid rgba(211, 47, 47, 0.4)',
-                                        cursor: 'not-allowed',
-                                      }}
-                                    >
-                                      <BlockIcon sx={{ fontSize: 18, color: 'error.main' }} />
-                                      <Typography
-                                        variant="body2"
-                                        sx={{
-                                          textDecoration: 'line-through',
-                                          color: 'error.main',
-                                          fontSize: '0.85rem',
-                                        }}
-                                      >
-                                        {new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                                      </Typography>
-                                    </Box>
-                                  );
-                                }
-
-                                return (
-                                  <FormControlLabel
-                                    key={date}
-                                    control={
-                                      <Checkbox
-                                        checked={isSelected}
-                                        onChange={() => handleCreditsDateToggle(date)}
-                                        disabled={!canSelect && !isSelected}
-                                        color="secondary"
-                                      />
-                                    }
-                                    label={new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                                    sx={{
-                                      backgroundColor: isSelected ? 'rgba(156, 39, 176, 0.1)' : 'transparent',
-                                      borderRadius: 1,
-                                      mr: 1,
-                                      mb: 1,
-                                      px: 1,
-                                    }}
-                                  />
-                                );
-                              })}
-                            </FormGroup>
-                          </Paper>
-                          {selectedComplimentaryDates.length > 0 && (
-                            <Alert severity="success" sx={{ mt: 1 }}>
-                              {selectedComplimentaryDates.length} night(s) will be complimentary (Free Gift)
-                            </Alert>
-                          )}
-                        </Grid>
-                      )}
-
-                      <Grid size={6}>
-                        <TextField
-                          label="Adults"
-                          type="number"
-                          fullWidth
-                          value={creditsBookingForm.adults}
-                          onChange={(e) => setCreditsBookingForm({ ...creditsBookingForm, adults: parseInt(e.target.value) || 1 })}
-                          inputProps={{ min: 1, max: 10 }}
-                        />
-                      </Grid>
-                      <Grid size={6}>
-                        <TextField
-                          label="Children"
-                          type="number"
-                          fullWidth
-                          value={creditsBookingForm.children}
-                          onChange={(e) => setCreditsBookingForm({ ...creditsBookingForm, children: parseInt(e.target.value) || 0 })}
-                          inputProps={{ min: 0, max: 10 }}
-                        />
-                      </Grid>
-
-                      <Grid size={12}>
-                        <Button
-                          variant="contained"
-                          color="secondary"
-                          fullWidth
-                          size="large"
-                          startIcon={bookingWithCredits ? <CircularProgress size={20} color="inherit" /> : <GiftIcon />}
-                          onClick={handleBookWithCreditsAndCheckIn}
-                          disabled={
-                            bookingWithCredits ||
-                            !creditsBookingForm.room_id ||
-                            selectedComplimentaryDates.length === 0 ||
-                            getCreditsBookingDates().length === 0
-                          }
-                        >
-                          {bookingWithCredits ? 'Creating Booking...' : 'Book with Free Gift Credits'}
-                        </Button>
-                      </Grid>
-                    </>
-                  )}
-                </Grid>
-              )}
-            </Box>
-          )}
-        </DialogContent>
-
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={() => setGuestDetailsDialogOpen(false)} variant="outlined">Close</Button>
-        </DialogActions>
-      </Dialog>
+        guest={selectedGuestDetails}
+        tab={guestDetailsTab}
+        onTabChange={(v) => {
+          setGuestDetailsTab(v);
+          if (v === 1) {
+            loadAvailableRoomsForCredits();
+          }
+        }}
+        guestCredits={guestCredits}
+        loadingCredits={loadingCredits}
+        creditsBookingSuccess={creditsBookingSuccess}
+        creditsBookingForm={creditsBookingForm}
+        availableRoomsForCredits={availableRoomsForCredits}
+        roomBlockedDates={roomBlockedDates}
+        selectedComplimentaryDates={selectedComplimentaryDates}
+        bookingWithCredits={bookingWithCredits}
+        getCreditsBookingDates={getCreditsBookingDates}
+        getTotalCreditsForRoom={getTotalCreditsForRoom}
+        isDateBlocked={isDateBlocked}
+        onCheckInFromCreditsBooking={handleCheckInFromCreditsBooking}
+        onBookAnother={() => {
+          setCreditsBookingSuccess(null);
+          setSelectedComplimentaryDates([]);
+        }}
+        onCheckInDateChange={(value) => {
+          setCreditsBookingForm({ ...creditsBookingForm, check_in_date: value });
+          setSelectedComplimentaryDates([]);
+        }}
+        onCheckOutDateChange={(value) => {
+          setCreditsBookingForm({ ...creditsBookingForm, check_out_date: value });
+          setSelectedComplimentaryDates([]);
+        }}
+        onRoomChange={(value) => {
+          setCreditsBookingForm({ ...creditsBookingForm, room_id: value });
+          setSelectedComplimentaryDates([]);
+          setRoomBlockedDates([]);
+          if (value) {
+            loadRoomBlockedDates(value);
+          }
+        }}
+        onAdultsChange={(value) => setCreditsBookingForm({ ...creditsBookingForm, adults: value })}
+        onChildrenChange={(value) => setCreditsBookingForm({ ...creditsBookingForm, children: value })}
+        onSelectAllAvailable={selectAllCreditsAvailable}
+        onToggleDate={handleCreditsDateToggle}
+        onBookWithCredits={handleBookWithCreditsAndCheckIn}
+      />
 
       {/* Mark as Complimentary Dialog */}
-      <Dialog
+      <MarkComplimentaryDialog
         open={complimentaryDialogOpen}
         onClose={() => !markingComplimentary && setComplimentaryDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: 'secondary.main', color: 'white', py: 2, px: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <GiftIcon sx={{ fontSize: 28 }} />
-            <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
-              Mark Booking as Complimentary
-            </Typography>
-          </Box>
-        </DialogTitle>
-
-        <DialogContent sx={{ pt: 3 }}>
-          {selectedBooking && (
-            <Grid container spacing={3}>
-              {/* Booking Info */}
-              <Grid size={12}>
-                <Paper sx={{ p: 2, bgcolor: 'grey.100' }}>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Booking Details
-                  </Typography>
-                  <Grid container spacing={1}>
-                    <Grid size={6}>
-                      <Typography variant="body2" color="text.secondary">
-                        Room:
-                      </Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2" fontWeight="bold">
-                        {selectedRoom?.room_number} - {selectedRoom?.room_type}
-                      </Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2" color="text.secondary">
-                        Guest:
-                      </Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2" fontWeight="bold">
-                        {selectedBooking.guest_name}
-                      </Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2" color="text.secondary">
-                        Check-in Date:
-                      </Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2">
-                        {new Date(selectedBooking.check_in_date).toLocaleDateString()}
-                      </Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2" color="text.secondary">
-                        Check-out Date:
-                      </Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2">
-                        {new Date(selectedBooking.check_out_date).toLocaleDateString()}
-                      </Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2" color="text.secondary">
-                        Original Amount:
-                      </Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2" sx={{ textDecoration: 'line-through', color: 'error.main' }}>
-                        {currencySymbol}{Number(selectedBooking.total_amount).toFixed(2)}
-                      </Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2" color="text.secondary">
-                        New Amount:
-                      </Typography>
-                    </Grid>
-                    <Grid size={6}>
-                      <Typography variant="body2" fontWeight="bold" color="success.main">
-                        {currencySymbol}0.00 (Complimentary)
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                </Paper>
-              </Grid>
-
-              {/* Reason Input */}
-              <Grid size={12}>
-                <TextField
-                  fullWidth
-                  label="Reason for Complimentary Stay"
-                  placeholder="e.g., VIP guest, compensation, promotional offer"
-                  value={complimentaryReason}
-                  onChange={(e) => setComplimentaryReason(e.target.value)}
-                  multiline
-                  rows={2}
-                />
-              </Grid>
-
-              {/* Info Alert */}
-              <Grid size={12}>
-                <Alert severity="info" sx={{ mt: 1 }}>
-                  Marking this booking as complimentary will set the total amount to {currencySymbol}0.00.
-                  If the guest cancels or doesn't show up, the complimentary nights will be converted to credits for future use.
-                </Alert>
-              </Grid>
-            </Grid>
-          )}
-        </DialogContent>
-
-        <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
-          <Button onClick={() => setComplimentaryDialogOpen(false)} disabled={markingComplimentary}>
-            Cancel
-          </Button>
-          <Box sx={{ flex: 1 }} />
-          <Button
-            variant="contained"
-            color="secondary"
-            onClick={handleConfirmMarkComplimentary}
-            disabled={markingComplimentary}
-            startIcon={markingComplimentary ? <CircularProgress size={20} /> : <GiftIcon />}
-            size="large"
-          >
-            {markingComplimentary ? 'Processing...' : 'Confirm Complimentary'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onCancel={() => setComplimentaryDialogOpen(false)}
+        booking={selectedBooking}
+        room={selectedRoom}
+        currencySymbol={currencySymbol}
+        reason={complimentaryReason}
+        onReasonChange={setComplimentaryReason}
+        processing={markingComplimentary}
+        onConfirm={handleConfirmMarkComplimentary}
+      />
 
     </Box>
   );
