@@ -200,6 +200,26 @@ impl RateLimiters {
             api: RateLimiter::new(RateLimitConfig::new(200, 60)),
         }
     }
+
+    /// Check an endpoint-specific rate limit by category.
+    ///
+    /// This helper is primarily used by legacy tests and simple route checks.
+    pub async fn check_rate_limit(&self, category: &str, ip: &IpAddr) -> bool {
+        match category {
+            "auth:login" | "auth:register" | "auth:passkey" => {
+                self.auth.check(*ip).await
+            }
+            "register" => self.register.check(*ip).await,
+            "sensitive" => self.sensitive.check(*ip).await,
+            "guest_portal:verify" => self.guest_portal_verify.check(*ip).await,
+            _ if category.starts_with("guest_portal:booking:") => {
+                let key = category.trim_start_matches("guest_portal:booking:");
+                self.guest_portal_booking.check_with_retry(key).await.0
+            }
+            "api:generic" | "api" => self.api.check(*ip).await,
+            _ => self.api.check(*ip).await,
+        }
+    }
 }
 
 #[cfg(test)]
