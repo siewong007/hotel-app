@@ -6,6 +6,7 @@ use crate::core::error::ApiError;
 
 pub struct SettingsRepository;
 
+#[allow(dead_code)]
 impl SettingsRepository {
     /// Find all settings
     pub async fn find_all(pool: &DbPool) -> Result<Vec<SystemSetting>, ApiError> {
