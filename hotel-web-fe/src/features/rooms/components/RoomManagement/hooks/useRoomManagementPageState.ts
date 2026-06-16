@@ -22,6 +22,7 @@ import { ApiNotificationSeverity, emitApiNotification } from '../../../../../uti
 import { getUnifiedStatusColor, getUnifiedStatusShortLabel } from '../../../config';
 import type { BookingType } from '../../UnifiedBooking';
 import { GuestWithCredits, MenuLayout, RoomAction } from '../types';
+import type { BookingChannel } from '../../../../../utils/hotelSettings';
 
 const showSnackbar = (message: string, severity: ApiNotificationSeverity = 'success') => {
   emitApiNotification({ message, severity });
@@ -267,7 +268,7 @@ export interface RoomManagementPageState {
   loadGuestCredits: (guestId: number) => Promise<void>;
 
   // Constants
-  bookingChannels: string[];
+  bookingChannels: BookingChannel[];
   paymentMethods: string[];
 }
 
@@ -525,10 +526,10 @@ export function useRoomManagementPageState(
         reference: walkInReference || undefined,
         is_walk_in: true,
       } as any);
-      showSnackbar(`Booking created for ${guestToUse.full_name || `${guestToUse.first_name} ${guestToUse.last_name}`} in Room ${selectedRoom.room_number}`, 'success');
+      showSnackbar(`Booking created for ${guestToUse.full_name || `${(guestToUse as any).first_name} ${(guestToUse as any).last_name}`} in Room ${selectedRoom.room_number}`, 'success');
       setWalkInDialogOpen(false);
       // Open check-in dialog
-      setReservedCheckInBooking({ ...booking, guest_name: guestToUse.full_name || `${guestToUse.first_name} ${guestToUse.last_name}`, room_number: selectedRoom.room_number } as any);
+      setReservedCheckInBooking({ ...booking, guest_name: guestToUse.full_name || `${(guestToUse as any).first_name} ${(guestToUse as any).last_name}`, room_number: selectedRoom.room_number } as any);
       setReservedCheckInDialogOpen(true);
     } catch (error: any) {
       showSnackbar(error.message || 'Failed to create booking', 'error');
@@ -595,9 +596,9 @@ export function useRoomManagementPageState(
         guest_id: guestToUse.id, room_id: roomId, check_in_date: checkIn, check_out_date: checkOut,
         booking_channel: onlineCheckInBookingChannel || undefined, reference: onlineReference || undefined,
       } as any);
-      showSnackbar(`Online booking created for ${guestToUse.full_name || `${guestToUse.first_name} ${guestToUse.last_name}`}`, 'success');
+      showSnackbar(`Online booking created for ${guestToUse.full_name || `${(guestToUse as any).first_name} ${(guestToUse as any).last_name}`}`, 'success');
       setOnlineCheckInDialogOpen(false);
-      setReservedCheckInBooking({ ...booking, guest_name: guestToUse.full_name || `${guestToUse.first_name} ${guestToUse.last_name}`, room_number: selectedRoom.room_number } as any);
+      setReservedCheckInBooking({ ...booking, guest_name: guestToUse.full_name || `${(guestToUse as any).first_name} ${(guestToUse as any).last_name}`, room_number: selectedRoom.room_number } as any);
       setReservedCheckInDialogOpen(true);
     } catch (error: any) {
       showSnackbar(error.message || 'Failed to create online booking', 'error');
@@ -622,11 +623,6 @@ export function useRoomManagementPageState(
       showSnackbar(error.message || 'Failed to checkout', 'error');
     }
   }, [selectedBooking]);
-
-  const handleCheckOut = useCallback((booking: BookingWithDetails) => {
-    setSelectedBooking(booking);
-    setCheckOutDialogOpen(true);
-  }, []);
 
   // -----------------------------------------------------------------------
   // Status/housekeeping handlers
@@ -714,7 +710,7 @@ export function useRoomManagementPageState(
       setChangingRoom(true);
       const bookingId = selectedBooking?.id;
       if (!bookingId) { showSnackbar('No booking found', 'error'); setChangingRoom(false); return; }
-      await HotelAPIService.changeRoom(bookingId, newSelectedRoom.id, changeRoomCustomRate || undefined);
+      await HotelAPIService.executeRoomChange(bookingId, newSelectedRoom.id);
       showSnackbar(`Room changed to ${newSelectedRoom.room_number}`, 'success');
       setChangeRoomDialogOpen(false);
     } catch (error: any) {
@@ -737,7 +733,7 @@ export function useRoomManagementPageState(
     if (!selectedRoom) return;
     try {
       setMarkingComplimentary(true);
-      await HotelAPIService.markComplimentary(selectedRoom.id, complimentaryReason);
+      await HotelAPIService.markBookingComplimentary(selectedRoom.id, complimentaryReason);
       showSnackbar(`Room ${selectedRoom.room_number} marked as complimentary`, 'success');
       setComplimentaryDialogOpen(false);
     } catch (error: any) {

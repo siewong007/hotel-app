@@ -173,7 +173,7 @@ export function useCheckoutInvoiceModalState(
   // Pre-fill payment amount when charges update
   useEffect(() => {
     if (open && booking) {
-      const balance = booking.total_amount - totalPayments;
+      const balance = Number(booking.total_amount) - totalPayments;
       if (balance > 0) {
         setPaymentAmount(parseFloat(balance.toFixed(2)));
       }
