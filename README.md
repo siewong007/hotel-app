@@ -381,40 +381,64 @@ Logo/banner idea:
 
 ## 🗺️ Roadmap
 
-- Add committed screenshots and a short demo video.
-- Add OpenAPI/Swagger documentation generated from backend route and model definitions.
-- Add frontend component and workflow tests once a test runner is selected.
-- Expand SQLite/PostgreSQL parity tests for database-sensitive workflows.
-- Improve desktop backup/restore behavior and document recovery procedures.
-- Add fixture-based seed data suitable for academic demonstrations.
-- Add more focused service/repository tests for payments, ledgers, night audit, and RBAC.
-- Add deployment documentation for a small hosted environment.
+### Completed ✓
+
+- ✅ **Docker Compose full-stack setup** — One-command startup with PostgreSQL + backend + frontend
+- ✅ **Project Makefile** — Convenience commands for all development workflows
+- ✅ **Frontend test suite** — Vitest + Testing Library component and utility tests
+- ✅ **Backend service tests** — Rate limiter, booking service, and core utility tests
+- ✅ **CI workflow fix** — Removed duplicate test step; frontend typecheck + lint + test enforced
+- ✅ **Architecture Decision Records (ADRs)** — 11 documented architectural decisions
+- ✅ **Deployment guide** — Comprehensive production deployment documentation
+- ✅ **Contributing guide** — Updated with detailed guidelines, conventions, and testing instructions
+- ✅ **Screenshots directory** — Placeholder structure for visual documentation
+- ✅ **Security documentation** — Deployment security checklist and hardening guidelines
+
+### Planned
+
+- **OpenAPI/Swagger documentation** — Generate from backend route and model definitions
+- **Distributed caching** — Replace in-memory RBAC/settings caches with Redis for multi-instance
+- **Strict TypeScript mode** — Enable `strict: true` incrementally in tsconfig
+- **Backend domain module migration** — Incremental move toward `modules/<domain>/` structure
+- **Frontend component tests** — Expand coverage for major feature components
+- **Expand SQLite/PostgreSQL parity tests** — Database-sensitive workflow coverage
+- **Desktop backup/restore** — Complete managed backup solution with recovery procedures
 
 ## Limitations
 
 - The project is not presented as production-ready; security, compliance, deployment hardening, and operational procedures require additional validation.
-- Frontend automated tests are not currently configured.
+- Frontend automated tests are still being expanded (utilities and select components covered; full feature coverage in progress).
 - SQLite support exists for offline/test-oriented modes, but schema parity should be rechecked when database changes are made.
 - Some desktop operational commands are still limited; for example, database backup behavior is not a complete managed backup solution.
 - eKYC document handling is implemented as an application workflow, not a certified identity verification service.
 - API documentation is currently README-based rather than generated from a formal OpenAPI schema.
+- Rate limiting and caching are in-memory only, which limits to single-instance deployments.
 
 ## Contributing
 
-Contributions are welcome for bug fixes, documentation improvements, tests, and focused feature work. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+Contributions are welcome for bug fixes, documentation improvements, tests, and focused feature work. Please read the comprehensive [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
-Recommended verification commands:
+Quick verification commands:
 
 ```bash
+# All projects
+make check-all
+make test-all
+make lint-all
+
+# Or per project:
 cd hotel-app-be
 cargo fmt
 cargo check --all-features
 cargo clippy --all-features -- -D warnings
+cargo test --all-features
 ```
 
 ```bash
 cd hotel-web-fe
 npx tsc --noEmit
+npm run lint
+npm run test -- --run
 npm run build
 ```
 
@@ -423,6 +447,25 @@ cd hotel-desktop/src-tauri
 cargo fmt
 cargo check
 ```
+
+### Docker Compose Quick Start
+
+```bash
+# Start full stack
+make docker-up
+
+# View logs
+make docker-logs
+
+# Stop
+make docker-down
+```
+
+## Additional Documentation
+
+- [Architecture Decision Records](docs/architecture/ADRS.md) — Documented architectural decisions
+- [Deployment Guide](docs/guides/deployment.md) — Production deployment instructions
+- [Screenshots](docs/screenshots/README.md) — Application screenshots (placeholder)
 
 ## License
 
@@ -435,3 +478,4 @@ This project is licensed under the [MIT License](LICENSE).
 - Tauri for enabling a desktop packaging path with a web frontend.
 - PostgreSQL and SQLite for database support.
 - University evaluators, reviewers, and open-source contributors who provide feedback on maintainability and project quality.
+- Architecture Decision Records inspired by [Michael Nygard's ADR format](https://thinkmicroservices.com/blog/2024/01/14/architecture-decision-records.html).
