@@ -73,9 +73,14 @@ import {
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../../api';
 
-import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, Booking } from '../../../../types';
+import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
-import { useRoomData } from '../../hooks/useRoomData';
+import {
+  useBookingNotes,
+  useRoomData,
+  useRoomManagementFilters,
+  useRoomNotes,
+} from '../../hooks';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { addLocalDays, formatLocalDate } from '../../../../utils/date';
 import { isValidEmail } from '../../../../utils/validation';
@@ -83,20 +88,16 @@ import {
   getUnifiedStatusColor,
   getUnifiedStatusLabel,
   getUnifiedStatusShortLabel,
-  RoomStatusType
 } from '../../config';
 import {
   buildBlockedDateRangesForRoom,
   type BlockedDateRange,
   calculateNightCount,
-  deriveRoomStatusInfo,
   getCreditBookingDates as getCreditBookingDateRange,
-  getNextAvailableDate as getNextOpenCreditDate,
   getPositiveRatePerNight,
   getRoomTypeCode,
   getTotalCreditsForRoom as getCreditsForRoomType,
   isDateBlockedByRanges,
-  validateCreditDateSelection,
   formatMenuBookingDate,
 } from '../../utils/roomManagementUtils';
 import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
@@ -104,7 +105,7 @@ import UnifiedBookingModal, { BookingType } from '../UnifiedBooking/UnifiedBooki
 import UpdateCheckoutDateDialog from '../UpdateCheckoutDateDialog';
 import RoomStatusDialog from './RoomStatusDialog';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
-import { RoomAction, MenuSection, MenuLayout, GuestWithCredits } from './types';
+import { RoomAction, MenuLayout, GuestWithCredits } from './types';
 import RoomNotesDialog from './components/RoomNotesDialog';
 import RoomDetailsDialog from './components/RoomDetailsDialog';
 import RoomHistoryDialog from './components/RoomHistoryDialog';
@@ -125,8 +126,8 @@ const RoomManagementPage: React.FC = () => {
   const isDarkMode = theme.palette.mode !== 'light';
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const {
-    rooms, setRooms,
-    guests, setGuests,
+    rooms,
+    guests,
     loading,
     error: dataError,
     roomBookings,
@@ -138,6 +139,49 @@ const RoomManagementPage: React.FC = () => {
     reloadGuests: loadGuests,
     reloadBookings: loadBookings,
   } = useRoomData();
+  const showSnackbar = useCallback((message: string, severity: ApiNotificationSeverity) => {
+    emitApiNotification({ message, severity });
+  }, []);
+  const {
+    notesDialogOpen,
+    notesRoom,
+    editingNotes,
+    setEditingNotes,
+    savingNotes,
+    openRoomNotes,
+    closeRoomNotes,
+    saveRoomNotes,
+  } = useRoomNotes({ reload: loadData, showSnackbar });
+  const {
+    bookingNotesDialogOpen,
+    bookingNotesEditBooking,
+    editedBookingNotes,
+    setEditedBookingNotes,
+    editedCleaningPreference,
+    setEditedCleaningPreference,
+    savingBookingNotes,
+    openBookingNotes: handleEditBookingNotes,
+    closeBookingNotes,
+    saveBookingNotes: handleSaveBookingNotes,
+  } = useBookingNotes({ reload: loadData, showSnackbar });
+  const {
+    roomStatusFilter,
+    setRoomStatusFilter,
+    attrFilters,
+    toggleAttrFilter,
+    getRoomStatusInfo,
+    availableCount,
+    occupiedCount,
+    reservedCount,
+    dirtyCount,
+    maintenanceCount,
+    occupancyRate,
+    smokingCount,
+    dailyCleaningCount,
+    noCleaningCount,
+    filteredRooms,
+    filterOptions,
+  } = useRoomManagementFilters({ rooms, roomBookings, reservedBookings });
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<BookingWithDetails | null>(null);
@@ -154,22 +198,9 @@ const RoomManagementPage: React.FC = () => {
   const [complimentaryDialogOpen, setComplimentaryDialogOpen] = useState(false);
 
   // Notes and status editing state
-  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
   const [roomStatusDialogOpen, setRoomStatusDialogOpen] = useState(false);
   const [complimentaryReason, setComplimentaryReason] = useState('');
   const [markingComplimentary, setMarkingComplimentary] = useState(false);
-
-  // Room notes state
-  const [editingNotes, setEditingNotes] = useState('');
-  const [savingNotes, setSavingNotes] = useState(false);
-
-  // Booking notes editing state
-  const [bookingNotesDialogOpen, setBookingNotesDialogOpen] = useState(false);
-  const [bookingNotesEditBooking, setBookingNotesEditBooking] = useState<BookingWithDetails | null>(null);
-  const [editedBookingNotes, setEditedBookingNotes] = useState('');
-  // Cleaning preference edited alongside booking notes (null = not set)
-  const [editedCleaningPreference, setEditedCleaningPreference] = useState<boolean | null>(null);
-  const [savingBookingNotes, setSavingBookingNotes] = useState(false);
 
   // Room change state
   const [newSelectedRoom, setNewSelectedRoom] = useState<Room | null>(null);
@@ -197,14 +228,6 @@ const RoomManagementPage: React.FC = () => {
   const [walkInDeposit, setWalkInDeposit] = useState<number>(0);
   const [walkInPaymentMethod, setWalkInPaymentMethod] = useState<string>('Cash');
   const [walkInRoomCardDeposit, setWalkInRoomCardDeposit] = useState<number>(0);
-
-  // Payment method options
-  const paymentMethods = [
-    { value: 'cash', label: 'Cash' },
-    { value: 'card', label: 'Credit/Debit Card' },
-    { value: 'bank_transfer', label: 'Bank Transfer' },
-    { value: 'e_wallet', label: 'E-Wallet' },
-  ];
 
   // Online check-in form state
   const [onlineCheckInGuest, setOnlineCheckInGuest] = useState<Guest | null>(null);
@@ -240,22 +263,6 @@ const RoomManagementPage: React.FC = () => {
 
   // Guest details tab state
   const [guestDetailsTab, setGuestDetailsTab] = useState(0);
-  const [isEditingGuest, setIsEditingGuest] = useState(false);
-  const [guestEditForm, setGuestEditForm] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    ic_number: '',
-    nationality: '',
-    company_name: '',
-    address_line1: '',
-    city: '',
-    state_province: '',
-    postal_code: '',
-    country: '',
-  });
-  const [savingGuestEdit, setSavingGuestEdit] = useState(false);
   const [guestCredits, setGuestCredits] = useState<{
     guest_id: number;
     guest_name: string;
@@ -319,15 +326,6 @@ const RoomManagementPage: React.FC = () => {
   const [paymentBooking, setPaymentBooking] = useState<BookingWithDetails | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [processingPayment, setProcessingPayment] = useState(false);
-  const [roomStatusFilter, setRoomStatusFilter] = useState<RoomStatusType | 'all'>('all');
-  // Independent quick attribute filters (toggle on/off, combine with status filter)
-  const [attrFilters, setAttrFilters] = useState<{ smoking: boolean; daily: boolean; nodaily: boolean }>({
-    smoking: false,
-    daily: false,
-    nodaily: false,
-  });
-  const toggleAttrFilter = (key: 'smoking' | 'daily' | 'nodaily') =>
-    setAttrFilters((s) => ({ ...s, [key]: !s[key] }));
 
   // Get configurable booking channels and payment methods from hotel settings
   // Can be modified in Settings page or by editing hotelSettings.ts
@@ -355,10 +353,6 @@ const RoomManagementPage: React.FC = () => {
       }
     }
   }, [roomBlockedDates]);
-
-  const showSnackbar = (message: string, severity: ApiNotificationSeverity) => {
-    emitApiNotification({ message, severity });
-  };
 
   // Memoized callbacks for UnifiedBookingModal to prevent re-renders during periodic refresh
   const handleUnifiedBookingClose = useCallback(() => {
@@ -1059,40 +1053,6 @@ const RoomManagementPage: React.FC = () => {
     handleMenuClose();
   };
 
-  // Handle opening booking notes edit dialog
-  const handleEditBookingNotes = (booking: BookingWithDetails, e?: React.MouseEvent) => {
-    if (e) {
-      e.stopPropagation();
-    }
-    setBookingNotesEditBooking(booking);
-    setEditedBookingNotes(booking.remarks || booking.special_requests || '');
-    setEditedCleaningPreference(booking.cleaning_preference ?? null);
-    setBookingNotesDialogOpen(true);
-  };
-
-  // Handle saving booking notes
-  const handleSaveBookingNotes = async () => {
-    if (!bookingNotesEditBooking) return;
-
-    setSavingBookingNotes(true);
-    try {
-      await HotelAPIService.updateBooking(bookingNotesEditBooking.id, {
-        remarks: editedBookingNotes,
-        cleaning_preference: editedCleaningPreference,
-      });
-      showSnackbar('Notes updated successfully', 'success');
-      setBookingNotesDialogOpen(false);
-      setBookingNotesEditBooking(null);
-      setEditedBookingNotes('');
-      setEditedCleaningPreference(null);
-      await loadData();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to update notes', 'error');
-    } finally {
-      setSavingBookingNotes(false);
-    }
-  };
-
   const handleConfirmCheckout = async (lateCheckoutData?: { penalty: number; notes: string }, checkoutPaymentMethod?: string) => {
     if (!selectedBooking) return;
 
@@ -1300,64 +1260,6 @@ const RoomManagementPage: React.FC = () => {
     }
   };
 
-  const handleStartEditGuest = () => {
-    if (!selectedGuestDetails) return;
-    const nameParts = selectedGuestDetails.full_name.split(' ');
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
-    setGuestEditForm({
-      first_name: firstName,
-      last_name: lastName,
-      email: selectedGuestDetails.email || '',
-      phone: selectedGuestDetails.phone || '',
-      ic_number: selectedGuestDetails.ic_number || '',
-      nationality: selectedGuestDetails.nationality || '',
-      company_name: selectedGuestDetails.company_name || '',
-      address_line1: selectedGuestDetails.address_line1 || '',
-      city: selectedGuestDetails.city || '',
-      state_province: selectedGuestDetails.state_province || '',
-      postal_code: selectedGuestDetails.postal_code || '',
-      country: selectedGuestDetails.country || '',
-    });
-    setIsEditingGuest(true);
-  };
-
-  const handleCancelEditGuest = () => {
-    setIsEditingGuest(false);
-  };
-
-  const handleSaveGuestEdit = async () => {
-    if (!selectedGuestDetails) return;
-    try {
-      setSavingGuestEdit(true);
-      await HotelAPIService.updateGuest(selectedGuestDetails.id, guestEditForm);
-      // Update the guest in local state
-      const updatedGuest = {
-        ...selectedGuestDetails,
-        full_name: `${guestEditForm.first_name} ${guestEditForm.last_name}`.trim(),
-        email: guestEditForm.email,
-        phone: guestEditForm.phone,
-        ic_number: guestEditForm.ic_number,
-        nationality: guestEditForm.nationality,
-        company_name: guestEditForm.company_name || undefined,
-        address_line1: guestEditForm.address_line1,
-        city: guestEditForm.city,
-        state_province: guestEditForm.state_province,
-        postal_code: guestEditForm.postal_code,
-        country: guestEditForm.country,
-      };
-      const previousId = selectedGuestDetails?.id;
-      setSelectedGuestDetails(updatedGuest);
-      setGuests(prev => (prev ?? []).map(g => g.id === previousId ? updatedGuest : g));
-      setIsEditingGuest(false);
-      showSnackbar('Guest updated successfully', 'success');
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to update guest', 'error');
-    } finally {
-      setSavingGuestEdit(false);
-    }
-  };
-
   const loadAvailableRoomsForCredits = () => {
     // Use rooms from state instead of fetching again
     setAvailableRoomsForCredits(rooms);
@@ -1369,22 +1271,6 @@ const RoomManagementPage: React.FC = () => {
 
   const isDateBlocked = (dateStr: string): boolean => {
     return isDateBlockedByRanges(dateStr, roomBlockedDates);
-  };
-
-  const getMinCheckInDate = (): string => {
-    return formatLocalDate();
-  };
-
-  const getNextAvailableDate = (fromDate: string): string => {
-    return getNextOpenCreditDate(fromDate, roomBlockedDates);
-  };
-
-  const validateDateSelection = (): { valid: boolean; message: string } => {
-    return validateCreditDateSelection(
-      creditsBookingForm.check_in_date,
-      creditsBookingForm.check_out_date,
-      roomBlockedDates,
-    );
   };
 
   const getCreditsBookingDates = (): string[] => {
@@ -1477,19 +1363,9 @@ const RoomManagementPage: React.FC = () => {
   };
 
   const handleEditNotes = (room: Room) => {
-    console.log('Opening notes dialog for room:', { roomId: room.id, roomNumber: room.room_number, existingNotes: room.notes });
     setSelectedRoom(room);
-    setNotesDialogOpen(true);
+    openRoomNotes(room);
     handleMenuClose();
-  };
-
-  const handleSaveNotes = async (notes: string) => {
-    if (!selectedRoom) return;
-    const updatedRoom = await HotelAPIService.updateRoom(selectedRoom.id, { notes: notes || '' } as Partial<Room>);
-    console.log('Updated room response:', updatedRoom);
-    showSnackbar('Room notes updated', 'success');
-    loadData();
-    setNotesDialogOpen(false);
   };
 
   const handleChangeRoom = (room: Room) => {
@@ -1682,58 +1558,6 @@ const RoomManagementPage: React.FC = () => {
       </Box>
     );
   }
-
-  // Single source of truth for computing room status from bookings
-  const getRoomStatusInfo = (room: Room) => {
-    return deriveRoomStatusInfo({
-      room,
-      booking: roomBookings.get(room.id),
-      reservedBooking: reservedBookings.get(room.id),
-    });
-  };
-
-  const availableCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'available').length;
-  const occupiedCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'occupied').length;
-  const reservedCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'reserved').length;
-  const dirtyCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'dirty').length;
-  const maintenanceCount = rooms.filter(r => getRoomStatusInfo(r).computedStatus === 'maintenance').length;
-  const occupancyRate = rooms.length > 0 ? Math.round((occupiedCount / rooms.length) * 100) : 0;
-
-  // Quick attribute filter helpers. Smoking is a room attribute; daily/no-daily
-  // cleaning is a guest preference that only applies while the room is occupied.
-  const smokingCount = rooms.filter(r => !!r.is_smoking).length;
-  const dailyCleaningCount = rooms.filter(r => {
-    const info = getRoomStatusInfo(r);
-    return info.computedStatus === 'occupied' && info.booking?.cleaning_preference === true;
-  }).length;
-  const noCleaningCount = rooms.filter(r => {
-    const info = getRoomStatusInfo(r);
-    return info.computedStatus === 'occupied' && info.booking?.cleaning_preference === false;
-  }).length;
-
-  const matchesAttrFilters = (r: typeof rooms[number]): boolean => {
-    if (attrFilters.smoking && !r.is_smoking) return false;
-    if (attrFilters.daily || attrFilters.nodaily) {
-      const info = getRoomStatusInfo(r);
-      const pref = info.computedStatus === 'occupied' ? info.booking?.cleaning_preference : undefined;
-      if (attrFilters.daily && pref !== true) return false;
-      if (attrFilters.nodaily && pref !== false) return false;
-    }
-    return true;
-  };
-
-  const filteredRooms = rooms.filter(r => {
-    if (roomStatusFilter !== 'all' && getRoomStatusInfo(r).computedStatus !== roomStatusFilter) return false;
-    return matchesAttrFilters(r);
-  });
-  const filterOptions: Array<{ value: RoomStatusType | 'all'; label: string; count: number; color: string; textColor?: string }> = [
-    { value: 'all', label: 'All', count: rooms.length, color: 'transparent' },
-    { value: 'occupied', label: 'Occupied', count: occupiedCount, color: '#ec7c32' },
-    { value: 'available', label: 'Vacant', count: availableCount, color: '#3f8f5b' },
-    { value: 'reserved', label: 'Reserved', count: reservedCount, color: '#3f7fbd' },
-    { value: 'dirty', label: 'Dirty', count: dirtyCount, color: '#b8942f' },
-    { value: 'maintenance', label: 'Maintenance', count: maintenanceCount, color: '#8d9691' },
-  ];
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 2.5 } }}>
@@ -2987,11 +2811,11 @@ const RoomManagementPage: React.FC = () => {
       {/* Edit Room Notes Dialog */}
       <RoomNotesDialog
         open={notesDialogOpen}
-        onClose={() => setNotesDialogOpen(false)}
-        roomNumber={selectedRoom?.room_number}
+        onClose={closeRoomNotes}
+        roomNumber={notesRoom?.room_number}
         notes={editingNotes}
         onNotesChange={setEditingNotes}
-        onSave={() => handleSaveNotes(editingNotes)}
+        onSave={saveRoomNotes}
         saving={savingNotes}
       />
 
@@ -3005,12 +2829,7 @@ const RoomManagementPage: React.FC = () => {
       {/* Booking Notes Edit Dialog */}
       <BookingNotesDialog
         open={bookingNotesDialogOpen}
-        onClose={() => {
-          setBookingNotesDialogOpen(false);
-          setBookingNotesEditBooking(null);
-          setEditedBookingNotes('');
-          setEditedCleaningPreference(null);
-        }}
+        onClose={closeBookingNotes}
         booking={bookingNotesEditBooking}
         notes={editedBookingNotes}
         onNotesChange={setEditedBookingNotes}
