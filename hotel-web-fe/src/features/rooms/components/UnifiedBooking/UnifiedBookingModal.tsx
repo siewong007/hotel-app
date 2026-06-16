@@ -2,37 +2,21 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Box,
   Dialog,
-  Button,
   Typography,
-  Grid,
   TextField,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Paper,
-  CircularProgress,
-  Divider,
-  Alert,
-  Chip,
   Autocomplete,
   FormControlLabel,
   Checkbox,
-  IconButton,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
   PersonAdd as PersonAddIcon,
   EventAvailable as BookingIcon,
   CardGiftcard as GiftIcon,
-  Hotel as HotelIcon,
   ArrowForward as ArrowForwardIcon,
-  Check as CheckIcon,
-  Close as CloseIcon,
   Bedtime as MoonIcon,
   Public as PublicIcon,
   Search as SearchIcon,
-  ListAlt as SummaryIcon,
 } from '@mui/icons-material';
 import { Room, Guest, Booking, BookingCreateRequest, RoomType } from '../../../../types';
 import { HotelAPIService } from '../../../../api';
@@ -43,6 +27,10 @@ import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../../utils
 import { useUnifiedBookingData } from '../../hooks/useUnifiedBookingData';
 import { isValidEmail } from '../../../../utils/validation';
 import GuestSelector, { NewGuestForm, GuestWithCredits, emptyNewGuestForm } from '../GuestSelector';
+import { buildBookingTokens } from './bookingTokens';
+import BookingModalHeader from './components/BookingModalHeader';
+import BookingSummaryAside from './components/BookingSummaryAside';
+import BookingModalFooter from './components/BookingModalFooter';
 
 export type BookingType = 'direct' | 'walk_in' | 'online' | 'complimentary';
 export type BookingMode = 'direct' | 'reservation';
@@ -794,37 +782,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     return true;
   })();
 
-  const D = useMemo(() => {
-    const isDark = theme.palette.mode === 'dark';
-    const primary = theme.palette.primary.main;
-    const secondary = theme.palette.secondary.main;
-    const info = theme.palette.info.main;
-    const warning = theme.palette.warning.main;
-    const success = theme.palette.success.main;
-
-    return {
-      bg: theme.palette.background.default,
-      surface: theme.palette.background.paper,
-      surface2: isDark ? 'var(--hotel-popup-muted-bg)' : '#F8FAFB',
-      surface3: isDark ? 'var(--hotel-subtle-bg)' : '#EFF2F5',
-      border: isDark ? 'var(--hotel-popup-border)' : '#E2E6EC',
-      borderHi: isDark ? theme.palette.grey[400] : '#CBD2DA',
-      ink: theme.palette.text.primary,
-      ink2: theme.palette.text.secondary,
-      ink3: isDark ? theme.palette.grey[500] : '#7B8794',
-      emerald: primary,
-      emeraldDeep: theme.palette.primary.dark,
-      emeraldSoft: alpha(primary, isDark ? 0.18 : 0.12),
-      blue: info,
-      blueSoft: alpha(info, isDark ? 0.18 : 0.10),
-      green: success,
-      amber: warning,
-      purple: secondary,
-      purpleSoft: alpha(secondary, isDark ? 0.18 : 0.12),
-      orange: isDark ? '#fb9a73' : '#D97757',
-      orangeSoft: alpha(isDark ? '#fb9a73' : '#D97757', isDark ? 0.18 : 0.12),
-    };
-  }, [theme]);
+  const D = useMemo(() => buildBookingTokens(theme), [theme]);
 
   // Style preset for the Mode segmented control
   const MODE_OPTIONS: Array<{ k: BookingMode; label: string; desc: string; icon: React.ReactNode }> = [
@@ -927,11 +885,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     </Box>
   );
 
-  // KBD chip
-  const kbd = (txt: string) => (
-    <Box component="kbd" sx={{ bgcolor: D.surface, border: `1px solid ${D.border}`, px: 0.75, py: '1px', borderRadius: 0.5, fontSize: 10, fontFamily: 'inherit', color: D.ink2 }}>{txt}</Box>
-  );
-
   return (
     <Dialog
       open={open}
@@ -951,58 +904,15 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       }}
     >
       {/* ============= HEADER ============= */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, px: 2.75, py: 2, borderBottom: `1px solid ${D.border}`, bgcolor: D.surface }}>
-        <Box sx={{
-          width: 40,
-          height: 40,
-          borderRadius: 1.25,
-          background: `linear-gradient(135deg, ${D.emerald}, ${D.emeraldDeep})`,
-          display: 'grid',
-          placeItems: 'center',
-          color: '#fff',
-        }}>
-          <HotelIcon sx={{ fontSize: 22 }} />
-        </Box>
-        <Box>
-          <Typography sx={{ m: 0, fontSize: 17, fontWeight: 700, color: D.ink, lineHeight: 1.2 }}>
-            New Booking
-          </Typography>
-          <Typography sx={{ m: 0, mt: '2px', fontSize: 12, color: D.ink3 }}>
-            Set type, guest, dates and rate — all on one screen
-          </Typography>
-        </Box>
-        <Box sx={{ flex: 1 }} />
-        {room && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, bgcolor: D.surface2, border: `1px solid ${D.border}`, borderRadius: 1.25, px: 1.5, py: 0.75 }}>
-            <Typography sx={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.5px', color: D.ink, lineHeight: 1 }}>
-              {roomCount > 1 ? `${roomCount} rooms` : room.room_number}
-            </Typography>
-            <Box>
-              <Typography sx={{ fontSize: 10, fontWeight: 700, color: D.ink3, letterSpacing: 0.6, textTransform: 'uppercase' }}>
-                {roomCount > 1 ? selectedRoomNumbers : room.room_type}
-              </Typography>
-              <Typography sx={{ fontSize: 11, fontWeight: 700, color: D.green, mt: '1px' }}>
-                ● {roomIsAvailable === false ? 'Unavailable' : 'Available'}
-              </Typography>
-            </Box>
-          </Box>
-        )}
-        <IconButton
-          onClick={onClose}
-          disabled={processing}
-          aria-label="Close"
-          sx={{
-            width: 32,
-            height: 32,
-            borderRadius: 1,
-            color: D.ink3,
-            border: '1px solid transparent',
-            '&:hover': { borderColor: D.border, bgcolor: D.surface2, color: D.ink },
-          }}
-        >
-          <CloseIcon sx={{ fontSize: 18 }} />
-        </IconButton>
-      </Box>
+      <BookingModalHeader
+        D={D}
+        room={room}
+        roomCount={roomCount}
+        selectedRoomNumbers={selectedRoomNumbers}
+        roomIsAvailable={roomIsAvailable}
+        processing={processing}
+        onClose={onClose}
+      />
 
       {/* ============= BODY ============= */}
       <Box sx={{
@@ -1481,205 +1391,43 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         </Box>
 
         {/* RIGHT — LIVE SUMMARY */}
-        <Box sx={{
-          display: { xs: 'none', md: 'flex' },
-          flexDirection: 'column',
-          gap: 1.75,
-          bgcolor: D.surface2,
-          borderLeft: `1px solid ${D.border}`,
-          p: 2.75,
-          overflowY: 'auto',
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 11, letterSpacing: 1.2, fontWeight: 700, color: D.ink3, textTransform: 'uppercase' }}>
-            <SummaryIcon sx={{ fontSize: 14 }} /> Booking summary
-          </Box>
-
-          {room && (
-            <Box sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1.5,
-              p: 1.75,
-              bgcolor: D.surface,
-              border: `1px solid ${D.border}`,
-              borderRadius: 1.5,
-              borderLeft: `4px solid ${D.green}`,
-            }}>
-              <Box>
-                <Typography sx={{ fontSize: 24, fontWeight: 800, letterSpacing: '-1px', lineHeight: 1, color: D.ink }}>
-                  {roomCount > 1 ? `${roomCount} rooms` : room.room_number}
-                </Typography>
-                <Typography sx={{ fontSize: 10, fontWeight: 700, color: D.ink3, letterSpacing: 0.6, mt: 0.25, textTransform: 'uppercase' }}>
-                  {roomCount > 1 ? selectedRoomNumbers : room.room_type}
-                </Typography>
-                <Typography sx={{ fontSize: 11, color: D.green, fontWeight: 700, mt: 0.5 }}>
-                  ● {roomIsAvailable === false ? 'Conflict' : 'Available now'}
-                </Typography>
-              </Box>
-              <Box sx={{ flex: 1, textAlign: 'right' }}>
-                <Box sx={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 0.5,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: 0.5,
-                  textTransform: 'uppercase',
-                  px: 1,
-                  py: 0.4,
-                  borderRadius: 999,
-                  bgcolor: tagSoft,
-                  color: tagColor,
-                }}>
-                  {tagLabel}
-                </Box>
-              </Box>
-            </Box>
-          )}
-
-          <Box sx={{ bgcolor: D.surface, border: `1px solid ${D.border}`, borderRadius: 1.5, p: 1.75 }}>
-            {[
-              { k: 'Guest',     v: summaryGuestName },
-              { k: 'Rooms',     v: selectedRoomNumbers || '—' },
-              { k: 'Source',    v: effectiveType === 'online' ? (bookingChannel || '—') : (effectiveType === 'walk_in' ? 'Walk-in' : effectiveType === 'complimentary' ? 'Free credit' : '—') },
-              { k: 'Check-in',  v: formatHumanDate(checkInDate) || '—' },
-              { k: 'Check-out', v: isHourlyBooking ? `${formatHumanDate(checkInDate)} (hourly)` : (formatHumanDate(checkOutDate) || '—') },
-              { k: 'Duration',  v: `${billableNights} ${billableNights === 1 ? 'night' : 'nights'}` },
-            ].map((r) => (
-              <Box key={r.k} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', py: 0.75, fontSize: 12.5 }}>
-                <Box sx={{ color: D.ink3 }}>{r.k}</Box>
-                <Box sx={{ color: D.ink, fontWeight: 600, textAlign: 'right', maxWidth: '62%', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.v}</Box>
-              </Box>
-            ))}
-          </Box>
-
-          <Box sx={{ bgcolor: D.surface, border: `1px solid ${D.border}`, borderRadius: 1.5, p: 1.75 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, fontSize: 12.5 }}>
-              <Box sx={{ color: D.ink3 }}>{roomCount > 1 ? 'Room rates' : 'Rate'}</Box>
-              <Box sx={{ color: D.ink, fontWeight: 600 }}>
-                {roomCount > 1
-                  ? `${formatCurrency(nightlyRoomTotal)} / night total`
-                  : `${formatCurrency(ratePerNight)} / night`}
-              </Box>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, fontSize: 12.5 }}>
-              <Box sx={{ color: D.ink3 }}>Subtotal (×{billableNights})</Box>
-              <Box sx={{ color: D.ink, fontWeight: 600 }}>{formatCurrency(subtotal)}</Box>
-            </Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, fontSize: 12.5 }}>
-              <Box sx={{ color: D.ink3 }}>Tourism tax</Box>
-              <Box sx={{ color: tourismTaxAmount > 0 ? D.ink : D.ink3, fontWeight: tourismTaxAmount > 0 ? 600 : 500 }}>
-                {tourismTaxAmount > 0 ? formatCurrency(tourismTaxAmount) : '—'}
-              </Box>
-            </Box>
-            {extraBedCharge > 0 && (
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, fontSize: 12.5 }}>
-                <Box sx={{ color: D.ink3 }}>Extra bed</Box>
-                <Box sx={{ color: D.ink, fontWeight: 600 }}>{formatCurrency(extraBedCharge)}</Box>
-              </Box>
-            )}
-            <Box sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              borderTop: `1px solid ${D.border}`,
-              mt: 1,
-              pt: 1.5,
-              fontSize: 14,
-            }}>
-              <Box sx={{ color: D.ink, fontWeight: 700 }}>Total</Box>
-              <Box sx={{ color: D.emerald, fontWeight: 800, fontSize: 20, letterSpacing: '-0.4px' }}>
-                {formatCurrency(total)}
-              </Box>
-            </Box>
-          </Box>
-
-          <Box sx={{
-            bgcolor: D.surface,
-            border: `1px solid ${D.border}`,
-            borderRadius: 1.5,
-            p: 1.5,
-            fontSize: 11,
-            color: D.ink2,
-            lineHeight: 1.5,
-          }}>
-            {checkingAvailability ? (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: D.ink3 }}>
-                <CircularProgress size={12} /> Checking availability…
-              </Box>
-            ) : roomIsAvailable === false ? (
-              <Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: D.orange, fontWeight: 700, mb: 0.5 }}>
-                  <CheckIcon sx={{ fontSize: 13 }} /> Room conflict
-                </Box>
-                Another booking exists for the selected dates.
-              </Box>
-            ) : (
-              <Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, color: D.green, fontWeight: 700, mb: 0.5 }}>
-                  <CheckIcon sx={{ fontSize: 13 }} /> No conflicts found
-                </Box>
-                {checkInDate && checkOutDate && room
-                  ? `${roomCount > 1 ? 'Selected rooms are' : 'Room is'} available for ${formatHumanDate(checkInDate)} → ${formatHumanDate(checkOutDate)}.`
-                  : 'Pick check-in and check-out dates to verify.'}
-              </Box>
-            )}
-          </Box>
-        </Box>
+        <BookingSummaryAside
+          D={D}
+          room={room}
+          roomCount={roomCount}
+          selectedRoomNumbers={selectedRoomNumbers}
+          roomIsAvailable={roomIsAvailable}
+          checkingAvailability={checkingAvailability}
+          tagColor={tagColor}
+          tagSoft={tagSoft}
+          tagLabel={tagLabel}
+          summaryGuestName={summaryGuestName}
+          effectiveType={effectiveType}
+          bookingChannel={bookingChannel}
+          checkInDate={checkInDate}
+          checkOutDate={checkOutDate}
+          isHourlyBooking={isHourlyBooking}
+          billableNights={billableNights}
+          ratePerNight={ratePerNight}
+          nightlyRoomTotal={nightlyRoomTotal}
+          subtotal={subtotal}
+          tourismTaxAmount={tourismTaxAmount}
+          extraBedCharge={extraBedCharge}
+          total={total}
+          formatCurrency={formatCurrency}
+          formatHumanDate={formatHumanDate}
+        />
       </Box>
 
       {/* ============= FOOTER ============= */}
-      <Box sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 1.25,
-        px: 2.75,
-        py: 1.75,
-        borderTop: `1px solid ${D.border}`,
-        bgcolor: D.surface2,
-      }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: D.ink3, fontSize: 12 }}>
-          {kbd('Esc')} cancel
-          <Box component="span" sx={{ mx: 0.5 }}>·</Box>
-          {kbd('⌘ Enter')} create
-        </Box>
-        <Box sx={{ flex: 1 }} />
-        <Button
-          onClick={onClose}
-          disabled={processing}
-          sx={{
-            color: D.ink2,
-            textTransform: 'none',
-            px: 2,
-            py: 1,
-            borderRadius: 1,
-            border: '1px solid transparent',
-            '&:hover': { color: D.ink, bgcolor: D.surface3 },
-          }}
-        >
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleSubmit}
-          disabled={processing || !formIsValid}
-          startIcon={processing ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <CheckIcon sx={{ fontSize: 14 }} />}
-          sx={{
-            background: `linear-gradient(180deg, ${D.emerald}, ${D.emeraldDeep})`,
-            border: `1px solid ${D.emeraldDeep}`,
-            color: '#fff',
-            textTransform: 'none',
-            px: 2,
-            py: 1.1,
-            borderRadius: 1,
-            fontWeight: 600,
-            boxShadow: '0 1px 0 rgba(255,255,255,0.25) inset, 0 4px 14px rgba(16,164,124,0.3)',
-            '&:hover': { filter: 'brightness(1.05)', background: `linear-gradient(180deg, ${D.emerald}, ${D.emeraldDeep})` },
-            '&.Mui-disabled': { background: D.surface3, color: D.ink3, border: `1px solid ${D.border}`, boxShadow: 'none' },
-          }}
-        >
-          {submitLabel}
-        </Button>
-      </Box>
+      <BookingModalFooter
+        D={D}
+        processing={processing}
+        formIsValid={formIsValid}
+        submitLabel={submitLabel}
+        onClose={onClose}
+        onSubmit={handleSubmit}
+      />
     </Dialog>
   );
 };
