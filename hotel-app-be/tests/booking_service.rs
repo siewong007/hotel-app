@@ -10,6 +10,19 @@ mod common;
 
 use hotel_app_be::services::booking;
 
+// The PostgreSQL workflow tests share a single database and exercise DDL on the
+// `audit_logs` table (installing/dropping failure triggers). Run in parallel
+// they deadlock — a trigger's AccessExclusiveLock races other tests' inserts.
+// This process-global async mutex serializes them; each test holds the guard
+// for its whole body via the value returned from `setup_pg_pool`.
+#[cfg(all(feature = "postgres", not(feature = "sqlite")))]
+fn pg_serial_lock() -> std::sync::Arc<tokio::sync::Mutex<()>> {
+    static LOCK: std::sync::OnceLock<std::sync::Arc<tokio::sync::Mutex<()>>> =
+        std::sync::OnceLock::new();
+    LOCK.get_or_init(|| std::sync::Arc::new(tokio::sync::Mutex::new(())))
+        .clone()
+}
+
 // ---------------------------------------------------------------------------
 // Unit tests — no database needed
 // ---------------------------------------------------------------------------
@@ -1228,7 +1241,7 @@ mod postgres_tests {
     use rust_decimal::Decimal;
     use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 
-    async fn setup_pg_pool() -> Option<PgPool> {
+    async fn setup_pg_pool() -> Option<(PgPool, tokio::sync::OwnedMutexGuard<()>)> {
         let database_url = match std::env::var("DATABASE_URL") {
             Ok(url) => url,
             Err(_) => {
@@ -1237,13 +1250,14 @@ mod postgres_tests {
             }
         };
 
-        Some(
-            PgPoolOptions::new()
-                .max_connections(5)
-                .connect(&database_url)
-                .await
-                .expect("failed to connect to PostgreSQL test database"),
-        )
+        // Serialize against the other PostgreSQL workflow tests (shared DB + DDL).
+        let guard = super::pg_serial_lock().lock_owned().await;
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&database_url)
+            .await
+            .expect("failed to connect to PostgreSQL test database");
+        Some((pool, guard))
     }
 
     async fn ensure_admin_actor(pool: &PgPool, actor_id: i64) {
@@ -1359,6 +1373,11 @@ mod postgres_tests {
         }
 
         for room_id in room_ids {
+            sqlx::query("DELETE FROM room_status_change_log WHERE room_id = $1")
+                .bind(room_id)
+                .execute(pool)
+                .await
+                .unwrap();
             sqlx::query("DELETE FROM rooms WHERE id = $1")
                 .bind(room_id)
                 .execute(pool)
@@ -1476,7 +1495,7 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn postgres_void_booking_updates_workflow_side_effects() {
-        let Some(pool) = setup_pg_pool().await else {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else {
             return;
         };
         let actor_id = 930_001;
@@ -1528,7 +1547,7 @@ mod postgres_tests {
                 .await
                 .unwrap();
         let audit_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM audit_logs WHERE resource_type = 'booking' AND resource_id = $1 AND action = 'booking_cancelled'",
+            "SELECT COUNT(*) FROM audit_logs WHERE resource_type = 'booking' AND resource_id = $1 AND action = 'booking_voided'",
         )
         .bind(booking_id)
         .fetch_one(&pool)
@@ -1560,7 +1579,7 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn postgres_concurrent_void_allows_only_one_success() {
-        let Some(pool) = setup_pg_pool().await else {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else {
             return;
         };
         let actor_id = 930_002;
@@ -1625,7 +1644,7 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn postgres_reactivation_rejects_room_date_conflict() {
-        let Some(pool) = setup_pg_pool().await else {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else {
             return;
         };
         let actor_id = 930_003;
@@ -1712,7 +1731,7 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn postgres_void_restores_complimentary_credits() {
-        let Some(pool) = setup_pg_pool().await else {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else {
             return;
         };
         let actor_id = 930_004;
@@ -1745,7 +1764,7 @@ mod postgres_tests {
             .await
             .expect("complimentary postgres booking should void");
 
-        let credits: i64 = sqlx::query_scalar(
+        let credits: i32 = sqlx::query_scalar(
             "SELECT nights_available FROM guest_complimentary_credits WHERE guest_id = $1 AND room_type_id = $2",
         )
         .bind(guest_id)
@@ -1785,7 +1804,7 @@ mod postgres_tests {
             r#"
             CREATE FUNCTION {function_name}() RETURNS trigger AS $$
             BEGIN
-                IF NEW.action = 'booking_cancelled'
+                IF NEW.action = 'booking_voided'
                    AND NEW.resource_type = 'booking'
                    AND NEW.resource_id = {booking_id} THEN
                     RAISE EXCEPTION 'forced audit failure for booking {booking_id}';
@@ -1824,7 +1843,7 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn postgres_void_rolls_back_when_late_audit_insert_fails() {
-        let Some(pool) = setup_pg_pool().await else {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else {
             return;
         };
         let actor_id = 930_005;
@@ -1975,7 +1994,7 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn postgres_checkin_updates_workflow_side_effects() {
-        let Some(pool) = setup_pg_pool().await else {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else {
             return;
         };
         let actor_id = 940_001;
@@ -2058,7 +2077,7 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn postgres_concurrent_checkin_allows_only_one_success() {
-        let Some(pool) = setup_pg_pool().await else {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else {
             return;
         };
         let actor_id = 940_002;
@@ -2123,7 +2142,7 @@ mod postgres_tests {
 
     #[tokio::test]
     async fn postgres_checkin_rolls_back_when_late_audit_insert_fails() {
-        let Some(pool) = setup_pg_pool().await else {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else {
             return;
         };
         let actor_id = 940_003;
@@ -2211,7 +2230,7 @@ mod postgres_reactivation_tests {
     use sqlx::postgres::PgPoolOptions;
     use sqlx::{PgPool, Row};
 
-    async fn setup_pg_pool() -> Option<PgPool> {
+    async fn setup_pg_pool() -> Option<(PgPool, tokio::sync::OwnedMutexGuard<()>)> {
         let database_url = match std::env::var("DATABASE_URL") {
             Ok(url) => url,
             Err(_) => {
@@ -2220,13 +2239,14 @@ mod postgres_reactivation_tests {
             }
         };
 
-        Some(
-            PgPoolOptions::new()
-                .max_connections(5)
-                .connect(&database_url)
-                .await
-                .expect("connect to PostgreSQL test database"),
-        )
+        // Serialize against the other PostgreSQL workflow tests (shared DB + DDL).
+        let guard = super::pg_serial_lock().lock_owned().await;
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&database_url)
+            .await
+            .expect("connect to PostgreSQL test database");
+        Some((pool, guard))
     }
 
     async fn cleanup_pg_fixture(
@@ -2394,7 +2414,7 @@ mod postgres_reactivation_tests {
 
     #[tokio::test]
     async fn postgres_concurrent_reactivation_allows_only_one_success() {
-        let Some(pool) = setup_pg_pool().await else {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else {
             return;
         };
         let actor_id = 940_001;
