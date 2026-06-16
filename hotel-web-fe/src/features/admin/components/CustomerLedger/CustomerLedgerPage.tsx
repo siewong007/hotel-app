@@ -117,6 +117,7 @@ import VoidLedgerDialog from './components/VoidLedgerDialog';
 import EditLedgerDialog from './components/EditLedgerDialog';
 import DeleteCompanyDialog from './components/DeleteCompanyDialog';
 import CreditNoteDialog from './components/CreditNoteDialog';
+import CompanyFormDialog from './components/CompanyFormDialog';
 
 const CustomerLedgerPage: React.FC = () => {
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
@@ -3914,357 +3915,30 @@ const CustomerLedgerPage: React.FC = () => {
       />
 
       {/* Company Registration Dialog */}
-      <Dialog
+      <CompanyFormDialog
         open={companyRegDialogOpen}
         onClose={() => { setCompanyRegDialogOpen(false); resetCompanyRegForm(); setCompanyRegPrefillCreate(false); }}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <BusinessIcon color="primary" />
-            Register New Company
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 0.5 }}>
-            {/* Company Basic Info */}
-            <Grid size={12}>
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Company Information
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                required
-                label="Company Name"
-                value={companyRegForm.company_name}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, company_name: e.target.value })}
-                placeholder="Enter company name"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Registration Number"
-                value={companyRegForm.registration_number}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, registration_number: e.target.value })}
-                placeholder="Business registration number"
-              />
-            </Grid>
-
-            {/* Contact Information */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Contact Information
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Contact Person"
-                value={companyRegForm.contact_person}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, contact_person: e.target.value })}
-                placeholder="Primary contact name"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Contact Email"
-                type="email"
-                value={companyRegForm.contact_email}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, contact_email: e.target.value })}
-                placeholder="email@company.com"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Contact Phone"
-                value={companyRegForm.contact_phone}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, contact_phone: e.target.value })}
-                placeholder="+60 12-345 6789"
-              />
-            </Grid>
-
-            {/* Billing Address */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Billing Address
-              </Typography>
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Street Address"
-                value={companyRegForm.billing_address}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_address: e.target.value })}
-                placeholder="Street address, building, floor"
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="City"
-                value={companyRegForm.billing_city}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_city: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="State"
-                value={companyRegForm.billing_state}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_state: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Postal Code"
-                value={companyRegForm.billing_postal_code}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, billing_postal_code: e.target.value })}
-              />
-            </Grid>
-
-            {/* Billing Terms */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Billing Terms
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Credit Limit"
-                type="number"
-                value={companyRegForm.credit_limit}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, credit_limit: e.target.value })}
-                placeholder="0.00"
-                InputProps={{
-                  startAdornment: <Typography sx={{ mr: 1 }}>{currencySymbol}</Typography>,
-                }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Payment Terms (Days)"
-                type="number"
-                value={companyRegForm.payment_terms_days}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, payment_terms_days: e.target.value })}
-                helperText="Number of days for payment after invoice"
-              />
-            </Grid>
-
-            {/* Notes */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={2}
-                label="Notes"
-                value={companyRegForm.notes}
-                onChange={(e) => setCompanyRegForm({ ...companyRegForm, notes: e.target.value })}
-                placeholder="Additional notes about this company..."
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setCompanyRegDialogOpen(false); resetCompanyRegForm(); }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleRegisterCompany}
-            variant="contained"
-            disabled={creatingCompany || !companyRegForm.company_name.trim()}
-            startIcon={creatingCompany ? <CircularProgress size={20} /> : <AddIcon />}
-          >
-            {creatingCompany ? 'Registering...' : 'Register Company'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onCancel={() => { setCompanyRegDialogOpen(false); resetCompanyRegForm(); }}
+        mode="create"
+        form={companyRegForm}
+        setForm={setCompanyRegForm}
+        submitting={creatingCompany}
+        currencySymbol={currencySymbol}
+        onSubmit={handleRegisterCompany}
+      />
 
       {/* Edit Company Dialog */}
-      <Dialog
+      <CompanyFormDialog
         open={companyEditDialogOpen}
         onClose={() => { setCompanyEditDialogOpen(false); resetCompanyEditForm(); }}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <EditIcon color="primary" />
-            Edit Company
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 0.5 }}>
-            {/* Company Basic Info */}
-            <Grid size={12}>
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Company Information
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                required
-                label="Company Name"
-                value={companyEditForm.company_name}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, company_name: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Registration Number"
-                value={companyEditForm.registration_number}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, registration_number: e.target.value })}
-              />
-            </Grid>
-
-            {/* Contact Information */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Contact Information
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Contact Person"
-                value={companyEditForm.contact_person}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, contact_person: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Contact Email"
-                type="email"
-                value={companyEditForm.contact_email}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, contact_email: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Contact Phone"
-                value={companyEditForm.contact_phone}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, contact_phone: e.target.value })}
-              />
-            </Grid>
-
-            {/* Billing Address */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Billing Address
-              </Typography>
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Street Address"
-                value={companyEditForm.billing_address}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_address: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="City"
-                value={companyEditForm.billing_city}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_city: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="State"
-                value={companyEditForm.billing_state}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_state: e.target.value })}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                label="Postal Code"
-                value={companyEditForm.billing_postal_code}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, billing_postal_code: e.target.value })}
-              />
-            </Grid>
-
-            {/* Billing Terms */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-              <Typography variant="subtitle2" color="primary" gutterBottom>
-                Billing Terms
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Credit Limit"
-                type="number"
-                value={companyEditForm.credit_limit}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, credit_limit: e.target.value })}
-                InputProps={{
-                  startAdornment: <Typography sx={{ mr: 1 }}>{currencySymbol}</Typography>,
-                }}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                label="Payment Terms (Days)"
-                type="number"
-                value={companyEditForm.payment_terms_days}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, payment_terms_days: e.target.value })}
-              />
-            </Grid>
-
-            {/* Notes */}
-            <Grid size={12}>
-              <Divider sx={{ my: 1 }} />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={2}
-                label="Notes"
-                value={companyEditForm.notes}
-                onChange={(e) => setCompanyEditForm({ ...companyEditForm, notes: e.target.value })}
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setCompanyEditDialogOpen(false); resetCompanyEditForm(); }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleUpdateCompany}
-            variant="contained"
-            disabled={updatingCompany || !companyEditForm.company_name.trim()}
-            startIcon={updatingCompany ? <CircularProgress size={20} /> : <EditIcon />}
-          >
-            {updatingCompany ? 'Updating...' : 'Update Company'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onCancel={() => { setCompanyEditDialogOpen(false); resetCompanyEditForm(); }}
+        mode="edit"
+        form={companyEditForm}
+        setForm={setCompanyEditForm}
+        submitting={updatingCompany}
+        currencySymbol={currencySymbol}
+        onSubmit={handleUpdateCompany}
+      />
 
       {/* Delete Company Confirmation Dialog */}
       <DeleteCompanyDialog
