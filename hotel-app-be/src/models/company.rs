@@ -2,7 +2,6 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 
 /// Company entity for direct billing
 #[derive(Debug, Clone, Serialize, Deserialize)]

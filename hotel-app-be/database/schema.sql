@@ -3762,7 +3762,7 @@ $$;
 CREATE OR REPLACE FUNCTION gen_uuidv7()
 RETURNS uuid
 LANGUAGE plpgsql
-IMMUTABLE
+VOLATILE
 SET search_path = pg_catalog, public
 AS $$
 BEGIN

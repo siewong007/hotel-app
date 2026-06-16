@@ -3,7 +3,6 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 
 /// Customer ledger entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
