@@ -2,7 +2,7 @@
 //! transitions) plus their shared private helpers.
 
 use crate::core::auth::AuthService;
-use crate::core::db::{DbPool, DbTransaction};
+use crate::core::db::{DbPool, DbTransaction, decimal_to_db};
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::core::settings_cache;
@@ -24,7 +24,7 @@ use chrono::{Duration, NaiveDate};
 use rust_decimal::Decimal;
 use sqlx::Row;
 
-async fn record_booking_history(
+pub async fn record_booking_history(
     pool: &DbPool,
     booking_id: i64,
     previous_status: Option<&str>,
@@ -78,7 +78,7 @@ async fn record_booking_history(
     }
 }
 
-async fn record_booking_history_tx(
+pub async fn record_booking_history_tx(
     tx: &mut DbTransaction<'_>,
     booking_id: i64,
     previous_status: Option<&str>,
@@ -1909,6 +1909,7 @@ pub async fn update_booking_handler(
     Ok(Json(booking))
 }
 
+#[allow(dead_code)]
 pub async fn delete_booking_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
@@ -2138,6 +2139,7 @@ pub async fn delete_booking_handler(
     })))
 }
 
+#[allow(dead_code)]
 pub async fn manual_checkin_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
@@ -2522,6 +2524,7 @@ pub async fn pre_checkin_update_handler(
 
 /// Reactivate a voided booking
 /// Changes status from 'voided' to 'confirmed' and reserves the room
+#[allow(dead_code)]
 pub async fn reactivate_booking_handler(
     State(pool): State<DbPool>,
     Extension(user_id): Extension<i64>,
@@ -2723,4 +2726,738 @@ pub async fn reactivate_booking_handler(
     let booking = booking_svc::fetch_booking_by_id(&pool, booking_id).await?;
 
     Ok(Json(booking))
+}
+
+pub async fn user_owns_booking(
+    pool: &DbPool,
+    user_id: i64,
+    guest_id: i64,
+) -> Result<bool, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let query =
+        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = ?1 AND ug.guest_id = ?2)";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let query =
+        "SELECT EXISTS(SELECT 1 FROM user_guests ug WHERE ug.user_id = $1 AND ug.guest_id = $2)";
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let owns_booking = sqlx::query_scalar::<_, i32>(query)
+        .bind(user_id)
+        .bind(guest_id)
+        .fetch_one(pool)
+        .await
+        .map(|value| value != 0)
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let owns_booking = sqlx::query_scalar::<_, bool>(query)
+        .bind(user_id)
+        .bind(guest_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(owns_booking)
+}
+
+pub async fn void_booking_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    user_id: i64,
+) -> Result<(), ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let update_booking_query = r#"
+        UPDATE bookings
+        SET status = 'voided',
+            updated_at = datetime('now'),
+            cancelled_at = datetime('now'),
+            cancelled_by = ?2
+        WHERE id = ?1
+          AND status != 'voided'
+          AND status NOT IN ('checked_out', 'completed')
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let update_booking_query = r#"
+        UPDATE bookings
+        SET status = 'voided',
+            updated_at = CURRENT_TIMESTAMP,
+            cancelled_at = CURRENT_TIMESTAMP,
+            cancelled_by = $2
+        WHERE id = $1
+          AND status != 'voided'
+          AND status NOT IN ('checked_out', 'completed')
+    "#;
+
+    let result = sqlx::query(update_booking_query)
+        .bind(booking_id)
+        .bind(user_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if result.rows_affected() != 1 {
+        return Err(ApiError::BadRequest("Booking cannot be voided".to_string()));
+    }
+
+    Ok(())
+}
+
+pub async fn release_room_tx(tx: &mut DbTransaction<'_>, room_id: i64) -> Result<(), ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let update_room_query = "UPDATE rooms SET status = 'available' WHERE id = ?1";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let update_room_query = "UPDATE rooms SET status = 'available' WHERE id = $1";
+
+    sqlx::query(update_room_query)
+        .bind(room_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(())
+}
+
+pub async fn void_booking_payments_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+) -> Result<(), ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let void_payments_query =
+        "UPDATE payments SET status = 'void' WHERE booking_id = ?1 AND status != 'void'";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let void_payments_query =
+        "UPDATE payments SET status = 'void' WHERE booking_id = $1 AND status != 'void'";
+
+    sqlx::query(void_payments_query)
+        .bind(booking_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(())
+}
+
+pub async fn restore_complimentary_credits_tx(
+    tx: &mut DbTransaction<'_>,
+    booking: &Booking,
+) -> Result<i32, ApiError> {
+    let mut nights_credited = 0;
+    if booking.is_complimentary == Some(true) {
+        let nights = (booking.check_out_date - booking.check_in_date)
+            .num_days()
+            .max(0) as i32;
+
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let room_type_query = "SELECT room_type_id FROM rooms WHERE id = ?1";
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        let room_type_query = "SELECT room_type_id FROM rooms WHERE id = $1";
+
+        let room_type_id: Option<i64> = sqlx::query_scalar(room_type_query)
+            .bind(booking.room_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?
+            .flatten();
+
+        if let Some(room_type_id) = room_type_id {
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            let credit_query = r#"
+                INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
+                VALUES (?1, ?2, ?3, 'Refunded from voided complimentary booking', datetime('now'), datetime('now'))
+                ON CONFLICT (guest_id, room_type_id)
+                DO UPDATE SET nights_available = guest_complimentary_credits.nights_available + ?3,
+                              updated_at = datetime('now')
+            "#;
+            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+            let credit_query = r#"
+                INSERT INTO guest_complimentary_credits (guest_id, room_type_id, nights_available, notes, created_at, updated_at)
+                VALUES ($1, $2, $3, 'Refunded from voided complimentary booking', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT (guest_id, room_type_id)
+                DO UPDATE SET nights_available = guest_complimentary_credits.nights_available + $3,
+                              updated_at = CURRENT_TIMESTAMP
+            "#;
+
+            sqlx::query(credit_query)
+                .bind(booking.guest_id)
+                .bind(room_type_id)
+                .bind(nights)
+                .execute(&mut **tx)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+
+            nights_credited = nights;
+        }
+    }
+
+    Ok(nights_credited)
+}
+
+pub async fn record_booking_void_modification_tx(
+    tx: &mut DbTransaction<'_>,
+    booking: &Booking,
+    user_id: i64,
+) -> Result<(), ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES (?1, ?2, ?3, ?4, ?5)"
+    )
+    .bind(booking.id)
+    .bind("voided")
+    .bind(serde_json::json!({
+        "status": &booking.status,
+        "check_in_date": booking.check_in_date.to_string(),
+        "check_out_date": booking.check_out_date.to_string()
+    }).to_string())
+    .bind(serde_json::json!({"status": "voided"}).to_string())
+    .bind(user_id)
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
+    )
+    .bind(booking.id)
+    .bind("voided")
+    .bind(serde_json::json!({
+        "status": &booking.status,
+        "check_in_date": booking.check_in_date.to_string(),
+        "check_out_date": booking.check_out_date.to_string()
+    }))
+    .bind(serde_json::json!({"status": "voided"}))
+    .bind(user_id)
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Manual check-in: transaction-scoped helpers
+//
+// Each helper runs on the caller's transaction so the whole check-in commits
+// atomically (see `services::bookings::manual_checkin`). The core transition
+// (`checkin_booking_tx`) is guarded by `status IN ('confirmed','pending')` and
+// requires exactly one affected row, so a concurrent check-in cannot win twice.
+// ---------------------------------------------------------------------------
+
+/// Read a room's current status on the check-in transaction (used to block
+/// check-in into a room under maintenance / out of order).
+pub async fn fetch_room_status_tx(
+    tx: &mut DbTransaction<'_>,
+    room_id: i64,
+) -> Result<Option<String>, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let query = "SELECT status FROM rooms WHERE id = ?1";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let query = "SELECT status FROM rooms WHERE id = $1";
+
+    sqlx::query_scalar(query)
+        .bind(room_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
+}
+
+/// Apply optional guest-profile edits supplied at check-in. PostgreSQL-flavoured
+/// dynamic update (the column set is variable). No-op when nothing changes.
+pub async fn apply_guest_update_tx(
+    tx: &mut DbTransaction<'_>,
+    guest_id: i64,
+    guest_update: &GuestUpdateInput,
+) -> Result<(), ApiError> {
+    let mut updates = vec!["updated_at = CURRENT_TIMESTAMP".to_string()];
+    let mut params: Vec<String> = vec![];
+
+    if let Some(ref v) = guest_update.first_name {
+        updates.push(format!("first_name = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.last_name {
+        updates.push(format!("last_name = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.email {
+        let trimmed = v.trim();
+        if trimmed.is_empty() {
+            updates.push("email = NULL".to_string());
+        } else {
+            let email_regex =
+                regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+            if email_regex.is_match(trimmed) {
+                updates.push(format!("email = ${}", params.len() + 1));
+                params.push(trimmed.to_string());
+            }
+            // POLICY: an optional, malformed email on the check-in guest patch is
+            // intentionally ignored (the rest of the check-in still proceeds) — a
+            // front-desk typo must not block a guest's arrival. This is distinct
+            // from required-field validation, which rejects up front. An empty
+            // string clears the email to NULL; a well-formed value updates it.
+        }
+    }
+    if let Some(ref v) = guest_update.phone {
+        updates.push(format!("phone = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.ic_number {
+        updates.push(format!("ic_number = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.nationality {
+        updates.push(format!("nationality = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.address_line1 {
+        updates.push(format!("address_line1 = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.city {
+        updates.push(format!("city = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.state_province {
+        updates.push(format!("state_province = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.postal_code {
+        updates.push(format!("postal_code = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = guest_update.country {
+        updates.push(format!("country = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+
+    // Only the timestamp bump means no real field change was requested.
+    if params.is_empty() {
+        return Ok(());
+    }
+
+    let query = format!(
+        "UPDATE guests SET {} WHERE id = ${}",
+        updates.join(", "),
+        params.len() + 1
+    );
+    let mut q = sqlx::query(&query);
+    for p in &params {
+        q = q.bind(p);
+    }
+    q = q.bind(guest_id);
+    q.execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(())
+}
+
+/// Apply optional booking-level edits supplied at check-in (market code,
+/// payment method, requests, remarks, company). PostgreSQL-flavoured dynamic
+/// update. No-op when nothing changes.
+pub async fn apply_booking_field_update_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    booking_update: &BookingUpdateInput,
+) -> Result<(), ApiError> {
+    let mut updates: Vec<String> = vec![];
+    let mut params: Vec<String> = vec![];
+
+    if let Some(ref v) = booking_update.market_code {
+        updates.push(format!("market_code = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    // Note: rate_code column does not exist in bookings table - skip it.
+    if let Some(ref v) = booking_update.payment_method {
+        updates.push(format!("payment_method = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = booking_update.special_requests {
+        updates.push(format!("special_requests = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = booking_update.remarks {
+        updates.push(format!("remarks = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+    if let Some(ref v) = booking_update.company_name {
+        updates.push(format!("company_name = ${}", params.len() + 1));
+        params.push(v.clone());
+    }
+
+    if params.is_empty() {
+        return Ok(());
+    }
+
+    let query = format!(
+        "UPDATE bookings SET {} WHERE id = ${}",
+        updates.join(", "),
+        params.len() + 1
+    );
+    let mut q = sqlx::query(&query);
+    for p in &params {
+        q = q.bind(p);
+    }
+    q = q.bind(booking_id);
+    q.execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(())
+}
+
+/// Atomically transition a booking to `checked_in`, stamping the actual
+/// check-in timestamp. Guarded by `status IN ('confirmed','pending')` and
+/// requires exactly one affected row, so a concurrent check-in (or any other
+/// transition that already moved the row) collapses to a clean `BadRequest`
+/// instead of a double check-in. Returns the refreshed booking row.
+pub async fn checkin_booking_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+) -> Result<Booking, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let update_query = r#"
+        UPDATE bookings
+        SET status = 'checked_in',
+            actual_check_in = datetime('now'),
+            updated_at = datetime('now')
+        WHERE id = ?1
+          AND status IN ('confirmed', 'pending')
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let update_query = r#"
+        UPDATE bookings
+        SET status = 'checked_in',
+            actual_check_in = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+          AND status IN ('confirmed', 'pending')
+    "#;
+
+    let result = sqlx::query(update_query)
+        .bind(booking_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if result.rows_affected() != 1 {
+        return Err(ApiError::BadRequest(
+            "Booking cannot be checked in".to_string(),
+        ));
+    }
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let select_query = "SELECT * FROM bookings WHERE id = ?1";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let select_query = "SELECT * FROM bookings WHERE id = $1";
+
+    let row = sqlx::query(select_query)
+        .bind(booking_id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(row_mappers::row_to_booking(&row))
+}
+
+/// Record an optional payment captured during check-in.
+pub async fn record_checkin_payment_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    payment: &CheckInPaymentRecord,
+    user_id: i64,
+) -> Result<(), ApiError> {
+    let pay_amount = Decimal::from_f64_retain(payment.amount).unwrap_or(Decimal::ZERO);
+    let pay_type = payment.payment_type.as_deref().unwrap_or("booking");
+
+    // The two schemas diverge: PostgreSQL keys payments by `uuid` + `created_by`
+    // and stores free text in `notes`; SQLite uses `payment_number` + `processed_by`
+    // and `description`. The bind order is identical — only the column list differs.
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let insert_query = r#"
+        INSERT INTO payments (payment_number, booking_id, amount, payment_method, payment_type, status, description, processed_by)
+        VALUES (?1, ?2, ?3, ?4, ?5, 'completed', ?6, ?7)
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let insert_query = r#"
+        INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
+        VALUES ($1, $2, $3, $4, $5, 'completed', $6, $7)
+    "#;
+
+    sqlx::query(insert_query)
+        .bind(crate::core::db::generate_uuid())
+        .bind(booking_id)
+        .bind(decimal_to_db(pay_amount))
+        .bind(&payment.payment_method)
+        .bind(pay_type)
+        .bind(&payment.notes)
+        .bind(user_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(())
+}
+
+/// Set the room to `occupied` as part of check-in.
+pub async fn set_room_occupied_tx(
+    tx: &mut DbTransaction<'_>,
+    room_id: i64,
+) -> Result<(), ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let query = "UPDATE rooms SET status = 'occupied' WHERE id = ?1";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let query = "UPDATE rooms SET status = 'occupied' WHERE id = $1";
+
+    sqlx::query(query)
+        .bind(room_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(())
+}
+
+/// Record the check-in in the `booking_modifications` audit trail.
+pub async fn record_checkin_modification_tx(
+    tx: &mut DbTransaction<'_>,
+    booking: &Booking,
+    user_id: i64,
+) -> Result<(), ApiError> {
+    let old_value = serde_json::json!({
+        "status": &booking.status,
+        "guest_id": booking.guest_id,
+        "room_id": booking.room_id,
+    });
+    let new_value = serde_json::json!({
+        "status": "checked_in",
+        "guest_id": booking.guest_id,
+        "room_id": booking.room_id,
+    });
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES (?1, ?2, ?3, ?4, ?5)"
+    )
+    .bind(booking.id)
+    .bind("check_in")
+    .bind(old_value.to_string())
+    .bind(new_value.to_string())
+    .bind(user_id)
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
+    )
+    .bind(booking.id)
+    .bind("check_in")
+    .bind(old_value)
+    .bind(new_value)
+    .bind(user_id)
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(())
+}
+
+#[derive(Debug, Clone)]
+pub struct BookingReactivationCandidate {
+    pub guest_id: i64,
+    pub room_id: i64,
+    pub status: String,
+    pub check_in: NaiveDate,
+    pub check_out: NaiveDate,
+}
+
+pub async fn find_reactivation_candidate(
+    pool: &DbPool,
+    booking_id: i64,
+) -> Result<BookingReactivationCandidate, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let query = "SELECT guest_id, room_id, status, check_in_date, check_out_date FROM bookings WHERE id = ?1";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let query = "SELECT guest_id, room_id, status, check_in_date, check_out_date FROM bookings WHERE id = $1";
+
+    let row = sqlx::query(query)
+        .bind(booking_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
+
+    Ok(BookingReactivationCandidate {
+        guest_id: row.get("guest_id"),
+        room_id: row.get("room_id"),
+        status: row.get("status"),
+        check_in: row.get("check_in_date"),
+        check_out: row.get("check_out_date"),
+    })
+}
+
+pub async fn has_reactivation_conflict(
+    pool: &DbPool,
+    booking_id: i64,
+    room_id: i64,
+    check_in: NaiveDate,
+    check_out: NaiveDate,
+) -> Result<bool, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let conflict_query = r#"
+        SELECT EXISTS(
+            SELECT 1 FROM bookings
+            WHERE room_id = ?1
+              AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
+              AND status != 'voided'
+              AND id != ?4
+              AND ((check_in_date <= ?2 AND check_out_date > ?2)
+                  OR (check_in_date < ?3 AND check_out_date >= ?3)
+                  OR (check_in_date >= ?2 AND check_out_date <= ?3))
+        )
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let conflict_query = r#"
+        SELECT EXISTS(
+            SELECT 1 FROM bookings
+            WHERE room_id = $1
+              AND status IN ('reserved', 'confirmed', 'checked_in', 'auto_checked_in', 'pending')
+              AND status != 'voided'
+              AND id != $4
+              AND ((check_in_date <= $2 AND check_out_date > $2)
+                  OR (check_in_date < $3 AND check_out_date >= $3)
+                  OR (check_in_date >= $2 AND check_out_date <= $3))
+        )
+    "#;
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let conflict = sqlx::query_scalar::<_, i32>(conflict_query)
+        .bind(room_id)
+        .bind(check_in)
+        .bind(check_out)
+        .bind(booking_id)
+        .fetch_one(pool)
+        .await
+        .map(|value| value != 0)
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let conflict = sqlx::query_scalar::<_, bool>(conflict_query)
+        .bind(room_id)
+        .bind(check_in)
+        .bind(check_out)
+        .bind(booking_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(conflict)
+}
+
+pub async fn confirm_reactivated_booking_and_reserve_room(
+    pool: &DbPool,
+    booking_id: i64,
+    room_id: i64,
+) -> Result<Booking, ApiError> {
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let update_booking_query = r#"
+        UPDATE bookings
+        SET status = 'confirmed',
+            updated_at = datetime('now'),
+            booking_remarks = COALESCE(booking_remarks, '') || ' | Reactivated from voided status'
+        WHERE id = ?1 AND status = 'voided'
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let update_booking_query = r#"
+        UPDATE bookings
+        SET status = 'confirmed',
+            updated_at = CURRENT_TIMESTAMP,
+            remarks = COALESCE(remarks, '') || ' | Reactivated from voided status'
+        WHERE id = $1 AND status = 'voided'
+    "#;
+
+    let result = sqlx::query(update_booking_query)
+        .bind(booking_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    if result.rows_affected() != 1 {
+        return Err(ApiError::BadRequest(
+            "Booking is no longer voided and cannot be reactivated".to_string(),
+        ));
+    }
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let update_room_query = "UPDATE rooms SET status = ?1 WHERE id = ?2";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let update_room_query = "UPDATE rooms SET status = $1 WHERE id = $2";
+
+    sqlx::query(update_room_query)
+        .bind("reserved")
+        .bind(room_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let select_booking_query = "SELECT * FROM bookings WHERE id = ?1";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let select_booking_query = "SELECT id, booking_number, guest_id, room_id, check_in_date, check_out_date, \
+        room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, \
+        payment_method, adults, children, special_requests, remarks, source, market_code, \
+        discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, \
+        pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, \
+        is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, \
+        original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, \
+        company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type \
+        FROM bookings WHERE id = $1";
+
+    let booking_row = sqlx::query(select_booking_query)
+        .bind(booking_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    let booking = row_mappers::row_to_booking(&booking_row);
+
+    tx.commit().await.map_err(ApiError::from)?;
+
+    Ok(booking)
+}
+
+pub async fn record_booking_reactivation_modification(
+    pool: &DbPool,
+    booking_id: i64,
+    user_id: i64,
+) -> Result<(), ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let result = sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES (?1, ?2, ?3, ?4, ?5)"
+    )
+    .bind(booking_id)
+    .bind("reactivation")
+    .bind(serde_json::json!({"status": "voided"}).to_string())
+    .bind(serde_json::json!({"status": "confirmed"}).to_string())
+    .bind(user_id)
+    .execute(pool)
+    .await;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let result = sqlx::query(
+        "INSERT INTO booking_modifications (booking_id, modification_type, old_value, new_value, modified_by) VALUES ($1, $2, $3, $4, $5)"
+    )
+    .bind(booking_id)
+    .bind("reactivation")
+    .bind(serde_json::json!({"status": "voided"}))
+    .bind(serde_json::json!({"status": "confirmed"}))
+    .bind(user_id)
+    .execute(pool)
+    .await;
+
+    result.map_err(|e| ApiError::Database(e.to_string()))?;
+    Ok(())
 }
