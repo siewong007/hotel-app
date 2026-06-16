@@ -1,0 +1,158 @@
+# Hotel App - Project Makefile
+# Provides common development commands across all three projects.
+
+.PHONY: help setup-all setup-be setup-fe setup-desktop \
+        dev-be dev-fe dev-desktop \
+        build-be build-fe build-desktop \
+        check-be check-fe check-desktop check-all \
+        lint-be lint-fe lint-desktop lint-all \
+        test-be test-fe \
+        docker-up docker-down docker-build \
+        db-setup db-reset \
+        prepare-desktop docs \
+        fmt fmt-all \
+        clean clean-all
+
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
+
+# ─── Setup ────────────────────────────────────────────────────────────────────
+
+setup-all: setup-be setup-fe setup-desktop ## Install dependencies for all projects
+
+setup-be: ## Install backend dependencies
+	cd hotel-app-be && cargo fetch
+
+setup-fe: ## Install frontend dependencies
+	cd hotel-web-fe && npm install
+
+setup-desktop: ## Install desktop dependencies
+	cd hotel-desktop && npm install && cd src-tauri && cargo fetch
+
+# ─── Development ──────────────────────────────────────────────────────────────
+
+dev-be: ## Start backend in development mode
+	cd hotel-app-be && cargo run
+
+dev-be-sqlite: ## Start backend in SQLite development mode
+	cd hotel-app-be && DATABASE_PATH=./hotel_data.db cargo run --features sqlite --no-default-features
+
+dev-fe: ## Start frontend development server
+	cd hotel-web-fe && npm run start
+
+dev-desktop: ## Start desktop app in development mode
+	cd hotel-desktop && npm run dev
+
+# ─── Build ────────────────────────────────────────────────────────────────────
+
+build-be: ## Build backend release
+	cd hotel-app-be && cargo build --release
+
+build-fe: ## Build frontend production
+	cd hotel-web-fe && npm run build
+
+build-desktop: ## Build desktop production
+	cd hotel-desktop && npm run build
+
+# ─── Type Checking ────────────────────────────────────────────────────────────
+
+check-be: ## Check backend compilation
+	cd hotel-app-be && cargo check --all-features
+
+check-be-sqlite: ## Check backend with SQLite feature only
+	cd hotel-app-be && cargo check --features sqlite --no-default-features
+
+check-fe: ## Typecheck frontend
+	cd hotel-web-fe && npx tsc --noEmit
+
+check-desktop: ## Check desktop compilation
+	cd hotel-desktop/src-tauri && cargo check
+
+check-all: check-be check-be-sqlite check-fe check-desktop ## Typecheck all projects
+
+# ─── Linting ──────────────────────────────────────────────────────────────────
+
+lint-be: ## Lint backend
+	cd hotel-app-be && cargo clippy --all-features -- -D warnings
+
+lint-fe: ## Lint frontend
+	cd hotel-web-fe && npm run lint
+
+lint-desktop: ## Lint desktop
+	cd hotel-desktop/src-tauri && cargo clippy -- -D warnings
+
+lint-all: lint-be lint-fe lint-desktop ## Lint all projects
+
+# ─── Formatting ───────────────────────────────────────────────────────────────
+
+fmt-be: ## Format backend code
+	cd hotel-app-be && cargo fmt
+
+fmt-desktop: ## Format desktop code
+	cd hotel-desktop/src-tauri && cargo fmt
+
+fmt-all: fmt-be fmt-desktop ## Format all Rust code
+
+# ─── Testing ──────────────────────────────────────────────────────────────────
+
+test-be: ## Run all backend tests
+	cd hotel-app-be && cargo test --all-features
+
+test-be-sqlite: ## Run backend SQLite tests
+	cd hotel-app-be && cargo test --features sqlite --no-default-features
+
+test-be-pg: ## Run backend PostgreSQL tests (requires DATABASE_URL)
+	cd hotel-app-be && cargo test --features postgres --no-default-features
+
+test-fe: ## Run frontend tests
+	cd hotel-web-fe && npm run test -- --run
+
+test-all: test-be test-be-sqlite test-fe ## Test all projects
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+
+docker-up: ## Start all Docker services
+	docker compose up -d
+
+docker-down: ## Stop all Docker services
+	docker compose down
+
+docker-build: ## Build all Docker images
+	docker compose build
+
+docker-logs: ## View Docker logs
+	docker compose logs -f
+
+# ─── Database ─────────────────────────────────────────────────────────────────
+
+db-setup: ## Set up PostgreSQL database (requires DATABASE_URL)
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/schema.sql
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/data.sql
+
+db-reset: ## Reset and re-create PostgreSQL database
+	psql "$(DATABASE_URL)" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	$(MAKE) db-setup
+
+# ─── Desktop Preparation ──────────────────────────────────────────────────────
+
+prepare-desktop: ## Prepare desktop app resources
+	cd hotel-desktop && npm run sync:resources && npm run desktop:prepare
+
+# ─── Documentation ────────────────────────────────────────────────────────────
+
+docs: ## Generate documentation (backend)
+	cd hotel-app-be && cargo doc --no-deps --document-private-items
+
+# ─── Clean ────────────────────────────────────────────────────────────────────
+
+clean-be: ## Clean backend build artifacts
+	cd hotel-app-be && cargo clean
+
+clean-fe: ## Clean frontend build artifacts
+	cd hotel-web-fe && rm -rf node_modules dist
+
+clean-desktop: ## Clean desktop build artifacts
+	cd hotel-desktop && rm -rf node_modules src-tauri/target
+
+clean-all: clean-be clean-fe clean-desktop ## Clean all build artifacts

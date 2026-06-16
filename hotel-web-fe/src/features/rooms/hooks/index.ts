@@ -1,4 +1,7 @@
 export { useRoomData } from './useRoomData';
+export { useBookingNotes } from './useBookingNotes';
+export { useRoomManagementFilters } from './useRoomManagementFilters';
+export { useRoomNotes } from './useRoomNotes';
 export { useUnifiedBookingData } from './useUnifiedBookingData';
 export {
   useAllRoomTypes,
