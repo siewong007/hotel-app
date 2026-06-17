@@ -1,23 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import {
-  Box,
-  Dialog,
-  Typography,
-  TextField,
-  Autocomplete,
-  FormControlLabel,
-  Checkbox,
-} from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
-import {
-  PersonAdd as PersonAddIcon,
-  EventAvailable as BookingIcon,
-  CardGiftcard as GiftIcon,
-  ArrowForward as ArrowForwardIcon,
-  Bedtime as MoonIcon,
-  Public as PublicIcon,
-  Search as SearchIcon,
-} from '@mui/icons-material';
+import { Box, Dialog } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { Room, Guest, Booking, BookingCreateRequest, RoomType } from '../../../../types';
 import { HotelAPIService } from '../../../../api';
 import { useCurrency } from '../../../../hooks/useCurrency';
@@ -31,9 +14,16 @@ import { buildBookingTokens } from './bookingTokens';
 import BookingModalHeader from './components/BookingModalHeader';
 import BookingSummaryAside from './components/BookingSummaryAside';
 import BookingModalFooter from './components/BookingModalFooter';
+import RoomPickerSection from './components/RoomPickerSection';
+import BookingModeSelector from './components/BookingModeSelector';
+import ReservationTypeSection from './components/ReservationTypeSection';
+import StaySection from './components/StaySection';
+import RatePaymentSection from './components/RatePaymentSection';
+import NotesSection from './components/NotesSection';
+import SectionHeader from './components/SectionHeader';
 
-export type BookingType = 'direct' | 'walk_in' | 'online' | 'complimentary';
-export type BookingMode = 'direct' | 'reservation';
+import type { BookingType, BookingMode, ReservationType } from './bookingTypes';
+export type { BookingType, BookingMode };
 
 interface UnifiedBookingModalProps {
   open: boolean;
@@ -86,7 +76,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Booking mode / reservation-type state
   const [bookingMode, setBookingMode] = useState<BookingMode | null>(null);
-  const [reservationType, setReservationType] = useState<'walk_in' | 'online' | 'complimentary' | null>(null);
+  const [reservationType, setReservationType] = useState<ReservationType | null>(null);
 
   // Guest state
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
@@ -476,7 +466,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   };
 
   // Handle reservation type selection (Step 1 for reservation mode)
-  const handleReservationTypeSelect = (type: 'walk_in' | 'online' | 'complimentary') => {
+  const handleReservationTypeSelect = (type: ReservationType) => {
     // Guard against selection during processing or initialization
     if (processing || isInitializingRef.current) return;
 
@@ -784,40 +774,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   const D = useMemo(() => buildBookingTokens(theme), [theme]);
 
-  // Style preset for the Mode segmented control
-  const MODE_OPTIONS: Array<{ k: BookingMode; label: string; desc: string; icon: React.ReactNode }> = [
-    { k: 'direct',      label: 'Direct booking', desc: 'Check guest in immediately', icon: <PersonAddIcon sx={{ fontSize: 16 }} /> },
-    { k: 'reservation', label: 'Reservation',    desc: 'Reserve for a future date', icon: <BookingIcon sx={{ fontSize: 16 }} /> },
-  ];
-
-  // Reservation type tiles
-  const TYPE_TILES: Array<{
-    k: 'walk_in' | 'online' | 'complimentary';
-    label: string;
-    desc: string;
-    icon: React.ReactNode;
-    color: string;
-    soft: string;
-  }> = [
-    { k: 'walk_in',       label: 'Walk-in',       desc: 'In person or by phone',  icon: <PersonAddIcon sx={{ fontSize: 20 }} />, color: D.orange, soft: D.orangeSoft },
-    { k: 'online',        label: 'Online',        desc: 'OTA or website booking', icon: <BookingIcon sx={{ fontSize: 20 }} />,   color: D.blue,   soft: D.blueSoft },
-    { k: 'complimentary', label: 'Complimentary', desc: 'Use guest free credits', icon: <GiftIcon sx={{ fontSize: 20 }} />,      color: D.purple, soft: D.purpleSoft },
-  ];
-
-  // Map a booking channel name → 1-2 letter logo + brand colour
-  const channelLogo = (name: string): { letters: string; bg: string; fg: string } => {
-    const lc = name.toLowerCase();
-    if (lc.includes('agoda'))     return { letters: 'A',  bg: '#FF4E63', fg: '#fff' };
-    if (lc.includes('booking'))   return { letters: 'B.', bg: '#003580', fg: '#fff' };
-    if (lc.includes('traveloka')) return { letters: 'T',  bg: '#0194F3', fg: '#fff' };
-    if (lc.includes('expedia'))   return { letters: 'E',  bg: '#FFC72C', fg: '#1F2F4F' };
-    if (lc.includes('airbnb'))    return { letters: 'A',  bg: '#FF5A5F', fg: '#fff' };
-    if (lc.includes('hotels'))    return { letters: 'H',  bg: '#D32F2F', fg: '#fff' };
-    if (lc.includes('trip'))      return { letters: 'TR', bg: '#287DFA', fg: '#fff' };
-    if (lc.includes('direct'))    return { letters: '⌂',  bg: D.emerald, fg: '#fff' };
-    return { letters: '+', bg: '#94A3B8', fg: '#fff' };
-  };
-
   // Quick-set night helpers
   const setNights = (nights: number) => {
     if (!checkInDate) return;
@@ -875,16 +831,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const STEP_GLYPHS = ['①', '②', '③', '④', '⑤', '⑥', '⑦'];
   const step = (i: number) => STEP_GLYPHS[i - 1 + (needsRoomSelection ? 1 : 0)] ?? '·';
 
-  // SECTION header used throughout the form
-  const sectionHeader = (number: string, label: React.ReactNode) => (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
-      <Typography sx={{ m: 0, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: D.ink3, textTransform: 'uppercase' }}>
-        {number} {label}
-      </Typography>
-      <Box sx={{ flex: 1, height: 1, bgcolor: D.border }} />
-    </Box>
-  );
-
   return (
     <Dialog
       open={open}
@@ -928,271 +874,49 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           {/* Room picker — only when opened without a pre-selected room
              (e.g. the "Add booking" CTA on the Bookings page). */}
           {needsRoomSelection && (
-            <Box sx={{ mb: 2.75 }}>
-              {sectionHeader('①', 'Room')}
-              <Autocomplete
-                multiple
-                size="small"
-                value={selectedRooms}
-                onChange={(_, value) => {
-                  setSelectedRooms(value);
-                  setSelectedRoom(value[0] || null);
-                }}
-                options={
-                  checkInDate && checkOutDate
-                    ? availableRooms
-                    : []
-                }
-                loading={loadingAvailableRooms}
-                getOptionLabel={(o) => o ? `Room ${o.room_number} · ${o.room_type}` : ''}
-                isOptionEqualToValue={(o, v) => String(o.id) === String(v?.id)}
-                renderOption={(props, option) => {
-                  const { key, ...rest } = props;
-                  const price = typeof option.price_per_night === 'string'
-                    ? parseFloat(option.price_per_night)
-                    : (option.price_per_night || 0);
-                  return (
-                    <Box component="li" key={key} {...rest} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                      <Box sx={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.5px', color: D.ink, minWidth: 38 }}>
-                        {option.room_number}
-                      </Box>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Box sx={{ fontSize: 13, fontWeight: 600, color: D.ink, textTransform: 'capitalize' }}>
-                          {option.room_type}
-                        </Box>
-                        <Box sx={{ fontSize: 11, color: D.ink3 }}>
-                          {price > 0 ? `${currencySymbol} ${price.toFixed(2)} / night` : 'Rate not set'}
-                          {option.floor != null ? ` · Floor ${option.floor}` : ''}
-                        </Box>
-                      </Box>
-                    </Box>
-                  );
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    placeholder={
-                      !checkInDate || !checkOutDate
-                        ? 'Pick rooms (set dates below to filter by availability)'
-                        : loadingAvailableRooms
-                          ? 'Loading available rooms…'
-                          : 'Select one or more rooms'
-                    }
-                    sx={{ bgcolor: D.surface }}
-                    InputProps={{
-                      ...params.InputProps,
-                      startAdornment: (
-                        <>
-                          <Box sx={{ pl: 0.5, pr: 0.75, color: D.ink3, display: 'inline-flex' }}>
-                            <SearchIcon sx={{ fontSize: 16 }} />
-                          </Box>
-                          {params.InputProps.startAdornment}
-                        </>
-                      ),
-                    }}
-                  />
-                )}
-              />
-              {checkInDate && checkOutDate && availableRooms.length === 0 && !loadingAvailableRooms && (
-                <Typography sx={{ mt: 0.75, fontSize: 11, color: D.ink3, fontStyle: 'italic' }}>
-                  No rooms available for the selected dates — pick different dates below.
-                </Typography>
-              )}
-              {selectedRooms.length > 1 && (
-                <Typography sx={{ mt: 0.75, fontSize: 11, color: D.emerald, fontWeight: 700 }}>
-                  {selectedRooms.length} rooms selected: {selectedRoomNumbers}
-                </Typography>
-              )}
-            </Box>
+            <RoomPickerSection
+              D={D}
+              selectedRooms={selectedRooms}
+              onRoomsChange={(value) => {
+                setSelectedRooms(value);
+                setSelectedRoom(value[0] || null);
+              }}
+              availableRooms={availableRooms}
+              loadingAvailableRooms={loadingAvailableRooms}
+              checkInDate={checkInDate}
+              checkOutDate={checkOutDate}
+              currencySymbol={currencySymbol}
+              selectedRoomNumbers={selectedRoomNumbers}
+            />
           )}
 
-          {/* ① Mode */}
-          <Box sx={{ mb: 2.75 }}>
-            {sectionHeader(step(1), 'Mode')}
-            <Box sx={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 1,
-              bgcolor: D.surface2,
-              border: `1px solid ${D.border}`,
-              borderRadius: 1.5,
-              p: '5px',
-            }}>
-              {MODE_OPTIONS.map((m) => {
-                const on = bookingMode === m.k;
-                return (
-                  <Box
-                    key={m.k}
-                    component="button"
-                    onClick={() => handleModeSelect(m.k)}
-                    sx={{
-                      bgcolor: on ? D.surface : 'transparent',
-                      border: on ? `1px solid ${D.emerald}` : '1px solid transparent',
-                      borderRadius: 1,
-                      px: 1.5,
-                      py: 1.25,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1.25,
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                      color: on ? D.ink : D.ink2,
-                      boxShadow: on ? `0 0 0 1px ${D.emerald} inset, 0 1px 3px rgba(15,23,42,0.06)` : 'none',
-                    }}
-                  >
-                    <Box sx={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 1,
-                      bgcolor: on ? D.emeraldSoft : D.surface3,
-                      color: on ? D.emerald : D.ink2,
-                      display: 'grid',
-                      placeItems: 'center',
-                      flexShrink: 0,
-                    }}>
-                      {m.icon}
-                    </Box>
-                    <Box>
-                      <Typography sx={{ fontSize: 13, fontWeight: 600, color: D.ink, lineHeight: 1.2 }}>{m.label}</Typography>
-                      <Typography sx={{ fontSize: 11, color: D.ink3, mt: '1px' }}>{m.desc}</Typography>
-                    </Box>
-                  </Box>
-                );
-              })}
-            </Box>
-          </Box>
+          {/* Mode */}
+          <BookingModeSelector
+            D={D}
+            glyph={step(1)}
+            bookingMode={bookingMode}
+            onSelect={handleModeSelect}
+          />
 
-          {/* ② Reservation type — only when mode === reservation */}
+          {/* Reservation type — only when mode === reservation */}
           {bookingMode === 'reservation' && (
-            <Box sx={{ mb: 2.75 }}>
-              {sectionHeader(step(2), 'Reservation type')}
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.25 }}>
-                {TYPE_TILES.map((t) => {
-                  const on = reservationType === t.k;
-                  return (
-                    <Box
-                      key={t.k}
-                      component="button"
-                      onClick={() => handleReservationTypeSelect(t.k)}
-                      sx={{
-                        bgcolor: on ? t.soft : D.surface,
-                        border: `1.5px solid ${on ? t.color : D.border}`,
-                        borderRadius: 1.5,
-                        p: '14px 12px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 1.25,
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                        color: D.ink,
-                        textAlign: 'center',
-                        transition: 'border-color 120ms, background 120ms',
-                        '&:hover': { borderColor: on ? t.color : D.borderHi },
-                      }}
-                    >
-                      <Box sx={{ width: 38, height: 38, borderRadius: 1.25, display: 'grid', placeItems: 'center', bgcolor: t.soft, color: t.color }}>
-                        {t.icon}
-                      </Box>
-                      <Box>
-                        <Typography sx={{ fontSize: 13, fontWeight: 700, color: D.ink, lineHeight: 1.2 }}>{t.label}</Typography>
-                        <Typography sx={{ fontSize: 11, color: D.ink3, lineHeight: 1.35 }}>{t.desc}</Typography>
-                      </Box>
-                      {on && (
-                        <Box sx={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.6, color: t.color, bgcolor: D.surface, border: `1px solid ${t.color}`, px: 0.85, py: '2px', borderRadius: 999 }}>
-                          SELECTED
-                        </Box>
-                      )}
-                    </Box>
-                  );
-                })}
-              </Box>
-
-              {/* Channel picker — only for Online */}
-              {reservationType === 'online' && (
-                <Box sx={{ mt: 1.5, bgcolor: D.blueSoft, border: `1px solid ${alpha(D.blue, 0.25)}`, borderRadius: 1.5, p: 1.75 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 12, fontWeight: 700, color: D.blue, mb: 1.25 }}>
-                    <PublicIcon sx={{ fontSize: 14 }} /> Booking channel <Box component="span" sx={{ color: D.blue }}>*</Box>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-                    {BOOKING_CHANNELS.map((channel) => {
-                      const on = bookingChannel === channel.name;
-                      const logo = channelLogo(channel.name);
-                      return (
-                        <Box
-                          key={channel.name}
-                          component="button"
-                          onClick={() => setBookingChannel(channel.name)}
-                          sx={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 1,
-                            bgcolor: on ? D.blue : D.surface,
-                            border: `1px solid ${on ? D.blue : D.border}`,
-                            borderRadius: 999,
-                            pl: '5px',
-                            pr: 1.75,
-                            py: '5px',
-                            fontSize: 12,
-                            fontWeight: on ? 600 : 500,
-                            color: on ? '#fff' : D.ink2,
-                            cursor: 'pointer',
-                            fontFamily: 'inherit',
-                            boxShadow: on ? `0 2px 8px ${alpha(D.blue, 0.30)}` : 'none',
-                          }}
-                        >
-                          <Box sx={{
-                            width: 22,
-                            height: 22,
-                            borderRadius: '50%',
-                            display: 'grid',
-                            placeItems: 'center',
-                            fontSize: 10,
-                            fontWeight: 800,
-                            letterSpacing: '-0.5px',
-                            bgcolor: on ? 'rgba(255,255,255,0.2)' : logo.bg,
-                            color: on ? '#fff' : logo.fg,
-                          }}>
-                            {logo.letters}
-                          </Box>
-                          {channel.name}
-                        </Box>
-                      );
-                    })}
-                  </Box>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5, mt: 1.5 }}>
-                    <Box>
-                      <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Booking reference *</Typography>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        placeholder="e.g. 2004721892"
-                        value={bookingReference}
-                        onChange={(e) => setBookingReference(e.target.value)}
-                        sx={{ bgcolor: D.surface }}
-                      />
-                    </Box>
-                    <Box>
-                      <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Prepaid amount</Typography>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        placeholder={`${currencySymbol} 0.00`}
-                        sx={{ bgcolor: D.surface }}
-                        disabled
-                        helperText="Tracked at check-in"
-                      />
-                    </Box>
-                  </Box>
-                </Box>
-              )}
-            </Box>
+            <ReservationTypeSection
+              D={D}
+              glyph={step(2)}
+              reservationType={reservationType}
+              onSelectType={handleReservationTypeSelect}
+              bookingChannels={BOOKING_CHANNELS}
+              bookingChannel={bookingChannel}
+              onChannelSelect={setBookingChannel}
+              bookingReference={bookingReference}
+              onReferenceChange={setBookingReference}
+              currencySymbol={currencySymbol}
+            />
           )}
 
-          {/* ③ Guest */}
+          {/* Guest */}
           <Box sx={{ mb: 2.75 }}>
-            {sectionHeader(step(3), 'Guest')}
+            <SectionHeader D={D} number={step(3)} label="Guest" />
             <GuestSelector
               guests={guests}
               selectedGuest={selectedGuest}
@@ -1209,185 +933,42 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             />
           </Box>
 
-          {/* ④ Stay */}
-          <Box sx={{ mb: 2.75 }}>
-            {sectionHeader(step(4), 'Stay')}
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 1.5, alignItems: 'flex-end' }}>
-              <Box>
-                <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Check-in</Typography>
-                <TextField
-                  type="date"
-                  fullWidth
-                  size="small"
-                  value={checkInDate}
-                  onChange={(e) => handleDateChange('checkIn', e.target.value)}
-                  helperText={formatHumanDate(checkInDate)}
-                  sx={{ bgcolor: D.surface }}
-                />
-              </Box>
-              <Box sx={{ pb: 4, color: D.ink3 }}>
-                <ArrowForwardIcon sx={{ fontSize: 18 }} />
-              </Box>
-              <Box>
-                <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Check-out</Typography>
-                <TextField
-                  type="date"
-                  fullWidth
-                  size="small"
-                  value={checkOutDate}
-                  onChange={(e) => handleDateChange('checkOut', e.target.value)}
-                  disabled={isHourlyBooking}
-                  helperText={formatHumanDate(checkOutDate)}
-                  sx={{ bgcolor: D.surface }}
-                />
-              </Box>
-            </Box>
-            <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
-              <Box sx={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 0.75,
-                bgcolor: D.emeraldSoft,
-                color: D.emerald,
-                border: `1px solid ${alpha(D.emerald, 0.3)}`,
-                borderRadius: 999,
-                px: 1.25,
-                py: 0.5,
-                fontSize: 11,
-                fontWeight: 700,
-              }}>
-                <MoonIcon sx={{ fontSize: 12 }} />
-                {billableNights} {billableNights === 1 ? 'night' : 'nights'}
-              </Box>
-              <Typography sx={{ color: D.ink3, fontSize: 11 }}>Quick set:</Typography>
-              <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-                {[
-                  { k: '1', label: '1 night', n: 1 },
-                  { k: '2', label: '2 nights', n: 2 },
-                  { k: '3', label: '3 nights', n: 3 },
-                  { k: '7', label: '1 week', n: 7 },
-                ].map((q) => (
-                  <Box
-                    key={q.k}
-                    component="button"
-                    onClick={() => setNights(q.n)}
-                    sx={{
-                      bgcolor: D.surface,
-                      border: `1px solid ${D.border}`,
-                      color: D.ink2,
-                      borderRadius: 999,
-                      px: 1.25,
-                      py: 0.5,
-                      fontSize: 11,
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                      '&:hover': { borderColor: D.borderHi, color: D.ink },
-                    }}
-                  >
-                    {q.label}
-                  </Box>
-                ))}
-              </Box>
-              <Box sx={{ ml: 'auto', fontSize: 11, color: D.ink2 }}>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={isHourlyBooking}
-                      onChange={(e) => handleHourlyToggle(e.target.checked)}
-                      size="small"
-                      sx={{ p: 0.5 }}
-                    />
-                  }
-                  label={<Box sx={{ fontSize: 11, color: D.ink2 }}>Hourly check-in</Box>}
-                  sx={{ m: 0 }}
-                />
-              </Box>
-            </Box>
-          </Box>
+          {/* Stay */}
+          <StaySection
+            D={D}
+            glyph={step(4)}
+            checkInDate={checkInDate}
+            checkOutDate={checkOutDate}
+            isHourlyBooking={isHourlyBooking}
+            billableNights={billableNights}
+            onDateChange={handleDateChange}
+            onHourlyToggle={handleHourlyToggle}
+            onQuickSetNights={setNights}
+            formatHumanDate={formatHumanDate}
+          />
 
-          {/* ⑤ Rate & payment */}
-          <Box sx={{ mb: 2.75 }}>
-            {sectionHeader(step(5), 'Rate & payment')}
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
-              <Box>
-                <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Rate per night</Typography>
-                <TextField
-                  type="number"
-                  size="small"
-                  fullWidth
-                  value={useCustomRate ? customRate : (typeof room?.price_per_night === 'string' ? parseFloat(room.price_per_night) : (room?.price_per_night || 0))}
-                  onChange={(e) => {
-                    setCustomRate(parseFloat(e.target.value) || 0);
-                    setUseCustomRate(true);
-                  }}
-                  InputProps={{ startAdornment: <Box sx={{ color: D.ink3, mr: 1, fontSize: 13 }}>{currencySymbol}</Box> }}
-                  sx={{ bgcolor: D.surface }}
-                />
-              </Box>
-              <Box>
-                <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Tourism status</Typography>
-                <TextField
-                  size="small"
-                  fullWidth
-                  value={isTourist ? `Foreign guest (${currencySymbol} ${hotelSettings.tourism_tax_rate}/night)` : 'Local — no tourism tax'}
-                  disabled
-                  helperText="Set on the guest profile"
-                  sx={{ bgcolor: D.surface }}
-                />
-              </Box>
-            </Box>
-            <Box
-              component="label"
-              sx={{
-                mt: 1.25,
-                display: 'flex',
-                alignItems: 'flex-start',
-                gap: 1.25,
-                p: 1.5,
-                border: `1px solid ${useCustomRate ? D.emerald : D.border}`,
-                borderRadius: 1.25,
-                bgcolor: useCustomRate ? D.emeraldSoft : D.surface,
-                cursor: 'pointer',
-              }}
-            >
-              <Checkbox
-                checked={useCustomRate}
-                onChange={(e) => setUseCustomRate(e.target.checked)}
-                size="small"
-                sx={{ p: 0, mt: 0.25 }}
-              />
-              <Box>
-                <Typography sx={{ fontSize: 13, fontWeight: 600, color: D.ink }}>Use custom rate</Typography>
-                <Typography sx={{ fontSize: 11, color: D.ink3, mt: 0.25 }}>
-                  Override the default rate of {formatCurrency(typeof room?.price_per_night === 'string' ? parseFloat(room.price_per_night) : (room?.price_per_night || 0))} / night
-                </Typography>
-              </Box>
-            </Box>
-          </Box>
+          {/* Rate & payment */}
+          <RatePaymentSection
+            D={D}
+            glyph={step(5)}
+            room={room}
+            useCustomRate={useCustomRate}
+            onUseCustomRateChange={setUseCustomRate}
+            customRate={customRate}
+            onCustomRateChange={setCustomRate}
+            isTourist={isTourist}
+            tourismTaxRate={hotelSettings.tourism_tax_rate}
+            currencySymbol={currencySymbol}
+            formatCurrency={formatCurrency}
+          />
 
           {/* Notes */}
-          <Box sx={{ mb: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25 }}>
-              <Typography sx={{ m: 0, fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: D.ink3, textTransform: 'uppercase' }}>
-                {step(6)} Notes
-              </Typography>
-              <Typography sx={{ fontSize: 11, color: D.ink3, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
-                · optional
-              </Typography>
-              <Box sx={{ flex: 1, height: 1, bgcolor: D.border }} />
-            </Box>
-            <TextField
-              fullWidth
-              multiline
-              minRows={2}
-              size="small"
-              placeholder="Special requests, deposit info, payment notes…"
-              value={bookingNotes}
-              onChange={(e) => setBookingNotes(e.target.value)}
-              sx={{ bgcolor: D.surface }}
-            />
-          </Box>
+          <NotesSection
+            D={D}
+            glyph={step(6)}
+            bookingNotes={bookingNotes}
+            onNotesChange={setBookingNotes}
+          />
         </Box>
 
         {/* RIGHT — LIVE SUMMARY */}
