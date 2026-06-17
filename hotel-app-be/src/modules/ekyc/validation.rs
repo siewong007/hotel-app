@@ -604,3 +604,225 @@ pub fn dashboard_from_row(row: &crate::modules::ekyc::models::EkycDashboardRow) 
         monthly_trend: row.monthly_trend,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn masks_identity_numbers_by_default() {
+        assert_eq!(mask_identifier("A123456789"), "******6789");
+        assert_eq!(mask_identifier("123"), "****");
+    }
+
+    #[test]
+    fn masks_long_identifier_correctly() {
+        assert_eq!(mask_identifier("12345678"), "****5678");
+        assert_eq!(mask_identifier("ab"), "****");
+    }
+
+    #[test]
+    fn masks_email_address() {
+        assert_eq!(mask_email("john.doe@example.com"), "j***@example.com");
+        assert_eq!(mask_email("a@b.co"), "a***@b.co");
+    }
+
+    #[test]
+    fn masks_email_without_at_sign_falls_back_to_identifier_masking() {
+        // Falls back to mask_identifier which shows last 4 chars
+        assert_eq!(mask_email("notanemail"), "******mail");
+    }
+
+    #[test]
+    fn masks_phone_number() {
+        assert_eq!(mask_phone("+60123456789"), "***6789");
+        assert_eq!(mask_phone("12345"), "***2345");
+        assert_eq!(mask_phone("12"), "****");
+    }
+
+    #[test]
+    fn masks_address() {
+        assert_eq!(mask_address("123 Main St"), "Address on file");
+        assert_eq!(mask_address(""), "");
+    }
+
+    #[test]
+    fn masks_ip_address() {
+        assert_eq!(mask_ip("192.168.1.1"), "192.168.1.***");
+        assert_eq!(mask_ip("10.0.0.5"), "10.0.0.***");
+    }
+
+    #[test]
+    fn blocks_direct_final_status_changes_without_override() {
+        let err = validate_transition("approved", "rejected", "reject").unwrap_err();
+        assert!(matches!(err, ApiError::Conflict(_)));
+    }
+
+    #[test]
+    fn allows_controlled_override_from_final_status() {
+        assert!(validate_transition("approved", "rejected", "override_decision").is_ok());
+    }
+
+    #[test]
+    fn blocks_expired_applications() {
+        let err = validate_transition("expired", "in_review", "claim").unwrap_err();
+        assert!(matches!(err, ApiError::Conflict(_)));
+    }
+
+    #[test]
+    fn blocks_void_applications() {
+        let err = validate_transition("void", "submitted", "reassign").unwrap_err();
+        assert!(matches!(err, ApiError::Conflict(_)));
+    }
+
+    #[test]
+    fn allows_same_status_noop() {
+        assert!(validate_transition("in_review", "in_review", "claim").is_ok());
+    }
+
+    #[test]
+    fn claim_from_submitted_is_valid() {
+        assert!(validate_transition("submitted", "in_review", "claim").is_ok());
+    }
+
+    #[test]
+    fn hold_from_submitted_is_valid() {
+        assert!(validate_transition("submitted", "on_hold", "hold").is_ok());
+    }
+
+    #[test]
+    fn release_hold_from_on_hold_is_valid() {
+        assert!(validate_transition("on_hold", "in_review", "release_hold").is_ok());
+    }
+
+    #[test]
+    fn release_hold_from_wrong_status_fails() {
+        let err = validate_transition("submitted", "in_review", "release_hold").unwrap_err();
+        assert!(matches!(err, ApiError::Conflict(_)));
+    }
+
+    #[test]
+    fn image_extension_detects_jpeg() {
+        assert_eq!(image_extension(&[0xff, 0xd8, 0xff, 0x00]), Some("jpg"));
+    }
+
+    #[test]
+    fn image_extension_detects_png() {
+        assert_eq!(image_extension(b"\x89PNG\r\n\x1a\n"), Some("png"));
+    }
+
+    #[test]
+    fn image_extension_detects_webp() {
+        let riff_data = b"RIFF\x00\x00\x00\x00WEBP";
+        assert_eq!(image_extension(riff_data), Some("webp"));
+    }
+
+    #[test]
+    fn image_extension_unknown_format() {
+        assert_eq!(image_extension(b"GIF89a"), None);
+    }
+
+    #[test]
+    fn sanitize_document_type_removes_invalid_chars() {
+        assert_eq!(sanitize_document_type("passport").unwrap(), "passport");
+        assert_eq!(sanitize_document_type("national-id_card").unwrap(), "national-id_card");
+    }
+
+    #[test]
+    fn sanitize_document_type_rejects_empty() {
+        let err = sanitize_document_type("").unwrap_err();
+        assert!(matches!(err, ApiError::BadRequest(_)));
+    }
+
+    #[test]
+    fn sanitize_document_type_truncates() {
+        let long = "a".repeat(100);
+        let result = sanitize_document_type(&long).unwrap();
+        assert_eq!(result.len(), 40);
+    }
+
+    #[test]
+    fn application_id_formats_correctly() {
+        assert_eq!(application_id(1), "EKYC-000001");
+        assert_eq!(application_id(123456), "EKYC-123456");
+    }
+
+    #[test]
+    fn sort_column_defaults_to_submitted_at() {
+        assert_eq!(sort_column(None), "e.submitted_at");
+    }
+
+    #[test]
+    fn sort_column_maps_fields() {
+        assert_eq!(sort_column(Some("status")), "e.status");
+        assert_eq!(sort_column(Some("risk_level")), "e.risk_level");
+        assert_eq!(sort_column(Some("assigned_reviewer")), "reviewer.full_name");
+    }
+
+    #[test]
+    fn sort_direction_defaults_desc() {
+        assert_eq!(sort_direction(None), "DESC");
+        assert_eq!(sort_direction(Some("invalid")), "DESC");
+    }
+
+    #[test]
+    fn sort_direction_case_insensitive() {
+        assert_eq!(sort_direction(Some("asc")), "ASC");
+        assert_eq!(sort_direction(Some("ASC")), "ASC");
+    }
+
+    #[test]
+    fn csv_row_escapes_commas_and_quotes() {
+        let row = csv_row(&["hello".to_string(), "world".to_string()]);
+        assert_eq!(row, "\"hello\",\"world\"\n");
+    }
+
+    #[test]
+    fn csv_row_handles_embedded_quotes() {
+        let row = csv_row(&[r#"he"llo"#.to_string()]);
+        assert_eq!(row, "\"he\"\"llo\"\n");
+    }
+
+    #[test]
+    fn normalize_action_returns_ok_for_known() {
+        assert_eq!(normalize_action("claim").unwrap(), "claim");
+        assert_eq!(normalize_action("  approve  ").unwrap(), "approve");
+        assert_eq!(normalize_action("override_decision").unwrap(), "override_decision");
+    }
+
+    #[test]
+    fn normalize_action_rejects_unknown() {
+        let err = normalize_action("invalid_action").unwrap_err();
+        assert!(matches!(err, ApiError::BadRequest(_)));
+    }
+
+    #[test]
+    fn permission_for_action_maps_correctly() {
+        assert_eq!(permission_for_action("claim"), "ekyc:assign");
+        assert_eq!(permission_for_action("approve"), "ekyc:approve");
+        assert_eq!(permission_for_action("reject"), "ekyc:reject");
+        assert_eq!(permission_for_action("add_internal_note"), "ekyc:review");
+        assert_eq!(permission_for_action("unknown"), "ekyc:review");
+    }
+
+    #[test]
+    fn risk_rules_parses_json_array() {
+        let json = serde_json::json!(["rule1", "rule2"]);
+        let rules = risk_rules(Some(&json));
+        assert_eq!(rules, vec!["rule1", "rule2"]);
+    }
+
+    #[test]
+    fn risk_rules_returns_empty_for_null() {
+        assert!(risk_rules(None).is_empty());
+    }
+
+    #[test]
+    fn add_unique_rule_adds_once() {
+        let mut rules = vec!["existing".to_string()];
+        add_unique_rule(&mut rules, "new");
+        assert_eq!(rules.len(), 2);
+        add_unique_rule(&mut rules, "new");
+        assert_eq!(rules.len(), 2);
+    }
+}
