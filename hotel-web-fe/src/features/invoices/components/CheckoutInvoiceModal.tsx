@@ -635,14 +635,16 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 <Typography variant="subtitle2" sx={{ color: '#1976d2', mb: 1.5, textTransform: 'uppercase' }}>
                   Guest Information
                 </Typography>
-                {[
+                {([
                   { label: 'Name', value: booking?.guest_name },
                   { label: 'Room', value: `${booking?.room_number} - ${booking?.room_type}` },
                   guestCompanyName ? { label: 'Company', value: guestCompanyName } : null,
                   guestPhone ? { label: 'Phone', value: guestPhone } : null,
                   guestIcNumber ? { label: 'ID / IC', value: guestIcNumber } : null,
                   guestAddress ? { label: 'Address', value: guestAddress } : null,
-                ].filter((item): item is { label: string; value: React.ReactNode } => Boolean(item)).map((item) => (
+                ] as Array<{ label: string; value: React.ReactNode } | null>)
+                  .filter((item): item is { label: string; value: React.ReactNode } => item !== null)
+                  .map((item) => (
                   <Box key={item.label} sx={{ display: 'flex', gap: 1, mb: 0.75 }}>
                     <Typography variant="body2" sx={{ color: '#666', minWidth: '72px', flexShrink: 0 }}>
                       {item.label}:
