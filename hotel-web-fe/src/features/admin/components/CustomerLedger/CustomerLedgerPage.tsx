@@ -123,6 +123,13 @@ import PaymentDialog from './components/PaymentDialog';
 import CompanyCheckInDialog from './components/CompanyCheckInDialog';
 import RecordCompanyPaymentDialog from './components/RecordCompanyPaymentDialog';
 import CompanyInvoiceDialog from './components/CompanyInvoiceDialog';
+import LedgerSummaryStrip from './components/LedgerSummaryStrip';
+import CompanyListPane from './components/CompanyListPane';
+import CompanyDetailHeader from './components/CompanyDetailHeader';
+import CompanyBalanceMeter from './components/CompanyBalanceMeter';
+import ActiveGuestsRow from './components/ActiveGuestsRow';
+import LedgerEntriesTab from './components/LedgerEntriesTab';
+import CompanyInfoTab from './components/CompanyInfoTab';
 import { useCustomerLedgerWorkspace } from './hooks/useCustomerLedgerWorkspace';
 
 const CustomerLedgerPage: React.FC = () => {
@@ -1302,18 +1309,6 @@ const CustomerLedgerPage: React.FC = () => {
     return isVoidedLedger(ledger) ? 0 : parseFloat(String(ledger.balance_due || 0));
   };
 
-  const canRecordPayment = (ledger: CustomerLedger) => {
-    return ledger.status !== 'paid' && !isVoidedLedger(ledger);
-  };
-
-  // Mirrors booking canVoid: cannot void what is already voided.
-  const canVoid = (ledger: CustomerLedger) => {
-    return !isVoidedLedger(ledger);
-  };
-
-  const canViewInvoice = (ledger: CustomerLedger) => {
-    return !!ledger.booking_id;
-  };
 
   const handleVoidLedger = (ledger: CustomerLedger) => {
     setVoidingLedger(ledger);
@@ -1462,13 +1457,6 @@ const CustomerLedgerPage: React.FC = () => {
     [invoiceLedgerEntries],
   );
 
-  // Initials for company avatars (e.g. "Farley Sibu" -> "FS")
-  const companyInitials = (name: string) => {
-    const parts = name.trim().split(/\s+/).filter(Boolean);
-    if (parts.length === 0) return '?';
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  };
 
   const prefillCreateForCompany = (company: Company, overrides: Partial<CustomerLedgerCreateRequest> = {}) => {
     setCreateFormData(prev => ({
@@ -1669,163 +1657,13 @@ const CustomerLedgerPage: React.FC = () => {
       )}
 
       {/* Slim stats strip: Billed / Collected / Outstanding / Overdue */}
-      {summary && (() => {
-        const totalAmount = parseFloat(String(summary.total_amount || 0));
-        const totalPaid = parseFloat(String(summary.total_paid || 0));
-        const totalDue = parseFloat(String(summary.total_outstanding || 0));
-        const overdueAmount = ledgers.reduce(
-          (sum, l) => (getLedgerUiStatus(l) === 'overdue' ? sum + asMoney(l.balance_due) : sum),
-          0,
-        );
-        const collectionPct = totalAmount > 0 ? Math.round((totalPaid / totalAmount) * 100) : 0;
-        const readyToBillCount = ledgers.filter(l => getLedgerUiStatus(l) === 'ready_to_invoice').length;
-        const openInvoiceCount = ledgers.filter(l => {
-          const s = getLedgerUiStatus(l);
-          return s === 'invoiced' || s === 'partial' || s === 'overdue';
-        }).length;
-        const stats = [
-          {
-            key: 'billed',
-            icon: <MoneyIcon fontSize="small" />,
-            iconBg: (theme: any) => alpha(theme.palette.info.main, 0.12),
-            iconColor: 'info.main',
-            label: 'Total Billed',
-            value: formatCurrency(totalAmount).replace(currencySymbol, '').trim(),
-            delta: `${summary.total_entries} entries / ${companies.length} ${companies.length === 1 ? 'company' : 'companies'}`,
-            currency: currencySymbol,
-          },
-          {
-            key: 'collected',
-            icon: <CheckCircleIcon fontSize="small" />,
-            iconBg: (theme: any) => alpha(theme.palette.success.main, 0.12),
-            iconColor: 'success.main',
-            label: 'Collected',
-            value: formatCurrency(totalPaid).replace(currencySymbol, '').trim(),
-            delta: `${collectionPct}% of billed`,
-            currency: currencySymbol,
-          },
-          {
-            key: 'outstanding',
-            icon: <WarningIcon fontSize="small" />,
-            iconBg: (theme: any) => alpha(theme.palette.warning.main, 0.14),
-            iconColor: 'warning.main',
-            label: 'Outstanding',
-            value: formatCurrency(totalDue).replace(currencySymbol, '').trim(),
-            delta: `${openInvoiceCount} open item${openInvoiceCount === 1 ? '' : 's'}`,
-            currency: currencySymbol,
-          },
-          {
-            key: 'overdue',
-            icon: <WarningIcon fontSize="small" />,
-            iconBg: (theme: any) => alpha(theme.palette.error.main, 0.12),
-            iconColor: overdueAmount > 0 ? 'error.main' : 'text.secondary',
-            label: 'Overdue',
-            value: formatCurrency(overdueAmount).replace(currencySymbol, '').trim(),
-            delta: `${readyToBillCount} ready to bill`,
-            currency: currencySymbol,
-          },
-        ];
-        return (
-          <Card
-            variant="outlined"
-            sx={{
-              mb: 2.5,
-              display: 'grid',
-              gridTemplateColumns: {
-                xs: '1fr',
-                sm: 'repeat(2, 1fr)',
-                md: 'repeat(4, 1fr)',
-              },
-              overflow: 'hidden',
-            }}
-          >
-            {stats.map((s, idx) => (
-              <Box
-                key={s.key}
-                sx={{
-                  p: 2,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1.5,
-                  borderLeft: {
-                    xs: 'none',
-                    md: idx === 0 ? 'none' : '1px solid',
-                  },
-                  borderTop: {
-                    xs: idx === 0 ? 'none' : '1px solid',
-                    sm: idx < 2 ? 'none' : '1px solid',
-                    md: 'none',
-                  },
-                  borderColor: 'divider',
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 1.5,
-                    display: 'grid',
-                    placeItems: 'center',
-                    bgcolor: s.iconBg as any,
-                    color: s.iconColor,
-                    flexShrink: 0,
-                  }}
-                >
-                  {s.icon}
-                </Box>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      display: 'block',
-                      fontWeight: 700,
-                      color: 'text.secondary',
-                      letterSpacing: 0.6,
-                      textTransform: 'uppercase',
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    {s.label}
-                  </Typography>
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      fontWeight: 700,
-                      letterSpacing: '-0.3px',
-                      lineHeight: 1.2,
-                      mt: 0.5,
-                      fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}
-                  >
-                    {s.currency && (
-                      <Box
-                        component="span"
-                        sx={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: 'text.secondary',
-                          mr: 0.5,
-                          letterSpacing: 0.4,
-                        }}
-                      >
-                        {s.currency}
-                      </Box>
-                    )}
-                    {s.value}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{ color: 'text.secondary', display: 'block', mt: 0.25 }}
-                  >
-                    {s.delta}
-                  </Typography>
-                </Box>
-              </Box>
-            ))}
-          </Card>
-        );
-      })()}
+      <LedgerSummaryStrip
+        summary={summary}
+        ledgers={ledgers}
+        companiesCount={companies.length}
+        formatCurrency={formatCurrency}
+        currencySymbol={currencySymbol}
+      />
 
       {/* Two-pane workspace: company list (left) + detail pane (right) */}
       <Box
@@ -1837,287 +1675,20 @@ const CustomerLedgerPage: React.FC = () => {
         }}
       >
         {/* LEFT - COMPANY LIST PANE */}
-        <Card variant="outlined" sx={{ overflow: 'hidden' }}>
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              px: 1.5,
-              py: 1.25,
-              borderBottom: '1px solid',
-              borderColor: 'divider',
-            }}
-          >
-            <BusinessIcon fontSize="small" color="action" />
-            <Typography sx={{ fontWeight: 700, fontSize: 13, letterSpacing: 0.2 }}>
-              Companies
-            </Typography>
-            <Chip
-              label={companies.length}
-              size="small"
-              sx={{ height: 20, fontSize: 11, fontWeight: 700, '& .MuiChip-label': { px: 1 } }}
-            />
-            <Box sx={{ flex: 1 }} />
-            <Button
-              size="small"
-              variant="text"
-              startIcon={<AddIcon fontSize="small" />}
-              onClick={() => setCompanyRegDialogOpen(true)}
-              sx={{ minWidth: 0, px: 1, fontSize: 12 }}
-            >
-              Add
-            </Button>
-          </Box>
-
-          <Box
-            sx={{
-              p: 1.25,
-              bgcolor: 'action.hover',
-              borderBottom: '1px solid',
-              borderColor: 'divider',
-            }}
-          >
-            <TextField
-              size="small"
-              fullWidth
-              placeholder="Search by name, contact, phone..."
-              value={companyListSearch}
-              onChange={(e) => setCompanyListSearch(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                  </InputAdornment>
-                ),
-                endAdornment: companyListSearch ? (
-                  <InputAdornment position="end">
-                    <IconButton
-                      size="small"
-                      onClick={() => setCompanyListSearch('')}
-                      sx={{ p: 0.25 }}
-                    >
-                      <CloseIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
-                  </InputAdornment>
-                ) : null,
-                sx: { bgcolor: 'background.paper', fontSize: 13 },
-              }}
-            />
-            <Box sx={{ display: 'flex', gap: 0.5, mt: 1, flexWrap: 'wrap' }}>
-              {([
-                { key: 'all', label: 'All', count: companies.length },
-                { key: 'due', label: 'Has balance', count: dueCount },
-                { key: 'clear', label: 'Settled', count: clearCount },
-              ] as const).map(f => (
-                <Chip
-                  key={f.key}
-                  size="small"
-                  label={
-                    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-                      <span>{f.label}</span>
-                      <Box
-                        component="span"
-                        sx={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          px: 0.6,
-                          py: 0.05,
-                          borderRadius: '999px',
-                          bgcolor: companyListFilter === f.key ? 'rgba(255,255,255,0.25)' : 'action.selected',
-                        }}
-                      >
-                        {f.count}
-                      </Box>
-                    </Box>
-                  }
-                  onClick={() => setCompanyListFilter(f.key as any)}
-                  variant={companyListFilter === f.key ? 'filled' : 'outlined'}
-                  color={companyListFilter === f.key ? 'default' : 'default'}
-                  sx={{
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    height: 24,
-                    bgcolor: companyListFilter === f.key ? 'text.primary' : 'background.paper',
-                    color: companyListFilter === f.key ? 'background.paper' : 'text.secondary',
-                    '&:hover': {
-                      bgcolor: companyListFilter === f.key ? 'text.primary' : 'action.hover',
-                    },
-                  }}
-                />
-              ))}
-            </Box>
-          </Box>
-
-          <Box
-            sx={{
-              maxHeight: { md: 'calc(100vh - 360px)' },
-              overflowY: 'auto',
-            }}
-          >
-            {companies.length === 0 ? (
-              <Box sx={{ p: 4, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                  No companies registered yet.
-                </Typography>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<AddIcon />}
-                  onClick={() => setCompanyRegDialogOpen(true)}
-                >
-                  Register Company
-                </Button>
-              </Box>
-            ) : companyListRows.length === 0 ? (
-              <Box sx={{ p: 4, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  No companies match.
-                </Typography>
-              </Box>
-            ) : (
-              companyListRows.map(({ c, agg }) => {
-                const isOn = c.id === selectedCompanyId;
-                const pct = agg.total > 0 ? (agg.paid / agg.total) * 100 : 0;
-                return (
-                  <Box
-                    key={c.id}
-                    onClick={() => setSelectedCompanyId(c.id)}
-                    sx={{
-                      p: 1.5,
-                      cursor: 'pointer',
-                      borderBottom: '1px solid',
-                      borderColor: 'divider',
-                      position: 'relative',
-                      transition: 'background 120ms',
-                      bgcolor: isOn ? (theme) => alpha(theme.palette.success.main, 0.08) : 'transparent',
-                      '&:hover': {
-                        bgcolor: isOn
-                          ? (theme) => alpha(theme.palette.success.main, 0.12)
-                          : 'action.hover',
-                      },
-                      '&::before': isOn
-                        ? {
-                            content: '""',
-                            position: 'absolute',
-                            left: 0,
-                            top: 0,
-                            bottom: 0,
-                            width: 3,
-                            bgcolor: 'success.main',
-                          }
-                        : undefined,
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-                      <Box
-                        sx={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 1,
-                          display: 'grid',
-                          placeItems: 'center',
-                          fontSize: 11,
-                          fontWeight: 800,
-                          letterSpacing: 0.4,
-                          flexShrink: 0,
-                          bgcolor: isOn ? 'success.main' : 'action.selected',
-                          color: isOn ? 'success.contrastText' : 'text.secondary',
-                        }}
-                      >
-                        {companyInitials(c.company_name)}
-                      </Box>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography
-                          sx={{
-                            fontSize: 13.5,
-                            fontWeight: 700,
-                            lineHeight: 1.2,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {c.company_name}
-                        </Typography>
-                        <Typography
-                          sx={{
-                            fontSize: 11,
-                            color: 'text.secondary',
-                            mt: 0.25,
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {c.contact_phone || '-'}
-                          {c.contact_person ? ` / ${c.contact_person}` : ''}
-                        </Typography>
-                      </Box>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 5.25, mt: 0.75 }}>
-                      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
-                        <ReceiptIcon sx={{ fontSize: 11 }} />
-                        <Typography sx={{ fontSize: 11, fontWeight: 500 }}>{agg.count}</Typography>
-                      </Box>
-                      <Box
-                        sx={{
-                          width: 4,
-                          height: 4,
-                          borderRadius: '50%',
-                          bgcolor: 'text.disabled',
-                        }}
-                      />
-                      <Typography
-                        sx={{
-                          fontSize: 11,
-                          color: 'text.secondary',
-                          fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}
-                      >
-                        {formatCurrency(agg.total)}
-                      </Typography>
-                      <Typography
-                        sx={{
-                          ml: 'auto',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: agg.due > 0 ? 'error.main' : 'success.main',
-                          fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}
-                      >
-                        {agg.due > 0 ? formatCurrency(agg.due) : 'Settled'}
-                      </Typography>
-                    </Box>
-                    {agg.total > 0 && (
-                      <Box
-                        sx={{
-                          height: 3,
-                          borderRadius: '999px',
-                          bgcolor: 'action.selected',
-                          overflow: 'hidden',
-                          mt: 0.75,
-                          ml: 5.25,
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            height: '100%',
-                            width: `${pct}%`,
-                            bgcolor: 'success.main',
-                            borderRadius: '999px',
-                          }}
-                        />
-                      </Box>
-                    )}
-                  </Box>
-                );
-              })
-            )}
-          </Box>
-        </Card>
+        <CompanyListPane
+          companies={companies}
+          companyListRows={companyListRows}
+          search={companyListSearch}
+          onSearchChange={setCompanyListSearch}
+          filter={companyListFilter}
+          onFilterChange={setCompanyListFilter}
+          dueCount={dueCount}
+          clearCount={clearCount}
+          selectedCompanyId={selectedCompanyId}
+          onSelect={setSelectedCompanyId}
+          onRegister={() => setCompanyRegDialogOpen(true)}
+          formatCurrency={formatCurrency}
+        />
 
         {/* RIGHT - DETAIL PANE */}
         <Card
@@ -2160,309 +1731,27 @@ const CustomerLedgerPage: React.FC = () => {
           ) : (
             <>
               {/* Company header */}
-              <Box
-                sx={{
-                  px: 2.5,
-                  py: 2,
-                  display: 'grid',
-                  gridTemplateColumns: { xs: '1fr', md: '1fr auto' },
-                  gap: 2,
-                  alignItems: 'start',
-                  borderBottom: '1px solid',
-                  borderColor: 'divider',
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
-                  <Box
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 1.5,
-                      bgcolor: 'success.main',
-                      color: 'success.contrastText',
-                      display: 'grid',
-                      placeItems: 'center',
-                      fontSize: 15,
-                      fontWeight: 800,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {companyInitials(activeCompany.company_name)}
-                  </Box>
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography
-                      variant="h6"
-                      sx={{ fontWeight: 700, letterSpacing: '-0.3px', lineHeight: 1.2 }}
-                      noWrap
-                    >
-                      {activeCompany.company_name}
-                    </Typography>
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                        mt: 0.5,
-                        flexWrap: 'wrap',
-                        color: 'text.secondary',
-                        fontSize: 12,
-                      }}
-                    >
-                      <span>{activeCompany.contact_phone || '-'}</span>
-                      <Box component="span" sx={{ color: 'text.disabled' }}>/</Box>
-                      <span>{activeCompany.contact_person || '-'}</span>
-                      <Box component="span" sx={{ color: 'text.disabled' }}>/</Box>
-                      <Chip
-                        size="small"
-                        label={`Net ${activeCompany.payment_terms_days || 30}d`}
-                        sx={{ height: 20, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.3 }}
-                      />
-                      {activeCompany.credit_limit != null && (
-                        <Chip
-                          size="small"
-                          label={`Limit ${formatCurrency(parseFloat(String(activeCompany.credit_limit)))}`}
-                          sx={{ height: 20, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.3 }}
-                        />
-                      )}
-                    </Box>
-                  </Box>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
-                  <Tooltip title="Print statement">
-                    <span>
-                      <IconButton
-                        size="small"
-                        onClick={() => handlePrintCompanyStatement(activeCompany.company_name)}
-                        disabled={activeAgg.count === 0}
-                      >
-                        <PrintIcon fontSize="small" />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                  <Tooltip title="Delete company">
-                    <span>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleOpenDeleteCompany(activeCompany)}
-                        disabled={activeBookingsForCompany.length > 0}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                </Box>
-              </Box>
+              <CompanyDetailHeader
+                company={activeCompany}
+                entryCount={activeAgg.count}
+                hasActiveBookings={activeBookingsForCompany.length > 0}
+                formatCurrency={formatCurrency}
+                onPrintStatement={() => handlePrintCompanyStatement(activeCompany.company_name)}
+                onDelete={() => handleOpenDeleteCompany(activeCompany)}
+              />
 
               {/* Billed / Collected / Outstanding meter */}
-              {(() => {
-                const pct = activeAgg.total > 0 ? (activeAgg.paid / activeAgg.total) * 100 : 0;
-                const cells: Array<{
-                  key: string;
-                  label: string;
-                  value: number;
-                  color?: 'success.main' | 'error.main';
-                  barWidth: number;
-                  barColor: string;
-                  sub?: string;
-                }> = [
-                  {
-                    key: 'billed',
-                    label: 'Total Billed',
-                    value: activeAgg.total,
-                    barWidth: 100,
-                    barColor: 'success.main',
-                  },
-                  {
-                    key: 'collected',
-                    label: 'Collected',
-                    value: activeAgg.paid,
-                    color: 'success.main',
-                    barWidth: pct,
-                    barColor: 'success.main',
-                  },
-                  {
-                    key: 'outstanding',
-                    label: 'Outstanding',
-                    value: activeAgg.due,
-                    color: 'error.main',
-                    barWidth: Math.min(100, activeAgg.total > 0 ? (activeAgg.due / activeAgg.total) * 100 : 0),
-                    barColor: 'error.main',
-                    sub: `${activeAgg.pending} open item${activeAgg.pending === 1 ? '' : 's'}`,
-                  },
-                  {
-                    key: 'overdue',
-                    label: 'Overdue',
-                    value: activeAgg.overdue,
-                    color: activeAgg.overdue > 0 ? 'error.main' : 'success.main',
-                    barWidth: Math.min(100, activeAgg.total > 0 ? (activeAgg.overdue / activeAgg.total) * 100 : 0),
-                    barColor: 'error.main',
-                    sub: activeAgg.overdue > 0 ? 'needs follow-up' : 'none overdue',
-                  },
-                  {
-                    key: 'collection',
-                    label: 'Collection',
-                    value: pct,
-                    color: 'success.main',
-                    barWidth: pct,
-                    barColor: 'success.main',
-                    sub: `${Math.round(pct)}% collected`,
-                  },
-                ];
-                return (
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(5, 1fr)' },
-                      bgcolor: 'action.hover',
-                      borderBottom: '1px solid',
-                      borderColor: 'divider',
-                    }}
-                  >
-                    {cells.map((c, idx) => (
-                      <Box
-                        key={c.key}
-                        sx={{
-                          px: 2.5,
-                          py: 1.5,
-                          borderRight: {
-                            xs: 'none',
-                            lg: idx < cells.length - 1 ? '1px solid' : 'none',
-                          },
-                          borderBottom: {
-                            xs: idx < cells.length - 1 ? '1px solid' : 'none',
-                            sm: idx < cells.length - 2 ? '1px solid' : 'none',
-                            lg: 'none',
-                          },
-                          borderColor: 'divider',
-                        }}
-                      >
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            fontWeight: 700,
-                            color: 'text.secondary',
-                            letterSpacing: 0.6,
-                            textTransform: 'uppercase',
-                            display: 'block',
-                          }}
-                        >
-                          {c.label}
-                        </Typography>
-                        <Typography
-                          sx={{
-                            fontSize: 18,
-                            fontWeight: 700,
-                            letterSpacing: '-0.3px',
-                            mt: 0.5,
-                            color: c.color || 'text.primary',
-                            fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-                            fontVariantNumeric: 'tabular-nums',
-                          }}
-                        >
-                          {c.key === 'collection' ? (
-                            `${Math.round(c.value)}%`
-                          ) : (
-                            <>
-                              <Box
-                                component="span"
-                                sx={{
-                                  fontSize: 11,
-                                  fontWeight: 600,
-                                  color: 'text.secondary',
-                                  mr: 0.5,
-                                  letterSpacing: 0.4,
-                                }}
-                              >
-                                {currencySymbol}
-                              </Box>
-                              {formatCurrency(c.value).replace(currencySymbol, '').trim()}
-                            </>
-                          )}
-                        </Typography>
-                        <LinearProgress
-                          variant="determinate"
-                          value={Math.max(0, Math.min(100, c.barWidth))}
-                          sx={{
-                            height: 5,
-                            borderRadius: 999,
-                            bgcolor: 'action.selected',
-                            mt: 1,
-                            '& .MuiLinearProgress-bar': { bgcolor: c.barColor },
-                          }}
-                        />
-                        <Typography variant="caption" sx={{ color: 'text.secondary', mt: 0.5, display: 'block' }}>
-                          {c.sub}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </Box>
-                );
-              })()}
+              <CompanyBalanceMeter
+                agg={activeAgg}
+                currencySymbol={currencySymbol}
+                formatCurrency={formatCurrency}
+              />
 
               {/* Active guests row (if any) */}
-              {activeBookingsForCompany.length > 0 && (
-                <Box
-                  sx={{
-                    px: 2.5,
-                    py: 1.5,
-                    bgcolor: (theme) => alpha(theme.palette.success.main, 0.08),
-                    borderBottom: '1px solid',
-                    borderColor: 'divider',
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    alignItems: 'center',
-                    gap: 1,
-                  }}
-                >
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      fontWeight: 700,
-                      color: 'success.dark',
-                      letterSpacing: 0.4,
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {activeBookingsForCompany.length} active guest{activeBookingsForCompany.length > 1 ? 's' : ''}:
-                  </Typography>
-                  {activeBookingsForCompany.map((booking) => (
-                    <Chip
-                      key={booking.id}
-                      size="small"
-                      label={
-                        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
-                          <span>Room {booking.room_number}</span>
-                          <Box component="span" sx={{ color: 'text.disabled' }}>/</Box>
-                          <span>{booking.guest_name}</span>
-                        </Box>
-                      }
-                      onDelete={() => handleOpenCheckoutDialog(booking)}
-                      deleteIcon={
-                        <Box
-                          sx={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 0.25,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: 'error.main',
-                            px: 0.5,
-                          }}
-                        >
-                          <CheckOutIcon sx={{ fontSize: 13 }} /> Out
-                        </Box>
-                      }
-                      sx={{
-                        bgcolor: 'background.paper',
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        '& .MuiChip-label': { fontSize: 12 },
-                      }}
-                    />
-                  ))}
-                </Box>
-              )}
+              <ActiveGuestsRow
+                bookings={activeBookingsForCompany}
+                onCheckout={handleOpenCheckoutDialog}
+              />
 
               {/* Tabs + per-tab primary action (v2) */}
               <Box
@@ -2548,376 +1837,37 @@ const CustomerLedgerPage: React.FC = () => {
               {/* Scrollable tab body keeps header/meter/tabs pinned above */}
               <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
               {detailTab === 'entries' && (
-                <>
-                  {/* Toolbar: search + status segment + new entry */}
-                  <Box
-                    sx={{
-                      px: 2.5,
-                      py: 1.25,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      flexWrap: 'wrap',
-                      bgcolor: 'action.hover',
-                      borderBottom: '1px solid',
-                      borderColor: 'divider',
-                    }}
-                  >
-                    <TextField
-                      size="small"
-                      placeholder="Search description or invoice no..."
-                      value={entriesSearch}
-                      onChange={(e) => setEntriesSearch(e.target.value)}
-                      sx={{ width: 240, bgcolor: 'background.paper' }}
-                    />
-                    <Box
-                      sx={{
-                        display: 'inline-flex',
-                        bgcolor: 'background.paper',
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        borderRadius: 1,
-                        p: 0.25,
-                      }}
-                    >
-                      {([
-                        { key: 'all', label: 'All' },
-                        { key: 'uninvoiced', label: 'Uninvoiced' },
-                        { key: 'outstanding', label: 'Outstanding' },
-                        { key: 'invoiced', label: 'Invoiced' },
-                        { key: 'paid', label: 'Paid' },
-                        { key: 'overdue', label: 'Overdue' },
-                        { key: 'voided', label: 'Voided' },
-                      ] as const).map(s => (
-                        <Button
-                          key={s.key}
-                          size="small"
-                          onClick={() => setEntriesStatusFilter(s.key as any)}
-                          sx={{
-                            minWidth: 0,
-                            px: 1,
-                            py: 0.25,
-                            fontSize: 11.5,
-                            fontWeight: 600,
-                            color: entriesStatusFilter === s.key ? 'background.paper' : 'text.secondary',
-                            bgcolor: entriesStatusFilter === s.key ? 'text.primary' : 'transparent',
-                            borderRadius: 0.75,
-                            '&:hover': {
-                              bgcolor:
-                                entriesStatusFilter === s.key ? 'text.primary' : 'action.hover',
-                            },
-                          }}
-                        >
-                          {s.label}
-                        </Button>
-                      ))}
-                    </Box>
-                  </Box>
-
-                  {activeCompanyEntriesLoading && (
-                    <LinearProgress sx={{ height: 2 }} />
-                  )}
-
-                  {activeCompanyEntries.length === 0 && activeCompanyEntriesLoading ? (
-                    <Box sx={{ py: 8, px: 4, textAlign: 'center' }}>
-                      <CircularProgress size={28} />
-                    </Box>
-                  ) : activeCompanyEntries.length === 0 ? (
-                    <Box sx={{ py: 8, px: 4, textAlign: 'center' }}>
-                      <Typography variant="body2" color="text.secondary">
-                        {activeAgg.count === 0
-                          ? 'No ledger entries for this company yet.'
-                          : 'No entries match this filter.'}
-                      </Typography>
-                    </Box>
-                  ) : (
-                    <TableContainer sx={{ overflowX: 'auto' }}>
-                      <Table size="small" stickyHeader sx={{ minWidth: 980 }}>
-                        <TableHead>
-                          <TableRow
-                            sx={{
-                              '& .MuiTableCell-root': {
-                                fontSize: 10.5,
-                                fontWeight: 700,
-                                color: 'text.secondary',
-                                letterSpacing: 0.6,
-                                textTransform: 'uppercase',
-                                bgcolor: 'action.hover',
-                                py: 1.25,
-                              },
-                            }}
-                          >
-                            <TableCell sx={{ pl: 2.5, width: '30%' }}>Description</TableCell>
-                            <TableCell>Stay / Ledger Date</TableCell>
-                            <TableCell>Invoice #</TableCell>
-                            <TableCell>Status</TableCell>
-                            <TableCell align="right">Amount</TableCell>
-                            <TableCell align="right">Paid</TableCell>
-                            <TableCell align="right">Balance</TableCell>
-                            <TableCell sx={{ width: 110 }} />
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {activeCompanyEntries.map((entry) => {
-                            const amount = parseFloat(String(entry.amount || 0));
-                            const paid = parseFloat(String(entry.paid_amount || 0));
-                            const balance = parseFloat(String(entry.balance_due || 0));
-                            const voided = isVoidedLedger(entry);
-                            const uiStatus = getLedgerUiStatus(entry);
-                            const receiptNumber = (activeCompanyPayments[entry.id] || [])
-                              .map(payment => payment.receipt_number)
-                              .filter(Boolean)[0];
-                            return (
-                              <TableRow
-                                key={entry.id}
-                                hover
-                                sx={{
-                                  '&:hover .ledger-row-actions': { opacity: 1 },
-                                  opacity: voided ? 0.6 : 1,
-                                }}
-                              >
-                                <TableCell sx={{ pl: 2.5, py: 1.25 }}>
-                                  <Typography
-                                    sx={{ fontWeight: 600, fontSize: 13, lineHeight: 1.3 }}
-                                  >
-                                    {entry.description}
-                                  </Typography>
-                                  <Typography
-                                    sx={{
-                                      fontSize: 11,
-                                      color: 'text.secondary',
-                                      mt: 0.25,
-                                      fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-                                    }}
-                                  >
-                                    {entry.folio_number || `#${entry.id}`}
-                                    {entry.room_number ? ` / Room ${entry.room_number}` : ''}
-                                    {entry.expense_type ? ` / ${entry.expense_type}` : ''}
-                                    {receiptNumber ? ` / Receipt ${receiptNumber}` : ''}
-                                  </Typography>
-                                </TableCell>
-                                <TableCell sx={{ color: 'text.secondary', fontSize: 12 }}>
-                                  {formatDateForDisplay(entry.posting_date || entry.created_at)}
-                                </TableCell>
-                                <TableCell sx={{ color: entry.invoice_number ? 'text.primary' : 'text.disabled', fontSize: 12 }}>
-                                  {entry.invoice_number || 'Not invoiced'}
-                                </TableCell>
-                                <TableCell>
-                                  <LedgerStatusBadge status={uiStatus} />
-                                </TableCell>
-                                <TableCell
-                                  align="right"
-                                  sx={{
-                                    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-                                    fontVariantNumeric: 'tabular-nums',
-                                    fontWeight: 700,
-                                    fontSize: 13,
-                                  }}
-                                >
-                                  {formatCurrency(amount)}
-                                </TableCell>
-                                <TableCell
-                                  align="right"
-                                  sx={{
-                                    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-                                    fontVariantNumeric: 'tabular-nums',
-                                    fontWeight: 700,
-                                    fontSize: 13,
-                                    color: paid > 0 ? 'success.main' : 'text.secondary',
-                                  }}
-                                >
-                                  {formatCurrency(paid)}
-                                </TableCell>
-                                <TableCell
-                                  align="right"
-                                  sx={{
-                                    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-                                    fontVariantNumeric: 'tabular-nums',
-                                    fontWeight: 700,
-                                    fontSize: 13,
-                                    color: balance > 0 ? 'error.main' : 'success.main',
-                                  }}
-                                >
-                                  {formatCurrency(balance)}
-                                </TableCell>
-                                <TableCell sx={{ pr: 2 }}>
-                                  <Box
-                                    className="ledger-row-actions"
-                                    sx={{
-                                      display: 'inline-flex',
-                                      gap: 0.25,
-                                      opacity: { xs: 1, md: 0 },
-                                      transition: 'opacity 120ms',
-                                    }}
-                                  >
-                                    {canRecordPayment(entry) && (
-                                      <IconButton
-                                        size="small"
-                                        title="Record payment"
-                                        onClick={() => handleOpenPaymentDialog(entry)}
-                                      >
-                                        <PaymentIcon sx={{ fontSize: 16 }} />
-                                      </IconButton>
-                                    )}
-                                    {canViewInvoice(entry) && (
-                                      <IconButton
-                                        size="small"
-                                        title="View invoice"
-                                        onClick={() => handleViewLedgerInvoice(entry)}
-                                        disabled={loadingLedgerInvoice}
-                                      >
-                                        <OpenInNewIcon sx={{ fontSize: 16 }} />
-                                      </IconButton>
-                                    )}
-                                    <IconButton
-                                      size="small"
-                                      title="Edit entry"
-                                      onClick={() => handleEditLedger(entry)}
-                                    >
-                                      <EditIcon sx={{ fontSize: 16 }} />
-                                    </IconButton>
-                                    <IconButton
-                                      size="small"
-                                      title="Print receipt"
-                                      onClick={() => handlePrintSingleReceipt(entry)}
-                                    >
-                                      <PrintIcon sx={{ fontSize: 16 }} />
-                                    </IconButton>
-                                    {canVoid(entry) && (
-                                      <IconButton
-                                        size="small"
-                                        title="Void entry"
-                                        color="error"
-                                        onClick={() => handleVoidLedger(entry)}
-                                      >
-                                        <VoidIcon sx={{ fontSize: 16 }} />
-                                      </IconButton>
-                                    )}
-                                  </Box>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                      <TablePagination
-                        component="div"
-                        count={activeCompanyEntriesTotal}
-                        page={entriesPage}
-                        onPageChange={(_, page) => setEntriesPage(page)}
-                        rowsPerPage={entriesPageSize}
-                        rowsPerPageOptions={[10, 25, 50, 100]}
-                        onRowsPerPageChange={(event) => {
-                          setEntriesPageSize(parseInt(event.target.value, 10));
-                          setEntriesPage(0);
-                        }}
-                        labelRowsPerPage="Entries per page"
-                      />
-                    </TableContainer>
-                  )}
-                </>
+                <LedgerEntriesTab
+                  search={entriesSearch}
+                  onSearchChange={setEntriesSearch}
+                  statusFilter={entriesStatusFilter}
+                  onStatusFilterChange={setEntriesStatusFilter}
+                  loading={activeCompanyEntriesLoading}
+                  entries={activeCompanyEntries}
+                  entryCount={activeAgg.count}
+                  payments={activeCompanyPayments}
+                  total={activeCompanyEntriesTotal}
+                  page={entriesPage}
+                  onPageChange={setEntriesPage}
+                  pageSize={entriesPageSize}
+                  onPageSizeChange={(size) => { setEntriesPageSize(size); setEntriesPage(0); }}
+                  loadingInvoice={loadingLedgerInvoice}
+                  onRecordPayment={handleOpenPaymentDialog}
+                  onViewInvoice={handleViewLedgerInvoice}
+                  onEdit={handleEditLedger}
+                  onPrintReceipt={handlePrintSingleReceipt}
+                  onVoid={handleVoidLedger}
+                  formatCurrency={formatCurrency}
+                />
               )}
 
               {detailTab === 'info' && (
-                <Box sx={{ p: 2.5 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<EditIcon fontSize="small" />}
-                      onClick={() => handleOpenEditCompany(activeCompany)}
-                    >
-                      Edit company
-                    </Button>
-                  </Box>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      display: 'block',
-                      fontWeight: 700,
-                      color: 'text.secondary',
-                      letterSpacing: 0.6,
-                      textTransform: 'uppercase',
-                      mb: 1.5,
-                    }}
-                  >
-                    Contact
-                  </Typography>
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-                      gap: '14px 22px',
-                      mb: 3,
-                    }}
-                  >
-                    <InfoField label="Phone" value={activeCompany.contact_phone || '-'} />
-                    <InfoField label="Contact person" value={activeCompany.contact_person || '-'} />
-                    <InfoField label="Email" value={activeCompany.contact_email || '-'} />
-                    <InfoField
-                      label="Registration no."
-                      value={activeCompany.registration_number || '-'}
-                    />
-                    <InfoField
-                      label="Address"
-                      value={
-                        [
-                          activeCompany.billing_address,
-                          activeCompany.billing_city,
-                          activeCompany.billing_state,
-                          activeCompany.billing_postal_code,
-                        ]
-                          .filter(Boolean)
-                          .join(', ') || '-'
-                      }
-                      span={2}
-                    />
-                  </Box>
-
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      display: 'block',
-                      fontWeight: 700,
-                      color: 'text.secondary',
-                      letterSpacing: 0.6,
-                      textTransform: 'uppercase',
-                      mb: 1.5,
-                    }}
-                  >
-                    Billing terms
-                  </Typography>
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
-                      gap: '14px 22px',
-                    }}
-                  >
-                    <InfoField
-                      label="Credit limit"
-                      value={
-                        activeCompany.credit_limit != null
-                          ? formatCurrency(parseFloat(String(activeCompany.credit_limit)))
-                          : '-'
-                      }
-                    />
-                    <InfoField
-                      label="Payment terms"
-                      value={`Net ${activeCompany.payment_terms_days || 30} days`}
-                    />
-                    <InfoField
-                      label="Available credit"
-                      value={
-                        activeCompany.credit_limit != null
-                          ? formatCurrency(
-                              Math.max(parseFloat(String(activeCompany.credit_limit)) - activeAgg.due, 0),
-                            )
-                          : '-'
-                      }
-                    />
-                  </Box>
-                </Box>
+                <CompanyInfoTab
+                  company={activeCompany}
+                  dueAmount={activeAgg.due}
+                  formatCurrency={formatCurrency}
+                  onEdit={() => handleOpenEditCompany(activeCompany)}
+                />
               )}
               </Box>
             </>
