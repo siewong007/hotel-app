@@ -77,9 +77,12 @@ import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory } fr
 import { useCurrency } from '../../../../hooks/useCurrency';
 import {
   useBookingNotes,
+  useGuestCreditsWorkflow,
+  useReservedCheckInWorkflow,
   useRoomData,
   useRoomManagementFilters,
   useRoomNotes,
+  useUpcomingBookingsDialog,
 } from '../../hooks';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { addLocalDays, formatLocalDate } from '../../../../utils/date';
@@ -89,15 +92,8 @@ import {
   getUnifiedStatusLabel,
 } from '../../config';
 import {
-  buildBlockedDateRangesForRoom,
-  type BlockedDateRange,
   calculateNightCount,
   getCreditBookingDates as getCreditBookingDateRange,
-  getPositiveRatePerNight,
-  getRoomTypeCode,
-  getTotalCreditsForRoom as getCreditsForRoomType,
-  isDateBlockedByRanges,
-  formatMenuBookingDate,
 } from '../../utils/roomManagementUtils';
 import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
 import UnifiedBookingModal, { BookingType } from '../UnifiedBooking/UnifiedBookingModal';
@@ -192,6 +188,27 @@ const RoomManagementPage: React.FC = () => {
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<BookingWithDetails | null>(null);
+  const handleMenuClose = useCallback(() => {
+    setMenuPosition(null);
+  }, []);
+  const reservedCheckIn = useReservedCheckInWorkflow({
+    reload: loadData,
+    showSnackbar,
+  });
+  const guestCreditsWorkflow = useGuestCreditsWorkflow({
+    guests,
+    rooms,
+    allBookings: allBookingsData,
+    reloadRooms: loadRooms,
+    reloadBookings: loadBookings,
+    showSnackbar,
+    onCloseMenu: handleMenuClose,
+  });
+  const upcomingBookings = useUpcomingBookingsDialog({
+    allBookings: allBookingsData,
+    onSelectRoom: setSelectedRoom,
+    onCloseMenu: handleMenuClose,
+  });
 
   // Dialogs
   const [walkInDialogOpen, setWalkInDialogOpen] = useState(false);
@@ -259,74 +276,16 @@ const RoomManagementPage: React.FC = () => {
   const [complimentaryCheckInDate, setComplimentaryCheckInDate] = useState('');
   const [complimentaryCheckOutDate, setComplimentaryCheckOutDate] = useState('');
   const [complimentaryNumberOfNights, setComplimentaryNumberOfNights] = useState(1);
-  const [guestsWithCredits, setGuestsWithCredits] = useState<GuestWithCredits[]>([]);
-  const [loadingGuestsWithCredits, setLoadingGuestsWithCredits] = useState(false);
 
   // Room history state
   const [roomHistory, setRoomHistory] = useState<RoomHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [selectedGuestDetails, setSelectedGuestDetails] = useState<Guest | null>(null);
-  const [guestDetailsDialogOpen, setGuestDetailsDialogOpen] = useState(false);
-
-  // Guest details tab state
-  const [guestDetailsTab, setGuestDetailsTab] = useState(0);
-  const [guestCredits, setGuestCredits] = useState<{
-    guest_id: number;
-    guest_name: string;
-    total_nights: number;
-    credits_by_room_type: {
-      id: number;
-      room_type_id: number;
-      room_type_name: string;
-      room_type_code: string;
-      nights_available: number;
-    }[];
-  } | null>(null);
-  const [loadingCredits, setLoadingCredits] = useState(false);
-  const [availableRoomsForCredits, setAvailableRoomsForCredits] = useState<Room[]>([]);
-  const [creditsBookingForm, setCreditsBookingForm] = useState({
-    room_id: '',
-    check_in_date: formatLocalDate(),
-    check_out_date: formatLocalDate(addLocalDays(new Date(), 1)),
-    adults: 1,
-    children: 0,
-    special_requests: '',
-  });
-  const [selectedComplimentaryDates, setSelectedComplimentaryDates] = useState<string[]>([]);
-  const [bookingWithCredits, setBookingWithCredits] = useState(false);
-  const [creditsBookingSuccess, setCreditsBookingSuccess] = useState<{
-    booking_id: number;
-    booking_number: string;
-    complimentary_nights: number;
-  } | null>(null);
-  const [roomBlockedDates, setRoomBlockedDates] = useState<BlockedDateRange[]>([]);
 
   // Enhanced check-in modal state
 
   // Unified booking modal state
   const [unifiedBookingOpen, setUnifiedBookingOpen] = useState(false);
   const [unifiedBookingType, setUnifiedBookingType] = useState<BookingType | undefined>(undefined);
-
-  // Upcoming bookings dialog state
-  const [upcomingBookingsDialogOpen, setUpcomingBookingsDialogOpen] = useState(false);
-  const [upcomingBookingsForRoom, setUpcomingBookingsForRoom] = useState<BookingWithDetails[]>([]);
-  const [loadingUpcomingBookings, setLoadingUpcomingBookings] = useState(false);
-
-  // Reserved check-in dialog state (for streamlined check-in of reserved rooms)
-  const [reservedCheckInDialogOpen, setReservedCheckInDialogOpen] = useState(false);
-  const [reservedCheckInBooking, setReservedCheckInBooking] = useState<BookingWithDetails | null>(null);
-  const [processingReservedCheckIn, setProcessingReservedCheckIn] = useState(false);
-  const [collectingDeposit, setCollectingDeposit] = useState(false);
-  const [depositPaymentMethod, setDepositPaymentMethod] = useState('');
-
-  // Reserved check-in payment/deposit options
-  const [rcPaymentChoice, setRcPaymentChoice] = useState<'pay_now' | 'pay_later'>('pay_later');
-  const [rcPaymentMethod, setRcPaymentMethod] = useState('Cash');
-  const [rcAmountPaid, setRcAmountPaid] = useState(0);
-  const [rcDepositChoice, setRcDepositChoice] = useState<'receive' | 'waive'>('receive');
-  const [rcDepositAmount, setRcDepositAmount] = useState(0);
-  const [rcDepositMethod, setRcDepositMethod] = useState('Cash');
-  const [rcWaiveReason, setRcWaiveReason] = useState('');
 
   // Payment collection dialog state
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -350,16 +309,6 @@ const RoomManagementPage: React.FC = () => {
   useEffect(() => {
     if (dataError) showSnackbar(dataError, 'error');
   }, [dataError]);
-
-  // Clear any blocked dates from selection when room blocked dates are loaded
-  useEffect(() => {
-    if (roomBlockedDates.length > 0 && selectedComplimentaryDates.length > 0) {
-      const availableDates = selectedComplimentaryDates.filter(date => !isDateBlocked(date));
-      if (availableDates.length !== selectedComplimentaryDates.length) {
-        setSelectedComplimentaryDates(availableDates);
-      }
-    }
-  }, [roomBlockedDates]);
 
   // Memoized callbacks for UnifiedBookingModal to prevent re-renders during periodic refresh
   const handleUnifiedBookingClose = useCallback(() => {
@@ -386,26 +335,13 @@ const RoomManagementPage: React.FC = () => {
       room_type: booking.room_type || '',
       booking_number: booking.folio_number || booking.booking_number || '',
     };
-    const settingsDeposit = getHotelSettings().deposit_amount;
-    setReservedCheckInBooking(bwd);
-    setRcPaymentChoice('pay_later');
-    setRcPaymentMethod(booking.payment_method || 'Cash');
-    setRcAmountPaid(Number(booking.total_amount || 0));
-    setRcDepositChoice('receive');
-    setRcDepositAmount(settingsDeposit);
-    setRcDepositMethod('Cash');
-    setRcWaiveReason('');
-    setReservedCheckInDialogOpen(true);
-  }, []);
+    reservedCheckIn.openWithBooking(bwd, booking.payment_method || 'Cash');
+  }, [reservedCheckIn.openWithBooking]);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, room: Room) => {
     event.preventDefault();
     setMenuPosition({ top: event.clientY, left: event.clientX });
     setSelectedRoom(room);
-  };
-
-  const handleMenuClose = () => {
-    setMenuPosition(null);
   };
 
   // Room Actions - Unified Booking Modal
@@ -654,17 +590,8 @@ const RoomManagementPage: React.FC = () => {
         booking_number: createdBooking.folio_number || `WALKIN-${createdBooking.id}`,
         price_per_night: selectedRoom.price_per_night || 0,
       };
-      const settingsDepositWI = getHotelSettings().deposit_amount;
-      setReservedCheckInBooking(bwd);
-      setRcPaymentChoice('pay_later');
-      setRcPaymentMethod(walkInPaymentMethod || 'Cash');
-      setRcAmountPaid(Number(createdBooking.total_amount || 0));
-      setRcDepositChoice('receive');
-      setRcDepositAmount(settingsDepositWI);
-      setRcDepositMethod('Cash');
-      setRcWaiveReason('');
       setWalkInDialogOpen(false);
-      setReservedCheckInDialogOpen(true);
+      reservedCheckIn.openWithBooking(bwd, walkInPaymentMethod || 'Cash');
     } catch (error: any) {
       showSnackbar(error.message || 'Failed to create guest', 'error');
     } finally {
@@ -724,95 +651,12 @@ const RoomManagementPage: React.FC = () => {
     const reservedBooking = reservedBookings.get(room.id);
     if (reservedBooking) {
       // For reserved rooms, open the streamlined check-in dialog
-      setReservedCheckInBooking(reservedBooking);
-      setDepositPaymentMethod('');
-      setCollectingDeposit(false);
-      const totalAmt = Number(reservedBooking.total_amount || 0);
-      const settingsDeposit = getHotelSettings().deposit_amount;
-      setRcPaymentChoice(reservedBooking.payment_status === 'paid' ? 'pay_now' : 'pay_later');
-      setRcPaymentMethod(reservedBooking.payment_method || 'Cash');
-      setRcAmountPaid(totalAmt);
-      setRcDepositChoice('receive');
-      setRcDepositAmount(settingsDeposit);
-      setRcDepositMethod('Cash');
-      setRcWaiveReason('');
-      setReservedCheckInDialogOpen(true);
+      reservedCheckIn.openWithBooking(reservedBooking);
       return;
     }
 
     // For non-reserved rooms, use the online check-in dialog
     setOnlineCheckInDialogOpen(true);
-  };
-
-  // Handle reserved room check-in (streamlined - booking details already exist)
-  const handleReservedCheckIn = async (collectDeposit: boolean = false) => {
-    console.log('handleReservedCheckIn called, booking:', reservedCheckInBooking);
-
-    if (!reservedCheckInBooking) {
-      showSnackbar('No booking selected', 'warning');
-      return;
-    }
-
-    if (rcDepositChoice === 'receive' && Number(rcDepositAmount) <= 0) {
-      showSnackbar('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.', 'warning');
-      return;
-    }
-
-    try {
-      setProcessingReservedCheckIn(true);
-      console.log('Processing check-in for booking ID:', reservedCheckInBooking.id);
-
-      // Build payment/deposit update
-      const updateData: any = {};
-      if (rcPaymentChoice === 'pay_now') {
-        updateData.payment_status = 'paid';
-        updateData.amount_paid = rcAmountPaid;
-        updateData.payment_method = rcPaymentMethod;
-      } else {
-        updateData.payment_status = 'unpaid';
-      }
-      if (rcDepositChoice === 'receive') {
-        updateData.deposit_paid = true;
-        updateData.deposit_amount = rcDepositAmount;
-        updateData.payment_note = `Deposit received (${rcDepositMethod})`;
-      } else {
-        updateData.deposit_paid = false;
-        updateData.deposit_amount = 0;
-        updateData.payment_note = `Deposit waived: ${rcWaiveReason}`;
-      }
-
-      // Update booking with payment/deposit info
-      await HotelAPIService.updateBooking(reservedCheckInBooking.id, updateData);
-
-      // Perform check-in (with payment data if paying now)
-      const checkinPayload = (rcPaymentChoice === 'pay_now' && rcAmountPaid > 0)
-        ? {
-            payment_record: {
-              amount: rcAmountPaid,
-              payment_method: rcPaymentMethod,
-              payment_type: 'booking',
-              notes: 'Payment collected at check-in',
-            },
-          }
-        : undefined;
-      const result = await HotelAPIService.checkInGuest(String(reservedCheckInBooking.id), checkinPayload);
-
-      showSnackbar(`Guest ${reservedCheckInBooking.guest_name} checked in successfully to Room ${reservedCheckInBooking.room_number}`, 'success');
-
-      // Close dialog and reset state
-      setReservedCheckInDialogOpen(false);
-      setReservedCheckInBooking(null);
-      setCollectingDeposit(false);
-      setDepositPaymentMethod('');
-
-      // Reload data
-      await loadData();
-    } catch (error: any) {
-      console.error('Check-in error:', error);
-      showSnackbar(error.message || 'Failed to check in guest', 'error');
-    } finally {
-      setProcessingReservedCheckIn(false);
-    }
   };
 
   // Handle deposit collection for reserved bookings
@@ -1164,32 +1008,7 @@ const RoomManagementPage: React.FC = () => {
     handleMenuClose();
   };
 
-  // Show upcoming bookings dialog for a room - uses existing bookings state
-  const handleViewUpcomingBookings = (room: Room) => {
-    handleMenuClose();
-    setSelectedRoom(room);
-    setUpcomingBookingsDialogOpen(true);
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Filter bookings for this room from allBookingsData
-    const roomUpcomingBookings = allBookingsData.filter(booking => {
-      const isThisRoom = booking.room_id?.toString() === room.id.toString();
-      const checkInDate = new Date(booking.check_in_date);
-      checkInDate.setHours(0, 0, 0, 0);
-      const isUpcoming = checkInDate >= today;
-      const isActive = ['pending', 'confirmed', 'checked_in', 'auto_checked_in'].includes(booking.status);
-      return isThisRoom && (isUpcoming || booking.status === 'checked_in') && isActive;
-    });
-
-    // Sort by check-in date
-    roomUpcomingBookings.sort((a, b) =>
-      new Date(a.check_in_date).getTime() - new Date(b.check_in_date).getTime()
-    );
-
-    setUpcomingBookingsForRoom(roomUpcomingBookings);
-  };
+  const handleViewUpcomingBookings = upcomingBookings.openForRoom;
 
   const handleShowHistory = async (room: Room) => {
     setSelectedRoom(room);
@@ -1209,134 +1028,7 @@ const RoomManagementPage: React.FC = () => {
     }
   };
 
-  const handleViewGuestDetails = (guestId: string | number) => {
-    // Use guests from state instead of fetching again
-    const guest = guests.find(g => g.id.toString() === guestId.toString());
-
-    if (guest) {
-      setSelectedGuestDetails(guest);
-      setGuestDetailsTab(0); // Reset to first tab
-      setGuestCredits(null);
-      setCreditsBookingSuccess(null);
-      setSelectedComplimentaryDates([]);
-      setGuestDetailsDialogOpen(true);
-      handleMenuClose();
-
-      // Load guest credits in background
-      loadGuestCredits(guest.id);
-    } else {
-      showSnackbar(`Guest not found (ID: ${guestId})`, 'warning');
-    }
-  };
-
-  const loadGuestCredits = async (guestId: number) => {
-    try {
-      setLoadingCredits(true);
-      const credits = await HotelAPIService.getGuestCredits(guestId);
-      setGuestCredits(credits);
-    } catch (error: any) {
-      console.error('Error loading guest credits:', error);
-      // Don't show error - credits may not be available for all guests
-    } finally {
-      setLoadingCredits(false);
-    }
-  };
-
-  const loadAvailableRoomsForCredits = () => {
-    // Use rooms from state instead of fetching again
-    setAvailableRoomsForCredits(rooms);
-  };
-
-  const loadRoomBlockedDates = (roomId: string) => {
-    setRoomBlockedDates(buildBlockedDateRangesForRoom(allBookingsData, roomId));
-  };
-
-  const isDateBlocked = (dateStr: string): boolean => {
-    return isDateBlockedByRanges(dateStr, roomBlockedDates);
-  };
-
-  const getCreditsBookingDates = (): string[] => {
-    return getCreditBookingDateRange(
-      creditsBookingForm.check_in_date,
-      creditsBookingForm.check_out_date,
-    );
-  };
-
-  const getTotalCreditsForRoom = (roomId: string): number => {
-    return getCreditsForRoomType(guestCredits, availableRoomsForCredits, roomId);
-  };
-
-  const handleCreditsDateToggle = (date: string) => {
-    // Prevent toggling blocked dates
-    if (isDateBlocked(date)) return;
-
-    const maxCredits = getTotalCreditsForRoom(creditsBookingForm.room_id);
-    if (selectedComplimentaryDates.includes(date)) {
-      setSelectedComplimentaryDates(prev => prev.filter(d => d !== date));
-    } else if (selectedComplimentaryDates.length < maxCredits) {
-      setSelectedComplimentaryDates(prev => [...prev, date]);
-    }
-  };
-
-  const selectAllCreditsAvailable = () => {
-    const dates = getCreditsBookingDates();
-    const maxCredits = getTotalCreditsForRoom(creditsBookingForm.room_id);
-    // Filter out blocked dates and only select available ones
-    const availableDates = dates.filter(date => !isDateBlocked(date));
-    setSelectedComplimentaryDates(availableDates.slice(0, maxCredits));
-  };
-
-  const handleBookWithCreditsAndCheckIn = async () => {
-    if (!selectedGuestDetails || !creditsBookingForm.room_id || selectedComplimentaryDates.length === 0) {
-      showSnackbar('Please select a room and at least one complimentary date', 'warning');
-      return;
-    }
-
-    try {
-      setBookingWithCredits(true);
-      const result = await HotelAPIService.bookWithCredits({
-        guest_id: selectedGuestDetails.id,
-        room_id: parseInt(creditsBookingForm.room_id, 10),
-        check_in_date: creditsBookingForm.check_in_date,
-        check_out_date: creditsBookingForm.check_out_date,
-        adults: creditsBookingForm.adults,
-        children: creditsBookingForm.children,
-        special_requests: creditsBookingForm.special_requests,
-        complimentary_dates: selectedComplimentaryDates,
-      });
-
-      setCreditsBookingSuccess({
-        booking_id: result.booking_id,
-        booking_number: result.booking_number,
-        complimentary_nights: result.complimentary_nights,
-      });
-
-      showSnackbar(`Booking created successfully! ${result.complimentary_nights} night(s) are complimentary.`, 'success');
-
-      // Reload guest credits
-      loadGuestCredits(selectedGuestDetails.id);
-      // Reload rooms
-      loadRooms();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to book with credits', 'error');
-    } finally {
-      setBookingWithCredits(false);
-    }
-  };
-
-  const handleCheckInFromCreditsBooking = async () => {
-    if (!creditsBookingSuccess) return;
-
-    try {
-      await HotelAPIService.checkInGuest(creditsBookingSuccess.booking_id.toString());
-      showSnackbar('Guest checked in successfully!', 'success');
-      setGuestDetailsDialogOpen(false);
-      loadRooms();
-      loadBookings();
-    } catch (error: any) {
-      showSnackbar(error.message || 'Failed to check in guest', 'error');
-    }
-  };
+  const handleViewGuestDetails = guestCreditsWorkflow.openGuestDetails;
 
   const handleRoomProperties = (room: Room) => {
     setSelectedRoom(room);
@@ -1711,8 +1403,8 @@ const RoomManagementPage: React.FC = () => {
         onClose={handleCloseComplimentaryCheckInDialog}
         roomNumber={selectedRoom?.room_number}
         roomPricePerNight={selectedRoom?.price_per_night}
-        loadingGuests={loadingGuestsWithCredits}
-        guestsWithCredits={guestsWithCredits}
+        loadingGuests={guestCreditsWorkflow.loadingGuestsWithCredits}
+        guestsWithCredits={guestCreditsWorkflow.guestsWithCredits}
         selectedGuest={complimentaryCheckInGuest}
         onSelectGuest={setComplimentaryCheckInGuest}
         checkInDate={complimentaryCheckInDate}
@@ -1838,67 +1530,44 @@ const RoomManagementPage: React.FC = () => {
 
       {/* Upcoming Bookings Dialog */}
       <UpcomingBookingsDialog
-        open={upcomingBookingsDialogOpen}
-        onClose={() => setUpcomingBookingsDialogOpen(false)}
+        open={upcomingBookings.open}
+        onClose={upcomingBookings.close}
         roomNumber={selectedRoom?.room_number}
-        loading={loadingUpcomingBookings}
-        bookings={upcomingBookingsForRoom}
+        loading={upcomingBookings.loading}
+        bookings={upcomingBookings.bookings}
         formatCurrency={formatCurrency}
         onViewAllInBookings={() => navigate(`/bookings?room=${selectedRoom?.room_number}`)}
         onCheckInBooking={(booking) => {
-          setUpcomingBookingsDialogOpen(false);
-          // Directly open the check-in dialog with this booking
-          setReservedCheckInBooking(booking);
-          setDepositPaymentMethod('');
-          setCollectingDeposit(false);
-          const amt = Number(booking.total_amount || 0);
-          const sDeposit = getHotelSettings().deposit_amount;
-          setRcPaymentChoice(booking.payment_status === 'paid' ? 'pay_now' : 'pay_later');
-          setRcPaymentMethod(booking.payment_method || 'Cash');
-          setRcAmountPaid(amt);
-          setRcDepositChoice('receive');
-          setRcDepositAmount(sDeposit);
-          setRcDepositMethod('Cash');
-          setRcWaiveReason('');
-          setReservedCheckInDialogOpen(true);
+          upcomingBookings.close();
+          reservedCheckIn.openWithBooking(booking);
         }}
       />
 
       {/* Reserved Check-In Dialog - Streamlined check-in for reserved rooms */}
       <ReservedCheckInDialog
-        open={reservedCheckInDialogOpen}
-        onClose={() => {
-          if (!processingReservedCheckIn) {
-            setReservedCheckInDialogOpen(false);
-            setReservedCheckInBooking(null);
-            setCollectingDeposit(false);
-            setDepositPaymentMethod('');
-          }
-        }}
-        onCancel={() => {
-          setReservedCheckInDialogOpen(false);
-          setReservedCheckInBooking(null);
-        }}
-        booking={reservedCheckInBooking}
+        open={reservedCheckIn.dialogOpen}
+        onClose={reservedCheckIn.close}
+        onCancel={reservedCheckIn.cancel}
+        booking={reservedCheckIn.booking}
         formatCurrency={formatCurrency}
         currencySymbol={currencySymbol}
         paymentMethods={PAYMENT_METHODS}
-        paymentChoice={rcPaymentChoice}
-        onPaymentChoiceChange={setRcPaymentChoice}
-        paymentMethod={rcPaymentMethod}
-        onPaymentMethodChange={setRcPaymentMethod}
-        amountPaid={rcAmountPaid}
-        onAmountPaidChange={setRcAmountPaid}
-        depositChoice={rcDepositChoice}
-        onDepositChoiceChange={setRcDepositChoice}
-        depositMethod={rcDepositMethod}
-        onDepositMethodChange={setRcDepositMethod}
-        depositAmount={rcDepositAmount}
-        onDepositAmountChange={setRcDepositAmount}
-        waiveReason={rcWaiveReason}
-        onWaiveReasonChange={setRcWaiveReason}
-        processing={processingReservedCheckIn}
-        onCheckIn={() => handleReservedCheckIn(false)}
+        paymentChoice={reservedCheckIn.paymentChoice}
+        onPaymentChoiceChange={reservedCheckIn.setPaymentChoice}
+        paymentMethod={reservedCheckIn.paymentMethod}
+        onPaymentMethodChange={reservedCheckIn.setPaymentMethod}
+        amountPaid={reservedCheckIn.amountPaid}
+        onAmountPaidChange={reservedCheckIn.setAmountPaid}
+        depositChoice={reservedCheckIn.depositChoice}
+        onDepositChoiceChange={reservedCheckIn.setDepositChoice}
+        depositMethod={reservedCheckIn.depositMethod}
+        onDepositMethodChange={reservedCheckIn.setDepositMethod}
+        depositAmount={reservedCheckIn.depositAmount}
+        onDepositAmountChange={reservedCheckIn.setDepositAmount}
+        waiveReason={reservedCheckIn.waiveReason}
+        onWaiveReasonChange={reservedCheckIn.setWaiveReason}
+        processing={reservedCheckIn.processing}
+        onCheckIn={reservedCheckIn.checkIn}
       />
 
       {/* Payment Collection Dialog */}
@@ -1926,53 +1595,32 @@ const RoomManagementPage: React.FC = () => {
 
       {/* Guest Details Dialog with Tabs */}
       <GuestDetailsDialog
-        open={guestDetailsDialogOpen}
-        onClose={() => setGuestDetailsDialogOpen(false)}
-        guest={selectedGuestDetails}
-        tab={guestDetailsTab}
-        onTabChange={(v) => {
-          setGuestDetailsTab(v);
-          if (v === 1) {
-            loadAvailableRoomsForCredits();
-          }
-        }}
-        guestCredits={guestCredits}
-        loadingCredits={loadingCredits}
-        creditsBookingSuccess={creditsBookingSuccess}
-        creditsBookingForm={creditsBookingForm}
-        availableRoomsForCredits={availableRoomsForCredits}
-        roomBlockedDates={roomBlockedDates}
-        selectedComplimentaryDates={selectedComplimentaryDates}
-        bookingWithCredits={bookingWithCredits}
-        getCreditsBookingDates={getCreditsBookingDates}
-        getTotalCreditsForRoom={getTotalCreditsForRoom}
-        isDateBlocked={isDateBlocked}
-        onCheckInFromCreditsBooking={handleCheckInFromCreditsBooking}
-        onBookAnother={() => {
-          setCreditsBookingSuccess(null);
-          setSelectedComplimentaryDates([]);
-        }}
-        onCheckInDateChange={(value) => {
-          setCreditsBookingForm({ ...creditsBookingForm, check_in_date: value });
-          setSelectedComplimentaryDates([]);
-        }}
-        onCheckOutDateChange={(value) => {
-          setCreditsBookingForm({ ...creditsBookingForm, check_out_date: value });
-          setSelectedComplimentaryDates([]);
-        }}
-        onRoomChange={(value) => {
-          setCreditsBookingForm({ ...creditsBookingForm, room_id: value });
-          setSelectedComplimentaryDates([]);
-          setRoomBlockedDates([]);
-          if (value) {
-            loadRoomBlockedDates(value);
-          }
-        }}
-        onAdultsChange={(value) => setCreditsBookingForm({ ...creditsBookingForm, adults: value })}
-        onChildrenChange={(value) => setCreditsBookingForm({ ...creditsBookingForm, children: value })}
-        onSelectAllAvailable={selectAllCreditsAvailable}
-        onToggleDate={handleCreditsDateToggle}
-        onBookWithCredits={handleBookWithCreditsAndCheckIn}
+        open={guestCreditsWorkflow.dialogOpen}
+        onClose={guestCreditsWorkflow.close}
+        guest={guestCreditsWorkflow.selectedGuest}
+        tab={guestCreditsWorkflow.tab}
+        onTabChange={guestCreditsWorkflow.changeTab}
+        guestCredits={guestCreditsWorkflow.guestCredits}
+        loadingCredits={guestCreditsWorkflow.loadingCredits}
+        creditsBookingSuccess={guestCreditsWorkflow.creditsBookingSuccess}
+        creditsBookingForm={guestCreditsWorkflow.creditsBookingForm}
+        availableRoomsForCredits={guestCreditsWorkflow.availableRoomsForCredits}
+        roomBlockedDates={guestCreditsWorkflow.roomBlockedDates}
+        selectedComplimentaryDates={guestCreditsWorkflow.selectedComplimentaryDates}
+        bookingWithCredits={guestCreditsWorkflow.bookingWithCredits}
+        getCreditsBookingDates={guestCreditsWorkflow.getCreditsBookingDates}
+        getTotalCreditsForRoom={guestCreditsWorkflow.getTotalCreditsForRoom}
+        isDateBlocked={guestCreditsWorkflow.isDateBlocked}
+        onCheckInFromCreditsBooking={guestCreditsWorkflow.checkInFromCreditsBooking}
+        onBookAnother={guestCreditsWorkflow.bookAnother}
+        onCheckInDateChange={guestCreditsWorkflow.changeCheckInDate}
+        onCheckOutDateChange={guestCreditsWorkflow.changeCheckOutDate}
+        onRoomChange={guestCreditsWorkflow.changeRoom}
+        onAdultsChange={guestCreditsWorkflow.changeAdults}
+        onChildrenChange={guestCreditsWorkflow.changeChildren}
+        onSelectAllAvailable={guestCreditsWorkflow.selectAllAvailable}
+        onToggleDate={guestCreditsWorkflow.toggleDate}
+        onBookWithCredits={guestCreditsWorkflow.bookWithCreditsAndCheckIn}
       />
 
       {/* Mark as Complimentary Dialog */}
