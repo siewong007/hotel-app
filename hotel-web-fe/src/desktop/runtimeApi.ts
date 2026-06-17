@@ -13,8 +13,18 @@ type TauriEventApi = {
   ) => Promise<() => void>;
 };
 
+// ---------------------------------------------------------------------------
+// Tauri IPC bridge types – always injected into a Tauri 2 webview regardless
+// of the `withGlobalTauri` setting.
+// ---------------------------------------------------------------------------
+
+interface TauriInternals {
+  invoke: <T = unknown>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
+  transformCallback: (callback: (...args: unknown[]) => void, once?: boolean) => number;
+}
+
 type TauriWindow = Window & {
-  __TAURI_INTERNALS__?: unknown;
+  __TAURI_INTERNALS__?: TauriInternals;
 };
 
 export interface DesktopAppStatus {
@@ -50,13 +60,33 @@ export function shouldUseDesktopRuntime(): boolean {
   return isTauriBuildTarget() || isTauriRuntime();
 }
 
+// ---------------------------------------------------------------------------
+// Internal helper – returns the Tauri IPC bridge or throws.
+// ---------------------------------------------------------------------------
+
+function getTauriInternals(): TauriInternals {
+  const w = window as TauriWindow;
+  if (!w.__TAURI_INTERNALS__) {
+    throw new Error('Tauri internals are not available');
+  }
+  return w.__TAURI_INTERNALS__;
+}
+
+// ---------------------------------------------------------------------------
+// Public API wrappers – same signatures as before, but backed by
+// __TAURI_INTERNALS__ instead of dynamic imports of @tauri-apps/api.
+// ---------------------------------------------------------------------------
+
 export async function getTauriCoreApi(): Promise<TauriCoreApi> {
   if (!shouldUseDesktopRuntime()) {
     throw new Error('Tauri core API is not available');
   }
 
-  const { invoke } = await import('@tauri-apps/api/core');
-  return { invoke };
+  const internals = getTauriInternals();
+  return {
+    invoke: <T = unknown>(cmd: string, args?: Record<string, unknown>) =>
+      internals.invoke<T>(cmd, args),
+  };
 }
 
 export async function getTauriEventApi(): Promise<TauriEventApi> {
@@ -64,8 +94,36 @@ export async function getTauriEventApi(): Promise<TauriEventApi> {
     throw new Error('Tauri event API is not available');
   }
 
-  const { listen } = await import('@tauri-apps/api/event');
-  return { listen };
+  const internals = getTauriInternals();
+
+  return {
+    listen: async <T = unknown>(
+      event: string,
+      handler: (event: { payload: T }) => void,
+    ): Promise<() => void> => {
+      // Build a Channel-compatible object that Tauri's IPC layer recognises.
+      // This mirrors the Channel class from @tauri-apps/api/core without
+      // requiring the npm package to be installed or bundled.
+      const callbackId = internals.transformCallback(handler as (...args: unknown[]) => void);
+      const channel = {
+        __TAURI_CHANNEL_MARKER__: true as const,
+        id: callbackId,
+        toJSON() {
+          return `__CHANNEL__:${callbackId}`;
+        },
+      };
+
+      const eventId = await internals.invoke<number>('plugin:event|listen', {
+        event,
+        target: { kind: 'Any' },
+        handler: channel,
+      });
+
+      return async () => {
+        await internals.invoke('plugin:event|unlisten', { event, eventId });
+      };
+    },
+  };
 }
 
 export function setRuntimeApiBaseUrl(url: string): void {
