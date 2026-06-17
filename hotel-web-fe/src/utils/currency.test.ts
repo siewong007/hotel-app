@@ -2,30 +2,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { formatCurrency, formatCurrencyCustom, getCurrencySymbol, getCurrencyInfo, setCurrentCurrency, toNumber, SUPPORTED_CURRENCIES } from './currency';
 
-// Mock hotel settings to return USD as default currency
+// Mock hotel settings to return empty object so no-arg tests exercise
+// the DEFAULT_CURRENCY='USD' fallback path (correct for CI determinism).
 vi.mock('./hotelSettings', () => ({
-  getHotelSettings: () => ({
-    hotel_name: 'Grand Hotel',
-    hotel_address: '123 Main Street, City',
-    hotel_phone: '+60-3-1234-5678',
-    hotel_email: 'info@grandhotel.com',
-    check_in_time: '15:00',
-    check_out_time: '11:00',
-    night_shift_time: '23:00',
-    currency: 'USD',
-    timezone: 'Asia/Kuala_Lumpur',
-    deposit_amount: 50,
-    service_tax_rate: 8,
-    tourism_tax_rate: 10,
-    default_payment_terms_days: 30,
-    max_login_attempts: 5,
-    totp_issuer_name: 'Hotel Management System',
-    passkey_relying_party_name: 'Hotel Management System',
-    rate_codes: ['RACK', 'OVR', 'CORP', 'GOVT', 'WKII', 'PKG', 'GRP', 'AAA', 'PROMO'],
-    market_codes: ['WKII', 'CORP', 'GOVT', 'OTA', 'DIRECT', 'GROUP', 'EVENTS', 'LEISURE'],
-    booking_channels: [],
-    payment_methods: ['Cash', 'Visa Card', 'Master Card'],
-  }),
+  getHotelSettings: () => ({}),
 }));
 
 describe('currency utilities', () => {
