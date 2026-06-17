@@ -111,14 +111,12 @@ pub fn create_router(pool: DbPool) -> Router {
     // Initialize rate limiters
     let rate_limiters = RateLimiters::new();
 
-    // Build all routes
-    let app = Router::new()
-        // Public routes
-        .route("/health", get(health_handler))
-        .route("/ws/status", get(websocket_status_handler))
-        // Serve only explicitly public uploads. Sensitive documents use authenticated routes.
-        .nest_service("/uploads", ServeDir::new("uploads/public"))
-        // Merge all domain routes
+    // All domain routes live under the `/api` prefix so that frontend
+    // navigation paths (e.g. `/bookings/123`) never collide with the API and
+    // can be served by the SPA. Infra-facing routes (`/health`, `/ws/status`,
+    // `/uploads`) stay at the root because Docker/desktop healthchecks and
+    // static asset URLs depend on them.
+    let api_routes = Router::new()
         .merge(auth::routes())
         .merge(rooms::routes())
         .merge(guests::routes())
@@ -139,7 +137,17 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(night_audit::routes())
         .merge(data_transfer::routes())
         .merge(passkey::routes())
-        .merge(two_factor::routes())
+        .merge(two_factor::routes());
+
+    // Build all routes
+    let app = Router::new()
+        // Public routes
+        .route("/health", get(health_handler))
+        .route("/ws/status", get(websocket_status_handler))
+        // Serve only explicitly public uploads. Sensitive documents use authenticated routes.
+        .nest_service("/uploads", ServeDir::new("uploads/public"))
+        // Merge all domain routes under /api
+        .nest("/api", api_routes)
         .with_state(pool)
         .layer(axum::Extension(rate_limiters));
 

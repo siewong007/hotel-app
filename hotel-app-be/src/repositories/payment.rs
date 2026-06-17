@@ -617,12 +617,15 @@ impl PaymentRepository {
     }
 
     pub async fn find_user_invoices(pool: &DbPool, user_id: i64) -> Result<Vec<Invoice>, ApiError> {
-        let rows =
-            sqlx::query("SELECT * FROM invoices WHERE user_id = $1 ORDER BY invoice_date DESC")
-                .bind(user_id)
-                .fetch_all(pool)
-                .await
-                .map_err(ApiError::from)?;
+        // The invoices table has no `user_id`/`invoice_date` columns; ownership is
+        // tracked via `created_by` and the issue date is `issue_date`.
+        let rows = sqlx::query(
+            "SELECT * FROM invoices WHERE created_by = $1 ORDER BY issue_date DESC, id DESC",
+        )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
 
         Ok(rows.iter().map(row_mappers::row_to_invoice).collect())
     }

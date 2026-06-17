@@ -101,22 +101,12 @@ export async function getTauriEventApi(): Promise<TauriEventApi> {
       event: string,
       handler: (event: { payload: T }) => void,
     ): Promise<() => void> => {
-      // Build a Channel-compatible object that Tauri's IPC layer recognises.
-      // This mirrors the Channel class from @tauri-apps/api/core without
-      // requiring the npm package to be installed or bundled.
       const callbackId = internals.transformCallback(handler as (...args: unknown[]) => void);
-      const channel = {
-        __TAURI_CHANNEL_MARKER__: true as const,
-        id: callbackId,
-        toJSON() {
-          return `__CHANNEL__:${callbackId}`;
-        },
-      };
 
       const eventId = await internals.invoke<number>('plugin:event|listen', {
         event,
         target: { kind: 'Any' },
-        handler: channel,
+        handler: callbackId,
       });
 
       return async () => {
@@ -155,26 +145,49 @@ export function getApiBaseUrl(): string {
   return import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'http://localhost:3030' : '');
 }
 
+// Domain API endpoints are served under `/api` on the backend so that frontend
+// navigation paths (e.g. `/bookings/123`) don't collide with the API. These
+// root-level prefixes are NOT namespaced (infra healthchecks + static assets),
+// so they must be left untouched.
+const ROOT_API_PREFIXES = ['api', 'health', 'ws', 'uploads'];
+
+function withApiPrefix(pathname: string): string {
+  const trimmed = pathname.replace(/^\/+/, '');
+  const firstSegment = trimmed.split('/')[0];
+  if (ROOT_API_PREFIXES.includes(firstSegment)) {
+    return `/${trimmed}`;
+  }
+  return `/api/${trimmed}`;
+}
+
 export function apiUrl(path: string): string {
   const baseUrl = getApiBaseUrl();
-  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const normalizedPath = withApiPrefix(path);
   return baseUrl ? `${baseUrl}${normalizedPath}` : normalizedPath;
 }
 
 export function resolveApiRequestUrl(requestUrl: string): string {
-  const baseUrl = getApiBaseUrl();
-
-  if (!baseUrl || typeof window === 'undefined') {
+  if (typeof window === 'undefined') {
     return requestUrl;
   }
 
   const currentUrl = new URL(requestUrl, window.location.origin);
+  // Only rewrite same-origin requests; absolute URLs to other hosts pass through.
   if (currentUrl.origin !== window.location.origin) {
     return requestUrl;
   }
 
+  const prefixedPath = withApiPrefix(currentUrl.pathname);
+  const baseUrl = getApiBaseUrl();
+
+  if (!baseUrl) {
+    // Web dev / same-origin prod: keep the request on the current origin so the
+    // dev proxy (or same-origin deploy) forwards `/api/...` to the backend.
+    return `${currentUrl.origin}${prefixedPath}${currentUrl.search}${currentUrl.hash}`;
+  }
+
   const base = new URL(`${baseUrl.replace(/\/+$/, '')}/`);
-  const path = `${currentUrl.pathname.replace(/^\/+/, '')}${currentUrl.search}${currentUrl.hash}`;
+  const path = `${prefixedPath.replace(/^\/+/, '')}${currentUrl.search}${currentUrl.hash}`;
   return new URL(path, base).toString();
 }
 

@@ -5,14 +5,11 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite';
 
 const TAURI_MODES = new Set(['tauri', 'desktop']);
 const BACKEND_TARGET = 'http://127.0.0.1:3030';
-const PROXY_PREFIXES = [
-  '/auth', '/profile', '/rbac', '/bookings', '/rooms', '/room-types',
-  '/guests', '/payments', '/analytics', '/night-audit', '/rates',
-  '/rate-codes', '/rate-management', '/market-codes', '/settings',
-  '/loyalty', '/ledgers', '/companies', '/complimentary', '/roles',
-  '/users', '/audit-logs', '/uploads', '/data-transfer', '/guest-portal',
-  '^/ekyc(?:/|$)', '/reports', '/health', '/ws', '/system', '/search',
-];
+// All domain API endpoints are served under `/api` on the backend; only these
+// prefixes are forwarded so every other path falls through to the SPA (e.g.
+// deep-links like `/bookings/123`). `/uploads`, `/health`, and `/ws` stay at the
+// backend root for static assets + healthchecks.
+const PROXY_PREFIXES = ['/api', '/uploads', '/health', '/ws'];
 
 export default defineConfig(({ mode }) => {
   const isTauri = TAURI_MODES.has(mode);
