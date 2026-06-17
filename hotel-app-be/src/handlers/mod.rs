@@ -10,7 +10,8 @@ pub mod auth;
 pub mod bookings;
 pub mod companies;
 pub mod data_transfer;
-pub mod ekyc;
+// eKYC handlers now live in modules::ekyc; the old handlers/ekyc.rs file is
+// preserved on disk for backward reference during migration but not compiled.
 pub mod guest_portal;
 pub mod guests;
 pub mod ledgers;
