@@ -1,34 +1,37 @@
 //! Unit tests for `core::rate_limiter`
 //!
-//! Tests the in-memory rate limiter implementation. These are pure unit tests
-//! that don't require a database connection.
+//! Tests the in-memory rate limiter implementation using the public API
+//! with small explicit configurations for deterministic, fast tests.
+//! This mirrors the already-correct inline `#[cfg(test)] mod tests` from
+//! the rate_limiter module itself.
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::net::IpAddr;
 use std::time::Duration;
 use tokio::time::sleep;
 
-// Re-import the rate limiter module for testing.
-// The rate_limiter module is in core::rate_limiter. The actual internal
-// implementation is private, so we test through the public interface
-// provided by the backend crate.
-use hotel_app_be::core::rate_limiter::{RateLimitConfig, RateLimiters, RateLimiter};
+use hotel_app_be::core::rate_limiter::{KeyedRateLimiter, RateLimitConfig, RateLimiter};
+
+fn ip(last_octet: u8) -> IpAddr {
+    IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, last_octet))
+}
 
 #[tokio::test]
-async fn rate_limiter_allows_requests_within_limit() {
-    let limiter = RateLimiters::new();
-    let ip = "127.0.0.1".parse().unwrap();
+async fn rate_limiter_allows_requests_up_to_configured_limit() {
+    let limiter = RateLimiter::new(RateLimitConfig::new(2, 60));
 
-    // First request should always be allowed
-    assert!(limiter.check_rate_limit("auth:login", &ip).await);
+    assert_eq!(limiter.check_with_retry(ip(1)).await, (true, 0));
+    assert_eq!(limiter.check_with_retry(ip(1)).await, (true, 0));
+
+    let (allowed, retry_after) = limiter.check_with_retry(ip(1)).await;
+    assert!(!allowed);
+    assert!(retry_after > 0);
 }
 
 #[tokio::test]
 async fn rate_limiter_enforces_limit() {
     let limiter = RateLimiter::new(RateLimitConfig::new(10, 60));
-    let ip = "10.0.0.1".parse().unwrap();
+    let ip = ip(2);
 
-    // Send many requests rapidly
     let mut allowed_count = 0;
     for _ in 0..20 {
         if limiter.check(ip).await {
@@ -36,71 +39,85 @@ async fn rate_limiter_enforces_limit() {
         }
     }
 
-    // Should never allow more than the configured burst limit in this test
-    assert!(allowed_count <= 10, "Rate limiter allowed {allowed_count} requests, expected ≤ 10");
+    assert!(
+        allowed_count <= 10,
+        "Rate limiter allowed {allowed_count} requests, expected ≤ 10"
+    );
 }
 
 #[tokio::test]
 async fn rate_limiter_different_ips_have_independent_buckets() {
-    let limiter = RateLimiters::new();
-    let ip1 = "192.168.1.1".parse().unwrap();
-    let ip2 = "192.168.1.2".parse().unwrap();
+    let limiter = RateLimiter::new(RateLimitConfig::new(1, 60));
 
     // Exhaust ip1's budget
-    for _ in 0..20 {
-        limiter.check_rate_limit("api:generic", &ip1).await;
-    }
+    assert!(limiter.check(ip(1)).await);
+    assert!(!limiter.check(ip(1)).await);
 
     // ip2 should still have a full budget
-    let allowed = limiter.check_rate_limit("api:generic", &ip2).await;
-    assert!(allowed, "Different IP should have independent rate limit bucket");
+    assert!(
+        limiter.check(ip(2)).await,
+        "Different IP should have independent rate limit bucket"
+    );
 }
 
 #[tokio::test]
 async fn rate_limiter_different_routes_have_independent_buckets() {
-    let limiter = RateLimiters::new();
-    let ip = "10.0.0.2".parse().unwrap();
+    let ip = ip(3);
+    let auth_limiter = RateLimiter::new(RateLimitConfig::new(1, 60));
+    let api_limiter = RateLimiter::new(RateLimitConfig::new(1, 60));
 
-    // Exhaust one route's budget
-    for _ in 0..20 {
-        limiter.check_rate_limit("auth:login", &ip).await;
-    }
+    // Exhaust auth route's budget
+    assert!(auth_limiter.check(ip).await);
+    assert!(!auth_limiter.check(ip).await);
 
-    // A different route should still be allowed
-    let allowed = limiter.check_rate_limit("api:generic", &ip).await;
-    assert!(allowed, "Different route should have independent rate limit bucket");
+    // A different limiter (representing a different route) should still allow
+    assert!(
+        api_limiter.check(ip).await,
+        "Different route should have independent rate limit bucket"
+    );
 }
 
 #[tokio::test]
 async fn rate_limiter_recovers_over_time() {
     let limiter = RateLimiter::new(RateLimitConfig::new(1, 1));
-    let ip = "10.0.0.3".parse().unwrap();
+    let ip = ip(4);
 
     // Exhaust the budget
     assert!(limiter.check(ip).await);
     assert!(!limiter.check(ip).await);
 
-    // Wait for recovery beyond the one-second window
-    sleep(Duration::from_secs(2)).await;
+    // Wait for the 1-second window to expire (with margin)
+    sleep(Duration::from_millis(1_100)).await;
 
     // Should allow a request again
-    let recovered = limiter.check(ip).await;
-    assert!(recovered, "Rate limiter should recover over time");
+    assert!(
+        limiter.check(ip).await,
+        "Rate limiter should recover over time"
+    );
 }
 
 #[tokio::test]
 async fn rate_limiter_handles_high_load_gracefully() {
-    let limiter = RateLimiters::new();
+    let limiter = RateLimiter::new(RateLimitConfig::new(10, 60));
 
     // Generate many unique IPs simulating distributed load
     let mut results = Vec::new();
     for i in 0..100 {
-        let ip = format!("10.0.{}.{}", i / 256, i % 256).parse().unwrap();
-        let allowed = limiter.check_rate_limit("api:generic", &ip).await;
-        results.push(allowed);
+        results.push(limiter.check(ip(i as u8)).await);
     }
 
     // All should be allowed since they're unique IPs
-    let all_allowed = results.iter().all(|&x| x);
-    assert!(all_allowed, "All unique IPs should be allowed within their own budgets");
+    assert!(
+        results.iter().all(|&x| x),
+        "All unique IPs should be allowed within their own budgets"
+    );
+}
+
+#[tokio::test]
+async fn keyed_rate_limiter_tracks_keys_independently() {
+    let limiter = KeyedRateLimiter::new(RateLimitConfig::new(1, 60));
+
+    assert_eq!(limiter.check_with_retry("booking-a").await, (true, 0));
+    assert!(!limiter.check_with_retry("booking-a").await.0);
+    assert_eq!(limiter.check_with_retry("booking-b").await, (true, 0));
 }

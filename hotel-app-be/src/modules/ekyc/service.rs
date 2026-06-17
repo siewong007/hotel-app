@@ -2,11 +2,7 @@
 //!
 //! Business workflows for eKYC verification and review.
 
-use std::fs;
-use std::path::PathBuf;
-
-use base64::{Engine as _, engine::general_purpose};
-use chrono::{NaiveDate, Utc};
+use chrono::Utc;
 
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
@@ -14,8 +10,8 @@ use crate::core::error::ApiError;
 use crate::core::middleware::check_permission;
 use crate::modules::ekyc::models::{
     EkycAdminListResponse, EkycApplicationDetail, EkycApplicationSummary,
-    EkycApplicationSummaryRow, EkycDashboardMetrics, EkycDashboardRow, EkycDocumentAvailability,
-    EkycFieldComparison, EkycListQuery, EkycReasonCode, EkycReviewActionRequest,
+    EkycApplicationSummaryRow, EkycDashboardMetrics, EkycDocumentAvailability,
+    EkycListQuery, EkycReasonCode, EkycReviewActionRequest,
     EkycSensitiveRevealRequest, EkycSensitiveRevealResponse, EkycStatusResponse,
     EkycSubmissionRequest, EkycVerification, EkycVerificationUpdate, SelfCheckinRequest,
 };
@@ -24,9 +20,6 @@ use crate::repositories::ekyc::{
 };
 use crate::services::audit::AuditLog;
 use super::validation;
-
-pub use validation::EKYC_UPLOAD_DIR;
-pub use validation::MAX_EKYC_IMAGE_BYTES;
 
 pub async fn submit_ekyc(
     pool: &DbPool,
