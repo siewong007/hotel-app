@@ -74,6 +74,14 @@ export const asMoney = (value: number | string | null | undefined): number => {
   return Number.isFinite(parsed) ? Number(parsed) : 0;
 };
 
+// Initials for company avatars (e.g. "Farley Sibu" -> "FS")
+export const companyInitials = (name: string): string => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+};
+
 export const isLedgerVoided = (ledger: CustomerLedger) => Boolean(ledger.void_at) || ledger.status === 'void';
 
 export const isDateOverdue = (dateString: string | null | undefined) => {
