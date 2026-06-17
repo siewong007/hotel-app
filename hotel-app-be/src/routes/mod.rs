@@ -9,7 +9,8 @@ pub mod auth;
 pub mod bookings;
 pub mod companies;
 pub mod data_transfer;
-pub mod ekyc;
+// eKYC routes now live in modules::ekyc::routes
+// (the old routes/ekyc.rs file is preserved for backward reference during migration)
 pub mod guest_portal;
 pub mod guests;
 pub mod ledgers;
@@ -130,7 +131,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(profile::routes())
         .merge(analytics::routes())
         .merge(crate::modules::settings::routes::routes())
-        .merge(ekyc::routes())
+        .merge(crate::modules::ekyc::routes::routes())
         .merge(guest_portal::routes())
         .merge(companies::routes())
         .merge(audit::routes())
