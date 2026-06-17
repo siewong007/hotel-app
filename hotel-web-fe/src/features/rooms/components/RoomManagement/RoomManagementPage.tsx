@@ -87,7 +87,6 @@ import { isValidEmail } from '../../../../utils/validation';
 import {
   getUnifiedStatusColor,
   getUnifiedStatusLabel,
-  getUnifiedStatusShortLabel,
 } from '../../config';
 import {
   buildBlockedDateRangesForRoom,
@@ -118,6 +117,11 @@ import ComplimentaryCheckInDialog from './components/ComplimentaryCheckInDialog'
 import ReservedCheckInDialog from './components/ReservedCheckInDialog';
 import WalkInCheckInDialog from './components/WalkInCheckInDialog';
 import OnlineCheckInDialog from './components/OnlineCheckInDialog';
+import {
+  getRoomCardFill,
+  getRoomStatusColor,
+  getRoomStatusLabel,
+} from './roomCardPresentation';
 import GuestDetailsDialog from './components/GuestDetailsDialog';
 
 const RoomManagementPage: React.FC = () => {
@@ -399,31 +403,6 @@ const RoomManagementPage: React.FC = () => {
 
   const handleMenuClose = () => {
     setMenuPosition(null);
-  };
-
-  const getRoomStatusColor = (room: Room): string => {
-    // Use centralized status config for consistent colors based on computed status
-    return getUnifiedStatusColor(room.status || 'available');
-  };
-
-  const getRoomStatusLabel = (room: Room): string => {
-    // Use the status directly (should be computed status passed via displayRoom)
-    const status = room.status || 'available';
-    return getUnifiedStatusShortLabel(status).toUpperCase();
-  };
-
-  const ROOM_FILL_DARK: Record<string, string> = {
-    available: '#2E7D4F',
-    occupied: '#B25E18',
-    reserved: '#1E5A8A',
-    dirty: '#8A6E1D',
-    maintenance: '#4D5358',
-  };
-
-  const getRoomCardFill = (status: string, statusColor: string): string => {
-    if (isDarkMode) return ROOM_FILL_DARK[status] || ROOM_FILL_DARK.available;
-    // Light mode: yellow needs the darker amber so white text stays readable.
-    return status === 'dirty' ? '#a89436' : statusColor;
   };
 
   // Room Actions - Unified Booking Modal
@@ -1798,7 +1777,7 @@ const RoomManagementPage: React.FC = () => {
           // Solid-filled card. Dark mode swaps in deeper jewel tones via
           // getRoomCardFill so the saturated light-mode shades don't glow on
           // the dark surface tokens.
-          const cardFill = getRoomCardFill(computedStatus, statusColor);
+          const cardFill = getRoomCardFill(computedStatus, statusColor, isDarkMode);
           return (
             <Box key={room.id} sx={{ minWidth: 0 }}>
               <Card

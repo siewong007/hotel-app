@@ -90,7 +90,7 @@ import { useCurrency } from '../../../../hooks/useCurrency';
 import { getHotelSettings, HotelSettings } from '../../../../utils/hotelSettings';
 import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
 import { enhanceBookingDetails } from '../../../../utils/bookingUtils';
-import { useLedgers, useLedgersPage } from '../../hooks/useLedgers';
+import { useLedgers } from '../../hooks/useLedgers';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
 
 // Extracted modules
@@ -123,6 +123,7 @@ import PaymentDialog from './components/PaymentDialog';
 import CompanyCheckInDialog from './components/CompanyCheckInDialog';
 import RecordCompanyPaymentDialog from './components/RecordCompanyPaymentDialog';
 import CompanyInvoiceDialog from './components/CompanyInvoiceDialog';
+import { useCustomerLedgerWorkspace } from './hooks/useCustomerLedgerWorkspace';
 
 const CustomerLedgerPage: React.FC = () => {
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
@@ -1369,153 +1370,34 @@ const CustomerLedgerPage: React.FC = () => {
     printSingleReceipt({ entry, hotelSettings, formatCurrency });
   };
 
-  // Ledger summary computed from the rows we already have; keeps the strip
-  // numbers in sync with what's displayed and saves a separate API round-trip.
-  const summary = useMemo(() => {
-    let total_amount = 0;
-    let total_paid = 0;
-    let total_outstanding = 0;
-    let pending_count = 0;
-    let partial_count = 0;
-    let overdue_count = 0;
-    ledgers.forEach(l => {
-      total_amount += parseFloat(String(l.amount || 0));
-      total_paid += parseFloat(String(l.paid_amount || 0));
-      total_outstanding += parseFloat(String(l.balance_due || 0));
-      if (l.status === 'pending') pending_count += 1;
-      else if (l.status === 'partial') partial_count += 1;
-      else if (l.status === 'overdue') overdue_count += 1;
-    });
-    return {
-      total_entries: ledgers.length,
-      total_amount,
-      total_paid,
-      total_outstanding,
-      pending_count,
-      partial_count,
-      overdue_count,
-    };
-  }, [ledgers]);
-
-  // Per-company aggregates keyed by company name
-  const companyAggregates = useMemo(() => {
-    const m = new Map<string, { total: number; paid: number; due: number; pending: number; overdue: number; count: number }>();
-    ledgers.forEach(l => {
-      const cur = m.get(l.company_name) || { total: 0, paid: 0, due: 0, pending: 0, overdue: 0, count: 0 };
-      const amount = parseFloat(String(l.amount || 0));
-      const paid = parseFloat(String(l.paid_amount || 0));
-      const balance = parseFloat(String(l.balance_due || 0));
-      cur.total += amount;
-      cur.paid += paid;
-      cur.due += balance;
-      cur.count += 1;
-      if (balance > 0) cur.pending += 1;
-      if (l.status === 'overdue') cur.overdue += balance;
-      m.set(l.company_name, cur);
-    });
-    return m;
-  }, [ledgers]);
-
-  const emptyAgg = { total: 0, paid: 0, due: 0, pending: 0, overdue: 0, count: 0 };
-
-  // Filtered + sorted company rows for the left list pane
-  const companyListRows = useMemo(() => {
-    const q = companyListSearch.trim().toLowerCase();
-    return companies
-      .map(c => ({ c, agg: companyAggregates.get(c.company_name) || emptyAgg }))
-      .filter(({ c, agg }) => {
-        if (companyListFilter === 'due' && agg.due <= 0) return false;
-        if (companyListFilter === 'clear' && agg.due > 0) return false;
-        if (!q) return true;
-        return (
-          c.company_name.toLowerCase().includes(q) ||
-          (c.contact_phone || '').toLowerCase().includes(q) ||
-          (c.contact_person || '').toLowerCase().includes(q)
-        );
-      })
-      .sort((a, b) => b.agg.due - a.agg.due);
-  }, [companies, companyAggregates, companyListSearch, companyListFilter]);
-
-  const dueCount = useMemo(
-    () => companies.filter(c => (companyAggregates.get(c.company_name)?.due || 0) > 0).length,
-    [companies, companyAggregates],
-  );
-  const clearCount = companies.length - dueCount;
-
-  // Auto-select first company when companies load and nothing is selected yet
-  useEffect(() => {
-    if (!selectedCompanyId && companies.length > 0) {
-      const sorted = [...companies].sort((a, b) => {
-        const aDue = companyAggregates.get(a.company_name)?.due || 0;
-        const bDue = companyAggregates.get(b.company_name)?.due || 0;
-        return bDue - aDue;
-      });
-      setSelectedCompanyId(sorted[0].id);
-    }
-  }, [companies, companyAggregates, selectedCompanyId]);
-
-  const activeCompany = useMemo(
-    () => companies.find(c => c.id === selectedCompanyId) || null,
-    [companies, selectedCompanyId],
-  );
-
-  const activeAgg = activeCompany
-    ? companyAggregates.get(activeCompany.company_name) || emptyAgg
-    : emptyAgg;
-
-  const activeBookingsForCompany = useMemo(
-    () => (activeCompany ? allCompanyBookings.filter(b => b.company_id === activeCompany.id) : []),
-    [allCompanyBookings, activeCompany],
-  );
-
-  const activeCompanyAllEntries = useMemo(() => {
-    if (!activeCompany) return [] as CustomerLedger[];
-    return ledgers.filter(l => l.company_name === activeCompany.company_name);
-  }, [ledgers, activeCompany]);
-
-  const activeLedgerPageParams = useMemo(() => {
-    if (!activeCompany) return undefined;
-
-    const params: Parameters<typeof HotelAPIService.getLedgersPage>[0] = {
-      company_name: activeCompany.company_name,
-      page: entriesPage + 1,
-      page_size: entriesPageSize,
-      sort_by: 'created_at',
-      sort_order: 'desc',
-    };
-    const q = entriesSearch.trim();
-    if (q) params.search = q;
-
-    if (entriesStatusFilter === 'uninvoiced') params.invoice_state = 'uninvoiced';
-    else if (entriesStatusFilter === 'outstanding') params.balance_state = 'outstanding';
-    else if (entriesStatusFilter === 'invoiced') params.invoice_state = 'invoiced';
-    else if (entriesStatusFilter !== 'all') params.ui_status = entriesStatusFilter;
-
-    return params;
-  }, [activeCompany, entriesPage, entriesPageSize, entriesSearch, entriesStatusFilter]);
-
-  const activeLedgerPageQuery = useLedgersPage(activeLedgerPageParams, Boolean(activeCompany));
-
-  useEffect(() => {
-    setEntriesPage(0);
-  }, [activeCompany?.company_name, entriesSearch, entriesStatusFilter]);
-
-  // Ledger entries for the selected company, filtered by search + status
-  const activeCompanyEntries = useMemo(() => {
-    if (!activeCompany) return [] as CustomerLedger[];
-    return activeLedgerPageQuery.data?.data ?? [];
-  }, [activeCompany, activeLedgerPageQuery.data]);
-
-  const activeCompanyEntriesTotal = activeLedgerPageQuery.data?.total ?? 0;
-  const activeCompanyEntriesLoading = activeLedgerPageQuery.isLoading || activeLedgerPageQuery.isFetching;
-
-  const paidEntriesCount = useMemo(
-    () =>
-      activeCompany
-        ? ledgers.filter(l => l.company_name === activeCompany.company_name && l.status === 'paid').length
-        : 0,
-    [ledgers, activeCompany],
-  );
+  const {
+    summary,
+    companyAggregates,
+    companyListRows,
+    dueCount,
+    clearCount,
+    activeCompany,
+    activeAgg,
+    activeBookingsForCompany,
+    activeCompanyAllEntries,
+    activeCompanyEntries,
+    activeCompanyEntriesTotal,
+    activeCompanyEntriesLoading,
+    paidEntriesCount,
+  } = useCustomerLedgerWorkspace({
+    ledgers,
+    companies,
+    allCompanyBookings,
+    selectedCompanyId,
+    setSelectedCompanyId,
+    companyListSearch,
+    companyListFilter,
+    entriesSearch,
+    entriesStatusFilter,
+    entriesPage,
+    entriesPageSize,
+    setEntriesPage,
+  });
 
   useEffect(() => {
     let cancelled = false;

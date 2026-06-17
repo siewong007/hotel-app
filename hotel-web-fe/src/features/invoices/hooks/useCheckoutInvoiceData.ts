@@ -6,6 +6,7 @@ import { InvoicesService } from '../../../api/invoices.service';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
+import type { CheckoutPaymentRecord } from '../types';
 
 export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open: boolean) {
   const queryClient = useQueryClient();
@@ -15,7 +16,7 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
   const [guestAddress, setGuestAddress] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [guestIcNumber, setGuestIcNumber] = useState('');
-  const [payments, setPayments] = useState<any[]>([]);
+  const [payments, setPayments] = useState<CheckoutPaymentRecord[]>([]);
   const [depositRefunded, setDepositRefunded] = useState(false);
   const [editableDailyRates, setEditableDailyRates] = useState<Record<string, number>>({});
 
@@ -27,9 +28,10 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
         queryFn: () => InvoicesService.getBookingPayments(booking.id),
         staleTime: 0,
       });
-      setPayments(existing || []);
-      const hasRefund = (existing || []).some(
-        (p: any) => p.payment_status === 'refunded' && p.notes === 'Keycard deposit refund'
+      const normalizedPayments = (existing || []) as CheckoutPaymentRecord[];
+      setPayments(normalizedPayments);
+      const hasRefund = normalizedPayments.some(
+        (p) => p.payment_status === 'refunded' && p.notes === 'Keycard deposit refund'
       );
       setDepositRefunded(hasRefund);
     } catch {
