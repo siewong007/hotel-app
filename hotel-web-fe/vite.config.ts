@@ -51,6 +51,11 @@ export default defineConfig(({ mode }) => {
       target: isTauri ? ['es2021', 'chrome105', 'safari13'] : 'es2020',
       // Source maps help debug Tauri debug builds; off for production web bundles
       sourcemap: isTauri ? 'inline' : false,
+      // Mark @tauri-apps/api as external in web builds to prevent unresolved import errors.
+      // The Tauri API is only available at runtime inside a Tauri webview, not in the browser.
+      rolldownOptions: isTauri ? undefined : {
+        external: ['@tauri-apps/api'],
+      },
     },
   };
 });
