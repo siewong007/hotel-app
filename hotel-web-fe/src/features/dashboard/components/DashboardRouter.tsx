@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from '../../../router';
 import { useAuth } from '../../../auth/AuthContext';
-import AnalyticsDashboard from './AnalyticsDashboard';
+import ReportsAnalytics from './reports/ReportsAnalytics';
 import UserProfilePage from '../../user/components/UserProfilePage';
 
 const DashboardRouter: React.FC = () => {
@@ -27,7 +27,7 @@ const DashboardRouter: React.FC = () => {
 
   // Admin, Super User, and Exec User (Manager) see the analytics dashboard
   if (isAdminOrSuper || isExec) {
-    return <AnalyticsDashboard />;
+    return <ReportsAnalytics />;
   }
 
   // Fallback (e.g., during redirection)

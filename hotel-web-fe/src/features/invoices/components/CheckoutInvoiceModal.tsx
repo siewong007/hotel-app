@@ -41,6 +41,8 @@ import { InvoicesService } from '../../../api/invoices.service';
 import { queryKeys } from '../../../api/queryKeys';
 import { useCheckoutInvoiceData } from '../hooks/useCheckoutInvoiceData';
 import { calculateChargesFromInputs, emptyCharges, ChargesBreakdown } from '../utils/chargesCalculation';
+import type { CheckoutPaymentRecord } from '../types';
+import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
 
 interface CheckoutInvoiceModalProps {
   open: boolean;
@@ -98,7 +100,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [recordingPayment, setRecordingPayment] = useState(false);
 
   // Payment editing state
-  const [editingPayment, setEditingPayment] = useState<any | null>(null);
+  const [editingPayment, setEditingPayment] = useState<CheckoutPaymentRecord | null>(null);
   const [editAmount, setEditAmount] = useState<number>(0);
   const [editMethod, setEditMethod] = useState('Cash');
   const [editReference, setEditReference] = useState('');
@@ -147,8 +149,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   useEffect(() => {
     if (open && booking && charges.grandTotal > 0) {
       const totalPaid = payments
-        .filter((p: any) => p.payment_status === 'completed')
-        .reduce((sum: number, p: any) => sum + parseFloat(p.total_amount || '0'), 0);
+        .filter((payment) => payment.payment_status === 'completed')
+        .reduce((sum, payment) => sum + parseFloat(String(payment.total_amount || '0')), 0);
       const balance = charges.grandTotal - totalPaid;
       if (balance > 0) {
         setPaymentAmount(parseFloat(balance.toFixed(2)));
@@ -157,9 +159,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   }, [open, booking, charges.grandTotal, payments]);
 
   const totalPayments = payments
-    .filter((p: any) => p.payment_status === 'completed')
-    .reduce((sum: number, p: any) => sum + parseFloat(p.total_amount || '0'), 0);
+    .filter((payment) => payment.payment_status === 'completed')
+    .reduce((sum, payment) => sum + parseFloat(String(payment.total_amount || '0')), 0);
   const balanceDue = charges.grandTotal - totalPayments;
+  const completedPayments = payments.filter((payment) => payment.payment_status === 'completed');
+  const refundedPayments = payments.filter((payment) => payment.payment_status === 'refunded');
 
   const handleRecordPayment = async () => {
     if (!booking || paymentAmount <= 0) return;
@@ -187,9 +191,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     }
   };
 
-  const handleStartEdit = (payment: any) => {
+  const handleStartEdit = (payment: CheckoutPaymentRecord) => {
     setEditingPayment(payment);
-    setEditAmount(parseFloat(payment.total_amount || '0'));
+    setEditAmount(parseFloat(String(payment.total_amount || '0')));
     setEditMethod(payment.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Cash');
     setEditReference(payment.transaction_reference || '');
     setEditNotes(payment.notes || '');
@@ -638,7 +642,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   guestPhone ? { label: 'Phone', value: guestPhone } : null,
                   guestIcNumber ? { label: 'ID / IC', value: guestIcNumber } : null,
                   guestAddress ? { label: 'Address', value: guestAddress } : null,
-                ].filter(Boolean).map((item: any) => (
+                ].filter((item): item is { label: string; value: React.ReactNode } => Boolean(item)).map((item) => (
                   <Box key={item.label} sx={{ display: 'flex', gap: 1, mb: 0.75 }}>
                     <Typography variant="body2" sx={{ color: '#666', minWidth: '72px', flexShrink: 0 }}>
                       {item.label}:
@@ -1089,9 +1093,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Box>
 
               {/* Existing Payments List */}
-              {payments.filter((p: any) => p.payment_status === 'completed').length > 0 && (
+              {completedPayments.length > 0 && (
                 <Box sx={{ p: 0 }}>
-                  {payments.filter((p: any) => p.payment_status === 'completed').map((p: any, idx: number) => (
+                  {completedPayments.map((p, idx) => (
                     <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid #eee' }}>
                       {editingPayment?.id === p.id ? (
                         // Edit form inline
@@ -1180,7 +1184,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               {p.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {new Date(p.created_at).toLocaleString()}
+                              {new Date(p.created_at || '').toLocaleString()}
                             </Typography>
                           </Grid>
                           <Grid size={3}>
@@ -1190,7 +1194,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={3}>
                             <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
-                              {formatCurrency(parseFloat(p.total_amount || '0'))}
+                              {formatCurrency(parseFloat(String(p.total_amount || '0')))}
                             </Typography>
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={2}>
@@ -1226,9 +1230,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               )}
 
               {/* Refund records */}
-              {payments.filter((p: any) => p.payment_status === 'refunded').length > 0 && (
+              {refundedPayments.length > 0 && (
                 <Box sx={{ p: 0 }}>
-                  {payments.filter((p: any) => p.payment_status === 'refunded').map((p: any, idx: number) => (
+                  {refundedPayments.map((p, idx) => (
                     <Box key={p.id || idx} sx={{ p: 1.5, borderBottom: '1px solid #eee', bgcolor: '#f1f8e9' }}>
                       {editingPayment?.id === p.id ? (
                         <Box>
@@ -1315,7 +1319,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               Deposit Refund ({p.payment_method?.replace('_', ' ')})
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {new Date(p.created_at).toLocaleString()}
+                              {new Date(p.created_at || '').toLocaleString()}
                             </Typography>
                           </Grid>
                           <Grid size={2}>
@@ -1323,7 +1327,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={3}>
                             <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
-                              -{formatCurrency(parseFloat(p.total_amount || '0'))}
+                              -{formatCurrency(parseFloat(String(p.total_amount || '0')))}
                             </Typography>
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={2}>
@@ -1810,247 +1814,27 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         )}
       </DialogActions>
 
-      {/* Hidden printable invoice */}
-      <Box id="printable-invoice" sx={{ display: 'none' }}>
-        <div className="invoice-header">
-          <h1>{hotelSettings.hotel_name}</h1>
-          <p>{hotelSettings.hotel_address}</p>
-          <p>Phone: {hotelSettings.hotel_phone} | Email: {hotelSettings.hotel_email}</p>
-        </div>
-
-        <div className="invoice-meta">
-          <div>
-            <h3>Invoice Details</h3>
-            <p>
-              <span className="label">Invoice Number:</span>
-              <span className="value">{booking?.invoice_number || booking?.folio_number || `#${booking?.id}`}</span>
-            </p>
-            <p>
-              <span className="label">Date:</span>
-              <span className="value">{new Date().toLocaleDateString()}</span>
-            </p>
-            <p>
-              <span className="label">Status:</span>
-              <span className="value">{formatBookingStatus(booking.status)}</span>
-            </p>
-          </div>
-
-          <div>
-            <h3>Guest Information</h3>
-            <p>
-              <span className="label">Name:</span>
-              <span className="value">{booking?.guest_name}</span>
-            </p>
-            <p>
-              <span className="label">Room:</span>
-              <span className="value">{booking?.room_number} - {booking?.room_type}</span>
-            </p>
-            {guestCompanyName && (
-              <p>
-                <span className="label">Company:</span>
-                <span className="value">{guestCompanyName}</span>
-              </p>
-            )}
-            {guestPhone && (
-              <p>
-                <span className="label">Phone:</span>
-                <span className="value">{guestPhone}</span>
-              </p>
-            )}
-            {guestIcNumber && (
-              <p>
-                <span className="label">ID / IC:</span>
-                <span className="value">{guestIcNumber}</span>
-              </p>
-            )}
-            {guestAddress && (
-              <p>
-                <span className="label">Address:</span>
-                <span className="value">{guestAddress}</span>
-              </p>
-            )}
-          </div>
-
-          <div>
-            <h3>Stay Details</h3>
-            <p>
-              <span className="label">Check-in:</span>
-              <span className="value">{new Date(booking?.check_in_date || '').toLocaleDateString()}</span>
-            </p>
-            <p>
-              <span className="label">Check-out:</span>
-              <span className="value">
-                {getActualCheckoutDate().toLocaleDateString()}
-                {isEarlyCheckout() && ' (Early Checkout)'}
-              </span>
-            </p>
-            {isEarlyCheckout() && (
-              <p>
-                <span className="label">Scheduled:</span>
-                <span className="value">{new Date(booking?.check_out_date || '').toLocaleDateString()}</span>
-              </p>
-            )}
-            <p>
-              <span className="label">Duration:</span>
-              <span className="value">{isHourlyBooking ? 'Hourly Stay' : `${calculateNights()} night(s)`}</span>
-            </p>
-          </div>
-        </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th className="amount">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isHourlyBooking ? (
-              <tr>
-                <td>Room Charges (Hourly Stay)</td>
-                <td className="amount">{formatCurrency(charges.roomCharges)}</td>
-              </tr>
-            ) : (
-              (() => {
-                const nights = calculateNights();
-                const taxRate2 = hotelSettings.service_tax_rate / 100;
-                const taxMultiplier2 = 1 + taxRate2;
-                const checkIn = new Date(booking.check_in_date);
-                return Array.from({ length: nights }, (_, i) => {
-                  const date = new Date(checkIn);
-                  date.setDate(date.getDate() + i);
-                  const dateKey = date.toISOString().split('T')[0];
-                  const taxInclusiveRate = editableDailyRates[dateKey] || 0;
-                  const dayRate = taxInclusiveRate / taxMultiplier2;
-                  const dayTax = taxInclusiveRate - dayRate;
-                  return (
-                    <React.Fragment key={i}>
-                      <tr>
-                        <td>Room Charge — {date.toLocaleDateString()}</td>
-                        <td className="amount">{formatCurrency(dayRate)}</td>
-                      </tr>
-                      {dayTax > 0 && (
-                        <tr style={{ color: '#666' }}>
-                          <td style={{ paddingLeft: '24px' }}>Service Tax ({hotelSettings.service_tax_rate}%)</td>
-                          <td className="amount">{formatCurrency(dayTax)}</td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                });
-              })()
-            )}
-
-            {charges.tourismTax > 0 && (() => {
-              const ttNights = calculateNights();
-              if (isHourlyBooking || ttNights <= 0) {
-                return (
-                  <tr>
-                    <td>Tourism Tax</td>
-                    <td className="amount">{formatCurrency(charges.tourismTax)}</td>
-                  </tr>
-                );
-              }
-              const perNight = charges.tourismTax / ttNights;
-              const ttCheckIn = new Date(booking.check_in_date);
-              return Array.from({ length: ttNights }, (_, i) => {
-                const date = new Date(ttCheckIn);
-                date.setDate(date.getDate() + i);
-                return (
-                  <tr key={`tt-print-${i}`}>
-                    <td>Tourism Tax — {date.toLocaleDateString()}</td>
-                    <td className="amount">{formatCurrency(perNight)}</td>
-                  </tr>
-                );
-              });
-            })()}
-
-            {charges.extraBedCharge > 0 && (
-              <>
-                <tr>
-                  <td>Extra Bed Charge</td>
-                  <td className="amount">{formatCurrency(charges.extraBedCharge)}</td>
-                </tr>
-                {charges.extraBedServiceTax > 0 && (
-                  <tr>
-                    <td style={{ paddingLeft: '24px' }}>Service Tax ({hotelSettings.service_tax_rate}%)</td>
-                    <td className="amount">{formatCurrency(charges.extraBedServiceTax)}</td>
-                  </tr>
-                )}
-              </>
-            )}
-
-            {charges.depositRefund > 0 ? (
-              <tr className="refund-row">
-                <td>Deposit {depositRefunded ? '(Refunded)' : '(Pending Refund)'}</td>
-                <td className="amount">{formatCurrency(charges.depositRefund)}</td>
-              </tr>
-            ) : null}
-
-            <tr className="total-row">
-              <td>{charges.grandTotal >= 0 ? 'Total Amount Due' : 'Total Refund'}</td>
-              <td className="amount">{formatCurrency(Math.abs(charges.grandTotal))}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Payments */}
-        {payments.filter((p: any) => p.payment_status === 'completed').length > 0 && (
-          <table style={{ marginTop: '15px' }}>
-            <thead>
-              <tr>
-                <th>Payment Method</th>
-                <th className="amount">Amount Paid</th>
-              </tr>
-            </thead>
-            <tbody>
-              {payments.filter((p: any) => p.payment_status === 'completed').map((p: any, idx: number) => (
-                <tr key={p.id || idx}>
-                  <td>
-                    {p.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                  </td>
-                  <td className="amount">{formatCurrency(parseFloat(p.total_amount || '0'))}</td>
-                </tr>
-              ))}
-              {balanceDue > 0 && (
-                <tr style={{ color: '#e65100', fontWeight: 700 }}>
-                  <td>Balance Due</td>
-                  <td className="amount">{formatCurrency(balanceDue)}</td>
-                </tr>
-              )}
-              {balanceDue <= 0 && (
-                <tr style={{ color: '#2e7d32', fontWeight: 700 }}>
-                  <td>{balanceDue < 0 ? 'Overpayment' : 'Fully Paid'}</td>
-                  <td className="amount">{balanceDue < 0 ? formatCurrency(Math.abs(balanceDue)) : '-'}</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        )}
-
-        {depositWaived ? (
-          <div className="notes" style={{ backgroundColor: '#fff3e0', borderLeftColor: '#e65100' }}>
-            <strong style={{ color: '#e65100' }}>Deposit - Waived</strong>
-            Reason: {depositWaiveReason}
-          </div>
-        ) : charges.depositRefund > 0 ? (
-          <div className="notes success-note">
-            <strong>Deposit</strong>
-            Deposit of {formatCurrency(charges.depositRefund)} has been refunded separately to the guest.
-          </div>
-        ) : (
-          <div className="notes" style={{ backgroundColor: '#e3f2fd', borderLeftColor: '#1565c0' }}>
-            <strong style={{ color: '#1565c0' }}>Deposit</strong>
-            Waived (Member benefit)
-          </div>
-        )}
-
-        <div className="footer">
-          <strong>Thank you for choosing {hotelSettings.hotel_name}!</strong>
-          <p>We hope to see you again soon.</p>
-          <p style={{ marginTop: '10px' }}>This is a computer-generated invoice and does not require a signature.</p>
-        </div>
-      </Box>
+      <CheckoutInvoicePrintView
+        booking={booking}
+        hotelSettings={hotelSettings}
+        guestCompanyName={guestCompanyName}
+        guestAddress={guestAddress}
+        guestPhone={guestPhone}
+        guestIcNumber={guestIcNumber}
+        payments={payments}
+        charges={charges}
+        editableDailyRates={editableDailyRates}
+        depositRefunded={depositRefunded}
+        depositWaived={depositWaived}
+        depositWaiveReason={depositWaiveReason}
+        balanceDue={balanceDue}
+        isHourlyBooking={isHourlyBooking}
+        calculateNights={calculateNights}
+        getActualCheckoutDate={getActualCheckoutDate}
+        isEarlyCheckout={isEarlyCheckout}
+        formatBookingStatus={formatBookingStatus}
+        formatCurrency={formatCurrency}
+      />
     </Dialog>
   );
 };
