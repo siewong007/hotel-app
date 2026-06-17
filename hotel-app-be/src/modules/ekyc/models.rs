@@ -3,9 +3,8 @@
 
 pub use crate::models::ekyc::{
     EkycAdminListResponse, EkycApplicationDetail, EkycApplicationSummary,
-    EkycApplicationSummaryRow, EkycDashboardMetrics, EkycDashboardRow, EkycDecisionHistory,
-    EkycDocumentAvailability, EkycFieldComparison, EkycListQuery, EkycNote, EkycReasonCode,
-    EkycReviewActionRequest, EkycSensitiveRevealRequest, EkycSensitiveRevealResponse,
-    EkycStatusResponse, EkycSubmissionRequest, EkycVerification,
-    EkycVerificationUpdate, SelfCheckinEvent, SelfCheckinRequest,
+    EkycApplicationSummaryRow, EkycDashboardMetrics, EkycDashboardRow, EkycDocumentAvailability,
+    EkycFieldComparison, EkycListQuery, EkycReasonCode, EkycReviewActionRequest,
+    EkycSensitiveRevealRequest, EkycSensitiveRevealResponse, EkycStatusResponse,
+    EkycSubmissionRequest, EkycVerification, EkycVerificationUpdate, SelfCheckinRequest,
 };
