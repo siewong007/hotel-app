@@ -51,16 +51,12 @@ export default defineConfig(({ mode }) => {
       target: isTauri ? ['es2021', 'chrome105', 'safari13'] : 'es2020',
       // Source maps help debug Tauri debug builds; off for production web bundles
       sourcemap: isTauri ? 'inline' : false,
-      // In web builds, mark @tauri-apps/api/* as external so the bundler doesn't fail if
-      // the package is missing or contains Tauri-only runtime references. The dynamic
-      // imports are behind shouldUseDesktopRuntime() guards so the chunks are never loaded.
-      // In tauri builds the API *must* be bundled — the webview cannot resolve bare
-      // module specifiers like "@tauri-apps/api/core" at runtime.
-      ...(isTauri ? {} : {
-        rolldownOptions: {
-          external: (id: string) => id === '@tauri-apps/api' || id.startsWith('@tauri-apps/api/'),
-        },
-      }),
+      // Mark @tauri-apps/api/* as external in all builds. The desktop runtime code
+      // accesses window.__TAURI_INTERNALS__ directly instead of importing the npm
+      // package, so these externals are only a safety net against accidental imports.
+      rolldownOptions: {
+        external: (id: string) => id === '@tauri-apps/api' || id.startsWith('@tauri-apps/api/'),
+      },
     },
   };
 });
