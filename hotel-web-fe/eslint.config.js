@@ -20,7 +20,26 @@ export default [
     rules: {
       "react-compiler/react-compiler": "error",
       "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn"
+      "react-hooks/exhaustive-deps": "warn",
+      // Ban deriving a YYYY-MM-DD string from Date.toISOString(): toISOString()
+      // returns UTC, so .split('T')[0] / .slice(0, 10) yields the previous day
+      // during early-morning hours in east-of-UTC timezones. Use the local-date
+      // helpers in src/utils/date.ts (formatLocalDate / parseLocalDate / addLocalDays).
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression[callee.property.name='split'][callee.object.callee.property.name='toISOString']",
+          message:
+            "Don't extract a date from toISOString() (it's UTC and shifts a day overnight). Use formatLocalDate() from src/utils/date.ts."
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name='slice'][callee.object.callee.property.name='toISOString']",
+          message:
+            "Don't extract a date from toISOString() (it's UTC and shifts a day overnight). Use formatLocalDate() from src/utils/date.ts."
+        }
+      ]
     }
   }
 ];

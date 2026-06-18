@@ -43,6 +43,7 @@ import { useCheckoutInvoiceData } from '../hooks/useCheckoutInvoiceData';
 import { calculateChargesFromInputs, emptyCharges, ChargesBreakdown } from '../utils/chargesCalculation';
 import type { CheckoutPaymentRecord } from '../types';
 import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
+import { formatLocalDate, parseLocalDate, addLocalDays } from '../../../utils/date';
 
 interface CheckoutInvoiceModalProps {
   open: boolean;
@@ -96,7 +97,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState(formatLocalDate());
   const [recordingPayment, setRecordingPayment] = useState(false);
 
   // Payment editing state
@@ -183,7 +184,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setPaymentAmount(0);
       setPaymentReference('');
       setPaymentNotes('');
-      setPaymentDate(new Date().toISOString().split('T')[0]);
+      setPaymentDate(formatLocalDate());
     } catch (err: any) {
       setError(err.message || 'Failed to record payment');
     } finally {
@@ -198,7 +199,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     setEditReference(payment.transaction_reference || '');
     setEditNotes(payment.notes || '');
     // Extract date from created_at (ISO string or timestamp)
-    const paymentDate = payment.created_at ? new Date(payment.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const paymentDate = payment.created_at ? formatLocalDate(new Date(payment.created_at)) : formatLocalDate();
     setEditDate(paymentDate);
   };
 
@@ -764,12 +765,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       const nights = calculateNights();
                       const taxRate = hotelSettings.service_tax_rate / 100;
                       const taxMultiplier = 1 + taxRate;
-                      const checkIn = new Date(booking.check_in_date);
+                      const checkIn = parseLocalDate(booking.check_in_date);
                       return Array.from({ length: nights }, (_, i) => {
-                        const date = new Date(checkIn);
-                        date.setDate(date.getDate() + i);
+                        const date = addLocalDays(checkIn, i);
                         const dateStr = date.toLocaleDateString();
-                        const dateKey = date.toISOString().split('T')[0];
+                        const dateKey = formatLocalDate(date);
                         const taxInclusiveRate = editableDailyRates[dateKey] || 0;
                         const dayRate = taxInclusiveRate / taxMultiplier;
                         const dayTax = taxInclusiveRate - dayRate;

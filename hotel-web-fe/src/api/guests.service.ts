@@ -19,9 +19,13 @@ export class GuestsService {
 
     if (total <= pageSize) return firstData;
 
-    // Fetch remaining pages in parallel
+    // Fetch remaining pages in parallel. Use allSettled (not Promise.all) so a
+    // single failed page can't reject the whole call and leave the caller with
+    // an empty list — a partial guest list is far less harmful than no list at
+    // all, which silently funnels users into re-creating an existing guest and
+    // hitting the backend's duplicate-name guard.
     const totalPages = getPaginationState({ page: 1, pageSize, totalItems: total }).totalPages;
-    const remainingPages = await Promise.all(
+    const settledPages = await Promise.allSettled(
       Array.from({ length: totalPages - 1 }, (_, i) =>
         withRetry(
           () => api.get('guests', { searchParams: { ...baseParams, page: i + 2 } }).json<any>(),
@@ -30,10 +34,26 @@ export class GuestsService {
       )
     );
 
-    return remainingPages.reduce(
-      (acc, res) => acc.concat(Array.isArray(res) ? res : (res.data || [])),
-      firstData
-    );
+    const guests: Guest[] = [...firstData];
+    let failedPages = 0;
+    settledPages.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        const res = result.value;
+        const pageData: Guest[] = Array.isArray(res) ? res : (res.data || []);
+        guests.push(...pageData);
+      } else {
+        failedPages++;
+        console.warn(`getAllGuests: failed to load page ${i + 2} of ${totalPages}`, result.reason);
+      }
+    });
+
+    if (failedPages > 0) {
+      console.warn(
+        `getAllGuests: returning ${guests.length} of ~${total} guests; ${failedPages} page(s) failed to load`
+      );
+    }
+
+    return guests;
   }
 
   static async getGuestsPage(params: {

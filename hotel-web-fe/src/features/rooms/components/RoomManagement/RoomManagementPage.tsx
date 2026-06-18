@@ -934,24 +934,19 @@ const RoomManagementPage: React.FC = () => {
 
   const handleSaveRoomStatus = async (status: string, notes: string) => {
     if (!selectedRoom) return;
-    
-    // If setting to available but there's an upcoming booking, it should be 'reserved'
-    let finalStatus = status;
-    if (status === 'available') {
-      const upcomingBooking = Array.from(reservedBookings.values()).find(
-        b => String(b.room_id) === String(selectedRoom.id)
-      );
-      if (upcomingBooking) {
-        finalStatus = 'reserved';
-      }
-    }
-    
-    await HotelAPIService.updateRoomStatus(selectedRoom.id, {
-      status: finalStatus as 'maintenance' | 'reserved' | 'available' | 'occupied' | 'dirty',
+
+    // Send the requested status as-is. The backend decides whether to flip an
+    // "available" request to "reserved" — but only for a reservation arriving
+    // today after the configured check-in time. Pre-empting that here (forcing
+    // "reserved" for any upcoming booking, with no booking_id) made the backend
+    // reject the request, so rooms with a future booking could never be set
+    // available.
+    const updated = await HotelAPIService.updateRoomStatus(selectedRoom.id, {
+      status: status as 'maintenance' | 'reserved' | 'available' | 'occupied' | 'dirty',
       notes,
     });
 
-    showSnackbar(`Room status updated to ${finalStatus}`, 'success');
+    showSnackbar(`Room status updated to ${updated?.status ?? status}`, 'success');
     loadData();
   };
 
@@ -973,14 +968,12 @@ const RoomManagementPage: React.FC = () => {
 
   const handleMakeClean = async (room: Room) => {
     try {
-      // Set to 'reserved' if upcoming booking exists, else 'available'
-      const upcomingBooking = Array.from(reservedBookings.values()).find(
-        b => String(b.room_id) === String(room.id)
-      );
+      // Request "available"; the backend auto-flips to "reserved" only when a
+      // reservation arrives today after check-in time. Forcing "reserved" here
+      // for any upcoming (even future) booking marked rooms reserved too early.
       await HotelAPIService.updateRoomStatus(room.id, {
-        status: upcomingBooking ? 'reserved' : 'available',
+        status: 'available',
         notes: 'Room cleaned and ready for guests',
-        ...(upcomingBooking ? { booking_id: upcomingBooking.id } : {}),
       });
 
       // Ensure room is available

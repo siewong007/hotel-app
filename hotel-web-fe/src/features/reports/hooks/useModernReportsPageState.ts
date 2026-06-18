@@ -3,14 +3,15 @@
  * Extracts state for report type selection, report generation, and print preview.
  */
 import { useState, useCallback } from 'react';
+import { formatLocalDate } from '../../../utils/date';
 
 export type ReportType = 'occupancy' | 'revenue' | 'guest' | 'room' | 'payment' | 'maintenance';
 
 export function useModernReportsPageState() {
   const [reportType, setReportType] = useState<ReportType>('occupancy');
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>({
-    start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-    end: new Date().toISOString().split('T')[0],
+    start: formatLocalDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
+    end: formatLocalDate(),
   });
   const [reportLoading, setReportLoading] = useState(false);
   const [reportData, setReportData] = useState<any>(null);

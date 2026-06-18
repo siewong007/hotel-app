@@ -36,7 +36,10 @@ Helper binaries live in `src/bin/` (`hash_password`, `fix_password`): run with `
 npm install
 npm run start                  # Vite dev server on port 3000, proxies API to 127.0.0.1:3030
 npm run build                  # Production build
-npx tsc --noEmit               # CI: typecheck (there is no lint or test script)
+npm run typecheck              # CI: typecheck (tsc --noEmit)
+npm run lint                   # CI: ESLint (eslint . --quiet; errors fail the build)
+npm run lint:strict            # ESLint with --max-warnings=0
+npm run test                   # CI: Vitest (vitest run)
 ```
 
 The dev server proxy list in `vite.config.ts` is hand-maintained — when adding a new top-level API route on the backend, add its prefix there or the frontend dev server won't forward it.
@@ -54,7 +57,7 @@ The desktop app ships an embedded PostgreSQL binary under `src-tauri/pgsql/` and
 
 ### CI
 
-`.github/workflows/ci.yml` runs on push/PR to `master`: frontend (`tsc --noEmit` + `vite build`) and backend (`cargo check/clippy/build` with `--all-features` and `-D warnings`). There is no automated test job — keep `cargo clippy --all-features` clean.
+`.github/workflows/ci.yml` runs on push/PR to `master`. Frontend job runs `npm run typecheck`, `npm run lint`, `npm run test`, then `npm run build` — lint errors (including the `no-restricted-syntax` ban on `toISOString().split(...)`/`.slice(...)` date extraction; use the local-date helpers in `src/utils/date.ts` instead) and failing Vitest tests fail the build. Backend jobs run `cargo check/clippy/build` with `--all-features` and `-D warnings`, plus `cargo test` (PostgreSQL and SQLite) and a schema/startup smoke. Keep `cargo clippy --all-features` and `npm run lint` clean.
 
 ## Architecture
 

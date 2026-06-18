@@ -87,7 +87,7 @@ const RoomStatusDialog = ({
             disabled={saving}
           >
             {/* Show current status if it's not one of the manual options, or omit to enforce changing to valid ones */}
-            <MenuItem value="available">Available / Clean</MenuItem>
+            <MenuItem value="available">Available</MenuItem>
             <MenuItem value="dirty">Dirty (Needs Cleaning)</MenuItem>
             <MenuItem value="maintenance">Maintenance / Blocked</MenuItem>
           </Select>

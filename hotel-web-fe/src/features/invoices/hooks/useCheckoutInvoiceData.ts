@@ -7,6 +7,7 @@ import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
 import type { CheckoutPaymentRecord } from '../types';
+import { formatLocalDate, parseLocalDate, addLocalDays } from '../../../utils/date';
 
 export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open: boolean) {
   const queryClient = useQueryClient();
@@ -95,8 +96,8 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
     });
 
     // Initialize editable daily rates
-    const checkIn = new Date(booking.check_in_date);
-    const checkOut = new Date(booking.check_out_date);
+    const checkIn = parseLocalDate(booking.check_in_date);
+    const checkOut = parseLocalDate(booking.check_out_date);
     const rawNights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
     const isHourly = booking.post_type === 'hourly' || rawNights === 0;
     if (!isHourly) {
@@ -104,9 +105,7 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
         ? parseFloat(booking.price_per_night) : booking.price_per_night || 0;
       const rates: Record<string, number> = {};
       for (let i = 0; i < rawNights; i++) {
-        const d = new Date(checkIn);
-        d.setDate(d.getDate() + i);
-        const key = d.toISOString().split('T')[0];
+        const key = formatLocalDate(addLocalDays(checkIn, i));
         if (booking.daily_rates && typeof booking.daily_rates === 'object' && booking.daily_rates[key] !== undefined) {
           rates[key] = parseFloat(String(booking.daily_rates[key])) || 0;
         } else {

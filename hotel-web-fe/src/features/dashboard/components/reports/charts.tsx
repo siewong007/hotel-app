@@ -202,20 +202,19 @@ export const Donut: React.FC<{
   const r = (size - thickness) / 2;
   const c = size / 2;
   const circ = 2 * Math.PI * r;
-  let off = 0;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: 'block' }}>
       <g transform={`rotate(-90 ${c} ${c})`}>
         {data.map((d, i) => {
           const frac = d.value / total;
           const len = frac * circ;
-          const seg = (
+          // Offset = cumulative length of all preceding segments (no render-time mutation).
+          const off = data.slice(0, i).reduce((a, x) => a + (x.value / total) * circ, 0);
+          return (
             <circle key={i} cx={c} cy={c} r={r} fill="none" stroke={cssVar(d.color)}
               strokeWidth={thickness} strokeDasharray={`${len - 2} ${circ - len + 2}`}
               strokeDashoffset={-off} strokeLinecap="butt" />
           );
-          off += len;
-          return seg;
         })}
       </g>
       {centerTop && <text x={c} y={c - 2} textAnchor="middle" style={{ fontSize: 22, fontWeight: 800, fill: '#0F172A', fontFamily: '"JetBrains Mono", monospace' }}>{centerTop}</text>}

@@ -32,6 +32,7 @@ import { useNavigate } from '../../../router';
 import { HotelAPIService, EkycService } from '../../../api';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
+import { formatLocalDate } from '../../../utils/date';
 
 interface PersonalInfo {
   fullName: string;
@@ -285,7 +286,7 @@ const EkycRegistrationPage: React.FC = () => {
                 label="Date of Birth"
                 value={personalInfo.dateOfBirth}
                 onChange={(value) => setPersonalInfo({ ...personalInfo, dateOfBirth: value })}
-                maxDate={new Date().toISOString().split('T')[0]}
+                maxDate={formatLocalDate()}
                 required
               />
             </Grid>
@@ -417,7 +418,7 @@ const EkycRegistrationPage: React.FC = () => {
                 label="Issue Date (Optional)"
                 value={documentInfo.idIssueDate}
                 onChange={(value) => setDocumentInfo({ ...documentInfo, idIssueDate: value })}
-                maxDate={new Date().toISOString().split('T')[0]}
+                maxDate={formatLocalDate()}
               />
             </Grid>
 
@@ -426,7 +427,7 @@ const EkycRegistrationPage: React.FC = () => {
                 label="Expiry Date"
                 value={documentInfo.idExpiryDate}
                 onChange={(value) => setDocumentInfo({ ...documentInfo, idExpiryDate: value })}
-                minDate={new Date().toISOString().split('T')[0]}
+                minDate={formatLocalDate()}
                 required
               />
             </Grid>

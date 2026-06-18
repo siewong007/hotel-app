@@ -1,6 +1,16 @@
 import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../utils/date';
+import { getHotelSetting } from '../../../utils/hotelSettings';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// Parse a 'HH:mm' / 'HH:mm:ss' string into minutes-since-midnight (NaN-safe).
+const timeToMinutes = (value: string): number => {
+  const [rawHours, rawMinutes] = (value || '').split(':');
+  const hours = Number(rawHours);
+  const minutes = Number(rawMinutes);
+  if (!Number.isFinite(hours)) return 0;
+  return hours * 60 + (Number.isFinite(minutes) ? minutes : 0);
+};
 
 export interface BlockedDateRange {
   start: string;
@@ -188,18 +198,31 @@ export const deriveRoomStatusInfo = <
   booking,
   reservedBooking,
   today = new Date(),
+  checkInTime = getHotelSetting('check_in_time'),
 }: {
   room: RoomStatusRoom;
   booking: TBooking;
   reservedBooking: TReservedBooking;
   today?: Date;
+  checkInTime?: string;
 }) => {
   const todaySerial = dateSerial(formatLocalDate(today));
   const hasCheckedInBooking = booking?.status === 'checked_in' || booking?.status === 'auto_checked_in';
+  // On the arrival day a reservation only "holds" the room once the configured
+  // check-in time has passed; before that the room reads as available. Earlier
+  // arrival dates (a reservation that should already be in-house) are not gated.
+  const reservationCheckInSerial = reservedBooking
+    ? dateSerial(reservedBooking.check_in_date)
+    : null;
+  const isArrivalToday = reservationCheckInSerial === todaySerial;
+  const checkInTimeReached =
+    !isArrivalToday || today.getHours() * 60 + today.getMinutes() >= timeToMinutes(checkInTime);
   const hasReservationForToday = Boolean(
     reservedBooking
     && ['confirmed', 'pending'].includes(reservedBooking.status || '')
-    && dateSerial(reservedBooking.check_in_date) <= todaySerial,
+    && reservationCheckInSerial !== null
+    && reservationCheckInSerial <= todaySerial
+    && checkInTimeReached,
   );
   const hasFutureReservation = Boolean(reservedBooking && !hasReservationForToday);
   const futureCheckInDate = hasFutureReservation && reservedBooking

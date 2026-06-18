@@ -24,6 +24,7 @@ import { HotelAPIService } from '../../../api';
 import { useAuth } from '../../../auth/AuthContext';
 import { StatCard } from '../../../components/common/StatCard';
 import { formatCurrency, formatCurrencyCustom } from '../../../utils/currency';
+import { formatLocalDate } from '../../../utils/date';
 
 interface DashboardStats {
   totalRooms: number;
@@ -70,7 +71,7 @@ const AdminOverviewDashboard: React.FC = () => {
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().split('T')[0];
+      const todayStr = formatLocalDate(today);
 
       const todayCheckIns = bookings.filter((b: any) =>
         b.check_in_date?.startsWith(todayStr) && (b.status === 'confirmed' || b.status === 'pending')

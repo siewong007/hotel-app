@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ReportsService } from '../../../api';
 import { getQueryErrorMessage, queryGcTime, queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
+import { formatLocalDate } from '../../../utils/date';
 
 type ReportType =
   | 'daily_operations'
@@ -46,7 +47,7 @@ const getCompanyList = async (startDate: string, endDate: string) => {
 
 export function useReportData() {
   const queryClient = useQueryClient();
-  const today = new Date().toISOString().split('T')[0];
+  const today = formatLocalDate();
   const [selectedReport, setSelectedReport] = useState<ReportType | ''>('');
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);

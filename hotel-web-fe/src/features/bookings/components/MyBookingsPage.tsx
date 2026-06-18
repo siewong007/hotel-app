@@ -40,6 +40,7 @@ import InvoiceModal from '../../invoices/components/InvoiceModal';
 import { useBookWithCreditsMutation, useMyBookings } from '../hooks/useBookingQueries';
 import { useMyGuestsWithCredits } from '../../guests/hooks/useGuestQueries';
 import { useRooms } from '../../rooms/hooks/useRoomQueries';
+import { formatLocalDate, parseLocalDate, addLocalDays } from '../../../utils/date';
 
 // Type for guest with credits by room type
 interface GuestWithCredits {
@@ -141,13 +142,12 @@ const MyBookingsPage: React.FC = () => {
   const bookingDates = useMemo(() => {
     if (!bookingForm.check_in_date || !bookingForm.check_out_date) return [];
     const dates: string[] = [];
-    const checkIn = new Date(bookingForm.check_in_date);
-    const checkOut = new Date(bookingForm.check_out_date);
-    const current = new Date(checkIn);
+    const checkOut = parseLocalDate(bookingForm.check_out_date);
+    let current = parseLocalDate(bookingForm.check_in_date);
 
     while (current < checkOut) {
-      dates.push(current.toISOString().split('T')[0]);
-      current.setDate(current.getDate() + 1);
+      dates.push(formatLocalDate(current));
+      current = addLocalDays(current, 1);
     }
     return dates;
   }, [bookingForm.check_in_date, bookingForm.check_out_date]);
@@ -646,7 +646,7 @@ const MyBookingsPage: React.FC = () => {
                       setBookingForm({ ...bookingForm, check_in_date: e.target.value });
                       setSelectedDates([]);
                     }}
-                    inputProps={{ min: new Date().toISOString().split('T')[0] }}
+                    inputProps={{ min: formatLocalDate() }}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
@@ -660,7 +660,7 @@ const MyBookingsPage: React.FC = () => {
                       setBookingForm({ ...bookingForm, check_out_date: e.target.value });
                       setSelectedDates([]);
                     }}
-                    inputProps={{ min: bookingForm.check_in_date || new Date().toISOString().split('T')[0] }}
+                    inputProps={{ min: bookingForm.check_in_date || formatLocalDate() }}
                   />
                 </Grid>
 

@@ -1,5 +1,6 @@
 import { api } from './client';
 import { withRetry } from '../utils/retry';
+import { formatLocalDate } from '../utils/date';
 import {
   AuditLogResponse,
   AuditLogQuery,
@@ -118,7 +119,7 @@ export class AuditService {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `audit_logs_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `audit_logs_${formatLocalDate()}.csv`;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
@@ -172,6 +173,6 @@ export class AuditService {
       headStyles: { fillColor: [16, 164, 124] },
     });
 
-    doc.save(`audit_logs_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`audit_logs_${formatLocalDate()}.pdf`);
   }
 }

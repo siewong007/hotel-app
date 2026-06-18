@@ -89,6 +89,7 @@ import {
 } from '../../hooks/useBookingQueries';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { getPaginationState } from '../../../../utils/pagination';
+import { formatLocalDate } from '../../../../utils/date';
 
 const BookingsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -750,7 +751,7 @@ const BookingsPage: React.FC = () => {
     availableRooms: rooms.filter(r => r.available).length,
   }), [statsData, rooms]);
 
-  const todayIso = useMemo(() => new Date().toISOString().split('T')[0], []);
+  const todayIso = useMemo(() => formatLocalDate(), []);
 
   const getDateOnly = (value?: string) => (value || '').split('T')[0];
 
@@ -919,7 +920,12 @@ const BookingsPage: React.FC = () => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => setCreateDialogOpen(true)}
+            onClick={() => {
+              setCreateDialogOpen(true);
+              // Refresh the guest list so recently-added guests are searchable
+              // in the modal (the cached list may predate them otherwise).
+              loadGuests();
+            }}
             disabled={rooms.length === 0}
             sx={{ minHeight: 44, px: 2.5, bgcolor: '#2f6f52', '&:hover': { bgcolor: '#255a42' } }}
           >
