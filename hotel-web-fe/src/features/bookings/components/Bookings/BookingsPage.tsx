@@ -89,7 +89,23 @@ import {
 } from '../../hooks/useBookingQueries';
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { getPaginationState } from '../../../../utils/pagination';
-import { formatLocalDate } from '../../../../utils/date';
+import { formatLocalDate, parseLocalDate } from '../../../../utils/date';
+
+type BookingView = 'all' | 'arriving' | 'in_house' | 'departing' | 'upcoming' | 'balance' | 'normal_balance' | 'company_balance' | 'abandoned';
+const COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT = 1;
+
+const addMonthsToDateOnly = (dateOnly: string, months: number) => {
+  const base = parseLocalDate(dateOnly);
+  const targetMonthIndex = base.getMonth() + months;
+  const targetMonthStart = new Date(base.getFullYear(), targetMonthIndex, 1);
+  const targetMonthDays = new Date(targetMonthStart.getFullYear(), targetMonthStart.getMonth() + 1, 0).getDate();
+
+  return formatLocalDate(new Date(
+    targetMonthStart.getFullYear(),
+    targetMonthStart.getMonth(),
+    Math.min(base.getDate(), targetMonthDays),
+  ));
+};
 
 const BookingsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -161,7 +177,7 @@ const BookingsPage: React.FC = () => {
   const [workflowLoading, setWorkflowLoading] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
   const [bookingDetailsOpen, setBookingDetailsOpen] = useState(true);
-  const [bookingView, setBookingView] = useState<'all' | 'arriving' | 'in_house' | 'departing' | 'upcoming' | 'balance'>('all');
+  const [bookingView, setBookingView] = useState<BookingView>('all');
   const summaryBookingsQuery = useBookingsWithDetails();
   const fetchBookingWorkflow = useBookingWorkflowFetcher();
   const summaryBookings = summaryBookingsQuery.data ?? [];
@@ -207,6 +223,7 @@ const BookingsPage: React.FC = () => {
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<string>('Cash');
   const [paymentNote, setPaymentNote] = useState<string>('');
+  const [paymentDialogContext, setPaymentDialogContext] = useState<'manual' | 'checkout_required'>('manual');
   const [updatingPayment, setUpdatingPayment] = useState(false);
 
   const showSnackbar = (message: string) => {
@@ -374,11 +391,16 @@ const BookingsPage: React.FC = () => {
     if (!voidingBooking) return;
     try {
       setVoiding(true);
-      await updateBookingMutation.mutateAsync({ bookingId: voidingBooking.id, data: {
-        status: 'voided',
-        remarks: voidReason || 'Voided by admin',
-      } });
-      showSnackbar('Booking voided successfully');
+      const result = await HotelAPIService.voidBooking({
+        booking_id: voidingBooking.id,
+        reason: voidReason.trim() || 'Voided by admin',
+      });
+      const affectedDates = result.affected_night_audit_dates || [];
+      showSnackbar(
+        affectedDates.length > 0
+          ? `Booking voided successfully. Rerun night audit for ${affectedDates.join(', ')} to refresh reports.`
+          : 'Booking voided successfully'
+      );
       setVoidDialogOpen(false);
       setVoidingBooking(null);
       setVoidReason('');
@@ -493,6 +515,7 @@ const BookingsPage: React.FC = () => {
     setPaymentAmount(balanceDue > 0 ? balanceDue : totalAmount);
     setPaymentMethod(booking.payment_method || 'Cash');
     setPaymentNote('');
+    setPaymentDialogContext('manual');
     setPaymentDialogOpen(true);
   };
 
@@ -500,6 +523,11 @@ const BookingsPage: React.FC = () => {
     if (!paymentBooking) return;
     if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
       setError('Payment amount must be greater than 0.');
+      return;
+    }
+    const requiredCheckoutBalance = Number(paymentBooking.balance_due || 0);
+    if (paymentDialogContext === 'checkout_required' && paymentAmount + 0.005 < requiredCheckoutBalance) {
+      setError('Payment amount must cover the full outstanding balance before checkout.');
       return;
     }
 
@@ -512,15 +540,23 @@ const BookingsPage: React.FC = () => {
         amount: paymentAmount,
         payment_method: paymentMethod,
         payment_type: 'booking',
+        transaction_reference: paymentDialogContext === 'checkout_required'
+          ? `checkout-${paymentBooking.id}-${paymentAmount.toFixed(2)}`
+          : undefined,
         notes: paymentNote.trim() || `Payment accepted (${paymentMethod})`,
       });
 
-      showSnackbar(`Payment of ${formatCurrency(paymentAmount)} accepted via ${paymentMethod}`);
+      showSnackbar(
+        paymentDialogContext === 'checkout_required'
+          ? `Payment of ${formatCurrency(paymentAmount)} accepted via ${paymentMethod}. Continue checkout when ready.`
+          : `Payment of ${formatCurrency(paymentAmount)} accepted via ${paymentMethod}`
+      );
       setPaymentDialogOpen(false);
       setPaymentBooking(null);
       setPaymentAmount(0);
       setPaymentMethod('Cash');
       setPaymentNote('');
+      setPaymentDialogContext('manual');
       await reloadBookingData();
     } catch (err: any) {
       setError(err.message || 'Failed to accept payment');
@@ -686,6 +722,17 @@ const BookingsPage: React.FC = () => {
 
   // Check-out functions
   const handleCheckOut = (booking: BookingWithDetails) => {
+    const balanceDue = getBookingBalance(booking);
+    if (balanceDue > 0 && !isCompanyBooking(booking)) {
+      setPaymentBooking(booking);
+      setPaymentAmount(balanceDue);
+      setPaymentMethod(booking.payment_method || 'Cash');
+      setPaymentNote('Required before checkout');
+      setPaymentDialogContext('checkout_required');
+      setPaymentDialogOpen(true);
+      return;
+    }
+
     setCheckoutBooking(booking);
     setShowCheckoutModal(true);
   };
@@ -727,9 +774,9 @@ const BookingsPage: React.FC = () => {
 
 
 
-  // Can void booking only if not already voided or checked_out/completed
+  // Voiding checked-out no-payment stays is allowed so abandoned stays can be corrected.
   const canVoid = (booking: BookingWithDetails) => {
-    return !['voided', 'checked_out', 'completed'].includes(booking.status);
+    return booking.status !== 'voided';
   };
 
   // Can mark as complimentary only if confirmed/pending (not checked in yet)
@@ -785,15 +832,62 @@ const BookingsPage: React.FC = () => {
 
   const getBookingBalance = (booking: BookingWithDetails | null) => Number(booking?.balance_due ?? 0);
   const getBookingTotal = (booking: BookingWithDetails | null) => Number(booking?.total_amount ?? 0);
+  const isCompanyBooking = (booking: BookingWithDetails) => Boolean(booking.company_id || booking.company_name?.trim());
+  const hasOutstandingBalance = (booking: BookingWithDetails) => booking.status !== 'voided' && getBookingBalance(booking) > 0;
+  const getKnownNightAuditDates = (booking: BookingWithDetails | null) => {
+    if (!booking) return [];
+    const dates = new Set<string>();
+    if (booking.posted_date) dates.add(getDateOnly(booking.posted_date));
+    return Array.from(dates).filter(Boolean).sort();
+  };
+  const isNightAuditInvolved = (booking: BookingWithDetails | null) =>
+    Boolean(booking?.is_posted || getKnownNightAuditDates(booking).length > 0);
+  const hasNoRecordedPayment = (booking: BookingWithDetails) => Number(booking.total_paid || 0) <= 0;
+  const isNoPaymentReviewBooking = (booking: BookingWithDetails) => {
+    if (booking.status === 'voided' || !hasOutstandingBalance(booking) || !hasNoRecordedPayment(booking)) return false;
+
+    const checkOutDate = getDateOnly(booking.check_out_date);
+    const status = String(booking.status || '').toLowerCase();
+    const activeOrCompletedStay = ['checked_in', 'auto_checked_in', 'late_checkout', 'checked_out', 'completed'].includes(status);
+    const pastReservation = ['pending', 'confirmed', 'reserved'].includes(status) && Boolean(checkOutDate) && checkOutDate <= todayIso;
+
+    return activeOrCompletedStay || pastReservation;
+  };
+  const isPastCheckoutWithBalance = (booking: BookingWithDetails) => {
+    const checkOutDate = getDateOnly(booking.check_out_date);
+    return Boolean(checkOutDate) && checkOutDate < todayIso && hasOutstandingBalance(booking);
+  };
+  const isCompanyPastTermsWithBalance = (booking: BookingWithDetails) => {
+    const checkOutDate = getDateOnly(booking.check_out_date);
+    if (!checkOutDate || !hasOutstandingBalance(booking)) return false;
+
+    return addMonthsToDateOnly(checkOutDate, COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT) <= todayIso;
+  };
   const operationsBookings = summaryLoaded ? summaryBookings : bookings;
   const bookingPagination = useMemo(
     () => getPaginationState({ page: currentPage, pageSize: PAGE_SIZE, totalItems: totalBookings }),
     [currentPage, totalBookings]
   );
 
+  const normalDueBookings = useMemo(
+    () => operationsBookings.filter((booking) => !isCompanyBooking(booking) && isPastCheckoutWithBalance(booking)),
+    [operationsBookings, todayIso]
+  );
+  const companyDueBookings = useMemo(
+    () => operationsBookings.filter((booking) => isCompanyBooking(booking) && isCompanyPastTermsWithBalance(booking)),
+    [operationsBookings, todayIso]
+  );
   const dueBookings = useMemo(
-    () => operationsBookings.filter((booking) => booking.status !== 'voided' && getBookingBalance(booking) > 0),
-    [operationsBookings]
+    () => operationsBookings.filter((booking) =>
+      isCompanyBooking(booking)
+        ? isCompanyPastTermsWithBalance(booking)
+        : isPastCheckoutWithBalance(booking)
+    ),
+    [operationsBookings, todayIso]
+  );
+  const noPaymentReviewBookings = useMemo(
+    () => operationsBookings.filter(isNoPaymentReviewBooking),
+    [operationsBookings, todayIso]
   );
   const arrivingBookings = useMemo(
     () => operationsBookings.filter((booking) => getDateOnly(booking.check_in_date) === todayIso && !['checked_in', 'checked_out', 'completed', 'voided'].includes(booking.status)),
@@ -820,8 +914,11 @@ const BookingsPage: React.FC = () => {
     if (bookingView === 'departing') return departingBookings;
     if (bookingView === 'upcoming') return upcomingBookings;
     if (bookingView === 'balance') return dueBookings;
+    if (bookingView === 'normal_balance') return normalDueBookings;
+    if (bookingView === 'company_balance') return companyDueBookings;
+    if (bookingView === 'abandoned') return noPaymentReviewBookings;
     return filteredAndSortedBookings;
-  }, [arrivingBookings, bookingView, departingBookings, dueBookings, filteredAndSortedBookings, inHouseBookings, upcomingBookings]);
+  }, [arrivingBookings, bookingView, companyDueBookings, departingBookings, dueBookings, filteredAndSortedBookings, inHouseBookings, noPaymentReviewBookings, normalDueBookings, upcomingBookings]);
 
   const selectedBooking = useMemo(() => {
     if (!bookingDetailsOpen) return null;
@@ -843,9 +940,14 @@ const BookingsPage: React.FC = () => {
   const totalGuestsInHouse = inHouseBookings.reduce((sum, booking) => sum + Number((booking as any).adults || 1) + Number((booking as any).children || 0), 0);
   const roomCount = rooms.length || 0;
   const outstandingDue = dueBookings.reduce((sum, booking) => sum + getBookingBalance(booking), 0);
-  const paymentActionDetail = summaryLoaded ? `${dueBookings.length} with balance` : `${dueBookings.length} with balance on this page`;
+  const normalOutstandingDue = normalDueBookings.reduce((sum, booking) => sum + getBookingBalance(booking), 0);
+  const companyOutstandingDue = companyDueBookings.reduce((sum, booking) => sum + getBookingBalance(booking), 0);
+  const noPaymentReviewTotal = noPaymentReviewBookings.reduce((sum, booking) => sum + getBookingBalance(booking), 0);
+  const normalBalanceScope = summaryLoaded ? 'past checkout date' : 'past checkout date on this page';
+  const companyBalanceScope = summaryLoaded ? `past ${COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT} month from checkout` : `past ${COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT} month from checkout on this page`;
+  const paymentActionDetail = `${formatCurrency(outstandingDue)} overdue: ${normalDueBookings.length} normal / ${companyDueBookings.length} company`;
 
-  const selectBookingView = (view: typeof bookingView) => {
+  const selectBookingView = (view: BookingView) => {
     setBookingView(view);
     setCurrentPage(1);
     if (view === 'all') {
@@ -866,7 +968,7 @@ const BookingsPage: React.FC = () => {
       setStatusFilter('confirmed');
       setDateFilter('month');
       setSearchDate('');
-    } else if (view === 'balance') {
+    } else if (view === 'balance' || view === 'normal_balance' || view === 'company_balance' || view === 'abandoned') {
       setStatusFilter('all');
       setDateFilter('all');
       setSearchDate('');
@@ -881,6 +983,14 @@ const BookingsPage: React.FC = () => {
     }
   };
 
+  const handleNoPaymentReviewAction = () => {
+    selectBookingView('abandoned');
+    if (noPaymentReviewBookings.length > 0) {
+      setSelectedBookingId(noPaymentReviewBookings[0].id);
+      setBookingDetailsOpen(true);
+    }
+  };
+
   const statusDotColor = (status?: string) => {
     if (status === 'checked_in') return '#2f64b3';
     if (status === 'pending') return '#c47b1e';
@@ -888,6 +998,9 @@ const BookingsPage: React.FC = () => {
     if (status === 'checked_out' || status === 'completed') return '#6b7280';
     return '#3d8f6b';
   };
+
+  const voidingAuditDates = getKnownNightAuditDates(voidingBooking);
+  const voidingNeedsAuditReview = isNightAuditInvolved(voidingBooking);
 
   if (loading) {
     return (
@@ -954,9 +1067,11 @@ const BookingsPage: React.FC = () => {
           { title: 'In-house guests', value: totalGuestsInHouse, detail: `across ${inHouseBookings.length} rooms`, subValue: Math.max(totalGuestsInHouse, roomCount || 1), color: '#2f64b3', icon: <BedIcon fontSize="small" />, view: 'in_house' as const },
           { title: 'Departures / Check-out', value: departingBookings.length, detail: `${departingBookings.length} ready to check out`, subValue: departingBookings.length || 1, color: '#c47b1e', icon: <ArrowBackIcon fontSize="small" />, view: 'departing' as const },
           { title: 'Upcoming bookings', value: upcomingBookings.length, detail: `${upcomingBookings.length} future reservations`, subValue: upcomingBookings.length || 1, color: '#7c4dff', icon: <BookIcon fontSize="small" />, view: 'upcoming' as const },
-          { title: 'Outstanding due', value: formatCurrency(outstandingDue), detail: `${dueBookings.length} bookings`, color: '#c43d32', icon: <PaymentIcon fontSize="small" />, view: 'balance' as const, alert: true },
+          { title: 'Normal outstanding', value: formatCurrency(normalOutstandingDue), detail: `${normalDueBookings.length} ${normalBalanceScope}`, color: '#c43d32', icon: <PaymentIcon fontSize="small" />, view: 'normal_balance' as const, alert: normalDueBookings.length > 0 },
+          { title: 'Company outstanding', value: formatCurrency(companyOutstandingDue), detail: `${companyDueBookings.length} ${companyBalanceScope}`, color: '#8f3d5f', icon: <ReceiptIcon fontSize="small" />, view: 'company_balance' as const, alert: companyDueBookings.length > 0 },
+          { title: 'No payment review', value: noPaymentReviewBookings.length, detail: `${formatCurrency(noPaymentReviewTotal)} unpaid`, subValue: noPaymentReviewBookings.length || 1, color: '#8a4b18', icon: <MoneyOffIcon fontSize="small" />, view: 'abandoned' as const, alert: noPaymentReviewBookings.length > 0 },
         ].map((stat) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2.4 }} key={stat.title}>
+          <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }} key={stat.title}>
             <Card
               elevation={0}
               onClick={() => selectBookingView(stat.view)}
@@ -991,6 +1106,7 @@ const BookingsPage: React.FC = () => {
       <Grid container spacing={2} mb={2.5}>
         {[
           { title: 'Take payment', detail: paymentActionDetail, color: '#c43d32', icon: <PaymentIcon />, action: handleTakePaymentAction, primary: dueBookings.length > 0 },
+          { title: 'Review no-payment stays', detail: `${noPaymentReviewBookings.length} possible abandoned bookings`, color: '#8a4b18', icon: <MoneyOffIcon />, action: handleNoPaymentReviewAction, primary: noPaymentReviewBookings.length > 0 },
         ].map((action) => (
           <Grid size={{ xs: 12 }} key={action.title}>
             <Card
@@ -1063,7 +1179,10 @@ const BookingsPage: React.FC = () => {
                   { key: 'arriving', label: 'Arriving', count: arrivingBookings.length },
                   { key: 'in_house', label: 'In House', count: inHouseBookings.length },
                   { key: 'upcoming', label: 'Upcoming', count: upcomingBookings.length },
-                  { key: 'balance', label: 'With Balance', count: dueBookings.length },
+                  { key: 'balance', label: 'Overdue Balance', count: dueBookings.length },
+                  { key: 'normal_balance', label: 'Normal', count: normalDueBookings.length },
+                  { key: 'company_balance', label: 'Company', count: companyDueBookings.length },
+                  { key: 'abandoned', label: 'No Payment', count: noPaymentReviewBookings.length },
                 ].map((filter) => (
                   <Chip
                     key={filter.key}
@@ -1189,6 +1308,12 @@ const BookingsPage: React.FC = () => {
                           <Typography variant="body2" sx={{ color: statusDotColor(booking.status), fontWeight: 800 }}>
                             • {getBookingStatusText(booking.status)}
                           </Typography>
+                          {isNoPaymentReviewBooking(booking) && (
+                            <Chip size="small" label="No payment" color="warning" sx={{ height: 22, fontWeight: 900 }} />
+                          )}
+                          {isNightAuditInvolved(booking) && (
+                            <Chip size="small" label="Night audit" variant="outlined" sx={{ height: 22, fontWeight: 900 }} />
+                          )}
                         </Stack>
                         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.35 }}>
                           <BedIcon sx={{ fontSize: 16, verticalAlign: 'text-bottom', mr: 0.5 }} />
@@ -1318,6 +1443,15 @@ const BookingsPage: React.FC = () => {
                     </Box>
                   </Stack>
                 </Box>
+
+                {isNoPaymentReviewBooking(selectedBooking) && (
+                  <Box sx={{ px: 2.5, pt: 2.5 }}>
+                    <Alert severity="warning" icon={<MoneyOffIcon />}>
+                      No payment has been recorded for this stay. Collect payment before checkout, or void it if the booking was abandoned.
+                      {isNightAuditInvolved(selectedBooking) && ' After voiding, rerun night audit for the affected date to refresh reports.'}
+                    </Alert>
+                  </Box>
+                )}
 
                 <Box sx={{ p: 2.5 }}>
                   <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Actions</Typography>
@@ -1787,6 +1921,18 @@ const BookingsPage: React.FC = () => {
           <Alert severity="error" sx={{ mb: 2 }}>
             Voiding a booking will permanently remove it from all reports including night audit. This cannot be undone.
           </Alert>
+          {voidingBooking && isNoPaymentReviewBooking(voidingBooking) && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              This booking has no recorded payment and may be abandoned. Use a clear reason such as abandoned/no payment.
+            </Alert>
+          )}
+          {voidingNeedsAuditReview && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              {voidingAuditDates.length > 0
+                ? `This booking was included in night audit for ${voidingAuditDates.join(', ')}. Rerun night audit for those date(s) after voiding to refresh the report.`
+                : 'This booking is marked as posted in night audit. After voiding, rerun the affected night audit date returned by the system to refresh the report.'}
+            </Alert>
+          )}
           <Box sx={{ mb: 2 }}>
             <Typography variant="body2"><strong>Guest:</strong> {voidingBooking?.guest_name}</Typography>
             <Typography variant="body2"><strong>Room:</strong> {voidingBooking?.room_type} - Room {voidingBooking?.room_number}</Typography>
@@ -1800,7 +1946,7 @@ const BookingsPage: React.FC = () => {
             label="Void Reason (Optional)"
             value={voidReason}
             onChange={(e) => setVoidReason(e.target.value)}
-            placeholder="Enter reason for voiding..."
+            placeholder={voidingBooking && isNoPaymentReviewBooking(voidingBooking) ? 'Abandoned booking - no payment recorded' : 'Enter reason for voiding...'}
           />
         </DialogContent>
         <DialogActions>
@@ -1843,6 +1989,7 @@ const BookingsPage: React.FC = () => {
           setPaymentAmount(0);
           setPaymentMethod('Cash');
           setPaymentNote('');
+          setPaymentDialogContext('manual');
         }}
         maxWidth="sm"
         fullWidth
@@ -1860,10 +2007,12 @@ const BookingsPage: React.FC = () => {
             </Box>
             <Box>
               <Typography variant="h5" sx={{ fontWeight: 900, lineHeight: 1.15 }}>
-                Accept Payment
+                {paymentDialogContext === 'checkout_required' ? 'Payment Required' : 'Accept Payment'}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Record a room charge payment and update the booking balance automatically.
+                {paymentDialogContext === 'checkout_required'
+                  ? 'Collect the outstanding balance before continuing checkout.'
+                  : 'Record a room charge payment and update the booking balance automatically.'}
               </Typography>
             </Box>
           </Box>
@@ -1871,6 +2020,11 @@ const BookingsPage: React.FC = () => {
         <DialogContent dividers sx={{ px: 3, py: 2.5 }}>
           {paymentBooking && (
             <Stack spacing={2.25}>
+              {paymentDialogContext === 'checkout_required' && (
+                <Alert severity="warning">
+                  Checkout is blocked until this balance is fully settled.
+                </Alert>
+              )}
               <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider' }}>
                 <Stack direction="row" justifyContent="space-between" spacing={2} alignItems="flex-start">
                   <Box sx={{ minWidth: 0 }}>
@@ -1919,6 +2073,8 @@ const BookingsPage: React.FC = () => {
                   onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
                   InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
                   inputProps={{ min: 0, step: 0.01 }}
+                  error={paymentDialogContext === 'checkout_required' && paymentAmount + 0.005 < Number(paymentBooking.balance_due || 0)}
+                  helperText={paymentDialogContext === 'checkout_required' ? `Full balance required: ${formatCurrency(Number(paymentBooking.balance_due || 0))}` : undefined}
                   required
                 />
                 <FormControl fullWidth>
@@ -1955,6 +2111,7 @@ const BookingsPage: React.FC = () => {
             setPaymentAmount(0);
             setPaymentMethod('Cash');
             setPaymentNote('');
+            setPaymentDialogContext('manual');
           }}>
             Cancel
           </Button>
@@ -1962,7 +2119,7 @@ const BookingsPage: React.FC = () => {
             onClick={handleConfirmPaymentUpdate}
             variant="contained"
             color="primary"
-            disabled={paymentAmount <= 0 || updatingPayment}
+            disabled={paymentAmount <= 0 || updatingPayment || (paymentDialogContext === 'checkout_required' && paymentAmount + 0.005 < Number(paymentBooking?.balance_due || 0))}
           >
             {updatingPayment ? 'Processing...' : 'Accept Payment'}
           </Button>

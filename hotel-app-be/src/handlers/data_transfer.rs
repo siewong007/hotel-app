@@ -19,9 +19,10 @@ pub async fn export_booking_data_handler(
 /// Import or overwrite booking-related data
 pub async fn import_booking_data_handler(
     State(pool): State<DbPool>,
+    user_id: i64,
     Json(request): Json<ImportRequest>,
 ) -> Result<Json<Value>, ApiError> {
     Ok(Json(
-        data_transfer_service::import_booking_data(&pool, request).await?,
+        data_transfer_service::import_booking_data(&pool, user_id, request).await?,
     ))
 }

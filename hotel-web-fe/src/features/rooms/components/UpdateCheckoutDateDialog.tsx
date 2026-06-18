@@ -103,7 +103,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Failed to update checkout date');
+      setError(err.message || 'Failed to extend checkout date');
     } finally {
       setLoading(false);
     }
@@ -117,7 +117,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
       <DialogTitle>
         <Box display="flex" alignItems="center">
           <CalendarIcon sx={{ mr: 1, color: 'primary.main' }} />
-          <Typography variant="h6">Update Checkout Date</Typography>
+          <Typography variant="h6">Extend Checkout Date</Typography>
         </Box>
       </DialogTitle>
 
@@ -253,7 +253,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
           disabled={loading || !isValid}
           startIcon={loading ? <CircularProgress size={20} /> : <CalendarIcon />}
         >
-          {loading ? 'Updating...' : 'Update Checkout Date'}
+          {loading ? 'Extending...' : 'Extend Checkout Date'}
         </Button>
       </DialogActions>
     </Dialog>

@@ -45,6 +45,7 @@ export type {
   BookingCreateRequest,
   BookingUpdateRequest,
   BookingCancellationRequest,
+  BookingVoidResponse,
   BookingTimelineEntry,
   CheckInRequest,
   PreCheckInUpdateRequest,

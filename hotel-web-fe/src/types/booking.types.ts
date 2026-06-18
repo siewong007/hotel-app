@@ -185,6 +185,14 @@ export interface BookingCancellationRequest {
   reason?: string;
 }
 
+export interface BookingVoidResponse {
+  message: string;
+  booking_id: string | number;
+  complimentary_nights_credited?: number;
+  affected_night_audit_dates?: string[];
+  night_audit_rerun_required?: boolean;
+}
+
 export interface CheckInPaymentRecord {
   amount: number;
   payment_method: string;

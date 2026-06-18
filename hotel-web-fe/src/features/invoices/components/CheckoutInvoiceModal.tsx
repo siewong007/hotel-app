@@ -163,6 +163,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     .filter((payment) => payment.payment_status === 'completed')
     .reduce((sum, payment) => sum + parseFloat(String(payment.total_amount || '0')), 0);
   const balanceDue = charges.grandTotal - totalPayments;
+  const isCompanyBilling = Boolean(booking?.company_id || booking?.company_name?.trim());
+  const requiresFullPaymentBeforeCheckout = !isCompanyBilling && balanceDue > 0;
   const completedPayments = payments.filter((payment) => payment.payment_status === 'completed');
   const refundedPayments = payments.filter((payment) => payment.payment_status === 'refunded');
 
@@ -276,6 +278,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       // Save daily rates if edited but not yet saved
       if (booking && editingRates && Object.keys(editableDailyRates).length > 0) {
         await handleSaveDailyRates();
+      }
+
+      if (requiresFullPaymentBeforeCheckout) {
+        setError('Please settle the full balance before proceeding to checkout.');
+        return;
       }
 
       await onConfirmCheckout?.(undefined, paymentMethod);
@@ -1065,11 +1072,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Box>
             )}
 
-            {/* Member Payment Required Alert */}
-            {booking?.guest_type === 'member' && balanceDue > 0 && (
+            {/* Payment Required Alert */}
+            {requiresFullPaymentBeforeCheckout && (
               <Alert severity="warning" sx={{ mb: 2 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Member Payment Required — Please settle the full balance before proceeding to checkout.
+                  Payment Required — Please settle the full balance before proceeding to checkout.
                 </Typography>
               </Alert>
             )}
@@ -1782,7 +1789,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               variant="outlined"
               onClick={handlePrint}
               startIcon={<PrintIcon />}
-              disabled={(charges.depositRefund > 0 && !depositRefunded && !depositWaived) || (booking?.guest_type === 'member' && balanceDue > 0)}
+              disabled={(charges.depositRefund > 0 && !depositRefunded && !depositWaived) || requiresFullPaymentBeforeCheckout}
             >
               Print Preview
             </Button>
@@ -1790,7 +1797,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               variant="contained"
               onClick={handleProceedToConfirm}
               startIcon={<CheckIcon />}
-              disabled={(charges.depositRefund > 0 && !depositRefunded && !depositWaived) || (booking?.guest_type === 'member' && balanceDue > 0)}
+              disabled={(charges.depositRefund > 0 && !depositRefunded && !depositWaived) || requiresFullPaymentBeforeCheckout}
             >
               Proceed to Checkout
             </Button>

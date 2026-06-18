@@ -65,6 +65,8 @@ pub fn build_booking_list_query(
               OR b.booking_number {like_op} {p} \
               OR b.folio_number {like_op} {p} \
               OR r.room_number {like_op} {p} \
+              OR ('room ' || r.room_number) {like_op} {p} \
+              OR ('rm ' || r.room_number) {like_op} {p} \
               OR EXISTS (SELECT 1 FROM invoices inv WHERE inv.booking_id = b.id AND inv.invoice_number {like_op} {p}) \
               OR EXISTS ( \
                   SELECT 1 FROM customer_ledgers cl \
@@ -108,14 +110,26 @@ pub fn build_booking_list_query(
         ));
         binds.date_search = Some(ds);
     } else {
-        if let Some(from) = params.check_in_from {
+        if let (Some(from), Some(to)) = (params.check_in_from, params.check_in_to) {
+            param_idx += 1;
+            let from_p = param_placeholder(param_idx);
+            param_idx += 1;
+            let to_p = param_placeholder(param_idx);
+            let col_in = date_cast("b.check_in_date");
+            let col_out = date_cast("b.check_out_date");
+            conditions.push(format!(
+                "(({col_in} <= {to_p} AND {col_out} > {from_p}) \
+                  OR ({col_in} = {col_out} AND {col_in} >= {from_p} AND {col_in} <= {to_p}))"
+            ));
+            binds.check_in_from = Some(from);
+            binds.check_in_to = Some(to);
+        } else if let Some(from) = params.check_in_from {
             param_idx += 1;
             let p = param_placeholder(param_idx);
             let col = date_cast("b.check_in_date");
             conditions.push(format!("{col} >= {p}"));
             binds.check_in_from = Some(from);
-        }
-        if let Some(to) = params.check_in_to {
+        } else if let Some(to) = params.check_in_to {
             param_idx += 1;
             let p = param_placeholder(param_idx);
             let col = date_cast("b.check_in_date");
@@ -280,19 +294,66 @@ mod tests {
             param_placeholder(3)
         )));
         assert!(query.count_sql.contains(&format!(
-            "{} >= {}",
-            date_cast("b.check_in_date"),
-            param_placeholder(4)
-        )));
-        assert!(query.count_sql.contains(&format!(
             "{} <= {}",
             date_cast("b.check_in_date"),
             param_placeholder(5)
+        )));
+        assert!(query.count_sql.contains(&format!(
+            "{} > {}",
+            date_cast("b.check_out_date"),
+            param_placeholder(4)
         )));
         assert_eq!(query.binds.status.as_deref(), Some("confirmed"));
         assert_eq!(query.binds.search.as_deref(), Some("%INV-10%"));
         assert_eq!(query.binds.room_number.as_deref(), Some("%101%"));
         assert_eq!(query.binds.date_search, None);
+        assert_eq!(query.binds.check_in_from, params.check_in_from);
+        assert_eq!(query.binds.check_in_to, params.check_in_to);
+    }
+
+    #[test]
+    fn text_search_matches_room_prefix_phrases() {
+        let mut params = params();
+        params.search = Some("room 103".to_string());
+
+        let query = build_booking_list_query(&params, "SELECT * FROM bookings b ", pagination());
+        let p = param_placeholder(1);
+
+        assert!(query.count_sql.contains(&format!(
+            "('room ' || r.room_number) {} {}",
+            like_operator(),
+            p
+        )));
+        assert!(query.count_sql.contains(&format!(
+            "('rm ' || r.room_number) {} {}",
+            like_operator(),
+            p
+        )));
+        assert_eq!(query.binds.search.as_deref(), Some("%room 103%"));
+    }
+
+    #[test]
+    fn date_range_filters_bookings_that_overlap_the_stay_window() {
+        let mut params = params();
+        params.check_in_from = NaiveDate::from_ymd_opt(2026, 6, 14);
+        params.check_in_to = NaiveDate::from_ymd_opt(2026, 6, 18);
+
+        let query = build_booking_list_query(&params, "SELECT * FROM bookings b ", pagination());
+        let col_in = date_cast("b.check_in_date");
+        let col_out = date_cast("b.check_out_date");
+
+        assert!(query.count_sql.contains(&format!(
+            "({col_in} <= {} AND {col_out} > {})",
+            param_placeholder(2),
+            param_placeholder(1)
+        )));
+        assert!(query.count_sql.contains(&format!(
+            "({col_in} = {col_out} AND {col_in} >= {} AND {col_in} <= {})",
+            param_placeholder(1),
+            param_placeholder(2)
+        )));
+        assert_eq!(query.binds.check_in_from, params.check_in_from);
+        assert_eq!(query.binds.check_in_to, params.check_in_to);
     }
 
     #[test]

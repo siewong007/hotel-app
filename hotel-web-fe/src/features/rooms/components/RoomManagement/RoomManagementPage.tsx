@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from '../../../../router';
 import {
   Box,
@@ -85,7 +85,7 @@ import {
   useUpcomingBookingsDialog,
 } from '../../hooks';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
-import { addLocalDays, formatLocalDate } from '../../../../utils/date';
+import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../../utils/date';
 import { isValidEmail } from '../../../../utils/validation';
 import {
   getUnifiedStatusColor,
@@ -122,6 +122,26 @@ import GuestDetailsDialog from './components/GuestDetailsDialog';
 import RoomManagementHeader from './components/RoomManagementHeader';
 import RoomCard from './components/RoomCard';
 import RoomContextMenu from './components/RoomContextMenu';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const getDateOnly = (value?: string) => (value || '').split('T')[0];
+
+const formatReviewDate = (value?: string) => {
+  const dateOnly = getDateOnly(value);
+  if (!dateOnly) return '-';
+  return parseLocalDate(dateOnly).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+};
+
+const getOverdueDays = (checkOutDate: string, todayIso: string) => {
+  const checkOut = parseLocalDate(getDateOnly(checkOutDate));
+  const today = parseLocalDate(todayIso);
+  return Math.max(1, Math.ceil((today.getTime() - checkOut.getTime()) / DAY_MS));
+};
 
 const RoomManagementPage: React.FC = () => {
   const navigate = useNavigate();
@@ -219,6 +239,7 @@ const RoomManagementPage: React.FC = () => {
   const [changeRoomDialogOpen, setChangeRoomDialogOpen] = useState(false);
   const [updateCheckoutDialogOpen, setUpdateCheckoutDialogOpen] = useState(false);
   const [updateCheckoutBooking, setUpdateCheckoutBooking] = useState<BookingWithDetails | null>(null);
+  const [overdueCheckoutDialogOpen, setOverdueCheckoutDialogOpen] = useState(false);
   const [complimentaryDialogOpen, setComplimentaryDialogOpen] = useState(false);
 
   // Notes and status editing state
@@ -297,6 +318,28 @@ const RoomManagementPage: React.FC = () => {
   // Can be modified in Settings page or by editing hotelSettings.ts
   const BOOKING_CHANNELS = getHotelSettings().booking_channels;
   const PAYMENT_METHODS = getHotelSettings().payment_methods;
+  const todayIso = formatLocalDate();
+
+  const roomById = useMemo(() => {
+    return new Map(rooms.map((room) => [String(room.id), room]));
+  }, [rooms]);
+
+  const overdueCheckoutBookings = useMemo(() => {
+    return allBookingsData
+      .filter((booking) => {
+        const status = String(booking.status || '');
+        return (
+          (status === 'checked_in' || status === 'auto_checked_in') &&
+          Boolean(booking.check_out_date) &&
+          getDateOnly(booking.check_out_date) < todayIso
+        );
+      })
+      .sort((a, b) => {
+        const dateSort = getDateOnly(a.check_out_date).localeCompare(getDateOnly(b.check_out_date));
+        if (dateSort !== 0) return dateSort;
+        return String(a.room_number || '').localeCompare(String(b.room_number || ''), undefined, { numeric: true });
+      });
+  }, [allBookingsData, todayIso]);
 
   useEffect(() => {
     loadData();
@@ -1055,6 +1098,22 @@ const RoomManagementPage: React.FC = () => {
     handleMenuClose();
   };
 
+  const handleReviewCheckout = (booking: BookingWithDetails) => {
+    const room = roomById.get(String(booking.room_id)) ?? null;
+    setSelectedRoom(room);
+    setSelectedBooking(booking);
+    setOverdueCheckoutDialogOpen(false);
+    setCheckOutDialogOpen(true);
+  };
+
+  const handleReviewUpdateCheckout = (booking: BookingWithDetails) => {
+    const room = roomById.get(String(booking.room_id)) ?? null;
+    setSelectedRoom(room);
+    setUpdateCheckoutBooking(booking);
+    setOverdueCheckoutDialogOpen(false);
+    setUpdateCheckoutDialogOpen(true);
+  };
+
   const handleConfirmRoomChange = async () => {
     if (!selectedRoom || !newSelectedRoom || !selectedBooking) {
       showSnackbar('Please select a new room', 'warning');
@@ -1176,7 +1235,7 @@ const RoomManagementPage: React.FC = () => {
     }
     if (isOccupied && booking) {
       bookingActions.push({ id: 'change-room', label: 'Change room', icon: <SwapIcon />, onClick: handleChangeRoom });
-      bookingActions.push({ id: 'update-checkout', label: 'Update checkout', icon: <ExtendIcon />, onClick: handleUpdateCheckoutDate });
+      bookingActions.push({ id: 'update-checkout', label: 'Extend checkout date', icon: <ExtendIcon />, onClick: handleUpdateCheckoutDate });
     }
     if (isOccupied && booking?.guest_id) {
       bookingActions.push({ id: 'guest-details', label: 'Guest details', icon: <PersonIcon />, onClick: () => handleViewGuestDetails(booking.guest_id) });
@@ -1247,6 +1306,35 @@ const RoomManagementPage: React.FC = () => {
         noCleaningCount={noCleaningCount}
       />
 
+      {overdueCheckoutBookings.length > 0 && (
+        <Alert
+          severity="warning"
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              onClick={() => setOverdueCheckoutDialogOpen(true)}
+              sx={{ fontWeight: 800 }}
+            >
+              Review
+            </Button>
+          }
+          sx={{
+            mt: 1.5,
+            border: '1px solid',
+            borderColor: 'warning.light',
+            alignItems: 'center',
+          }}
+        >
+          <Typography variant="body2" sx={{ fontWeight: 800 }}>
+            {overdueCheckoutBookings.length} room{overdueCheckoutBookings.length === 1 ? '' : 's'} past scheduled checkout
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Review checked-in bookings whose checkout date has already passed.
+          </Typography>
+        </Alert>
+      )}
+
       {/* Room Grid */}
       <Paper
         elevation={0}
@@ -1312,6 +1400,96 @@ const RoomManagementPage: React.FC = () => {
         getMenuLayout={getMenuLayout}
         formatCurrency={formatCurrency}
       />
+
+      <Dialog
+        open={overdueCheckoutDialogOpen}
+        onClose={() => setOverdueCheckoutDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Overdue Checkouts</DialogTitle>
+        <DialogContent dividers>
+          {overdueCheckoutBookings.length === 0 ? (
+            <Box sx={{ py: 4, textAlign: 'center' }}>
+              <CheckCircleIcon color="success" sx={{ fontSize: 36, mb: 1 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                No overdue checkouts
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                All checked-in rooms are within their scheduled checkout dates.
+              </Typography>
+            </Box>
+          ) : (
+            <Stack spacing={1.25}>
+              {overdueCheckoutBookings.map((booking) => {
+                const room = roomById.get(String(booking.room_id));
+                const overdueDays = getOverdueDays(booking.check_out_date, todayIso);
+                const bookingRef = booking.invoice_number || booking.folio_number || booking.booking_number || `#${booking.id}`;
+
+                return (
+                  <Paper
+                    key={booking.id}
+                    variant="outlined"
+                    sx={{
+                      p: 1.5,
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) auto' },
+                      gap: 1.25,
+                      alignItems: 'center',
+                      borderColor: 'warning.light',
+                      bgcolor: alpha(theme.palette.warning.main, 0.05),
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" alignItems="center" sx={{ mb: 0.75 }}>
+                        <Chip
+                          size="small"
+                          color="warning"
+                          label={`${overdueDays} day${overdueDays === 1 ? '' : 's'} overdue`}
+                          sx={{ fontWeight: 800 }}
+                        />
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          label={bookingRef}
+                          sx={{ fontWeight: 700 }}
+                        />
+                      </Stack>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                        Room {booking.room_number || room?.room_number || booking.room_id} · {booking.guest_name || 'Unknown guest'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Stay {formatReviewDate(booking.check_in_date)} - {formatReviewDate(booking.check_out_date)}
+                      </Typography>
+                    </Box>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                      <Button
+                        variant="outlined"
+                        color="warning"
+                        startIcon={<ExtendIcon />}
+                        onClick={() => handleReviewUpdateCheckout(booking)}
+                      >
+                        Extend checkout date
+                      </Button>
+                      <Button
+                        variant="contained"
+                        color="error"
+                        startIcon={<LogoutIcon />}
+                        onClick={() => handleReviewCheckout(booking)}
+                      >
+                        Check out
+                      </Button>
+                    </Stack>
+                  </Paper>
+                );
+              })}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOverdueCheckoutDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Walk-in Guest Dialog */}
       <WalkInCheckInDialog
@@ -1420,13 +1598,13 @@ const RoomManagementPage: React.FC = () => {
         onSubmit={handleComplimentaryBookingSubmit}
       />
 
-      {/* Update Checkout Date Dialog */}
+      {/* Extend Checkout Date Dialog */}
       <UpdateCheckoutDateDialog
         open={updateCheckoutDialogOpen}
         onClose={() => setUpdateCheckoutDialogOpen(false)}
         booking={updateCheckoutBooking}
         onSuccess={() => {
-          showSnackbar('Checkout date updated successfully', 'success');
+          showSnackbar('Checkout date extended successfully', 'success');
           loadData();
         }}
       />
