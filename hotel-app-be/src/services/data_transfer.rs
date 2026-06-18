@@ -8,7 +8,7 @@ use crate::constants::ImportMode;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{BookingDataExport, ImportRequest};
-use crate::repositories::data_transfer::DataTransferRepository;
+use crate::repositories::data_transfer::{DataTransferRepository, ImportRowPolicy};
 
 const BASE_MANAGED_TABLES: &[&str] = &[
     "night_audit_details",
@@ -58,6 +58,24 @@ const ALL_IMPORT_TABLES: &[&str] = &[
     "room_changes",
 ];
 
+const SEQUENCE_RESET_TABLES: &[&str] = &[
+    "room_types",
+    "rooms",
+    "guests",
+    "user_guests",
+    "guest_complimentary_credits",
+    "companies",
+    "bookings",
+    "payments",
+    "invoices",
+    "booking_guests",
+    "night_audit_runs",
+    "night_audit_details",
+    "customer_ledgers",
+    "customer_ledger_payments",
+    "room_changes",
+];
+
 const TABLES_WITH_TRIGGERS: &[&str] = &[
     "bookings",
     "rooms",
@@ -66,7 +84,7 @@ const TABLES_WITH_TRIGGERS: &[&str] = &[
     "payments",
 ];
 
-const USER_FK_COLUMNS: &[&str] = &[
+const AUDIT_USER_FK_COLUMNS: &[&str] = &[
     "created_by",
     "updated_by",
     "cancelled_by",
@@ -110,27 +128,39 @@ pub async fn export_booking_data(pool: &DbPool) -> Result<BookingDataExport, Api
     })
 }
 
-pub async fn import_booking_data(pool: &DbPool, request: ImportRequest) -> Result<Value, ApiError> {
+pub async fn import_booking_data(
+    pool: &DbPool,
+    import_user_id: i64,
+    request: ImportRequest,
+) -> Result<Value, ApiError> {
     let data = request.data;
     let is_overwrite = request.mode == ImportMode::Overwrite;
     let managed_tables = managed_tables(data.rooms.is_empty());
 
-    if is_overwrite {
-        DataTransferRepository::clear_tables(pool, &managed_tables).await?;
-        log::info!("Phase 1: All managed tables cleared");
-    }
-
     let mut generated_columns = base_generated_columns();
-    let existing_user_ids = DataTransferRepository::existing_user_ids(pool).await;
-    for (table, columns) in DataTransferRepository::generated_columns(pool, ALL_IMPORT_TABLES).await
+    let existing_user_ids = DataTransferRepository::existing_user_ids(pool).await?;
+    let table_columns = DataTransferRepository::table_columns(pool, ALL_IMPORT_TABLES).await?;
+    let required_columns =
+        DataTransferRepository::required_columns(pool, ALL_IMPORT_TABLES).await?;
+    let user_fk_columns = DataTransferRepository::user_fk_columns(pool, ALL_IMPORT_TABLES).await?;
+    for (table, columns) in
+        DataTransferRepository::generated_columns(pool, ALL_IMPORT_TABLES).await?
     {
         generated_columns.entry(table).or_default().extend(columns);
     }
-    let table_columns = DataTransferRepository::table_columns(pool, ALL_IMPORT_TABLES).await;
 
-    DataTransferRepository::set_user_triggers(pool, TABLES_WITH_TRIGGERS, false).await;
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+    if is_overwrite {
+        DataTransferRepository::clear_tables(&mut tx, &managed_tables).await?;
+        log::info!("Phase 1: All managed tables cleared");
+    }
+
+    DataTransferRepository::align_status_constraints(&mut tx).await?;
+    DataTransferRepository::set_user_triggers(&mut tx, TABLES_WITH_TRIGGERS, false).await?;
 
     let empty_skip = HashSet::new();
+    let empty_columns = HashSet::new();
     let tables_and_data: Vec<(&str, &[Value])> = vec![
         ("room_types", &data.room_types),
         ("rooms", &data.rooms),
@@ -155,27 +185,36 @@ pub async fn import_booking_data(pool: &DbPool, request: ImportRequest) -> Resul
     ];
 
     let mut counts = serde_json::Map::new();
-    let mut errors = serde_json::Map::new();
 
     for (table, rows) in tables_and_data {
         let skip = generated_columns.get(table).unwrap_or(&empty_skip);
         let mut inserted = 0usize;
-        let mut failed = 0usize;
-        let mut last_error = String::new();
 
-        for row in rows {
+        for (row_index, row) in rows.iter().enumerate() {
             let Some(obj) = row.as_object() else {
-                continue;
+                let message = format!(
+                    "Import failed for table {} row {} because the row is not a JSON object. No changes were saved.",
+                    table,
+                    row_index + 1
+                );
+                log::warn!("{}", message);
+                let _ = tx.rollback().await;
+                return Err(ApiError::BadRequest(message));
             };
 
             match DataTransferRepository::insert_json_row(
-                pool,
+                &mut tx,
                 table,
                 obj,
-                skip,
-                table_columns.get(table),
-                USER_FK_COLUMNS,
-                &existing_user_ids,
+                ImportRowPolicy {
+                    skip_columns: skip,
+                    valid_columns: table_columns.get(table),
+                    required_columns: required_columns.get(table),
+                    user_fk_columns: user_fk_columns.get(table).unwrap_or(&empty_columns),
+                    audit_user_fk_columns: AUDIT_USER_FK_COLUMNS,
+                    existing_user_ids: &existing_user_ids,
+                    fallback_user_id: import_user_id,
+                },
             )
             .await
             {
@@ -185,46 +224,37 @@ pub async fn import_booking_data(pool: &DbPool, request: ImportRequest) -> Resul
                     }
                 }
                 Err(error) => {
-                    failed += 1;
-                    last_error = error.to_string();
-                    log::warn!("Failed to insert row into {}: {}", table, error);
+                    let error_detail = import_error_detail(&error);
+                    let message = format!(
+                        "Import failed for table {} row {}{}: {}. No changes were saved.",
+                        table,
+                        row_index + 1,
+                        row_reference(obj),
+                        error_detail
+                    );
+                    log::warn!("{}", message);
+                    let _ = tx.rollback().await;
+                    return Err(ApiError::BadRequest(message));
                 }
             }
         }
 
         counts.insert(table.into(), Value::Number(inserted.into()));
-        if failed > 0 {
-            errors.insert(
-                table.into(),
-                serde_json::json!({
-                    "failed": failed,
-                    "last_error": last_error,
-                }),
-            );
-            log::warn!(
-                "Table {}: {} inserted, {} failed. Last error: {}",
-                table,
-                inserted,
-                failed,
-                last_error
-            );
-        }
         if inserted > 0 {
             log::info!("Inserted {} rows into {}", inserted, table);
         }
     }
 
-    DataTransferRepository::set_user_triggers(pool, TABLES_WITH_TRIGGERS, true).await;
-    DataTransferRepository::reset_sequences(pool, ALL_IMPORT_TABLES).await;
+    DataTransferRepository::set_user_triggers(&mut tx, TABLES_WITH_TRIGGERS, true).await?;
+    DataTransferRepository::reset_sequences(&mut tx, SEQUENCE_RESET_TABLES).await?;
 
-    let mut response = serde_json::json!({
+    tx.commit().await.map_err(ApiError::from)?;
+
+    let response = serde_json::json!({
         "success": true,
         "mode": if is_overwrite { "overwrite" } else { "import" },
         "records_imported": counts,
     });
-    if !errors.is_empty() {
-        response["errors"] = Value::Object(errors);
-    }
 
     Ok(response)
 }
@@ -258,6 +288,40 @@ fn base_generated_columns() -> HashMap<String, HashSet<String>> {
         )
     })
     .collect()
+}
+
+fn row_reference(row: &serde_json::Map<String, Value>) -> String {
+    for key in [
+        "id",
+        "booking_number",
+        "invoice_number",
+        "room_number",
+        "company_name",
+        "full_name",
+        "audit_date",
+    ] {
+        if let Some(value) = row.get(key) {
+            return format!(" ({key}: {})", format_reference_value(value));
+        }
+    }
+
+    String::new()
+}
+
+fn format_reference_value(value: &Value) -> String {
+    match value {
+        Value::String(value) => value.clone(),
+        other => other.to_string(),
+    }
+}
+
+fn import_error_detail(error: &ApiError) -> String {
+    match error {
+        ApiError::BadRequest(message)
+        | ApiError::Conflict(message)
+        | ApiError::Database(message) => message.clone(),
+        _ => error.to_string(),
+    }
 }
 
 #[cfg(test)]

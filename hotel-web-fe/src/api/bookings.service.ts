@@ -5,6 +5,7 @@ import {
   BookingCreateRequest,
   BookingUpdateRequest,
   BookingCancellationRequest,
+  BookingVoidResponse,
   BookingTimelineEntry,
   BookingWithDetails,
   CheckInRequest,
@@ -190,11 +191,11 @@ export class BookingsService {
     }
   }
 
-  static async voidBooking(cancellationData: BookingCancellationRequest): Promise<Booking> {
+  static async voidBooking(cancellationData: BookingCancellationRequest): Promise<BookingVoidResponse> {
     try {
       return await api
         .post('bookings/void', { json: cancellationData })
-        .json<Booking>();
+        .json<BookingVoidResponse>();
     } catch (error) {
       if (error instanceof HTTPError) {
         const errorData = await error.response.json().catch(() => ({}));

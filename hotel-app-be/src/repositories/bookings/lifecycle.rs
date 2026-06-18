@@ -20,7 +20,7 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use chrono::{Duration, NaiveDate};
+use chrono::{Datelike, Duration, NaiveDate};
 use rust_decimal::Decimal;
 use sqlx::Row;
 
@@ -294,7 +294,7 @@ pub async fn get_booking_timeline_handler(
         SELECT CAST(id AS TEXT) AS id, 'booking_history' AS source, 'status_change' AS event_type,
                'Status changed to ' || new_status AS title,
                change_reason AS description, previous_status AS status_from, new_status AS status_to,
-               NULL AS amount, changed_by AS actor_id, metadata, created_at
+               NULL AS amount, changed_by AS actor_id, NULL AS old_metadata, metadata, created_at
         FROM booking_history
         WHERE booking_id = ?1
         UNION ALL
@@ -308,7 +308,7 @@ pub async fn get_booking_timeline_handler(
                    ELSE 'Booking updated'
                END AS title,
                reason AS description, NULL AS status_from, NULL AS status_to,
-               CAST(price_adjustment AS TEXT) AS amount, modified_by AS actor_id, new_value AS metadata, modified_at AS created_at
+               CAST(price_adjustment AS TEXT) AS amount, modified_by AS actor_id, old_value AS old_metadata, new_value AS metadata, modified_at AS created_at
         FROM booking_modifications
         WHERE booking_id = ?1
         UNION ALL
@@ -319,14 +319,14 @@ pub async fn get_booking_timeline_handler(
                    ELSE 'Payment recorded'
                END AS title,
                notes AS description, NULL AS status_from, status AS status_to,
-               CAST(amount AS TEXT) AS amount, processed_by AS actor_id, NULL AS metadata, created_at
+               CAST(amount AS TEXT) AS amount, processed_by AS actor_id, NULL AS old_metadata, NULL AS metadata, created_at
         FROM payments
         WHERE booking_id = ?1
         UNION ALL
         SELECT CAST(id AS TEXT) AS id, 'invoices' AS source, 'invoice' AS event_type,
                'Invoice ' || invoice_number AS title,
                notes AS description, NULL AS status_from, status AS status_to,
-               CAST(total_amount AS TEXT) AS amount, created_by AS actor_id, NULL AS metadata, created_at
+               CAST(total_amount AS TEXT) AS amount, created_by AS actor_id, NULL AS old_metadata, NULL AS metadata, created_at
         FROM invoices
         WHERE booking_id = ?1
         ORDER BY created_at ASC
@@ -337,7 +337,7 @@ pub async fn get_booking_timeline_handler(
         SELECT id::text AS id, 'booking_history' AS source, 'status_change' AS event_type,
                'Status changed to ' || new_status AS title,
                change_reason AS description, previous_status AS status_from, new_status AS status_to,
-               NULL::text AS amount, changed_by AS actor_id, metadata, created_at
+               NULL::text AS amount, changed_by AS actor_id, NULL::jsonb AS old_metadata, metadata, created_at
         FROM booking_history
         WHERE booking_id = $1
         UNION ALL
@@ -351,7 +351,7 @@ pub async fn get_booking_timeline_handler(
                    ELSE 'Booking updated'
                END AS title,
                reason AS description, NULL::text AS status_from, NULL::text AS status_to,
-               price_adjustment::text AS amount, modified_by AS actor_id, new_value AS metadata, modified_at AS created_at
+               price_adjustment::text AS amount, modified_by AS actor_id, old_value AS old_metadata, new_value AS metadata, modified_at AS created_at
         FROM booking_modifications
         WHERE booking_id = $1
         UNION ALL
@@ -362,14 +362,14 @@ pub async fn get_booking_timeline_handler(
                    ELSE 'Payment recorded'
                END AS title,
                notes AS description, NULL::text AS status_from, status AS status_to,
-               amount::text AS amount, created_by AS actor_id, metadata, created_at
+               amount::text AS amount, created_by AS actor_id, NULL::jsonb AS old_metadata, metadata, created_at
         FROM payments
         WHERE booking_id = $1
         UNION ALL
         SELECT id::text AS id, 'invoices' AS source, 'invoice' AS event_type,
                'Invoice ' || invoice_number AS title,
                notes AS description, NULL::text AS status_from, status AS status_to,
-               total_amount::text AS amount, created_by AS actor_id, NULL::jsonb AS metadata, created_at
+               total_amount::text AS amount, created_by AS actor_id, NULL::jsonb AS old_metadata, NULL::jsonb AS metadata, created_at
         FROM invoices
         WHERE booking_id = $1
         ORDER BY created_at ASC
@@ -390,18 +390,42 @@ pub async fn get_booking_timeline_handler(
                 .ok()
                 .flatten()
                 .and_then(|s| serde_json::from_str(&s).ok());
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            let old_metadata = row
+                .try_get::<Option<String>, _>("old_metadata")
+                .ok()
+                .flatten()
+                .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok());
             #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             let metadata = row
                 .try_get::<Option<serde_json::Value>, _>("metadata")
                 .ok()
                 .flatten();
+            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+            let old_metadata = row
+                .try_get::<Option<serde_json::Value>, _>("old_metadata")
+                .ok()
+                .flatten();
+
+            let source: String = row.try_get("source").unwrap_or_default();
+            let event_type: String = row.try_get("event_type").unwrap_or_default();
+            let base_title: String = row.try_get("title").unwrap_or_default();
+            let base_description: Option<String> = row.try_get("description").ok();
+            let (title, description) = describe_booking_modification_event(
+                &source,
+                &event_type,
+                base_title,
+                base_description,
+                old_metadata.as_ref(),
+                metadata.as_ref(),
+            );
 
             BookingTimelineEntry {
                 id: row.try_get("id").unwrap_or_default(),
-                source: row.try_get("source").unwrap_or_default(),
-                event_type: row.try_get("event_type").unwrap_or_default(),
-                title: row.try_get("title").unwrap_or_default(),
-                description: row.try_get("description").ok(),
+                source,
+                event_type,
+                title,
+                description,
                 status_from: row.try_get("status_from").ok(),
                 status_to: row.try_get("status_to").ok(),
                 amount: row.try_get("amount").ok(),
@@ -415,6 +439,156 @@ pub async fn get_booking_timeline_handler(
         .collect();
 
     Ok(Json(timeline))
+}
+
+fn describe_booking_modification_event(
+    source: &str,
+    event_type: &str,
+    base_title: String,
+    base_description: Option<String>,
+    old_metadata: Option<&serde_json::Value>,
+    metadata: Option<&serde_json::Value>,
+) -> (String, Option<String>) {
+    if source != "booking_modifications" || event_type != "date_change" {
+        return (base_title, base_description);
+    }
+
+    let Some(old_value) = old_metadata else {
+        return (base_title, base_description);
+    };
+    let Some(new_value) = metadata else {
+        return (base_title, base_description);
+    };
+
+    let Some(old_check_in) = timeline_json_string(old_value, "check_in_date") else {
+        return (base_title, base_description);
+    };
+    let Some(old_check_out) = timeline_json_string(old_value, "check_out_date") else {
+        return (base_title, base_description);
+    };
+    let Some(new_check_in) = timeline_json_string(new_value, "check_in_date") else {
+        return (base_title, base_description);
+    };
+    let Some(new_check_out) = timeline_json_string(new_value, "check_out_date") else {
+        return (base_title, base_description);
+    };
+
+    let old_check_out_date = NaiveDate::parse_from_str(&old_check_out, "%Y-%m-%d").ok();
+    let new_check_out_date = NaiveDate::parse_from_str(&new_check_out, "%Y-%m-%d").ok();
+    let same_arrival = old_check_in == new_check_in;
+
+    let (title, verb) = match (same_arrival, old_check_out_date, new_check_out_date) {
+        (true, Some(old_date), Some(new_date)) if new_date > old_date => {
+            ("Stay extended".to_string(), "Extended")
+        }
+        (true, Some(old_date), Some(new_date)) if new_date < old_date => {
+            ("Stay shortened".to_string(), "Shortened")
+        }
+        _ => (base_title, "Changed"),
+    };
+
+    let derived_description = format!(
+        "{} from {} to {}.",
+        verb,
+        format_timeline_date_range(&old_check_in, &old_check_out),
+        format_timeline_date_range(&new_check_in, &new_check_out)
+    );
+
+    let description = match base_description {
+        Some(reason) if !reason.trim().is_empty() => {
+            Some(format!("{} {}", derived_description, reason.trim()))
+        }
+        _ => Some(derived_description),
+    };
+
+    (title, description)
+}
+
+fn timeline_json_string(value: &serde_json::Value, key: &str) -> Option<String> {
+    value
+        .get(key)
+        .and_then(|v| v.as_str())
+        .map(|v| v.to_string())
+}
+
+fn format_timeline_date_range(check_in: &str, check_out: &str) -> String {
+    format!(
+        "{} - {}",
+        format_timeline_date(check_in),
+        format_timeline_date(check_out)
+    )
+}
+
+fn format_timeline_date(value: &str) -> String {
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+
+    NaiveDate::parse_from_str(value, "%Y-%m-%d")
+        .map(|date| {
+            let month = MONTHS[(date.month() - 1) as usize];
+            format!("{} {}, {}", month, date.day(), date.year())
+        })
+        .unwrap_or_else(|_| value.to_string())
+}
+
+#[cfg(test)]
+mod timeline_description_tests {
+    use super::*;
+
+    #[test]
+    fn date_change_extension_describes_old_and_new_stay_ranges() {
+        let old_value = serde_json::json!({
+            "check_in_date": "2026-06-09",
+            "check_out_date": "2026-06-12",
+        });
+        let new_value = serde_json::json!({
+            "check_in_date": "2026-06-09",
+            "check_out_date": "2026-06-18",
+        });
+
+        let (title, description) = describe_booking_modification_event(
+            "booking_modifications",
+            "date_change",
+            "Dates updated".to_string(),
+            None,
+            Some(&old_value),
+            Some(&new_value),
+        );
+
+        assert_eq!(title, "Stay extended");
+        assert_eq!(
+            description.as_deref(),
+            Some("Extended from Jun 9, 2026 - Jun 12, 2026 to Jun 9, 2026 - Jun 18, 2026.")
+        );
+    }
+
+    #[test]
+    fn date_change_shortening_describes_old_and_new_stay_ranges() {
+        let old_value = serde_json::json!({
+            "check_in_date": "2026-06-09",
+            "check_out_date": "2026-06-18",
+        });
+        let new_value = serde_json::json!({
+            "check_in_date": "2026-06-09",
+            "check_out_date": "2026-06-12",
+        });
+
+        let (title, description) = describe_booking_modification_event(
+            "booking_modifications",
+            "date_change",
+            "Dates updated".to_string(),
+            None,
+            Some(&old_value),
+            Some(&new_value),
+        );
+
+        assert_eq!(title, "Stay shortened");
+        assert_eq!(
+            description.as_deref(),
+            Some("Shortened from Jun 9, 2026 - Jun 18, 2026 to Jun 9, 2026 - Jun 12, 2026.")
+        );
+    }
 }
 
 /// Auto-create a `customer_ledgers` room-charge row for a company-billing
@@ -649,6 +823,129 @@ pub async fn get_bookings_handler(
 
 fn decimal_to_f64(value: Decimal) -> f64 {
     value.to_string().parse::<f64>().unwrap_or(0.0)
+}
+
+fn checkout_balance_due(total_amount: Decimal, total_paid: Decimal) -> Decimal {
+    if total_amount > total_paid {
+        total_amount - total_paid
+    } else {
+        Decimal::ZERO
+    }
+}
+
+fn booking_has_company_billing(
+    booking: &Booking,
+    input: &BookingUpdateInput,
+    final_company_id: Option<i64>,
+) -> bool {
+    final_company_id.is_some()
+        || input
+            .company_name
+            .as_deref()
+            .or(booking.company_name.as_deref())
+            .map(|name| !name.trim().is_empty())
+            .unwrap_or(false)
+}
+
+async fn completed_booking_payment_total(
+    pool: &DbPool,
+    booking_id: i64,
+) -> Result<Decimal, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let row = sqlx::query(
+        r#"
+        SELECT COALESCE(SUM(
+            CASE
+                WHEN status = 'completed' AND COALESCE(payment_type, 'booking') != 'refund'
+                THEN amount
+                ELSE 0
+            END
+        ), 0) AS total_paid
+        FROM payments
+        WHERE booking_id = ?1
+        "#,
+    )
+    .bind(booking_id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let row = sqlx::query(
+        r#"
+        SELECT COALESCE(SUM(amount) FILTER (
+            WHERE status = 'completed'
+              AND COALESCE(payment_type, 'booking') != 'refund'
+        ), 0) AS total_paid
+        FROM payments
+        WHERE booking_id = $1
+        "#,
+    )
+    .bind(booking_id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(row_mappers::get_decimal(&row, "total_paid"))
+}
+
+async fn ensure_checkout_balance_resolved(
+    pool: &DbPool,
+    booking_id: i64,
+    existing_booking: &Booking,
+    input: &BookingUpdateInput,
+    new_status: &str,
+    new_total_amount: Option<Decimal>,
+) -> Result<(), ApiError> {
+    let is_checkout_transition = matches!(new_status, "checked_out" | "completed")
+        && !matches!(
+            existing_booking.status.as_str(),
+            "checked_out" | "completed"
+        );
+    if !is_checkout_transition {
+        return Ok(());
+    }
+
+    let total_amount = new_total_amount.unwrap_or(existing_booking.total_amount);
+    let total_paid = completed_booking_payment_total(pool, booking_id).await?;
+    let balance_due = checkout_balance_due(total_amount, total_paid);
+    let final_company_id = input.company_id.or(existing_booking.company_id);
+
+    if balance_due > Decimal::ZERO
+        && !booking_has_company_billing(existing_booking, input, final_company_id)
+    {
+        return Err(ApiError::BadRequest(format!(
+            "Collect full payment before checkout. Balance due: {}",
+            balance_due.round_dp(2)
+        )));
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod checkout_payment_guard_tests {
+    use super::*;
+
+    #[test]
+    fn checkout_balance_due_is_zero_when_paid_or_overpaid() {
+        assert_eq!(
+            checkout_balance_due(Decimal::new(10000, 2), Decimal::new(10000, 2)),
+            Decimal::ZERO
+        );
+        assert_eq!(
+            checkout_balance_due(Decimal::new(10000, 2), Decimal::new(12500, 2)),
+            Decimal::ZERO
+        );
+    }
+
+    #[test]
+    fn checkout_balance_due_returns_remaining_unpaid_amount() {
+        assert_eq!(
+            checkout_balance_due(Decimal::new(10000, 2), Decimal::new(2500, 2)),
+            Decimal::new(7500, 2)
+        );
+    }
 }
 
 async fn booking_revenue_for_date(pool: &DbPool, date: NaiveDate) -> Result<f64, ApiError> {
@@ -1453,6 +1750,16 @@ pub async fn update_booking_handler(
         canonical_tourism_tax_for_guest(&pool, existing_booking.guest_id, check_in, check_out)
             .await?;
 
+    ensure_checkout_balance_resolved(
+        &pool,
+        booking_id,
+        &existing_booking,
+        &input,
+        &new_status,
+        new_total_amount,
+    )
+    .await?;
+
     // SQLite version: UPDATE then SELECT
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let booking: Booking = {
@@ -1964,13 +2271,7 @@ pub async fn delete_booking_handler(
         ));
     }
 
-    if matches!(status.as_str(), "checked_out" | "completed") {
-        return Err(ApiError::BadRequest(format!(
-            "Cannot void booking with status: {}",
-            status
-        )));
-    }
-
+    let affected_night_audit_dates = booking_night_audit_dates(&pool, booking_id).await?;
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
@@ -1982,7 +2283,6 @@ pub async fn delete_booking_handler(
             cancelled_by = ?2
         WHERE id = ?1
           AND status != 'voided'
-          AND status NOT IN ('checked_out', 'completed')
     "#;
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_booking_query = r#"
@@ -1993,7 +2293,6 @@ pub async fn delete_booking_handler(
             cancelled_by = $2
         WHERE id = $1
           AND status != 'voided'
-          AND status NOT IN ('checked_out', 'completed')
     "#;
 
     let result = sqlx::query(update_booking_query)
@@ -2135,7 +2434,9 @@ pub async fn delete_booking_handler(
     Ok(Json(serde_json::json!({
         "message": "Booking voided successfully",
         "booking_id": booking_id,
-        "complimentary_nights_credited": nights_credited
+        "complimentary_nights_credited": nights_credited,
+        "affected_night_audit_dates": affected_night_audit_dates,
+        "night_audit_rerun_required": !affected_night_audit_dates.is_empty()
     })))
 }
 
@@ -2774,7 +3075,6 @@ pub async fn void_booking_tx(
             cancelled_by = ?2
         WHERE id = ?1
           AND status != 'voided'
-          AND status NOT IN ('checked_out', 'completed')
     "#;
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let update_booking_query = r#"
@@ -2785,7 +3085,6 @@ pub async fn void_booking_tx(
             cancelled_by = $2
         WHERE id = $1
           AND status != 'voided'
-          AND status NOT IN ('checked_out', 'completed')
     "#;
 
     let result = sqlx::query(update_booking_query)
@@ -2800,6 +3099,66 @@ pub async fn void_booking_tx(
     }
 
     Ok(())
+}
+
+pub async fn booking_night_audit_dates(
+    pool: &DbPool,
+    booking_id: i64,
+) -> Result<Vec<NaiveDate>, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let rows = sqlx::query(
+        r#"
+        SELECT DISTINCT posted_date AS audit_date
+        FROM bookings
+        WHERE id = ?1
+          AND COALESCE(is_posted, 0) = 1
+          AND posted_date IS NOT NULL
+        ORDER BY audit_date
+        "#,
+    )
+    .bind(booking_id)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let rows = sqlx::query(
+        r#"
+        SELECT DISTINCT audit_date
+        FROM (
+            SELECT napn.audit_date
+            FROM night_audit_posted_nights napn
+            WHERE napn.booking_id = $1
+
+            UNION
+
+            SELECT nar.audit_date
+            FROM night_audit_details nad
+            JOIN night_audit_runs nar ON nar.id = nad.audit_run_id
+            WHERE nad.booking_id = $1
+              AND nad.record_type = 'booking'
+              AND nad.action = 'posted'
+
+            UNION
+
+            SELECT b.posted_date AS audit_date
+            FROM bookings b
+            WHERE b.id = $1
+              AND COALESCE(b.is_posted, false)
+              AND b.posted_date IS NOT NULL
+        ) posted
+        ORDER BY audit_date
+        "#,
+    )
+    .bind(booking_id)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    rows.into_iter()
+        .map(|row| row.try_get::<NaiveDate, _>("audit_date"))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| ApiError::Database(e.to_string()))
 }
 
 pub async fn release_room_tx(tx: &mut DbTransaction<'_>, room_id: i64) -> Result<(), ApiError> {

@@ -47,12 +47,8 @@ pub async fn void_booking(
         ));
     }
 
-    if matches!(booking.status.as_str(), "checked_out" | "completed") {
-        return Err(ApiError::BadRequest(format!(
-            "Cannot void booking with status: {}",
-            booking.status
-        )));
-    }
+    let affected_night_audit_dates =
+        booking_repo::booking_night_audit_dates(pool, booking_id).await?;
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
     booking_repo::void_booking_tx(&mut tx, booking_id, user_id).await?;
@@ -86,7 +82,9 @@ pub async fn void_booking(
     Ok(serde_json::json!({
         "message": "Booking voided successfully",
         "booking_id": booking_id,
-        "complimentary_nights_credited": nights_credited
+        "complimentary_nights_credited": nights_credited,
+        "affected_night_audit_dates": affected_night_audit_dates,
+        "night_audit_rerun_required": !affected_night_audit_dates.is_empty()
     }))
 }
 

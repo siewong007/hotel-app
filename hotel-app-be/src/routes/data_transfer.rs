@@ -35,6 +35,6 @@ async fn import_data(
     headers: HeaderMap,
     Json(input): Json<models::ImportRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_permission_helper(&pool, &headers, "settings:manage").await?;
-    handlers::data_transfer::import_booking_data_handler(State(pool), Json(input)).await
+    let user_id = require_permission_helper(&pool, &headers, "settings:manage").await?;
+    handlers::data_transfer::import_booking_data_handler(State(pool), user_id, Json(input)).await
 }

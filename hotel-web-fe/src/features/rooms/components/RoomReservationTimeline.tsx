@@ -41,6 +41,8 @@ import { formatLocalDate } from '../../../utils/date';
 const ROOM_COL = 220;
 const DAY_W = 88;
 const ROW_H = 76;
+const LANE_H = 58;
+const ROW_PAD_Y = 8;
 
 // ── Concept B "sketchy" palette ───────────────────────────────────────────
 const PALETTE = {
@@ -136,6 +138,49 @@ interface TimelineBooking {
   extra_bed_charge?: number | string;
   company_name?: string;
   rate_code?: string;
+}
+
+type TimelineBookingBar = TimelineBooking & {
+  startCol: number;
+  endCol: number;
+  lane: number;
+};
+
+function buildBookingBarLayout(
+  roomBookings: TimelineBooking[],
+  startDate: Date,
+  daysToShow: number
+): { bars: TimelineBookingBar[]; laneCount: number } {
+  const visibleBars = roomBookings
+    .map((booking) => {
+      const startCol = Math.max(0, dayIndex(startDate, booking.check_in_date));
+      let endCol = Math.min(daysToShow, dayIndex(startDate, booking.check_out_date));
+
+      if (endCol <= startCol) endCol = Math.min(daysToShow, startCol + 1);
+      if (endCol - startCol <= 0) return null;
+
+      return { ...booking, startCol, endCol, lane: 0 };
+    })
+    .filter((bar): bar is TimelineBookingBar => Boolean(bar))
+    .sort((a, b) => {
+      if (a.startCol !== b.startCol) return a.startCol - b.startCol;
+      if (a.endCol !== b.endCol) return b.endCol - a.endCol;
+      return String(a.id).localeCompare(String(b.id));
+    });
+
+  const laneEnds: number[] = [];
+  visibleBars.forEach((bar) => {
+    let lane = laneEnds.findIndex((endCol) => bar.startCol >= endCol);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(bar.endCol);
+    } else {
+      laneEnds[lane] = bar.endCol;
+    }
+    bar.lane = lane;
+  });
+
+  return { bars: visibleBars, laneCount: Math.max(laneEnds.length, 1) };
 }
 
 const RoomReservationTimeline: React.FC = () => {
@@ -510,6 +555,8 @@ const RoomReservationTimeline: React.FC = () => {
               {/* Room rows */}
               {rooms.map((room) => {
                 const roomBookings = bookings.filter((b) => Number(b.room_id) === Number(room.id));
+                const { bars: roomBookingBars, laneCount } = buildBookingBarLayout(roomBookings, startDate, daysToShow);
+                const rowHeight = Math.max(ROW_H, ROW_PAD_Y * 2 + laneCount * LANE_H);
                 return (
                   <Box
                     key={room.id}
@@ -517,7 +564,7 @@ const RoomReservationTimeline: React.FC = () => {
                       display: 'flex',
                       borderBottom: `1px solid ${PALETTE.rowDivider}`,
                       position: 'relative',
-                      height: ROW_H,
+                      height: rowHeight,
                     }}
                   >
                     {/* Room info cell (sticky) */}
@@ -572,22 +619,10 @@ const RoomReservationTimeline: React.FC = () => {
                     </Box>
 
                     {/* Booking bars */}
-                    {roomBookings.map((b) => {
-                      const startCol = Math.max(0, dayIndex(startDate, b.check_in_date));
-                      let endCol = Math.min(daysToShow, dayIndex(startDate, b.check_out_date));
-                      // For checked-in stays already past their checkout date, extend to today
-                      const isCheckedIn = b.status === 'checked_in' || b.status === 'auto_checked_in';
-                      if (isCheckedIn) {
-                        const todayCol = dayIndex(startDate, today) + 1;
-                        if (todayCol > endCol) endCol = Math.min(daysToShow, todayCol);
-                      }
-                      // Same-day stays: render as 1 day
-                      if (endCol <= startCol) endCol = Math.min(daysToShow, startCol + 1);
-                      const span = endCol - startCol;
-                      if (span <= 0) return null;
-
+                    {roomBookingBars.map((b) => {
+                      const span = b.endCol - b.startCol;
                       const sc = statusBarColors(b.status, b.is_complimentary);
-                      const left = ROOM_COL + startCol * DAY_W + 4;
+                      const left = ROOM_COL + b.startCol * DAY_W + 4;
                       const width = span * DAY_W - 8;
                       const showText = width > 90;
                       const showRate = width > 160;
@@ -601,8 +636,8 @@ const RoomReservationTimeline: React.FC = () => {
                           sx={{
                             position: 'absolute',
                             left,
-                            top: 8,
-                            bottom: 8,
+                            top: ROW_PAD_Y + b.lane * LANE_H,
+                            height: LANE_H - 10,
                             width,
                             bgcolor: sc.bg,
                             border: `2px solid ${sc.border}`,

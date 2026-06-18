@@ -261,17 +261,23 @@ impl PaymentRepository {
         if let Some(ref txn_ref) = request.transaction_reference
             && !txn_ref.is_empty()
         {
-            let duplicate: Option<i64> =
-                sqlx::query_scalar("SELECT id FROM payments WHERE transaction_id = $1 LIMIT 1")
-                    .bind(txn_ref)
-                    .fetch_optional(&mut *tx)
-                    .await
-                    .map_err(ApiError::from)?;
+            let duplicate = sqlx::query_as::<_, PaymentEntryRow>(
+                r#"
+                SELECT id, booking_id, amount::text AS total_amount, payment_method, payment_type,
+                       status AS payment_status, transaction_id AS transaction_reference, notes, created_at
+                FROM payments
+                WHERE transaction_id = $1
+                LIMIT 1
+                "#,
+            )
+            .bind(txn_ref)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
 
-            if duplicate.is_some() {
-                return Err(ApiError::BadRequest(
-                    "A payment with this transaction reference already exists".to_string(),
-                ));
+            if let Some(row) = duplicate {
+                tx.commit().await.map_err(ApiError::from)?;
+                return Ok(row);
             }
         }
 

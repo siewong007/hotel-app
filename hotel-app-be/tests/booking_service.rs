@@ -643,7 +643,7 @@ mod sqlite_tests {
     }
 
     #[tokio::test]
-    async fn void_booking_rejects_checked_out_booking() {
+    async fn void_booking_allows_checked_out_booking_for_abandoned_review() {
         let pool = common::setup_test_db().await;
         seed_room_guest_booking(
             &pool,
@@ -655,12 +655,23 @@ mod sqlite_tests {
             "2030-08-22",
         )
         .await;
+        sqlx::query("UPDATE bookings SET is_posted = 1, posted_date = '2030-08-20' WHERE id = ?1")
+            .bind(9985_i64)
+            .execute(&pool)
+            .await
+            .unwrap();
 
         let result = bookings::void_booking(&pool, 1, 9985, None).await;
 
         assert!(
-            matches!(result, Err(ApiError::BadRequest(ref message)) if message.contains("checked_out")),
-            "expected checked-out void rejection, got: {result:?}"
+            result.is_ok(),
+            "expected checked-out void to succeed, got: {result:?}"
+        );
+        let payload = result.unwrap();
+        assert_eq!(payload["night_audit_rerun_required"].as_bool(), Some(true));
+        assert_eq!(
+            payload["affected_night_audit_dates"][0].as_str(),
+            Some("2030-08-20")
         );
 
         let status: String = sqlx::query_scalar("SELECT status FROM bookings WHERE id = ?1")
@@ -668,7 +679,7 @@ mod sqlite_tests {
             .fetch_one(&pool)
             .await
             .unwrap();
-        assert_eq!(status, "checked_out");
+        assert_eq!(status, "voided");
     }
 
     #[tokio::test]
