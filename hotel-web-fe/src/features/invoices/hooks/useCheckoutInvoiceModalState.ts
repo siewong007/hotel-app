@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { BookingWithDetails } from '../../../types';
 import { queryKeys } from '../../../api/queryKeys';
 import { InvoicesService } from '../../../api/invoices.service';
+import { formatLocalDate } from '../../../utils/date';
 
 interface UseCheckoutInvoiceModalStateProps {
   booking: BookingWithDetails | null;
@@ -116,7 +117,7 @@ export function useCheckoutInvoiceModalState(
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState(formatLocalDate());
   const [recordingPayment, setRecordingPayment] = useState(false);
 
   // Payment editing
@@ -199,7 +200,7 @@ export function useCheckoutInvoiceModalState(
       setPaymentAmount(0);
       setPaymentReference('');
       setPaymentNotes('');
-      setPaymentDate(new Date().toISOString().split('T')[0]);
+      setPaymentDate(formatLocalDate());
     } catch (err: any) {
       setError(err.message || 'Failed to record payment');
     } finally {
@@ -213,7 +214,7 @@ export function useCheckoutInvoiceModalState(
     setEditMethod(payment.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Cash');
     setEditReference(payment.transaction_reference || '');
     setEditNotes(payment.notes || '');
-    const paymentDate = payment.created_at ? new Date(payment.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+    const paymentDate = payment.created_at ? formatLocalDate(new Date(payment.created_at)) : formatLocalDate();
     setEditDate(paymentDate);
   };
 

@@ -47,6 +47,7 @@ import {
 } from '@mui/icons-material';
 import { NightAuditRun, UnpostedBooking, JournalSection, AuditDetailsResponse } from '../../../api';
 import { TabPanel, getTabA11yProps } from '../../../components/common/TabPanel';
+import { formatLocalDate } from '../../../utils/date';
 import { formatCurrency } from '../../../utils/currency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import {
@@ -191,10 +192,7 @@ function JournalSectionsDisplay({ sections }: JournalSectionsDisplayProps) {
 const NightAuditPage: React.FC = () => {
   // State
   const [tabValue, setTabValue] = useState(0);
-  const [auditDate, setAuditDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
+  const [auditDate, setAuditDate] = useState(() => formatLocalDate());
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const previewQuery = useNightAuditPreview(auditDate);

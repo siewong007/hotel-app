@@ -554,6 +554,36 @@ AND check_out_date >= date('now')
 LIMIT 1
 "#;
 
+/// Check for a reservation arriving today, once the configured check-in time
+/// has passed (used to auto-flip a room to `reserved` when staff mark it
+/// available). $2 is the check-in time, e.g. '15:00:00'. - PostgreSQL version
+#[cfg(any(
+    all(feature = "postgres", not(feature = "sqlite")),
+    all(feature = "sqlite", feature = "postgres")
+))]
+pub const CHECK_RESERVATION_TODAY: &str = r#"
+SELECT id, check_in_date, check_out_date FROM bookings
+WHERE room_id = $1
+AND status IN ('confirmed', 'pending')
+AND check_in_date = CURRENT_DATE
+AND CURRENT_TIME >= $2::TIME
+ORDER BY check_in_date ASC
+LIMIT 1
+"#;
+
+/// Check for a reservation arriving today, once check-in time has passed
+/// (?2 is the check-in time, e.g. '15:00:00'). - SQLite version
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+pub const CHECK_RESERVATION_TODAY: &str = r#"
+SELECT id, check_in_date, check_out_date FROM bookings
+WHERE room_id = ?1
+AND status IN ('confirmed', 'pending')
+AND check_in_date = date('now')
+AND time('now') >= time(?2)
+ORDER BY check_in_date ASC
+LIMIT 1
+"#;
+
 /// Get room status - PostgreSQL version
 #[cfg(any(
     all(feature = "postgres", not(feature = "sqlite")),

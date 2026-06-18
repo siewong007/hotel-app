@@ -20,6 +20,7 @@ import { BookingWithDetails } from '../../../types';
 import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
+import { formatLocalDate, addLocalDays } from '../../../utils/date';
 
 interface UpdateCheckoutDateDialogProps {
   open: boolean;
@@ -43,7 +44,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
     if (open && booking) {
       const currentCheckout = typeof booking.check_out_date === 'string'
         ? booking.check_out_date.split('T')[0]
-        : new Date(booking.check_out_date).toISOString().split('T')[0];
+        : formatLocalDate(new Date(booking.check_out_date));
       setNewCheckoutDate(currentCheckout);
       setError(null);
     }
@@ -53,11 +54,11 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
 
   const checkInDate = typeof booking.check_in_date === 'string'
     ? booking.check_in_date.split('T')[0]
-    : new Date(booking.check_in_date).toISOString().split('T')[0];
+    : formatLocalDate(new Date(booking.check_in_date));
 
   const currentCheckoutDate = typeof booking.check_out_date === 'string'
     ? booking.check_out_date.split('T')[0]
-    : new Date(booking.check_out_date).toISOString().split('T')[0];
+    : formatLocalDate(new Date(booking.check_out_date));
 
   const pricePerNight = typeof booking.price_per_night === 'string'
     ? parseFloat(booking.price_per_night)
@@ -109,8 +110,7 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
   };
 
   // Min date is day after check-in
-  const minCheckoutDate = new Date(new Date(checkInDate).getTime() + 86400000)
-    .toISOString().split('T')[0];
+  const minCheckoutDate = formatLocalDate(addLocalDays(checkInDate, 1));
 
   return (
     <Dialog open={open} onClose={loading ? undefined : onClose} maxWidth="sm" fullWidth>

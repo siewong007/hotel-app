@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { BookingWithDetails, Room, Guest } from '../../../types';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import { normalizePage, toPaginationSearchParams } from '../../../utils/pagination';
+import { formatLocalDate, addLocalDays } from '../../../utils/date';
 import { useBookingStats, useBookingsPage } from './useBookingQueries';
 import { useGuests } from '../../guests/hooks/useGuestQueries';
 import { useRooms } from '../../rooms/hooks/useRoomQueries';
@@ -38,12 +39,8 @@ export function useBookings() {
   const debouncedRoomNumberFilter = useDebouncedValue(roomNumberFilter, 700);
 
   const apiParams = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    const addDays = (base: string, n: number) => {
-      const d = new Date(base);
-      d.setDate(d.getDate() + n);
-      return d.toISOString().split('T')[0];
-    };
+    const today = formatLocalDate();
+    const addDays = (base: string, n: number) => formatLocalDate(addLocalDays(base, n));
 
     const params: Record<string, any> = {
       ...toPaginationSearchParams({ page: normalizePage(currentPage), pageSize: PAGE_SIZE }),

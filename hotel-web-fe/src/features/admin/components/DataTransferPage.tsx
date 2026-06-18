@@ -33,6 +33,7 @@ import {
 import { BookingDataExport, ImportResult } from '../../../api';
 import { useAuth } from '../../../auth/AuthContext';
 import { useExportDataMutation, useImportDataMutation } from '../hooks/useDataTransferQueries';
+import { formatLocalDate } from '../../../utils/date';
 
 const TABLE_LABELS: Record<string, string> = {
   guests: 'Guests',
@@ -88,7 +89,7 @@ const DataTransferPage: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `hotel-data-export-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `hotel-data-export-${formatLocalDate()}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

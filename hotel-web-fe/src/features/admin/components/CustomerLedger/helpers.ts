@@ -2,6 +2,7 @@
 
 import type { CustomerLedger } from '../../../../types';
 import type { LedgerUiStatus, ToneName } from './types';
+import { formatLocalDate } from '../../../../utils/date';
 
 // Date-only ISO 8601 (YYYY-MM-DD): date columns from the backend arrive
 // without a time/offset. Plain `new Date("YYYY-MM-DD")` parses as UTC midnight,
@@ -15,7 +16,7 @@ export const formatDateForInput = (dateString: string | null | undefined): strin
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return '';
-    return date.toISOString().split('T')[0];
+    return formatLocalDate(date);
   } catch {
     return '';
   }

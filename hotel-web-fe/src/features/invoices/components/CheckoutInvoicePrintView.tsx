@@ -4,6 +4,7 @@ import type { BookingWithDetails } from '../../../types';
 import type { HotelSettings } from '../../../utils/hotelSettings';
 import type { ChargesBreakdown } from '../utils/chargesCalculation';
 import type { CheckoutPaymentRecord } from '../types';
+import { formatLocalDate, parseLocalDate, addLocalDays } from '../../../utils/date';
 
 interface CheckoutInvoicePrintViewProps {
   booking: BookingWithDetails;
@@ -158,11 +159,10 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
             const nights = calculateNights();
             const taxRate = hotelSettings.service_tax_rate / 100;
             const taxMultiplier = 1 + taxRate;
-            const checkIn = new Date(booking.check_in_date);
+            const checkIn = parseLocalDate(booking.check_in_date);
             return Array.from({ length: nights }, (_, i) => {
-              const date = new Date(checkIn);
-              date.setDate(date.getDate() + i);
-              const dateKey = date.toISOString().split('T')[0];
+              const date = addLocalDays(checkIn, i);
+              const dateKey = formatLocalDate(date);
               const taxInclusiveRate = editableDailyRates[dateKey] || 0;
               const dayRate = taxInclusiveRate / taxMultiplier;
               const dayTax = taxInclusiveRate - dayRate;

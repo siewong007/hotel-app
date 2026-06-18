@@ -35,6 +35,7 @@ import {
 import { useCurrency } from '../../../hooks/useCurrency';
 import { useBookingsWithDetails } from '../../bookings/hooks/useBookingQueries';
 import { useRooms } from '../hooks/useRoomQueries';
+import { formatLocalDate } from '../../../utils/date';
 
 // ── Layout ────────────────────────────────────────────────────────────────
 const ROOM_COL = 220;
@@ -234,8 +235,8 @@ const RoomReservationTimeline: React.FC = () => {
           id: `synthetic-${room.id}`,
           room_id: room.id,
           guest_name: 'Walk-in Guest',
-          check_in_date: room.reserved_start_date || startDate.toISOString().split('T')[0],
-          check_out_date: room.reserved_end_date || endDate.toISOString().split('T')[0],
+          check_in_date: room.reserved_start_date || formatLocalDate(startDate),
+          check_out_date: room.reserved_end_date || formatLocalDate(endDate),
           status: room.status,
         });
       }

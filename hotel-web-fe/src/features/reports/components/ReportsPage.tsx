@@ -29,6 +29,7 @@ import {
 import { HotelAPIService } from '../../../api';
 import { BookingWithDetails } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { formatLocalDate } from '../../../utils/date';
 
 const ReportsPage: React.FC = () => {
   const { format: formatCurrency } = useCurrency();
@@ -40,7 +41,7 @@ const ReportsPage: React.FC = () => {
   const [filterType, setFilterType] = useState<'month' | 'date' | 'year'>('month');
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(formatLocalDate());
 
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -143,7 +144,7 @@ const ReportsPage: React.FC = () => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `hotel_report_${filterType}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `hotel_report_${filterType}_${formatLocalDate()}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -930,7 +930,7 @@ pub async fn update_room_status_handler(
     }
 
     // Map "clean" to "available" for consistency
-    let target_status = if input.status == "clean" {
+    let mut target_status = if input.status == "clean" {
         "available".to_string()
     } else {
         input.status.clone()
@@ -966,6 +966,10 @@ pub async fn update_room_status_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    // When auto-flipping "available" -> "reserved" below, remember the
+    // reservation so we can stamp the room's reservation window.
+    let mut auto_reserved_dates: Option<(NaiveDate, NaiveDate)> = None;
+
     if target_status == "available" {
         let active_booking: Option<i64> = sqlx::query_scalar(CHECK_ACTIVE_BOOKING)
             .bind(room_id)
@@ -978,11 +982,32 @@ pub async fn update_room_status_handler(
                 "Cannot change room to available status while there is an active booking. Please check out the guest first.".to_string()
             ));
         }
+
+        // If a reservation arrives today and the configured check-in time has
+        // passed, the room isn't truly free — flip it to "reserved" so its
+        // stored status matches the imminent arrival instead of "available".
+        let check_in_time =
+            crate::modules::settings::service::get_setting_value(&pool, "check_in_time")
+                .await
+                .unwrap_or_else(|_| "15:00:00".to_string());
+
+        let reservation: Option<(i64, NaiveDate, NaiveDate)> =
+            sqlx::query_as(CHECK_RESERVATION_TODAY)
+                .bind(room_id)
+                .bind(&check_in_time)
+                .fetch_optional(&pool)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if let Some((_booking_id, check_in, check_out)) = reservation {
+            target_status = "reserved".to_string();
+            auto_reserved_dates = Some((check_in, check_out));
+        }
     }
 
-    // Require booking_id when setting status to "reserved"
-    // This ensures guest details are captured through the booking flow
-    if target_status == "reserved" {
+    // Require booking_id when a caller sets "reserved" directly. The auto-flip
+    // above is exempt because it already verified the reservation exists.
+    if target_status == "reserved" && auto_reserved_dates.is_none() {
         if input.booking_id.is_none() {
             return Err(ApiError::BadRequest(
                 "Cannot reserve a room directly. Please create a booking with guest details first. Use the 'Book Room' or 'Walk-in Check-in' option instead.".to_string()
@@ -1024,8 +1049,20 @@ pub async fn update_room_status_handler(
         })
     };
 
-    let reserved_start = parse_datetime(&input.reserved_start_date);
-    let reserved_end = parse_datetime(&input.reserved_end_date);
+    let date_to_utc = |d: NaiveDate| -> Option<DateTime<Utc>> {
+        d.and_hms_opt(0, 0, 0)
+            .map(|ndt| DateTime::<Utc>::from_naive_utc_and_offset(ndt, Utc))
+    };
+
+    // Prefer the auto-detected reservation window when we flipped to "reserved";
+    // otherwise fall back to whatever the caller supplied.
+    let (reserved_start, reserved_end) = match auto_reserved_dates {
+        Some((check_in, check_out)) => (date_to_utc(check_in), date_to_utc(check_out)),
+        None => (
+            parse_datetime(&input.reserved_start_date),
+            parse_datetime(&input.reserved_end_date),
+        ),
+    };
     let maintenance_start = parse_datetime(&input.maintenance_start_date);
     let maintenance_end = parse_datetime(&input.maintenance_end_date);
     let cleaning_start = parse_datetime(&input.cleaning_start_date);

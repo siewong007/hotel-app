@@ -54,6 +54,7 @@ import {
   useDeleteGuest,
   useGuestBookings,
   useGuestCredits,
+  useGuests,
   useGuestsPage,
   useUpdateGuest,
 } from '../hooks/useGuestQueries';
@@ -63,6 +64,7 @@ import GuestFormDialog from './GuestFormDialog';
 import { ContactRow, StatTile } from './GuestDetailPanelParts';
 import { AVATAR_PALETTE, GUEST_DESIGN } from '../constants';
 import type { GuestFormData } from '../types';
+import { formatLocalDate } from '../../../utils/date';
 const initialsOf = (name: string) =>
   name
     .split(/\s+/)
@@ -128,6 +130,13 @@ const GuestConfigurationPage: React.FC = () => {
   const [creditsDialogOpen, setCreditsDialogOpen] = useState(false);
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [bookingGuest, setBookingGuest] = useState<Guest | null>(null);
+
+  // The booking modal searches its guest list client-side, so it needs the
+  // full roster — not the 50-row page shown in the table. Load it lazily, only
+  // while the modal is open, so existing guests beyond the current page stay
+  // searchable instead of forcing a duplicate "create new".
+  const allGuestsQuery = useGuests(undefined, hasAccess && bookingDialogOpen);
+  const allGuests = allGuestsQuery.data ?? [];
 
   // Credits state
   interface GuestCredits {
@@ -270,7 +279,7 @@ const GuestConfigurationPage: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `guests_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `guests_${formatLocalDate()}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1167,7 +1176,7 @@ const GuestConfigurationPage: React.FC = () => {
         }}
         room={null}
         rooms={rooms}
-        guests={guests}
+        guests={allGuests}
         initialGuest={bookingGuest}
         onSuccess={async (message) => {
           emitApiNotification({ message, severity: 'success' });

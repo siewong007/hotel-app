@@ -88,6 +88,7 @@ import {
 import type { Company } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { getHotelSettings, HotelSettings } from '../../../../utils/hotelSettings';
+import { formatLocalDate, addLocalDays } from '../../../../utils/date';
 import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
 import { enhanceBookingDetails } from '../../../../utils/bookingUtils';
 import { useLedgers } from '../../hooks/useLedgers';
@@ -178,7 +179,7 @@ const CustomerLedgerPage: React.FC = () => {
   const [paymentFormData, setPaymentFormData] = useState<CustomerLedgerPaymentRequest>({
     payment_amount: 0,
     payment_method: 'cash',
-    payment_date: new Date().toISOString().split('T')[0],
+    payment_date: formatLocalDate(),
   });
   const [processingPayment, setProcessingPayment] = useState(false);
 
@@ -217,12 +218,8 @@ const CustomerLedgerPage: React.FC = () => {
   const [checkInCompany, setCheckInCompany] = useState<Company | null>(null);
   const [checkInGuest, setCheckInGuest] = useState<Guest | null>(null);
   const [checkInRoom, setCheckInRoom] = useState<Room | null>(null);
-  const [checkInDate, setCheckInDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [checkOutDate, setCheckOutDate] = useState<string>(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
-  });
+  const [checkInDate, setCheckInDate] = useState<string>(formatLocalDate());
+  const [checkOutDate, setCheckOutDate] = useState<string>(() => formatLocalDate(addLocalDays(new Date(), 1)));
   const [processingCheckIn, setProcessingCheckIn] = useState(false);
   const [isCreatingNewCheckInGuest, setIsCreatingNewCheckInGuest] = useState(false);
   const [newCheckInGuestForm, setNewCheckInGuestForm] = useState({
@@ -293,7 +290,7 @@ const CustomerLedgerPage: React.FC = () => {
     payment_reference: '',
     receipt_number: '',
     notes: '',
-    payment_date: new Date().toISOString().split('T')[0],
+    payment_date: formatLocalDate(),
   });
 
   // Company Invoice state
@@ -302,12 +299,8 @@ const CustomerLedgerPage: React.FC = () => {
   const [invoiceLedgerEntries, setInvoiceLedgerEntries] = useState<CustomerLedger[]>([]);
   const [selectedInvoiceLedgers, setSelectedInvoiceLedgers] = useState<number[]>([]);
   const [invoiceNumber, setInvoiceNumber] = useState<string>('');
-  const [invoiceDate, setInvoiceDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [invoiceDueDate, setInvoiceDueDate] = useState<string>(() => {
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 30);
-    return dueDate.toISOString().split('T')[0];
-  });
+  const [invoiceDate, setInvoiceDate] = useState<string>(formatLocalDate());
+  const [invoiceDueDate, setInvoiceDueDate] = useState<string>(() => formatLocalDate(addLocalDays(new Date(), 30)));
   const [invoiceNotes, setInvoiceNotes] = useState<string>('');
   const [showInvoicePreview, setShowInvoicePreview] = useState(false);
   // v2: tri-state filter — billable (default) / all / invoiced
@@ -545,7 +538,7 @@ const CustomerLedgerPage: React.FC = () => {
       // For back-dated bookings: auto-checkout if check-out date is today or in the past.
       // Backend's auto_post_company_ledger handles the room_charge ledger row on the
       // checked_out transition (and dedupes via an EXISTS check), so no client-side post here.
-      const today = new Date().toISOString().split('T')[0];
+      const today = formatLocalDate();
       if (checkOutDate <= today) {
         await HotelAPIService.updateBooking(booking.id, { status: 'checked_out' });
       }
@@ -571,10 +564,8 @@ const CustomerLedgerPage: React.FC = () => {
     setCheckInCompany(null);
     setCheckInGuest(null);
     setCheckInRoom(null);
-    setCheckInDate(new Date().toISOString().split('T')[0]);
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setCheckOutDate(tomorrow.toISOString().split('T')[0]);
+    setCheckInDate(formatLocalDate());
+    setCheckOutDate(formatLocalDate(addLocalDays(new Date(), 1)));
     setIsCreatingNewCheckInGuest(false);
     setNewCheckInGuestForm({
       first_name: '',
@@ -860,7 +851,7 @@ const CustomerLedgerPage: React.FC = () => {
       payment_method: 'bank_transfer',
       payment_reference: '',
       receipt_number: '',
-      payment_date: new Date().toISOString().split('T')[0],
+      payment_date: formatLocalDate(),
       notes: '',
     });
     setPaymentCompany(null);
@@ -956,10 +947,8 @@ const CustomerLedgerPage: React.FC = () => {
     setSelectedInvoiceLedgers(uninvoicedIds);
     const timestamp = Date.now();
     setInvoiceNumber(`INV-${company.company_name.substring(0, 3).toUpperCase()}-${timestamp.toString().slice(-6)}`);
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + (company.payment_terms_days || 30));
-    setInvoiceDueDate(dueDate.toISOString().split('T')[0]);
-    setInvoiceDate(new Date().toISOString().split('T')[0]);
+    setInvoiceDueDate(formatLocalDate(addLocalDays(new Date(), company.payment_terms_days || 30)));
+    setInvoiceDate(formatLocalDate());
     setInvoiceNotes('');
     setShowInvoicePreview(false);
     setInvoiceListFilter('billable');
@@ -971,10 +960,8 @@ const CustomerLedgerPage: React.FC = () => {
     setInvoiceLedgerEntries([]);
     setSelectedInvoiceLedgers([]);
     setInvoiceNumber('');
-    setInvoiceDate(new Date().toISOString().split('T')[0]);
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 30);
-    setInvoiceDueDate(dueDate.toISOString().split('T')[0]);
+    setInvoiceDate(formatLocalDate());
+    setInvoiceDueDate(formatLocalDate(addLocalDays(new Date(), 30)));
     setInvoiceNotes('');
     setShowInvoicePreview(false);
     setInvoiceListFilter('billable');
