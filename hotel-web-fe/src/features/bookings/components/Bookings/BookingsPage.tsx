@@ -1061,7 +1061,7 @@ const BookingsPage: React.FC = () => {
         </Alert>
       )}
 
-      <Grid container spacing={2} mb={2.5}>
+      <Grid container spacing={2} mb={2.5} columns={{ xs: 12, sm: 12, md: 12, lg: 14 }}>
         {[
           { title: 'Arrivals / Check-in', value: arrivingBookings.length, detail: `${arrivingBookings.filter(canCheckIn).length} ready to check in`, subValue: arrivingBookings.length || stats.todayCheckIns || 1, color: '#2f6f52', icon: <ArrowForwardIcon fontSize="small" />, view: 'arriving' as const },
           { title: 'In-house guests', value: totalGuestsInHouse, detail: `across ${inHouseBookings.length} rooms`, subValue: Math.max(totalGuestsInHouse, roomCount || 1), color: '#2f64b3', icon: <BedIcon fontSize="small" />, view: 'in_house' as const },
