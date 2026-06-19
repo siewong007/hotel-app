@@ -323,6 +323,9 @@ fn tighten_secret_file_permissions(path: &Path) -> Result<(), std::io::Error> {
         std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
     }
 
+    #[cfg(not(unix))]
+    let _ = path;
+
     Ok(())
 }
 

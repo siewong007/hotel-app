@@ -119,10 +119,10 @@ npm run build
 
 `desktop:prepare` refreshes the desktop bundle before Tauri builds it:
 
-- syncs backend `database/schema.sql` and `database/data.sql` into `hotel-desktop/src-tauri/database/`
-- builds the React frontend in `hotel-web-fe`
-- builds the backend release binary from `hotel-app-be`
-- copies the backend sidecar into `hotel-desktop/src-tauri/binaries/` with the target-triple filename Tauri expects
+- syncs backend `database/schema.sql` and `database/data.sql` into `hotel-desktop/src-tauri/database/`, skipping unchanged copies
+- builds the React frontend in `hotel-web-fe` only when frontend inputs changed
+- builds the backend sidecar from `hotel-app-be` only when backend inputs changed; production builds use release, while `build:fast` and `build:debug` use debug
+- copies the backend sidecar into `hotel-desktop/src-tauri/binaries/` with the target-triple filename Tauri expects, skipping unchanged copies
 
 For a debug desktop build:
 
@@ -130,6 +130,13 @@ For a debug desktop build:
 cd hotel-desktop
 npm run desktop:prepare
 npm run build:debug
+```
+
+For the fastest local verification build:
+
+```bash
+cd hotel-desktop
+npm run build:fast
 ```
 
 For local desktop development:

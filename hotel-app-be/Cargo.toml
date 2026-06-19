@@ -58,3 +58,21 @@ qrcode = "0.14"
 tokio = { version = "1.51", features = ["rt-multi-thread", "macros"] }
 tokio-test = "0.4"
 reqwest = { version = "0.12", features = ["json"] }
+
+[profile.release-fast]
+inherits = "release"
+codegen-units = 16
+lto = false
+opt-level = 1
+strip = false
+debug = 0
+
+[profile.release.build-override]
+codegen-units = 16
+debug = 0
+opt-level = 0
+
+[profile.release-fast.build-override]
+codegen-units = 16
+debug = 0
+opt-level = 0

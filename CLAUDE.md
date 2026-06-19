@@ -50,7 +50,10 @@ The dev server proxy list in `vite.config.ts` is hand-maintained — when adding
 npm install
 npm run dev                    # tauri dev — launches the Rust backend as a sidecar
 npm run build                  # tauri build — production installer
+npm run build:fast             # debug build + debug sidecar without installer packaging
+npm run build:no-bundle        # production binary without installer packaging
 npm run build:debug            # debug build
+npm run desktop:prepare:force  # force resource/frontend/backend/sidecar refresh
 ```
 
 The desktop app ships an embedded PostgreSQL binary under `src-tauri/pgsql/` and its own `src-tauri/database/`. The backend detects desktop mode via the `HOTEL_DESKTOP_MODE` env var and, when set, binds to `127.0.0.1` on a dynamically-chosen free port starting at `BACKEND_PORT` (default 3030).

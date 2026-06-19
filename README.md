@@ -231,7 +231,7 @@ For a desktop build:
 npm run build
 ```
 
-`desktop:prepare` synchronizes database resources, builds the frontend, builds the backend release binary, and copies the backend sidecar into the Tauri bundle location.
+`desktop:prepare` is cache-aware and runs in this order: synchronize database resources, build the frontend bundle when inputs changed, build the backend sidecar when inputs changed, and copy the sidecar only when the binary changed. Production builds use the release backend sidecar; `npm run build:fast` and `npm run build:debug` use a debug backend sidecar for quicker local verification. Use `npm run build:no-bundle` to skip installer packaging, and `npm run desktop:prepare:force` when you need to rebuild every prepared artifact. See `hotel-desktop/BUILD_SPEED.md` for the full command matrix.
 
 ## Environment Variables
 
