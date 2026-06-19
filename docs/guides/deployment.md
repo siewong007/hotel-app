@@ -251,13 +251,25 @@ The built installer will be in `src-tauri/target/release/bundle/`.
 ### Build Variants
 
 ```bash
+# Fast local verification build, no installer packaging
+npm run build:fast
+
+# Release binary build, no installer packaging
+npm run build:no-bundle
+
 # Debug build (faster, larger binary)
 npm run build:debug
+
+# Windows-only single-installer builds
+npm run build:nsis
+npm run build:msi
 
 # Platform-specific (run on target platform)
 npm run build  # macOS DMG
 # For Windows/Linux, cross-compile from CI
 ```
+
+`desktop:prepare` is cache-aware: it syncs database resources, builds the frontend bundle, builds the backend sidecar, and copies the sidecar in that order, skipping each artifact when its inputs are unchanged. Production builds use the release backend sidecar; `build:fast` and `build:debug` use the debug sidecar. Use `npm run desktop:prepare:force` to rebuild every prepared artifact.
 
 ### Desktop Configuration
 
@@ -494,7 +506,7 @@ docker exec hotel-db pg_dump -U hotel_admin hotel_management > backup.sql
 1. Check logs in app data directory (`~/Library/Application Support/HotelApp/logs/` on macOS)
 2. Verify no other process is using the backend port
 3. Ensure all system dependencies are installed
-4. Re-run `npm run desktop:prepare`
+4. Re-run `npm run desktop:prepare:force`
 
 ### Performance issues
 

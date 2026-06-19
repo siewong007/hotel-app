@@ -137,7 +137,7 @@ db-reset: ## Reset and re-create PostgreSQL database
 # ─── Desktop Preparation ──────────────────────────────────────────────────────
 
 prepare-desktop: ## Prepare desktop app resources
-	cd hotel-desktop && npm run sync:resources && npm run desktop:prepare
+	cd hotel-desktop && npm run desktop:prepare
 
 # ─── Documentation ────────────────────────────────────────────────────────────
 
