@@ -28,6 +28,14 @@ for (const [label, args] of steps) {
   });
 
   if (result.status !== 0) {
+    if (result.error) {
+      console.error(`${label} failed to start: ${result.error.message}`);
+    } else if (result.signal) {
+      console.error(`${label} stopped by signal ${result.signal}.`);
+    } else {
+      console.error(`${label} failed with exit code ${result.status}.`);
+    }
+
     process.exit(result.status ?? 1);
   }
 
@@ -35,4 +43,3 @@ for (const [label, args] of steps) {
 }
 
 console.log(`\nDesktop preparation completed in ${formatDuration(Date.now() - totalStartedAt)}.`);
-

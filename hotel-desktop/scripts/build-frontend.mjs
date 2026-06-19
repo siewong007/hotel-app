@@ -18,8 +18,10 @@ const frontendRoot = join(repoRoot, 'hotel-web-fe');
 const cachePath = join(desktopRoot, 'src-tauri', 'target', 'desktop-build-cache', 'frontend-tauri.json');
 const distIndex = join(frontendRoot, 'dist', 'index.html');
 const requiredOutputs = [distIndex, join(frontendRoot, 'dist', 'assets')];
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const buildCommand = [npmCommand, '--prefix', frontendRoot, 'run', 'build:tauri'];
+const npmExecPath = process.env.npm_execpath;
+const buildCommand = npmExecPath
+  ? [process.execPath, npmExecPath, 'run', 'build:tauri']
+  : [process.platform === 'win32' ? 'npm.cmd' : 'npm', 'run', 'build:tauri'];
 
 const inputs = [
   join(frontendRoot, 'src'),
@@ -52,11 +54,20 @@ if (!force && previous?.digest === cacheKey.digest && requiredOutputs.every((pat
 
 const startedAt = Date.now();
 const result = spawnSync(buildCommand[0], buildCommand.slice(1), {
-  cwd: desktopRoot,
+  cwd: frontendRoot,
+  shell: !npmExecPath && process.platform === 'win32',
   stdio: 'inherit',
 });
 
 if (result.status !== 0) {
+  if (result.error) {
+    console.error(`Failed to start frontend build command: ${result.error.message}`);
+  } else if (result.signal) {
+    console.error(`Frontend build command stopped by signal ${result.signal}.`);
+  } else {
+    console.error(`Frontend build command failed with exit code ${result.status}.`);
+  }
+
   process.exit(result.status ?? 1);
 }
 

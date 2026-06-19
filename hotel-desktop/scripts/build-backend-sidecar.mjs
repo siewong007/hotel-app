@@ -69,6 +69,14 @@ const result = spawnSync(cargoCommand, buildArgs, {
 });
 
 if (result.status !== 0) {
+  if (result.error) {
+    console.error(`Failed to start backend ${profile} build: ${result.error.message}`);
+  } else if (result.signal) {
+    console.error(`Backend ${profile} build stopped by signal ${result.signal}.`);
+  } else {
+    console.error(`Backend ${profile} build failed with exit code ${result.status}.`);
+  }
+
   process.exit(result.status ?? 1);
 }
 
