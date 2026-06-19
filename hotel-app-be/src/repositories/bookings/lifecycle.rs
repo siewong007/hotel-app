@@ -2656,7 +2656,7 @@ pub async fn manual_checkin_handler(
     )
     .bind(booking_id)
     .bind(deposit_paid)
-    .bind(deposit_amount)
+    .bind(crate::core::db::opt_decimal_to_db(deposit_amount))
     .bind(&payment_note)
     .fetch_optional(&mut *tx)
     .await
