@@ -9,11 +9,13 @@ pub mod audit;
 pub mod auth;
 #[allow(dead_code)]
 pub mod booking;
+pub mod booking_channels;
 #[allow(dead_code)]
 pub mod booking_list;
 pub mod bookings;
 #[allow(dead_code)]
 pub mod bookings_queries;
+pub mod channel_net_revenue;
 pub mod company;
 pub mod data_transfer;
 pub mod ekyc;

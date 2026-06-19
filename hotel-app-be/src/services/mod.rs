@@ -7,6 +7,7 @@ pub mod analytics;
 pub mod audit;
 pub mod auth;
 pub mod booking;
+pub mod booking_channels;
 pub mod bookings;
 pub mod companies;
 pub mod data_transfer;

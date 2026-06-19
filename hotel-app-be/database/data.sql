@@ -665,6 +665,27 @@ WHERE system_settings.value IS DISTINCT FROM EXCLUDED.value
    OR system_settings.is_public IS DISTINCT FROM EXCLUDED.is_public;
 
 -- ============================================================================
+-- BOOKING CHANNELS
+-- ============================================================================
+
+INSERT INTO booking_channels
+    (name, channel_type, default_commission_type, default_commission_value, default_commission_scope, is_active)
+VALUES
+    ('Direct', 'direct', 'none', 0, 'per_booking', true),
+    ('Walk-in', 'walk_in', 'none', 0, 'per_booking', true),
+    ('Phone', 'phone', 'none', 0, 'per_booking', true),
+    ('Direct Website', 'website', 'none', 0, 'per_booking', true),
+    ('Booking.com', 'ota', 'none', 0, 'per_booking', true),
+    ('Agoda', 'ota', 'none', 0, 'per_booking', true),
+    ('Traveloka', 'ota', 'none', 0, 'per_booking', true),
+    ('Expedia', 'ota', 'none', 0, 'per_booking', true),
+    ('Hotels.com', 'ota', 'none', 0, 'per_booking', true),
+    ('Airbnb', 'ota', 'none', 0, 'per_booking', true),
+    ('Trip.com', 'ota', 'none', 0, 'per_booking', true),
+    ('Other OTA', 'ota', 'none', 0, 'per_booking', true)
+ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================================
 -- AUDIT LOG
 -- ============================================================================
 

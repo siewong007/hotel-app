@@ -820,6 +820,10 @@ pub async fn generate_report(
         "daily_operations" => generate_daily_operations_report(pool, start_date).await?,
         "occupancy" => generate_occupancy_report(pool, start_date, end_date).await?,
         "revenue" => generate_revenue_report(pool, start_date, end_date).await?,
+        "channel_net_revenue" | "ota_commission" => {
+            crate::repositories::channel_net_revenue::generate(pool, &params, start_date, end_date)
+                .await?
+        }
         "payment_status" => generate_payment_status_report(pool, start_date, end_date).await?,
         "complimentary" => generate_complimentary_report(pool, start_date, end_date).await?,
         "guest_statistics" => generate_guest_statistics_report(pool, start_date, end_date).await?,

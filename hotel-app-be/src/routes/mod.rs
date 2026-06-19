@@ -6,6 +6,7 @@
 pub mod analytics;
 pub mod audit;
 pub mod auth;
+pub mod booking_channels;
 pub mod bookings;
 pub mod companies;
 pub mod data_transfer;
@@ -118,6 +119,7 @@ pub fn create_router(pool: DbPool) -> Router {
     // static asset URLs depend on them.
     let api_routes = Router::new()
         .merge(auth::routes())
+        .merge(booking_channels::routes())
         .merge(rooms::routes())
         .merge(guests::routes())
         .merge(bookings::routes())
