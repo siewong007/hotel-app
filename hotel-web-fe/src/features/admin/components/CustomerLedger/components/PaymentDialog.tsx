@@ -36,7 +36,7 @@ import type {
   CustomerLedgerPayment,
   CustomerLedgerPaymentRequest,
 } from '../../../../../types';
-import { formatDateForInput } from '../helpers';
+import { formatDateForDisplay, formatDateForInput } from '../helpers';
 import { PAYMENT_METHODS } from '../constants';
 
 interface PaymentDialogProps {
@@ -257,7 +257,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                             />
                           ) : (
                             <Typography variant="body2" color="text.secondary">
-                              {new Date(payment.payment_date).toLocaleString()}
+                              {formatDateForDisplay(payment.payment_date)}
                             </Typography>
                           )}
                           {payment.payment_reference && (

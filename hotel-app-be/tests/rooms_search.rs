@@ -123,4 +123,79 @@ mod sqlite_tests {
 
         assert_eq!(room_numbers(&response.0), vec!["S202"]);
     }
+
+    #[tokio::test]
+    async fn dated_search_keeps_housekeeping_status_idempotent_and_future_bookable() {
+        let pool = common::setup_test_db().await;
+        seed_search_rooms(&pool).await;
+
+        sqlx::query(
+            "INSERT INTO rooms
+             (id, room_number, room_type_id, custom_price, status, is_active, created_at, updated_at)
+             VALUES
+             (9006, 'S203', 902, 260.0, 'dirty', 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let today = chrono::Utc::now().date_naive();
+        let tomorrow = today + chrono::Duration::days(1);
+        let day_after_tomorrow = today + chrono::Duration::days(2);
+
+        let same_day_response = search_rooms_handler(
+            State(pool.clone()),
+            Query(SearchQuery {
+                room_type: Some("Search Deluxe".to_string()),
+                max_price: None,
+                check_in_date: Some(today.to_string()),
+                check_out_date: Some(tomorrow.to_string()),
+                exclude_booking_id: None,
+            }),
+        )
+        .await
+        .expect("same-day room search should succeed");
+
+        assert_eq!(room_numbers(&same_day_response.0), vec!["S201", "S202"]);
+
+        let first_future_response = search_rooms_handler(
+            State(pool.clone()),
+            Query(SearchQuery {
+                room_type: Some("Search Deluxe".to_string()),
+                max_price: None,
+                check_in_date: Some(tomorrow.to_string()),
+                check_out_date: Some(day_after_tomorrow.to_string()),
+                exclude_booking_id: None,
+            }),
+        )
+        .await
+        .expect("future room search should succeed");
+        let second_future_response = search_rooms_handler(
+            State(pool.clone()),
+            Query(SearchQuery {
+                room_type: Some("Search Deluxe".to_string()),
+                max_price: None,
+                check_in_date: Some(tomorrow.to_string()),
+                check_out_date: Some(day_after_tomorrow.to_string()),
+                exclude_booking_id: None,
+            }),
+        )
+        .await
+        .expect("repeated future room search should succeed");
+
+        assert_eq!(
+            room_numbers(&first_future_response.0),
+            vec!["S201", "S203", "S202"]
+        );
+        assert_eq!(
+            room_numbers(&first_future_response.0),
+            room_numbers(&second_future_response.0)
+        );
+
+        let room_status: String = sqlx::query_scalar("SELECT status FROM rooms WHERE id = 9006")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(room_status, "dirty");
+    }
 }

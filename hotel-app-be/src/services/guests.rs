@@ -95,10 +95,12 @@ pub async fn create_guest(
         .map(Sanitizer::sanitize_email);
     let full_name = format!("{} {}", first_name, last_name).trim().to_string();
 
-    if GuestRepository::full_name_conflict(pool, &full_name, None).await? {
+    if let Some(conflicting_guest_id) =
+        GuestRepository::full_name_conflict_id(pool, &full_name, None).await?
+    {
         return Err(ApiError::BadRequest(format!(
-            "A guest with the name '{}' already exists. Please select the existing guest instead of creating a new one.",
-            full_name
+            "A guest with the name '{}' already exists (Guest ID #{}). Please select the existing guest instead of creating a new one.",
+            full_name, conflicting_guest_id
         )));
     }
 
@@ -177,10 +179,12 @@ pub async fn update_guest(
         .trim()
         .to_string();
 
-    if GuestRepository::full_name_conflict(pool, &full_name, Some(guest_id)).await? {
+    if let Some(conflicting_guest_id) =
+        GuestRepository::full_name_conflict_id(pool, &full_name, Some(guest_id)).await?
+    {
         return Err(ApiError::BadRequest(format!(
-            "A guest with the name '{}' already exists. Guest names must be unique.",
-            full_name
+            "A guest with the name '{}' already exists (Guest ID #{}). Guest names must be unique.",
+            full_name, conflicting_guest_id
         )));
     }
 

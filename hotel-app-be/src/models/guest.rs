@@ -34,10 +34,8 @@ pub struct Guest {
     /// the bookings table). These stay `None` for endpoints that don't compute
     /// them so we don't pay the cost on every per-guest fetch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub bookings_count: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-
     pub last_stay_date: Option<chrono::NaiveDate>,
 }
 
@@ -286,7 +284,7 @@ pub struct GuestCreditsSummary {
 pub struct GuestPaginationParams {
     pub page: Option<i64>,
     pub page_size: Option<i64>,
-    /// Search by name, email, or phone.
+    /// Search by guest ID, name, email, phone, IC/passport number, or company.
     pub search: Option<String>,
     /// Filter by guest type: "member" or "non_member".
     pub guest_type: Option<String>,
@@ -301,7 +299,6 @@ pub struct GuestPaginatedResponse {
     pub page_size: i64,
 }
 
-
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for GuestBookingRow {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
@@ -314,7 +311,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for GuestBookingRow {
             status: row.try_get("status")?,
             total_amount: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("total_amount")?);
+                let val =
+                    crate::core::db::parse_decimal(&row.try_get::<String, _>("total_amount")?);
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")

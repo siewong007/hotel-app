@@ -86,6 +86,17 @@ const csvCell = (value: unknown) => {
   return `"${text.replace(/"/g, '""')}"`;
 };
 
+const duplicateGuestReference = (message: string) => {
+  const match = message.match(
+    /A guest with the name '([^']+)' already exists(?: \(Guest ID #(\d+)\))?/i
+  );
+  if (!match) return null;
+  return {
+    name: match[1],
+    id: match[2],
+  };
+};
+
 const GuestConfigurationPage: React.FC = () => {
   const { hasPermission } = useAuth();
   const { format: formatCurrency } = useCurrency();
@@ -392,6 +403,18 @@ const GuestConfigurationPage: React.FC = () => {
     }
   };
 
+  const focusDuplicateGuestSearch = (message: string) => {
+    const duplicate = duplicateGuestReference(message);
+    if (!duplicate) return;
+
+    setSearchTerm(duplicate.id || duplicate.name);
+    setSegment('all');
+    setFilterType('all');
+    setCurrentPage(1);
+    setSelectedGuestId(null);
+    setGuestDetailsOpen(true);
+  };
+
   const handleCreateGuest = async () => {
     if (!formData.first_name || !formData.last_name) {
       setDialogError('First name and last name are required');
@@ -431,7 +454,9 @@ const GuestConfigurationPage: React.FC = () => {
       resetForm();
       await loadGuests();
     } catch (err: any) {
-      setDialogError(err.message || 'Failed to create guest');
+      const message = err.message || 'Failed to create guest';
+      setDialogError(message);
+      focusDuplicateGuestSearch(message);
     } finally {
       setFormLoading(false);
     }
@@ -457,7 +482,9 @@ const GuestConfigurationPage: React.FC = () => {
       resetForm();
       await loadGuests();
     } catch (err: any) {
-      setDialogError(err.message || 'Failed to update guest');
+      const message = err.message || 'Failed to update guest';
+      setDialogError(message);
+      focusDuplicateGuestSearch(message);
     } finally {
       setFormLoading(false);
     }
@@ -620,7 +647,7 @@ const GuestConfigurationPage: React.FC = () => {
                 component="input"
                 value={searchTerm}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSearchChange(e.target.value)}
-                placeholder="Search by name, phone, email, IC number, or company…"
+                placeholder="Search by ID, name, phone, email, IC number, or company…"
                 sx={{
                   border: 0,
                   background: 'transparent',

@@ -239,18 +239,28 @@ impl GuestRepository {
             let pattern = format!("%{}%", q.trim());
 
             #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-            let (p1, p2, p3, p_limit, p_offset) = ("?1", "?1", "?1", "?2", "?3");
+            let (p_search, p_limit, p_offset) = ("?1", "?2", "?3");
             #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-            let (p1, p2, p3, p_limit, p_offset) = ("$1", "$1", "$1", "$2", "$3");
+            let (p_search, p_limit, p_offset) = ("$1", "$2", "$3");
+
+            let search_clause = format!(
+                "(CAST(id AS TEXT) {like_op} {p_search} \
+                 OR COALESCE(full_name, '') {like_op} {p_search} \
+                 OR COALESCE(first_name, '') {like_op} {p_search} \
+                 OR COALESCE(last_name, '') {like_op} {p_search} \
+                 OR TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) {like_op} {p_search} \
+                 OR COALESCE(email, '') {like_op} {p_search} \
+                 OR COALESCE(phone, '') {like_op} {p_search} \
+                 OR COALESCE(ic_number, '') {like_op} {p_search} \
+                 OR COALESCE(company_name, '') {like_op} {p_search})"
+            );
 
             let count_sql = format!(
-                "SELECT COUNT(*) FROM guests WHERE deleted_at IS NULL{type_clause} AND \
-                 (full_name {like_op} {p1} OR email {like_op} {p2} OR phone {like_op} {p3})"
+                "SELECT COUNT(*) FROM guests WHERE deleted_at IS NULL{type_clause} AND {search_clause}"
             );
             let data_sql = format!(
                 "SELECT {select_cols} FROM guests \
-                 WHERE deleted_at IS NULL{type_clause} AND \
-                 (full_name {like_op} {p1} OR email {like_op} {p2} OR phone {like_op} {p3}) \
+                 WHERE deleted_at IS NULL{type_clause} AND {search_clause} \
                  ORDER BY full_name LIMIT {p_limit} OFFSET {p_offset}"
             );
 
@@ -295,31 +305,37 @@ impl GuestRepository {
         }
     }
 
-    pub async fn full_name_conflict(
+    pub async fn full_name_conflict_id(
         pool: &DbPool,
         full_name: &str,
         exclude_guest_id: Option<i64>,
-    ) -> Result<bool, ApiError> {
+    ) -> Result<Option<i64>, ApiError> {
         let id: Option<i64> = if let Some(exclude_guest_id) = exclude_guest_id {
-            sqlx::query_scalar(
-                "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER($1) AND deleted_at IS NULL AND id != $2 LIMIT 1",
-            )
-            .bind(full_name)
-            .bind(exclude_guest_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(ApiError::from)?
+            let query = crate::sql_query!(
+                postgres: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL AND id != $2 LIMIT 1",
+                sqlite: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(?1)) AND id != ?2 LIMIT 1"
+            );
+
+            sqlx::query_scalar(query)
+                .bind(full_name)
+                .bind(exclude_guest_id)
+                .fetch_optional(pool)
+                .await
+                .map_err(ApiError::from)?
         } else {
-            sqlx::query_scalar(
-                "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER($1) AND deleted_at IS NULL LIMIT 1",
-            )
-            .bind(full_name)
-            .fetch_optional(pool)
-            .await
-            .map_err(ApiError::from)?
+            let query = crate::sql_query!(
+                postgres: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL LIMIT 1",
+                sqlite: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(?1)) LIMIT 1"
+            );
+
+            sqlx::query_scalar(query)
+                .bind(full_name)
+                .fetch_optional(pool)
+                .await
+                .map_err(ApiError::from)?
         };
 
-        Ok(id.is_some())
+        Ok(id)
     }
 
     #[allow(clippy::too_many_arguments)]
