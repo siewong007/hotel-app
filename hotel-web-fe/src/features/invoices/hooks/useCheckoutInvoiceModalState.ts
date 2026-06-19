@@ -214,7 +214,11 @@ export function useCheckoutInvoiceModalState(
     setEditMethod(payment.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Cash');
     setEditReference(payment.transaction_reference || '');
     setEditNotes(payment.notes || '');
-    const paymentDate = payment.created_at ? formatLocalDate(new Date(payment.created_at)) : formatLocalDate();
+    const rawPaymentDate = payment.payment_date || payment.created_at;
+    const parsedPaymentDate = rawPaymentDate ? new Date(rawPaymentDate) : null;
+    const paymentDate = parsedPaymentDate && !isNaN(parsedPaymentDate.getTime())
+      ? formatLocalDate(parsedPaymentDate)
+      : formatLocalDate();
     setEditDate(paymentDate);
   };
 

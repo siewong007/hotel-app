@@ -53,6 +53,24 @@ interface CheckoutInvoiceModalProps {
   readOnly?: boolean;
 }
 
+const getPaymentTimestamp = (payment: CheckoutPaymentRecord): string => (
+  payment.payment_date || payment.created_at || ''
+);
+
+const formatPaymentDateForInput = (payment: CheckoutPaymentRecord): string => {
+  const timestamp = getPaymentTimestamp(payment);
+  if (!timestamp) return formatLocalDate();
+  const date = new Date(timestamp);
+  return isNaN(date.getTime()) ? formatLocalDate() : formatLocalDate(date);
+};
+
+const formatPaymentDateTime = (payment: CheckoutPaymentRecord): string => {
+  const timestamp = getPaymentTimestamp(payment);
+  if (!timestamp) return '-';
+  const date = new Date(timestamp);
+  return isNaN(date.getTime()) ? '-' : date.toLocaleString();
+};
+
 const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   open,
   onClose,
@@ -200,9 +218,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     setEditMethod(payment.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Cash');
     setEditReference(payment.transaction_reference || '');
     setEditNotes(payment.notes || '');
-    // Extract date from created_at (ISO string or timestamp)
-    const paymentDate = payment.created_at ? formatLocalDate(new Date(payment.created_at)) : formatLocalDate();
-    setEditDate(paymentDate);
+    setEditDate(formatPaymentDateForInput(payment));
   };
 
   const handleCancelEdit = () => {
@@ -1193,7 +1209,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               {p.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {new Date(p.created_at || '').toLocaleString()}
+                              {formatPaymentDateTime(p)}
                             </Typography>
                           </Grid>
                           <Grid size={3}>
@@ -1328,7 +1344,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               Deposit Refund ({p.payment_method?.replace('_', ' ')})
                             </Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {new Date(p.created_at || '').toLocaleString()}
+                              {formatPaymentDateTime(p)}
                             </Typography>
                           </Grid>
                           <Grid size={2}>

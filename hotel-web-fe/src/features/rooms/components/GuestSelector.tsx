@@ -9,6 +9,7 @@ import {
   Chip,
   Alert,
   Autocomplete,
+  createFilterOptions,
   CircularProgress,
   FormControl,
   InputLabel,
@@ -106,6 +107,24 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
   loadingGuestsWithCredits = false,
   onMemberSelected,
 }) => {
+  const guestFilterOptions = React.useMemo(
+    () =>
+      createFilterOptions<Guest>({
+        stringify: (option) =>
+          [
+            option.id,
+            option.full_name,
+            option.company_name,
+            option.email,
+            option.phone,
+            option.ic_number,
+          ]
+            .filter(Boolean)
+            .join(' '),
+      }),
+    []
+  );
+
   // Handle guest selection with member callback
   const handleGuestSelect = (guest: Guest | null) => {
     onGuestSelect(guest);
@@ -216,6 +235,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
             value={selectedGuest}
             onChange={(_, newValue) => handleGuestSelect(newValue)}
             options={guests}
+            filterOptions={guestFilterOptions}
             getOptionLabel={(option) => {
               const parts = [option.full_name];
               if (option.company_name) parts.push(`(${option.company_name})`);

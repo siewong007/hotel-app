@@ -94,13 +94,22 @@ impl SearchRepository {
         let lk = like_op();
         let (p, plim) = placeholders();
         let sql = format!(
-            "SELECT id AS id, full_name AS full_name, \
+            "SELECT id AS id, \
+                    COALESCE(full_name, TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')), '') AS full_name, \
                     COALESCE(phone, '') AS phone, COALESCE(email, '') AS email, \
+                    COALESCE(ic_number, '') AS ic_number, \
                     COALESCE(company_name, '') AS company_name \
              FROM guests \
              WHERE deleted_at IS NULL AND ( \
-                 full_name {lk} {p} OR email {lk} {p} OR phone {lk} {p} \
-                 OR company_name {lk} {p}) \
+                 CAST(id AS TEXT) {lk} {p} \
+                 OR COALESCE(full_name, '') {lk} {p} \
+                 OR COALESCE(first_name, '') {lk} {p} \
+                 OR COALESCE(last_name, '') {lk} {p} \
+                 OR TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) {lk} {p} \
+                 OR COALESCE(email, '') {lk} {p} \
+                 OR COALESCE(phone, '') {lk} {p} \
+                 OR COALESCE(ic_number, '') {lk} {p} \
+                 OR COALESCE(company_name, '') {lk} {p}) \
              ORDER BY full_name LIMIT {plim}"
         );
 
@@ -110,6 +119,7 @@ impl SearchRepository {
             full_name: String,
             phone: String,
             email: String,
+            ic_number: String,
             company_name: String,
         }
 
@@ -123,11 +133,17 @@ impl SearchRepository {
         Ok(rows
             .into_iter()
             .map(|row| {
-                let subtitle = [row.phone, row.email, row.company_name]
-                    .into_iter()
-                    .filter(|value| !value.is_empty())
-                    .collect::<Vec<_>>()
-                    .join(" · ");
+                let subtitle = [
+                    format!("#{}", row.id),
+                    row.phone,
+                    row.email,
+                    row.ic_number,
+                    row.company_name,
+                ]
+                .into_iter()
+                .filter(|value| !value.is_empty())
+                .collect::<Vec<_>>()
+                .join(" · ");
 
                 SearchHit {
                     id: row.id,

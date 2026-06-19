@@ -1205,6 +1205,7 @@ const CustomerLedgerPage: React.FC = () => {
     setPaymentFormData({
       payment_amount: parseFloat(String(ledger.balance_due)),
       payment_method: 'cash',
+      payment_date: formatLocalDate(),
     });
     setPaymentTab(0);
     setPaymentDialogOpen(true);
@@ -1257,9 +1258,20 @@ const CustomerLedgerPage: React.FC = () => {
     if (!editingPaymentDate || !paymentLedger) return;
     try {
       setSavingPaymentDate(true);
-      await HotelAPIService.updateLedgerPaymentDate(payment.ledger_id, payment.id, editingPaymentDate);
+      const updatedPayment = await HotelAPIService.updateLedgerPaymentDate(paymentLedger.id, payment.id, editingPaymentDate);
+      setPaymentHistory(prev => prev.map(p => p.id === updatedPayment.id ? updatedPayment : p));
+      setActiveCompanyPayments(prev => {
+        const ledgerPayments = prev[updatedPayment.ledger_id];
+        if (!ledgerPayments) return prev;
+        return {
+          ...prev,
+          [updatedPayment.ledger_id]: ledgerPayments.map(p =>
+            p.id === updatedPayment.id ? updatedPayment : p
+          ),
+        };
+      });
       // Refresh payment history
-      const payments = await HotelAPIService.getLedgerPayments(payment.ledger_id);
+      const payments = await HotelAPIService.getLedgerPayments(paymentLedger.id);
       setPaymentHistory(payments);
       setEditingPaymentId(null);
       showSnackbar('Payment date updated successfully');
