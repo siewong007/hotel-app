@@ -1821,6 +1821,15 @@ CREATE TABLE IF NOT EXISTS booking_history (
 -- FUNCTIONS
 -- ============================================================================
 
+-- Drop first: an older deployed version of this function used the same type
+-- signature (numeric, integer, numeric, numeric) but different parameter
+-- names/order (p_room_rate, p_nights, p_discount, p_tax_rate). PostgreSQL
+-- refuses to rename input parameters via CREATE OR REPLACE
+-- ("cannot change name of input parameter ..."), which aborts the whole
+-- --single-transaction schema run and leaves every later object (including
+-- route_access_policies) uncreated. Dropping by type signature is idempotent.
+DROP FUNCTION IF EXISTS calculate_booking_total(DECIMAL, INTEGER, DECIMAL, DECIMAL);
+
 CREATE OR REPLACE FUNCTION calculate_booking_total(
     p_room_rate DECIMAL,
     p_nights INTEGER,
