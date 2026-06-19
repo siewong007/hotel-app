@@ -6,11 +6,12 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package.json ./
-COPY package-lock.json* ./
+COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm install --legacy-peer-deps
+# Install dependencies from the lockfile for reproducible builds.
+# `npm ci` fails if package.json and package-lock.json are out of sync,
+# which surfaces dependency drift at build time instead of silently resolving it.
+RUN npm ci --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -23,8 +24,6 @@ ARG VITE_ENVIRONMENT=production
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_ENVIRONMENT=$VITE_ENVIRONMENT
 ENV NODE_ENV=production
-ENV TSC_COMPILE_ON_ERROR=true
-ENV ESLINT_NO_DEV_ERRORS=true
 
 # Build the application
 RUN npm run build
