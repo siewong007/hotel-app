@@ -4530,6 +4530,28 @@ VALUES
     )
 ON CONFLICT (key) DO NOTHING;
 
+-- Automatic night audit scheduler settings (opt-in). The in-process scheduler
+-- reads these live; `night_shift_time` (above) is reused as the trigger time.
+INSERT INTO system_settings (key, value, value_type, category, description, is_public)
+VALUES
+    (
+        'night_audit_auto_enabled',
+        'false',
+        'boolean',
+        'operations',
+        'When true, the backend runs the night audit automatically at night_shift_time',
+        false
+    ),
+    (
+        'night_audit_catchup_days',
+        '7',
+        'number',
+        'operations',
+        'Max number of missed business dates the scheduler will back-fill in one sweep',
+        false
+    )
+ON CONFLICT (key) DO NOTHING;
+
 -- ============================================================================
 -- 025_analytics_role_grants.sql
 -- ============================================================================

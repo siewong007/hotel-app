@@ -13,6 +13,7 @@ export interface HotelSettings {
   check_in_time: string;
   check_out_time: string;
   night_shift_time: string; // Time when night audit runs and data gets posted for reporting
+  night_audit_auto_enabled: boolean; // When true, backend auto-runs the night audit at night_shift_time
   currency: string;
   timezone: string;
   deposit_amount: number; // Default deposit amount for check-in
@@ -36,6 +37,7 @@ const DEFAULT_SETTINGS: HotelSettings = {
   check_in_time: '15:00',
   check_out_time: '11:00',
   night_shift_time: '23:00', // Default night audit time at 11 PM
+  night_audit_auto_enabled: false, // Opt-in; manual night audit by default
   currency: 'MYR',
   timezone: 'Asia/Kuala_Lumpur',
   deposit_amount: 50,

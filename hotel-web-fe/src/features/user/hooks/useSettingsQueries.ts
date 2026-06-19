@@ -18,6 +18,7 @@ const DB_SETTING_KEYS = [
   'check_in_time',
   'check_out_time',
   'night_shift_time',
+  'night_audit_auto_enabled',
   'currency',
   'timezone',
   'deposit_amount',
@@ -40,6 +41,11 @@ const DB_SETTING_KEY_SET = new Set<string>(DB_SETTING_KEYS);
 const parseNumberSetting = (value: string | undefined, fallback: number) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const parseBooleanSetting = (value: string | undefined, fallback: boolean) => {
+  if (value === undefined) return fallback;
+  return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
 };
 
 const parseStringListSetting = (value: string | undefined, fallback: string[]) => {
@@ -89,6 +95,10 @@ const mergeSystemSettings = (
     check_in_time: values.get('check_in_time') ?? localSettings.check_in_time,
     check_out_time: values.get('check_out_time') ?? localSettings.check_out_time,
     night_shift_time: values.get('night_shift_time') ?? localSettings.night_shift_time,
+    night_audit_auto_enabled: parseBooleanSetting(
+      values.get('night_audit_auto_enabled'),
+      localSettings.night_audit_auto_enabled
+    ),
     currency: values.get('currency') ?? localSettings.currency,
     timezone: values.get('timezone') ?? localSettings.timezone,
     deposit_amount: parseNumberSetting(values.get('deposit_amount'), localSettings.deposit_amount),

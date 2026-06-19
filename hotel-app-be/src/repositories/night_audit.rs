@@ -584,7 +584,7 @@ pub async fn reset_audit(pool: &DbPool, audit_date: NaiveDate) -> Result<(), Api
 pub async fn run_audit_procedure(
     pool: &DbPool,
     audit_date: NaiveDate,
-    user_id: i64,
+    user_id: Option<i64>,
 ) -> Result<i64, ApiError> {
     sqlx::query_scalar("SELECT run_night_audit($1, $2)")
         .bind(audit_date)
@@ -595,6 +595,17 @@ pub async fn run_audit_procedure(
             log::error!("Failed to run night audit: {}", e);
             ApiError::Database(format!("Failed to run night audit: {}", e))
         })
+}
+
+/// The most recent business date that has a completed audit run, if any.
+/// Used by the scheduler to decide which dates still need to be posted.
+pub async fn last_completed_audit_date(pool: &DbPool) -> Result<Option<NaiveDate>, ApiError> {
+    sqlx::query_scalar::<_, Option<NaiveDate>>(
+        "SELECT MAX(audit_date) FROM night_audit_runs WHERE status = 'completed'",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))
 }
 
 /// Fetch a single audit run row with payment/channel breakdowns populated.
