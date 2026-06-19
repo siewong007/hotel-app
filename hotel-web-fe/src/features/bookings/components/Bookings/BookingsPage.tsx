@@ -55,6 +55,7 @@ import {
   Block as VoidIcon,
   MoneyOff as MoneyOffIcon,
   Login as LoginIcon,
+  MoreTime as EarlyCheckInIcon,
   Restore as RestoreIcon,
   History as HistoryIcon,
   Edit as EditIcon,
@@ -598,34 +599,32 @@ const BookingsPage: React.FC = () => {
     }
     try {
       setProcessingCheckIn(true);
-      // Don't push payment_status here — recording the payments row below is
-      // what flips the derived status. Sending an override would just be
-      // overwritten by recompute_payment_status on the backend.
-      const updateData: any = {};
+      // Single atomic request: deposit fields + payment + the status flip all go
+      // through the check-in endpoint, which commits them in one transaction.
+      // (Don't push payment_status — recording the payments row is what flips the
+      // derived status; an override would be overwritten by the backend anyway.)
+      const bookingUpdate: any = {};
       if (ciPaymentChoice === 'pay_now') {
-        updateData.amount_paid = ciAmountPaid;
-        updateData.payment_method = ciPaymentMethod;
+        bookingUpdate.payment_method = ciPaymentMethod;
       }
       if (ciDepositChoice === 'receive') {
-        updateData.deposit_paid = true;
-        updateData.deposit_amount = ciDepositAmount;
-        updateData.payment_note = `Deposit received (${ciDepositMethod})`;
+        bookingUpdate.deposit_paid = true;
+        bookingUpdate.deposit_amount = ciDepositAmount;
+        bookingUpdate.payment_note = `Deposit received (${ciDepositMethod})`;
       } else {
-        updateData.deposit_paid = false;
-        updateData.deposit_amount = 0;
-        updateData.payment_note = `Deposit waived: ${ciWaiveReason}`;
+        bookingUpdate.deposit_paid = false;
+        bookingUpdate.deposit_amount = 0;
+        bookingUpdate.payment_note = `Deposit waived: ${ciWaiveReason}`;
       }
-      await updateBookingMutation.mutateAsync({ bookingId: checkinBooking.id, data: updateData });
-      const checkinPayload = (ciPaymentChoice === 'pay_now' && ciAmountPaid > 0)
-        ? {
-            payment_record: {
-              amount: ciAmountPaid,
-              payment_method: ciPaymentMethod,
-              payment_type: 'booking',
-              notes: 'Payment collected at check-in',
-            },
-          }
-        : undefined;
+      const checkinPayload: any = { booking_update: bookingUpdate };
+      if (ciPaymentChoice === 'pay_now' && ciAmountPaid > 0) {
+        checkinPayload.payment_record = {
+          amount: ciAmountPaid,
+          payment_method: ciPaymentMethod,
+          payment_type: 'booking',
+          notes: 'Payment collected at check-in',
+        };
+      }
       await checkInGuestMutation.mutateAsync({ bookingId: checkinBooking.id, data: checkinPayload });
       setShowCheckinModal(false);
       setCheckinBooking(null);
@@ -765,6 +764,18 @@ const BookingsPage: React.FC = () => {
 
     // Allow check-in for confirmed/pending bookings on or after check-in date
     return (status === 'confirmed' || status === 'pending') && today >= checkInDate;
+  };
+
+  // True when checking in before the hotel's configured check-in time, i.e. the
+  // guest's scheduled check-in moment (arrival date at the configured time) has
+  // not yet passed. Used to surface an "early check-in" affordance.
+  const isEarlyCheckIn = (booking: BookingWithDetails) => {
+    const configuredTime = getHotelSettings().check_in_time || '15:00';
+    const [hours, minutes] = configuredTime.split(':').map(Number);
+    const scheduledCheckIn = parseLocalDate(getDateOnly(booking.check_in_date));
+    if (Number.isNaN(scheduledCheckIn.getTime())) return false;
+    scheduledCheckIn.setHours(hours || 0, minutes || 0, 0, 0);
+    return new Date() < scheduledCheckIn;
   };
 
   const canCheckOut = (booking: BookingWithDetails) => {
@@ -1457,7 +1468,13 @@ const BookingsPage: React.FC = () => {
                   <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Actions</Typography>
                   <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1 }}>
                     {canCheckIn(selectedBooking) && (
-                      <Button variant="contained" color="success" startIcon={<LoginIcon />} onClick={() => handleCheckIn(String(selectedBooking.id))}>Check in</Button>
+                      isEarlyCheckIn(selectedBooking) ? (
+                        <Tooltip title={`Early check-in — before the configured ${getHotelSettings().check_in_time || '15:00'} check-in time`} arrow>
+                          <Button variant="contained" color="success" startIcon={<EarlyCheckInIcon />} onClick={() => handleCheckIn(String(selectedBooking.id))}>Early check-in</Button>
+                        </Tooltip>
+                      ) : (
+                        <Button variant="contained" color="success" startIcon={<LoginIcon />} onClick={() => handleCheckIn(String(selectedBooking.id))}>Check in</Button>
+                      )
                     )}
                     {canCheckOut(selectedBooking) && (
                       <Button variant="contained" color="warning" startIcon={<CheckOutIcon />} onClick={() => handleCheckOut(selectedBooking)}>Check out</Button>

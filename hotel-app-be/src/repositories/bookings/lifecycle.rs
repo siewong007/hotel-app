@@ -2471,11 +2471,17 @@ pub async fn manual_checkin_handler(
         )));
     }
 
+    // All check-in mutations (guest/booking edits, the status flip, the deposit,
+    // the payment, and the room status) run inside one transaction so they commit
+    // atomically — a failure anywhere rolls the whole check-in back instead of
+    // leaving a half-checked-in booking.
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
     // Check if room is ready for check-in (only block maintenance/out_of_order)
     // Note: Dirty/cleaning rooms are allowed for check-in - room will be set to occupied
     let room_status: Option<String> = sqlx::query_scalar("SELECT status FROM rooms WHERE id = $1")
         .bind(booking.room_id)
-        .fetch_optional(&pool)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
@@ -2562,7 +2568,7 @@ pub async fn manual_checkin_handler(
                 q = q.bind(p);
             }
             q = q.bind(booking.guest_id);
-            if let Err(e) = q.execute(&pool).await {
+            if let Err(e) = q.execute(&mut *tx).await {
                 log::warn!(
                     "Failed to update guest {} during check-in: {}",
                     booking.guest_id,
@@ -2612,7 +2618,7 @@ pub async fn manual_checkin_handler(
                 q = q.bind(p);
             }
             q = q.bind(booking_id);
-            if let Err(e) = q.execute(&pool).await {
+            if let Err(e) = q.execute(&mut *tx).await {
                 log::warn!(
                     "Failed to update booking {} fields during check-in: {}",
                     booking_id,
@@ -2622,25 +2628,57 @@ pub async fn manual_checkin_handler(
         }
     }
 
-    let updated_booking: Booking = sqlx::query_as(
+    // Deposit details (if any) are folded into the same statement that flips the
+    // status, so the check-in no longer needs a separate update_booking round-trip.
+    let (deposit_paid, deposit_amount, payment_note) = checkin_data
+        .as_ref()
+        .and_then(|c| c.booking_update.as_ref())
+        .map(|b| (b.deposit_paid, b.deposit_amount, b.payment_note.clone()))
+        .unwrap_or((None, None, None));
+    let deposit_amount = deposit_amount.map(|d| Decimal::from_f64_retain(d).unwrap_or(Decimal::ZERO));
+
+    // Compare-and-swap: only flip a booking that is still confirmed/pending. If a
+    // concurrent request already checked it in, this matches zero rows and we
+    // abort, so a double-click can never produce a second payment/audit entry.
+    let updated_booking: Option<Booking> = sqlx::query_as(
         r#"
-        UPDATE bookings SET status = 'checked_in', actual_check_in = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1
+        UPDATE bookings SET
+            status = 'checked_in',
+            actual_check_in = CURRENT_TIMESTAMP,
+            deposit_paid = COALESCE($2, deposit_paid),
+            deposit_amount = COALESCE($3, deposit_amount),
+            deposit_paid_at = CASE WHEN $2 = true AND deposit_paid_at IS NULL THEN CURRENT_TIMESTAMP ELSE deposit_paid_at END,
+            payment_note = COALESCE($4, payment_note),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1 AND status IN ('confirmed', 'pending')
         RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type, cleaning_preference
         "#
     )
     .bind(booking_id)
-    .fetch_one(&pool)
+    .bind(deposit_paid)
+    .bind(deposit_amount)
+    .bind(&payment_note)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    // Record payment if provided during check-in
+    let updated_booking = updated_booking.ok_or_else(|| {
+        ApiError::BadRequest(
+            "Booking is no longer eligible for check-in (it may already be checked in).".to_string(),
+        )
+    })?;
+
+    // Record payment if provided during check-in. A failure here aborts the
+    // transaction (returns Err) so we never report a successful check-in with the
+    // payment silently dropped — caller can safely retry the whole request.
+    let mut payment_recorded = false;
     if let Some(ref checkin) = checkin_data
         && let Some(ref payment) = checkin.payment_record
         && payment.amount > 0.0
     {
         let pay_amount = Decimal::from_f64_retain(payment.amount).unwrap_or(Decimal::ZERO);
         let pay_type = payment.payment_type.as_deref().unwrap_or("booking");
-        if let Err(e) = sqlx::query(
+        sqlx::query(
                     r#"INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
                        VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6)"#
                 )
@@ -2650,16 +2688,10 @@ pub async fn manual_checkin_handler(
                 .bind(pay_type)
                 .bind(&payment.notes)
                 .bind(user_id)
-                .execute(&pool)
+                .execute(&mut *tx)
                 .await
-                {
-                    log::warn!("Failed to record check-in payment for booking {}: {}", booking_id, e);
-                } else {
-                    let _ = crate::handlers::payments::recompute_payment_status(
-                        &pool, booking_id,
-                    )
-                    .await;
-                }
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+        payment_recorded = true;
     }
 
     // Only update room status for current/future bookings (skip back-dated)
@@ -2667,7 +2699,7 @@ pub async fn manual_checkin_handler(
     if booking.check_out_date >= today
         && let Err(e) = sqlx::query("UPDATE rooms SET status = 'occupied' WHERE id = $1")
             .bind(booking.room_id)
-            .execute(&pool)
+            .execute(&mut *tx)
             .await
     {
         log::warn!(
@@ -2675,6 +2707,15 @@ pub async fn manual_checkin_handler(
             booking.room_id,
             e
         );
+    }
+
+    // Everything above is now durable as a single unit.
+    tx.commit().await.map_err(ApiError::from)?;
+
+    // Derived payment-status chip reflects the payment we just inserted. Best-effort
+    // and post-commit: a hiccup here must not undo a completed check-in.
+    if payment_recorded {
+        let _ = crate::handlers::payments::recompute_payment_status(&pool, booking_id).await;
     }
 
     // Back-fill night audit postings for any past nights whose audit already closed.
