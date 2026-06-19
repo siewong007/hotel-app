@@ -9,6 +9,7 @@ type ReportType =
   | 'daily_operations'
   | 'occupancy'
   | 'revenue'
+  | 'channel_net_revenue'
   | 'payment_status'
   | 'complimentary'
   | 'guest_statistics'
@@ -30,6 +31,12 @@ type ReportParams = {
   startDate: string;
   endDate: string;
   companyName?: string;
+  bookingChannelId?: number | string;
+  bookingChannel?: string;
+  platformName?: string;
+  bookingStatus?: string;
+  postedStatus?: string;
+  roomType?: string;
 };
 
 const companyListParams = (startDate: string, endDate: string): ReportParams => ({
@@ -97,7 +104,8 @@ export function useReportData() {
     report: ReportType | '',
     start: string,
     end: string,
-    company: string
+    company: string,
+    extraParams: Partial<ReportParams> = {}
   ) => {
     if (!report) {
       setError('Please select a report type');
@@ -113,6 +121,7 @@ export function useReportData() {
       startDate: start,
       endDate: end,
       ...(report === 'company_ledger_statement' && company ? { companyName: company } : {}),
+      ...extraParams,
     });
   }, []);
 

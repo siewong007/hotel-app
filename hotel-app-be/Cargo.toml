@@ -69,10 +69,12 @@ debug = 0
 
 [profile.release.build-override]
 codegen-units = 16
-debug = 0
+# Keep proc-macro/build-script dylibs loadable on macOS release builds.
+debug = 1
 opt-level = 0
 
 [profile.release-fast.build-override]
 codegen-units = 16
-debug = 0
+# Keep proc-macro/build-script dylibs loadable on macOS release builds.
+debug = 1
 opt-level = 0

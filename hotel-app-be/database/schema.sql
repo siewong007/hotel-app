@@ -5341,3 +5341,50 @@ BEGIN
     END LOOP;
 END;
 $$;
+
+-- ============================================================================
+-- 033_channel_net_revenue_report.sql
+-- ============================================================================
+-- Additive reporting support for OTA/channel commission rules. This does not
+-- alter night-audit posting logic; the report reads posted-night rows directly.
+
+CREATE SEQUENCE IF NOT EXISTS booking_channels_id_seq START WITH 1;
+
+CREATE TABLE IF NOT EXISTS booking_channels (
+    id BIGINT PRIMARY KEY DEFAULT nextval('booking_channels_id_seq'),
+    name VARCHAR(120) NOT NULL UNIQUE,
+    channel_type VARCHAR(30) NOT NULL DEFAULT 'ota' CHECK (
+        channel_type IN ('direct', 'ota', 'corporate', 'walk_in', 'phone', 'website', 'channel_manager', 'other')
+    ),
+    default_commission_type VARCHAR(30) NOT NULL DEFAULT 'none' CHECK (
+        default_commission_type IN ('none', 'percentage', 'fixed_amount')
+    ),
+    default_commission_value DECIMAL(10,2) NOT NULL DEFAULT 0 CHECK (default_commission_value >= 0),
+    default_commission_scope VARCHAR(20) NOT NULL DEFAULT 'per_booking' CHECK (
+        default_commission_scope IN ('per_booking', 'per_night')
+    ),
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT booking_channels_percentage_range CHECK (
+        default_commission_type <> 'percentage'
+        OR default_commission_value BETWEEN 0 AND 100
+    )
+);
+
+DROP TRIGGER IF EXISTS update_booking_channels_updated_at ON booking_channels;
+CREATE TRIGGER update_booking_channels_updated_at
+    BEFORE UPDATE ON booking_channels
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE INDEX IF NOT EXISTS idx_booking_channels_active ON booking_channels(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_booking_channels_type ON booking_channels(channel_type);
+
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_channel_id BIGINT REFERENCES booking_channels(id);
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS commission_type_override VARCHAR(30);
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS commission_value_override DECIMAL(10,2);
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS commission_scope_override VARCHAR(20);
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS commission_amount DECIMAL(12,2);
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS net_revenue DECIMAL(12,2);
+
+CREATE INDEX IF NOT EXISTS idx_bookings_booking_channel_id ON bookings(booking_channel_id);

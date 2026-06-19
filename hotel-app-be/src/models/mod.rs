@@ -6,6 +6,7 @@ pub mod analytics;
 pub mod audit;
 pub mod auth;
 pub mod booking;
+pub mod booking_channel;
 #[allow(dead_code)]
 pub mod common;
 pub mod company;
@@ -37,6 +38,7 @@ pub use analytics::*;
 pub use audit::*;
 pub use auth::*;
 pub use booking::*;
+pub use booking_channel::*;
 pub use common::*;
 pub use company::*;
 pub use data_transfer::*;

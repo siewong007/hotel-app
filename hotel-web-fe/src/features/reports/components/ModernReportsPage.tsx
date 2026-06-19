@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Box,
   Typography,
@@ -15,6 +15,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
   CircularProgress,
   Alert,
   Divider,
@@ -26,8 +27,11 @@ import {
 } from '@mui/material';
 import { Close as CloseIcon } from '@mui/icons-material';
 import {
+  Add as AddIcon,
   Assessment as ReportIcon,
+  Download as DownloadIcon,
   Print as PrintIcon,
+  Save as SaveIcon,
   Visibility as PreviewIcon,
   Business as BusinessIcon,
   CalendarMonth as CalendarIcon,
@@ -42,6 +46,7 @@ import {
   People as PeopleIcon,
   MeetingRoom as RoomIcon,
 } from '@mui/icons-material';
+import { ReportsService, type BookingChannel } from '../../../api/reports.service';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { useReportData } from '../hooks/useReportData';
@@ -51,6 +56,7 @@ type ReportType =
   | 'daily_operations'
   | 'occupancy'
   | 'revenue'
+  | 'channel_net_revenue'
   | 'payment_status'
   | 'complimentary'
   | 'guest_statistics'
@@ -67,6 +73,40 @@ interface CompanyOption {
   entry_count: number;
   total_balance: number;
 }
+
+type ChannelSortKey =
+  | 'business_date'
+  | 'booking_number'
+  | 'guest_name'
+  | 'booking_channel'
+  | 'gross_room_revenue'
+  | 'commission_amount'
+  | 'net_hotel_revenue'
+  | 'posted_status';
+
+type SortDirection = 'asc' | 'desc';
+
+const CHANNEL_TYPES = [
+  { value: 'direct', label: 'Direct' },
+  { value: 'ota', label: 'OTA' },
+  { value: 'corporate', label: 'Corporate' },
+  { value: 'walk_in', label: 'Walk-in' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'website', label: 'Website' },
+  { value: 'channel_manager', label: 'Channel Manager' },
+  { value: 'other', label: 'Other' },
+];
+
+const COMMISSION_TYPES = [
+  { value: 'none', label: 'None' },
+  { value: 'percentage', label: 'Percentage' },
+  { value: 'fixed_amount', label: 'Fixed Amount' },
+];
+
+const COMMISSION_SCOPES = [
+  { value: 'per_booking', label: 'Per Booking' },
+  { value: 'per_night', label: 'Per Night' },
+];
 
 const REPORT_CONFIGS = [
   // New Hotel Management Reports
@@ -92,6 +132,14 @@ const REPORT_CONFIGS = [
     description: 'Revenue by room type, source & payment',
     icon: <MoneyIcon />,
     color: '#00695c',
+    category: 'financial',
+  },
+  {
+    type: 'channel_net_revenue' as ReportType,
+    label: 'Channel Net Revenue',
+    description: 'OTA commission & hotel net revenue',
+    icon: <TrendingIcon />,
+    color: '#7b1fa2',
     category: 'financial',
   },
   {
@@ -194,6 +242,90 @@ const ModernReportsPage: React.FC = () => {
   } = useReportData();
 
   const [printPreviewOpen, setPrintPreviewOpen] = useState(false);
+  const [bookingChannels, setBookingChannels] = useState<BookingChannel[]>([]);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [channelSaveError, setChannelSaveError] = useState('');
+  const [savingChannelId, setSavingChannelId] = useState<number | null>(null);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [newChannelType, setNewChannelType] = useState('ota');
+  const [channelFilterId, setChannelFilterId] = useState('');
+  const [platformFilter, setPlatformFilter] = useState('');
+  const [bookingStatusFilter, setBookingStatusFilter] = useState('all');
+  const [postedStatusFilter, setPostedStatusFilter] = useState('all');
+  const [roomTypeFilter, setRoomTypeFilter] = useState('');
+  const [channelSort, setChannelSort] = useState<{ key: ChannelSortKey; direction: SortDirection }>({
+    key: 'business_date',
+    direction: 'asc',
+  });
+
+  const loadBookingChannels = async () => {
+    setChannelsLoading(true);
+    setChannelSaveError('');
+    try {
+      const channels = await ReportsService.listBookingChannels();
+      setBookingChannels(channels);
+    } catch (err: any) {
+      setChannelSaveError(err?.message || 'Failed to load booking channels');
+    } finally {
+      setChannelsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedReport === 'channel_net_revenue') {
+      loadBookingChannels();
+    }
+  }, [selectedReport]);
+
+  const handleChannelFieldChange = (id: number, field: keyof BookingChannel, value: string | boolean) => {
+    setBookingChannels((channels) => channels.map((channel) => (
+      channel.id === id ? { ...channel, [field]: value } : channel
+    )));
+  };
+
+  const handleSaveChannel = async (channel: BookingChannel) => {
+    setSavingChannelId(channel.id);
+    setChannelSaveError('');
+    try {
+      const updated = await ReportsService.updateBookingChannel(channel.id, {
+        name: channel.name,
+        channel_type: channel.channel_type,
+        default_commission_type: channel.default_commission_type,
+        default_commission_value: Number(channel.default_commission_value || 0),
+        default_commission_scope: channel.default_commission_scope,
+        is_active: channel.is_active,
+      });
+      setBookingChannels((channels) => channels.map((item) => item.id === updated.id ? updated : item));
+    } catch (err: any) {
+      setChannelSaveError(err?.response?.data?.error || err?.message || 'Failed to save booking channel');
+    } finally {
+      setSavingChannelId(null);
+    }
+  };
+
+  const handleAddChannel = async () => {
+    if (!newChannelName.trim()) return;
+
+    setSavingChannelId(-1);
+    setChannelSaveError('');
+    try {
+      const created = await ReportsService.createBookingChannel({
+        name: newChannelName.trim(),
+        channel_type: newChannelType,
+        default_commission_type: 'none',
+        default_commission_value: 0,
+        default_commission_scope: 'per_booking',
+        is_active: true,
+      });
+      setBookingChannels((channels) => [...channels, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewChannelName('');
+      setNewChannelType('ota');
+    } catch (err: any) {
+      setChannelSaveError(err?.response?.data?.error || err?.message || 'Failed to add booking channel');
+    } finally {
+      setSavingChannelId(null);
+    }
+  };
 
   const handlePrintPreview = () => {
     setPrintPreviewOpen(true);
@@ -274,7 +406,99 @@ const ModernReportsPage: React.FC = () => {
     handleReportTypeChangeHook(type, startDate, endDate);
 
   const handleGenerateReport = () =>
-    handleGenerateReportHook(selectedReport, startDate, endDate, selectedCompany);
+    handleGenerateReportHook(
+      selectedReport,
+      startDate,
+      endDate,
+      selectedCompany,
+      selectedReport === 'channel_net_revenue'
+        ? {
+            bookingChannelId: channelFilterId || undefined,
+            platformName: platformFilter.trim() || undefined,
+            bookingStatus: bookingStatusFilter !== 'all' ? bookingStatusFilter : undefined,
+            postedStatus: postedStatusFilter !== 'all' ? postedStatusFilter : undefined,
+            roomType: roomTypeFilter.trim() || undefined,
+          }
+        : {}
+    );
+
+  const formatMoney = (value: unknown) => `${currencySymbol}${Number(value || 0).toFixed(2)}`;
+
+  const handleChannelSort = (key: ChannelSortKey) => {
+    setChannelSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+
+  const getSortedChannelRows = () => {
+    const rows = [...(reportData?.rows || [])];
+    const direction = channelSort.direction === 'asc' ? 1 : -1;
+
+    return rows.sort((a: any, b: any) => {
+      const left = a[channelSort.key];
+      const right = b[channelSort.key];
+      if (typeof left === 'number' || typeof right === 'number') {
+        return (Number(left || 0) - Number(right || 0)) * direction;
+      }
+      return String(left || '').localeCompare(String(right || '')) * direction;
+    });
+  };
+
+  const handleExportChannelCsv = () => {
+    if (!reportData?.rows?.length) return;
+
+    const headers = [
+      'Business Date',
+      'Booking',
+      'Guest',
+      'Room',
+      'Room Type',
+      'Check In',
+      'Check Out',
+      'Channel',
+      'Gross Room Revenue',
+      'Commission Type',
+      'Commission Value',
+      'Commission Amount',
+      'Net Hotel Revenue',
+      'Service Tax',
+      'Tourism Tax',
+      'Status',
+      'Posted Status',
+    ];
+    const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const lines = [
+      headers.map(escapeCsv).join(','),
+      ...getSortedChannelRows().map((row: any) => [
+        row.business_date,
+        row.booking_number,
+        row.guest_name,
+        row.room_number,
+        row.room_type,
+        row.check_in_date,
+        row.check_out_date,
+        row.booking_channel,
+        Number(row.gross_room_revenue || 0).toFixed(2),
+        row.commission_type,
+        Number(row.commission_value || 0).toFixed(2),
+        Number(row.commission_amount || 0).toFixed(2),
+        Number(row.net_hotel_revenue || 0).toFixed(2),
+        Number(row.service_tax || 0).toFixed(2),
+        Number(row.tourism_tax || 0).toFixed(2),
+        row.booking_status,
+        row.posted_status,
+      ].map(escapeCsv).join(',')),
+    ];
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `channel-net-revenue-${startDate}-to-${endDate}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Render Guest Ledger
   const renderGeneralJournal = () => {
@@ -1035,6 +1259,332 @@ const ModernReportsPage: React.FC = () => {
     );
   };
 
+  const renderChannelCommissionEditor = () => (
+    <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+      <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
+        Channel Commission Rates
+      </Typography>
+      {channelSaveError && <Alert severity="error" sx={{ mb: 2 }}>{channelSaveError}</Alert>}
+
+      <TableContainer sx={{ border: 1, borderColor: 'divider', borderRadius: 1, mb: 2 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ bgcolor: 'grey.100' }}>
+              <TableCell>Name</TableCell>
+              <TableCell>Type</TableCell>
+              <TableCell>Commission</TableCell>
+              <TableCell align="right">Value</TableCell>
+              <TableCell>Scope</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell align="right">Save</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {channelsLoading ? (
+              <TableRow>
+                <TableCell colSpan={7} align="center">
+                  <CircularProgress size={22} />
+                </TableCell>
+              </TableRow>
+            ) : bookingChannels.map((channel) => (
+              <TableRow key={channel.id}>
+                <TableCell sx={{ minWidth: 150 }}>
+                  <TextField
+                    size="small"
+                    value={channel.name}
+                    onChange={(e) => handleChannelFieldChange(channel.id, 'name', e.target.value)}
+                    fullWidth
+                  />
+                </TableCell>
+                <TableCell sx={{ minWidth: 130 }}>
+                  <TextField
+                    select
+                    size="small"
+                    value={channel.channel_type}
+                    onChange={(e) => handleChannelFieldChange(channel.id, 'channel_type', e.target.value)}
+                    fullWidth
+                  >
+                    {CHANNEL_TYPES.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                    ))}
+                  </TextField>
+                </TableCell>
+                <TableCell sx={{ minWidth: 145 }}>
+                  <TextField
+                    select
+                    size="small"
+                    value={channel.default_commission_type}
+                    onChange={(e) => handleChannelFieldChange(channel.id, 'default_commission_type', e.target.value)}
+                    fullWidth
+                  >
+                    {COMMISSION_TYPES.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                    ))}
+                  </TextField>
+                </TableCell>
+                <TableCell align="right" sx={{ minWidth: 110 }}>
+                  <TextField
+                    size="small"
+                    type="number"
+                    value={channel.default_commission_value}
+                    onChange={(e) => handleChannelFieldChange(channel.id, 'default_commission_value', e.target.value)}
+                    inputProps={{ min: 0, step: '0.01' }}
+                    disabled={channel.default_commission_type === 'none'}
+                  />
+                </TableCell>
+                <TableCell sx={{ minWidth: 130 }}>
+                  <TextField
+                    select
+                    size="small"
+                    value={channel.default_commission_scope}
+                    onChange={(e) => handleChannelFieldChange(channel.id, 'default_commission_scope', e.target.value)}
+                    disabled={channel.default_commission_type !== 'fixed_amount'}
+                    fullWidth
+                  >
+                    {COMMISSION_SCOPES.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                    ))}
+                  </TextField>
+                </TableCell>
+                <TableCell sx={{ minWidth: 110 }}>
+                  <TextField
+                    select
+                    size="small"
+                    value={channel.is_active ? 'active' : 'inactive'}
+                    onChange={(e) => handleChannelFieldChange(channel.id, 'is_active', e.target.value === 'active')}
+                    fullWidth
+                  >
+                    <MenuItem value="active">Active</MenuItem>
+                    <MenuItem value="inactive">Inactive</MenuItem>
+                  </TextField>
+                </TableCell>
+                <TableCell align="right">
+                  <IconButton
+                    color="primary"
+                    onClick={() => handleSaveChannel(channel)}
+                    disabled={savingChannelId === channel.id}
+                  >
+                    {savingChannelId === channel.id ? <CircularProgress size={20} /> : <SaveIcon />}
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <Grid container spacing={1} alignItems="center">
+        <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <TextField
+            size="small"
+            label="New Channel"
+            value={newChannelName}
+            onChange={(e) => setNewChannelName(e.target.value)}
+            fullWidth
+          />
+        </Grid>
+        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+          <TextField
+            select
+            size="small"
+            label="Type"
+            value={newChannelType}
+            onChange={(e) => setNewChannelType(e.target.value)}
+            fullWidth
+          >
+            {CHANNEL_TYPES.map((option) => (
+              <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+            ))}
+          </TextField>
+        </Grid>
+        <Grid size={{ xs: 12, md: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={savingChannelId === -1 ? <CircularProgress size={18} /> : <AddIcon />}
+            onClick={handleAddChannel}
+            disabled={!newChannelName.trim() || savingChannelId === -1}
+          >
+            Add
+          </Button>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+
+  const renderSortableHeader = (key: ChannelSortKey, label: string, align: 'left' | 'right' = 'left') => (
+    <TableCell align={align}>
+      <TableSortLabel
+        active={channelSort.key === key}
+        direction={channelSort.key === key ? channelSort.direction : 'asc'}
+        onClick={() => handleChannelSort(key)}
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  );
+
+  const renderCommissionLabel = (row: any) => {
+    if (row.commission_type === 'percentage') {
+      return `${Number(row.commission_value || 0).toFixed(2)}%`;
+    }
+    if (row.commission_type === 'fixed_amount') {
+      return `${formatMoney(row.commission_value)} ${row.commission_scope === 'per_night' ? '/ night' : '/ booking'}`;
+    }
+    return 'None';
+  };
+
+  const renderChannelNetRevenue = () => {
+    if (!reportData) return <Typography>No data available</Typography>;
+
+    const { summary } = reportData;
+    const detailRows = getSortedChannelRows();
+
+    return (
+      <Box>
+        <Box className="header" sx={{ textAlign: 'center', mb: 3 }}>
+          <Typography variant="h4" fontWeight="bold">Channel Net Revenue</Typography>
+          <Typography variant="h6">{hotelSettings.hotel_name}</Typography>
+          <Typography variant="body2" color="text.secondary">
+            {reportData.period?.start} to {reportData.period?.end}
+          </Typography>
+        </Box>
+
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e8f5e9' }}>
+              <Typography variant="h5" color="success.main">{formatMoney(summary?.total_gross_revenue)}</Typography>
+              <Typography variant="caption">Gross Room Revenue</Typography>
+            </Paper>
+          </Grid>
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#fff3e0' }}>
+              <Typography variant="h5" color="warning.main">{formatMoney(summary?.total_platform_commission)}</Typography>
+              <Typography variant="caption">Platform Commission</Typography>
+            </Paper>
+          </Grid>
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#e3f2fd' }}>
+              <Typography variant="h5" color="primary.main">{formatMoney(summary?.total_net_hotel_revenue)}</Typography>
+              <Typography variant="caption">Net Hotel Revenue</Typography>
+            </Paper>
+          </Grid>
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Paper sx={{ p: 2, textAlign: 'center', bgcolor: '#f3e5f5' }}>
+              <Typography variant="h5" color="secondary.main">
+                {Number(summary?.average_commission_percentage || 0).toFixed(2)}%
+              </Typography>
+              <Typography variant="caption">Average Commission</Typography>
+            </Paper>
+          </Grid>
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h5">{summary?.total_bookings || 0}</Typography>
+              <Typography variant="caption">Bookings</Typography>
+            </Paper>
+          </Grid>
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="h5">{summary?.room_nights || 0}</Typography>
+              <Typography variant="caption">Room Nights</Typography>
+            </Paper>
+          </Grid>
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="subtitle2" noWrap>{summary?.top_ota_by_revenue?.channel_name || '-'}</Typography>
+              <Typography variant="caption">Top OTA by Revenue</Typography>
+            </Paper>
+          </Grid>
+          <Grid size={{ xs: 6, md: 3 }}>
+            <Paper sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="subtitle2" noWrap>{summary?.top_ota_by_commission_cost?.channel_name || '-'}</Typography>
+              <Typography variant="caption">Top OTA by Commission</Typography>
+            </Paper>
+          </Grid>
+        </Grid>
+
+        <Typography variant="h6" gutterBottom>By Channel</Typography>
+        <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.100' }}>
+                <TableCell>Channel</TableCell>
+                <TableCell>Type</TableCell>
+                <TableCell align="right">Room Nights</TableCell>
+                <TableCell align="right">Gross</TableCell>
+                <TableCell align="right">Commission</TableCell>
+                <TableCell align="right">Net</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {reportData.by_channel?.map((channel: any) => (
+                <TableRow key={channel.channel_name}>
+                  <TableCell>{channel.channel_name}</TableCell>
+                  <TableCell>{channel.channel_type}</TableCell>
+                  <TableCell align="right">{channel.room_nights}</TableCell>
+                  <TableCell align="right">{formatMoney(channel.gross_revenue)}</TableCell>
+                  <TableCell align="right">{formatMoney(channel.commission_amount)}</TableCell>
+                  <TableCell align="right">{formatMoney(channel.net_revenue)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        <Typography variant="h6" gutterBottom>Booking Detail</Typography>
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow sx={{ bgcolor: 'grey.100' }}>
+                {renderSortableHeader('business_date', 'Business Date')}
+                {renderSortableHeader('booking_number', 'Booking')}
+                {renderSortableHeader('guest_name', 'Guest')}
+                <TableCell>Room</TableCell>
+                <TableCell>Room Type</TableCell>
+                {renderSortableHeader('booking_channel', 'Channel')}
+                {renderSortableHeader('gross_room_revenue', 'Gross', 'right')}
+                <TableCell align="right">Rate / Value</TableCell>
+                {renderSortableHeader('commission_amount', 'Commission', 'right')}
+                {renderSortableHeader('net_hotel_revenue', 'Net', 'right')}
+                <TableCell align="right">Taxes</TableCell>
+                {renderSortableHeader('posted_status', 'Posted')}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {detailRows.length > 0 ? detailRows.map((row: any) => (
+                <TableRow key={`${row.booking_id}-${row.business_date}-${row.posted_status}`}>
+                  <TableCell>{row.business_date}</TableCell>
+                  <TableCell>{row.booking_number}</TableCell>
+                  <TableCell>{row.guest_name}</TableCell>
+                  <TableCell>{row.room_number}</TableCell>
+                  <TableCell>{row.room_type}</TableCell>
+                  <TableCell>{row.booking_channel}</TableCell>
+                  <TableCell align="right">{formatMoney(row.gross_room_revenue)}</TableCell>
+                  <TableCell align="right">{renderCommissionLabel(row)}</TableCell>
+                  <TableCell align="right">{formatMoney(row.commission_amount)}</TableCell>
+                  <TableCell align="right">{formatMoney(row.net_hotel_revenue)}</TableCell>
+                  <TableCell align="right">
+                    {formatMoney(Number(row.service_tax || 0) + Number(row.tourism_tax || 0))}
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={row.posted_status}
+                      size="small"
+                      color={row.posted_status === 'posted' ? 'success' : 'warning'}
+                    />
+                  </TableCell>
+                </TableRow>
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={12} align="center">No channel revenue rows found</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+    );
+  };
+
   // Payment Status Report
   const renderPaymentStatus = () => {
     if (!reportData) return <Typography>No data available</Typography>;
@@ -1433,6 +1983,7 @@ const ModernReportsPage: React.FC = () => {
       case 'daily_operations': return renderDailyOperations();
       case 'occupancy': return renderOccupancy();
       case 'revenue': return renderRevenue();
+      case 'channel_net_revenue': return renderChannelNetRevenue();
       case 'payment_status': return renderPaymentStatus();
       case 'complimentary': return renderComplimentary();
       case 'guest_statistics': return renderGuestStatistics();
@@ -1530,6 +2081,77 @@ const ModernReportsPage: React.FC = () => {
                 </Grid>
               )}
 
+              {selectedReport === 'channel_net_revenue' && (
+                <>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Booking Channel"
+                      value={channelFilterId}
+                      onChange={(e) => setChannelFilterId(e.target.value)}
+                      disabled={channelsLoading}
+                    >
+                      <MenuItem value="">All Channels</MenuItem>
+                      {bookingChannels.filter((channel) => channel.is_active).map((channel) => (
+                        <MenuItem key={channel.id} value={String(channel.id)}>
+                          {channel.name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <TextField
+                      fullWidth
+                      label="Platform Name"
+                      value={platformFilter}
+                      onChange={(e) => setPlatformFilter(e.target.value)}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Booking Status"
+                      value={bookingStatusFilter}
+                      onChange={(e) => setBookingStatusFilter(e.target.value)}
+                    >
+                      <MenuItem value="all">All Statuses</MenuItem>
+                      <MenuItem value="pending">Pending</MenuItem>
+                      <MenuItem value="confirmed">Confirmed</MenuItem>
+                      <MenuItem value="checked_in">Checked In</MenuItem>
+                      <MenuItem value="auto_checked_in">Auto Checked In</MenuItem>
+                      <MenuItem value="checked_out">Checked Out</MenuItem>
+                      <MenuItem value="completed">Completed</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <TextField
+                      select
+                      fullWidth
+                      label="Posted"
+                      value={postedStatusFilter}
+                      onChange={(e) => setPostedStatusFilter(e.target.value)}
+                    >
+                      <MenuItem value="all">Posted + Unposted</MenuItem>
+                      <MenuItem value="posted">Posted</MenuItem>
+                      <MenuItem value="unposted">Unposted</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <TextField
+                      fullWidth
+                      label="Room Type"
+                      value={roomTypeFilter}
+                      onChange={(e) => setRoomTypeFilter(e.target.value)}
+                    />
+                  </Grid>
+                  <Grid size={12}>
+                    {renderChannelCommissionEditor()}
+                  </Grid>
+                </>
+              )}
+
               <Grid size={12}>
                 <Box sx={{ display: 'flex', gap: 2 }}>
                   <Button
@@ -1542,9 +2164,16 @@ const ModernReportsPage: React.FC = () => {
                     {loading ? 'Generating...' : 'Generate Report'}
                   </Button>
                   {reportData && (
-                    <Button variant="outlined" size="large" startIcon={<PrintIcon />} onClick={handlePrintPreview}>
-                      Print Report
-                    </Button>
+                    <>
+                      <Button variant="outlined" size="large" startIcon={<PrintIcon />} onClick={handlePrintPreview}>
+                        Print Report
+                      </Button>
+                      {selectedReport === 'channel_net_revenue' && (
+                        <Button variant="outlined" size="large" startIcon={<DownloadIcon />} onClick={handleExportChannelCsv}>
+                          Export CSV
+                        </Button>
+                      )}
+                    </>
                   )}
                 </Box>
               </Grid>
