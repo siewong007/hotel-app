@@ -16,9 +16,38 @@ pub async fn preview(pool: &DbPool, audit_date: NaiveDate) -> Result<NightAuditP
     repo::preview(pool, audit_date).await
 }
 
+/// Run the night audit on behalf of an interactive user (front-desk staff).
 pub async fn run(
     pool: &DbPool,
     user_id: i64,
+    input: RunNightAuditRequest,
+) -> Result<NightAuditResponse, ApiError> {
+    run_with_user(pool, Some(user_id), input).await
+}
+
+/// Run the night audit unattended (scheduler). Posts under a `NULL` user so the
+/// run is distinguishable from a manual one, and never forces a rerun.
+pub async fn run_automated(
+    pool: &DbPool,
+    audit_date: NaiveDate,
+) -> Result<NightAuditResponse, ApiError> {
+    run_with_user(
+        pool,
+        None,
+        RunNightAuditRequest {
+            audit_date: audit_date.to_string(),
+            notes: Some("Automated night audit".to_string()),
+            force: false,
+        },
+    )
+    .await
+}
+
+/// Core audit execution. `run_by` is `Some(user_id)` for a manual run and `None`
+/// for an automated/scheduled run.
+pub async fn run_with_user(
+    pool: &DbPool,
+    run_by: Option<i64>,
     input: RunNightAuditRequest,
 ) -> Result<NightAuditResponse, ApiError> {
     let audit_date = NaiveDate::parse_from_str(&input.audit_date, "%Y-%m-%d").map_err(|e| {
@@ -41,7 +70,7 @@ pub async fn run(
         }
     }
 
-    let audit_run_id = run_audit_procedure(pool, audit_date, user_id).await?;
+    let audit_run_id = run_audit_procedure(pool, audit_date, run_by).await?;
 
     match crate::services::invoice_numbers::backfill_missing_booking_invoices(pool).await {
         Ok(0) => {}
@@ -60,7 +89,7 @@ pub async fn run(
 
     let _ = AuditLog::log_event(
         pool,
-        Some(user_id),
+        run_by,
         "night_audit_run",
         "night_audit",
         Some(audit_run_id),
@@ -131,12 +160,64 @@ pub async fn reset_audit(pool: &DbPool, audit_date: NaiveDate) -> Result<(), Api
 }
 
 /// Call the `run_night_audit` stored procedure and return the new audit run ID.
+/// `user_id` is `None` for an automated/scheduled run (posts under a NULL user).
 pub async fn run_audit_procedure(
     pool: &DbPool,
     audit_date: NaiveDate,
-    user_id: i64,
+    user_id: Option<i64>,
 ) -> Result<i64, ApiError> {
     repo::run_audit_procedure(pool, audit_date, user_id).await
+}
+
+/// The most recent business date with a completed audit run, if any.
+pub async fn last_completed_audit_date(pool: &DbPool) -> Result<Option<NaiveDate>, ApiError> {
+    repo::last_completed_audit_date(pool).await
+}
+
+/// Decide which business dates are due for posting but not yet closed.
+///
+/// Pure (no I/O) so it can be unit-tested. `now_local`/`configured` are in the
+/// hotel's local timezone. Returns dates ascending (oldest first); the caller
+/// still re-checks `is_audit_completed` per date before running.
+///
+/// - Today's audit only becomes due once `now_local` reaches `configured` time.
+/// - On first-ever enable (`last_completed == None`) only the target date is
+///   posted — we never back-fill arbitrary history.
+/// - Catch-up after downtime is bounded to `catchup_days` so a long gap (or a
+///   fresh database) can't trigger an unbounded sweep.
+pub fn due_audit_dates(
+    now_local: chrono::NaiveDateTime,
+    configured: chrono::NaiveTime,
+    last_completed: Option<NaiveDate>,
+    catchup_days: i64,
+) -> Vec<NaiveDate> {
+    let today = now_local.date();
+    let target = if now_local.time() >= configured {
+        today
+    } else {
+        today - chrono::Duration::days(1)
+    };
+
+    let mut start = match last_completed {
+        Some(d) => d + chrono::Duration::days(1),
+        None => target,
+    };
+    let floor = target - chrono::Duration::days(catchup_days.max(0));
+    if start < floor {
+        start = floor;
+    }
+
+    if start > target {
+        return Vec::new();
+    }
+
+    let mut dates = Vec::new();
+    let mut d = start;
+    while d <= target {
+        dates.push(d);
+        d += chrono::Duration::days(1);
+    }
+    dates
 }
 
 /// Fetch a single audit run row with payment/channel breakdowns populated.
@@ -145,4 +226,75 @@ pub async fn fetch_audit_run_by_id(
     audit_run_id: i64,
 ) -> Result<NightAuditRunWithUser, ApiError> {
     repo::fetch_audit_run_by_id(pool, audit_run_id).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::due_audit_dates;
+    use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+
+    fn dt(date: &str, time: &str) -> NaiveDateTime {
+        NaiveDate::parse_from_str(date, "%Y-%m-%d")
+            .unwrap()
+            .and_time(NaiveTime::parse_from_str(time, "%H:%M").unwrap())
+    }
+
+    fn d(date: &str) -> NaiveDate {
+        NaiveDate::parse_from_str(date, "%Y-%m-%d").unwrap()
+    }
+
+    fn at_23() -> NaiveTime {
+        NaiveTime::parse_from_str("23:00", "%H:%M").unwrap()
+    }
+
+    #[test]
+    fn before_configured_time_with_yesterday_closed_is_empty() {
+        // 22:00, configured 23:00 → today not yet due; yesterday already closed.
+        let out = due_audit_dates(dt("2026-06-19", "22:00"), at_23(), Some(d("2026-06-18")), 7);
+        assert!(out.is_empty());
+    }
+
+    #[test]
+    fn after_configured_time_runs_today() {
+        let out = due_audit_dates(dt("2026-06-19", "23:30"), at_23(), Some(d("2026-06-18")), 7);
+        assert_eq!(out, vec![d("2026-06-19")]);
+    }
+
+    #[test]
+    fn catches_up_missed_dates_in_order() {
+        // Last close was 5 days ago; after the time today → close the gap + today.
+        let out = due_audit_dates(dt("2026-06-19", "23:30"), at_23(), Some(d("2026-06-14")), 7);
+        assert_eq!(
+            out,
+            vec![
+                d("2026-06-15"),
+                d("2026-06-16"),
+                d("2026-06-17"),
+                d("2026-06-18"),
+                d("2026-06-19"),
+            ]
+        );
+    }
+
+    #[test]
+    fn first_ever_run_does_not_backfill_history() {
+        let out = due_audit_dates(dt("2026-06-19", "23:30"), at_23(), None, 7);
+        assert_eq!(out, vec![d("2026-06-19")]);
+    }
+
+    #[test]
+    fn catchup_is_bounded_by_window() {
+        // 30-day gap, window 7 → only the last 7 days through today (8 dates).
+        let out = due_audit_dates(dt("2026-06-19", "23:30"), at_23(), Some(d("2026-05-20")), 7);
+        assert_eq!(out.first(), Some(&d("2026-06-12")));
+        assert_eq!(out.last(), Some(&d("2026-06-19")));
+        assert_eq!(out.len(), 8);
+    }
+
+    #[test]
+    fn before_time_catches_up_through_yesterday() {
+        // 10:00 today, configured 23:00, last close 3 days ago → close up to yesterday.
+        let out = due_audit_dates(dt("2026-06-19", "10:00"), at_23(), Some(d("2026-06-16")), 7);
+        assert_eq!(out, vec![d("2026-06-17"), d("2026-06-18")]);
+    }
 }

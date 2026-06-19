@@ -11,7 +11,9 @@ import {
   Divider,
   CircularProgress,
   Chip,
-  Stack
+  Stack,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import {
   Business as BusinessIcon,
@@ -68,6 +70,7 @@ const SettingsPage: React.FC = () => {
   const [checkInTime, setCheckInTime] = useState('15:00');
   const [checkOutTime, setCheckOutTime] = useState('11:00');
   const [nightShiftTime, setNightShiftTime] = useState('23:00');
+  const [nightAuditAutoEnabled, setNightAuditAutoEnabled] = useState(false);
   const [currency, setCurrency] = useState('MYR');
   const [timezone, setTimezone] = useState('Asia/Kuala_Lumpur');
 
@@ -122,6 +125,7 @@ const SettingsPage: React.FC = () => {
     setCheckInTime(settings.check_in_time);
     setCheckOutTime(settings.check_out_time);
     setNightShiftTime(settings.night_shift_time || '23:00');
+    setNightAuditAutoEnabled(Boolean(settings.night_audit_auto_enabled));
     setCurrency(settings.currency);
     setTimezone(settings.timezone);
     setDepositAmount(settings.deposit_amount);
@@ -165,6 +169,7 @@ const SettingsPage: React.FC = () => {
         check_in_time: checkInTime,
         check_out_time: checkOutTime,
         night_shift_time: nightShiftTime,
+        night_audit_auto_enabled: nightAuditAutoEnabled,
         currency,
         timezone,
         deposit_amount: depositAmount,
@@ -331,6 +336,22 @@ const SettingsPage: React.FC = () => {
                 helperText="Time when daily data is posted for reporting (e.g., 11:00 PM)"
                 InputLabelProps={{ shrink: true }}
               />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <FormControlLabel
+                sx={{ mt: 1 }}
+                control={
+                  <Switch
+                    checked={nightAuditAutoEnabled}
+                    onChange={(e) => setNightAuditAutoEnabled(e.target.checked)}
+                  />
+                }
+                label="Run night audit automatically"
+              />
+              <Typography variant="caption" color="text.secondary" display="block">
+                When on, the system posts the night audit at the time above (and catches up any
+                missed days). When off, run it manually from the Night Audit page.
+              </Typography>
             </Grid>
           </Grid>
 

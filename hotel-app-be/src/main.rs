@@ -183,6 +183,11 @@ async fn main() {
         Err(e) => log::warn!("Ledger due_date backfill failed: {}", e),
     }
 
+    // Start the background night-audit scheduler. Inert unless the
+    // `night_audit_auto_enabled` setting is turned on; runs for the process
+    // lifetime and never blocks startup.
+    services::night_audit_scheduler::spawn(pool.clone());
+
     // Create router with all routes and middleware
     let app = create_router(pool);
 

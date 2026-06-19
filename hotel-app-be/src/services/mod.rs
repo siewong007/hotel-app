@@ -18,6 +18,7 @@ pub mod invoice_numbers;
 pub mod ledgers;
 pub mod loyalty;
 pub mod night_audit;
+pub mod night_audit_scheduler;
 pub mod passkey;
 pub mod payments;
 pub mod profile;
