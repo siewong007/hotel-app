@@ -4,56 +4,93 @@ import { Guest, GuestCreateRequest, GuestProfile } from '../types';
 import { withRetry } from '../utils/retry';
 import { getPaginationState, toPaginationSearchParams } from '../utils/pagination';
 
-export class GuestsService {
-  static async getAllGuests(params?: { search?: string }): Promise<Guest[]> {
-    const pageSize = 500;
-    const baseParams: Record<string, any> = toPaginationSearchParams({ page: 1, pageSize });
-    if (params?.search) baseParams.search = params.search;
+const SESSION_EXPIRED_MESSAGE = 'Your session has expired. Please sign in again.';
 
-    const firstPage = await withRetry(
-      () => api.get('guests', { searchParams: baseParams }).json<any>(),
-      { maxAttempts: 3, initialDelay: 1000 }
-    );
-    const firstData: Guest[] = Array.isArray(firstPage) ? firstPage : (firstPage.data || []);
-    const total = firstPage.total || firstData.length;
+const notifyUnauthorized = () => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+};
 
-    if (total <= pageSize) return firstData;
-
-    // Fetch remaining pages in parallel. Use allSettled (not Promise.all) so a
-    // single failed page can't reject the whole call and leave the caller with
-    // an empty list — a partial guest list is far less harmful than no list at
-    // all, which silently funnels users into re-creating an existing guest and
-    // hitting the backend's duplicate-name guard.
-    const totalPages = getPaginationState({ page: 1, pageSize, totalItems: total }).totalPages;
-    const settledPages = await Promise.allSettled(
-      Array.from({ length: totalPages - 1 }, (_, i) =>
-        withRetry(
-          () => api.get('guests', { searchParams: { ...baseParams, page: i + 2 } }).json<any>(),
-          { maxAttempts: 3, initialDelay: 1000 }
-        )
-      )
-    );
-
-    const guests: Guest[] = [...firstData];
-    let failedPages = 0;
-    settledPages.forEach((result, i) => {
-      if (result.status === 'fulfilled') {
-        const res = result.value;
-        const pageData: Guest[] = Array.isArray(res) ? res : (res.data || []);
-        guests.push(...pageData);
-      } else {
-        failedPages++;
-        console.warn(`getAllGuests: failed to load page ${i + 2} of ${totalPages}`, result.reason);
-      }
-    });
-
-    if (failedPages > 0) {
-      console.warn(
-        `getAllGuests: returning ${guests.length} of ~${total} guests; ${failedPages} page(s) failed to load`
-      );
+const toGuestApiError = async (error: unknown, fallback: string): Promise<APIError> => {
+  if (error instanceof HTTPError) {
+    const errorData = await error.response.json().catch(() => ({}));
+    if (error.response.status === 401) {
+      notifyUnauthorized();
+      return new APIError(SESSION_EXPIRED_MESSAGE, error.response.status, errorData);
     }
 
-    return guests;
+    return new APIError(
+      errorData.error || fallback,
+      error.response.status,
+      errorData
+    );
+  }
+
+  return new APIError(fallback);
+};
+
+export class GuestsService {
+  static async getAllGuests(params?: { search?: string }): Promise<Guest[]> {
+    try {
+      const pageSize = 500;
+      const baseParams: Record<string, any> = toPaginationSearchParams({ page: 1, pageSize });
+      if (params?.search) baseParams.search = params.search;
+
+      const firstPage = await withRetry(
+        () => api.get('guests', { searchParams: baseParams }).json<any>(),
+        { maxAttempts: 3, initialDelay: 1000 }
+      );
+      const firstData: Guest[] = Array.isArray(firstPage) ? firstPage : (firstPage.data || []);
+      const total = firstPage.total || firstData.length;
+
+      if (total <= pageSize) return firstData;
+
+      // Fetch remaining pages in parallel. Use allSettled (not Promise.all) so a
+      // single failed page can't reject the whole call and leave the caller with
+      // an empty list — a partial guest list is far less harmful than no list at
+      // all, which silently funnels users into re-creating an existing guest and
+      // hitting the backend's duplicate-name guard.
+      const totalPages = getPaginationState({ page: 1, pageSize, totalItems: total }).totalPages;
+      const settledPages = await Promise.allSettled(
+        Array.from({ length: totalPages - 1 }, (_, i) =>
+          withRetry(
+            () => api.get('guests', { searchParams: { ...baseParams, page: i + 2 } }).json<any>(),
+            { maxAttempts: 3, initialDelay: 1000 }
+          )
+        )
+      );
+
+      const guests: Guest[] = [...firstData];
+      let failedPages = 0;
+      let authError: unknown = null;
+      settledPages.forEach((result, i) => {
+        if (result.status === 'fulfilled') {
+          const res = result.value;
+          const pageData: Guest[] = Array.isArray(res) ? res : (res.data || []);
+          guests.push(...pageData);
+        } else {
+          failedPages++;
+          if (result.reason instanceof HTTPError && result.reason.response.status === 401) {
+            authError = result.reason;
+          }
+          console.warn(`getAllGuests: failed to load page ${i + 2} of ${totalPages}`, result.reason);
+        }
+      });
+
+      if (authError) {
+        throw await toGuestApiError(authError, 'Failed to fetch guests');
+      }
+
+      if (failedPages > 0) {
+        console.warn(
+          `getAllGuests: returning ${guests.length} of ~${total} guests; ${failedPages} page(s) failed to load`
+        );
+      }
+
+      return guests;
+    } catch (error) {
+      throw await toGuestApiError(error, 'Failed to fetch guests');
+    }
   }
 
   static async getGuestsPage(params: {
@@ -81,11 +118,7 @@ export class GuestsService {
         page_size: resp.page_size ?? 50,
       };
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
-        throw new APIError(errorData.error || 'Failed to fetch guests', error.response.status, errorData);
-      }
-      throw new APIError('Failed to fetch guests');
+      throw await toGuestApiError(error, 'Failed to fetch guests');
     }
   }
 
@@ -103,15 +136,7 @@ export class GuestsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
-        throw new APIError(
-          errorData.error || 'Failed to fetch guest profile',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to fetch guest profile');
+      throw await toGuestApiError(error, 'Failed to fetch guest profile');
     }
   }
 
@@ -122,15 +147,7 @@ export class GuestsService {
         { maxAttempts: 2, initialDelay: 1000 }
       );
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
-        throw new APIError(
-          errorData.error || 'Failed to create guest',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to create guest');
+      throw await toGuestApiError(error, 'Failed to create guest');
     }
   }
 
@@ -138,15 +155,7 @@ export class GuestsService {
     try {
       return await api.patch(`guests/${guestId}`, { json: guestData }).json<Guest>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
-        throw new APIError(
-          errorData.error || 'Failed to update guest',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to update guest');
+      throw await toGuestApiError(error, 'Failed to update guest');
     }
   }
 
@@ -154,15 +163,7 @@ export class GuestsService {
     try {
       return await api.delete(`guests/${guestId}`).json<{ success: boolean; message: string }>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
-        throw new APIError(
-          errorData.error || 'Failed to delete guest',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to delete guest');
+      throw await toGuestApiError(error, 'Failed to delete guest');
     }
   }
 
@@ -170,15 +171,7 @@ export class GuestsService {
     try {
       return await api.get(`guests/${guestId}/bookings`).json<any[]>();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
-        throw new APIError(
-          errorData.error || 'Failed to fetch guest bookings',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to fetch guest bookings');
+      throw await toGuestApiError(error, 'Failed to fetch guest bookings');
     }
   }
 
@@ -189,15 +182,7 @@ export class GuestsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
-        throw new APIError(
-          errorData.error || 'Failed to fetch your linked guests',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to fetch your linked guests');
+      throw await toGuestApiError(error, 'Failed to fetch your linked guests');
     }
   }
 
@@ -219,15 +204,7 @@ export class GuestsService {
         { maxAttempts: 3, initialDelay: 1000 }
       );
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
-        throw new APIError(
-          errorData.error || 'Failed to fetch guests with credits',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to fetch guests with credits');
+      throw await toGuestApiError(error, 'Failed to fetch guests with credits');
     }
   }
 
@@ -249,15 +226,7 @@ export class GuestsService {
     try {
       return await api.get(`guests/${guestId}/credits`).json();
     } catch (error) {
-      if (error instanceof HTTPError) {
-        const errorData = await error.response.json().catch(() => ({}));
-        throw new APIError(
-          errorData.error || 'Failed to fetch guest credits',
-          error.response.status,
-          errorData
-        );
-      }
-      throw new APIError('Failed to fetch guest credits');
+      throw await toGuestApiError(error, 'Failed to fetch guest credits');
     }
   }
 }
