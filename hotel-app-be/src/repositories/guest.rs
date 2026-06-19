@@ -1,6 +1,6 @@
 //! Guest repository for database operations
 
-use crate::core::db::{DbPool, DbRow};
+use crate::core::db::{DbPool, DbRow, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::row_mappers;
 use crate::models::{
@@ -13,6 +13,39 @@ use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::Row;
 
 pub struct GuestRepository;
+
+fn unique_violation_matches(error: &sqlx::Error, constraint_name: &str) -> bool {
+    let Some(database_error) = error.as_database_error() else {
+        return false;
+    };
+
+    let is_unique_violation = database_error.code().as_deref() == Some("23505")
+        || database_error
+            .message()
+            .contains("UNIQUE constraint failed");
+
+    is_unique_violation && database_error.message().contains(constraint_name)
+}
+
+struct GuestCreateValues<'a> {
+    full_name: &'a str,
+    first_name: &'a str,
+    last_name: &'a str,
+    email: Option<&'a str>,
+    phone: Option<String>,
+    ic_number: Option<String>,
+    nationality: Option<String>,
+    address_line1: Option<String>,
+    city: Option<String>,
+    state_province: Option<String>,
+    postal_code: Option<String>,
+    country: Option<String>,
+    guest_type: &'a crate::constants::GuestType,
+    tourism_type: &'a Option<crate::constants::TourismType>,
+    discount_percentage: i32,
+    company_name: Option<String>,
+    created_by: i64,
+}
 
 impl GuestRepository {
     /// Find all guests
@@ -359,41 +392,212 @@ impl GuestRepository {
         company_name: Option<String>,
         created_by: i64,
     ) -> Result<Guest, ApiError> {
-        sqlx::query_as::<_, Guest>(
-            r#"
-            INSERT INTO guests (full_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, guest_type, tourism_type, discount_percentage, company_name, created_by)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-            RETURNING id, full_name, email, phone, ic_number, nationality, address_line_1 as address_line1, city, state as state_province, postal_code, country,
-                      NULL::TEXT as title, NULL::TEXT as alt_phone,
-                      true as is_active,
-                      guest_type,
-                      tourism_type,
-                      COALESCE(discount_percentage, 0) as discount_percentage,
-                      company_name,
-                      COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
-                      created_at, updated_at
+        let values = GuestCreateValues {
+            full_name,
+            first_name,
+            last_name,
+            email,
+            phone,
+            ic_number,
+            nationality,
+            address_line1,
+            city,
+            state_province,
+            postal_code,
+            country,
+            guest_type,
+            tourism_type,
+            discount_percentage,
+            company_name,
+            created_by,
+        };
+
+        for attempt in 0..2 {
+            let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+            if let Some(conflicting_guest_id) =
+                Self::full_name_conflict_id_tx(&mut tx, values.full_name, None).await?
+            {
+                tx.rollback().await.map_err(ApiError::from)?;
+                return Err(Self::duplicate_guest_create_error(
+                    values.full_name,
+                    Some(conflicting_guest_id),
+                ));
+            }
+
+            match Self::insert_detailed_tx(&mut tx, &values).await {
+                Ok(guest) => {
+                    tx.commit().await.map_err(ApiError::from)?;
+                    return Ok(guest);
+                }
+                Err(error) => {
+                    let is_name_conflict =
+                        unique_violation_matches(&error, "idx_guests_full_name_unique");
+                    let is_sequence_conflict = unique_violation_matches(&error, "guests_pkey");
+                    let _ = tx.rollback().await;
+
+                    if is_name_conflict {
+                        let conflict_id =
+                            Self::full_name_conflict_id(pool, values.full_name, None).await?;
+                        return Err(Self::duplicate_guest_create_error(
+                            values.full_name,
+                            conflict_id,
+                        ));
+                    }
+
+                    if is_sequence_conflict && attempt == 0 {
+                        Self::repair_guest_id_sequence(pool).await?;
+                        continue;
+                    }
+
+                    return Err(ApiError::from(error));
+                }
+            }
+        }
+
+        Err(ApiError::Internal(
+            "Guest creation retry loop exited unexpectedly".to_string(),
+        ))
+    }
+
+    async fn full_name_conflict_id_tx(
+        tx: &mut DbTransaction<'_>,
+        full_name: &str,
+        exclude_guest_id: Option<i64>,
+    ) -> Result<Option<i64>, ApiError> {
+        let id: Option<i64> = if let Some(exclude_guest_id) = exclude_guest_id {
+            let query = crate::sql_query!(
+                postgres: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL AND id != $2 LIMIT 1",
+                sqlite: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(?1)) AND id != ?2 LIMIT 1"
+            );
+
+            sqlx::query_scalar(query)
+                .bind(full_name)
+                .bind(exclude_guest_id)
+                .fetch_optional(&mut **tx)
+                .await
+                .map_err(ApiError::from)?
+        } else {
+            let query = crate::sql_query!(
+                postgres: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM($1)) AND deleted_at IS NULL LIMIT 1",
+                sqlite: "SELECT id FROM guests WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(?1)) LIMIT 1"
+            );
+
+            sqlx::query_scalar(query)
+                .bind(full_name)
+                .fetch_optional(&mut **tx)
+                .await
+                .map_err(ApiError::from)?
+        };
+
+        Ok(id)
+    }
+
+    async fn insert_detailed_tx(
+        tx: &mut DbTransaction<'_>,
+        values: &GuestCreateValues<'_>,
+    ) -> Result<Guest, sqlx::Error> {
+        let query = crate::sql_query!(
+            postgres: r#"
+                INSERT INTO guests (full_name, first_name, last_name, email, phone, ic_number, nationality, address_line_1, city, state, postal_code, country, guest_type, tourism_type, discount_percentage, company_name, created_by)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                RETURNING id, full_name, email, phone, ic_number, nationality,
+                          address_line_1 as address_line1, city, state as state_province,
+                          postal_code, country, title, alt_phone, true as is_active,
+                          guest_type, tourism_type,
+                          COALESCE(discount_percentage, 0) as discount_percentage,
+                          company_name,
+                          COALESCE(complimentary_nights_credit, 0) as complimentary_nights_credit,
+                          created_at, updated_at,
+                          NULL::BIGINT as bookings_count,
+                          NULL::DATE as last_stay_date
+            "#,
+            sqlite: r#"
+                INSERT INTO guests (full_name, first_name, last_name, email, phone, ic_number, nationality, address_line1, city, state_province, postal_code, country, guest_type, tourism_type, discount_percentage, company_name, created_by)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+                RETURNING id, full_name, email, phone, ic_number, nationality,
+                          address_line1, city, state_province, postal_code, country,
+                          title, alt_phone, 1 as is_active,
+                          CASE WHEN guest_type = 'member' THEN 'member' ELSE 'non_member' END as guest_type,
+                          NULL as tourism_type,
+                          0 as discount_percentage,
+                          company_name,
+                          0 as complimentary_nights_credit,
+                          created_at, updated_at,
+                          NULL as bookings_count,
+                          NULL as last_stay_date
             "#
-        )
-        .bind(full_name)
-        .bind(first_name)
-        .bind(last_name)
-        .bind(email)
-        .bind(phone)
-        .bind(ic_number)
-        .bind(nationality)
-        .bind(address_line1)
-        .bind(city)
-        .bind(state_province)
-        .bind(postal_code)
-        .bind(country)
-        .bind(guest_type)
-        .bind(tourism_type)
-        .bind(discount_percentage)
-        .bind(company_name)
-        .bind(created_by)
-        .fetch_one(pool)
-        .await
-        .map_err(ApiError::from)
+        );
+
+        sqlx::query_as::<_, Guest>(query)
+            .bind(values.full_name)
+            .bind(values.first_name)
+            .bind(values.last_name)
+            .bind(values.email)
+            .bind(values.phone.as_deref())
+            .bind(values.ic_number.as_deref())
+            .bind(values.nationality.as_deref())
+            .bind(values.address_line1.as_deref())
+            .bind(values.city.as_deref())
+            .bind(values.state_province.as_deref())
+            .bind(values.postal_code.as_deref())
+            .bind(values.country.as_deref())
+            .bind(values.guest_type)
+            .bind(values.tourism_type)
+            .bind(values.discount_percentage)
+            .bind(values.company_name.as_deref())
+            .bind(values.created_by)
+            .fetch_one(&mut **tx)
+            .await
+    }
+
+    async fn repair_guest_id_sequence(pool: &DbPool) -> Result<(), ApiError> {
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let _ = pool;
+
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        {
+            let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+            sqlx::query("LOCK TABLE guests IN SHARE ROW EXCLUSIVE MODE")
+                .execute(&mut *tx)
+                .await
+                .map_err(ApiError::from)?;
+
+            sqlx::query(
+                r#"
+                WITH bounds AS (
+                    SELECT COALESCE(MAX(id), 0) AS max_id FROM guests
+                ),
+                seq AS (
+                    SELECT last_value, is_called FROM guests_id_seq
+                )
+                SELECT CASE
+                    WHEN bounds.max_id = 0 AND NOT seq.is_called THEN setval('guests_id_seq', 1, false)
+                    ELSE setval('guests_id_seq', GREATEST(seq.last_value, bounds.max_id), true)
+                END
+                FROM bounds, seq
+                "#,
+            )
+            .execute(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
+
+            tx.commit().await.map_err(ApiError::from)?;
+        }
+
+        Ok(())
+    }
+
+    fn duplicate_guest_create_error(full_name: &str, conflict_id: Option<i64>) -> ApiError {
+        let id_text = conflict_id
+            .map(|id| format!(" (Guest ID #{})", id))
+            .unwrap_or_default();
+
+        ApiError::BadRequest(format!(
+            "A guest with the name '{}' already exists{}. Please select the existing guest instead of creating a new one.",
+            full_name, id_text
+        ))
     }
 
     pub async fn update_state(
