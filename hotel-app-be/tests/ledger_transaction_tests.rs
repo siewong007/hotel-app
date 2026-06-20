@@ -10,15 +10,19 @@ mod sqlite_tests {
     #[tokio::test]
     async fn create_ledger_payment_is_idempotent_and_atomic() {
         let pool = super::common::setup_test_db().await;
-        
+
+        sqlx::query("INSERT INTO room_types (id, name, code, base_price) VALUES (7702, 'Type 1', 'T1', 100.0)").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO rooms (id, room_number, room_type_id, status) VALUES (7702, '101', 7702, 'available')").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO guests (id, first_name, last_name) VALUES (7702, 'Guest', 'One')").execute(&pool).await.unwrap();
+
         // Similar setup, create a ledger first
         sqlx::query(
-            "INSERT INTO bookings (id, booking_number, guest_id, room_id, check_in_date, check_out_date, rate_per_night, total_amount, status) VALUES (7702, 'BK-PAY', 1, 1, '2026-06-20', '2026-06-21', 100.0, 150.0, 'confirmed')",
+            "INSERT INTO bookings (id, booking_number, guest_id, room_id, check_in_date, check_out_date, rate_per_night, total_amount, status) VALUES (7702, 'BK-PAY', 7702, 7702, '2026-06-20', '2026-06-21', 100.0, 150.0, 'confirmed')",
         ).execute(&pool).await.unwrap();
 
         sqlx::query(
-            "INSERT INTO customer_ledgers (id, description, balance, booking_id)
-             VALUES (7702, 'Desc', 100.0, 7702)"
+            "INSERT INTO customer_ledgers (id, company_name, description, expense_type, amount, status, booking_id)
+             VALUES (7702, 'Test Company', 'Desc', 'accommodation', 100.0, 'pending', 7702)"
         ).execute(&pool).await.unwrap();
 
         let req = CustomerLedgerPaymentRequest {

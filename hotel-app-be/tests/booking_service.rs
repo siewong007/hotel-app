@@ -344,10 +344,9 @@ mod sqlite_tests {
         .await
         .unwrap();
         sqlx::query(
-            "INSERT INTO customer_ledgers (ledger_number, guest_id, booking_id, transaction_type, transaction_date, description, debit_amount, balance, created_by) \
-             VALUES ('LED-9940-1', ?1, ?2, 'room_charge', '2030-04-10', 'Existing ledger', 551.00, 551.00, 1)",
+            "INSERT INTO customer_ledgers (company_name, guest_id, booking_id, transaction_type, transaction_date, description, amount, created_by, expense_type, status, folio_number) \
+             VALUES ('Individual', NULL, ?1, 'debit', '2030-04-10', 'Existing ledger', 551.00, 1, 'accommodation', 'pending', 'LED-9940-1')",
         )
-        .bind(9940_i64)
         .bind(9940_i64)
         .execute(&pool)
         .await
@@ -537,10 +536,9 @@ mod sqlite_tests {
         .await
         .unwrap();
         sqlx::query(
-            "INSERT INTO customer_ledgers (ledger_number, guest_id, booking_id, transaction_type, transaction_date, description, debit_amount, balance, created_by) \
-             VALUES ('LED-9970-1', ?1, ?2, 'room_charge', '2030-07-10', 'Existing ledger', 300.00, 300.00, 1)",
+            "INSERT INTO customer_ledgers (company_name, guest_id, booking_id, transaction_type, transaction_date, description, amount, created_by, expense_type, status, folio_number) \
+             VALUES ('Individual', NULL, ?1, 'debit', '2030-07-10', 'Existing ledger', 300.00, 1, 'accommodation', 'pending', 'LED-9970-1')",
         )
-        .bind(9970_i64)
         .bind(9970_i64)
         .execute(&pool)
         .await
@@ -1167,8 +1165,8 @@ mod sqlite_tests {
         .await
         .unwrap();
         sqlx::query(
-            "INSERT INTO customer_ledgers (ledger_number, guest_id, booking_id, transaction_type, transaction_date, description, debit_amount, balance, created_by) \
-             VALUES ('LED-8090-1', ?1, ?1, 'room_charge', '2030-12-10', 'Existing', 300.00, 300.00, 1)",
+            "INSERT INTO customer_ledgers (company_name, guest_id, booking_id, transaction_type, transaction_date, description, amount, created_by, expense_type, status, folio_number) \
+             VALUES ('Individual', NULL, ?1, 'debit', '2030-12-10', 'Existing', 300.00, 1, 'accommodation', 'pending', 'LED-8090-1')",
         )
         .bind(8090_i64)
         .execute(&pool)
