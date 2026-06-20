@@ -1079,6 +1079,40 @@ mod sqlite_tests {
             booking.get::<Option<String>, _>("special_requests"),
             Some("High floor".to_string())
         );
+    }
+
+    #[tokio::test]
+    async fn checkin_persists_company_billing_edits() {
+        let pool = common::setup_test_db().await;
+        seed_checkin_booking(&pool, 8071, "confirmed").await;
+
+        let checkin: CheckInRequest = serde_json::from_value(serde_json::json!({
+            "booking_update": {
+                "company_id": 999,
+                "company_name": "Test Company Bhd",
+                "payment_method": "Direct Billing"
+            }
+        }))
+        .unwrap();
+        bookings::manual_checkin(&pool, 1, 8071, Some(checkin))
+            .await
+            .expect("check-in with company edits succeeds");
+
+        let booking = sqlx::query("SELECT company_id, company_name, payment_method, status FROM bookings WHERE id = ?1")
+            .bind(8071_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+        assert_eq!(booking.get::<Option<i64>, _>("company_id"), Some(999));
+        assert_eq!(
+            booking.get::<Option<String>, _>("company_name"),
+            Some("Test Company Bhd".to_string())
+        );
+        assert_eq!(
+            booking.get::<Option<String>, _>("payment_method"),
+            Some("Direct Billing".to_string())
+        );
         assert_eq!(booking.get::<String, _>("status"), "checked_in");
     }
 
@@ -2536,5 +2570,128 @@ mod postgres_reactivation_tests {
             booking_id,
         )
         .await;
+    }
+}
+
+#[cfg(all(feature = "postgres", not(feature = "sqlite")))]
+mod postgres_creation_tests {
+    use axum::extract::{Extension, State};
+    use axum::Json;
+    use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::models::BookingInput;
+    use hotel_app_be::repositories::bookings::create_booking_handler;
+    use sqlx::postgres::PgPoolOptions;
+    use sqlx::PgPool;
+
+    async fn setup_pg_pool() -> Option<(PgPool, tokio::sync::OwnedMutexGuard<()>)> {
+        let database_url = match std::env::var("DATABASE_URL") {
+            Ok(url) => url,
+            Err(_) => return None,
+        };
+        if database_url.is_empty() {
+            return None;
+        }
+        let guard = super::pg_serial_lock().lock_owned().await;
+        let pool = PgPoolOptions::new()
+            .max_connections(5)
+            .connect(&database_url)
+            .await
+            .expect("failed to connect to PostgreSQL test database");
+        Some((pool, guard))
+    }
+
+    async fn cleanup(pool: &PgPool, room_id: i64, guest_id: i64, actor_id: i64) {
+        sqlx::query("DELETE FROM booking_modifications WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)").bind(room_id).execute(pool).await.unwrap();
+        sqlx::query("DELETE FROM booking_history WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)").bind(room_id).execute(pool).await.unwrap();
+        sqlx::query("DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)").bind(room_id).execute(pool).await.unwrap();
+        sqlx::query("DELETE FROM audit_logs WHERE resource_type = 'booking' AND resource_id IN (SELECT id FROM bookings WHERE room_id = $1)").bind(room_id).execute(pool).await.unwrap();
+        sqlx::query("DELETE FROM bookings WHERE room_id = $1").bind(room_id).execute(pool).await.unwrap();
+        sqlx::query("DELETE FROM guests WHERE id = $1").bind(guest_id).execute(pool).await.unwrap();
+        sqlx::query("DELETE FROM rooms WHERE id = $1").bind(room_id).execute(pool).await.unwrap();
+        sqlx::query("DELETE FROM user_roles WHERE user_id = $1").bind(actor_id).execute(pool).await.unwrap();
+        sqlx::query("DELETE FROM users WHERE id = $1").bind(actor_id).execute(pool).await.unwrap();
+    }
+
+    async fn seed_data(pool: &PgPool, room_id: i64, guest_id: i64, actor_id: i64) {
+        sqlx::query("INSERT INTO users (id, username, email, full_name, user_type, is_active, is_verified) VALUES ($1, $2, $3, $4, 'staff', true, true) ON CONFLICT DO NOTHING")
+            .bind(actor_id).bind(format!("pg_creation_actor_{actor_id}")).bind(format!("pg-create-{actor_id}@hotel.local")).bind(format!("Actor {actor_id}")).execute(pool).await.unwrap();
+        
+        sqlx::query("INSERT INTO guests (id, first_name, last_name) VALUES ($1, 'Create', 'Guest') ON CONFLICT DO NOTHING")
+            .bind(guest_id).execute(pool).await.unwrap();
+
+        sqlx::query("INSERT OR IGNORE INTO room_types (id, name, code, base_price) VALUES (1, 'Base', 'BASE', 100.0) ON CONFLICT DO NOTHING")
+            .execute(pool).await.unwrap();
+
+        sqlx::query("INSERT INTO rooms (id, room_number, room_type_id, status, is_active) VALUES ($1, $2, 1, 'available', true) ON CONFLICT DO NOTHING")
+            .bind(room_id).bind(format!("R{room_id}")).execute(pool).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn postgres_concurrent_creation_allows_only_one_success() {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else { return; };
+        let actor_id = 960_001;
+        let guest_id = 960_201;
+        let room_id = 960_301;
+        
+        cleanup(&pool, room_id, guest_id, actor_id).await;
+        seed_data(&pool, room_id, guest_id, actor_id).await;
+
+        let input = BookingInput {
+            guest_id, room_id,
+            check_in_date: "2027-03-01".to_string(), check_out_date: "2027-03-05".to_string(),
+            post_type: None, rate_code: None, booking_remarks: None, is_tourist: None, tourism_tax_amount: None,
+            extra_bed_count: None, extra_bed_charge: None, late_checkout_penalty: None, payment_method: None, payment_status: None,
+            amount_paid: None, source: None, booking_number: None, deposit_paid: None, deposit_amount: None,
+            room_rate_override: None, special_requests: None, daily_rates: None, cleaning_preference: None, company_id: None, company_name: None,
+        };
+
+        let pool_a = pool.clone();
+        let pool_b = pool.clone();
+        let input_a = Json(serde_json::from_str::<BookingInput>(&serde_json::to_string(&input).unwrap()).unwrap());
+        let input_b = Json(serde_json::from_str::<BookingInput>(&serde_json::to_string(&input).unwrap()).unwrap());
+
+        let (first, second) = tokio::join!(
+            create_booking_handler(State(pool_a), Extension(actor_id), input_a),
+            create_booking_handler(State(pool_b), Extension(actor_id), input_b)
+        );
+
+        let success_count = usize::from(first.is_ok()) + usize::from(second.is_ok());
+        assert_eq!(success_count, 1, "exactly one concurrent creation should succeed: first={first:?}, second={second:?}");
+
+        cleanup(&pool, room_id, guest_id, actor_id).await;
+    }
+
+    #[tokio::test]
+    async fn postgres_creation_is_idempotent_with_booking_number() {
+        let Some((pool, _serial_guard)) = setup_pg_pool().await else { return; };
+        let actor_id = 960_002;
+        let guest_id = 960_202;
+        let room_id = 960_302;
+        
+        cleanup(&pool, room_id, guest_id, actor_id).await;
+        seed_data(&pool, room_id, guest_id, actor_id).await;
+
+        let booking_number = "BK-IDEMPOTENT-TEST-960".to_string();
+        sqlx::query("DELETE FROM bookings WHERE booking_number = $1").bind(&booking_number).execute(&pool).await.unwrap();
+
+        let input = BookingInput {
+            guest_id, room_id,
+            check_in_date: "2027-04-01".to_string(), check_out_date: "2027-04-05".to_string(),
+            post_type: None, rate_code: None, booking_remarks: None, is_tourist: None, tourism_tax_amount: None,
+            extra_bed_count: None, extra_bed_charge: None, late_checkout_penalty: None, payment_method: None, payment_status: None,
+            amount_paid: None, source: None, booking_number: Some(booking_number.clone()), deposit_paid: None, deposit_amount: None,
+            room_rate_override: None, special_requests: None, daily_rates: None, cleaning_preference: None, company_id: None, company_name: None,
+        };
+
+        let input_a = Json(serde_json::from_str::<BookingInput>(&serde_json::to_string(&input).unwrap()).unwrap());
+        let input_b = Json(serde_json::from_str::<BookingInput>(&serde_json::to_string(&input).unwrap()).unwrap());
+
+        let first = create_booking_handler(State(pool.clone()), Extension(actor_id), input_a).await;
+        assert!(first.is_ok(), "first creation should succeed");
+
+        let second = create_booking_handler(State(pool.clone()), Extension(actor_id), input_b).await;
+        assert!(matches!(second, Err(ApiError::Database(_))), "second creation with same booking number should fail uniquely: {:?}", second);
+
+        cleanup(&pool, room_id, guest_id, actor_id).await;
     }
 }

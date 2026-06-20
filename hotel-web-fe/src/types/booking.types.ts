@@ -145,6 +145,8 @@ export interface BookingCreateRequest {
   room_rate_override?: number;
   daily_rates?: Record<string, number>;
   cleaning_preference?: boolean | null;
+  company_id?: number;
+  company_name?: string;
 }
 
 export interface BookingUpdateRequest {
