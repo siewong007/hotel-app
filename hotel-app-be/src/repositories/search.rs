@@ -19,6 +19,18 @@ fn placeholders() -> (&'static str, &'static str) {
     return ("$1", "$2");
 }
 
+fn encode_query_component(value: &str) -> String {
+    value
+        .bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (byte as char).to_string()
+            }
+            _ => format!("%{byte:02X}"),
+        })
+        .collect()
+}
+
 pub struct SearchRepository;
 
 impl SearchRepository {
@@ -61,6 +73,12 @@ impl SearchRepository {
         Ok(rows
             .into_iter()
             .map(|row| {
+                let (booking_label, route_search_value) = if row.booking_number.trim().is_empty() {
+                    (format!("#{}", row.id), row.id.to_string())
+                } else {
+                    (row.booking_number.clone(), row.booking_number)
+                };
+                let route_search = encode_query_component(&route_search_value);
                 let mut subtitle = String::new();
                 if !row.guest_name.is_empty() {
                     subtitle.push_str(&row.guest_name);
@@ -78,9 +96,9 @@ impl SearchRepository {
 
                 SearchHit {
                     id: row.id,
-                    title: row.booking_number,
+                    title: booking_label,
                     subtitle,
-                    route: "/bookings".into(),
+                    route: format!("/bookings?search={}&booking_id={}", route_search, row.id),
                 }
             })
             .collect())
@@ -133,6 +151,7 @@ impl SearchRepository {
         Ok(rows
             .into_iter()
             .map(|row| {
+                let route_search = encode_query_component(&row.full_name);
                 let subtitle = [
                     format!("#{}", row.id),
                     row.phone,
@@ -149,7 +168,115 @@ impl SearchRepository {
                     id: row.id,
                     title: row.full_name,
                     subtitle,
-                    route: "/guest-config".into(),
+                    route: format!("/guest-config?search={}&guest_id={}", route_search, row.id),
+                }
+            })
+            .collect())
+    }
+
+    pub async fn search_ledgers(
+        pool: &DbPool,
+        pattern: &str,
+        limit: i64,
+    ) -> Result<Vec<SearchHit>, ApiError> {
+        let lk = like_op();
+        let (p, plim) = placeholders();
+        let sql = format!(
+            "SELECT cl.id AS id, cl.company_name AS company_name, \
+                    c.id AS company_id, \
+                    COALESCE(cl.description, '') AS description, \
+                    COALESCE(cl.invoice_number, '') AS invoice_number, \
+                    COALESCE(cl.folio_number, '') AS folio_number, \
+                    COALESCE(b.booking_number, '') AS booking_number, \
+                    COALESCE(cl.room_number, '') AS room_number, \
+                    cl.status AS status \
+             FROM customer_ledgers cl \
+             LEFT JOIN companies c ON LOWER(c.company_name) = LOWER(cl.company_name) \
+             LEFT JOIN bookings b ON b.id = cl.booking_id \
+             WHERE CAST(cl.id AS TEXT) {lk} {p} \
+                OR cl.company_name {lk} {p} \
+                OR COALESCE(cl.description, '') {lk} {p} \
+                OR COALESCE(cl.invoice_number, '') {lk} {p} \
+                OR COALESCE(cl.folio_number, '') {lk} {p} \
+                OR COALESCE(b.booking_number, '') {lk} {p} \
+                OR COALESCE(cl.reference_number, '') {lk} {p} \
+                OR COALESCE(cl.payment_reference, '') {lk} {p} \
+                OR COALESCE(cl.room_number, '') {lk} {p} \
+             ORDER BY cl.created_at DESC LIMIT {plim}"
+        );
+
+        #[derive(sqlx::FromRow)]
+        struct Row {
+            id: i64,
+            company_name: String,
+            company_id: Option<i64>,
+            description: String,
+            invoice_number: String,
+            folio_number: String,
+            booking_number: String,
+            room_number: String,
+            status: String,
+        }
+
+        let rows = sqlx::query_as::<_, Row>(&sql)
+            .bind(pattern)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let query = pattern.trim_matches('%').to_lowercase();
+                let booking_number_matches = !query.is_empty()
+                    && !row.booking_number.is_empty()
+                    && row.booking_number.to_lowercase().contains(&query);
+                let (title, route_search_value) = if booking_number_matches {
+                    (row.booking_number.clone(), row.booking_number.clone())
+                } else if !row.invoice_number.is_empty() {
+                    (row.invoice_number.clone(), row.invoice_number.clone())
+                } else if !row.folio_number.is_empty() {
+                    (row.folio_number.clone(), row.folio_number.clone())
+                } else {
+                    (format!("Ledger #{}", row.id), row.id.to_string())
+                };
+
+                let mut subtitle = row.company_name.clone();
+                if !row.booking_number.is_empty() && row.booking_number != title {
+                    subtitle.push_str(" · ");
+                    subtitle.push_str(&row.booking_number);
+                }
+                if !row.description.is_empty() {
+                    subtitle.push_str(" · ");
+                    subtitle.push_str(&row.description);
+                }
+                if !row.room_number.is_empty() {
+                    subtitle.push_str(" · Room ");
+                    subtitle.push_str(&row.room_number);
+                }
+                if !row.status.is_empty() {
+                    subtitle.push_str(" · ");
+                    subtitle.push_str(&row.status.replace('_', " "));
+                }
+
+                let company_context = row
+                    .company_id
+                    .map(|id| format!("&company_id={id}"))
+                    .unwrap_or_else(|| {
+                        format!("&company={}", encode_query_component(&row.company_name))
+                    });
+
+                SearchHit {
+                    id: row.id,
+                    title,
+                    subtitle,
+                    route: format!(
+                        "/company-ledger?tab=entries&search={}&ledger_id={}{}",
+                        encode_query_component(&route_search_value),
+                        row.id,
+                        company_context
+                    ),
                 }
             })
             .collect())

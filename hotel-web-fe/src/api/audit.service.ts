@@ -161,13 +161,14 @@ export class AuditService {
       log.category || '-',
       log.resource_type.replace(/_/g, ' '),
       log.resource_id?.toString() || '-',
+      log.has_changes === false || log.change_kind === 'action_only' ? 'Action only' : 'Field changes',
       log.ip_address || '-',
     ]);
 
     // Add table (jspdf-autotable v5 functional API)
     autoTable(doc, {
       startY: 35,
-      head: [['Timestamp', 'User', 'Action', 'Stream', 'Resource', 'ID', 'IP']],
+      head: [['Timestamp', 'User', 'Action', 'Stream', 'Resource', 'ID', 'Change Type', 'IP']],
       body: tableData,
       styles: { fontSize: 8 },
       headStyles: { fillColor: [16, 164, 124] },

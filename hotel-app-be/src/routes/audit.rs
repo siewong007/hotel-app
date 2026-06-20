@@ -8,7 +8,7 @@ use crate::core::middleware::require_permission_helper;
 use crate::models;
 use axum::{
     Router,
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     http::HeaderMap,
     response::Json,
     routing::get,
@@ -78,8 +78,8 @@ async fn export_audit_logs_csv(
     headers: HeaderMap,
     query: Query<models::AuditLogQuery>,
 ) -> Result<axum::response::Response, ApiError> {
-    require_permission_helper(&pool, &headers, "audit:export").await?;
-    audit::export_audit_logs_csv(State(pool), query).await
+    let user_id = require_permission_helper(&pool, &headers, "audit:export").await?;
+    audit::export_audit_logs_csv(State(pool), Extension(user_id), query).await
 }
 
 async fn get_db_statements(

@@ -173,6 +173,7 @@ export interface BookingUpdateRequest {
   deposit_amount?: number;
   company_id?: number;
   company_name?: string;
+  clear_company?: boolean;
   payment_note?: string;
   remarks?: string;
   source?: string;

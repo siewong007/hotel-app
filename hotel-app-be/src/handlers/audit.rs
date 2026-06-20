@@ -3,7 +3,7 @@
 //! Handlers for querying and exporting audit logs.
 
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     response::Json,
 };
 
@@ -35,9 +35,11 @@ pub async fn get_audit_resource_types(
 /// GET /audit-logs/export/csv
 pub async fn export_audit_logs_csv(
     State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
     Query(params): Query<AuditLogQuery>,
 ) -> Result<axum::response::Response, ApiError> {
-    let (filename, csv_content) = audit_service::export_audit_logs_csv(&pool, params).await?;
+    let (filename, csv_content) =
+        audit_service::export_audit_logs_csv(&pool, user_id, params).await?;
 
     Ok(axum::response::Response::builder()
         .status(axum::http::StatusCode::OK)

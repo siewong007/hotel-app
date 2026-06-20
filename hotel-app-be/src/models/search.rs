@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 pub struct GlobalSearchQuery {
     pub q: Option<String>,
-    /// Comma-separated domain filter: `bookings,guests,rooms`. Empty = all.
+    /// Comma-separated domain filter: `bookings,guests,ledgers,rooms`. Empty = all.
     pub types: Option<String>,
     /// Max results per group.
     pub limit: Option<i64>,
@@ -21,7 +21,7 @@ pub struct SearchHit {
 
 #[derive(Debug, Serialize)]
 pub struct SearchGroup {
-    /// Stable key: `bookings` | `guests` | `rooms`.
+    /// Stable key: `bookings` | `guests` | `ledgers` | `rooms`.
     pub r#type: String,
     pub label: String,
     pub results: Vec<SearchHit>,

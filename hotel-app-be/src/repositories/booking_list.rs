@@ -61,7 +61,8 @@ pub fn build_booking_list_query(
         param_idx += 1;
         let p = param_placeholder(param_idx);
         conditions.push(format!(
-            "(g.full_name {like_op} {p} \
+            "(CAST(b.id AS TEXT) {like_op} {p} \
+              OR g.full_name {like_op} {p} \
               OR b.booking_number {like_op} {p} \
               OR b.folio_number {like_op} {p} \
               OR r.room_number {like_op} {p} \
@@ -285,6 +286,11 @@ mod tests {
         );
         assert!(query.count_sql.contains(&format!(
             "g.full_name {} {}",
+            like_operator(),
+            param_placeholder(2)
+        )));
+        assert!(query.count_sql.contains(&format!(
+            "CAST(b.id AS TEXT) {} {}",
             like_operator(),
             param_placeholder(2)
         )));

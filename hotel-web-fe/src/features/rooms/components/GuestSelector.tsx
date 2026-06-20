@@ -70,6 +70,7 @@ interface GuestSelectorProps {
   selectedGuestWithCredits?: GuestWithCredits | null;
   onGuestWithCreditsSelect?: (guest: GuestWithCredits | null) => void;
   loadingGuestsWithCredits?: boolean;
+  guestCreditsNoOptionsText?: string;
 
   // Optional - callback when member is selected
   onMemberSelected?: (isMember: boolean) => void;
@@ -105,6 +106,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
   selectedGuestWithCredits = null,
   onGuestWithCreditsSelect,
   loadingGuestsWithCredits = false,
+  guestCreditsNoOptionsText = 'No guests with free room credits found',
   onMemberSelected,
 }) => {
   const guestFilterOptions = React.useMemo(
@@ -199,7 +201,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
                   placeholder="Search by name or email"
                 />
               )}
-              noOptionsText="No guests with free room credits found"
+              noOptionsText={guestCreditsNoOptionsText}
             />
           </>
         )}

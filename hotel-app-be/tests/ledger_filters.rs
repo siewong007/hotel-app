@@ -26,11 +26,12 @@ mod sqlite_tests {
     // `getLedgerUiStatus`, which is strictly balance-first):
     //
     //   1  paid             — settled, nothing outstanding
-    //   2  partial          — was paid, then a charge re-opened a balance
+    //   2  partial          — was paid, then a charge re-opened an invoiced balance
     //   3  overdue          — outstanding, due date in the past
     //   4  invoiced         — outstanding, invoice issued, not yet due
     //   5  ready_to_invoice — outstanding, no invoice number yet
     //   6  voided           — void_at set
+    //   7  overdue          — status already marked overdue, no due date
     const PAST: &str = "2020-01-01"; // before today's date('now')
     const FUTURE: &str = "2030-01-01"; // after today's date('now')
 
@@ -80,6 +81,7 @@ mod sqlite_tests {
                 Some(FUTURE),
                 Some(PAST),
             ),
+            (7, "overdue", 120.0, 0.0, Some("INV7"), None, None),
         ];
         for (id, status, balance, paid, inv, due, void) in rows {
             sqlx::query(
@@ -142,8 +144,8 @@ mod sqlite_tests {
         let clause = ui_clause();
         assert_eq!(
             matched(&pool, &clause, Some("overdue")).await,
-            vec![3],
-            "outstanding with a past due date is overdue"
+            vec![3, 7],
+            "outstanding with a past due date or stored overdue status is overdue"
         );
         assert_eq!(
             matched(&pool, &clause, Some("invoiced")).await,
@@ -167,7 +169,7 @@ mod sqlite_tests {
         let pool = setup().await;
         assert_eq!(
             matched(&pool, &ui_clause(), None).await,
-            vec![1, 2, 3, 4, 5, 6],
+            vec![1, 2, 3, 4, 5, 6, 7],
             "no ui_status filter (the 'All' button) returns every row"
         );
     }
@@ -183,7 +185,7 @@ mod sqlite_tests {
         );
         assert_eq!(
             matched(&pool, &clause, Some("invoiced")).await,
-            vec![1, 2, 3, 4],
+            vec![1, 2, 3, 4, 7],
             "rows with an invoice number, excluding the voided one, are invoiced"
         );
     }
@@ -196,8 +198,8 @@ mod sqlite_tests {
         // it belongs to the dedicated Overdue bucket only.
         assert_eq!(
             matched(&pool, &clause, Some("outstanding")).await,
-            vec![2, 4, 5],
-            "current (not-yet-overdue) non-void rows with a positive balance are outstanding"
+            vec![5],
+            "only current, non-void, not-yet-invoiced rows with a positive balance are outstanding"
         );
         assert_eq!(
             matched(&pool, &clause, Some("clear")).await,

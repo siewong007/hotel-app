@@ -8,7 +8,7 @@ export interface SearchHit {
 }
 
 export interface SearchGroup {
-  type: string; // bookings | guests | rooms
+  type: string; // bookings | guests | ledgers | rooms
   label: string;
   results: SearchHit[];
 }

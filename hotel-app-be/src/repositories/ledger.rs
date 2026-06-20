@@ -67,16 +67,16 @@ pub fn invoice_state_clause(null_expr: &str, p: &str) -> String {
 
 /// `balance_state` filter: `outstanding` / `clear`.
 ///
-/// `outstanding` means a *current* amount still owed — a positive balance that
-/// is not yet overdue. Past-due rows are deliberately excluded so they surface
-/// only under the dedicated `Overdue` filter (the two buttons read as distinct
-/// buckets rather than overlapping). The exclusion mirrors the `overdue` arm of
+/// `outstanding` means a current, not-yet-invoiced amount still owed — a
+/// positive balance that is not yet overdue. Past-due and invoiced rows are
+/// deliberately excluded so they surface only under the dedicated `Overdue` and
+/// `Invoiced` filters. The overdue exclusion mirrors the `overdue` arm of
 /// `ui_status_clause`: a row is overdue when `status = 'overdue'` or its
 /// `due_date` is before `today`.
 pub fn balance_state_clause(null_expr: &str, p: &str, today: &str) -> String {
     format!(
         "AND ({null_expr} IS NULL \
-         OR ({p} = 'outstanding' AND COALESCE(balance_due, 0) > 0 AND void_at IS NULL AND status <> 'void' AND status <> 'overdue' AND (due_date IS NULL OR due_date >= {today})) \
+         OR ({p} = 'outstanding' AND COALESCE(balance_due, 0) > 0 AND invoice_number IS NULL AND void_at IS NULL AND status <> 'void' AND status <> 'overdue' AND (due_date IS NULL OR due_date >= {today})) \
          OR ({p} = 'clear' AND COALESCE(balance_due, 0) <= 0))"
     )
 }
@@ -275,7 +275,7 @@ pub async fn list_customer_ledgers(
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     let (count_sql, data_sql) = {
         let search_clause = if search.is_some() {
-            "AND (?8 IS NULL OR (company_name LIKE '%' || ?8 || '%' OR description LIKE '%' || ?8 || '%' OR COALESCE(invoice_number,'') LIKE '%' || ?8 || '%' OR COALESCE(folio_number,'') LIKE '%' || ?8 || '%' OR COALESCE(contact_person,'') LIKE '%' || ?8 || '%'))"
+            "AND (?8 IS NULL OR (CAST(id AS TEXT) LIKE '%' || ?8 || '%' OR company_name LIKE '%' || ?8 || '%' OR description LIKE '%' || ?8 || '%' OR COALESCE(invoice_number,'') LIKE '%' || ?8 || '%' OR COALESCE(folio_number,'') LIKE '%' || ?8 || '%' OR COALESCE(contact_person,'') LIKE '%' || ?8 || '%' OR EXISTS (SELECT 1 FROM bookings b WHERE b.id = customer_ledgers.booking_id AND b.booking_number LIKE '%' || ?8 || '%')))"
         } else {
             "AND (?8 IS NULL OR 1=1)"
         };
@@ -295,7 +295,7 @@ pub async fn list_customer_ledgers(
     #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
     let (count_sql, data_sql) = {
         let search_clause = if search.is_some() {
-            "AND ($8::text IS NULL OR (company_name ILIKE '%' || $8 || '%' OR description ILIKE '%' || $8 || '%' OR COALESCE(invoice_number,'') ILIKE '%' || $8 || '%' OR COALESCE(folio_number,'') ILIKE '%' || $8 || '%' OR COALESCE(contact_person,'') ILIKE '%' || $8 || '%'))"
+            "AND ($8::text IS NULL OR (CAST(id AS TEXT) ILIKE '%' || $8 || '%' OR company_name ILIKE '%' || $8 || '%' OR description ILIKE '%' || $8 || '%' OR COALESCE(invoice_number,'') ILIKE '%' || $8 || '%' OR COALESCE(folio_number,'') ILIKE '%' || $8 || '%' OR COALESCE(contact_person,'') ILIKE '%' || $8 || '%' OR EXISTS (SELECT 1 FROM bookings b WHERE b.id = customer_ledgers.booking_id AND b.booking_number ILIKE '%' || $8 || '%')))"
         } else {
             "AND ($8::text IS NULL OR TRUE)"
         };

@@ -17,10 +17,10 @@ export function useUnifiedBookingData() {
   const loadGuestsWithCredits = useCallback(async () => {
     setLoadingGuestsWithCredits(true);
     try {
-      const response = await queryClient.ensureQueryData({
+      const response = await queryClient.fetchQuery({
         queryKey: queryKeys.guests.mineWithCredits(),
         queryFn: () => GuestsService.getMyGuestsWithCredits(),
-        staleTime: queryStaleTime.standard,
+        staleTime: 0,
       });
       setGuestsWithCredits(response.filter((g: GuestWithCredits) => g.total_complimentary_credits > 0));
     } catch (error) {
