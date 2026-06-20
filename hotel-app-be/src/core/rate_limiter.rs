@@ -207,9 +207,7 @@ impl RateLimiters {
     #[allow(dead_code)]
     pub async fn check_rate_limit(&self, category: &str, ip: &IpAddr) -> bool {
         match category {
-            "auth:login" | "auth:register" | "auth:passkey" => {
-                self.auth.check(*ip).await
-            }
+            "auth:login" | "auth:register" | "auth:passkey" => self.auth.check(*ip).await,
             "register" => self.register.check(*ip).await,
             "sensitive" => self.sensitive.check(*ip).await,
             "guest_portal:verify" => self.guest_portal_verify.check(*ip).await,

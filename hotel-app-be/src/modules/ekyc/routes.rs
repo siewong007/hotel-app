@@ -1,5 +1,7 @@
 //! eKYC routes.
 
+use axum::body::Body;
+use axum::http::header;
 use axum::{
     Router,
     extract::{Multipart, Path, Query, State},
@@ -7,18 +9,16 @@ use axum::{
     response::{Json, Response},
     routing::{get, patch, post},
 };
-use axum::body::Body;
-use axum::http::header;
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
-use crate::core::db::DbPool;
-use crate::core::error::ApiError;
-use crate::core::middleware::{require_auth, require_permission_helper};
 use super::models;
 use super::service;
 use super::validation;
+use crate::core::db::DbPool;
+use crate::core::error::ApiError;
+use crate::core::middleware::{require_auth, require_permission_helper};
 
 /// Create eKYC routes.
 pub fn routes() -> Router<DbPool> {
@@ -132,7 +132,9 @@ async fn submit_ekyc(
     let user_id = require_auth(&headers).await?;
     let ip = client_ip(&headers);
     let ua = user_agent(&headers);
-    Ok(Json(service::submit_ekyc(&pool, user_id, input, ip, ua).await?))
+    Ok(Json(
+        service::submit_ekyc(&pool, user_id, input, ip, ua).await?,
+    ))
 }
 
 async fn get_status(
@@ -166,7 +168,16 @@ async fn list_admin_applications(
     Query(params): Query<models::EkycListQuery>,
 ) -> Result<Json<models::EkycAdminListResponse>, ApiError> {
     let actor_id = require_permission_helper(&pool, &headers, "ekyc:read").await?;
-    Ok(Json(service::list_admin_applications(&pool, actor_id, params, client_ip(&headers), user_agent(&headers)).await?))
+    Ok(Json(
+        service::list_admin_applications(
+            &pool,
+            actor_id,
+            params,
+            client_ip(&headers),
+            user_agent(&headers),
+        )
+        .await?,
+    ))
 }
 
 async fn get_admin_application(
@@ -175,7 +186,16 @@ async fn get_admin_application(
     Path(id): Path<i64>,
 ) -> Result<Json<models::EkycApplicationDetail>, ApiError> {
     let actor_id = require_permission_helper(&pool, &headers, "ekyc:read").await?;
-    Ok(Json(service::get_admin_application(&pool, actor_id, id, client_ip(&headers), user_agent(&headers)).await?))
+    Ok(Json(
+        service::get_admin_application(
+            &pool,
+            actor_id,
+            id,
+            client_ip(&headers),
+            user_agent(&headers),
+        )
+        .await?,
+    ))
 }
 
 async fn apply_review_action(
@@ -185,7 +205,17 @@ async fn apply_review_action(
     Json(input): Json<models::EkycReviewActionRequest>,
 ) -> Result<Json<models::EkycApplicationDetail>, ApiError> {
     let actor_id = require_auth(&headers).await?;
-    Ok(Json(service::apply_review_action(&pool, actor_id, id, input, client_ip(&headers), user_agent(&headers)).await?))
+    Ok(Json(
+        service::apply_review_action(
+            &pool,
+            actor_id,
+            id,
+            input,
+            client_ip(&headers),
+            user_agent(&headers),
+        )
+        .await?,
+    ))
 }
 
 async fn reveal_sensitive(
@@ -195,7 +225,17 @@ async fn reveal_sensitive(
     Json(input): Json<models::EkycSensitiveRevealRequest>,
 ) -> Result<Json<models::EkycSensitiveRevealResponse>, ApiError> {
     let actor_id = require_auth(&headers).await?;
-    Ok(Json(service::reveal_sensitive_field(&pool, actor_id, id, input, client_ip(&headers), user_agent(&headers)).await?))
+    Ok(Json(
+        service::reveal_sensitive_field(
+            &pool,
+            actor_id,
+            id,
+            input,
+            client_ip(&headers),
+            user_agent(&headers),
+        )
+        .await?,
+    ))
 }
 
 async fn reason_codes(
@@ -212,7 +252,14 @@ async fn export_admin_applications(
     Query(params): Query<models::EkycListQuery>,
 ) -> Result<Response, ApiError> {
     let actor_id = require_permission_helper(&pool, &headers, "ekyc:export").await?;
-    let csv = service::export_admin_applications_csv(&pool, actor_id, params, client_ip(&headers), user_agent(&headers)).await?;
+    let csv = service::export_admin_applications_csv(
+        &pool,
+        actor_id,
+        params,
+        client_ip(&headers),
+        user_agent(&headers),
+    )
+    .await?;
 
     Response::builder()
         .header(header::CONTENT_TYPE, "text/csv; charset=utf-8")
@@ -239,7 +286,16 @@ async fn get_verification(
     Path(id): Path<i64>,
 ) -> Result<Json<models::EkycApplicationDetail>, ApiError> {
     let actor_id = require_permission_helper(&pool, &headers, "ekyc:read").await?;
-    Ok(Json(service::get_admin_application(&pool, actor_id, id, client_ip(&headers), user_agent(&headers)).await?))
+    Ok(Json(
+        service::get_admin_application(
+            &pool,
+            actor_id,
+            id,
+            client_ip(&headers),
+            user_agent(&headers),
+        )
+        .await?,
+    ))
 }
 
 async fn get_document(
@@ -249,7 +305,15 @@ async fn get_document(
 ) -> Result<Response, ApiError> {
     let actor_id = require_permission_helper(&pool, &headers, "ekyc:download_documents").await?;
 
-    service::record_document_download(&pool, actor_id, id, &kind, client_ip(&headers), user_agent(&headers)).await?;
+    service::record_document_download(
+        &pool,
+        actor_id,
+        id,
+        &kind,
+        client_ip(&headers),
+        user_agent(&headers),
+    )
+    .await?;
 
     let path = service::get_document_path(&pool, id, &kind).await?;
     let prefix = format!("{}/", validation::EKYC_UPLOAD_DIR);
@@ -288,7 +352,16 @@ async fn update_verification(
 ) -> Result<Json<models::EkycApplicationDetail>, ApiError> {
     let admin_id = require_permission_helper(&pool, &headers, "ekyc:verify").await?;
     let updated = service::update_ekyc(&pool, id, admin_id, input).await?;
-    Ok(Json(service::get_admin_application(&pool, admin_id, updated.id, client_ip(&headers), user_agent(&headers)).await?))
+    Ok(Json(
+        service::get_admin_application(
+            &pool,
+            admin_id,
+            updated.id,
+            client_ip(&headers),
+            user_agent(&headers),
+        )
+        .await?,
+    ))
 }
 
 fn user_agent(headers: &HeaderMap) -> Option<String> {

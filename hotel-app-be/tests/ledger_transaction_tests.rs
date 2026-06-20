@@ -4,8 +4,8 @@ mod common;
 mod sqlite_tests {
     use hotel_app_be::models::{CustomerLedgerCreateRequest, CustomerLedgerPaymentRequest};
     use hotel_app_be::services::ledgers;
-    use sqlx::Row;
     use rust_decimal::Decimal;
+    use sqlx::Row;
 
     #[tokio::test]
     async fn create_ledger_payment_is_idempotent_and_atomic() {
@@ -13,7 +13,10 @@ mod sqlite_tests {
 
         sqlx::query("INSERT INTO room_types (id, name, code, base_price) VALUES (7702, 'Type 1', 'T1', 100.0)").execute(&pool).await.unwrap();
         sqlx::query("INSERT INTO rooms (id, room_number, room_type_id, status) VALUES (7702, '101', 7702, 'available')").execute(&pool).await.unwrap();
-        sqlx::query("INSERT INTO guests (id, first_name, last_name) VALUES (7702, 'Guest', 'One')").execute(&pool).await.unwrap();
+        sqlx::query("INSERT INTO guests (id, first_name, last_name) VALUES (7702, 'Guest', 'One')")
+            .execute(&pool)
+            .await
+            .unwrap();
 
         // Similar setup, create a ledger first
         sqlx::query(
@@ -35,7 +38,9 @@ mod sqlite_tests {
             notes: Some("First payment".to_string()),
         };
 
-        let payment1 = ledgers::create_ledger_payment(&pool, 7702, 1, req).await.expect("Payment 1 failed");
+        let payment1 = ledgers::create_ledger_payment(&pool, 7702, 1, req)
+            .await
+            .expect("Payment 1 failed");
 
         let req2 = CustomerLedgerPaymentRequest {
             payment_amount: 50.0,
@@ -49,8 +54,11 @@ mod sqlite_tests {
 
         // Try second payment with same receipt_number -> should fail
         let payment2 = ledgers::create_ledger_payment(&pool, 7702, 1, req2).await;
-        assert!(payment2.is_err(), "Second payment with same receipt number should be rejected (idempotency)");
-        
+        assert!(
+            payment2.is_err(),
+            "Second payment with same receipt number should be rejected (idempotency)"
+        );
+
         if let Err(e) = payment2 {
             assert!(e.to_string().contains("Receipt number already exists"));
         }

@@ -256,7 +256,6 @@ impl PaymentRepository {
         payment_type: &str,
         created_at_override: Option<&str>,
     ) -> Result<PaymentEntryRow, ApiError> {
-
         if let Some(ref txn_ref) = request.transaction_reference
             && !txn_ref.is_empty()
         {
@@ -376,10 +375,7 @@ impl PaymentRepository {
             query = query.bind(date);
         }
 
-        query
-            .fetch_one(executor)
-            .await
-            .map_err(ApiError::from)
+        query.fetch_one(executor).await.map_err(ApiError::from)
     }
 
     pub async fn list_payment_entries(

@@ -92,8 +92,8 @@ pub async fn book_with_credits_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?
     .map(|r| {
-        use sqlx::Row;
         use crate::core::db::DbRowExt;
+        use sqlx::Row;
         (r.get(0), r.get_decimal(1), r.get(2))
     });
 

@@ -118,7 +118,6 @@ pub struct RewardRedemptionWithDetails {
     pub created_at: DateTime<Utc>,
 }
 
-
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for LoyaltyReward {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
@@ -130,7 +129,9 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for LoyaltyReward {
             points_cost: row.try_get("points_cost")?,
             monetary_value: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("monetary_value")?);
+                let val = crate::core::db::parse_opt_decimal(
+                    row.try_get::<Option<String>, _>("monetary_value")?,
+                );
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")

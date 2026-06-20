@@ -8,7 +8,7 @@ use chrono::{Local, NaiveDate, Utc};
 
 use crate::core::error::ApiError;
 use crate::modules::ekyc::models::{
-    EkycReasonCode, EkycReviewActionRequest, EkycVerification, EkycFieldComparison,
+    EkycFieldComparison, EkycReasonCode, EkycReviewActionRequest, EkycVerification,
 };
 
 use super::models::EkycSubmissionRequest;
@@ -145,7 +145,9 @@ pub fn save_base64_image(
     Ok(format!("{EKYC_UPLOAD_DIR}/{}", filename))
 }
 
-pub fn validate_dates(req: &EkycSubmissionRequest) -> Result<(NaiveDate, NaiveDate, Option<NaiveDate>), ApiError> {
+pub fn validate_dates(
+    req: &EkycSubmissionRequest,
+) -> Result<(NaiveDate, NaiveDate, Option<NaiveDate>), ApiError> {
     let date_of_birth = NaiveDate::parse_from_str(&req.date_of_birth, "%Y-%m-%d")
         .map_err(|_| ApiError::BadRequest("Invalid date of birth. Use YYYY-MM-DD".to_string()))?;
     let id_expiry_date = NaiveDate::parse_from_str(&req.id_expiry_date, "%Y-%m-%d")
@@ -573,7 +575,9 @@ pub fn csv_row(values: &[String]) -> String {
     format!("{escaped}\n")
 }
 
-pub fn status_response(verification: &EkycVerification) -> crate::modules::ekyc::models::EkycStatusResponse {
+pub fn status_response(
+    verification: &EkycVerification,
+) -> crate::modules::ekyc::models::EkycStatusResponse {
     crate::modules::ekyc::models::EkycStatusResponse {
         id: verification.id,
         status: verification.status.clone(),
@@ -588,7 +592,9 @@ pub fn status_response(verification: &EkycVerification) -> crate::modules::ekyc:
     }
 }
 
-pub fn dashboard_from_row(row: &crate::modules::ekyc::models::EkycDashboardRow) -> crate::modules::ekyc::models::EkycDashboardMetrics {
+pub fn dashboard_from_row(
+    row: &crate::modules::ekyc::models::EkycDashboardRow,
+) -> crate::modules::ekyc::models::EkycDashboardMetrics {
     crate::modules::ekyc::models::EkycDashboardMetrics {
         total_submitted: row.total_submitted,
         pending_review: row.pending_review,
@@ -725,7 +731,10 @@ mod tests {
     #[test]
     fn sanitize_document_type_removes_invalid_chars() {
         assert_eq!(sanitize_document_type("passport").unwrap(), "passport");
-        assert_eq!(sanitize_document_type("national-id_card").unwrap(), "national-id_card");
+        assert_eq!(
+            sanitize_document_type("national-id_card").unwrap(),
+            "national-id_card"
+        );
     }
 
     #[test]
@@ -787,7 +796,10 @@ mod tests {
     fn normalize_action_returns_ok_for_known() {
         assert_eq!(normalize_action("claim").unwrap(), "claim");
         assert_eq!(normalize_action("  approve  ").unwrap(), "approve");
-        assert_eq!(normalize_action("override_decision").unwrap(), "override_decision");
+        assert_eq!(
+            normalize_action("override_decision").unwrap(),
+            "override_decision"
+        );
     }
 
     #[test]

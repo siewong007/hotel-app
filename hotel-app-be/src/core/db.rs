@@ -224,7 +224,8 @@ impl DbRowExt for DbRow {
         parse_decimal(&self.get::<String, _>(index))
     }
     fn get_opt_decimal(&self, index: usize) -> Option<rust_decimal::Decimal> {
-        self.get::<Option<String>, _>(index).map(|s| parse_decimal(&s))
+        self.get::<Option<String>, _>(index)
+            .map(|s| parse_decimal(&s))
     }
 }
 

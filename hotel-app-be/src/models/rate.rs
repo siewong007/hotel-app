@@ -216,7 +216,6 @@ pub struct ApplicableRateQuery {
     pub date: String,
 }
 
-
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RatePlan {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
@@ -229,7 +228,9 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RatePlan {
             adjustment_type: row.try_get("adjustment_type")?,
             adjustment_value: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("adjustment_value")?);
+                let val = crate::core::db::parse_opt_decimal(
+                    row.try_get::<Option<String>, _>("adjustment_value")?,
+                );
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")
@@ -258,7 +259,6 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RatePlan {
     }
 }
 
-
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RoomRate {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
@@ -282,7 +282,6 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RoomRate {
         })
     }
 }
-
 
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for RoomRateWithDetails {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {

@@ -174,7 +174,6 @@ pub struct TierInfo {
     pub points_multiplier: Decimal,
 }
 
-
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for LoyaltyProgram {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
@@ -185,7 +184,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for LoyaltyProgram {
             tier_level: row.try_get("tier_level")?,
             points_multiplier: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("points_multiplier")?);
+                let val =
+                    crate::core::db::parse_decimal(&row.try_get::<String, _>("points_multiplier")?);
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")
@@ -200,7 +200,6 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for LoyaltyProgram {
         })
     }
 }
-
 
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for LoyaltyMembershipWithDetails {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
@@ -219,7 +218,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for LoyaltyMembershipWithDeta
             tier_level: row.try_get("tier_level")?,
             points_multiplier: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("points_multiplier")?);
+                let val =
+                    crate::core::db::parse_decimal(&row.try_get::<String, _>("points_multiplier")?);
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")

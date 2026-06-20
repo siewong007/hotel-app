@@ -53,9 +53,8 @@ async fn tick(pool: &DbPool) -> Result<(), ApiError> {
         return Ok(());
     }
 
-    let configured = parse_time(
-        &settings_cache::get_string(pool, "night_shift_time", DEFAULT_SHIFT_TIME).await,
-    );
+    let configured =
+        parse_time(&settings_cache::get_string(pool, "night_shift_time", DEFAULT_SHIFT_TIME).await);
     let catchup_days =
         settings_cache::get_positive_i32(pool, "night_audit_catchup_days", DEFAULT_CATCHUP_DAYS)
             .await as i64;
