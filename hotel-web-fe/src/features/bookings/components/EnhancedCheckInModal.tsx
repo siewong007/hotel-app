@@ -678,6 +678,25 @@ export default function EnhancedCheckInModal({
             severity="warning"
             sx={{ mb: 2 }}
             onClose={() => setAdvisory(null)}
+            action={
+              advisory.suggested_company_name ? (
+                <Button
+                  color="inherit"
+                  size="small"
+                  onClick={() => {
+                    setPaymentType('Direct Billing');
+                    setDirectBillCompany(advisory.suggested_company_name as string);
+                    setSelectedCompany({
+                      id: advisory.suggested_company_id ?? undefined,
+                      company_name: advisory.suggested_company_name as string,
+                    });
+                    setAdvisory(null);
+                  }}
+                >
+                  Bill to {advisory.suggested_company_name}
+                </Button>
+              ) : undefined
+            }
           >
             <AlertTitle>Use company check-in?</AlertTitle>
             {advisory.message}

@@ -3612,6 +3612,10 @@ pub async fn apply_booking_field_update_tx(
         updates.push(format!("company_name = ${}", params.len() + 1));
         params.push(v.clone());
     }
+    if let Some(v) = booking_update.company_id {
+        updates.push(format!("company_id = ${}", params.len() + 1));
+        params.push(v.to_string());
+    }
 
     if params.is_empty() {
         return Ok(());

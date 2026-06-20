@@ -114,4 +114,133 @@ mod sqlite_tests {
         assert_eq!(description, "Front desk partial payment");
         assert_eq!(processed_by, 1);
     }
+
+    #[tokio::test]
+    async fn record_payment_concurrent_prevents_overpayment() {
+        let pool = std::sync::Arc::new(super::common::setup_test_db().await);
+
+        sqlx::query(
+            "INSERT INTO room_types (id, name, code, base_price) VALUES (9803, 'Payment Test', 'PAY9803', 100.0)",
+        )
+        .execute(&*pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO rooms (id, room_number, room_type_id, status) VALUES (9803, 'P9803', 9803, 'available')",
+        )
+        .execute(&*pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO guests (id, first_name, last_name) VALUES (9803, 'Concurrent', 'Guest')",
+        )
+        .execute(&*pool)
+        .await
+        .unwrap();
+
+        // 150.0 total amount
+        sqlx::query(
+            "INSERT INTO bookings \
+             (id, booking_number, guest_id, room_id, check_in_date, check_out_date, \
+              rate_per_night, total_amount, status, payment_status) \
+             VALUES (9803, 'BK-20260620-concurrent', 9803, 9803, '2026-06-20', '2026-06-21', \
+                     100.0, 150.0, 'confirmed', 'unpaid')",
+        )
+        .execute(&*pool)
+        .await
+        .unwrap();
+
+        let req1 = RecordPaymentRequest {
+            booking_id: 9803,
+            amount: 150.0,
+            payment_method: "Cash".to_string(),
+            payment_type: Some("booking".to_string()),
+            transaction_reference: Some("TRX-CONC-1".to_string()),
+            notes: None,
+            payment_date: None,
+        };
+
+        let req2 = RecordPaymentRequest {
+            booking_id: 9803,
+            amount: 150.0,
+            payment_method: "Cash".to_string(),
+            payment_type: Some("booking".to_string()),
+            transaction_reference: Some("TRX-CONC-2".to_string()),
+            notes: None,
+            payment_date: None,
+        };
+
+        let p1 = pool.clone();
+        let p2 = pool.clone();
+
+        let (res1, res2) = tokio::join!(
+            tokio::spawn(async move { payments::record_payment(&p1, 1, req1).await }),
+            tokio::spawn(async move { payments::record_payment(&p2, 1, req2).await }),
+        );
+
+        let first = res1.unwrap();
+        let second = res2.unwrap();
+
+        let success_count = first.is_ok() as i32 + second.is_ok() as i32;
+
+        assert_eq!(
+            success_count, 1,
+            "exactly one concurrent payment should succeed without exceeding balance: first={first:?}, second={second:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn ensure_invoice_concurrent_is_idempotent_and_atomic() {
+        let pool = std::sync::Arc::new(super::common::setup_test_db().await);
+
+        sqlx::query(
+            "INSERT INTO room_types (id, name, code, base_price) VALUES (9804, 'Invoice Test', 'INV9804', 100.0)",
+        )
+        .execute(&*pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO rooms (id, room_number, room_type_id, status) VALUES (9804, 'I9804', 9804, 'available')",
+        )
+        .execute(&*pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO guests (id, first_name, last_name) VALUES (9804, 'Invoice', 'Guest')",
+        )
+        .execute(&*pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO bookings \
+             (id, booking_number, guest_id, room_id, check_in_date, check_out_date, \
+              rate_per_night, total_amount, status, payment_status) \
+             VALUES (9804, 'BK-20260620-invoice', 9804, 9804, '2026-06-20', '2026-06-21', \
+                     100.0, 150.0, 'confirmed', 'paid')",
+        )
+        .execute(&*pool)
+        .await
+        .unwrap();
+
+        let p1 = pool.clone();
+        let p2 = pool.clone();
+
+        let (res1, res2) = tokio::join!(
+            tokio::spawn(async move { payments::ensure_invoice_for_booking(&p1, 9804, 1).await }),
+            tokio::spawn(async move { payments::ensure_invoice_for_booking(&p2, 9804, 1).await }),
+        );
+
+        let first = res1.unwrap().expect("first invoice call succeeds");
+        let second = res2.unwrap().expect("second invoice call succeeds");
+
+        assert_eq!(
+            first, second,
+            "both concurrent calls must atomically return the identical idempotent invoice number"
+        );
+    }
 }

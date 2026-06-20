@@ -287,51 +287,76 @@ impl PaymentRepository {
                 .map_err(ApiError::from)?;
 
             if let Some(row) = duplicate {
-                tx.commit().await.map_err(ApiError::from)?;
-                return Ok(row);
-            }
-        }
-
+    ) -> Result<PaymentEntryRow, ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
         #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-        let insert_sql = r#"
+        let sql = if created_at_override.is_some() {
+            r#"
             INSERT INTO payments (
-                payment_number, booking_id, amount, payment_method, payment_type,
-                status, reference_number, description, processed_by, created_at
+                booking_id, amount, payment_method, payment_type, status,
+                reference_number, description, processed_by, created_at
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, 'completed', ?6, ?7, ?8, COALESCE(?9, datetime('now')))
+            VALUES (?1, ?2, ?3, ?4, 'completed', ?5, ?6, ?7, ?8)
             RETURNING id, booking_id, CAST(amount AS TEXT) AS total_amount, payment_method, payment_type,
                       status AS payment_status, reference_number AS transaction_reference, description AS notes,
                       substr(created_at, 1, 10) AS payment_date, created_at
-            "#;
+            "#
+        } else {
+            r#"
+            INSERT INTO payments (
+                booking_id, amount, payment_method, payment_type, status,
+                reference_number, description, processed_by
+            )
+            VALUES (?1, ?2, ?3, ?4, 'completed', ?5, ?6, ?7)
+            RETURNING id, booking_id, CAST(amount AS TEXT) AS total_amount, payment_method, payment_type,
+                      status AS payment_status, reference_number AS transaction_reference, description AS notes,
+                      substr(created_at, 1, 10) AS payment_date, created_at
+            "#
+        };
         #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
-        let insert_sql = r#"
+        let sql = if created_at_override.is_some() {
+            r#"
             INSERT INTO payments (
                 uuid, booking_id, amount, payment_method, payment_type,
                 status, transaction_id, notes, created_by, created_at
             )
-            VALUES ($1::uuid, $2, $3, $4, $5, 'completed', $6, $7, $8, COALESCE($9::timestamptz, CURRENT_TIMESTAMP))
+            VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6, $7, $8::timestamptz)
             RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type,
                       status AS payment_status, transaction_id AS transaction_reference, notes,
                       created_at::date::text AS payment_date, created_at
-            "#;
+            "#
+        } else {
+            r#"
+            INSERT INTO payments (
+                uuid, booking_id, amount, payment_method, payment_type,
+                status, transaction_id, notes, created_by, created_at
+            )
+            VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6, $7, CURRENT_TIMESTAMP)
+            RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type,
+                      status AS payment_status, transaction_id AS transaction_reference, notes,
+                      created_at::date::text AS payment_date, created_at
+            "#
+        };
 
-        let row = sqlx::query_as::<_, PaymentEntryRow>(insert_sql)
-            .bind(crate::core::db::generate_uuid())
+        let mut query = sqlx::query_as::<_, PaymentEntryRow>(sql)
             .bind(request.booking_id)
             .bind(decimal_to_db(amount))
             .bind(&request.payment_method)
             .bind(payment_type)
             .bind(&request.transaction_reference)
             .bind(&request.notes)
-            .bind(user_id)
-            .bind(created_at_override)
-            .fetch_one(&mut *tx)
+            .bind(user_id);
+
+        if let Some(date) = created_at_override {
+            query = query.bind(date);
+        }
+
+        query
+            .fetch_one(executor)
             .await
-            .map_err(ApiError::from)?;
-
-        tx.commit().await.map_err(ApiError::from)?;
-
-        Ok(row)
+            .map_err(ApiError::from)
     }
 
     pub async fn list_payment_entries(
@@ -364,10 +389,13 @@ impl PaymentRepository {
             .map_err(ApiError::from)
     }
 
-    pub async fn workflow_summary_row(
-        pool: &DbPool,
+    pub async fn workflow_summary_row<'e, E>(
+        executor: E,
         booking_id: i64,
-    ) -> Result<Option<PaymentWorkflowSummaryRow>, ApiError> {
+    ) -> Result<Option<PaymentWorkflowSummaryRow>, ApiError>
+    where
+        E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,
+    {
         #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
         let summary_sql = r#"
             SELECT
@@ -418,7 +446,7 @@ impl PaymentRepository {
 
         let row = sqlx::query(summary_sql)
             .bind(booking_id)
-            .fetch_optional(pool)
+            .fetch_optional(executor)
             .await
             .map_err(ApiError::from)?;
 
