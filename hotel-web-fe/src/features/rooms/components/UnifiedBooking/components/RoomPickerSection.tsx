@@ -15,6 +15,8 @@ interface RoomPickerSectionProps {
   checkOutDate: string;
   currencySymbol: string;
   selectedRoomNumbers: string;
+  emptyAvailabilityText?: string;
+  noOptionsText?: string;
 }
 
 /**
@@ -31,6 +33,8 @@ const RoomPickerSection: React.FC<RoomPickerSectionProps> = ({
   checkOutDate,
   currencySymbol,
   selectedRoomNumbers,
+  emptyAvailabilityText = 'No rooms available for the selected dates. Pick different dates below.',
+  noOptionsText,
 }) => (
   <Box sx={{ mb: 2.75 }}>
     <SectionHeader D={D} number="①" label="Room" />
@@ -47,6 +51,11 @@ const RoomPickerSection: React.FC<RoomPickerSectionProps> = ({
       loading={loadingAvailableRooms}
       getOptionLabel={(o) => o ? `Room ${o.room_number} · ${o.room_type}` : ''}
       isOptionEqualToValue={(o, v) => String(o.id) === String(v?.id)}
+      noOptionsText={noOptionsText || (
+        checkInDate && checkOutDate
+          ? emptyAvailabilityText
+          : 'Set dates below to filter by availability'
+      )}
       renderOption={(props, option) => {
         const { key, ...rest } = props;
         const price = typeof option.price_per_night === 'string'
@@ -96,7 +105,7 @@ const RoomPickerSection: React.FC<RoomPickerSectionProps> = ({
     />
     {checkInDate && checkOutDate && availableRooms.length === 0 && !loadingAvailableRooms && (
       <Typography sx={{ mt: 0.75, fontSize: 11, color: D.ink3, fontStyle: 'italic' }}>
-        No rooms available for the selected dates — pick different dates below.
+        {emptyAvailabilityText}
       </Typography>
     )}
     {selectedRooms.length > 1 && (

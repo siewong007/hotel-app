@@ -40,9 +40,10 @@ import {
   FileDownloadOutlined as ExportIcon,
   AutoAwesome as ConvertIcon,
 } from '@mui/icons-material';
-import { Guest, GuestType } from '../../../types';
+import { Guest } from '../../../types';
 import { DataTable, type ColumnDef } from '../../../components';
 import { useAuth } from '../../../auth/AuthContext';
+import { useSearchParams } from '../../../router';
 import { validateEmail } from '../../../utils/validation';
 import { useCurrency } from '../../../hooks/useCurrency';
 import UnifiedBookingModal from '../../rooms/components/UnifiedBooking';
@@ -64,6 +65,12 @@ import GuestFormDialog from './GuestFormDialog';
 import { ContactRow, StatTile } from './GuestDetailPanelParts';
 import { AVATAR_PALETTE, GUEST_DESIGN } from '../constants';
 import type { GuestFormData } from '../types';
+import {
+  getGuestSegmentCounts,
+  getGuestSegmentQueryParams,
+  guestHasMissingProfileInfo,
+  type GuestSegment,
+} from '../utils';
 import { formatLocalDate } from '../../../utils/date';
 const initialsOf = (name: string) =>
   name
@@ -97,26 +104,87 @@ const duplicateGuestReference = (message: string) => {
   };
 };
 
+type GuestBookingHistoryRow = {
+  id: string | number;
+  booking_number?: string | null;
+  check_in_date: string;
+  check_out_date: string;
+  nights?: number | null;
+  status: string;
+  total_amount: string | number;
+  created_at?: string;
+  room_number?: string | null;
+  room_type?: string | null;
+};
+
+const CHECKED_OUT_BOOKING_STATUSES = new Set(['checked_out', 'completed']);
+const VOID_BOOKING_STATUSES = new Set(['voided', 'comp_void']);
+
+const getBookingHistoryDateTime = (value?: string | null) => {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
+};
+
+const compareBookingHistoryRows = (a: GuestBookingHistoryRow, b: GuestBookingHistoryRow) => {
+  const checkInDiff = getBookingHistoryDateTime(a.check_in_date) - getBookingHistoryDateTime(b.check_in_date);
+  if (checkInDiff !== 0) return checkInDiff;
+
+  const checkOutDiff = getBookingHistoryDateTime(a.check_out_date) - getBookingHistoryDateTime(b.check_out_date);
+  if (checkOutDiff !== 0) return checkOutDiff;
+
+  return Number(a.id) - Number(b.id);
+};
+
+const bookingStatusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    checked_out: 'Checked out',
+    completed: 'Completed',
+    voided: 'Voided',
+    comp_void: 'Comp void',
+    checked_in: 'Checked in',
+    auto_checked_in: 'Checked in',
+    confirmed: 'Reserved',
+    pending: 'Pending',
+  };
+  return labels[status] ?? status.replace(/_/g, ' ');
+};
+
+const bookingStatusChipColor = (status: string): 'default' | 'success' | 'warning' | 'info' => {
+  if (CHECKED_OUT_BOOKING_STATUSES.has(status)) return 'success';
+  if (VOID_BOOKING_STATUSES.has(status)) return 'default';
+  if (status === 'checked_in' || status === 'auto_checked_in') return 'warning';
+  return 'info';
+};
+
+const formatBookingHistoryDate = (time: number) =>
+  Number.isFinite(time) ? new Date(time).toLocaleDateString() : '—';
+
 const GuestConfigurationPage: React.FC = () => {
+  const [pageSearchParams] = useSearchParams();
   const { hasPermission } = useAuth();
   const { format: formatCurrency } = useCurrency();
   const hasAccess = hasPermission('guests:read') || hasPermission('guests:manage');
 
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<'all' | GuestType>('all');
-  // Extra client-side segment narrowing on top of `filterType` (which drives the API call).
-  const [segment, setSegment] = useState<'all' | 'member' | 'non' | 'incomplete' | 'tourist'>('all');
+  const [segment, setSegment] = useState<GuestSegment>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const debouncedSearchTerm = useDebouncedValue(searchTerm, searchTerm ? 400 : 0);
+  const segmentQueryParams = React.useMemo(
+    () => getGuestSegmentQueryParams(segment),
+    [segment]
+  );
   const guestsQueryParams = React.useMemo(() => ({
     ...toPaginationSearchParams({ page: normalizePage(currentPage), pageSize: PAGE_SIZE }),
     ...(debouncedSearchTerm.trim() ? { search: debouncedSearchTerm.trim() } : {}),
-    ...(filterType !== 'all' ? { guest_type: filterType } : {}),
-  }), [currentPage, debouncedSearchTerm, filterType]);
+    ...segmentQueryParams,
+  }), [currentPage, debouncedSearchTerm, segmentQueryParams]);
   const guestsQuery = useGuestsPage(guestsQueryParams, hasAccess);
   const statsTotalQuery = useGuestsPage(toPaginationSearchParams({ page: 1, pageSize: 1 }), hasAccess);
   const statsMembersQuery = useGuestsPage({ ...toPaginationSearchParams({ page: 1, pageSize: 1 }), guest_type: 'member' }, hasAccess);
+  const statsMissingInfoQuery = useGuestsPage({ ...toPaginationSearchParams({ page: 1, pageSize: 1 }), missing_info: true }, hasAccess);
+  const statsTouristsQuery = useGuestsPage({ ...toPaginationSearchParams({ page: 1, pageSize: 1 }), tourism_type: 'foreign' }, hasAccess);
   const roomsQuery = useRooms(hasAccess);
   const createGuestMutation = useCreateGuest();
   const updateGuestMutation = useUpdateGuest();
@@ -126,12 +194,29 @@ const GuestConfigurationPage: React.FC = () => {
   const totalGuests = guestsQuery.data?.total ?? 0;
   const statsTotal = statsTotalQuery.data?.total ?? 0;
   const statsMembers = statsMembersQuery.data?.total ?? 0;
+  const statsMissingInfo = statsMissingInfoQuery.data?.total ?? 0;
+  const statsTourists = statsTouristsQuery.data?.total ?? 0;
   const loading = guestsQuery.isPending;
-  const queryError = guestsQuery.error || statsTotalQuery.error || statsMembersQuery.error || roomsQuery.error;
+  const queryError = guestsQuery.error || statsTotalQuery.error || statsMembersQuery.error || statsMissingInfoQuery.error || statsTouristsQuery.error || roomsQuery.error;
   const pageError = error || (queryError instanceof Error ? queryError.message : null);
   // Currently selected guest in the right detail pane.
   const [selectedGuestId, setSelectedGuestId] = useState<number | null>(null);
   const [guestDetailsOpen, setGuestDetailsOpen] = useState(true);
+  const routedGuestSearch = pageSearchParams.get('search') || '';
+  const routedGuestId = pageSearchParams.get('guest_id') || '';
+
+  useEffect(() => {
+    if (!routedGuestSearch && !routedGuestId) return;
+
+    const nextSearch = routedGuestSearch || routedGuestId;
+    setSearchTerm(nextSearch);
+    setSegment('all');
+    setCurrentPage(1);
+    setGuestDetailsOpen(true);
+
+    const guestId = Number(routedGuestId);
+    setSelectedGuestId(Number.isFinite(guestId) ? guestId : null);
+  }, [routedGuestSearch, routedGuestId]);
 
   // Dialog states
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -190,60 +275,99 @@ const GuestConfigurationPage: React.FC = () => {
   const [dialogError, setDialogError] = useState<string | null>(null);
   const guestBookingsQuery = useGuestBookings(viewingGuest?.id, bookingsDialogOpen && !!viewingGuest);
   const guestCreditsQuery = useGuestCredits(viewingGuest?.id, creditsDialogOpen && !!viewingGuest);
-  const guestBookings = guestBookingsQuery.data ?? [];
+  const guestBookings = (guestBookingsQuery.data ?? []) as GuestBookingHistoryRow[];
+  const bookingsLoading = guestBookingsQuery.isPending && bookingsDialogOpen;
   const guestCredits = (guestCreditsQuery.data ?? null) as GuestCredits | null;
   const creditsLoading = guestCreditsQuery.isPending && creditsDialogOpen;
 
-  const guestBookingColumns = React.useMemo<ColumnDef<any, any>[]>(() => [
+  const orderedGuestBookings = React.useMemo(
+    () => [...guestBookings].sort(compareBookingHistoryRows),
+    [guestBookings]
+  );
+  const checkedOutGuestBookings = React.useMemo(
+    () => orderedGuestBookings.filter((booking) => CHECKED_OUT_BOOKING_STATUSES.has(booking.status)),
+    [orderedGuestBookings]
+  );
+  const voidGuestBookings = React.useMemo(
+    () => orderedGuestBookings.filter((booking) => VOID_BOOKING_STATUSES.has(booking.status)),
+    [orderedGuestBookings]
+  );
+  const otherGuestBookings = React.useMemo(
+    () => orderedGuestBookings.filter((booking) => (
+      !CHECKED_OUT_BOOKING_STATUSES.has(booking.status) && !VOID_BOOKING_STATUSES.has(booking.status)
+    )),
+    [orderedGuestBookings]
+  );
+
+  const guestBookingColumns = React.useMemo<ColumnDef<GuestBookingHistoryRow, any>[]>(() => [
+    {
+      id: 'sequence',
+      header: '#',
+      accessorFn: (_booking, index) => index + 1,
+      enableSorting: false,
+      meta: { align: 'right' },
+    },
     { id: 'booking_number', header: 'Booking #', accessorFn: (b: any) => b.booking_number },
     {
       id: 'room',
       header: 'Room',
-      accessorFn: (b: any) => `${b.room_number} (${b.room_type})`,
+      accessorFn: (b: GuestBookingHistoryRow) => (
+        b.room_number ? `${b.room_number}${b.room_type ? ` (${b.room_type})` : ''}` : '—'
+      ),
     },
     {
       id: 'check_in',
       header: 'Check In',
-      accessorFn: (b: any) => new Date(b.check_in_date).getTime(),
-      cell: (info) => new Date(info.getValue() as number).toLocaleDateString(),
+      accessorFn: (b: GuestBookingHistoryRow) => getBookingHistoryDateTime(b.check_in_date),
+      cell: (info) => formatBookingHistoryDate(info.getValue() as number),
     },
     {
       id: 'check_out',
       header: 'Check Out',
-      accessorFn: (b: any) => new Date(b.check_out_date).getTime(),
-      cell: (info) => new Date(info.getValue() as number).toLocaleDateString(),
+      accessorFn: (b: GuestBookingHistoryRow) => getBookingHistoryDateTime(b.check_out_date),
+      cell: (info) => formatBookingHistoryDate(info.getValue() as number),
     },
-    { id: 'nights', header: 'Nights', accessorFn: (b: any) => b.nights, meta: { align: 'right' } },
+    { id: 'nights', header: 'Nights', accessorFn: (b: GuestBookingHistoryRow) => b.nights ?? 0, meta: { align: 'right' } },
     {
       id: 'status',
       header: 'Status',
-      accessorFn: (b: any) => b.status,
-      cell: (info) => <Chip label={String(info.getValue())} size="small" />,
+      accessorFn: (b: GuestBookingHistoryRow) => b.status,
+      cell: (info) => {
+        const status = String(info.getValue());
+        return <Chip label={bookingStatusLabel(status)} color={bookingStatusChipColor(status)} size="small" />;
+      },
     },
     {
       id: 'amount',
       header: 'Amount',
-      accessorFn: (b: any) => parseFloat(b.total_amount),
+      accessorFn: (b: GuestBookingHistoryRow) => Number.parseFloat(String(b.total_amount)) || 0,
       cell: (info) => formatCurrency(info.getValue() as number),
       meta: { align: 'right' },
     },
   ], [formatCurrency]);
 
   const loadGuests = useCallback(async () => {
-    await Promise.all([guestsQuery.refetch(), statsTotalQuery.refetch(), statsMembersQuery.refetch()]);
-  }, [guestsQuery, statsMembersQuery, statsTotalQuery]);
+    await Promise.all([
+      guestsQuery.refetch(),
+      statsTotalQuery.refetch(),
+      statsMembersQuery.refetch(),
+      statsMissingInfoQuery.refetch(),
+      statsTouristsQuery.refetch(),
+    ]);
+  }, [guestsQuery, statsMembersQuery, statsMissingInfoQuery, statsTotalQuery, statsTouristsQuery]);
 
   const loadRooms = useCallback(async () => {
     await roomsQuery.refetch();
   }, [roomsQuery]);
 
-  // Apply segment narrowing on the loaded page (extra client-side filter
-  // for "incomplete"/"tourist" — the API itself only knows guest_type).
+  // The API applies the active segment to the paginated query. Keep this as a
+  // defensive client-side guard so stale placeholder rows never leak between
+  // segment transitions.
   const visibleGuests = React.useMemo(() => {
     return guests.filter((g) => {
       if (segment === 'member' && g.guest_type !== 'member') return false;
       if (segment === 'non' && g.guest_type !== 'non_member') return false;
-      if (segment === 'incomplete' && g.email && g.phone) return false;
+      if (segment === 'incomplete' && !guestHasMissingProfileInfo(g)) return false;
       if (segment === 'tourist' && g.tourism_type !== 'foreign') return false;
       return true;
     });
@@ -309,21 +433,20 @@ const GuestConfigurationPage: React.FC = () => {
     return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [visibleGuests]);
 
-  // Default-select the first guest on the page when nothing is selected.
+  // Default-select the first visible guest, and move the detail pane when the
+  // current selection no longer belongs to the active segment/page.
   useEffect(() => {
     if (!guestDetailsOpen) return;
-    if (selectedGuestId == null && visibleGuests.length > 0) {
+    if (visibleGuests.length === 0) {
+      if (selectedGuestId != null) setSelectedGuestId(null);
+      return;
+    }
+    if (selectedGuestId == null || !visibleGuests.some((g) => g.id === selectedGuestId)) {
       setSelectedGuestId(visibleGuests[0].id);
     }
   }, [guestDetailsOpen, selectedGuestId, visibleGuests]);
 
-  const selectedGuest = guestDetailsOpen ? guests.find((g) => g.id === selectedGuestId) || null : null;
-
-  const handleFilterTypeChange = (_: React.MouseEvent<HTMLElement>, value: 'all' | GuestType | null) => {
-    if (!value) return;
-    setFilterType(value);
-    setCurrentPage(1);
-  };
+  const selectedGuest = guestDetailsOpen ? visibleGuests.find((g) => g.id === selectedGuestId) || null : null;
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
@@ -409,7 +532,6 @@ const GuestConfigurationPage: React.FC = () => {
 
     setSearchTerm(duplicate.id || duplicate.name);
     setSegment('all');
-    setFilterType('all');
     setCurrentPage(1);
     setSelectedGuestId(null);
     setGuestDetailsOpen(true);
@@ -521,36 +643,32 @@ const GuestConfigurationPage: React.FC = () => {
   }
 
   const nonMemberStats = statsTotal - statsMembers;
-  const incompleteCount = visibleGuests.filter((g) => !g.email || !g.phone).length;
-  const touristCount = visibleGuests.filter((g) => g.tourism_type === 'foreign').length;
-  const memberCountOnPage = visibleGuests.filter((g) => g.guest_type === 'member').length;
-  const nonMemberCountOnPage = visibleGuests.filter((g) => g.guest_type === 'non_member').length;
+  const segmentCounts = getGuestSegmentCounts({
+    total: statsTotal,
+    members: statsMembers,
+    missingInfo: statsMissingInfo,
+    tourists: statsTourists,
+  });
 
-  // Map a segment key to a config used to render the chip. Counts come from the
-  // currently-loaded page; for "All" we show the API total so the user gets a
-  // sense of full data set size.
+  // Map a segment key to a config used to render the chip. Counts come from
+  // total-only API queries, so they stay accurate across paginated guest lists.
   const segmentChips: Array<{
-    k: typeof segment;
+    k: GuestSegment;
     label: string;
     count: number;
     icon?: React.ReactNode;
     tone?: string;
   }> = [
-    { k: 'all', label: 'All guests', count: statsTotal || guests.length },
-    { k: 'member', label: 'Members', count: memberCountOnPage, icon: <MemberIcon sx={{ fontSize: 14 }} />, tone: GUEST_DESIGN.gold },
-    { k: 'non', label: 'Non-members', count: nonMemberCountOnPage },
-    { k: 'incomplete', label: 'Missing info', count: incompleteCount, tone: GUEST_DESIGN.amber },
-    { k: 'tourist', label: 'Tourists', count: touristCount, tone: GUEST_DESIGN.blue },
+    { k: 'all', label: 'All guests', count: segmentCounts.all },
+    { k: 'member', label: 'Members', count: segmentCounts.member, icon: <MemberIcon sx={{ fontSize: 14 }} />, tone: GUEST_DESIGN.gold },
+    { k: 'non', label: 'Non-members', count: segmentCounts.non },
+    { k: 'incomplete', label: 'Missing info', count: segmentCounts.incomplete, tone: GUEST_DESIGN.amber },
+    { k: 'tourist', label: 'Tourists', count: segmentCounts.tourist, tone: GUEST_DESIGN.blue },
   ];
 
-  // The API exposes `guest_type` filtering; map our local segment onto it so the
-  // server-side counts stay accurate.
-  const onSegmentChange = (next: typeof segment) => {
+  const onSegmentChange = (next: GuestSegment) => {
     setSegment(next);
     setCurrentPage(1);
-    if (next === 'member') setFilterType('member');
-    else if (next === 'non') setFilterType('non_member');
-    else setFilterType('all');
   };
 
   const today = new Date();
@@ -729,7 +847,7 @@ const GuestConfigurationPage: React.FC = () => {
           {/* Count + sort row */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2, py: 1.25, bgcolor: GUEST_DESIGN.paper2, borderBottom: `1px solid ${GUEST_DESIGN.rule}`, fontSize: 11.5, color: GUEST_DESIGN.ink3 }}>
             <Box>
-              {visibleGuests.length} of {totalGuests || statsTotal} guests
+              {visibleGuests.length} of {totalGuests} guests
               {(searchTerm || segment !== 'all') && ' (filtered)'}
             </Box>
             <Box sx={{ fontSize: 11.5, color: GUEST_DESIGN.ink2, fontWeight: 600 }}>
@@ -1272,18 +1390,64 @@ const GuestConfigurationPage: React.FC = () => {
       <Dialog open={bookingsDialogOpen} onClose={() => setBookingsDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Booking History: {viewingGuest?.full_name}</DialogTitle>
         <DialogContent>
-          {guestBookings.length === 0 ? (
+          {bookingsLoading ? (
+            <Box display="flex" justifyContent="center" py={3}>
+              <CircularProgress />
+            </Box>
+          ) : guestBookings.length === 0 ? (
             <Alert severity="info" sx={{ mt: 2 }}>
               No bookings found for this guest.
             </Alert>
           ) : (
-            <Box sx={{ mt: 2 }}>
-              <DataTable<any>
-                data={guestBookings}
-                columns={guestBookingColumns}
-                emptyMessage="No bookings found for this guest."
-                getRowId={(row) => String(row.id)}
-              />
+            <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+              {checkedOutGuestBookings.length > 0 && (
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      Checked out bookings
+                    </Typography>
+                    <Chip label={checkedOutGuestBookings.length} size="small" color="success" />
+                  </Box>
+                  <DataTable<GuestBookingHistoryRow>
+                    data={checkedOutGuestBookings}
+                    columns={guestBookingColumns}
+                    emptyMessage="No checked out bookings found for this guest."
+                    getRowId={(row) => String(row.id)}
+                  />
+                </Box>
+              )}
+              {voidGuestBookings.length > 0 && (
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      Void bookings
+                    </Typography>
+                    <Chip label={voidGuestBookings.length} size="small" />
+                  </Box>
+                  <DataTable<GuestBookingHistoryRow>
+                    data={voidGuestBookings}
+                    columns={guestBookingColumns}
+                    emptyMessage="No void bookings found for this guest."
+                    getRowId={(row) => String(row.id)}
+                  />
+                </Box>
+              )}
+              {otherGuestBookings.length > 0 && (
+                <Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      Other bookings
+                    </Typography>
+                    <Chip label={otherGuestBookings.length} size="small" color="info" />
+                  </Box>
+                  <DataTable<GuestBookingHistoryRow>
+                    data={otherGuestBookings}
+                    columns={guestBookingColumns}
+                    emptyMessage="No other bookings found for this guest."
+                    getRowId={(row) => String(row.id)}
+                  />
+                </Box>
+              )}
             </Box>
           )}
         </DialogContent>

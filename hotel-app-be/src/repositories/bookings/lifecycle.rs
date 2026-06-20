@@ -1808,6 +1808,7 @@ pub async fn update_booking_handler(
     let (canonical_is_tourist, canonical_tourism_tax_amount) =
         canonical_tourism_tax_for_guest(&pool, existing_booking.guest_id, check_in, check_out)
             .await?;
+    let clear_company = input.clear_company.unwrap_or(false);
 
     ensure_checkout_balance_resolved(
         &pool,
@@ -1830,8 +1831,8 @@ pub async fn update_booking_handler(
                 deposit_paid = COALESCE(?8, deposit_paid),
                 deposit_amount = COALESCE(?9, deposit_amount),
                 deposit_paid_at = CASE WHEN ?8 = 1 AND deposit_paid_at IS NULL THEN datetime('now') ELSE deposit_paid_at END,
-                company_id = COALESCE(?10, company_id),
-                company_name = COALESCE(?11, company_name),
+                company_id = CASE WHEN ?27 = 1 THEN NULL ELSE COALESCE(?10, company_id) END,
+                company_name = CASE WHEN ?27 = 1 THEN NULL ELSE COALESCE(?11, company_name) END,
                 payment_note = COALESCE(?12, payment_note),
                 remarks = COALESCE(?13, remarks),
                 source = COALESCE(?14, source),
@@ -1878,6 +1879,7 @@ pub async fn update_booking_handler(
         .bind(input.extra_bed_charge)
         .bind(daily_rates_json.as_ref().map(|v| v.to_string()))
         .bind(input.cleaning_preference.map(|b| if b { 1i32 } else { 0i32 }))
+        .bind(if clear_company { 1i32 } else { 0i32 })
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -1904,8 +1906,8 @@ pub async fn update_booking_handler(
                 deposit_paid = COALESCE($8, deposit_paid),
                 deposit_amount = COALESCE($9, deposit_amount),
                 deposit_paid_at = CASE WHEN $8 = true AND deposit_paid_at IS NULL THEN CURRENT_TIMESTAMP ELSE deposit_paid_at END,
-                company_id = COALESCE($10, company_id),
-                company_name = COALESCE($11, company_name),
+                company_id = CASE WHEN $27 = true THEN NULL ELSE COALESCE($10, company_id) END,
+                company_name = CASE WHEN $27 = true THEN NULL ELSE COALESCE($11, company_name) END,
                 payment_note = COALESCE($12, payment_note),
                 remarks = COALESCE($13, remarks),
                 source = COALESCE($14, source),
@@ -1953,6 +1955,7 @@ pub async fn update_booking_handler(
         .bind(input.extra_bed_charge.map(|v| Decimal::from_f64_retain(v).unwrap_or(Decimal::ZERO)))
         .bind(&daily_rates_json)
         .bind(input.cleaning_preference)
+        .bind(clear_company)
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?

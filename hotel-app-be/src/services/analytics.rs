@@ -3,6 +3,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::ReportQuery;
 use crate::repositories::analytics;
+use crate::services::audit::AuditLog;
 use std::collections::HashMap;
 
 pub async fn occupancy_report(pool: &DbPool) -> Result<serde_json::Value, ApiError> {
@@ -37,7 +38,36 @@ pub async fn personalized_report(
 
 pub async fn generate_report(
     pool: &DbPool,
+    user_id: i64,
     params: ReportQuery,
 ) -> Result<serde_json::Value, ApiError> {
-    analytics::generate_report(pool, params).await
+    let details = serde_json::json!({
+        "report_type": &params.report_type,
+        "start_date": &params.start_date,
+        "end_date": &params.end_date,
+        "shift": &params.shift,
+        "drawer": &params.drawer,
+        "company_name": &params.company_name,
+        "booking_channel_id": &params.booking_channel_id,
+        "booking_channel": &params.booking_channel,
+        "platform_name": &params.platform_name,
+        "booking_status": &params.booking_status,
+        "posted_status": &params.posted_status,
+        "room_type": &params.room_type,
+    });
+    let report = analytics::generate_report(pool, params).await?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "report_generated",
+        "report",
+        None,
+        Some(details),
+        None,
+        None,
+    )
+    .await;
+
+    Ok(report)
 }

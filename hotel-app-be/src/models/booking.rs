@@ -176,6 +176,7 @@ pub struct BookingUpdateInput {
     pub deposit_amount: Option<f64>,
     pub company_id: Option<i64>,
     pub company_name: Option<String>,
+    pub clear_company: Option<bool>,
     pub payment_note: Option<String>,
     pub remarks: Option<String>,
     pub special_requests: Option<String>,

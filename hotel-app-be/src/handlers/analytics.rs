@@ -52,7 +52,10 @@ pub async fn get_personalized_report_handler(
 
 pub async fn generate_report_handler(
     State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
     Query(params): Query<ReportQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    Ok(Json(analytics::generate_report(&pool, params).await?))
+    Ok(Json(
+        analytics::generate_report(&pool, user_id, params).await?,
+    ))
 }

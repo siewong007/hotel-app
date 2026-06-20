@@ -1,6 +1,6 @@
 import { HTTPError } from 'ky';
 import { api, APIError } from './client';
-import { Guest, GuestCreateRequest, GuestProfile } from '../types';
+import { Guest, GuestCreateRequest, GuestProfile, GuestType, TourismType } from '../types';
 import { withRetry } from '../utils/retry';
 import { getPaginationState, toPaginationSearchParams } from '../utils/pagination';
 
@@ -97,13 +97,17 @@ export class GuestsService {
     page?: number;
     page_size?: number;
     search?: string;
-    guest_type?: string;
+    guest_type?: GuestType;
+    tourism_type?: TourismType;
+    missing_info?: boolean;
   } = {}): Promise<{ data: Guest[]; total: number; page: number; page_size: number }> {
     const searchParams: Record<string, any> = {
       ...toPaginationSearchParams({ page: params.page, pageSize: params.page_size }),
     };
     if (params.search) searchParams.search = params.search;
     if (params.guest_type) searchParams.guest_type = params.guest_type;
+    if (params.tourism_type) searchParams.tourism_type = params.tourism_type;
+    if (params.missing_info != null) searchParams.missing_info = String(params.missing_info);
 
     try {
       const resp = await withRetry(

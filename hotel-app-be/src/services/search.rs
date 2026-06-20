@@ -57,6 +57,17 @@ pub async fn global_search(
         }
     }
 
+    if wants_type(&wanted_types, "ledgers") && can_read(pool, user_id, "ledgers:read").await {
+        let results = SearchRepository::search_ledgers(pool, &pattern, limit).await?;
+        if !results.is_empty() {
+            groups.push(SearchGroup {
+                r#type: "ledgers".into(),
+                label: "Ledger".into(),
+                results,
+            });
+        }
+    }
+
     if wants_type(&wanted_types, "rooms") && can_read(pool, user_id, "rooms:read").await {
         let results = SearchRepository::search_rooms(pool, &pattern, limit).await?;
         if !results.is_empty() {

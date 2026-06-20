@@ -96,6 +96,7 @@ export function useCustomerLedgerWorkspace({
     const rows = new Map<string, CompanyLedgerAggregate>();
     ledgers.forEach((ledger) => {
       const current = rows.get(ledger.company_name) || { ...EMPTY_AGGREGATE };
+      const uiStatus = getLedgerUiStatus(ledger);
       const amount = parseFloat(String(ledger.amount || 0));
       const paid = parseFloat(String(ledger.paid_amount || 0));
       const balance = parseFloat(String(ledger.balance_due || 0));
@@ -104,7 +105,7 @@ export function useCustomerLedgerWorkspace({
       current.due += balance;
       current.count += 1;
       if (balance > 0) current.pending += 1;
-      if (ledger.status === 'overdue') current.overdue += balance;
+      if (uiStatus === 'overdue') current.overdue += balance;
       rows.set(ledger.company_name, current);
     });
     return rows;

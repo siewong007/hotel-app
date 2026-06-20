@@ -64,6 +64,7 @@ import {
   MeetingRoom as RoomIcon,
   Add as AddIcon,
   Public as PublicIcon,
+  Business as BusinessIcon,
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
 import { HotelAPIService } from '../../../../api';
@@ -74,6 +75,7 @@ import { BookingTimelineEntry, BookingWithDetails, PaymentWorkflowSummary, Room,
 import { getBookingStatusColor, getBookingStatusText, getPaymentStatusColor, getPaymentStatusText } from '../../../../utils/bookingUtils';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useCurrency } from '../../../../hooks/useCurrency';
+import { useSearchParams } from '../../../../router';
 import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceModals';
 import { useCheckoutFlow } from '../../../invoices/hooks/useCheckoutFlow';
 import UnifiedBookingModal from '../../../rooms/components/UnifiedBooking';
@@ -82,6 +84,7 @@ import { getBookedViaText, getBookingChannelInfo } from '../../utils/bookingChan
 import { useBookings, PAGE_SIZE, SortField, DateFilter } from '../../hooks/useBookings';
 import {
   useBookingWorkflowFetcher,
+  useActiveCompanies,
   useBookingsWithDetails,
   useCheckInGuestMutation,
   useMarkBookingComplimentaryMutation,
@@ -92,8 +95,20 @@ import {
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { getPaginationState } from '../../../../utils/pagination';
 import { formatLocalDate, parseLocalDate } from '../../../../utils/date';
+import type { Company } from '../../../../types';
 
-type BookingView = 'all' | 'arriving' | 'in_house' | 'departing' | 'upcoming' | 'balance' | 'normal_balance' | 'company_balance' | 'abandoned';
+type BookingView = 'all' | 'arriving' | 'in_house' | 'departing' | 'upcoming' | 'balance' | 'normal_balance' | 'company_balance';
+type BookingCompanyOption = Partial<Company> & { company_name: string; id?: number };
+type SummaryStatCard = {
+  title: string;
+  value: string | number;
+  detail: string;
+  subValue?: number;
+  color: string;
+  icon: React.ReactNode;
+  view: BookingView;
+  alert?: boolean;
+};
 const COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT = 1;
 
 const addMonthsToDateOnly = (dateOnly: string, months: number) => {
@@ -110,6 +125,7 @@ const addMonthsToDateOnly = (dateOnly: string, months: number) => {
 };
 
 const BookingsPage: React.FC = () => {
+  const [pageSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
@@ -186,10 +202,41 @@ const BookingsPage: React.FC = () => {
   const [selectedBookingId, setSelectedBookingId] = useState<string | number | null>(null);
   const [bookingDetailsOpen, setBookingDetailsOpen] = useState(true);
   const [bookingView, setBookingView] = useState<BookingView>('all');
+  const routedBookingSearch = pageSearchParams.get('search') || '';
+  const routedBookingId = pageSearchParams.get('booking_id') || '';
   const summaryBookingsQuery = useBookingsWithDetails();
   const fetchBookingWorkflow = useBookingWorkflowFetcher();
   const summaryBookings = summaryBookingsQuery.data ?? [];
   const summaryLoaded = summaryBookingsQuery.isSuccess;
+
+  useEffect(() => {
+    if (!routedBookingSearch && !routedBookingId) return;
+
+    const nextSearch = routedBookingSearch || routedBookingId;
+    setBookingView('all');
+    setSearchQuery(nextSearch);
+    setRoomNumberFilter('');
+    setStatusFilter('all');
+    setDateFilter('all');
+    setCustomStartDate('');
+    setCustomEndDate('');
+    setSearchDate('');
+    setCurrentPage(1);
+    if (routedBookingId) {
+      setSelectedBookingId(routedBookingId);
+      setBookingDetailsOpen(true);
+    }
+  }, [
+    routedBookingSearch,
+    routedBookingId,
+    setSearchQuery,
+    setRoomNumberFilter,
+    setDateFilter,
+    setCustomStartDate,
+    setCustomEndDate,
+    setSearchDate,
+    setCurrentPage,
+  ]);
 
   // Create booking dialog (using UnifiedBookingModal)
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -201,6 +248,23 @@ const BookingsPage: React.FC = () => {
   const [editRoomTypeConfig, setEditRoomTypeConfig] = useState<RoomType | null>(null);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
   const [updating, setUpdating] = useState(false);
+  const activeCompaniesQuery = useActiveCompanies(isAdmin && editDialogOpen);
+  const activeCompanies: BookingCompanyOption[] = activeCompaniesQuery.data ?? [];
+  const selectedEditCompany = useMemo<BookingCompanyOption | null>(() => {
+    const companyName = String(editFormData.company_name || '').trim();
+    const companyId = editFormData.company_id == null || editFormData.company_id === ''
+      ? null
+      : Number(editFormData.company_id);
+
+    if (!companyId && !companyName) return null;
+
+    const matchedCompany = activeCompanies.find((company) => (
+      (companyId != null && company.id === companyId)
+      || (companyName !== '' && company.company_name.toLowerCase() === companyName.toLowerCase())
+    ));
+
+    return matchedCompany || { id: companyId ?? undefined, company_name: companyName };
+  }, [activeCompanies, editFormData.company_id, editFormData.company_name]);
 
 
 
@@ -287,6 +351,8 @@ const BookingsPage: React.FC = () => {
       extra_bed_count: extraBedCount,
       extra_bed_charge: extraBedCharge,
       room_id: booking.room_id,
+      company_id: booking.company_id ?? null,
+      company_name: booking.company_name || '',
     };
     console.log('Opening edit with payment_method:', formData.payment_method, 'rate:', bookingRate);
     setEditFormData(formData);
@@ -357,6 +423,9 @@ const BookingsPage: React.FC = () => {
 
       // Include room_id only if it changed (compare as strings to avoid type mismatch)
       const roomChanged = editFormData.room_id && String(editFormData.room_id) !== String(editingBooking.room_id);
+      const companyCleared = Boolean(editingBooking.company_id || editingBooking.company_name) &&
+        !editFormData.company_id &&
+        !String(editFormData.company_name || '').trim();
 
       const updateData = {
         ...editFormData,
@@ -365,6 +434,9 @@ const BookingsPage: React.FC = () => {
         room_rate_override: newPrice > 0 ? newPrice : undefined,
         extra_bed_count: editFormData.extra_bed_count || 0,
         extra_bed_charge: editFormData.extra_bed_charge || 0,
+        company_id: editFormData.company_id || undefined,
+        company_name: String(editFormData.company_name || '').trim() || undefined,
+        clear_company: companyCleared || undefined,
       };
       // Remove fields that are not valid backend fields
       delete updateData.price_per_night;
@@ -797,9 +869,6 @@ const BookingsPage: React.FC = () => {
     return status === 'checked_in';
   };
 
-
-
-  // Voiding checked-out no-payment stays is allowed so abandoned stays can be corrected.
   const canVoid = (booking: BookingWithDetails) => {
     return booking.status !== 'voided';
   };
@@ -858,6 +927,11 @@ const BookingsPage: React.FC = () => {
   const getBookingBalance = (booking: BookingWithDetails | null) => Number(booking?.balance_due ?? 0);
   const getBookingTotal = (booking: BookingWithDetails | null) => Number(booking?.total_amount ?? 0);
   const isCompanyBooking = (booking: BookingWithDetails) => Boolean(booking.company_id || booking.company_name?.trim());
+  const getBillingChipLabel = (booking: BookingWithDetails) => {
+    if (isCompanyBooking(booking)) return 'Company Billing';
+    if (!booking.guest_type) return null;
+    return booking.guest_type === 'non_member' ? 'Non-member' : 'Member';
+  };
   const hasOutstandingBalance = (booking: BookingWithDetails) => booking.status !== 'voided' && getBookingBalance(booking) > 0;
   const getKnownNightAuditDates = (booking: BookingWithDetails | null) => {
     if (!booking) return [];
@@ -867,17 +941,6 @@ const BookingsPage: React.FC = () => {
   };
   const isNightAuditInvolved = (booking: BookingWithDetails | null) =>
     Boolean(booking?.is_posted || getKnownNightAuditDates(booking).length > 0);
-  const hasNoRecordedPayment = (booking: BookingWithDetails) => Number(booking.total_paid || 0) <= 0;
-  const isNoPaymentReviewBooking = (booking: BookingWithDetails) => {
-    if (booking.status === 'voided' || !hasOutstandingBalance(booking) || !hasNoRecordedPayment(booking)) return false;
-
-    const checkOutDate = getDateOnly(booking.check_out_date);
-    const status = String(booking.status || '').toLowerCase();
-    const activeOrCompletedStay = ['checked_in', 'auto_checked_in', 'late_checkout', 'checked_out', 'completed'].includes(status);
-    const pastReservation = ['pending', 'confirmed', 'reserved'].includes(status) && Boolean(checkOutDate) && checkOutDate <= todayIso;
-
-    return activeOrCompletedStay || pastReservation;
-  };
   const isPastCheckoutWithBalance = (booking: BookingWithDetails) => {
     const checkOutDate = getDateOnly(booking.check_out_date);
     return Boolean(checkOutDate) && checkOutDate < todayIso && hasOutstandingBalance(booking);
@@ -910,10 +973,6 @@ const BookingsPage: React.FC = () => {
     ),
     [operationsBookings, todayIso]
   );
-  const noPaymentReviewBookings = useMemo(
-    () => operationsBookings.filter(isNoPaymentReviewBooking),
-    [operationsBookings, todayIso]
-  );
   const arrivingBookings = useMemo(
     () => operationsBookings.filter((booking) => getDateOnly(booking.check_in_date) === todayIso && !['checked_in', 'checked_out', 'completed', 'voided'].includes(booking.status)),
     [operationsBookings, todayIso]
@@ -941,9 +1000,8 @@ const BookingsPage: React.FC = () => {
     if (bookingView === 'balance') return dueBookings;
     if (bookingView === 'normal_balance') return normalDueBookings;
     if (bookingView === 'company_balance') return companyDueBookings;
-    if (bookingView === 'abandoned') return noPaymentReviewBookings;
     return filteredAndSortedBookings;
-  }, [arrivingBookings, bookingView, companyDueBookings, departingBookings, dueBookings, filteredAndSortedBookings, inHouseBookings, noPaymentReviewBookings, normalDueBookings, upcomingBookings]);
+  }, [arrivingBookings, bookingView, companyDueBookings, departingBookings, dueBookings, filteredAndSortedBookings, inHouseBookings, normalDueBookings, upcomingBookings]);
 
   const selectedBooking = useMemo(() => {
     if (!bookingDetailsOpen) return null;
@@ -964,13 +1022,11 @@ const BookingsPage: React.FC = () => {
 
   const totalGuestsInHouse = inHouseBookings.reduce((sum, booking) => sum + Number((booking as any).adults || 1) + Number((booking as any).children || 0), 0);
   const roomCount = rooms.length || 0;
-  const outstandingDue = dueBookings.reduce((sum, booking) => sum + getBookingBalance(booking), 0);
   const normalOutstandingDue = normalDueBookings.reduce((sum, booking) => sum + getBookingBalance(booking), 0);
   const companyOutstandingDue = companyDueBookings.reduce((sum, booking) => sum + getBookingBalance(booking), 0);
-  const noPaymentReviewTotal = noPaymentReviewBookings.reduce((sum, booking) => sum + getBookingBalance(booking), 0);
   const normalBalanceScope = summaryLoaded ? 'past checkout date' : 'past checkout date on this page';
   const companyBalanceScope = summaryLoaded ? `past ${COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT} month from checkout` : `past ${COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT} month from checkout on this page`;
-  const paymentActionDetail = `${formatCurrency(outstandingDue)} overdue: ${normalDueBookings.length} normal / ${companyDueBookings.length} company`;
+  const paymentActionDetail = `${formatCurrency(normalOutstandingDue)} normal outstanding`;
 
   const selectBookingView = (view: BookingView) => {
     setBookingView(view);
@@ -993,7 +1049,7 @@ const BookingsPage: React.FC = () => {
       setStatusFilter('confirmed');
       setDateFilter('month');
       setSearchDate('');
-    } else if (view === 'balance' || view === 'normal_balance' || view === 'company_balance' || view === 'abandoned') {
+    } else if (view === 'balance' || view === 'normal_balance' || view === 'company_balance') {
       setStatusFilter('all');
       setDateFilter('all');
       setSearchDate('');
@@ -1001,17 +1057,9 @@ const BookingsPage: React.FC = () => {
   };
 
   const handleTakePaymentAction = () => {
-    selectBookingView('balance');
-    if (dueBookings.length > 0) {
-      setSelectedBookingId(dueBookings[0].id);
-      setBookingDetailsOpen(true);
-    }
-  };
-
-  const handleNoPaymentReviewAction = () => {
-    selectBookingView('abandoned');
-    if (noPaymentReviewBookings.length > 0) {
-      setSelectedBookingId(noPaymentReviewBookings[0].id);
+    selectBookingView('normal_balance');
+    if (normalDueBookings.length > 0) {
+      setSelectedBookingId(normalDueBookings[0].id);
       setBookingDetailsOpen(true);
     }
   };
@@ -1026,6 +1074,67 @@ const BookingsPage: React.FC = () => {
 
   const voidingAuditDates = getKnownNightAuditDates(voidingBooking);
   const voidingNeedsAuditReview = isNightAuditInvolved(voidingBooking);
+  const summaryStatCards: SummaryStatCard[] = [
+    {
+      title: 'Arrivals / Check-in',
+      value: arrivingBookings.length,
+      detail: `${arrivingBookings.filter(canCheckIn).length} ready to check in`,
+      subValue: arrivingBookings.length || stats.todayCheckIns || 1,
+      color: '#2f6f52',
+      icon: <ArrowForwardIcon fontSize="small" />,
+      view: 'arriving',
+    },
+    {
+      title: 'In-house guests',
+      value: totalGuestsInHouse,
+      detail: `across ${inHouseBookings.length} rooms`,
+      subValue: Math.max(totalGuestsInHouse, roomCount || 1),
+      color: '#2f64b3',
+      icon: <BedIcon fontSize="small" />,
+      view: 'in_house',
+    },
+    {
+      title: 'Departures / Check-out',
+      value: departingBookings.length,
+      detail: `${departingBookings.length} ready to check out`,
+      subValue: departingBookings.length || 1,
+      color: '#c47b1e',
+      icon: <ArrowBackIcon fontSize="small" />,
+      view: 'departing',
+    },
+    {
+      title: 'Upcoming bookings',
+      value: upcomingBookings.length,
+      detail: `${upcomingBookings.length} future reservations`,
+      subValue: upcomingBookings.length || 1,
+      color: '#7c4dff',
+      icon: <BookIcon fontSize="small" />,
+      view: 'upcoming',
+    },
+    ...(normalOutstandingDue > 0
+      ? [{
+        title: 'Normal outstanding',
+        value: formatCurrency(normalOutstandingDue),
+        detail: `${normalDueBookings.length} ${normalBalanceScope}`,
+        color: '#c43d32',
+        icon: <PaymentIcon fontSize="small" />,
+        view: 'normal_balance' as BookingView,
+        alert: true,
+      }]
+      : []),
+    ...(companyOutstandingDue > 0
+      ? [{
+        title: 'Company outstanding',
+        value: formatCurrency(companyOutstandingDue),
+        detail: `${companyDueBookings.length} ${companyBalanceScope}`,
+        color: '#8f3d5f',
+        icon: <ReceiptIcon fontSize="small" />,
+        view: 'company_balance' as BookingView,
+        alert: true,
+      }]
+      : []),
+  ];
+  const summaryGridColumns = Math.max(1, Math.min(summaryStatCards.length, 6));
 
   if (loading) {
     return (
@@ -1086,83 +1195,83 @@ const BookingsPage: React.FC = () => {
         </Alert>
       )}
 
-      <Grid container spacing={2} mb={2.5} columns={{ xs: 12, sm: 12, md: 12, lg: 14 }}>
-        {[
-          { title: 'Arrivals / Check-in', value: arrivingBookings.length, detail: `${arrivingBookings.filter(canCheckIn).length} ready to check in`, subValue: arrivingBookings.length || stats.todayCheckIns || 1, color: '#2f6f52', icon: <ArrowForwardIcon fontSize="small" />, view: 'arriving' as const },
-          { title: 'In-house guests', value: totalGuestsInHouse, detail: `across ${inHouseBookings.length} rooms`, subValue: Math.max(totalGuestsInHouse, roomCount || 1), color: '#2f64b3', icon: <BedIcon fontSize="small" />, view: 'in_house' as const },
-          { title: 'Departures / Check-out', value: departingBookings.length, detail: `${departingBookings.length} ready to check out`, subValue: departingBookings.length || 1, color: '#c47b1e', icon: <ArrowBackIcon fontSize="small" />, view: 'departing' as const },
-          { title: 'Upcoming bookings', value: upcomingBookings.length, detail: `${upcomingBookings.length} future reservations`, subValue: upcomingBookings.length || 1, color: '#7c4dff', icon: <BookIcon fontSize="small" />, view: 'upcoming' as const },
-          { title: 'Normal outstanding', value: formatCurrency(normalOutstandingDue), detail: `${normalDueBookings.length} ${normalBalanceScope}`, color: '#c43d32', icon: <PaymentIcon fontSize="small" />, view: 'normal_balance' as const, alert: normalDueBookings.length > 0 },
-          { title: 'Company outstanding', value: formatCurrency(companyOutstandingDue), detail: `${companyDueBookings.length} ${companyBalanceScope}`, color: '#8f3d5f', icon: <ReceiptIcon fontSize="small" />, view: 'company_balance' as const, alert: companyDueBookings.length > 0 },
-          { title: 'No payment review', value: noPaymentReviewBookings.length, detail: `${formatCurrency(noPaymentReviewTotal)} unpaid`, subValue: noPaymentReviewBookings.length || 1, color: '#8a4b18', icon: <MoneyOffIcon fontSize="small" />, view: 'abandoned' as const, alert: noPaymentReviewBookings.length > 0 },
-        ].map((stat) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4, lg: 2 }} key={stat.title}>
-            <Card
-              elevation={0}
-              onClick={() => selectBookingView(stat.view)}
-              sx={{
-                height: '100%',
-                cursor: 'pointer',
-                borderLeft: stat.alert ? `4px solid ${stat.color}` : '1px solid',
-                borderColor: stat.alert ? stat.color : 'divider',
-                bgcolor: bookingView === stat.view ? alpha(stat.color, 0.08) : 'background.paper',
-              }}
-            >
-              <CardContent sx={{ p: 2.25, '&:last-child': { pb: 2.25 } }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 800, color: 'text.secondary' }}>{stat.title}</Typography>
-                  <Box sx={{ width: 34, height: 34, borderRadius: 2, bgcolor: alpha(stat.color, 0.12), color: stat.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {stat.icon}
-                  </Box>
+      <Box
+        sx={{
+          display: 'grid',
+          gap: 2,
+          mb: 2.5,
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, minmax(0, 1fr))',
+            md: 'repeat(3, minmax(0, 1fr))',
+            lg: `repeat(${summaryGridColumns}, minmax(0, 1fr))`,
+          },
+        }}
+      >
+        {summaryStatCards.map((stat) => (
+          <Card
+            key={stat.title}
+            elevation={0}
+            onClick={() => selectBookingView(stat.view)}
+            sx={{
+              height: '100%',
+              cursor: 'pointer',
+              borderLeft: stat.alert ? `4px solid ${stat.color}` : '1px solid',
+              borderColor: stat.alert ? stat.color : 'divider',
+              bgcolor: bookingView === stat.view ? alpha(stat.color, 0.08) : 'background.paper',
+            }}
+          >
+            <CardContent sx={{ p: 2.25, '&:last-child': { pb: 2.25 } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                <Typography variant="body2" sx={{ fontWeight: 800, color: 'text.secondary' }}>{stat.title}</Typography>
+                <Box sx={{ width: 34, height: 34, borderRadius: 2, bgcolor: alpha(stat.color, 0.12), color: stat.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {stat.icon}
                 </Box>
-                <Typography variant="h4" sx={{ fontWeight: 900, color: 'text.primary', lineHeight: 1 }}>
-                  {stat.value}
-                  {'subValue' in stat && typeof stat.value === 'number' && (
-                    <Typography component="span" variant="h6" color="text.secondary">/{stat.subValue}</Typography>
-                  )}
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>{stat.detail}</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+              </Box>
+              <Typography variant="h4" sx={{ fontWeight: 900, color: 'text.primary', lineHeight: 1 }}>
+                {stat.value}
+                {stat.subValue != null && typeof stat.value === 'number' && (
+                  <Typography component="span" variant="h6" color="text.secondary">/{stat.subValue}</Typography>
+                )}
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary', mt: 1 }}>{stat.detail}</Typography>
+            </CardContent>
+          </Card>
         ))}
-      </Grid>
+      </Box>
 
-      <Grid container spacing={2} mb={2.5}>
-        {[
-          { title: 'Take payment', detail: paymentActionDetail, color: '#c43d32', icon: <PaymentIcon />, action: handleTakePaymentAction, primary: dueBookings.length > 0 },
-          { title: 'Review no-payment stays', detail: `${noPaymentReviewBookings.length} possible abandoned bookings`, color: '#8a4b18', icon: <MoneyOffIcon />, action: handleNoPaymentReviewAction, primary: noPaymentReviewBookings.length > 0 },
-        ].map((action) => (
-          <Grid size={{ xs: 12 }} key={action.title}>
+      {normalOutstandingDue > 0 && (
+        <Grid container spacing={2} mb={2.5}>
+          <Grid size={{ xs: 12 }}>
             <Card
               elevation={0}
-              onClick={action.action}
+              onClick={handleTakePaymentAction}
               // Use `&.MuiCard-root` to match the specificity of the global
               // `.hotel-board-skin .MuiCard-root` theme rule; without this the
               // primary background gets overridden back to plain paper white.
               sx={{
                 cursor: 'pointer',
-                color: action.primary ? 'white' : 'text.primary',
+                color: 'white',
                 '&.MuiCard-root': {
-                  bgcolor: action.primary ? action.color : 'background.paper',
-                  borderColor: action.primary ? action.color : 'divider',
+                  bgcolor: '#c43d32',
+                  borderColor: '#c43d32',
                 },
               }}
             >
               <CardContent sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2, '&:last-child': { pb: 2 } }}>
-                <Box sx={{ width: 42, height: 42, borderRadius: 2, bgcolor: action.primary ? 'rgba(255,255,255,0.18)' : alpha(action.color, 0.12), color: action.primary ? 'white' : action.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {action.icon}
+                <Box sx={{ width: 42, height: 42, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <PaymentIcon />
                 </Box>
                 <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.1, color: 'inherit' }}>{action.title}</Typography>
-                  <Typography variant="body2" sx={{ color: action.primary ? 'rgba(255,255,255,0.85)' : 'text.secondary' }}>{action.detail}</Typography>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 900, lineHeight: 1.1, color: 'inherit' }}>Take payment</Typography>
+                  <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.85)' }}>{paymentActionDetail}</Typography>
                 </Box>
-                <ArrowForwardIcon sx={{ color: action.primary ? 'white' : 'text.secondary' }} />
+                <ArrowForwardIcon sx={{ color: 'white' }} />
               </CardContent>
             </Card>
           </Grid>
-        ))}
-      </Grid>
+        </Grid>
+      )}
 
       <Grid container spacing={2.5} alignItems="stretch">
         <Grid size={{ xs: 12, lg: selectedBooking ? 8 : 12 }}>
@@ -1172,7 +1281,7 @@ const BookingsPage: React.FC = () => {
                 <TextField
                   fullWidth
                   size="medium"
-                  placeholder="Search guest, invoice, or room number..."
+                  placeholder="Search booking, guest, invoice, or room number..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   InputProps={{
@@ -1207,7 +1316,6 @@ const BookingsPage: React.FC = () => {
                   { key: 'balance', label: 'Overdue Balance', count: dueBookings.length },
                   { key: 'normal_balance', label: 'Normal', count: normalDueBookings.length },
                   { key: 'company_balance', label: 'Company', count: companyDueBookings.length },
-                  { key: 'abandoned', label: 'No Payment', count: noPaymentReviewBookings.length },
                 ].map((filter) => (
                   <Chip
                     key={filter.key}
@@ -1273,6 +1381,7 @@ const BookingsPage: React.FC = () => {
                   const balance = getBookingBalance(booking);
                   const isPaid = balance <= 0 && ['paid', 'paid_rate'].includes(String(booking.payment_status || '').toLowerCase());
                   const channelInfo = getBookingChannelInfo(booking);
+                  const billingChipLabel = getBillingChipLabel(booking);
 
                   return (
                     <Box
@@ -1329,13 +1438,16 @@ const BookingsPage: React.FC = () => {
                               />
                             </Tooltip>
                           )}
-                          {booking.guest_type && <Chip size="small" label={booking.guest_type.replace(/_/g, ' ').slice(0, 8)} sx={{ height: 22, fontWeight: 800 }} />}
+                          {billingChipLabel && (
+                            <Chip
+                              size="small"
+                              label={billingChipLabel}
+                              sx={{ height: 22, fontWeight: 800 }}
+                            />
+                          )}
                           <Typography variant="body2" sx={{ color: statusDotColor(booking.status), fontWeight: 800 }}>
                             • {getBookingStatusText(booking.status)}
                           </Typography>
-                          {isNoPaymentReviewBooking(booking) && (
-                            <Chip size="small" label="No payment" color="warning" sx={{ height: 22, fontWeight: 900 }} />
-                          )}
                           {isNightAuditInvolved(booking) && (
                             <Chip size="small" label="Night audit" variant="outlined" sx={{ height: 22, fontWeight: 900 }} />
                           )}
@@ -1468,15 +1580,6 @@ const BookingsPage: React.FC = () => {
                     </Box>
                   </Stack>
                 </Box>
-
-                {isNoPaymentReviewBooking(selectedBooking) && (
-                  <Box sx={{ px: 2.5, pt: 2.5 }}>
-                    <Alert severity="warning" icon={<MoneyOffIcon />}>
-                      No payment has been recorded for this stay. Collect payment before checkout, or void it if the booking was abandoned.
-                      {isNightAuditInvolved(selectedBooking) && ' After voiding, rerun night audit for the affected date to refresh reports.'}
-                    </Alert>
-                  </Box>
-                )}
 
                 <Box sx={{ p: 2.5 }}>
                   <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Actions</Typography>
@@ -1799,6 +1902,66 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="corporate">Corporate</MenuItem>
               </TextField>
             </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <Autocomplete<BookingCompanyOption>
+                options={activeCompanies}
+                value={selectedEditCompany}
+                loading={activeCompaniesQuery.isLoading || activeCompaniesQuery.isFetching}
+                onChange={(_, company) => setEditFormData((prev: any) => ({
+                  ...prev,
+                  company_id: company?.id ?? null,
+                  company_name: company?.company_name || '',
+                }))}
+                getOptionLabel={(option) => option.company_name}
+                isOptionEqualToValue={(option, value) => {
+                  if (option.id != null && value.id != null) return option.id === value.id;
+                  return option.company_name.toLowerCase() === value.company_name.toLowerCase();
+                }}
+                renderOption={(props, option) => {
+                  const { key, ...otherProps } = props;
+                  return (
+                    <li key={key} {...otherProps}>
+                      <Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <BusinessIcon color="action" fontSize="small" />
+                          <Typography>{option.company_name}</Typography>
+                        </Box>
+                        {option.contact_person && (
+                          <Typography variant="caption" color="text.secondary" sx={{ ml: 3.5 }}>
+                            Contact: {option.contact_person}
+                          </Typography>
+                        )}
+                      </Box>
+                    </li>
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Company (optional)"
+                    placeholder="Search company (optional)"
+                    helperText="Leave empty for normal guest billing."
+                    InputProps={{
+                      ...params.InputProps,
+                      startAdornment: (
+                        <>
+                          <BusinessIcon color="action" sx={{ ml: 1, mr: 0.5 }} />
+                          {params.InputProps.startAdornment}
+                        </>
+                      ),
+                      endAdornment: (
+                        <>
+                          {(activeCompaniesQuery.isLoading || activeCompaniesQuery.isFetching) ? (
+                            <CircularProgress color="inherit" size={18} />
+                          ) : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+              />
+            </Grid>
             {/* Payment Status is intentionally read-only here. It's derived
                 live from the payments table on every list query, and any
                 override the user types in this form is wiped on the next
@@ -1953,11 +2116,6 @@ const BookingsPage: React.FC = () => {
           <Alert severity="error" sx={{ mb: 2 }}>
             Voiding a booking will permanently remove it from all reports including night audit. This cannot be undone.
           </Alert>
-          {voidingBooking && isNoPaymentReviewBooking(voidingBooking) && (
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              This booking has no recorded payment and may be abandoned. Use a clear reason such as abandoned/no payment.
-            </Alert>
-          )}
           {voidingNeedsAuditReview && (
             <Alert severity="info" sx={{ mb: 2 }}>
               {voidingAuditDates.length > 0
@@ -1978,7 +2136,7 @@ const BookingsPage: React.FC = () => {
             label="Void Reason (Optional)"
             value={voidReason}
             onChange={(e) => setVoidReason(e.target.value)}
-            placeholder={voidingBooking && isNoPaymentReviewBooking(voidingBooking) ? 'Abandoned booking - no payment recorded' : 'Enter reason for voiding...'}
+            placeholder="Enter reason for voiding..."
           />
         </DialogContent>
         <DialogActions>

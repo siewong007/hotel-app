@@ -33,6 +33,10 @@ pub struct AuditLogEntryWithUser {
     /// Activity stream this entry belongs to (derived from `resource_type`).
     pub category: String,
     pub resource_id: Option<i64>,
+    /// True when the audit payload contains field-level change markers.
+    pub has_changes: bool,
+    /// Derived classification for display/export: `field_change` or `action_only`.
+    pub change_kind: String,
     pub details: Option<Value>,
     pub ip_address: Option<String>,
     pub user_agent: Option<String>,

@@ -10,6 +10,10 @@ export interface AuditLogEntry {
   /** Activity stream derived from resource_type: rooms|guests|bookings|system|reports|other */
   category: string;
   resource_id: number | null;
+  /** True when the backend detected field-level change markers in the payload. */
+  has_changes?: boolean;
+  /** Derived display/export classification: field_change or action_only. */
+  change_kind?: string;
   details: Record<string, unknown> | null;
   ip_address: string | null;
   user_agent: string | null;

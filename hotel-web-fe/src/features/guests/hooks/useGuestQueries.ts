@@ -3,7 +3,7 @@ import { GuestsService } from '../../../api';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { invalidateGuestDependencies } from '../../../api/queryInvalidation';
 import { queryKeys } from '../../../api/queryKeys';
-import type { GuestCreateRequest, GuestUpdateRequest, GuestType } from '../../../types';
+import type { GuestCreateRequest, GuestUpdateRequest, GuestType, TourismType } from '../../../types';
 
 type GuestListParams = {
   search?: string;
@@ -15,6 +15,8 @@ type GuestPageParams = {
   page_size?: number;
   search?: string;
   guest_type?: GuestType;
+  tourism_type?: TourismType;
+  missing_info?: boolean;
 };
 
 export function useGuests(params?: GuestListParams, enabled = true) {

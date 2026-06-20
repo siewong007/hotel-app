@@ -29,6 +29,7 @@ import {
   Person as PersonIcon,
   Computer as CronIcon,
   CalendarToday as CalIcon,
+  FlagOutlined as ActionOnlyIcon,
 } from '@mui/icons-material';
 import {
   AuditLogEntry,
@@ -151,15 +152,135 @@ const shortStamp = (v?: string) => {
 const sparkBars = (seed: number) =>
   Array.from({ length: 12 }, (_, k) => 0.3 + 0.7 * Math.abs(Math.sin((seed + 1) * 0.7 + k * 0.55)));
 
-/** Build from→to rows out of a heterogeneous details object. */
-function buildDiff(details: Record<string, unknown> | null): { k: string; from: string; to: string }[] {
-  if (!details || typeof details !== 'object') return [];
-  const s = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v));
-  if ('old_value' in details || 'new_value' in details) {
-    return [{ k: String((details as any).key ?? 'value'), from: s((details as any).old_value), to: s((details as any).new_value) }];
-  }
-  return Object.entries(details).map(([k, v]) => ({ k, from: '—', to: s(v) }));
+type DetailRecord = Record<string, unknown>;
+type ChangeRow = { k: string; from: string; to: string };
+type MetadataRow = { k: string; v: string };
+
+const isRecord = (value: unknown): value is DetailRecord =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const fmtValue = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+};
+
+const isEmptyDetailValue = (value: unknown) =>
+  value === null ||
+  value === undefined ||
+  (Array.isArray(value) && value.length === 0) ||
+  (isRecord(value) && Object.keys(value).length === 0);
+
+function addPairRow(
+  details: DetailRecord,
+  oldKey: string,
+  newKey: string,
+  label: string,
+  changes: ChangeRow[],
+  consumed: Set<string>
+) {
+  if (!(oldKey in details) || !(newKey in details)) return;
+  consumed.add(oldKey);
+  consumed.add(newKey);
+
+  const oldValue = details[oldKey];
+  const newValue = details[newKey];
+  if (JSON.stringify(oldValue) === JSON.stringify(newValue)) return;
+
+  changes.push({ k: label, from: fmtValue(oldValue), to: fmtValue(newValue) });
 }
+
+function addObjectPairRows(
+  details: DetailRecord,
+  oldKey: string,
+  newKey: string,
+  changes: ChangeRow[],
+  consumed: Set<string>
+) {
+  if (!isRecord(details[oldKey]) || !isRecord(details[newKey])) return;
+  consumed.add(oldKey);
+  consumed.add(newKey);
+
+  const oldValues = details[oldKey] as DetailRecord;
+  const newValues = details[newKey] as DetailRecord;
+  const keys = new Set([...Object.keys(oldValues), ...Object.keys(newValues)]);
+
+  keys.forEach((key) => {
+    if (JSON.stringify(oldValues[key]) !== JSON.stringify(newValues[key])) {
+      changes.push({ k: key, from: fmtValue(oldValues[key]), to: fmtValue(newValues[key]) });
+    }
+  });
+}
+
+function addPrefixedPairRows(
+  details: DetailRecord,
+  oldPrefix: string,
+  newPrefix: string,
+  changes: ChangeRow[],
+  consumed: Set<string>
+) {
+  Object.entries(details).forEach(([oldKey, oldValue]) => {
+    if (!oldKey.startsWith(oldPrefix)) return;
+    const suffix = oldKey.slice(oldPrefix.length);
+    const newKey = `${newPrefix}${suffix}`;
+    if (!(newKey in details) || consumed.has(oldKey) || consumed.has(newKey)) return;
+
+    consumed.add(oldKey);
+    consumed.add(newKey);
+    const newValue = details[newKey];
+    if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+      changes.push({ k: suffix || 'value', from: fmtValue(oldValue), to: fmtValue(newValue) });
+    }
+  });
+}
+
+function buildChangeRowsFromValue(value: unknown): ChangeRow[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry, index) => {
+      const rows = buildChangeRowsFromValue(entry);
+      if (rows.length > 0) return rows;
+      return isEmptyDetailValue(entry) ? [] : [{ k: `change_${index + 1}`, from: '—', to: fmtValue(entry) }];
+    });
+  }
+
+  if (!isRecord(value)) {
+    return isEmptyDetailValue(value) ? [] : [{ k: 'value', from: '—', to: fmtValue(value) }];
+  }
+
+  const nested = analyzeDetails(value);
+  if (nested.changes.length > 0) return nested.changes;
+
+  return Object.entries(value)
+    .filter(([, entry]) => !isEmptyDetailValue(entry))
+    .map(([key, entry]) => ({ k: key, from: '—', to: fmtValue(entry) }));
+}
+
+function analyzeDetails(details: DetailRecord | null): { changes: ChangeRow[]; metadata: MetadataRow[] } {
+  if (!isRecord(details)) return { changes: [], metadata: [] };
+
+  const changes: ChangeRow[] = [];
+  const consumed = new Set<string>();
+
+  addPairRow(details, 'old_value', 'new_value', String(details.key ?? 'value'), changes, consumed);
+  addObjectPairRows(details, 'old_values', 'new_values', changes, consumed);
+  addObjectPairRows(details, 'before', 'after', changes, consumed);
+  addPrefixedPairRows(details, 'old_', 'new_', changes, consumed);
+  addPrefixedPairRows(details, 'from_', 'to_', changes, consumed);
+  addPrefixedPairRows(details, 'previous_', 'new_', changes, consumed);
+
+  if ('changes' in details) {
+    consumed.add('changes');
+    changes.push(...buildChangeRowsFromValue(details['changes']));
+  }
+
+  const metadata = Object.entries(details)
+    .filter(([key, value]) => !consumed.has(key) && !isEmptyDetailValue(value))
+    .map(([key, value]) => ({ k: key, v: fmtValue(value) }));
+
+  return { changes, metadata };
+}
+
+const changeKindLabel = (hasChanges: boolean) => hasChanges ? 'Field changes' : 'Action only';
 
 const AuditLogPage: React.FC = () => {
   const [activeCat, setActiveCat] = useState<AuditCategoryId>('rooms');
@@ -487,7 +608,13 @@ const AuditLogPage: React.FC = () => {
                 const isSys = !r.username;
                 const actionLabel = getActionLabel(r.action).label;
                 const resLabel = getResourceLabel(r.resource_type).label;
-                const diff = buildDiff(r.details);
+                const detailAnalysis = analyzeDetails(r.details);
+                const hasFieldChanges = r.has_changes ?? detailAnalysis.changes.length > 0;
+                const changeSummary = hasFieldChanges
+                  ? detailAnalysis.changes.length > 0
+                    ? `${detailAnalysis.changes.length} field change${detailAnalysis.changes.length === 1 ? '' : 's'}`
+                    : changeKindLabel(true)
+                  : changeKindLabel(false);
                 return (
                   <Box key={r.id}>
                     <Box
@@ -520,7 +647,17 @@ const AuditLogPage: React.FC = () => {
                           {VERB_LABEL[verb]}
                         </Box>
                         <Box sx={{ fontSize: 13, color: T.ink, lineHeight: 1.5, minWidth: 0 }}>
-                          <Box component="span" sx={{ fontWeight: 600 }}>{actionLabel}</Box>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, flexWrap: 'wrap' }}>
+                            <Box component="span" sx={{ fontWeight: 600 }}>{actionLabel}</Box>
+                            {!hasFieldChanges && (
+                              <Tooltip title="Action trigger recorded without field-level before/after changes.">
+                                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.35, fontSize: 10.5, fontWeight: 700, color: '#8A6210', bgcolor: '#FBF1DC', border: '1px solid #E8CA7A', px: 0.65, py: '1px', borderRadius: '999px', lineHeight: 1.4 }}>
+                                  <ActionOnlyIcon sx={{ fontSize: 12 }} />
+                                  Action only
+                                </Box>
+                              </Tooltip>
+                            )}
+                          </Box>
                           <br />
                           <Box component="span" sx={{ color: T.ink2 }}>{resLabel}</Box>
                           {r.resource_id != null && (
@@ -531,9 +668,7 @@ const AuditLogPage: React.FC = () => {
                         </Box>
                       </Box>
                       <Box sx={{ display: { xs: 'none', md: 'block' }, fontSize: 12, color: T.ink3, fontWeight: 500 }}>
-                        {r.details && (('old_value' in (r.details as any)) || ('new_value' in (r.details as any)))
-                          ? `${(r.details as any).old_value ?? '—'} → ${(r.details as any).new_value ?? '—'}`
-                          : resLabel}
+                        {changeSummary}
                       </Box>
                       <Box sx={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11.5, color: T.ink2, fontWeight: 600, textAlign: { md: 'right' } }}>
                         {r.ip_address || '—'}
@@ -559,11 +694,11 @@ const AuditLogPage: React.FC = () => {
                           </Box>
                         </Box>
                         <Box>
-                          <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', mb: 1 }}>Changes</Box>
-                          {diff.length > 0 ? (
+                          <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', mb: 1 }}>Field changes</Box>
+                          {detailAnalysis.changes.length > 0 ? (
                             <Box sx={{ bgcolor: T.surface2, border: `1px solid ${T.border}`, borderRadius: '9px', overflow: 'hidden', fontFamily: 'JetBrains Mono, monospace', fontSize: 11.5 }}>
-                              {diff.map((d, i) => (
-                                <Box key={i} sx={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr', gap: 1.25, p: '6px 10px', borderBottom: i < diff.length - 1 ? `1px solid ${T.border}` : 'none' }}>
+                              {detailAnalysis.changes.map((d, i) => (
+                                <Box key={i} sx={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr', gap: 1.25, p: '6px 10px', borderBottom: i < detailAnalysis.changes.length - 1 ? `1px solid ${T.border}` : 'none' }}>
                                   <Box sx={{ color: T.ink3, fontWeight: 600 }}>{d.k}</Box>
                                   <Box sx={{ color: T.rose, textDecoration: 'line-through', textDecorationColor: 'rgba(209,66,86,0.45)' }}>{d.from}</Box>
                                   <Box sx={{ color: '#0B6A50', fontWeight: 700 }}><Box component="span" sx={{ color: T.ink4, px: 0.5 }}>→</Box>{d.to}</Box>
@@ -571,8 +706,22 @@ const AuditLogPage: React.FC = () => {
                               ))}
                             </Box>
                           ) : (
-                            <Box sx={{ fontSize: 12, color: T.ink3, p: '10px 12px', bgcolor: T.surface2, border: `1px solid ${T.border}`, borderRadius: '9px' }}>
-                              Read-only event — no field changes.
+                            <Box sx={{ fontSize: 12, color: T.ink3, p: '10px 12px', bgcolor: T.surface2, border: `1px solid ${T.border}`, borderRadius: '9px', display: 'flex', gap: 0.75, alignItems: 'center' }}>
+                              <ActionOnlyIcon sx={{ fontSize: 16, color: '#8A6210' }} />
+                              Action-only event — no field-level changes were captured.
+                            </Box>
+                          )}
+                          {detailAnalysis.metadata.length > 0 && (
+                            <Box sx={{ mt: 1.5 }}>
+                              <Box sx={{ fontSize: 10.5, color: T.ink3, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', mb: 1 }}>Recorded metadata</Box>
+                              <Box sx={{ bgcolor: '#fff', border: `1px solid ${T.border}`, borderRadius: '9px', overflow: 'hidden', fontFamily: 'JetBrains Mono, monospace', fontSize: 11.5 }}>
+                                {detailAnalysis.metadata.map((d, i) => (
+                                  <Box key={d.k} sx={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 1.25, p: '6px 10px', borderBottom: i < detailAnalysis.metadata.length - 1 ? `1px solid ${T.border}` : 'none' }}>
+                                    <Box sx={{ color: T.ink3, fontWeight: 600 }}>{d.k}</Box>
+                                    <Box sx={{ color: T.ink2, fontWeight: 600, wordBreak: 'break-word' }}>{d.v}</Box>
+                                  </Box>
+                                ))}
+                              </Box>
                             </Box>
                           )}
                         </Box>

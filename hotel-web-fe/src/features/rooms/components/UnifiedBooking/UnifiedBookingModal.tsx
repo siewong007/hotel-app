@@ -10,6 +10,7 @@ import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../../utils
 import { useUnifiedBookingData } from '../../hooks/useUnifiedBookingData';
 import { isValidEmail } from '../../../../utils/validation';
 import GuestSelector, { NewGuestForm, GuestWithCredits, emptyNewGuestForm } from '../GuestSelector';
+import { canCoverRoomsWithCredits, type RoomCreditBucket } from '../../utils/roomManagementUtils';
 import { buildBookingTokens } from './bookingTokens';
 import BookingModalHeader from './components/BookingModalHeader';
 import BookingSummaryAside from './components/BookingSummaryAside';
@@ -38,6 +39,20 @@ interface UnifiedBookingModalProps {
   onBookingCreated?: (booking: Booking, guest: Guest) => void; // For direct booking to open enhanced check-in
   onRefreshData: () => Promise<void>;
 }
+
+const getCreditNights = (credit: RoomCreditBucket | undefined): number => {
+  const nights = Number(credit?.nights_available ?? 0);
+  return Number.isFinite(nights) ? nights : 0;
+};
+
+const getGuestCreditRoomTypeLabels = (guest: GuestWithCredits | null): string => {
+  if (!guest) return '';
+
+  return guest.credits_by_room_type
+    .filter((credit) => getCreditNights(credit) > 0)
+    .map((credit) => credit.room_type_name || credit.room_type_code || 'credited room type')
+    .join(', ');
+};
 
 const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   open,
@@ -717,6 +732,12 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             return;
           }
 
+          if (!canCoverRoomsWithCredits(selectedGuestWithCredits, selectedBookingRooms, requiredCreditNights)) {
+            onError('Selected guest does not have enough complimentary credit for the selected room type.');
+            setProcessing(false);
+            return;
+          }
+
           // Generate complimentary dates
           const complimentaryDates: string[] = [];
           const start = parseLocalDate(checkInDate);
@@ -782,6 +803,103 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
 
   const effectiveType = getEffectiveBookingType();
+  const requiredCreditNights = Math.max(1, billableNights);
+  const isComplimentaryFlow = effectiveType === 'complimentary';
+
+  const creditFilteredGuests = useMemo(() => {
+    const candidates = guestsWithCredits.filter((guest) => guest.total_complimentary_credits > 0);
+    if (!isComplimentaryFlow || selectedBookingRooms.length === 0) return candidates;
+
+    return candidates.filter((guest) => (
+      canCoverRoomsWithCredits(guest, selectedBookingRooms, requiredCreditNights)
+    ));
+  }, [guestsWithCredits, isComplimentaryFlow, selectedBookingRooms, requiredCreditNights]);
+
+  const creditFilteredAvailableRooms = useMemo(() => {
+    if (!isComplimentaryFlow) return availableRooms;
+
+    return availableRooms.filter((availableRoom) => {
+      const alreadySelected = selectedBookingRooms.some((selected) => String(selected.id) === String(availableRoom.id));
+      const roomsToCover = alreadySelected
+        ? selectedBookingRooms
+        : [...selectedBookingRooms, availableRoom];
+
+      if (selectedGuestWithCredits) {
+        return canCoverRoomsWithCredits(selectedGuestWithCredits, roomsToCover, requiredCreditNights);
+      }
+
+      if (loadingGuestsWithCredits) return true;
+
+      return creditFilteredGuests.some((guest) => (
+        canCoverRoomsWithCredits(guest, roomsToCover, requiredCreditNights)
+      ));
+    });
+  }, [
+    availableRooms,
+    isComplimentaryFlow,
+    selectedBookingRooms,
+    selectedGuestWithCredits,
+    loadingGuestsWithCredits,
+    creditFilteredGuests,
+    requiredCreditNights,
+  ]);
+
+  const selectedRoomTypeNames = useMemo(() => (
+    Array.from(new Set(selectedBookingRooms.map((selected) => selected.room_type).filter(Boolean))).join(', ')
+  ), [selectedBookingRooms]);
+
+  const selectedGuestCreditRoomTypes = useMemo(
+    () => getGuestCreditRoomTypeLabels(selectedGuestWithCredits),
+    [selectedGuestWithCredits],
+  );
+
+  const guestCreditsNoOptionsText = selectedBookingRooms.length > 0
+    ? `No guest has enough complimentary credit for ${selectedRoomTypeNames || 'the selected room type'}`
+    : 'No guests with free room credits found';
+
+  const roomPickerEmptyText = isComplimentaryFlow && selectedGuestWithCredits
+    ? `No available rooms match ${selectedGuestWithCredits.full_name}'s complimentary room type${selectedGuestCreditRoomTypes ? ` (${selectedGuestCreditRoomTypes})` : ''}.`
+    : isComplimentaryFlow && !loadingGuestsWithCredits && guestsWithCredits.length > 0 && availableRooms.length > 0
+      ? 'No available rooms match any guest complimentary credit room type for the selected dates.'
+      : 'No rooms available for the selected dates. Pick different dates below.';
+
+  const noMatchingGuestsForSelectedRooms = Boolean(
+    isComplimentaryFlow
+    && !loadingGuestsWithCredits
+    && selectedBookingRooms.length > 0
+    && creditFilteredGuests.length === 0,
+  );
+
+  const noMatchingRoomsForSelectedGuest = Boolean(
+    isComplimentaryFlow
+    && needsRoomSelection
+    && checkInDate
+    && checkOutDate
+    && !loadingAvailableRooms
+    && !loadingGuestsWithCredits
+    && (selectedGuestWithCredits || guestsWithCredits.length > 0)
+    && creditFilteredAvailableRooms.length === 0,
+  );
+
+  useEffect(() => {
+    if (!isComplimentaryFlow || !selectedGuestWithCredits) return;
+    const stillSelectable = creditFilteredGuests.some((guest) => guest.id === selectedGuestWithCredits.id);
+    if (!stillSelectable) {
+      setSelectedGuestWithCredits(null);
+    }
+  }, [isComplimentaryFlow, creditFilteredGuests, selectedGuestWithCredits]);
+
+  useEffect(() => {
+    if (!needsRoomSelection || !isComplimentaryFlow || !selectedGuestWithCredits) return;
+
+    const allowedRoomIds = new Set(creditFilteredAvailableRooms.map((availableRoom) => String(availableRoom.id)));
+    setSelectedRooms((prev) => {
+      const filtered = prev.filter((selected) => allowedRoomIds.has(String(selected.id)));
+      if (filtered.length === prev.length) return prev;
+      setSelectedRoom(filtered[0] || null);
+      return filtered;
+    });
+  }, [needsRoomSelection, isComplimentaryFlow, selectedGuestWithCredits, creditFilteredAvailableRooms]);
 
   // Submit button label depends on flow
   const submitLabel = (() => {
@@ -906,20 +1024,29 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           {/* Room picker — only when opened without a pre-selected room
              (e.g. the "Add booking" CTA on the Bookings page). */}
           {needsRoomSelection && (
-            <RoomPickerSection
-              D={D}
-              selectedRooms={selectedRooms}
-              onRoomsChange={(value) => {
-                setSelectedRooms(value);
-                setSelectedRoom(value[0] || null);
-              }}
-              availableRooms={availableRooms}
-              loadingAvailableRooms={loadingAvailableRooms}
-              checkInDate={checkInDate}
-              checkOutDate={checkOutDate}
-              currencySymbol={currencySymbol}
-              selectedRoomNumbers={selectedRoomNumbers}
-            />
+            <>
+              <RoomPickerSection
+                D={D}
+                selectedRooms={selectedRooms}
+                onRoomsChange={(value) => {
+                  setSelectedRooms(value);
+                  setSelectedRoom(value[0] || null);
+                }}
+                availableRooms={creditFilteredAvailableRooms}
+                loadingAvailableRooms={loadingAvailableRooms}
+                checkInDate={checkInDate}
+                checkOutDate={checkOutDate}
+                currencySymbol={currencySymbol}
+                selectedRoomNumbers={selectedRoomNumbers}
+                emptyAvailabilityText={roomPickerEmptyText}
+                noOptionsText={roomPickerEmptyText}
+              />
+              {noMatchingRoomsForSelectedGuest && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  {roomPickerEmptyText}
+                </Alert>
+              )}
+            </>
           )}
 
           {/* Mode */}
@@ -958,11 +1085,17 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               newGuestForm={newGuestForm}
               onNewGuestFormChange={setNewGuestForm}
               filterByCredits={effectiveType === 'complimentary'}
-              guestsWithCredits={guestsWithCredits}
+              guestsWithCredits={creditFilteredGuests}
               selectedGuestWithCredits={selectedGuestWithCredits}
               onGuestWithCreditsSelect={setSelectedGuestWithCredits}
               loadingGuestsWithCredits={loadingGuestsWithCredits}
+              guestCreditsNoOptionsText={guestCreditsNoOptionsText}
             />
+            {noMatchingGuestsForSelectedRooms && (
+              <Alert severity="warning" sx={{ mt: 1.5 }}>
+                {guestCreditsNoOptionsText}
+              </Alert>
+            )}
             {companyBilling ? (
               <Alert
                 severity="success"

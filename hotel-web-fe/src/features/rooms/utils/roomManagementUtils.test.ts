@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildBlockedDateRangesForRoom,
+  canCoverRoomsWithCredits,
   calculateNightCount,
   deriveRoomStatusInfo,
   getCreditBookingDates,
   getNextAvailableDate,
   getPositiveRatePerNight,
   getRoomTypeCode,
+  getRoomTypeCreditForRoom,
   getTotalCreditsForRoom,
   isDateBlockedByRanges,
   validateCreditDateSelection,
@@ -196,6 +198,52 @@ describe('roomManagementUtils', () => {
     expect(getTotalCreditsForRoom(guestCredits, rooms, '2')).toBe(3);
     expect(getTotalCreditsForRoom(guestCredits, rooms, '3')).toBe(4);
     expect(getTotalCreditsForRoom(guestCredits, rooms, '404')).toBe(0);
+    expect(getRoomTypeCreditForRoom(guestCredits, rooms[1])?.room_type_code).toBe('STDQ');
+  });
+
+  it('matches complimentary guest and room selections by credited room type and required nights', () => {
+    const rooms = [
+      { id: '101', room_type: 'Standard Queen', room_type_code: 'STDQ' },
+      { id: '102', room_type: 'Standard Queen', room_type_code: 'STDQ' },
+      { id: '201', room_type: 'Deluxe King', room_type_name: 'Deluxe' },
+      { id: '301', room_type: 'Family Suite', room_type_code: 'FAM' },
+    ];
+    const standardGuest = {
+      total_complimentary_credits: 2,
+      credits_by_room_type: [
+        { room_type_code: 'STDQ', nights_available: 2 },
+      ],
+    };
+    const deluxeGuest = {
+      total_complimentary_credits: 2,
+      credits_by_room_type: [
+        { room_type_name: 'Deluxe', nights_available: 2 },
+      ],
+    };
+    const mixedGuest = {
+      total_complimentary_credits: 4,
+      credits_by_room_type: [
+        { room_type_code: 'STDQ', nights_available: 2 },
+        { room_type_name: 'Deluxe', nights_available: 2 },
+      ],
+    };
+
+    expect(canCoverRoomsWithCredits(standardGuest, [rooms[0]], 1)).toBe(true);
+    expect(canCoverRoomsWithCredits(standardGuest, [rooms[2]], 1)).toBe(false);
+
+    const guestsForStandardRoom = [standardGuest, deluxeGuest, mixedGuest]
+      .filter((guest) => canCoverRoomsWithCredits(guest, [rooms[0]], 1));
+    expect(guestsForStandardRoom).toEqual([standardGuest, mixedGuest]);
+
+    const roomsForStandardGuest = rooms
+      .filter((room) => canCoverRoomsWithCredits(standardGuest, [room], 1))
+      .map((room) => room.id);
+    expect(roomsForStandardGuest).toEqual(['101', '102']);
+
+    expect(canCoverRoomsWithCredits(standardGuest, [rooms[0], rooms[1]], 1)).toBe(true);
+    expect(canCoverRoomsWithCredits(standardGuest, [rooms[0], rooms[1]], 2)).toBe(false);
+    expect(canCoverRoomsWithCredits(mixedGuest, [rooms[0], rooms[2]], 2)).toBe(true);
+    expect(canCoverRoomsWithCredits(mixedGuest, [rooms[0], rooms[3]], 1)).toBe(false);
   });
 
   it('handles empty room-type codes and fallback rate values', () => {

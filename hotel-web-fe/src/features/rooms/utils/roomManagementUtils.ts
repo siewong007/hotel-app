@@ -43,6 +43,7 @@ export interface RoomCreditBucket {
 }
 
 export interface GuestCreditsLike {
+  total_complimentary_credits?: number | string | null;
   credits_by_room_type?: RoomCreditBucket[] | null;
 }
 
@@ -175,14 +176,59 @@ export const getTotalCreditsForRoom = (
   const room = rooms.find((candidate) => candidate.id.toString() === roomId.toString());
   if (!room) return 0;
 
-  const roomTypeCredits = guestCredits.credits_by_room_type?.find((credit) => (
+  const roomTypeCredits = getRoomTypeCreditForRoom(guestCredits, room);
+
+  const nights = Number(roomTypeCredits?.nights_available ?? 0);
+  return Number.isFinite(nights) ? nights : 0;
+};
+
+export const getRoomTypeCreditForRoom = (
+  guestCredits: GuestCreditsLike | null | undefined,
+  room: RoomCreditMatch | null | undefined,
+): RoomCreditBucket | undefined => {
+  if (!guestCredits || !room) return undefined;
+
+  return guestCredits.credits_by_room_type?.find((credit) => (
     matchesRoomTypeId(room, credit)
     || matchesRoomTypeCode(room, credit)
     || matchesRoomTypeName(room, credit)
   ));
+};
 
-  const nights = Number(roomTypeCredits?.nights_available ?? 0);
-  return Number.isFinite(nights) ? nights : 0;
+export const canCoverRoomsWithCredits = (
+  guestCredits: GuestCreditsLike | null | undefined,
+  rooms: RoomCreditMatch[],
+  nightsPerRoom: number,
+): boolean => {
+  if (!guestCredits) return false;
+
+  if (rooms.length === 0) {
+    const total = Number(guestCredits.total_complimentary_credits);
+    if (Number.isFinite(total)) return total > 0;
+
+    return (guestCredits.credits_by_room_type || []).some((credit) => (
+      getCreditNights(credit) > 0
+    ));
+  }
+
+  const requiredNights = Math.max(1, nightsPerRoom);
+  const requirements = new Map<string, { available: number; required: number }>();
+
+  for (const room of rooms) {
+    const credit = getRoomTypeCreditForRoom(guestCredits, room);
+    const available = getCreditNights(credit);
+    if (!credit || available <= 0) return false;
+
+    const key = getCreditBucketKey(credit, room);
+    const current = requirements.get(key) || { available, required: 0 };
+    current.available = available;
+    current.required += requiredNights;
+    requirements.set(key, current);
+  }
+
+  return Array.from(requirements.values()).every(({ available, required }) => (
+    available >= required
+  ));
 };
 
 export const getPositiveRatePerNight = (source: RateSource | null | undefined): number | null => {
@@ -268,6 +314,26 @@ const dateSerial = (dateString: string): number => {
 const normalizeText = (value?: string | null): string => (
   value?.trim().toLowerCase().replace(/\s+/g, ' ') || ''
 );
+
+const normalizeCreditKeyPart = (value?: string | number | null): string => (
+  value == null ? '' : String(value).trim().toLowerCase()
+);
+
+const getCreditNights = (credit: RoomCreditBucket | undefined): number => {
+  const nights = Number(credit?.nights_available ?? 0);
+  return Number.isFinite(nights) ? nights : 0;
+};
+
+const getCreditBucketKey = (credit: RoomCreditBucket, room: RoomCreditMatch): string => {
+  const id = normalizeCreditKeyPart(credit.room_type_id);
+  if (id) return `id:${id}`;
+
+  const code = normalizeCreditKeyPart(credit.room_type_code);
+  if (code) return `code:${code}`;
+
+  const name = normalizeCreditKeyPart(credit.room_type_name || room.room_type);
+  return `name:${name}`;
+};
 
 const matchesRoomTypeId = (
   room: RoomCreditMatch,

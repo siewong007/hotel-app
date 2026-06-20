@@ -116,7 +116,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   const cmdInputRef = React.useRef<HTMLInputElement | null>(null);
   const [cmdOpen, setCmdOpen] = React.useState(false);
   const [cmdQuery, setCmdQuery] = React.useState('');
-  const [scope, setScope] = React.useState<'all' | 'bookings' | 'guests' | 'rooms' | 'pages'>('all');
+  const [scope, setScope] = React.useState<'all' | 'bookings' | 'guests' | 'ledgers' | 'rooms' | 'pages'>('all');
   const [activeIndex, setActiveIndex] = React.useState(0);
 
   type Recent = { title: string; subtitle?: string; route: string; kind: string };
@@ -131,7 +131,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   // Server-side federated search (skipped for /commands or the Pages scope)
   const serverEnabled = cmdOpen && !slash && scope !== 'pages';
   const serverTypes =
-    scope === 'bookings' || scope === 'guests' || scope === 'rooms' ? [scope] : undefined;
+    scope === 'bookings' || scope === 'guests' || scope === 'ledgers' || scope === 'rooms' ? [scope] : undefined;
   const { groups: serverGroups, loading: serverLoading } = useGlobalSearch(
     serverEnabled ? cmdQuery : '',
     { types: serverTypes, enabled: serverEnabled }
@@ -154,6 +154,33 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
     const next = [r, ...recents.filter((x) => !(x.route === r.route && x.title === r.title))].slice(0, 6);
     setRecents(next);
     storage.setItem('cmdRecents', next);
+  };
+
+  const bookingSearchValueFromTitle = (title: string) => {
+    const trimmed = title.trim();
+    if (/^BK-[A-Za-z0-9-]+$/i.test(trimmed)) return trimmed;
+    const numericId = trimmed.match(/^#(\d+)$/);
+    return numericId?.[1] || null;
+  };
+
+  const routeForSelection = (item: SelectItem) => {
+    const [path, rawSearch = ''] = item.route.split('?');
+    const title = item.title.trim();
+    const ledgerIdTitle = title.match(/^Ledger #(\d+)$/i);
+    const searchValue = item.route.startsWith('/bookings')
+      ? bookingSearchValueFromTitle(title)
+      : item.route.startsWith('/guest-config')
+        ? title
+        : item.route.startsWith('/company-ledger')
+          ? (ledgerIdTitle?.[1] || title)
+          : null;
+    if (!searchValue) return item.route;
+
+    const params = new URLSearchParams(rawSearch);
+    const existingSearch = params.get('search');
+    params.set('search', searchValue);
+    if (path === '/bookings' && existingSearch !== searchValue) params.delete('booking_id');
+    return `${path}?${params.toString()}`;
   };
 
   const openCmd = () => {
@@ -253,9 +280,10 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   }, [cmdQuery, scope, serverGroups]);
 
   const select = (item: SelectItem) => {
-    persistRecent({ title: item.title, subtitle: item.subtitle, route: item.route, kind: 'nav' });
+    const route = routeForSelection(item);
+    persistRecent({ title: item.title, subtitle: item.subtitle, route, kind: 'nav' });
     closeCmd();
-    navigate(item.route);
+    navigate(route);
   };
 
   const onPaletteKeyDown = (e: React.KeyboardEvent) => {
@@ -381,6 +409,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
               ['all', 'All'],
               ['bookings', 'Bookings'],
               ['guests', 'Guests'],
+              ['ledgers', 'Ledger'],
               ['rooms', 'Rooms'],
               ['pages', 'Pages'],
             ] as const).map(([k, lb]) => {

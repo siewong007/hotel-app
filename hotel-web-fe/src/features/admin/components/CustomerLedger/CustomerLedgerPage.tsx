@@ -87,6 +87,7 @@ import {
 } from '../../../../types';
 import type { Company } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
+import { useSearchParams } from '../../../../router';
 import { getHotelSettings, HotelSettings } from '../../../../utils/hotelSettings';
 import { formatLocalDate, addLocalDays } from '../../../../utils/date';
 import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceModals';
@@ -135,6 +136,7 @@ import CompanyInfoTab from './components/CompanyInfoTab';
 import { useCustomerLedgerWorkspace } from './hooks/useCustomerLedgerWorkspace';
 
 const CustomerLedgerPage: React.FC = () => {
+  const [pageSearchParams] = useSearchParams();
   const { symbol: currencySymbol, format: formatCurrency } = useCurrency();
   const [hotelSettings, setHotelSettings] = useState<HotelSettings>(getHotelSettings());
   const {
@@ -334,12 +336,22 @@ const CustomerLedgerPage: React.FC = () => {
   const [entriesStatusFilter, setEntriesStatusFilter] = useState<EntryStatusFilter>('all');
   const [entriesPage, setEntriesPage] = useState(0);
   const [entriesPageSize, setEntriesPageSize] = useState(25);
+  const routedLedgerTab = pageSearchParams.get('tab') || '';
+  const routedLedgerSearch = pageSearchParams.get('search') || '';
+  const routedLedgerId = pageSearchParams.get('ledger_id') || '';
+  const routedLedgerCompanyId = pageSearchParams.get('company_id') || '';
+  const routedLedgerCompanyName = pageSearchParams.get('company') || '';
   const [createMenuAnchor, setCreateMenuAnchor] = useState<null | HTMLElement>(null);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [possibleDuplicateLedger, setPossibleDuplicateLedger] = useState<CustomerLedger | null>(null);
   const [activeCompanyPayments, setActiveCompanyPayments] = useState<Record<number, CustomerLedgerPayment[]>>({});
   const [loadingActiveCompanyPayments, setLoadingActiveCompanyPayments] = useState(false);
   const [expandedReceiptId, setExpandedReceiptId] = useState<number | null>(null);
+
+  const handleEntriesStatusFilterChange = (value: EntryStatusFilter) => {
+    setEntriesStatusFilter(value);
+    setEntriesPage(0);
+  };
 
   useEffect(() => {
     loadData();
@@ -351,6 +363,49 @@ const CustomerLedgerPage: React.FC = () => {
     window.addEventListener('hotelSettingsChange', handleSettingsChange);
     return () => window.removeEventListener('hotelSettingsChange', handleSettingsChange);
   }, []);
+
+  useEffect(() => {
+    const hasLedgerTarget = Boolean(
+      routedLedgerTab ||
+      routedLedgerSearch ||
+      routedLedgerId ||
+      routedLedgerCompanyId ||
+      routedLedgerCompanyName,
+    );
+    if (!hasLedgerTarget) return;
+
+    if (routedLedgerTab === 'entries' || routedLedgerSearch || routedLedgerId) {
+      setDetailTab('entries');
+    }
+
+    const nextSearch = routedLedgerSearch || routedLedgerId;
+    if (nextSearch) {
+      setEntriesSearch(nextSearch);
+      setEntriesStatusFilter('all');
+      setEntriesPage(0);
+    }
+
+    const companyId = Number(routedLedgerCompanyId);
+    if (Number.isFinite(companyId) && companyId > 0) {
+      setSelectedCompanyId(companyId);
+      return;
+    }
+
+    if (routedLedgerCompanyName && companies.length > 0) {
+      const normalizedCompanyName = routedLedgerCompanyName.trim().toLowerCase();
+      const company = companies.find(
+        (item) => item.company_name.trim().toLowerCase() === normalizedCompanyName
+      );
+      if (company) setSelectedCompanyId(company.id);
+    }
+  }, [
+    routedLedgerTab,
+    routedLedgerSearch,
+    routedLedgerId,
+    routedLedgerCompanyId,
+    routedLedgerCompanyName,
+    companies,
+  ]);
 
   // Load currently-active company-billed bookings.
   // Backend filters on company_id IS NOT NULL; we narrow to active statuses client-side.
@@ -1822,82 +1877,109 @@ const CustomerLedgerPage: React.FC = () => {
               {/* Tabs + per-tab primary action (v2) */}
               <Box
                 sx={{
-                  display: 'flex',
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 1fr) auto' },
                   alignItems: 'center',
+                  gap: { xs: 0.75, sm: 1.5 },
+                  px: 2.5,
+                  py: 0.75,
                   borderBottom: '1px solid',
                   borderColor: 'divider',
-                  pr: 2,
                 }}
               >
-              <Tabs
-                value={detailTab}
-                onChange={(_, v) => setDetailTab(v)}
-                sx={{
-                  flex: 1,
-                  px: 2.5,
-                  minHeight: 40,
-                  '& .MuiTab-root': {
+                <Tabs
+                  value={detailTab}
+                  onChange={(_, v) => setDetailTab(v)}
+                  sx={{
+                    minWidth: 0,
                     minHeight: 40,
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    fontSize: 13,
-                  },
-                }}
-              >
-                <Tab
-                  value="entries"
-                  label={
-                    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
-                      <span>Ledger entries</span>
-                      <Box
-                        component="span"
-                        sx={{
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          px: 0.75,
-                          py: 0.1,
-                          borderRadius: '999px',
-                          bgcolor: detailTab === 'entries'
-                            ? (theme) => alpha(theme.palette.success.main, 0.18)
-                            : 'action.selected',
-                          color: detailTab === 'entries' ? 'success.main' : 'text.secondary',
-                        }}
-                      >
-                        {activeAgg.count}
-                      </Box>
-                    </Box>
-                  }
-                />
-                <Tab value="info" label="Company info" />
-              </Tabs>
-              {detailTab === 'entries' && (
-                <Button
-                  size="small"
-                  variant="contained"
-                  color="success"
-                  startIcon={<AddIcon fontSize="small" />}
-                  onClick={() => {
-                    if (!activeCompany) return;
-                    prefillCreateForCompany(activeCompany);
-                    openCreateLedgerDialog();
+                    '& .MuiTab-root': {
+                      minHeight: 40,
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      fontSize: 13,
+                    },
                   }}
-                  disabled={!activeCompany}
                 >
-                  New entry
-                </Button>
-              )}
-              {detailTab === 'info' && (
-                <Button
-                  size="small"
-                  variant="contained"
-                  color="success"
-                  startIcon={<EditIcon fontSize="small" />}
-                  onClick={() => activeCompany && handleOpenEditCompany(activeCompany)}
-                  disabled={!activeCompany}
+                  <Tab
+                    value="entries"
+                    label={
+                      <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
+                        <span>Ledger entries</span>
+                        <Box
+                          component="span"
+                          sx={{
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            px: 0.75,
+                            py: 0.1,
+                            borderRadius: '999px',
+                            bgcolor: detailTab === 'entries'
+                              ? (theme) => alpha(theme.palette.success.main, 0.18)
+                              : 'action.selected',
+                            color: detailTab === 'entries' ? 'success.main' : 'text.secondary',
+                          }}
+                        >
+                          {activeAgg.count}
+                        </Box>
+                      </Box>
+                    }
+                  />
+                  <Tab value="info" label="Company info" />
+                </Tabs>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: { xs: 'flex-start', sm: 'flex-end' },
+                    minHeight: 40,
+                  }}
                 >
-                  Edit company
-                </Button>
-              )}
+                  {detailTab === 'entries' && (
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="success"
+                      startIcon={<AddIcon fontSize="small" />}
+                      onClick={() => {
+                        if (!activeCompany) return;
+                        prefillCreateForCompany(activeCompany);
+                        openCreateLedgerDialog();
+                      }}
+                      disabled={!activeCompany}
+                      sx={{
+                        height: 34,
+                        minHeight: 34,
+                        px: 1.5,
+                        py: 0,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                      }}
+                    >
+                      New entry
+                    </Button>
+                  )}
+                  {detailTab === 'info' && (
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="success"
+                      startIcon={<EditIcon fontSize="small" />}
+                      onClick={() => activeCompany && handleOpenEditCompany(activeCompany)}
+                      disabled={!activeCompany}
+                      sx={{
+                        height: 34,
+                        minHeight: 34,
+                        px: 1.5,
+                        py: 0,
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0,
+                      }}
+                    >
+                      Edit company
+                    </Button>
+                  )}
+                </Box>
               </Box>
 
               {/* Scrollable tab body keeps header/meter/tabs pinned above */}
@@ -1907,7 +1989,7 @@ const CustomerLedgerPage: React.FC = () => {
                   search={entriesSearch}
                   onSearchChange={setEntriesSearch}
                   statusFilter={entriesStatusFilter}
-                  onStatusFilterChange={setEntriesStatusFilter}
+                  onStatusFilterChange={handleEntriesStatusFilterChange}
                   loading={activeCompanyEntriesLoading}
                   entries={activeCompanyEntries}
                   entryCount={activeAgg.count}

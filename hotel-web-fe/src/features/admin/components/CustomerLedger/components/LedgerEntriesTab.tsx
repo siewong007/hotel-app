@@ -104,7 +104,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
       >
         <TextField
           size="small"
-          placeholder="Search description or invoice no..."
+          placeholder="Search ledger #, description, or invoice no..."
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           sx={{ width: 240, bgcolor: 'background.paper' }}

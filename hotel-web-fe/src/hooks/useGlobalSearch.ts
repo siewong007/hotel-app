@@ -4,7 +4,7 @@ import { SearchService, type SearchGroup } from '../api/search.service';
 import { useDebouncedValue } from './useDebouncedValue';
 
 interface Options {
-  /** Restrict server search to these domains (e.g. ['bookings']). */
+  /** Restrict server search to these domains (e.g. ['bookings'] or ['ledgers']). */
   types?: string[];
   /** Skip the network call entirely (e.g. while typing a /command). */
   enabled?: boolean;

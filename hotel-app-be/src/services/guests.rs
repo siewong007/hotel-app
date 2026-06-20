@@ -388,7 +388,18 @@ pub async fn my_guests_with_credits(
     pool: &DbPool,
     user_id: i64,
 ) -> Result<Vec<serde_json::Value>, ApiError> {
-    let guests = GuestRepository::linked_guest_credit_rows(pool, user_id).await?;
+    let has_guest_access = AuthService::check_permission(pool, user_id, "guests:read")
+        .await
+        .unwrap_or(false)
+        || AuthService::check_permission(pool, user_id, "guests:manage")
+            .await
+            .unwrap_or(false);
+
+    let guests = if has_guest_access {
+        GuestRepository::all_guest_credit_rows(pool).await?
+    } else {
+        GuestRepository::linked_guest_credit_rows(pool, user_id).await?
+    };
     let mut result = Vec::new();
 
     for guest in guests {

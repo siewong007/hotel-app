@@ -467,6 +467,7 @@ pub async fn get_audit_resource_types(pool: &DbPool) -> Result<Vec<String>, ApiE
 
 pub async fn export_audit_logs_csv(
     pool: &DbPool,
+    user_id: i64,
     params: AuditLogQuery,
 ) -> Result<(String, String), ApiError> {
     let category_types = params
@@ -475,9 +476,20 @@ pub async fn export_audit_logs_csv(
         .and_then(resource_types_for_category);
     let rows =
         AuditRepository::list_logs_for_export(pool, &params, category_types.as_ref()).await?;
+    let row_count = rows.len();
+    let details = serde_json::json!({
+        "user_id": params.user_id,
+        "action": params.action,
+        "resource_type": params.resource_type,
+        "category": params.category,
+        "start_date": params.start_date,
+        "end_date": params.end_date,
+        "search": params.search,
+        "row_count": row_count,
+    });
 
     let mut csv_content = String::from(
-        "ID,Timestamp,User ID,Username,Action,Category,Resource Type,Resource ID,IP Address,User Agent,Details\n",
+        "ID,Timestamp,User ID,Username,Action,Category,Resource Type,Resource ID,Change Kind,IP Address,User Agent,Details\n",
     );
 
     for row in rows.into_iter().map(row_to_entry) {
@@ -488,7 +500,7 @@ pub async fn export_audit_logs_csv(
             .replace("\"", "\"\"");
 
         csv_content.push_str(&format!(
-            "{},{},{},{},{},{},{},{},{},{},\"{}\"\n",
+            "{},{},{},{},{},{},{},{},{},{},{},\"{}\"\n",
             row.id,
             row.created_at.to_rfc3339(),
             row.user_id.map(|id| id.to_string()).unwrap_or_default(),
@@ -497,6 +509,7 @@ pub async fn export_audit_logs_csv(
             row.category,
             row.resource_type,
             row.resource_id.map(|id| id.to_string()).unwrap_or_default(),
+            row.change_kind,
             row.ip_address.unwrap_or_default(),
             row.user_agent
                 .as_deref()
@@ -507,6 +520,18 @@ pub async fn export_audit_logs_csv(
     }
 
     let filename = format!("audit_logs_{}.csv", Utc::now().format("%Y%m%d_%H%M%S"));
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "audit_logs_exported",
+        "export",
+        None,
+        Some(details),
+        None,
+        None,
+    )
+    .await;
 
     Ok((filename, csv_content))
 }
@@ -577,6 +602,8 @@ pub async fn get_db_statements(
 }
 
 fn row_to_entry(row: AuditLogRow) -> AuditLogEntryWithUser {
+    let has_changes = details_has_changes(row.details.as_ref());
+
     AuditLogEntryWithUser {
         id: row.id,
         user_id: row.user_id,
@@ -585,10 +612,85 @@ fn row_to_entry(row: AuditLogRow) -> AuditLogEntryWithUser {
         category: category_for_resource(&row.resource_type),
         resource_type: row.resource_type,
         resource_id: row.resource_id,
+        has_changes,
+        change_kind: if has_changes {
+            "field_change"
+        } else {
+            "action_only"
+        }
+        .to_string(),
         details: row.details,
         ip_address: row.ip_address,
         user_agent: row.user_agent,
         created_at: row.created_at,
+    }
+}
+
+fn details_has_changes(details: Option<&Value>) -> bool {
+    match details {
+        Some(Value::Object(map)) => object_has_changes(map),
+        _ => false,
+    }
+}
+
+fn object_has_changes(map: &serde_json::Map<String, Value>) -> bool {
+    has_pair_change(map, "old_value", "new_value")
+        || has_pair_change(map, "old_values", "new_values")
+        || has_pair_change(map, "before", "after")
+        || has_prefixed_pair_change(map, "old_", "new_")
+        || has_prefixed_pair_change(map, "from_", "to_")
+        || has_prefixed_pair_change(map, "previous_", "new_")
+        || map
+            .get("changes")
+            .map(changes_value_has_meaningful_change)
+            .unwrap_or(false)
+}
+
+fn has_pair_change(map: &serde_json::Map<String, Value>, old_key: &str, new_key: &str) -> bool {
+    map.contains_key(old_key)
+        && map.contains_key(new_key)
+        && pair_indicates_change(map.get(old_key), map.get(new_key))
+}
+
+fn has_prefixed_pair_change(
+    map: &serde_json::Map<String, Value>,
+    old_prefix: &str,
+    new_prefix: &str,
+) -> bool {
+    map.iter().any(|(key, old_value)| {
+        let Some(suffix) = key.strip_prefix(old_prefix) else {
+            return false;
+        };
+        map.get(&format!("{}{}", new_prefix, suffix))
+            .map(|new_value| pair_indicates_change(Some(old_value), Some(new_value)))
+            .unwrap_or(false)
+    })
+}
+
+fn pair_indicates_change(old_value: Option<&Value>, new_value: Option<&Value>) -> bool {
+    match (old_value, new_value) {
+        (Some(old_value), Some(new_value)) => old_value != new_value,
+        (Some(value), None) | (None, Some(value)) => is_meaningful_change_value(value),
+        (None, None) => false,
+    }
+}
+
+fn changes_value_has_meaningful_change(value: &Value) -> bool {
+    match value {
+        Value::Object(map) => {
+            object_has_changes(map) || map.values().any(is_meaningful_change_value)
+        }
+        Value::Array(values) => values.iter().any(changes_value_has_meaningful_change),
+        _ => is_meaningful_change_value(value),
+    }
+}
+
+fn is_meaningful_change_value(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::Array(values) => !values.is_empty(),
+        Value::Object(map) => !map.is_empty(),
+        _ => true,
     }
 }
 
@@ -626,6 +728,78 @@ fn sort_direction(sort_order: Option<&str>) -> &'static str {
         "ASC"
     } else {
         "DESC"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::details_has_changes;
+    use super::{category_for_resource, resource_types_for_category};
+    use serde_json::json;
+
+    #[test]
+    fn classifies_null_or_metadata_only_details_as_action_only() {
+        assert!(!details_has_changes(None));
+        assert!(!details_has_changes(Some(&json!({
+            "method": "password",
+            "success": true
+        }))));
+    }
+
+    #[test]
+    fn classifies_old_new_payloads_as_field_changes_only_when_values_differ() {
+        assert!(details_has_changes(Some(&json!({
+            "key": "night_shift_time",
+            "old_value": "22:00",
+            "new_value": "23:00"
+        }))));
+        assert!(!details_has_changes(Some(&json!({
+            "key": "night_shift_time",
+            "old_value": "23:00",
+            "new_value": "23:00"
+        }))));
+    }
+
+    #[test]
+    fn classifies_prefixed_before_after_pairs_as_field_changes() {
+        assert!(details_has_changes(Some(&json!({
+            "room_number": "101",
+            "from_status": "cleaning",
+            "to_status": "available"
+        }))));
+        assert!(!details_has_changes(Some(&json!({
+            "room_number": "101",
+            "from_status": "available",
+            "to_status": "available"
+        }))));
+    }
+
+    #[test]
+    fn classifies_changes_payloads_by_meaningful_values() {
+        assert!(!details_has_changes(Some(&json!({
+            "changes": {
+                "room_id": null,
+                "status": null
+            }
+        }))));
+        assert!(details_has_changes(Some(&json!({
+            "changes": {
+                "room_id": 12,
+                "status": null
+            }
+        }))));
+    }
+
+    #[test]
+    fn maps_report_resources_to_report_activity() {
+        assert_eq!(category_for_resource("report"), "reports");
+        assert_eq!(category_for_resource("night_audit"), "reports");
+        assert_eq!(category_for_resource("export"), "reports");
+
+        let report_types = resource_types_for_category("reports").expect("reports category");
+        assert!(report_types.contains(&"report".to_string()));
+        assert!(report_types.contains(&"night_audit".to_string()));
+        assert!(report_types.contains(&"export".to_string()));
     }
 }
 

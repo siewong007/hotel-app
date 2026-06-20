@@ -288,6 +288,10 @@ pub struct GuestPaginationParams {
     pub search: Option<String>,
     /// Filter by guest type: "member" or "non_member".
     pub guest_type: Option<String>,
+    /// Filter by tourism type: "local" or "foreign".
+    pub tourism_type: Option<String>,
+    /// Filter to guests missing one or more key profile fields.
+    pub missing_info: Option<bool>,
 }
 
 /// Paginated guest list response.

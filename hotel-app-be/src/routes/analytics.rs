@@ -4,7 +4,9 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::{require_auth, require_permission_helper};
+use crate::core::middleware::{
+    require_any_permission_helper, require_auth, require_permission_helper,
+};
 use crate::handlers;
 use crate::models;
 use axum::{
@@ -66,19 +68,18 @@ async fn generate_report(
     headers: HeaderMap,
     query: Query<models::ReportQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    // Allow users with either analytics:read OR reports:execute permission
-    let has_analytics = require_permission_helper(&pool, &headers, "analytics:read")
-        .await
-        .is_ok();
-    let has_reports = require_permission_helper(&pool, &headers, "reports:execute")
-        .await
-        .is_ok();
+    let user_id =
+        require_any_permission_helper(&pool, &headers, &["analytics:read", "reports:execute"])
+            .await
+            .map_err(|err| {
+                if matches!(err, ApiError::Forbidden(_)) {
+                    ApiError::Forbidden(
+                        "reports:execute or analytics:read permission required".to_string(),
+                    )
+                } else {
+                    err
+                }
+            })?;
 
-    if !has_analytics && !has_reports {
-        return Err(ApiError::Forbidden(
-            "reports:execute or analytics:read permission required".to_string(),
-        ));
-    }
-
-    handlers::analytics::generate_report_handler(State(pool), query).await
+    handlers::analytics::generate_report_handler(State(pool), Extension(user_id), query).await
 }
