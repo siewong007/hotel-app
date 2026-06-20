@@ -136,6 +136,10 @@ pub struct BookingInput {
     pub special_requests: Option<String>,
     pub daily_rates: Option<serde_json::Value>,
     pub cleaning_preference: Option<bool>,
+    /// Company / city-ledger billing, attached at booking time (e.g. inline from
+    /// the check-in advisory in the walk-in flow).
+    pub company_id: Option<i64>,
+    pub company_name: Option<String>,
 }
 
 /// Input for cancelling a booking

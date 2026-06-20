@@ -98,6 +98,7 @@ pub struct PaymentEntryRow {
     pub payment_status: Option<String>,
     pub transaction_reference: Option<String>,
     pub notes: Option<String>,
+    pub payment_date: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -112,6 +113,7 @@ impl PaymentEntryRow {
             "payment_status": self.payment_status,
             "transaction_reference": self.transaction_reference,
             "notes": self.notes,
+            "payment_date": self.payment_date,
             "created_at": self.created_at,
         })
     }

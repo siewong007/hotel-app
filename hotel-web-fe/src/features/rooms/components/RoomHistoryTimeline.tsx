@@ -50,6 +50,8 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
         return <ReservedIcon sx={iconProps} />;
       case 'cleaning':
         return <CleaningIcon sx={iconProps} />;
+      case 'reserved_dirty':
+        return <CleaningIcon sx={iconProps} />;
       case 'maintenance':
         return <MaintenanceIcon sx={iconProps} />;
       case 'change_room':
@@ -71,6 +73,8 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
         return '#FFC107';
       case 'cleaning':
         return '#2196F3';
+      case 'reserved_dirty':
+        return '#B88900';
       case 'maintenance':
         return '#FF9800';
       case 'change_room':
@@ -85,6 +89,7 @@ const RoomHistoryTimeline: React.FC<RoomHistoryTimelineProps> = ({ roomId }) => 
   const formatStatusLabel = (status: string) => {
     if (status === 'change_room') return 'Room Change';
     if (status === 'out_of_order') return 'Out of Order';
+    if (status === 'reserved_dirty') return 'Reserved / Dirty';
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
 

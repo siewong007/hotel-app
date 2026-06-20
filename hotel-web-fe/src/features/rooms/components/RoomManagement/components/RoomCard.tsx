@@ -46,6 +46,7 @@ interface RoomCardProps {
   onChangeRoom: (room: Room) => void;
   onCheckIn: (room: Room) => void;
   onNewBooking: (room: Room) => void;
+  onMarkAvailable: (room: Room) => void;
 }
 
 const RoomCard: React.FC<RoomCardProps> = ({
@@ -66,6 +67,7 @@ const RoomCard: React.FC<RoomCardProps> = ({
   onChangeRoom,
   onCheckIn,
   onNewBooking,
+  onMarkAvailable,
 }) => {
   return (
     <Box sx={{ minWidth: 0 }}>
@@ -194,8 +196,8 @@ const RoomCard: React.FC<RoomCardProps> = ({
 
           </Box>
 
-          {/* Empty-state placeholder for dirty / maintenance rooms with no booking */}
-          {!isOccupied && !isReservedToday && (computedStatus === 'dirty' || computedStatus === 'maintenance') && (
+          {/* Empty-state placeholder for housekeeping / maintenance rooms with no booking */}
+          {!isOccupied && !isReservedToday && (computedStatus === 'dirty' || computedStatus === 'reserved_dirty' || computedStatus === 'maintenance') && (
             <Typography
               sx={{
                 mt: 1.25,
@@ -205,7 +207,11 @@ const RoomCard: React.FC<RoomCardProps> = ({
                 fontWeight: 500,
               }}
             >
-              {computedStatus === 'dirty' ? 'Awaiting cleaning' : 'Under maintenance'}
+              {computedStatus === 'reserved_dirty'
+                ? 'Reserved, needs cleaning'
+                : computedStatus === 'dirty'
+                  ? 'Awaiting cleaning'
+                  : 'Under maintenance'}
             </Typography>
           )}
 
@@ -592,8 +598,8 @@ const RoomCard: React.FC<RoomCardProps> = ({
             </>
           )}
 
-          {/* Upcoming Same-Day Reservation for Dirty Rooms */}
-          {computedStatus === 'dirty' && reservedBooking && hasReservationForToday && (
+          {/* Upcoming Same-Day Reservation for Rooms That Need Cleaning */}
+          {(computedStatus === 'dirty' || computedStatus === 'reserved_dirty') && reservedBooking && hasReservationForToday && (
             <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255,255,255,0.35)' }}>
               <Box sx={{
                 display: 'flex',
@@ -624,6 +630,72 @@ const RoomCard: React.FC<RoomCardProps> = ({
                   </Typography>
                 </Box>
               )}
+            </Box>
+          )}
+
+          {/* Action row for Dirty Rooms: Mark clean (primary) + More */}
+          {(computedStatus === 'dirty' || computedStatus === 'reserved_dirty') && (
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: 12,
+                left: 12,
+                right: 12,
+                display: 'flex',
+                gap: 0.4,
+                alignItems: 'center',
+                minWidth: 0,
+              }}
+            >
+              <Button
+                size="small"
+                variant="contained"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMarkAvailable(room);
+                }}
+                sx={{
+                  flex: 1,
+                  color: 'background.paper',
+                  fontSize: '0.62rem',
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  whiteSpace: 'nowrap',
+                  boxShadow: 'none',
+                  '&.MuiButton-root': {
+                    minWidth: 0,
+                    py: 0.35,
+                    px: 0.5,
+                    borderRadius: 999,
+                    bgcolor: 'text.primary',
+                    borderWidth: 0,
+                  },
+                  '&:hover': { bgcolor: 'text.secondary', boxShadow: 'none' },
+                }}
+              >
+                {computedStatus === 'reserved_dirty' ? 'Mark clean' : 'Mark available'}
+              </Button>
+              <Tooltip title="More actions" arrow>
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onMenuOpen(e, room);
+                  }}
+                  sx={{
+                    border: '1px solid',
+                    borderColor: 'rgba(255,255,255,0.55)',
+                    borderRadius: 999,
+                    width: 22,
+                    height: 22,
+                    flexShrink: 0,
+                    color: '#fff',
+                    '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.12)' },
+                  }}
+                >
+                  <MoreHorizIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
             </Box>
           )}
 

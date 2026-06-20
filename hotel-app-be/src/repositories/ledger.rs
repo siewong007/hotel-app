@@ -37,6 +37,64 @@ async fn default_payment_terms_days(pool: &DbPool) -> i64 {
     settings_cache::get_positive_i32(pool, "default_payment_terms_days", 30).await as i64
 }
 
+// ----------------------------------------------------------------------------
+// Ledger list filter predicates
+//
+// These build the `AND (...)` SQL fragments used by `list_customer_ledgers` for
+// the `invoice_state`, `balance_state`, and `ui_status` filters surfaced by the
+// Customer Ledger UI (the "Uninvoiced / Outstanding / Invoiced / Paid / Overdue
+// / Voided" buttons). They are extracted into pure functions so the exact SQL
+// can be exercised by unit tests and so the PostgreSQL and SQLite query builders
+// share one source of truth.
+//
+// `null_expr` is the placeholder used for the "filter not set" check (it carries
+// a `::text` cast under PostgreSQL); `p` is the placeholder for equality checks;
+// `today` is the current-date SQL expression (`CURRENT_DATE` / `date('now')`).
+//
+// The classification mirrors the frontend `getLedgerUiStatus` helper, which is
+// strictly *balance-first*: a row counts as "paid" only when nothing is
+// outstanding (`balance_due <= 0`), regardless of the stored `status` column —
+// so a charge that re-opens a balance correctly drops out of "Paid".
+
+/// `invoice_state` filter: `uninvoiced` (no invoice number) / `invoiced`.
+pub fn invoice_state_clause(null_expr: &str, p: &str) -> String {
+    format!(
+        "AND ({null_expr} IS NULL \
+         OR ({p} = 'uninvoiced' AND invoice_number IS NULL AND void_at IS NULL AND status <> 'void') \
+         OR ({p} = 'invoiced' AND invoice_number IS NOT NULL AND void_at IS NULL AND status <> 'void'))"
+    )
+}
+
+/// `balance_state` filter: `outstanding` / `clear`.
+///
+/// `outstanding` means a *current* amount still owed — a positive balance that
+/// is not yet overdue. Past-due rows are deliberately excluded so they surface
+/// only under the dedicated `Overdue` filter (the two buttons read as distinct
+/// buckets rather than overlapping). The exclusion mirrors the `overdue` arm of
+/// `ui_status_clause`: a row is overdue when `status = 'overdue'` or its
+/// `due_date` is before `today`.
+pub fn balance_state_clause(null_expr: &str, p: &str, today: &str) -> String {
+    format!(
+        "AND ({null_expr} IS NULL \
+         OR ({p} = 'outstanding' AND COALESCE(balance_due, 0) > 0 AND void_at IS NULL AND status <> 'void' AND status <> 'overdue' AND (due_date IS NULL OR due_date >= {today})) \
+         OR ({p} = 'clear' AND COALESCE(balance_due, 0) <= 0))"
+    )
+}
+
+/// `ui_status` filter: matches the derived badge shown in the UI table.
+pub fn ui_status_clause(null_expr: &str, p: &str, today: &str) -> String {
+    format!(
+        "AND ({null_expr} IS NULL \
+         OR ({p} = 'voided' AND (void_at IS NOT NULL OR status = 'void')) \
+         OR ({p} = 'paid' AND void_at IS NULL AND COALESCE(balance_due, 0) <= 0) \
+         OR ({p} = 'overdue' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND (status = 'overdue' OR due_date < {today})) \
+         OR ({p} = 'partial' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) > 0 AND status <> 'overdue' AND (due_date IS NULL OR due_date >= {today})) \
+         OR ({p} = 'invoiced' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NOT NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= {today})) \
+         OR ({p} = 'ready_to_invoice' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= {today})) \
+         OR ({p} = 'draft' AND void_at IS NULL AND COALESCE(balance_due, 0) <= 0 AND status <> 'paid'))"
+    )
+}
+
 // SQLite query for getting ledger by ID
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 const GET_LEDGER_BY_ID_QUERY: &str = r#"
@@ -221,11 +279,11 @@ pub async fn list_customer_ledgers(
         } else {
             "AND (?8 IS NULL OR 1=1)"
         };
-        let invoice_clause = "AND (?9 IS NULL OR (?9 = 'uninvoiced' AND invoice_number IS NULL AND void_at IS NULL AND status <> 'void') OR (?9 = 'invoiced' AND invoice_number IS NOT NULL AND void_at IS NULL AND status <> 'void'))";
-        let balance_clause = "AND (?10 IS NULL OR (?10 = 'outstanding' AND COALESCE(balance_due, 0) > 0 AND void_at IS NULL AND status <> 'void') OR (?10 = 'clear' AND COALESCE(balance_due, 0) <= 0))";
-        let ui_status_clause = "AND (?11 IS NULL OR (?11 = 'voided' AND (void_at IS NOT NULL OR status = 'void')) OR (?11 = 'paid' AND void_at IS NULL AND (status = 'paid' OR COALESCE(balance_due, 0) <= 0)) OR (?11 = 'overdue' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND (status = 'overdue' OR due_date < date('now'))) OR (?11 = 'partial' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) > 0 AND status <> 'overdue' AND (due_date IS NULL OR due_date >= date('now'))) OR (?11 = 'invoiced' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NOT NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= date('now'))) OR (?11 = 'ready_to_invoice' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= date('now'))) OR (?11 = 'draft' AND void_at IS NULL AND COALESCE(balance_due, 0) <= 0 AND status <> 'paid'))";
+        let invoice_clause = invoice_state_clause("?9", "?9");
+        let balance_clause = balance_state_clause("?10", "?10", "date('now')");
+        let ui_clause = ui_status_clause("?11", "?11", "date('now')");
         let base_where = format!(
-            "WHERE (?1 IS NULL OR status = ?1) AND (?2 IS NULL OR company_name LIKE '%' || ?2 || '%') AND (?3 IS NULL OR expense_type = ?3) AND (?4 IS NULL OR folio_type = ?4) AND (?5 IS NULL OR post_type = ?5) AND (?6 IS NULL OR department_code = ?6) AND (?7 IS NULL OR room_number = ?7) {search_clause} {invoice_clause} {balance_clause} {ui_status_clause}"
+            "WHERE (?1 IS NULL OR status = ?1) AND (?2 IS NULL OR company_name LIKE '%' || ?2 || '%') AND (?3 IS NULL OR expense_type = ?3) AND (?4 IS NULL OR folio_type = ?4) AND (?5 IS NULL OR post_type = ?5) AND (?6 IS NULL OR department_code = ?6) AND (?7 IS NULL OR room_number = ?7) {search_clause} {invoice_clause} {balance_clause} {ui_clause}"
         );
         let count = format!("SELECT COUNT(*) FROM customer_ledgers {base_where}");
         let data = format!(
@@ -241,11 +299,11 @@ pub async fn list_customer_ledgers(
         } else {
             "AND ($8::text IS NULL OR TRUE)"
         };
-        let invoice_clause = "AND ($9::text IS NULL OR ($9 = 'uninvoiced' AND invoice_number IS NULL AND void_at IS NULL AND status <> 'void') OR ($9 = 'invoiced' AND invoice_number IS NOT NULL AND void_at IS NULL AND status <> 'void'))";
-        let balance_clause = "AND ($10::text IS NULL OR ($10 = 'outstanding' AND COALESCE(balance_due, 0) > 0 AND void_at IS NULL AND status <> 'void') OR ($10 = 'clear' AND COALESCE(balance_due, 0) <= 0))";
-        let ui_status_clause = "AND ($11::text IS NULL OR ($11 = 'voided' AND (void_at IS NOT NULL OR status = 'void')) OR ($11 = 'paid' AND void_at IS NULL AND (status = 'paid' OR COALESCE(balance_due, 0) <= 0)) OR ($11 = 'overdue' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND (status = 'overdue' OR due_date < CURRENT_DATE)) OR ($11 = 'partial' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) > 0 AND status <> 'overdue' AND (due_date IS NULL OR due_date >= CURRENT_DATE)) OR ($11 = 'invoiced' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NOT NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= CURRENT_DATE)) OR ($11 = 'ready_to_invoice' AND void_at IS NULL AND COALESCE(balance_due, 0) > 0 AND COALESCE(paid_amount, 0) <= 0 AND invoice_number IS NULL AND status <> 'overdue' AND (due_date IS NULL OR due_date >= CURRENT_DATE)) OR ($11 = 'draft' AND void_at IS NULL AND COALESCE(balance_due, 0) <= 0 AND status <> 'paid'))";
+        let invoice_clause = invoice_state_clause("$9::text", "$9");
+        let balance_clause = balance_state_clause("$10::text", "$10", "CURRENT_DATE");
+        let ui_clause = ui_status_clause("$11::text", "$11", "CURRENT_DATE");
         let base_where = format!(
-            "WHERE ($1::text IS NULL OR status = $1) AND ($2::text IS NULL OR company_name ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR expense_type = $3) AND ($4::text IS NULL OR folio_type = $4) AND ($5::text IS NULL OR post_type = $5) AND ($6::text IS NULL OR department_code = $6) AND ($7::text IS NULL OR room_number = $7) {search_clause} {invoice_clause} {balance_clause} {ui_status_clause}"
+            "WHERE ($1::text IS NULL OR status = $1) AND ($2::text IS NULL OR company_name ILIKE '%' || $2 || '%') AND ($3::text IS NULL OR expense_type = $3) AND ($4::text IS NULL OR folio_type = $4) AND ($5::text IS NULL OR post_type = $5) AND ($6::text IS NULL OR department_code = $6) AND ($7::text IS NULL OR room_number = $7) {search_clause} {invoice_clause} {balance_clause} {ui_clause}"
         );
         let count = format!("SELECT COUNT(*) FROM customer_ledgers {base_where}");
         let data = format!(

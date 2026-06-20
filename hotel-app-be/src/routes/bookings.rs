@@ -22,6 +22,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/bookings", get(get_bookings))
         .route("/bookings", post(create_booking))
         .route("/bookings/my-bookings", get(get_my_bookings))
+        .route("/bookings/checkin-advisory", get(guest_checkin_advisory))
         .route("/bookings/stats", get(get_booking_stats))
         .route("/bookings/complimentary", get(get_complimentary_bookings))
         .route("/bookings/book-with-credits", post(book_with_credits))
@@ -42,6 +43,7 @@ pub fn routes() -> Router<DbPool> {
         // Specific parameterized routes (MUST come before generic /bookings/:id routes)
         .route("/bookings/{id}/reactivate", post(reactivate_booking))
         .route("/bookings/{id}/checkin", post(manual_checkin))
+        .route("/bookings/{id}/checkin-advisory", get(checkin_advisory))
         .route("/bookings/{id}/timeline", get(get_booking_timeline))
         .route("/bookings/{id}/pre-checkin", patch(pre_checkin_update))
         .route("/bookings/{id}/complimentary", post(mark_complimentary))
@@ -148,6 +150,29 @@ async fn manual_checkin(
     let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
     handlers::bookings::manual_checkin_handler(State(pool), Extension(user_id), path, Json(data))
         .await
+}
+
+async fn checkin_advisory(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<crate::repositories::bookings::CheckInAdvisory>, ApiError> {
+    require_permission_helper(&pool, &headers, "bookings:read").await?;
+    handlers::bookings::checkin_advisory_handler(State(pool), path).await
+}
+
+#[derive(serde::Deserialize)]
+struct GuestAdvisoryParams {
+    guest_id: i64,
+}
+
+async fn guest_checkin_advisory(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Query(params): Query<GuestAdvisoryParams>,
+) -> Result<Json<crate::repositories::bookings::CheckInAdvisory>, ApiError> {
+    require_permission_helper(&pool, &headers, "bookings:read").await?;
+    handlers::bookings::guest_checkin_advisory_handler(State(pool), params.guest_id).await
 }
 
 async fn pre_checkin_update(

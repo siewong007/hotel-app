@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Box, Dialog } from '@mui/material';
+import { Box, Dialog, Alert, AlertTitle, Button } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { Room, Guest, Booking, BookingCreateRequest, RoomType } from '../../../../types';
+import { Room, Guest, Booking, BookingCreateRequest, RoomType, CheckInAdvisory } from '../../../../types';
 import { HotelAPIService } from '../../../../api';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { useRoomAvailabilityCheck } from '../../../../hooks/useRoomAvailabilityCheck';
@@ -83,6 +83,12 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const [newGuestForm, setNewGuestForm] = useState<NewGuestForm>(emptyNewGuestForm);
   const [isCreatingNewGuest, setIsCreatingNewGuest] = useState(false);
   const [selectedGuestWithCredits, setSelectedGuestWithCredits] = useState<GuestWithCredits | null>(null);
+  // Confirm-company-check-in advisory for the selected existing guest (keyed on
+  // their company-billing history; see checkin_advisory backend).
+  const [guestAdvisory, setGuestAdvisory] = useState<CheckInAdvisory | null>(null);
+  // Company billing attached inline in response to the advisory. When set, the
+  // created booking(s) carry this company_id/company_name (city-ledger billing).
+  const [companyBilling, setCompanyBilling] = useState<{ id?: number; name: string } | null>(null);
 
   // Booking details state
   const [checkInDate, setCheckInDate] = useState('');
@@ -108,6 +114,28 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     return selectedGuest?.tourism_type === 'foreign';
   };
   const isTourist = getIsForeignTourist();
+
+  // Fetch the company check-in advisory whenever an existing guest is selected.
+  // New (unsaved) guests have no history, so skip them.
+  useEffect(() => {
+    // Switching guest clears any company billing attached for the previous one.
+    setCompanyBilling(null);
+    if (isCreatingNewGuest || !selectedGuest?.id) {
+      setGuestAdvisory(null);
+      return;
+    }
+    let cancelled = false;
+    HotelAPIService.getGuestCheckInAdvisory(selectedGuest.id)
+      .then((advisory) => {
+        if (!cancelled) setGuestAdvisory(advisory);
+      })
+      .catch(() => {
+        if (!cancelled) setGuestAdvisory(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedGuest?.id, isCreatingNewGuest]);
 
   // Extra bed state
   const [extraBedCount, setExtraBedCount] = useState(0);
@@ -518,6 +546,10 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         booking_remarks: bookingRemarks || undefined,
         extra_bed_count: index === 0 ? bookingData.extra_bed_count : undefined,
         extra_bed_charge: index === 0 ? bookingData.extra_bed_charge : undefined,
+        // Inline company billing attached via the check-in advisory, if any.
+        ...(companyBilling
+          ? { company_id: companyBilling.id, company_name: companyBilling.name }
+          : {}),
       });
       createdBookings.push(created);
     }
@@ -931,6 +963,47 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
               onGuestWithCreditsSelect={setSelectedGuestWithCredits}
               loadingGuestsWithCredits={loadingGuestsWithCredits}
             />
+            {companyBilling ? (
+              <Alert
+                severity="success"
+                sx={{ mt: 1.5 }}
+                action={
+                  <Button color="inherit" size="small" onClick={() => setCompanyBilling(null)}>
+                    Remove
+                  </Button>
+                }
+              >
+                <AlertTitle>Company check-in</AlertTitle>
+                This stay will be billed to <strong>{companyBilling.name}</strong> (city ledger).
+              </Alert>
+            ) : (
+              guestAdvisory?.needs_attention && (
+                <Alert
+                  severity="warning"
+                  sx={{ mt: 1.5 }}
+                  onClose={() => setGuestAdvisory(null)}
+                  action={
+                    guestAdvisory.suggested_company_name ? (
+                      <Button
+                        color="inherit"
+                        size="small"
+                        onClick={() =>
+                          setCompanyBilling({
+                            id: guestAdvisory.suggested_company_id ?? undefined,
+                            name: guestAdvisory.suggested_company_name as string,
+                          })
+                        }
+                      >
+                        Bill to {guestAdvisory.suggested_company_name}
+                      </Button>
+                    ) : undefined
+                  }
+                >
+                  <AlertTitle>Use company check-in?</AlertTitle>
+                  {guestAdvisory.message}
+                </Alert>
+              )
+            )}
           </Box>
 
           {/* Stay */}

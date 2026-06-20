@@ -53,8 +53,14 @@ interface LedgerEntriesTabProps {
   formatCurrency: (value: number) => string;
 }
 
-const canRecordPayment = (ledger: CustomerLedger) =>
-  ledger.status !== 'paid' && !isLedgerVoided(ledger);
+// Allow recording a payment whenever there is still an outstanding balance
+// (and the entry isn't voided). Keyed off the balance-driven UI status so a
+// settled entry locks at zero balance but automatically reopens — the action
+// reappears — the moment its balance returns.
+const canRecordPayment = (ledger: CustomerLedger) => {
+  const uiStatus = getLedgerUiStatus(ledger);
+  return uiStatus !== 'paid' && uiStatus !== 'voided';
+};
 const canViewInvoice = (ledger: CustomerLedger) => !!ledger.booking_id;
 const canVoid = (ledger: CustomerLedger) => !isLedgerVoided(ledger);
 

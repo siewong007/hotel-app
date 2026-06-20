@@ -21,6 +21,24 @@ pub async fn get_booking_timeline_handler(
         .await
 }
 
+pub async fn checkin_advisory_handler(
+    State(pool): State<DbPool>,
+    Path(booking_id): Path<i64>,
+) -> Result<Json<booking_service::CheckInAdvisory>, ApiError> {
+    Ok(Json(
+        booking_service::checkin_advisory(&pool, booking_id).await?,
+    ))
+}
+
+pub async fn guest_checkin_advisory_handler(
+    State(pool): State<DbPool>,
+    guest_id: i64,
+) -> Result<Json<booking_service::CheckInAdvisory>, ApiError> {
+    Ok(Json(
+        booking_service::checkin_advisory_for_guest(&pool, guest_id).await?,
+    ))
+}
+
 pub async fn get_bookings_handler(
     State(pool): State<DbPool>,
     Query(params): Query<BookingPaginationParams>,

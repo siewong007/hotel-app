@@ -89,7 +89,8 @@ import type { Company } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import { getHotelSettings, HotelSettings } from '../../../../utils/hotelSettings';
 import { formatLocalDate, addLocalDays } from '../../../../utils/date';
-import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
+import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceModals';
+import { useCheckoutFlow } from '../../../invoices/hooks/useCheckoutFlow';
 import { enhanceBookingDetails } from '../../../../utils/bookingUtils';
 import { useLedgers } from '../../hooks/useLedgers';
 import { ApiNotificationSeverity, emitApiNotification } from '../../../../utils/apiNotifications';
@@ -158,6 +159,8 @@ const CustomerLedgerPage: React.FC = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingLedger, setEditingLedger] = useState<CustomerLedger | null>(null);
   const [editFormData, setEditFormData] = useState<CustomerLedgerUpdateRequest>({});
+  const [editBookingRoomRate, setEditBookingRoomRate] = useState('');
+  const [loadingEditBookingRoomRate, setLoadingEditBookingRoomRate] = useState(false);
   const [updating, setUpdating] = useState(false);
 
   // Void dialog state (mirrors normal booking void flow)
@@ -166,9 +169,7 @@ const CustomerLedgerPage: React.FC = () => {
   const [voidReason, setVoidReason] = useState('');
   const [voiding, setVoiding] = useState(false);
 
-  // Read-only invoice modal state (for ledger entries linked to a checked-out booking)
-  const [ledgerInvoiceOpen, setLedgerInvoiceOpen] = useState(false);
-  const [ledgerInvoiceBooking, setLedgerInvoiceBooking] = useState<BookingWithDetails | null>(null);
+  // Read-only invoice (receipt) is shown via the shared checkoutFlow below.
   const [loadingLedgerInvoice, setLoadingLedgerInvoice] = useState(false);
 
   // Payment dialog state
@@ -201,6 +202,18 @@ const CustomerLedgerPage: React.FC = () => {
     emitApiNotification({ message, severity });
   };
 
+  // Shared checkout + read-only receipt flow. Company room charges are
+  // auto-posted to customer_ledgers by the backend on the checked_out
+  // transition, so this just updates status + marks the room dirty.
+  const checkoutFlow = useCheckoutFlow({
+    onAfterCheckout: async () => {
+      await loadData();
+      await loadAllCompanyBookings();
+    },
+    successMessage: (b) => `${b.guest_name} checked out from Room ${b.room_number}`,
+    notify: (message, severity) => showSnackbar(message, severity as ApiNotificationSeverity),
+  });
+
   // Payment date edit state
   const [editingPaymentId, setEditingPaymentId] = useState<number | null>(null);
   const [editingPaymentDate, setEditingPaymentDate] = useState<string>('');
@@ -213,11 +226,10 @@ const CustomerLedgerPage: React.FC = () => {
   const [guests, setGuests] = useState<Guest[]>([]);
   const [companyBookings, setCompanyBookings] = useState<BookingWithDetails[]>([]);
   const [allCompanyBookings, setAllCompanyBookings] = useState<BookingWithDetails[]>([]);
-  const [checkoutDialogOpen, setCheckoutDialogOpen] = useState(false);
-  const [checkoutBooking, setCheckoutBooking] = useState<BookingWithDetails | null>(null);
   const [checkInCompany, setCheckInCompany] = useState<Company | null>(null);
   const [checkInGuest, setCheckInGuest] = useState<Guest | null>(null);
   const [checkInRoom, setCheckInRoom] = useState<Room | null>(null);
+  const [checkInRoomRate, setCheckInRoomRate] = useState('');
   const [checkInDate, setCheckInDate] = useState<string>(formatLocalDate());
   const [checkOutDate, setCheckOutDate] = useState<string>(() => formatLocalDate(addLocalDays(new Date(), 1)));
   const [processingCheckIn, setProcessingCheckIn] = useState(false);
@@ -461,6 +473,13 @@ const CustomerLedgerPage: React.FC = () => {
       return;
     }
 
+    const customRoomRateInput = checkInRoomRate.trim();
+    const roomRateOverride = customRoomRateInput ? Number(customRoomRateInput) : undefined;
+    if (roomRateOverride !== undefined && (!Number.isFinite(roomRateOverride) || roomRateOverride <= 0)) {
+      showSnackbar('Please enter a valid room rate', 'warning');
+      return;
+    }
+
     try {
       setProcessingCheckIn(true);
 
@@ -523,6 +542,7 @@ const CustomerLedgerPage: React.FC = () => {
           post_type: 'normal_stay',
           payment_status: 'unpaid',
           booking_remarks: `Company Billing: ${checkInCompany.company_name}`,
+          room_rate_override: roomRateOverride,
         },
       }).json<any>();
 
@@ -564,6 +584,7 @@ const CustomerLedgerPage: React.FC = () => {
     setCheckInCompany(null);
     setCheckInGuest(null);
     setCheckInRoom(null);
+    setCheckInRoomRate('');
     setCheckInDate(formatLocalDate());
     setCheckOutDate(formatLocalDate(addLocalDays(new Date(), 1)));
     setIsCreatingNewCheckInGuest(false);
@@ -585,49 +606,12 @@ const CustomerLedgerPage: React.FC = () => {
 
   // Handle opening checkout dialog for a company booking
   const handleOpenCheckoutDialog = (booking: BookingWithDetails) => {
-    setCheckoutBooking(booking);
-    setCheckoutDialogOpen(true);
+    checkoutFlow.openCheckout(booking);
   };
 
-  // Handle confirming checkout
-  const handleConfirmCompanyCheckout = async (_lateCheckoutData?: { penalty: number; notes: string }, checkoutPaymentMethod?: string) => {
-    if (!checkoutBooking) return;
-
-    try {
-      // Build update payload
-      const updatePayload: any = { status: 'checked_out' };
-
-      // Save payment method from checkout invoice to booking
-      if (checkoutPaymentMethod) {
-        updatePayload.payment_method = checkoutPaymentMethod;
-      }
-
-      // Update booking status to checked_out
-      await HotelAPIService.updateBooking(checkoutBooking.id, updatePayload);
-
-      // Mark room as dirty
-      const dirtyNotes = 'Room requires cleaning after checkout';
-
-      await HotelAPIService.updateRoomStatus(checkoutBooking.room_id, {
-        status: 'dirty',
-        notes: dirtyNotes,
-      });
-
-      // Backend's auto_post_company_ledger inserts the room_charge ledger row on
-      // the checked_out transition (and dedupes via an EXISTS check), so no
-      // client-side post is needed for company-billed bookings here.
-
-      showSnackbar(`${checkoutBooking.guest_name} checked out from Room ${checkoutBooking.room_number}`);
-      setCheckoutDialogOpen(false);
-      setCheckoutBooking(null);
-
-      // Reload data
-      await loadData();
-      await loadAllCompanyBookings();
-    } catch (error: any) {
-      throw new Error(error.message || 'Failed to process checkout');
-    }
-  };
+  // Backend's auto_post_company_ledger inserts the room_charge ledger row on the
+  // checked_out transition, so no client-side ledger post is needed here — the
+  // shared checkoutFlow just updates status, marks the room dirty, and reloads.
 
   // Handle date change and reload rooms
   const handleCheckInDateChange = async (newDate: string) => {
@@ -920,12 +904,39 @@ const CustomerLedgerPage: React.FC = () => {
         remaining -= allocate;
       }
 
-      showSnackbar(`Payment of ${formatCurrency(paymentAmount)} recorded successfully`);
-      setCompanyPaymentDialogOpen(false);
-      resetCompanyPaymentForm();
+      // Re-fetch the entries we just paid against to see what's still owed.
+      const refreshed = await Promise.all(
+        paymentCompanyLedgers.map(l =>
+          HotelAPIService.getCustomerLedger(l.id).catch(() => l)
+        )
+      );
+      const stillOutstanding = refreshed.filter(
+        l => getLedgerBalanceDue(l) > 0 && !isVoidedLedger(l)
+      );
 
-      // Reload data
+      // Reload the page table.
       await loadData();
+
+      if (stillOutstanding.length === 0) {
+        // Everything is settled — close the window.
+        showSnackbar(`Payment of ${formatCurrency(paymentAmount)} recorded — all entries settled!`);
+        setCompanyPaymentDialogOpen(false);
+        resetCompanyPaymentForm();
+      } else {
+        // Outstanding entries remain — keep the window open and re-arm the form
+        // for the next payment against the still-unpaid entries.
+        showSnackbar(`Payment of ${formatCurrency(paymentAmount)} recorded! Outstanding entries remain.`);
+        setPaymentCompanyLedgers(stillOutstanding);
+        setSelectedLedgersForPayment(stillOutstanding);
+        setCompanyPaymentForm(prev => ({
+          ...prev,
+          payment_amount: '',
+          payment_reference: '',
+          receipt_number: '',
+          notes: '',
+          payment_date: formatLocalDate(),
+        }));
+      }
     } catch (error: any) {
       console.error('Failed to record payment:', error);
       showSnackbar(error.message || 'Failed to record payment', 'error');
@@ -1158,7 +1169,7 @@ const CustomerLedgerPage: React.FC = () => {
   };
 
   // Edit ledger handlers
-  const handleEditLedger = (ledger: CustomerLedger) => {
+  const handleEditLedger = async (ledger: CustomerLedger) => {
     setEditingLedger(ledger);
     setEditFormData({
       company_name: ledger.company_name,
@@ -1173,25 +1184,60 @@ const CustomerLedgerPage: React.FC = () => {
       billing_country: ledger.billing_country,
       description: ledger.description,
       expense_type: ledger.expense_type,
-      amount: parseFloat(String(ledger.amount)),
       status: ledger.status,
       due_date: formatDateForInput(ledger.due_date),
       notes: ledger.notes,
       internal_notes: ledger.internal_notes,
     });
+    setEditBookingRoomRate('');
+    setLoadingEditBookingRoomRate(Boolean(ledger.booking_id && ledger.post_type === 'room_charge'));
     setEditDialogOpen(true);
+
+    if (ledger.booking_id && ledger.post_type === 'room_charge') {
+      try {
+        const booking = await HotelAPIService.getBookingById(String(ledger.booking_id));
+        const roomRate = Number(booking.room_rate ?? 0);
+        setEditBookingRoomRate(Number.isFinite(roomRate) && roomRate > 0 ? roomRate.toFixed(2) : '');
+      } catch (err) {
+        console.error('Failed to load booking rate for ledger entry:', err);
+        showSnackbar('Unable to load booking room rate', 'warning');
+      } finally {
+        setLoadingEditBookingRoomRate(false);
+      }
+    }
   };
 
   const handleUpdateLedger = async () => {
     if (!editingLedger) return;
 
+    const bookingRoomRateInput = editBookingRoomRate.trim();
+    const bookingRoomRateOverride = editingLedger.booking_id && editingLedger.post_type === 'room_charge' && bookingRoomRateInput
+      ? Number(bookingRoomRateInput)
+      : undefined;
+    if (
+      bookingRoomRateOverride !== undefined &&
+      (!Number.isFinite(bookingRoomRateOverride) || bookingRoomRateOverride <= 0)
+    ) {
+      showSnackbar('Please enter a valid booking room rate', 'warning');
+      return;
+    }
+
     try {
       setUpdating(true);
+      if (bookingRoomRateOverride !== undefined && editingLedger.booking_id) {
+        await HotelAPIService.updateBooking(String(editingLedger.booking_id), {
+          room_rate_override: bookingRoomRateOverride,
+        });
+      }
       await HotelAPIService.updateCustomerLedger(editingLedger.id, editFormData);
-      showSnackbar('Ledger entry updated successfully!');
+      showSnackbar(bookingRoomRateOverride !== undefined
+        ? 'Ledger entry and booking rate updated successfully!'
+        : 'Ledger entry updated successfully!');
       setEditDialogOpen(false);
       setEditingLedger(null);
+      setEditBookingRoomRate('');
       await loadData();
+      await loadAllCompanyBookings();
     } catch (err: any) {
       setError(err.message || 'Failed to update ledger entry');
     } finally {
@@ -1243,10 +1289,32 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       setProcessingPayment(true);
       await HotelAPIService.createLedgerPayment(paymentLedger.id, paymentFormData);
-      showSnackbar('Payment recorded successfully!');
-      setPaymentDialogOpen(false);
-      setPaymentLedger(null);
+
+      // Re-fetch the ledger + history so the dialog reflects the new balance.
+      const [updatedLedger, payments] = await Promise.all([
+        HotelAPIService.getCustomerLedger(paymentLedger.id),
+        HotelAPIService.getLedgerPayments(paymentLedger.id),
+      ]);
+      setPaymentHistory(payments);
       await loadData();
+
+      const remainingBalance = getLedgerBalanceDue(updatedLedger);
+      if (remainingBalance <= 0.001) {
+        // Fully settled — close the window.
+        showSnackbar('Payment recorded — balance fully settled!');
+        setPaymentDialogOpen(false);
+        setPaymentLedger(null);
+      } else {
+        // Still outstanding — keep the window open and re-arm the form for the
+        // next payment (defaulting the amount to the remaining balance).
+        showSnackbar('Payment recorded! Remaining balance still outstanding.');
+        setPaymentLedger(updatedLedger);
+        setPaymentFormData({
+          payment_amount: remainingBalance,
+          payment_method: paymentFormData.payment_method,
+          payment_date: formatLocalDate(),
+        });
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to record payment');
     } finally {
@@ -1339,8 +1407,7 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       setLoadingLedgerInvoice(true);
       const booking = await api.get(`bookings/${ledger.booking_id}`).json<BookingWithDetails>();
-      setLedgerInvoiceBooking(enhanceBookingDetails(booking));
-      setLedgerInvoiceOpen(true);
+      checkoutFlow.openReceipt(enhanceBookingDetails(booking));
     } catch (err: any) {
       showSnackbar(err.message || 'Failed to load invoice', 'error');
     } finally {
@@ -1913,12 +1980,16 @@ const CustomerLedgerPage: React.FC = () => {
       {/* Edit Ledger Dialog */}
       <EditLedgerDialog
         open={editDialogOpen}
-        onClose={() => setEditDialogOpen(false)}
+        onClose={() => { setEditDialogOpen(false); setEditBookingRoomRate(''); }}
         editingLedger={editingLedger}
         editFormData={editFormData}
         setEditFormData={setEditFormData}
+        bookingRoomRate={editBookingRoomRate}
+        setBookingRoomRate={setEditBookingRoomRate}
+        loadingBookingRoomRate={loadingEditBookingRoomRate}
         updating={updating}
         onUpdate={handleUpdateLedger}
+        currencySymbol={currencySymbol}
       />
 
       {/* Void Ledger Dialog */}
@@ -1975,36 +2046,21 @@ const CustomerLedgerPage: React.FC = () => {
         onCheckOutDateChange={handleCheckOutDateChange}
         checkInRoom={checkInRoom}
         setCheckInRoom={setCheckInRoom}
+        customRoomRate={checkInRoomRate}
+        setCustomRoomRate={setCheckInRoomRate}
         companies={companies}
         guests={guests}
         availableRooms={availableRooms}
         companyBookings={companyBookings}
         processingCheckIn={processingCheckIn}
         onSubmit={handleCompanyCheckIn}
+        currencySymbol={currencySymbol}
         formatCurrency={formatCurrency}
       />
 
       {/* Checkout Invoice Modal */}
-      <CheckoutInvoiceModal
-        open={checkoutDialogOpen}
-        onClose={() => {
-          setCheckoutDialogOpen(false);
-          setCheckoutBooking(null);
-        }}
-        booking={checkoutBooking}
-        onConfirmCheckout={handleConfirmCompanyCheckout}
-      />
-
-      {/* Read-only invoice for ledger entries linked to a booking */}
-      <CheckoutInvoiceModal
-        open={ledgerInvoiceOpen}
-        onClose={() => {
-          setLedgerInvoiceOpen(false);
-          setLedgerInvoiceBooking(null);
-        }}
-        booking={ledgerInvoiceBooking}
-        readOnly
-      />
+      {/* Shared checkout + read-only receipt modals */}
+      <CheckoutInvoiceModals flow={checkoutFlow} />
 
       {/* Company Registration Dialog */}
       <CompanyFormDialog

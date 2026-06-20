@@ -98,6 +98,7 @@ export function useRoomManagementFilters({
           reserved += 1;
           break;
         case 'dirty':
+        case 'reserved_dirty':
           dirty += 1;
           break;
         case 'maintenance':

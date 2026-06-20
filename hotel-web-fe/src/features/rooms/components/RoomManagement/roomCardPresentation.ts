@@ -5,6 +5,7 @@ const ROOM_FILL_DARK: Record<string, string> = {
   available: '#2E7D4F',
   occupied: '#B25E18',
   reserved: '#1E5A8A',
+  reserved_dirty: '#8A6E1D',
   dirty: '#8A6E1D',
   maintenance: '#4D5358',
 };
@@ -20,5 +21,5 @@ export const getRoomCardFill = (
   isDarkMode: boolean,
 ): string => {
   if (isDarkMode) return ROOM_FILL_DARK[status] || ROOM_FILL_DARK.available;
-  return status === 'dirty' ? '#a89436' : statusColor;
+  return status === 'dirty' || status === 'reserved_dirty' ? '#a89436' : statusColor;
 };

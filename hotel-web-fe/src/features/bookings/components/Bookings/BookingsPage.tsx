@@ -74,7 +74,8 @@ import { BookingTimelineEntry, BookingWithDetails, PaymentWorkflowSummary, Room,
 import { getBookingStatusColor, getBookingStatusText, getPaymentStatusColor, getPaymentStatusText } from '../../../../utils/bookingUtils';
 import { useAuth } from '../../../../auth/AuthContext';
 import { useCurrency } from '../../../../hooks/useCurrency';
-import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
+import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceModals';
+import { useCheckoutFlow } from '../../../invoices/hooks/useCheckoutFlow';
 import UnifiedBookingModal from '../../../rooms/components/UnifiedBooking';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { getBookedViaText, getBookingChannelInfo } from '../../utils/bookingChannel';
@@ -120,6 +121,16 @@ const BookingsPage: React.FC = () => {
   const recordPaymentMutation = useRecordPaymentMutation();
   const checkInGuestMutation = useCheckInGuestMutation();
 
+  // Shared checkout + read-only receipt flow. Bookings keeps its react-query
+  // mutation (cache invalidation) and lets the backend mark the room dirty.
+  const checkoutFlow = useCheckoutFlow({
+    updateBooking: (bookingId, data) => updateBookingMutation.mutateAsync({ bookingId: String(bookingId), data }),
+    setRoomDirty: false,
+    onAfterCheckout: () => reloadBookingData(),
+    successMessage: () => 'Guest checked out successfully!',
+    notify: (message) => showSnackbar(message),
+  });
+
   const {
     bookings,
     rooms,
@@ -157,8 +168,6 @@ const BookingsPage: React.FC = () => {
     clearFilters,
   } = useBookings();
 
-  const [checkoutBooking, setCheckoutBooking] = useState<BookingWithDetails | null>(null);
-  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
   const [checkinBooking, setCheckinBooking] = useState<BookingWithDetails | null>(null);
   const [showCheckinModal, setShowCheckinModal] = useState(false);
   const [processingCheckIn, setProcessingCheckIn] = useState(false);
@@ -169,8 +178,6 @@ const BookingsPage: React.FC = () => {
   const [ciDepositAmount, setCiDepositAmount] = useState(0);
   const [ciDepositMethod, setCiDepositMethod] = useState('Cash');
   const [ciWaiveReason, setCiWaiveReason] = useState('');
-  const [invoiceBooking, setInvoiceBooking] = useState<BookingWithDetails | null>(null);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [workflowDialogOpen, setWorkflowDialogOpen] = useState(false);
   const [workflowBooking, setWorkflowBooking] = useState<BookingWithDetails | null>(null);
   const [workflowSummary, setWorkflowSummary] = useState<PaymentWorkflowSummary | null>(null);
@@ -531,6 +538,11 @@ const BookingsPage: React.FC = () => {
       setError('Payment amount must cover the full outstanding balance before checkout.');
       return;
     }
+    // Block overpayment — a payment can never exceed the outstanding balance.
+    if (paymentAmount > requiredCheckoutBalance + 0.005) {
+      setError(`Payment amount cannot exceed the outstanding balance of ${formatCurrency(requiredCheckoutBalance)}.`);
+      return;
+    }
 
     try {
       setUpdatingPayment(true);
@@ -547,18 +559,40 @@ const BookingsPage: React.FC = () => {
         notes: paymentNote.trim() || `Payment accepted (${paymentMethod})`,
       });
 
-      showSnackbar(
-        paymentDialogContext === 'checkout_required'
-          ? `Payment of ${formatCurrency(paymentAmount)} accepted via ${paymentMethod}. Continue checkout when ready.`
-          : `Payment of ${formatCurrency(paymentAmount)} accepted via ${paymentMethod}`
-      );
-      setPaymentDialogOpen(false);
-      setPaymentBooking(null);
-      setPaymentAmount(0);
-      setPaymentMethod('Cash');
-      setPaymentNote('');
-      setPaymentDialogContext('manual');
+      // Work out what's still owed after this payment.
+      const prevBalance = Number(paymentBooking.balance_due || 0);
+      const prevPaid = Number(paymentBooking.total_paid || 0);
+      const remainingBalance = Math.max(0, prevBalance - paymentAmount);
+      const fullySettled = remainingBalance <= 0.005;
+
       await reloadBookingData();
+
+      // Checkout-required payments always cover the full balance, so they close.
+      if (paymentDialogContext === 'checkout_required' || fullySettled) {
+        showSnackbar(
+          paymentDialogContext === 'checkout_required'
+            ? `Payment of ${formatCurrency(paymentAmount)} accepted via ${paymentMethod}. Continue checkout when ready.`
+            : `Payment of ${formatCurrency(paymentAmount)} accepted via ${paymentMethod}`
+        );
+        setPaymentDialogOpen(false);
+        setPaymentBooking(null);
+        setPaymentAmount(0);
+        setPaymentMethod('Cash');
+        setPaymentNote('');
+        setPaymentDialogContext('manual');
+      } else {
+        // Balance still outstanding — keep the window open and re-arm the form
+        // for the next payment.
+        showSnackbar(`Payment of ${formatCurrency(paymentAmount)} accepted via ${paymentMethod}. Balance still outstanding.`);
+        setPaymentBooking({
+          ...paymentBooking,
+          total_paid: prevPaid + paymentAmount,
+          balance_due: remainingBalance,
+          payment_status: 'partial',
+        });
+        setPaymentAmount(remainingBalance);
+        setPaymentNote('');
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to accept payment');
     } finally {
@@ -639,8 +673,7 @@ const BookingsPage: React.FC = () => {
 
   // View invoice for checked-out bookings
   const handleViewInvoice = (booking: BookingWithDetails) => {
-    setInvoiceBooking(booking);
-    setShowInvoiceModal(true);
+    checkoutFlow.openReceipt(booking);
   };
 
   const handleViewWorkflow = async (booking: BookingWithDetails) => {
@@ -732,26 +765,7 @@ const BookingsPage: React.FC = () => {
       return;
     }
 
-    setCheckoutBooking(booking);
-    setShowCheckoutModal(true);
-  };
-
-  const handleConfirmCheckout = async (_lateCheckoutData?: any, checkoutPaymentMethod?: string) => {
-    if (!checkoutBooking) return;
-
-    try {
-      const updatePayload: any = { status: 'checked_out' };
-      if (checkoutPaymentMethod) {
-        updatePayload.payment_method = checkoutPaymentMethod;
-      }
-      await updateBookingMutation.mutateAsync({ bookingId: checkoutBooking.id, data: updatePayload });
-      showSnackbar('Guest checked out successfully!');
-      setShowCheckoutModal(false);
-      setCheckoutBooking(null);
-      await reloadBookingData();
-    } catch (err: any) {
-      throw err; // Let the modal handle the error display
-    }
+    checkoutFlow.openCheckout(booking);
   };
 
   // Helper function to determine if a booking can be checked in/out
@@ -1479,7 +1493,8 @@ const BookingsPage: React.FC = () => {
                     {canCheckOut(selectedBooking) && (
                       <Button variant="contained" color="warning" startIcon={<CheckOutIcon />} onClick={() => handleCheckOut(selectedBooking)}>Check out</Button>
                     )}
-                    {!selectedBooking.is_complimentary && (
+                    {/* Locked once fully settled; reappears when a balance returns. */}
+                    {!selectedBooking.is_complimentary && getBookingBalance(selectedBooking) > 0 && (
                       <Button variant="outlined" color="success" startIcon={<PaymentIcon />} onClick={() => handleUpdatePaymentStatus(selectedBooking)}>Payment</Button>
                     )}
                     <Button variant="outlined" startIcon={<HistoryIcon />} onClick={() => handleViewWorkflow(selectedBooking)}>Workflow</Button>
@@ -2089,9 +2104,18 @@ const BookingsPage: React.FC = () => {
                   value={paymentAmount || ''}
                   onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
                   InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
-                  inputProps={{ min: 0, step: 0.01 }}
-                  error={paymentDialogContext === 'checkout_required' && paymentAmount + 0.005 < Number(paymentBooking.balance_due || 0)}
-                  helperText={paymentDialogContext === 'checkout_required' ? `Full balance required: ${formatCurrency(Number(paymentBooking.balance_due || 0))}` : undefined}
+                  inputProps={{ min: 0, max: Number(paymentBooking.balance_due || 0), step: 0.01 }}
+                  error={
+                    (paymentDialogContext === 'checkout_required' && paymentAmount + 0.005 < Number(paymentBooking.balance_due || 0)) ||
+                    paymentAmount > Number(paymentBooking.balance_due || 0) + 0.005
+                  }
+                  helperText={
+                    paymentAmount > Number(paymentBooking.balance_due || 0) + 0.005
+                      ? `Cannot exceed outstanding balance of ${formatCurrency(Number(paymentBooking.balance_due || 0))}`
+                      : paymentDialogContext === 'checkout_required'
+                        ? `Full balance required: ${formatCurrency(Number(paymentBooking.balance_due || 0))}`
+                        : `Outstanding balance: ${formatCurrency(Number(paymentBooking.balance_due || 0))}`
+                  }
                   required
                 />
                 <FormControl fullWidth>
@@ -2136,7 +2160,12 @@ const BookingsPage: React.FC = () => {
             onClick={handleConfirmPaymentUpdate}
             variant="contained"
             color="primary"
-            disabled={paymentAmount <= 0 || updatingPayment || (paymentDialogContext === 'checkout_required' && paymentAmount + 0.005 < Number(paymentBooking?.balance_due || 0))}
+            disabled={
+              paymentAmount <= 0 ||
+              updatingPayment ||
+              (paymentDialogContext === 'checkout_required' && paymentAmount + 0.005 < Number(paymentBooking?.balance_due || 0)) ||
+              paymentAmount > Number(paymentBooking?.balance_due || 0) + 0.005
+            }
           >
             {updatingPayment ? 'Processing...' : 'Accept Payment'}
           </Button>
@@ -2144,26 +2173,8 @@ const BookingsPage: React.FC = () => {
       </Dialog>
 
       {/* Checkout Invoice Modal */}
-      <CheckoutInvoiceModal
-        open={showCheckoutModal}
-        onClose={() => {
-          setShowCheckoutModal(false);
-          setCheckoutBooking(null);
-        }}
-        booking={checkoutBooking}
-        onConfirmCheckout={handleConfirmCheckout}
-      />
-
-      {/* Read-Only Invoice Modal */}
-      <CheckoutInvoiceModal
-        open={showInvoiceModal}
-        onClose={() => {
-          setShowInvoiceModal(false);
-          setInvoiceBooking(null);
-        }}
-        booking={invoiceBooking}
-        readOnly
-      />
+      {/* Shared checkout + read-only receipt modals */}
+      <CheckoutInvoiceModals flow={checkoutFlow} />
 
       {/* Check-In Dialog */}
       <Dialog

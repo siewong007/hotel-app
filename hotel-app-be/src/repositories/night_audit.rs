@@ -138,7 +138,7 @@ pub async fn preview(pool: &DbPool, audit_date: NaiveDate) -> Result<NightAuditP
             COUNT(*) FILTER (WHERE status = 'occupied') as occupied,
             COUNT(*) FILTER (WHERE status = 'reserved') as reserved,
             COUNT(*) FILTER (WHERE status IN ('maintenance', 'out_of_order')) as maintenance,
-            COUNT(*) FILTER (WHERE status IN ('dirty', 'cleaning')) as dirty
+            COUNT(*) FILTER (WHERE status IN ('dirty', 'cleaning', 'reserved_dirty')) as dirty
         FROM rooms
         "#,
     )

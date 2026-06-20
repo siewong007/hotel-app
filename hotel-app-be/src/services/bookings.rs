@@ -137,14 +137,25 @@ pub async fn manual_checkin(
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
-    // Room readiness: block check-in into a room under maintenance / out of
-    // order. Dirty/cleaning rooms are allowed (the room is set occupied below).
+    // Room readiness: a reservation can be made on a dirty room, but the room
+    // must be cleaned before anyone can check in.
     if let Some(room_status) = booking_repo::fetch_room_status_tx(&mut tx, booking.room_id).await?
-        && (room_status == "maintenance" || room_status == "out_of_order")
+        && matches!(
+            room_status.as_str(),
+            "maintenance" | "out_of_order" | "dirty" | "cleaning" | "reserved_dirty"
+        )
     {
+        let reason = if matches!(
+            room_status.as_str(),
+            "dirty" | "cleaning" | "reserved_dirty"
+        ) {
+            "the room must be cleaned before check-in".to_string()
+        } else {
+            format!("room is currently under {}", room_status.replace('_', " "))
+        };
         return Err(ApiError::BadRequest(format!(
-            "Cannot check in - room is currently under {}.",
-            room_status.replace('_', " ")
+            "Cannot check in - {}.",
+            reason
         )));
     }
 

@@ -125,7 +125,7 @@ mod sqlite_tests {
     }
 
     #[tokio::test]
-    async fn dated_search_keeps_housekeeping_status_idempotent_and_future_bookable() {
+    async fn dated_search_includes_dirty_rooms_with_housekeeping_status() {
         let pool = common::setup_test_db().await;
         seed_search_rooms(&pool).await;
 
@@ -156,7 +156,16 @@ mod sqlite_tests {
         .await
         .expect("same-day room search should succeed");
 
-        assert_eq!(room_numbers(&same_day_response.0), vec!["S201", "S202"]);
+        assert_eq!(
+            room_numbers(&same_day_response.0),
+            vec!["S201", "S203", "S202"]
+        );
+        let dirty_same_day = same_day_response
+            .0
+            .iter()
+            .find(|room| room.room_number == "S203")
+            .expect("dirty room should be returned");
+        assert_eq!(dirty_same_day.status.as_deref(), Some("dirty"));
 
         let first_future_response = search_rooms_handler(
             State(pool.clone()),
@@ -187,6 +196,12 @@ mod sqlite_tests {
             room_numbers(&first_future_response.0),
             vec!["S201", "S203", "S202"]
         );
+        let dirty_future = first_future_response
+            .0
+            .iter()
+            .find(|room| room.room_number == "S203")
+            .expect("dirty future room should be returned");
+        assert_eq!(dirty_future.status.as_deref(), Some("dirty"));
         assert_eq!(
             room_numbers(&first_future_response.0),
             room_numbers(&second_future_response.0)

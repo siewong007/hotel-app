@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { HotelAPIService } from '../../../../../api';
 import type { BookingWithDetails, Company, CustomerLedger } from '../../../../../types';
 import { useLedgersPage } from '../../../hooks/useLedgers';
+import { getLedgerUiStatus } from '../helpers';
 import type { EntryStatusFilter } from '../types';
 
 export type CompanyListFilter = 'all' | 'due' | 'clear';
@@ -200,7 +201,7 @@ export function useCustomerLedgerWorkspace({
   const paidEntriesCount = useMemo(
     () =>
       activeCompany
-        ? ledgers.filter((ledger) => ledger.company_name === activeCompany.company_name && ledger.status === 'paid').length
+        ? ledgers.filter((ledger) => ledger.company_name === activeCompany.company_name && getLedgerUiStatus(ledger) === 'paid').length
         : 0,
     [ledgers, activeCompany],
   );

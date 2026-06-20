@@ -48,6 +48,7 @@ export type {
   BookingVoidResponse,
   BookingTimelineEntry,
   CheckInRequest,
+  CheckInAdvisory,
   PreCheckInUpdateRequest,
   RateCodesResponse,
   MarketCodesResponse,

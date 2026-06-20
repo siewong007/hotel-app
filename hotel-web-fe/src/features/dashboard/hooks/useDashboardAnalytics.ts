@@ -111,7 +111,7 @@ export function buildDashboardAnalyticsData(
   const roomStats = rooms.reduce<RoomStats>((stats, room) => {
     const status = getRoomStatus(room);
     if (status === 'maintenance' || status === 'out_of_order') stats.maintenanceRooms += 1;
-    else if (status === 'cleaning' || status === 'dirty') stats.cleaningRooms += 1;
+    else if (status === 'cleaning' || status === 'dirty' || status === 'reserved_dirty') stats.cleaningRooms += 1;
     else if (status === 'occupied' || status === 'checked_in') stats.occupiedRooms += 1;
     else if (status === 'reserved') stats.reservedRooms += 1;
     else stats.availableRooms += 1;

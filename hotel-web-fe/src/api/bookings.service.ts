@@ -9,6 +9,7 @@ import {
   BookingTimelineEntry,
   BookingWithDetails,
   CheckInRequest,
+  CheckInAdvisory,
   PreCheckInUpdateRequest,
 } from '../types';
 import { withRetry } from '../utils/retry';
@@ -170,6 +171,51 @@ export class BookingsService {
         );
       }
       throw new APIError('Failed to check in guest');
+    }
+  }
+
+  /**
+   * Pre-check-in advisory: flags when a guest who normally bills to a company
+   * ledger is about to be checked in as a normal (non-company) guest, so the
+   * front desk can attach company billing before completing check-in.
+   */
+  static async getCheckInAdvisory(bookingId: string): Promise<CheckInAdvisory> {
+    try {
+      return await api
+        .get(`bookings/${bookingId}/checkin-advisory`)
+        .json<CheckInAdvisory>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to load check-in advisory',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to load check-in advisory');
+    }
+  }
+
+  /**
+   * Guest-level check-in advisory, for the walk-in / direct-booking flow where
+   * no booking exists yet. Keyed purely on the guest's company-billing history.
+   */
+  static async getGuestCheckInAdvisory(guestId: number | string): Promise<CheckInAdvisory> {
+    try {
+      return await api
+        .get('bookings/checkin-advisory', { searchParams: { guest_id: String(guestId) } })
+        .json<CheckInAdvisory>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to load check-in advisory',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to load check-in advisory');
     }
   }
 

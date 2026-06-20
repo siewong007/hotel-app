@@ -49,6 +49,24 @@ describe('roomManagementUtils', () => {
     expect(status.hasReservationForToday).toBe(true);
   });
 
+  it('keeps reserved dirty rooms from becoming check-in ready', () => {
+    const status = deriveRoomStatusInfo({
+      room: { status: 'reserved_dirty' },
+      booking: undefined,
+      reservedBooking: {
+        status: 'confirmed',
+        check_in_date: '2026-06-15',
+      },
+      today: new Date(2026, 5, 15, 16, 0, 0),
+      checkInTime: '15:00',
+    });
+
+    expect(status.computedStatus).toBe('reserved_dirty');
+    expect(status.isReserved).toBe(false);
+    expect(status.isReservedToday).toBe(false);
+    expect(status.hasReservationForToday).toBe(true);
+  });
+
   it('does not mark an arrival-day reservation as reserved before check-in time', () => {
     const base = {
       room: { status: 'available' },

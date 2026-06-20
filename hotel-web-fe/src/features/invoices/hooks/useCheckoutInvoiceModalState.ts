@@ -215,6 +215,10 @@ export function useCheckoutInvoiceModalState(
     setEditReference(payment.transaction_reference || '');
     setEditNotes(payment.notes || '');
     const rawPaymentDate = payment.payment_date || payment.created_at;
+    if (rawPaymentDate && /^\d{4}-\d{2}-\d{2}$/.test(rawPaymentDate)) {
+      setEditDate(rawPaymentDate);
+      return;
+    }
     const parsedPaymentDate = rawPaymentDate ? new Date(rawPaymentDate) : null;
     const paymentDate = parsedPaymentDate && !isNaN(parsedPaymentDate.getTime())
       ? formatLocalDate(parsedPaymentDate)

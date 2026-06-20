@@ -36,7 +36,7 @@ interface RoomStatus {
   id: number;
   room_number: string;
   room_type: string;
-  status: 'available' | 'occupied' | 'cleaning' | 'maintenance' | 'reserved' | 'out_of_order' | 'dirty';
+  status: 'available' | 'occupied' | 'cleaning' | 'maintenance' | 'reserved' | 'reserved_dirty' | 'out_of_order' | 'dirty';
   available: boolean;
   current_guest?: string;
   check_in_date?: string;
@@ -189,7 +189,7 @@ const AdminDashboard: React.FC = () => {
 
         // First, check if room has an explicit status from the backend
         // The backend status is authoritative - trust it for all status types
-        if (room.status && ['maintenance', 'cleaning', 'reserved', 'occupied'].includes(room.status)) {
+        if (room.status && ['maintenance', 'cleaning', 'reserved', 'reserved_dirty', 'occupied', 'dirty'].includes(room.status)) {
           status = room.status as RoomStatus['status'];
           // If occupied, also get the guest details from current booking
           if (room.status === 'occupied' && currentOccupancy) {
@@ -306,7 +306,7 @@ const AdminDashboard: React.FC = () => {
     }
 
     // Dirty → Orange
-    if (room.status === 'dirty') {
+    if (room.status === 'dirty' || room.status === 'reserved_dirty') {
       return '#FF9800'; // Orange
     }
 
@@ -336,6 +336,8 @@ const AdminDashboard: React.FC = () => {
         return <OccupiedIcon sx={{ fontSize: 32, color: 'white' }} />;
       case 'reserved':
         return <CalendarIcon sx={{ fontSize: 32, color: 'white' }} />;
+      case 'reserved_dirty':
+      case 'dirty':
       case 'cleaning':
         return <CleaningIcon sx={{ fontSize: 32, color: 'white' }} />;
       case 'maintenance':
@@ -346,6 +348,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const getStatusLabel = (status: RoomStatus['status']) => {
+    if (status === 'reserved_dirty') return 'Reserved / Dirty';
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
 

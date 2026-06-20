@@ -231,7 +231,7 @@ export const deriveRoomStatusInfo = <
 
   const computedStatus = hasCheckedInBooking
     ? 'occupied'
-    : ['maintenance', 'dirty'].includes(room.status || '')
+    : ['maintenance', 'dirty', 'reserved_dirty'].includes(room.status || '')
       ? room.status!
       : hasReservationForToday
         ? 'reserved'

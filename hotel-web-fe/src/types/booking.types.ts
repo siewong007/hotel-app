@@ -19,6 +19,7 @@ export interface Booking {
   room_type?: string;
   check_in_date: string;
   check_out_date: string;
+  room_rate?: number | string;
   total_amount: number | string;
   status: BookingStatus | string;
   payment_status?: PaymentStatus | string;
@@ -211,6 +212,20 @@ export interface PreCheckInUpdateRequest {
   guest_update: GuestUpdateRequest;
   market_code?: string;
   special_requests?: string;
+}
+
+/**
+ * Pre-check-in advisory. `needs_attention` is true when the guest normally
+ * bills to a company ledger but this booking has no company attached.
+ */
+export interface CheckInAdvisory {
+  needs_attention: boolean;
+  reason?: string | null;
+  message?: string | null;
+  prior_total_bookings: number;
+  prior_company_bookings: number;
+  suggested_company_id?: number | null;
+  suggested_company_name?: string | null;
 }
 
 export interface BookingTimelineEntry {
