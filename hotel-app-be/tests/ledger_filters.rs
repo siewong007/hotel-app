@@ -19,8 +19,8 @@ mod sqlite_tests {
     use hotel_app_be::repositories::ledger::{
         balance_state_clause, invoice_state_clause, ui_status_clause,
     };
-    use sqlx::sqlite::SqlitePoolOptions;
     use sqlx::SqlitePool;
+    use sqlx::sqlite::SqlitePoolOptions;
 
     // Row ids and their intended derived classification (mirrors the frontend
     // `getLedgerUiStatus`, which is strictly balance-first):
@@ -57,13 +57,29 @@ mod sqlite_tests {
         .expect("create table");
 
         // (id, status, balance_due, paid_amount, invoice_number, due_date, void_at)
-        let rows: &[(i64, &str, f64, f64, Option<&str>, Option<&str>, Option<&str>)] = &[
+        let rows: &[(
+            i64,
+            &str,
+            f64,
+            f64,
+            Option<&str>,
+            Option<&str>,
+            Option<&str>,
+        )] = &[
             (1, "paid", 0.0, 100.0, Some("INV1"), Some(PAST), None),
             (2, "paid", 50.0, 100.0, Some("INV2"), Some(FUTURE), None),
             (3, "pending", 100.0, 0.0, Some("INV3"), Some(PAST), None),
             (4, "pending", 100.0, 0.0, Some("INV4"), Some(FUTURE), None),
             (5, "pending", 100.0, 0.0, None, Some(FUTURE), None),
-            (6, "cancelled", 100.0, 0.0, Some("INV6"), Some(FUTURE), Some(PAST)),
+            (
+                6,
+                "cancelled",
+                100.0,
+                0.0,
+                Some("INV6"),
+                Some(FUTURE),
+                Some(PAST),
+            ),
         ];
         for (id, status, balance, paid, inv, due, void) in rows {
             sqlx::query(

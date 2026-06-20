@@ -140,7 +140,8 @@ async fn build_guest_advisory(
     let (suggested_company_id, suggested_company_name) = match suggestion {
         Some(r) => (
             r.try_get::<Option<i64>, _>("company_id").unwrap_or(None),
-            r.try_get::<Option<String>, _>("company_name").unwrap_or(None),
+            r.try_get::<Option<String>, _>("company_name")
+                .unwrap_or(None),
         ),
         None => (None, None),
     };

@@ -227,7 +227,6 @@ pub struct LedgerPaginatedResponse {
     pub page_size: i64,
 }
 
-
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for CustomerLedger {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
@@ -307,7 +306,9 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for CustomerLedger {
             reversal_reason: row.try_get("reversal_reason")?,
             tax_amount: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("tax_amount")?);
+                let val = crate::core::db::parse_opt_decimal(
+                    row.try_get::<Option<String>, _>("tax_amount")?,
+                );
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")
@@ -317,7 +318,9 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for CustomerLedger {
             },
             service_charge: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("service_charge")?);
+                let val = crate::core::db::parse_opt_decimal(
+                    row.try_get::<Option<String>, _>("service_charge")?,
+                );
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")
@@ -327,7 +330,9 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for CustomerLedger {
             },
             net_amount: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("net_amount")?);
+                let val = crate::core::db::parse_opt_decimal(
+                    row.try_get::<Option<String>, _>("net_amount")?,
+                );
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")
@@ -344,7 +349,6 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for CustomerLedger {
     }
 }
 
-
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for CustomerLedgerPayment {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
@@ -353,7 +357,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for CustomerLedgerPayment {
             ledger_id: row.try_get("ledger_id")?,
             payment_amount: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("payment_amount")?);
+                let val =
+                    crate::core::db::parse_decimal(&row.try_get::<String, _>("payment_amount")?);
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")

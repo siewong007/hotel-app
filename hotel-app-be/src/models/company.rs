@@ -72,7 +72,6 @@ pub struct CompanyListQuery {
     pub offset: Option<i32>,
 }
 
-
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Company {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
@@ -91,7 +90,9 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Company {
             is_active: row.try_get("is_active")?,
             credit_limit: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_opt_decimal(row.try_get::<Option<String>, _>("credit_limit")?);
+                let val = crate::core::db::parse_opt_decimal(
+                    row.try_get::<Option<String>, _>("credit_limit")?,
+                );
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")

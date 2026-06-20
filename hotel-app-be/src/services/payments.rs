@@ -70,7 +70,7 @@ pub async fn record_payment(
         .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
 
     let payment_type = request.payment_type.as_deref().unwrap_or("booking");
-    
+
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
     // A booking room-charge payment can never exceed the outstanding balance.
@@ -117,7 +117,7 @@ pub async fn record_payment(
     .await?;
 
     recompute_payment_status_tx(&mut tx, request.booking_id).await?;
-    
+
     tx.commit().await.map_err(ApiError::from)?;
 
     Ok(row.into_response())

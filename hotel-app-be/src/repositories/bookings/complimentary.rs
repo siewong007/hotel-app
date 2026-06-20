@@ -1,6 +1,7 @@
 //! Complimentary-night booking handlers.
 
 use crate::core::db::DbPool;
+use crate::core::db::DbRowExt;
 use crate::core::error::ApiError;
 use crate::models::*;
 use axum::{
@@ -10,7 +11,6 @@ use axum::{
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
 use sqlx::Row;
-use crate::core::db::DbRowExt;
 
 pub async fn mark_complimentary_handler(
     State(pool): State<DbPool>,
@@ -63,18 +63,22 @@ pub async fn mark_complimentary_handler(
     }
 
     // Parse and validate complimentary date range
-    let comp_start = NaiveDate::parse_from_str(&input.complimentary_start_date, "%Y-%m-%d")
-        .map_err(|_| {
+    let comp_start = match &input.complimentary_start_date {
+        Some(date_str) => NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
             ApiError::BadRequest(
                 "Invalid complimentary_start_date format. Use YYYY-MM-DD".to_string(),
             )
-        })?;
-    let comp_end =
-        NaiveDate::parse_from_str(&input.complimentary_end_date, "%Y-%m-%d").map_err(|_| {
+        })?,
+        None => check_in,
+    };
+    let comp_end = match &input.complimentary_end_date {
+        Some(date_str) => NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
             ApiError::BadRequest(
                 "Invalid complimentary_end_date format. Use YYYY-MM-DD".to_string(),
             )
-        })?;
+        })?,
+        None => check_out,
+    };
 
     // Validate date range is within booking period
     if comp_start < check_in || comp_end > check_out {
@@ -293,7 +297,7 @@ pub async fn convert_complimentary_to_credits_handler(
 pub async fn get_complimentary_bookings_handler(
     State(pool): State<DbPool>,
 ) -> Result<Json<Vec<BookingWithDetails>>, ApiError> {
-    let bookings: Vec<BookingWithDetails> = sqlx::query_as(
+    let rows = sqlx::query(
         r#"
         SELECT
             b.id, b.booking_number, b.folio_number, b.guest_id, g.full_name as guest_name, g.email as guest_email,
@@ -319,6 +323,11 @@ pub async fn get_complimentary_bookings_handler(
     .fetch_all(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let bookings: Vec<BookingWithDetails> = rows
+        .iter()
+        .map(crate::models::row_mappers::row_to_booking_with_details)
+        .collect();
 
     Ok(Json(bookings))
 }

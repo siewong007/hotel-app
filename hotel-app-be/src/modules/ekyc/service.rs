@@ -4,22 +4,22 @@
 
 use chrono::Utc;
 
+use super::validation;
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::check_permission;
 use crate::modules::ekyc::models::{
     EkycAdminListResponse, EkycApplicationDetail, EkycApplicationSummary,
-    EkycApplicationSummaryRow, EkycDashboardMetrics, EkycDocumentAvailability,
-    EkycListQuery, EkycReasonCode, EkycReviewActionRequest,
-    EkycSensitiveRevealRequest, EkycSensitiveRevealResponse, EkycStatusResponse,
-    EkycSubmissionRequest, EkycVerification, EkycVerificationUpdate, SelfCheckinRequest,
+    EkycApplicationSummaryRow, EkycDashboardMetrics, EkycDocumentAvailability, EkycListQuery,
+    EkycReasonCode, EkycReviewActionRequest, EkycSensitiveRevealRequest,
+    EkycSensitiveRevealResponse, EkycStatusResponse, EkycSubmissionRequest, EkycVerification,
+    EkycVerificationUpdate, SelfCheckinRequest,
 };
 use crate::repositories::ekyc::{
     EkycActionUpdate, EkycHistoryInsert, EkycNoteInsert, EkycRepository, NewEkycVerification,
 };
 use crate::services::audit::AuditLog;
-use super::validation;
 
 pub async fn submit_ekyc(
     pool: &DbPool,
@@ -47,13 +47,15 @@ pub async fn submit_ekyc(
 
     let (date_of_birth, id_expiry_date, id_issue_date) = validation::validate_dates(&req)?;
 
-    let id_front_path = validation::prepare_ekyc_image_reference(&req.id_front_image, user_id, "id_front")?;
+    let id_front_path =
+        validation::prepare_ekyc_image_reference(&req.id_front_image, user_id, "id_front")?;
     let id_back_path = req
         .id_back_image
         .as_ref()
         .map(|img| validation::prepare_ekyc_image_reference(img, user_id, "id_back"))
         .transpose()?;
-    let selfie_path = validation::prepare_ekyc_image_reference(&req.selfie_image, user_id, "selfie")?;
+    let selfie_path =
+        validation::prepare_ekyc_image_reference(&req.selfie_image, user_id, "selfie")?;
     let proof_path = req
         .proof_of_address
         .as_ref()
@@ -319,7 +321,10 @@ pub async fn apply_review_action(
 
     let reason_code = input.reason_code.clone();
     let reason = input.reason.clone();
-    let note_body = input.note.as_ref().map(|note| validation::sanitize_text(note, 4000));
+    let note_body = input
+        .note
+        .as_ref()
+        .map(|note| validation::sanitize_text(note, 4000));
     let customer_message = validation::customer_message_for_action(action, &input, &reason_codes);
     let set_customer_message = matches!(action, "request_resubmission");
     let set_verified = matches!(next_status.as_str(), "approved" | "rejected");
@@ -367,15 +372,33 @@ pub async fn apply_review_action(
         "mark_potential_duplicate" => {
             validation::add_unique_rule(&mut risk_flags, "duplicate_identity");
             (
-                false, None, true, true, false, false, true, Some("high".to_string()),
-                true, Some(current.risk_score.unwrap_or(0).max(80)), true,
+                false,
+                None,
+                true,
+                true,
+                false,
+                false,
+                true,
+                Some("high".to_string()),
+                true,
+                Some(current.risk_score.unwrap_or(0).max(80)),
+                true,
             )
         }
         "mark_fraud" => {
             validation::add_unique_rule(&mut risk_flags, "suspected_fraud");
             (
-                false, None, true, true, true, true, true, Some("critical".to_string()),
-                true, Some(current.risk_score.unwrap_or(0).max(95)), true,
+                false,
+                None,
+                true,
+                true,
+                true,
+                true,
+                true,
+                Some("critical".to_string()),
+                true,
+                Some(current.risk_score.unwrap_or(0).max(95)),
+                true,
             )
         }
         _ => (
@@ -401,7 +424,10 @@ pub async fn apply_review_action(
             status: next_status.clone(),
             set_assignee,
             assigned_reviewer_id,
-            verification_notes: input.note.as_ref().map(|note| validation::sanitize_text(note, 4000)),
+            verification_notes: input
+                .note
+                .as_ref()
+                .map(|note| validation::sanitize_text(note, 4000)),
             set_customer_message,
             customer_message,
             set_self_checkin: matches!(action, "approve"),
@@ -663,8 +689,9 @@ fn summary_from_row(row: EkycApplicationSummaryRow) -> EkycApplicationSummary {
             let age = Utc::now().signed_duration_since(at).num_hours();
             (validation::REVIEW_SLA_WARNING_HOURS..validation::REVIEW_SLA_HOURS).contains(&age)
         }),
-        overdue_sla: submitted_at
-            .is_some_and(|at| Utc::now().signed_duration_since(at).num_hours() >= validation::REVIEW_SLA_HOURS),
+        overdue_sla: submitted_at.is_some_and(|at| {
+            Utc::now().signed_duration_since(at).num_hours() >= validation::REVIEW_SLA_HOURS
+        }),
         version: row.version,
     }
 }
@@ -717,7 +744,10 @@ async fn detail_from_record(
     Ok(EkycApplicationDetail {
         summary,
         date_of_birth_masked: record.date_of_birth.map(|_| "****-**-**".to_string()),
-        current_address_masked: record.current_address.as_deref().map(validation::mask_address),
+        current_address_masked: record
+            .current_address
+            .as_deref()
+            .map(validation::mask_address),
         id_issuing_country: record.id_issuing_country,
         id_issue_date: record.id_issue_date,
         id_expiry_date: record.id_expiry_date,

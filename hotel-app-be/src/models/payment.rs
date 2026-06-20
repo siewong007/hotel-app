@@ -229,7 +229,6 @@ pub struct KeycardDeposit {
     pub created_at: DateTime<Utc>,
 }
 
-
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Payment {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
@@ -251,7 +250,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Payment {
             },
             service_charge: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("service_charge")?);
+                let val =
+                    crate::core::db::parse_decimal(&row.try_get::<String, _>("service_charge")?);
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")
@@ -271,7 +271,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Payment {
             },
             keycard_deposit: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("keycard_deposit")?);
+                let val =
+                    crate::core::db::parse_decimal(&row.try_get::<String, _>("keycard_deposit")?);
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")
@@ -281,7 +282,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Payment {
             },
             total_amount: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("total_amount")?);
+                let val =
+                    crate::core::db::parse_decimal(&row.try_get::<String, _>("total_amount")?);
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")
@@ -300,7 +302,6 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Payment {
         })
     }
 }
-
 
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Invoice {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
@@ -344,7 +345,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Invoice {
             },
             discount_amount: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("discount_amount")?);
+                let val =
+                    crate::core::db::parse_decimal(&row.try_get::<String, _>("discount_amount")?);
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")
@@ -354,7 +356,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Invoice {
             },
             total_amount: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("total_amount")?);
+                let val =
+                    crate::core::db::parse_decimal(&row.try_get::<String, _>("total_amount")?);
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")
@@ -391,7 +394,6 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Invoice {
     }
 }
 
-
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for KeycardDeposit {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
@@ -401,7 +403,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for KeycardDeposit {
             payment_id: row.try_get("payment_id")?,
             deposit_amount: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
-                let val = crate::core::db::parse_decimal(&row.try_get::<String, _>("deposit_amount")?);
+                let val =
+                    crate::core::db::parse_decimal(&row.try_get::<String, _>("deposit_amount")?);
                 #[cfg(any(
                     all(feature = "postgres", not(feature = "sqlite")),
                     all(feature = "sqlite", feature = "postgres")

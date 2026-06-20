@@ -190,5 +190,4 @@ mod sqlite_tests {
             "exactly one concurrent payment should succeed without exceeding balance: first={first:?}, second={second:?}"
         );
     }
-
 }
