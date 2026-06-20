@@ -17,6 +17,7 @@ import {
   Typography,
   CircularProgress,
   Alert,
+  AlertTitle,
   Checkbox,
   FormControlLabel,
   Divider,
@@ -46,6 +47,7 @@ import {
   Booking,
   Guest,
   CheckInRequest,
+  CheckInAdvisory,
   GuestUpdateRequest,
   BookingUpdateRequest,
   RateCodesResponse,
@@ -194,6 +196,9 @@ export default function EnhancedCheckInModal({
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Pre-check-in advisory: warns when a normally company/ledger-billed guest is
+  // being checked in without a company attached (see checkin_advisory backend).
+  const [advisory, setAdvisory] = useState<CheckInAdvisory | null>(null);
 
   // Track if form has been initialized to prevent re-initialization
   const initializedRef = useRef<{ bookingId: string | null; guestId: number | null }>({ bookingId: null, guestId: null });
@@ -293,6 +298,7 @@ export default function EnhancedCheckInModal({
       setTouched({});
       setActiveTab(0);
       setError(null);
+      setAdvisory(null);
     }
   }, [open]);
 
@@ -310,6 +316,11 @@ export default function EnhancedCheckInModal({
         initializeFormData();
         // Load room type config for extra bed settings
         loadRoomTypeConfig(booking as any);
+        // Fetch the pre-check-in advisory (non-blocking; failures are silent).
+        setAdvisory(null);
+        HotelAPIService.getCheckInAdvisory(String(booking.id))
+          .then(setAdvisory)
+          .catch(() => setAdvisory(null));
         initializedRef.current = { bookingId: booking.id, guestId: guest.id };
       }
     }
@@ -659,6 +670,17 @@ export default function EnhancedCheckInModal({
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}
+          </Alert>
+        )}
+
+        {advisory?.needs_attention && (
+          <Alert
+            severity="warning"
+            sx={{ mb: 2 }}
+            onClose={() => setAdvisory(null)}
+          >
+            <AlertTitle>Use company check-in?</AlertTitle>
+            {advisory.message}
           </Alert>
         )}
 

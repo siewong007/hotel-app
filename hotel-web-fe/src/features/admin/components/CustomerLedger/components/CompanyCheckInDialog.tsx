@@ -14,6 +14,7 @@ import {
   Chip,
   Autocomplete,
   CircularProgress,
+  InputAdornment,
 } from '@mui/material';
 import {
   Login as CheckInIcon,
@@ -58,6 +59,8 @@ interface CompanyCheckInDialogProps {
   onCheckOutDateChange: (newDate: string) => void;
   checkInRoom: Room | null;
   setCheckInRoom: React.Dispatch<React.SetStateAction<Room | null>>;
+  customRoomRate: string;
+  setCustomRoomRate: React.Dispatch<React.SetStateAction<string>>;
   // Lookup data
   companies: Company[];
   guests: Guest[];
@@ -67,6 +70,7 @@ interface CompanyCheckInDialogProps {
   processingCheckIn: boolean;
   onSubmit: () => void;
   // Derived display values
+  currencySymbol: string;
   formatCurrency: (value: number) => string;
 }
 
@@ -87,15 +91,29 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
   onCheckOutDateChange,
   checkInRoom,
   setCheckInRoom,
+  customRoomRate,
+  setCustomRoomRate,
   companies,
   guests,
   availableRooms,
   companyBookings,
   processingCheckIn,
   onSubmit,
+  currencySymbol,
   formatCurrency,
-}) => (
-  <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+}) => {
+  const selectedRoomDefaultRate = checkInRoom
+    ? typeof checkInRoom.price_per_night === 'string'
+      ? parseFloat(checkInRoom.price_per_night)
+      : checkInRoom.price_per_night
+    : 0;
+  const customRateValue = customRoomRate.trim() ? parseFloat(customRoomRate) : undefined;
+  const effectiveRoomRate = customRateValue && customRateValue > 0
+    ? customRateValue
+    : selectedRoomDefaultRate;
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
     <DialogTitle>
       <Box display="flex" alignItems="center" gap={1}>
         <CheckInIcon color="success" />
@@ -366,7 +384,10 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
         <Grid size={12}>
           <Autocomplete
             value={checkInRoom}
-            onChange={(event, newValue) => setCheckInRoom(newValue)}
+            onChange={(event, newValue) => {
+              setCheckInRoom(newValue);
+              setCustomRoomRate('');
+            }}
             options={availableRooms}
             getOptionLabel={(option) => `Room ${option.room_number} - ${option.room_type}`}
             isOptionEqualToValue={(option, value) => option.id === value.id}
@@ -412,6 +433,27 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
           />
         </Grid>
 
+        {checkInRoom && (
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="Room Rate"
+              type="number"
+              value={customRoomRate}
+              onChange={(e) => setCustomRoomRate(e.target.value)}
+              placeholder={Number.isFinite(selectedRoomDefaultRate) ? selectedRoomDefaultRate.toFixed(2) : ''}
+              helperText={`Default ${formatCurrency(selectedRoomDefaultRate)} / night`}
+              InputProps={{
+                startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+              }}
+              inputProps={{
+                min: 0.01,
+                step: 0.01,
+              }}
+            />
+          </Grid>
+        )}
+
         {/* Summary */}
         {checkInCompany && checkInRoom && (checkInGuest || (isCreatingNewCheckInGuest && newCheckInGuestForm.first_name)) && (
           <Grid size={12}>
@@ -425,6 +467,9 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
               </Typography>
               <Typography variant="body2">
                 Room: {checkInRoom.room_number} ({checkInRoom.room_type})
+              </Typography>
+              <Typography variant="body2">
+                Rate: {formatCurrency(effectiveRoomRate)} / night
               </Typography>
               <Typography variant="body2">
                 Company: {checkInCompany.company_name}
@@ -461,7 +506,8 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
         {processingCheckIn ? 'Processing...' : 'Check-In Guest'}
       </Button>
     </DialogActions>
-  </Dialog>
-);
+    </Dialog>
+  );
+};
 
 export default CompanyCheckInDialog;

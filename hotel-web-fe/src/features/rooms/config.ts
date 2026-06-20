@@ -18,13 +18,15 @@ import { OverridableStringUnion } from '@mui/types';
  * - available (Vacant/Clean): Room ready for booking, can check-in with booking details
  * - occupied: Guest checked in, shows guest details on room card
  * - reserved: Has upcoming booking, can check-in directly (details already entered)
- * - dirty: Needs cleaning, can still check-in with booking details
+ * - dirty: Needs cleaning; reservations can be made but check-in is blocked
+ * - reserved_dirty: Has a reservation and still needs cleaning before check-in
  * - maintenance: Under repair, NO check-in, NO upcoming bookings
  */
 export type RoomStatusType =
   | 'available'
   | 'occupied'
   | 'reserved'
+  | 'reserved_dirty'
   | 'dirty'
   | 'maintenance';
 
@@ -48,6 +50,7 @@ export type DisplayStatusType =
   | 'available'
   | 'occupied'
   | 'reserved'
+  | 'reserved_dirty'
   | 'dirty'
   | 'maintenance'
   | 'pending'
@@ -114,7 +117,7 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
 
     // Classification
     category: 'operational',
-    allowedTransitions: ['reserved', 'occupied', 'dirty', 'maintenance'],
+    allowedTransitions: ['reserved', 'reserved_dirty', 'occupied', 'dirty', 'maintenance'],
   },
 
   occupied: {
@@ -162,7 +165,28 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
 
     // Classification
     category: 'booking',
-    allowedTransitions: ['occupied', 'available', 'dirty'],
+    allowedTransitions: ['occupied', 'available', 'dirty', 'reserved_dirty'],
+  },
+
+  reserved_dirty: {
+    color: 'warning',
+    bgColor: '#FBC02D',
+    textColor: '#2F2A12',
+    borderColor: '#B88900',
+
+    label: 'Reserved / Dirty',
+    shortLabel: 'Res Dirty',
+    description: 'Room has a reservation and needs cleaning before check-in',
+    detailMessage: 'Clean before check-in',
+    icon: DirtyIcon,
+
+    isAvailableForBooking: false,
+    requiresAction: true,
+    actionLabel: 'Mark Clean',
+    priority: 4,
+
+    category: 'booking',
+    allowedTransitions: ['reserved', 'dirty', 'maintenance'],
   },
 
   dirty: {
@@ -175,7 +199,7 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     // Content
     label: 'Dirty',
     shortLabel: 'Dirty',
-    description: 'Room needs cleaning after checkout',
+    description: 'Room needs cleaning before check-in',
     detailMessage: 'Needs cleaning',
     icon: DirtyIcon,
 
@@ -183,11 +207,11 @@ export const ROOM_STATUS_CONFIG: Record<RoomStatusType, StatusConfig> = {
     isAvailableForBooking: false,
     requiresAction: true,
     actionLabel: 'Start Cleaning',
-    priority: 4,
+    priority: 5,
 
     // Classification
     category: 'operational',
-    allowedTransitions: ['available', 'maintenance'],
+    allowedTransitions: ['available', 'reserved_dirty', 'maintenance'],
   },
 
   maintenance: {
@@ -292,7 +316,9 @@ export const calculateStatusStatistics = (
 
   rooms.forEach(room => {
     const status = room.computedStatus;
-    if (status in stats) {
+    if (status === 'reserved_dirty') {
+      stats.dirty++;
+    } else if (status in stats) {
       stats[status as keyof Omit<StatusStatistics, 'total' | 'availablePercentage' | 'occupancyRate'>]++;
     }
   });

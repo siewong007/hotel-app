@@ -276,10 +276,7 @@ impl DataTransferRepository {
         tables: &[&str],
     ) -> Result<(), ApiError> {
         for table in tables {
-            let reset_sql = format!(
-                "SELECT setval(pg_get_serial_sequence('public.{table}', 'id'), COALESCE((SELECT MAX(id) FROM {}), 0) + 1, false) WHERE pg_get_serial_sequence('public.{table}', 'id') IS NOT NULL",
-                quote_identifier(table)
-            );
+            let reset_sql = reset_sequence_sql(table);
             sqlx::query(&reset_sql)
                 .execute(&mut **tx)
                 .await
@@ -372,6 +369,42 @@ fn value_as_i64(value: &Value) -> Option<i64> {
 
 fn quote_identifier(identifier: &str) -> String {
     format!("\"{}\"", identifier.replace('"', "\"\""))
+}
+
+fn quote_literal(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+fn reset_sequence_sql(table: &str) -> String {
+    let quoted_table = quote_identifier(table);
+    let table_regclass = quote_literal(&format!("public.{table}"));
+    let table_name = quote_literal(table);
+
+    format!(
+        r#"
+        WITH sequence_name AS (
+            SELECT COALESCE(
+                pg_get_serial_sequence({table_regclass}, 'id'),
+                (
+                    SELECT substring(column_default FROM 'nextval\(''([^'']+)''::regclass\)')
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = {table_name}
+                      AND column_name = 'id'
+                )
+            ) AS name
+        ),
+        bounds AS (
+            SELECT MAX(id) AS max_id FROM {quoted_table}
+        )
+        SELECT CASE
+            WHEN sequence_name.name IS NULL THEN NULL
+            WHEN bounds.max_id IS NULL THEN setval(sequence_name.name::regclass, 1, false)
+            ELSE setval(sequence_name.name::regclass, GREATEST(bounds.max_id, 1), true)
+        END
+        FROM sequence_name, bounds
+        "#
+    )
 }
 
 #[cfg(test)]
@@ -470,5 +503,27 @@ mod tests {
         let result = prepare_import_row("user_guests", &row, &policy);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn reset_sequence_sql_falls_back_to_nextval_default_when_sequence_is_not_owned() {
+        let sql = reset_sequence_sql("payments");
+
+        assert!(sql.contains("pg_get_serial_sequence('public.payments', 'id')"));
+        assert!(sql.contains("substring(column_default FROM"));
+        assert!(sql.contains("table_name = 'payments'"));
+        assert!(sql.contains("SELECT MAX(id) AS max_id FROM \"payments\""));
+        assert!(
+            sql.contains("setval(sequence_name.name::regclass, GREATEST(bounds.max_id, 1), true)")
+        );
+    }
+
+    #[test]
+    fn reset_sequence_sql_quotes_table_names() {
+        let sql = reset_sequence_sql("odd'table");
+
+        assert!(sql.contains("pg_get_serial_sequence('public.odd''table', 'id')"));
+        assert!(sql.contains("table_name = 'odd''table'"));
+        assert!(sql.contains("FROM \"odd'table\""));
     }
 }

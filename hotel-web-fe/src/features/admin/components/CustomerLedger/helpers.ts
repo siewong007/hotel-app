@@ -95,7 +95,10 @@ export const getLedgerUiStatus = (ledger: CustomerLedger): LedgerUiStatus => {
   const balance = asMoney(ledger.balance_due);
   const paid = asMoney(ledger.paid_amount);
   if (isLedgerVoided(ledger)) return 'voided';
-  if (ledger.status === 'paid' || balance <= 0) return 'paid';
+  // Balance-first: an entry is only "paid" when nothing is outstanding. If a
+  // charge later increases the amount (balance > 0 again), the entry reopens to
+  // partial/pending even if the stored status column still says 'paid'.
+  if (balance <= 0) return 'paid';
   if (ledger.status === 'overdue' || isDateOverdue(ledger.due_date)) return 'overdue';
   if (paid > 0) return 'partial';
   if (ledger.invoice_number) return 'invoiced';

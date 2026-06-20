@@ -84,7 +84,7 @@ const RoomContextMenu: React.FC<RoomContextMenuProps> = ({
                       py: 0.2,
                       borderRadius: 999,
                       bgcolor: alpha(statusColor, 0.14),
-                      color: info.computedStatus === 'dirty' ? '#8a6d00' : statusColor,
+                      color: info.computedStatus === 'dirty' || info.computedStatus === 'reserved_dirty' ? '#8a6d00' : statusColor,
                       border: '1px solid',
                       borderColor: alpha(statusColor, 0.35),
                       fontSize: '0.6rem',

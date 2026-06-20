@@ -95,7 +95,8 @@ import {
   calculateNightCount,
   getCreditBookingDates as getCreditBookingDateRange,
 } from '../../utils/roomManagementUtils';
-import CheckoutInvoiceModal from '../../../invoices/components/CheckoutInvoiceModal';
+import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceModals';
+import { useCheckoutFlow } from '../../../invoices/hooks/useCheckoutFlow';
 import UnifiedBookingModal, { BookingType } from '../UnifiedBooking/UnifiedBookingModal';
 import UpdateCheckoutDateDialog from '../UpdateCheckoutDateDialog';
 import RoomStatusDialog from './RoomStatusDialog';
@@ -165,6 +166,16 @@ const RoomManagementPage: React.FC = () => {
   const showSnackbar = useCallback((message: string, severity: ApiNotificationSeverity) => {
     emitApiNotification({ message, severity });
   }, []);
+
+  // Shared checkout flow (no read-only receipt view on this page).
+  const checkoutFlow = useCheckoutFlow({
+    onAfterCheckout: () => loadData(),
+    successMessage: (b, late) =>
+      late
+        ? `Room ${b.room_number} checked out (late checkout penalty: RM ${late.penalty})`
+        : `Room ${b.room_number} checked out successfully`,
+    notify: (message, severity) => showSnackbar(message, (severity ?? 'success') as ApiNotificationSeverity),
+  });
   const {
     notesDialogOpen,
     notesRoom,
@@ -233,7 +244,6 @@ const RoomManagementPage: React.FC = () => {
   // Dialogs
   const [walkInDialogOpen, setWalkInDialogOpen] = useState(false);
   const [onlineCheckInDialogOpen, setOnlineCheckInDialogOpen] = useState(false);
-  const [checkOutDialogOpen, setCheckOutDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [roomDetailsDialogOpen, setRoomDetailsDialogOpen] = useState(false);
   const [changeRoomDialogOpen, setChangeRoomDialogOpen] = useState(false);
@@ -915,58 +925,11 @@ const RoomManagementPage: React.FC = () => {
     const booking = roomBookings.get(room.id);
     if (booking) {
       setSelectedBooking(booking);
-      setCheckOutDialogOpen(true);
+      checkoutFlow.openCheckout(booking);
     } else {
       showSnackbar('No active booking found for this room', 'warning');
     }
     handleMenuClose();
-  };
-
-  const handleConfirmCheckout = async (lateCheckoutData?: { penalty: number; notes: string }, checkoutPaymentMethod?: string) => {
-    if (!selectedBooking) return;
-
-    try {
-      // Build update payload
-      const updatePayload: any = { status: 'checked_out' };
-
-      // Save payment method from checkout invoice to booking
-      if (checkoutPaymentMethod) {
-        updatePayload.payment_method = checkoutPaymentMethod;
-      }
-
-      // Add late checkout data if provided
-      if (lateCheckoutData) {
-        updatePayload.late_checkout_penalty = lateCheckoutData.penalty;
-        updatePayload.late_checkout_notes = lateCheckoutData.notes;
-      }
-
-      // Update booking status to checked_out with optional late checkout info
-      await HotelAPIService.updateBooking(selectedBooking.id, updatePayload);
-
-      // After checkout: always set to 'dirty' - room must be cleaned before next guest
-      const checkoutNotes = lateCheckoutData
-        ? `Room requires cleaning after late checkout. Late checkout penalty: ${lateCheckoutData.penalty}. Notes: ${lateCheckoutData.notes || 'None'}`
-        : 'Room requires cleaning after checkout';
-
-      await HotelAPIService.updateRoomStatus(selectedBooking.room_id, {
-        status: 'dirty',
-        notes: checkoutNotes,
-      });
-
-      // Company room charges are auto-posted to customer_ledgers by the
-      // backend's update_booking_handler on the checked_out transition.
-
-      const successMessage = lateCheckoutData
-        ? `Room ${selectedRoom?.room_number} checked out (late checkout penalty: RM ${lateCheckoutData.penalty})`
-        : `Room ${selectedRoom?.room_number} checked out successfully`;
-
-      showSnackbar(successMessage, 'success');
-      await loadData(); // Reload all data
-      setCheckOutDialogOpen(false);
-      setSelectedBooking(null);
-    } catch (error: any) {
-      throw new Error(error.message || 'Failed to process checkout');
-    }
   };
 
   const handleUpdateStatus = (room: Room) => {
@@ -985,7 +948,7 @@ const RoomManagementPage: React.FC = () => {
     // reject the request, so rooms with a future booking could never be set
     // available.
     const updated = await HotelAPIService.updateRoomStatus(selectedRoom.id, {
-      status: status as 'maintenance' | 'reserved' | 'available' | 'occupied' | 'dirty',
+      status: status as 'maintenance' | 'reserved' | 'reserved_dirty' | 'available' | 'occupied' | 'dirty',
       notes,
     });
 
@@ -1009,20 +972,16 @@ const RoomManagementPage: React.FC = () => {
     handleMenuClose();
   };
 
-  const handleMakeClean = async (room: Room) => {
+  const handleMarkAvailable = async (room: Room) => {
     try {
-      // Request "available"; the backend auto-flips to "reserved" only when a
-      // reservation arrives today after check-in time. Forcing "reserved" here
-      // for any upcoming (even future) booking marked rooms reserved too early.
-      await HotelAPIService.updateRoomStatus(room.id, {
+      // Request "available"; the backend keeps reserved-dirty rooms reserved
+      // when an active reservation still exists.
+      const updated = await HotelAPIService.updateRoomStatus(room.id, {
         status: 'available',
-        notes: 'Room cleaned and ready for guests',
+        notes: 'Room marked as available',
       });
 
-      // Ensure room is available
-      await HotelAPIService.updateRoom(room.id, { available: true });
-
-      showSnackbar(`Room ${room.room_number} marked as clean`, 'success');
+      showSnackbar(`Room ${room.room_number} updated to ${updated?.status ?? 'available'}`, 'success');
       await loadData(); // Reload all data including rooms and bookings
     } catch (error: any) {
       showSnackbar(error.message || 'Failed to update room status', 'error');
@@ -1103,7 +1062,7 @@ const RoomManagementPage: React.FC = () => {
     setSelectedRoom(room);
     setSelectedBooking(booking);
     setOverdueCheckoutDialogOpen(false);
-    setCheckOutDialogOpen(true);
+    checkoutFlow.openCheckout(booking);
   };
 
   const handleReviewUpdateCheckout = (booking: BookingWithDetails) => {
@@ -1212,6 +1171,7 @@ const RoomManagementPage: React.FC = () => {
 
     const { computedStatus, booking, reservedBooking, isOccupied, isReserved, isComplimentary } = getRoomStatusInfo(room);
     const isMaintenance = computedStatus === 'maintenance';
+    const isReservedDirty = computedStatus === 'reserved_dirty';
     const layout: MenuLayout = { sections: [] };
 
     // Primary action — anchors the menu with the most likely next step for this room state
@@ -1219,6 +1179,8 @@ const RoomManagementPage: React.FC = () => {
       layout.primary = { label: 'Check out', icon: <LogoutIcon />, onClick: handleCheckOut, color: 'error' };
     } else if (isReserved && reservedBooking) {
       layout.primary = { label: 'Check-in guest', icon: <LoginIcon />, onClick: handleCheckIn, color: 'primary', dark: true };
+    } else if (isReservedDirty) {
+      layout.primary = { label: 'Mark clean', icon: <SparkleIcon />, onClick: handleMarkAvailable, color: 'success', dark: true };
     } else if (!isMaintenance) {
       layout.primary = { label: 'New booking', icon: <PersonAddIcon />, onClick: openUnifiedBooking, dark: true };
     }
@@ -1385,6 +1347,7 @@ const RoomManagementPage: React.FC = () => {
               onChangeRoom={handleChangeRoom}
               onCheckIn={handleCheckIn}
               onNewBooking={openUnifiedBooking}
+              onMarkAvailable={handleMarkAvailable}
             />
           );
         })}
@@ -1638,16 +1601,8 @@ const RoomManagementPage: React.FC = () => {
         onRefreshData={loadData}
       />
 
-      {/* Check Out Dialog with Invoice */}
-      <CheckoutInvoiceModal
-        open={checkOutDialogOpen}
-        onClose={() => {
-          setCheckOutDialogOpen(false);
-          setSelectedBooking(null);
-        }}
-        booking={selectedBooking}
-        onConfirmCheckout={handleConfirmCheckout}
-      />
+      {/* Check Out Dialog with Invoice (shared flow; no read-only receipt here) */}
+      <CheckoutInvoiceModals flow={checkoutFlow} withReceipt={false} />
 
       {/* Room History Dialog - Enhanced */}
       <RoomHistoryDialog

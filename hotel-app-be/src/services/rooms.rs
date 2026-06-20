@@ -919,6 +919,7 @@ pub async fn update_room_status_handler(
         "occupied",
         "maintenance",
         "reserved",
+        "reserved_dirty",
         "dirty",
         "clean",
     ];
@@ -947,7 +948,16 @@ pub async fn update_room_status_handler(
     // the magic marker in status_notes to bypass the database trigger protection
     let needs_bypass_marker = current_status_check
         .as_ref()
-        .map(|s| ["dirty", "maintenance", "out_of_order"].contains(&s.as_str()))
+        .map(|s| {
+            [
+                "dirty",
+                "cleaning",
+                "reserved_dirty",
+                "maintenance",
+                "out_of_order",
+            ]
+            .contains(&s.as_str())
+        })
         .unwrap_or(false)
         && target_status == "available";
 
@@ -970,6 +980,20 @@ pub async fn update_room_status_handler(
     // reservation so we can stamp the room's reservation window.
     let mut auto_reserved_dates: Option<(NaiveDate, NaiveDate)> = None;
 
+    if target_status == "dirty" {
+        let reservation: Option<(i64, NaiveDate, NaiveDate)> =
+            sqlx::query_as(CHECK_NEXT_RESERVATION)
+                .bind(room_id)
+                .fetch_optional(&pool)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if let Some((_booking_id, check_in, check_out)) = reservation {
+            target_status = "reserved_dirty".to_string();
+            auto_reserved_dates = Some((check_in, check_out));
+        }
+    }
+
     if target_status == "available" {
         let active_booking: Option<i64> = sqlx::query_scalar(CHECK_ACTIVE_BOOKING)
             .bind(room_id)
@@ -983,25 +1007,44 @@ pub async fn update_room_status_handler(
             ));
         }
 
+        // A reserved_dirty room is clean only after housekeeping clears it, but
+        // any active reservation must remain visible instead of releasing the
+        // room to available.
+        if current_status.as_deref() == Some("reserved_dirty") {
+            let reservation: Option<(i64, NaiveDate, NaiveDate)> =
+                sqlx::query_as(CHECK_NEXT_RESERVATION)
+                    .bind(room_id)
+                    .fetch_optional(&pool)
+                    .await
+                    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+            if let Some((_booking_id, check_in, check_out)) = reservation {
+                target_status = "reserved".to_string();
+                auto_reserved_dates = Some((check_in, check_out));
+            }
+        }
+
         // If a reservation arrives today and the configured check-in time has
         // passed, the room isn't truly free — flip it to "reserved" so its
         // stored status matches the imminent arrival instead of "available".
-        let check_in_time =
-            crate::modules::settings::service::get_setting_value(&pool, "check_in_time")
-                .await
-                .unwrap_or_else(|_| "15:00:00".to_string());
+        if target_status == "available" {
+            let check_in_time =
+                crate::modules::settings::service::get_setting_value(&pool, "check_in_time")
+                    .await
+                    .unwrap_or_else(|_| "15:00:00".to_string());
 
-        let reservation: Option<(i64, NaiveDate, NaiveDate)> =
-            sqlx::query_as(CHECK_RESERVATION_TODAY)
-                .bind(room_id)
-                .bind(&check_in_time)
-                .fetch_optional(&pool)
-                .await
-                .map_err(|e| ApiError::Database(e.to_string()))?;
+            let reservation: Option<(i64, NaiveDate, NaiveDate)> =
+                sqlx::query_as(CHECK_RESERVATION_TODAY)
+                    .bind(room_id)
+                    .bind(&check_in_time)
+                    .fetch_optional(&pool)
+                    .await
+                    .map_err(|e| ApiError::Database(e.to_string()))?;
 
-        if let Some((_booking_id, check_in, check_out)) = reservation {
-            target_status = "reserved".to_string();
-            auto_reserved_dates = Some((check_in, check_out));
+            if let Some((_booking_id, check_in, check_out)) = reservation {
+                target_status = "reserved".to_string();
+                auto_reserved_dates = Some((check_in, check_out));
+            }
         }
     }
 

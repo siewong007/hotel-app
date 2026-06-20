@@ -261,19 +261,30 @@ impl PaymentRepository {
         if let Some(ref txn_ref) = request.transaction_reference
             && !txn_ref.is_empty()
         {
-            let duplicate = sqlx::query_as::<_, PaymentEntryRow>(
-                r#"
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            let duplicate_sql = r#"
+                SELECT id, booking_id, CAST(amount AS TEXT) AS total_amount, payment_method, payment_type,
+                       status AS payment_status, reference_number AS transaction_reference, description AS notes,
+                       substr(created_at, 1, 10) AS payment_date, created_at
+                FROM payments
+                WHERE reference_number = ?1
+                LIMIT 1
+                "#;
+            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+            let duplicate_sql = r#"
                 SELECT id, booking_id, amount::text AS total_amount, payment_method, payment_type,
-                       status AS payment_status, transaction_id AS transaction_reference, notes, created_at
+                       status AS payment_status, transaction_id AS transaction_reference, notes,
+                       created_at::date::text AS payment_date, created_at
                 FROM payments
                 WHERE transaction_id = $1
                 LIMIT 1
-                "#,
-            )
-            .bind(txn_ref)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(ApiError::from)?;
+                "#;
+
+            let duplicate = sqlx::query_as::<_, PaymentEntryRow>(duplicate_sql)
+                .bind(txn_ref)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(ApiError::from)?;
 
             if let Some(row) = duplicate {
                 tx.commit().await.map_err(ApiError::from)?;
@@ -281,28 +292,42 @@ impl PaymentRepository {
             }
         }
 
-        let row = sqlx::query_as::<_, PaymentEntryRow>(
-            r#"
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let insert_sql = r#"
+            INSERT INTO payments (
+                payment_number, booking_id, amount, payment_method, payment_type,
+                status, reference_number, description, processed_by, created_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, 'completed', ?6, ?7, ?8, COALESCE(?9, datetime('now')))
+            RETURNING id, booking_id, CAST(amount AS TEXT) AS total_amount, payment_method, payment_type,
+                      status AS payment_status, reference_number AS transaction_reference, description AS notes,
+                      substr(created_at, 1, 10) AS payment_date, created_at
+            "#;
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        let insert_sql = r#"
             INSERT INTO payments (
                 uuid, booking_id, amount, payment_method, payment_type,
                 status, transaction_id, notes, created_by, created_at
             )
-            VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6, $7, COALESCE($8::timestamptz, CURRENT_TIMESTAMP))
+            VALUES ($1::uuid, $2, $3, $4, $5, 'completed', $6, $7, $8, COALESCE($9::timestamptz, CURRENT_TIMESTAMP))
             RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type,
-                      status AS payment_status, transaction_id AS transaction_reference, notes, created_at
-            "#,
-        )
-        .bind(request.booking_id)
-        .bind(decimal_to_db(amount))
-        .bind(&request.payment_method)
-        .bind(payment_type)
-        .bind(&request.transaction_reference)
-        .bind(&request.notes)
-        .bind(user_id)
-        .bind(created_at_override)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(ApiError::from)?;
+                      status AS payment_status, transaction_id AS transaction_reference, notes,
+                      created_at::date::text AS payment_date, created_at
+            "#;
+
+        let row = sqlx::query_as::<_, PaymentEntryRow>(insert_sql)
+            .bind(crate::core::db::generate_uuid())
+            .bind(request.booking_id)
+            .bind(decimal_to_db(amount))
+            .bind(&request.payment_method)
+            .bind(payment_type)
+            .bind(&request.transaction_reference)
+            .bind(&request.notes)
+            .bind(user_id)
+            .bind(created_at_override)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
 
         tx.commit().await.map_err(ApiError::from)?;
 
@@ -313,19 +338,30 @@ impl PaymentRepository {
         pool: &DbPool,
         booking_id: i64,
     ) -> Result<Vec<PaymentEntryRow>, ApiError> {
-        sqlx::query_as::<_, PaymentEntryRow>(
-            r#"
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let list_sql = r#"
+            SELECT id, booking_id, CAST(amount AS TEXT) AS total_amount, payment_method, payment_type,
+                   status AS payment_status, reference_number AS transaction_reference, description AS notes,
+                   substr(created_at, 1, 10) AS payment_date, created_at
+            FROM payments
+            WHERE booking_id = ?1
+            ORDER BY created_at ASC
+            "#;
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        let list_sql = r#"
             SELECT id, booking_id, amount::text AS total_amount, payment_method, payment_type,
-                   status AS payment_status, transaction_id AS transaction_reference, notes, created_at
+                   status AS payment_status, transaction_id AS transaction_reference, notes,
+                   created_at::date::text AS payment_date, created_at
             FROM payments
             WHERE booking_id = $1
             ORDER BY created_at ASC
-            "#,
-        )
-        .bind(booking_id)
-        .fetch_all(pool)
-        .await
-        .map_err(ApiError::from)
+            "#;
+
+        sqlx::query_as::<_, PaymentEntryRow>(list_sql)
+            .bind(booking_id)
+            .fetch_all(pool)
+            .await
+            .map_err(ApiError::from)
     }
 
     pub async fn workflow_summary_row(
@@ -418,7 +454,8 @@ impl PaymentRepository {
             )
             VALUES (gen_random_uuid(), $1, $2, $3, 'refund', 'refunded', 'Keycard deposit refund', $4)
             RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type,
-                      status AS payment_status, NULL::text AS transaction_reference, notes, created_at
+                      status AS payment_status, NULL::text AS transaction_reference, notes,
+                      created_at::date::text AS payment_date, created_at
             "#,
         )
         .bind(booking_id)
@@ -643,7 +680,12 @@ impl PaymentRepository {
     ) -> Result<PaymentEntryRow, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
-        let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM payments WHERE id = $1")
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let existing_sql = "SELECT id FROM payments WHERE id = ?1";
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        let existing_sql = "SELECT id FROM payments WHERE id = $1";
+
+        let existing: Option<i64> = sqlx::query_scalar(existing_sql)
             .bind(payment_id)
             .fetch_optional(&mut *tx)
             .await
@@ -658,22 +700,37 @@ impl PaymentRepository {
 
         if request.amount.is_some() {
             param_index += 1;
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            updates.push(format!("amount = ?{}", param_index));
+            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             updates.push(format!("amount = ${}", param_index));
         }
         if request.payment_method.is_some() {
             param_index += 1;
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            updates.push(format!("payment_method = ?{}", param_index));
+            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             updates.push(format!("payment_method = ${}", param_index));
         }
         if request.transaction_reference.is_some() {
             param_index += 1;
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            updates.push(format!("reference_number = ?{}", param_index));
+            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             updates.push(format!("transaction_id = ${}", param_index));
         }
         if request.notes.is_some() {
             param_index += 1;
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            updates.push(format!("description = ?{}", param_index));
+            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             updates.push(format!("notes = ${}", param_index));
         }
         if request.payment_date.is_some() {
             param_index += 1;
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            updates.push(format!("created_at = ?{}", param_index));
+            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
             updates.push(format!("created_at = ${}::timestamptz", param_index));
         }
 
@@ -681,8 +738,14 @@ impl PaymentRepository {
             return Err(ApiError::BadRequest("No fields to update".to_string()));
         }
 
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
         let query = format!(
-            "UPDATE payments SET {} WHERE id = $1 RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type, status AS payment_status, transaction_id AS transaction_reference, notes, created_at",
+            "UPDATE payments SET {} WHERE id = ?1 RETURNING id, booking_id, CAST(amount AS TEXT) AS total_amount, payment_method, payment_type, status AS payment_status, reference_number AS transaction_reference, description AS notes, substr(created_at, 1, 10) AS payment_date, created_at",
+            updates.join(", ")
+        );
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        let query = format!(
+            "UPDATE payments SET {} WHERE id = $1 RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type, status AS payment_status, transaction_id AS transaction_reference, notes, created_at::date::text AS payment_date, created_at",
             updates.join(", ")
         );
 

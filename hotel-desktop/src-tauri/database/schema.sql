@@ -1156,7 +1156,7 @@ CREATE TABLE IF NOT EXISTS rooms (
     floor INTEGER,
     building VARCHAR(50),
     custom_price DECIMAL(10,2),  -- Optional per-room price override (if NULL, uses room_type base_price)
-    status VARCHAR(20) DEFAULT 'available' CHECK (status IN ('available', 'occupied', 'reserved', 'cleaning', 'dirty', 'maintenance', 'out_of_order')),
+    status VARCHAR(20) DEFAULT 'available' CHECK (status IN ('available', 'occupied', 'reserved', 'reserved_dirty', 'cleaning', 'dirty', 'maintenance', 'out_of_order')),
     status_notes TEXT,
     reserved_start_date TIMESTAMP WITH TIME ZONE,
     reserved_end_date TIMESTAMP WITH TIME ZONE,
@@ -1216,6 +1216,7 @@ CREATE TABLE IF NOT EXISTS room_status_transitions (
 -- Define allowed status transitions
 INSERT INTO room_status_transitions (from_status, to_status, is_allowed, requires_permission, notes) VALUES
     ('available', 'reserved', true, NULL, 'Guest reservation created'),
+    ('available', 'reserved_dirty', true, NULL, 'Reservation created while room needs cleaning'),
     ('available', 'occupied', true, NULL, 'Guest checked in'),
     ('available', 'cleaning', true, 'housekeeping', 'Scheduled cleaning'),
     ('available', 'dirty', true, 'housekeeping', 'Room marked as dirty'),
@@ -1223,6 +1224,7 @@ INSERT INTO room_status_transitions (from_status, to_status, is_allowed, require
     ('available', 'out_of_order', true, 'rooms:write', 'Room out of service'),
     ('reserved', 'occupied', true, NULL, 'Guest checked in'),
     ('reserved', 'available', true, NULL, 'Reservation voided'),
+    ('reserved', 'reserved_dirty', true, 'housekeeping', 'Reserved room marked dirty before arrival'),
     ('reserved', 'dirty', true, 'housekeeping', 'Previous guest left early, room dirty'),
     ('occupied', 'dirty', true, NULL, 'Guest checked out, room needs cleaning'),
     ('occupied', 'cleaning', true, 'housekeeping', 'Guest checked out, cleaning started'),
@@ -1230,10 +1232,15 @@ INSERT INTO room_status_transitions (from_status, to_status, is_allowed, require
     ('occupied', 'maintenance', true, 'maintenance:write', 'Issue found during stay'),
     ('dirty', 'cleaning', true, 'housekeeping', 'Cleaning started'),
     ('dirty', 'available', true, 'housekeeping', 'Quick clean completed'),
+    ('dirty', 'reserved_dirty', true, NULL, 'Reservation created while room is dirty'),
     ('dirty', 'maintenance', true, 'maintenance:write', 'Issue found during inspection'),
     ('cleaning', 'available', true, 'housekeeping', 'Cleaning completed'),
     ('cleaning', 'dirty', true, 'housekeeping', 'Cleaning failed inspection'),
+    ('cleaning', 'reserved_dirty', true, NULL, 'Reservation created while cleaning is pending'),
     ('cleaning', 'maintenance', true, 'maintenance:write', 'Issue found during cleaning'),
+    ('reserved_dirty', 'reserved', true, 'housekeeping', 'Room cleaned before arrival'),
+    ('reserved_dirty', 'dirty', true, NULL, 'Reservation voided, cleaning still needed'),
+    ('reserved_dirty', 'maintenance', true, 'maintenance:write', 'Issue found before arrival'),
     ('maintenance', 'available', true, 'maintenance:write', 'Maintenance completed'),
     ('maintenance', 'cleaning', true, 'maintenance:write', 'Maintenance done, needs cleaning'),
     ('maintenance', 'dirty', true, 'maintenance:write', 'Maintenance done, room is dirty'),
@@ -1349,14 +1356,21 @@ BEGIN
     IF v_count = 0 THEN
         INSERT INTO room_status_transitions (from_status, to_status, is_allowed) VALUES
         ('available', 'occupied', true), ('available', 'reserved', true),
+        ('available', 'reserved_dirty', true),
         ('available', 'dirty', true), ('available', 'maintenance', true),
         ('available', 'out_of_order', true),
         ('occupied', 'available', true), ('occupied', 'dirty', true),
         ('occupied', 'maintenance', true), ('occupied', 'reserved', true),
         ('reserved', 'occupied', true), ('reserved', 'available', true),
-        ('reserved', 'dirty', true), ('reserved', 'maintenance', true),
+        ('reserved', 'dirty', true), ('reserved', 'reserved_dirty', true),
+        ('reserved', 'maintenance', true),
         ('dirty', 'available', true), ('dirty', 'maintenance', true),
-        ('dirty', 'reserved', true), ('dirty', 'occupied', true),
+        ('dirty', 'reserved', true), ('dirty', 'reserved_dirty', true),
+        ('dirty', 'occupied', true),
+        ('cleaning', 'available', true), ('cleaning', 'dirty', true),
+        ('cleaning', 'reserved_dirty', true), ('cleaning', 'maintenance', true),
+        ('reserved_dirty', 'reserved', true), ('reserved_dirty', 'dirty', true),
+        ('reserved_dirty', 'maintenance', true),
         ('maintenance', 'available', true), ('maintenance', 'dirty', true),
         ('maintenance', 'out_of_order', true),
         ('out_of_order', 'available', true), ('out_of_order', 'maintenance', true),
@@ -1393,12 +1407,12 @@ BEGIN
         reserved_end_date = CASE WHEN p_new_status = 'reserved' THEN p_end_date ELSE NULL END,
         maintenance_start_date = CASE WHEN p_new_status = 'maintenance' THEN COALESCE(p_start_date, CURRENT_TIMESTAMP) ELSE NULL END,
         maintenance_end_date = CASE WHEN p_new_status = 'maintenance' THEN p_end_date ELSE NULL END,
-        cleaning_start_date = CASE WHEN p_new_status IN ('cleaning', 'dirty') THEN COALESCE(p_start_date, CURRENT_TIMESTAMP) ELSE NULL END,
-        cleaning_end_date = CASE WHEN p_new_status IN ('cleaning', 'dirty') THEN p_end_date ELSE NULL END
+        cleaning_start_date = CASE WHEN p_new_status IN ('cleaning', 'dirty', 'reserved_dirty') THEN COALESCE(p_start_date, CURRENT_TIMESTAMP) ELSE NULL END,
+        cleaning_end_date = CASE WHEN p_new_status IN ('cleaning', 'dirty', 'reserved_dirty') THEN p_end_date ELSE NULL END
     WHERE id = p_room_id;
     INSERT INTO room_history (room_id, from_status, to_status, notes, start_date, end_date, changed_by, is_auto_generated)
     VALUES (p_room_id, v_old_status, p_new_status, p_notes, p_start_date, p_end_date, p_user_id, p_user_id IS NULL);
-    IF p_new_status IN ('dirty', 'cleaning') THEN
+    IF p_new_status IN ('dirty', 'cleaning', 'reserved_dirty') THEN
         INSERT INTO housekeeping_tasks (room_id, task_type, priority, status, created_by, notes)
         VALUES (p_room_id, 'cleaning', 'normal', CASE WHEN p_new_status = 'cleaning' THEN 'in_progress' ELSE 'pending' END, p_user_id, p_notes)
         ON CONFLICT DO NOTHING;
@@ -2357,7 +2371,7 @@ BEGIN
         COUNT(*) FILTER (WHERE status = 'occupied'),
         COUNT(*) FILTER (WHERE status = 'reserved'),
         COUNT(*) FILTER (WHERE status IN ('maintenance', 'out_of_order')),
-        COUNT(*) FILTER (WHERE status = 'dirty' OR status = 'cleaning')
+        COUNT(*) FILTER (WHERE status IN ('dirty', 'cleaning', 'reserved_dirty'))
     INTO v_rooms_available, v_rooms_occupied, v_rooms_reserved, v_rooms_maintenance, v_rooms_dirty
     FROM rooms;
 
@@ -3507,7 +3521,7 @@ BEGIN
         COUNT(*) FILTER (WHERE status = 'occupied'),
         COUNT(*) FILTER (WHERE status = 'reserved'),
         COUNT(*) FILTER (WHERE status IN ('maintenance', 'out_of_order')),
-        COUNT(*) FILTER (WHERE status = 'dirty' OR status = 'cleaning')
+        COUNT(*) FILTER (WHERE status IN ('dirty', 'cleaning', 'reserved_dirty'))
     INTO v_rooms_available, v_rooms_occupied, v_rooms_reserved, v_rooms_maintenance, v_rooms_dirty
     FROM rooms;
 
@@ -4626,7 +4640,7 @@ BEGIN
 
     ELSIF NEW.status IN ('confirmed', 'pending')
           AND NOT v_has_other_current_stay
-          AND v_current_room_status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning') THEN
+          AND v_current_room_status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN
         PERFORM update_room_status(NEW.room_id, 'reserved',
             CASE
                 WHEN NEW.check_in_date::date = CURRENT_DATE
@@ -5248,7 +5262,7 @@ BEGIN
         COUNT(*) FILTER (WHERE status = 'occupied'),
         COUNT(*) FILTER (WHERE status = 'reserved'),
         COUNT(*) FILTER (WHERE status IN ('maintenance', 'out_of_order')),
-        COUNT(*) FILTER (WHERE status = 'dirty' OR status = 'cleaning')
+        COUNT(*) FILTER (WHERE status IN ('dirty', 'cleaning', 'reserved_dirty'))
     INTO v_rooms_available, v_rooms_occupied, v_rooms_reserved, v_rooms_maintenance, v_rooms_dirty
     FROM rooms;
 
@@ -5388,3 +5402,28 @@ ALTER TABLE bookings ADD COLUMN IF NOT EXISTS commission_amount DECIMAL(12,2);
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS net_revenue DECIMAL(12,2);
 
 CREATE INDEX IF NOT EXISTS idx_bookings_booking_channel_id ON bookings(booking_channel_id);
+
+-- ============================================================================
+-- 034_reserved_dirty_room_status.sql
+-- ============================================================================
+-- Track reservations created against rooms that still require cleaning.
+
+ALTER TABLE rooms DROP CONSTRAINT IF EXISTS rooms_status_check;
+ALTER TABLE rooms
+    ADD CONSTRAINT rooms_status_check
+    CHECK (status IN ('available', 'occupied', 'reserved', 'reserved_dirty', 'cleaning', 'dirty', 'maintenance', 'out_of_order'));
+
+INSERT INTO room_status_transitions (from_status, to_status, is_allowed, requires_permission, notes) VALUES
+    ('available', 'reserved_dirty', true, NULL, 'Reservation created while room needs cleaning'),
+    ('reserved', 'reserved_dirty', true, 'housekeeping', 'Reserved room marked dirty before arrival'),
+    ('dirty', 'reserved_dirty', true, NULL, 'Reservation created while room is dirty'),
+    ('cleaning', 'reserved_dirty', true, NULL, 'Reservation created while cleaning is pending'),
+    ('reserved_dirty', 'reserved', true, 'housekeeping', 'Room cleaned before arrival'),
+    ('reserved_dirty', 'dirty', true, NULL, 'Reservation voided, cleaning still needed'),
+    ('reserved_dirty', 'maintenance', true, 'maintenance:write', 'Issue found before arrival')
+ON CONFLICT (from_status, to_status) DO UPDATE
+SET is_allowed = EXCLUDED.is_allowed,
+    requires_permission = EXCLUDED.requires_permission,
+    notes = EXCLUDED.notes;
+
+DELETE FROM system_settings WHERE key = 'night_audit_auto_clean_dirty_rooms';

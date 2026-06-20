@@ -147,14 +147,14 @@ const RoomHistoryDialog: React.FC<RoomHistoryDialogProps> = ({
               {history.map((entry) => {
                 const statusIcon = entry.to_status === 'occupied' ? <LoginIcon /> :
                                  entry.to_status === 'available' ? <CheckCircleIcon /> :
-                                 entry.to_status === 'cleaning' ? <CleaningIcon /> :
+                                 entry.to_status === 'cleaning' || entry.to_status === 'reserved_dirty' ? <CleaningIcon /> :
                                  entry.to_status === 'maintenance' ? <MaintenanceIcon /> :
                                  entry.to_status === 'reserved' ? <BookingIcon /> :
                                  <HistoryIcon />;
 
                 const statusColor = entry.to_status === 'occupied' ? '#FFA726' :
                                   entry.to_status === 'available' ? '#66BB6A' :
-                                  entry.to_status === 'cleaning' ? '#FFEB3B' :
+                                  entry.to_status === 'cleaning' || entry.to_status === 'reserved_dirty' ? '#FFEB3B' :
                                   entry.to_status === 'maintenance' ? '#EF5350' :
                                   entry.to_status === 'reserved' ? '#42A5F5' :
                                   '#BDBDBD';

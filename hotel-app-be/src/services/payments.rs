@@ -70,6 +70,35 @@ pub async fn record_payment(
         .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
 
     let payment_type = request.payment_type.as_deref().unwrap_or("booking");
+
+    // A booking room-charge payment can never exceed the outstanding balance.
+    // This also blocks recording any payment once the booking is fully settled
+    // (balance is zero). Deposit/refund flows are intentionally exempt.
+    if payment_type == "booking" {
+        if amount <= Decimal::ZERO {
+            return Err(ApiError::BadRequest(
+                "Payment amount must be positive".to_string(),
+            ));
+        }
+
+        if let Some(summary) =
+            PaymentRepository::workflow_summary_row(pool, request.booking_id).await?
+        {
+            let balance_due = if summary.total_amount > summary.total_paid {
+                summary.total_amount - summary.total_paid
+            } else {
+                Decimal::ZERO
+            };
+            // Allow a sub-cent rounding tolerance to match the frontend guard.
+            let tolerance = Decimal::new(5, 3); // 0.005
+            if amount > balance_due + tolerance {
+                return Err(ApiError::BadRequest(format!(
+                    "Payment amount cannot exceed the outstanding balance of {balance_due}"
+                )));
+            }
+        }
+    }
+
     let created_at_override = request
         .payment_date
         .as_ref()

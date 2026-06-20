@@ -11,6 +11,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  InputAdornment,
 } from '@mui/material';
 import type { CustomerLedger, CustomerLedgerUpdateRequest } from '../../../../../types';
 import { EXPENSE_TYPES } from '../constants';
@@ -21,8 +22,12 @@ interface EditLedgerDialogProps {
   editingLedger: CustomerLedger | null;
   editFormData: CustomerLedgerUpdateRequest;
   setEditFormData: React.Dispatch<React.SetStateAction<CustomerLedgerUpdateRequest>>;
+  bookingRoomRate: string;
+  setBookingRoomRate: React.Dispatch<React.SetStateAction<string>>;
+  loadingBookingRoomRate: boolean;
   updating: boolean;
   onUpdate: () => void;
+  currencySymbol: string;
 }
 
 const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
@@ -31,8 +36,12 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
   editingLedger,
   editFormData,
   setEditFormData,
+  bookingRoomRate,
+  setBookingRoomRate,
+  loadingBookingRoomRate,
   updating,
   onUpdate,
+  currencySymbol,
 }) => (
   <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
     <DialogTitle>Edit Ledger Entry - {editingLedger?.invoice_number || `#${editingLedger?.id}`}</DialogTitle>
@@ -122,6 +131,26 @@ const EditLedgerDialog: React.FC<EditLedgerDialogProps> = ({
             InputLabelProps={{ shrink: true }}
           />
         </Grid>
+        {editingLedger?.booking_id && editingLedger.post_type === 'room_charge' && (
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <TextField
+              fullWidth
+              label="Booking Room Rate"
+              type="number"
+              value={bookingRoomRate}
+              onChange={(e) => setBookingRoomRate(e.target.value)}
+              disabled={loadingBookingRoomRate}
+              helperText="Per night for the linked booking"
+              InputProps={{
+                startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
+              }}
+              inputProps={{
+                min: 0.01,
+                step: 0.01,
+              }}
+            />
+          </Grid>
+        )}
         <Grid size={12}>
           <TextField
             fullWidth

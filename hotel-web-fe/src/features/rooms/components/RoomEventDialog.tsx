@@ -270,7 +270,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
   const canChangeStatus = currentStatus === 'available';
   const isOccupied = currentStatus === 'occupied';
-  const canEndMaintenance = currentStatus === 'maintenance' || currentStatus === 'reserved';
+  const canEndMaintenance = currentStatus === 'maintenance' || currentStatus === 'reserved' || currentStatus === 'reserved_dirty';
 
   // Check if we can check in a guest (reserved room with confirmed/pending booking for today or past)
   const canCheckInGuest = currentStatus === 'reserved' &&
@@ -294,7 +294,14 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       // Add a brief delay for smooth animation
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      await HotelAPIService.endMaintenance(roomId);
+      if (currentStatus === 'reserved_dirty') {
+        await HotelAPIService.updateRoomStatus(roomId, {
+          status: 'available',
+          notes: 'Room cleaned before reserved guest check-in',
+        });
+      } else {
+        await HotelAPIService.endMaintenance(roomId);
+      }
       invalidateRoomDependencies(queryClient);
 
       // Show success animation
@@ -561,10 +568,16 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
           {!canChangeStatus && !isOccupied && !canCheckInGuest && canEndMaintenance && (
             <Alert severity="success" icon={<InfoIcon />}>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-                {currentStatus === 'maintenance' ? 'Maintenance' : 'Reserved'} In Progress
+                {currentStatus === 'reserved_dirty'
+                  ? 'Cleaning Required'
+                  : currentStatus === 'maintenance'
+                    ? 'Maintenance'
+                    : 'Reserved'} In Progress
               </Typography>
               <Typography variant="body2">
-                This room is currently under {currentStatus}. Use the button below to complete the {currentStatus} and return the room to available status.
+                {currentStatus === 'reserved_dirty'
+                  ? 'This room has a reservation but still needs cleaning before check-in.'
+                  : `This room is currently under ${currentStatus}. Use the button below to complete the ${currentStatus} and return the room to available status.`}
               </Typography>
               <Button
                 variant="contained"
@@ -587,7 +600,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                   },
                 }}
               >
-                {loading ? 'Ending...' : `End ${
+                {loading ? 'Ending...' : currentStatus === 'reserved_dirty' ? 'Mark Clean' : `End ${
                   currentStatus === 'maintenance' ? 'Maintenance' : 'Reserved Status'
                 }`}
               </Button>

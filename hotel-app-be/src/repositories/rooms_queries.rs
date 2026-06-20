@@ -35,7 +35,7 @@ SELECT
     CASE
         WHEN cb.booking_status IN ('checked_in', 'auto_checked_in') THEN false
         WHEN cb.booking_status IN ('confirmed', 'pending') THEN false
-        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty') THEN false
+        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN false
         ELSE true
     END as available,
     rt.description,
@@ -46,7 +46,7 @@ SELECT
     NULL::BIGINT as review_count,
     CASE
         WHEN cb.booking_status IN ('checked_in', 'auto_checked_in') THEN 'occupied'
-        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty') THEN r.status
+        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN r.status
         WHEN cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= CURRENT_DATE THEN 'reserved'
         ELSE 'available'
     END as status,
@@ -102,7 +102,7 @@ SELECT
     CASE
         WHEN cb.booking_status IN ('checked_in', 'auto_checked_in') THEN 0
         WHEN cb.booking_status IN ('confirmed', 'pending') THEN 0
-        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty') THEN 0
+        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN 0
         ELSE 1
     END as available,
     rt.description,
@@ -113,7 +113,7 @@ SELECT
     NULL as review_count,
     CASE
         WHEN cb.booking_status IN ('checked_in', 'auto_checked_in') THEN 'occupied'
-        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty') THEN r.status
+        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN r.status
         WHEN cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= date('now') THEN 'reserved'
         ELSE 'available'
     END as status,
@@ -157,7 +157,7 @@ SELECT
     r.updated_at,
     NULL::DECIMAL as average_rating,
     NULL::BIGINT as review_count,
-    'available' as status,
+    r.status as status,
     r.maintenance_start_date,
     r.maintenance_end_date,
     r.cleaning_start_date,
@@ -171,7 +171,6 @@ INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = true
   AND r.status NOT IN ('maintenance', 'out_of_order')
-  AND (r.status NOT IN ('dirty', 'cleaning') OR $1 > CURRENT_DATE)
   AND cb.room_id IS NULL
   AND ($4::text IS NULL OR LOWER(rt.name) = LOWER($4) OR LOWER(rt.code) = LOWER($4))
   AND ($5::DOUBLE PRECISION IS NULL OR COALESCE(r.custom_price, rt.base_price) <= $5)
@@ -200,7 +199,7 @@ SELECT
     r.updated_at,
     NULL as average_rating,
     NULL as review_count,
-    'available' as status,
+    r.status as status,
     r.maintenance_start_date,
     r.maintenance_end_date,
     r.cleaning_start_date,
@@ -214,7 +213,6 @@ INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN conflicting_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = 1
   AND r.status NOT IN ('maintenance', 'out_of_order')
-  AND (r.status NOT IN ('dirty', 'cleaning') OR ?1 > date('now'))
   AND cb.room_id IS NULL
   AND (?4 IS NULL OR LOWER(rt.name) = LOWER(?4) OR LOWER(rt.code) = LOWER(?4))
   AND (?5 IS NULL OR COALESCE(r.custom_price, rt.base_price) <= ?5)
@@ -268,7 +266,7 @@ FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN current_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = true
-  AND r.status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'occupied', 'reserved')
+  AND r.status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty', 'occupied', 'reserved')
   AND (cb.room_id IS NULL OR NOT (
       cb.booking_status IN ('checked_in', 'auto_checked_in') OR
       (cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= CURRENT_DATE)
@@ -329,7 +327,7 @@ FROM rooms r
 INNER JOIN room_types rt ON r.room_type_id = rt.id
 LEFT JOIN current_bookings cb ON cb.room_id = r.id
 WHERE r.is_active = 1
-  AND r.status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'occupied', 'reserved')
+  AND r.status NOT IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty', 'occupied', 'reserved')
   AND (cb.room_id IS NULL OR NOT (
       cb.booking_status IN ('checked_in', 'auto_checked_in') OR
       (cb.booking_status IN ('confirmed', 'pending') AND cb.check_in_date <= date('now'))
@@ -1419,7 +1417,7 @@ SELECT
             AND status = 'checked_in'
             AND check_out_date >= CURRENT_DATE
         ) THEN 'occupied'
-        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty') THEN r.status
+        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN r.status
         WHEN EXISTS (
             SELECT 1 FROM bookings
             WHERE room_id = r.id
@@ -1446,7 +1444,7 @@ SELECT
             AND status = 'checked_in'
             AND check_out_date >= date('now')
         ) THEN 'occupied'
-        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty') THEN r.status
+        WHEN r.status IN ('maintenance', 'out_of_order', 'dirty', 'cleaning', 'reserved_dirty') THEN r.status
         WHEN EXISTS (
             SELECT 1 FROM bookings
             WHERE room_id = r.id
@@ -1460,6 +1458,33 @@ SELECT
     r.id IS NOT NULL as exists
 FROM rooms r
 WHERE r.id = ?1
+"#;
+
+/// Check for the next active reservation for a room - PostgreSQL version
+#[cfg(any(
+    all(feature = "postgres", not(feature = "sqlite")),
+    all(feature = "sqlite", feature = "postgres")
+))]
+pub const CHECK_NEXT_RESERVATION: &str = r#"
+SELECT id, check_in_date, check_out_date
+FROM bookings
+WHERE room_id = $1
+  AND status IN ('confirmed', 'pending')
+  AND check_out_date >= CURRENT_DATE
+ORDER BY check_in_date ASC
+LIMIT 1
+"#;
+
+/// Check for the next active reservation for a room - SQLite version
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+pub const CHECK_NEXT_RESERVATION: &str = r#"
+SELECT id, check_in_date, check_out_date
+FROM bookings
+WHERE room_id = ?1
+  AND status IN ('confirmed', 'pending')
+  AND check_out_date >= date('now')
+ORDER BY check_in_date ASC
+LIMIT 1
 "#;
 
 /// Get room types active - PostgreSQL version
@@ -1566,12 +1591,23 @@ pub const DELETE_ROOM_TYPE: &str = "DELETE FROM room_types WHERE id = $1";
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 pub const DELETE_ROOM_TYPE: &str = "DELETE FROM room_types WHERE id = ?1";
 
-/// Get next room status - PostgreSQL version (function call)
+/// Get next room status - PostgreSQL version
 #[cfg(any(
     all(feature = "postgres", not(feature = "sqlite")),
     all(feature = "sqlite", feature = "postgres")
 ))]
-pub const GET_NEXT_ROOM_STATUS: &str = "SELECT get_room_next_status($1)";
+pub const GET_NEXT_ROOM_STATUS: &str = r#"
+SELECT
+    CASE
+        WHEN EXISTS (
+            SELECT 1 FROM bookings
+            WHERE room_id = $1
+            AND status IN ('confirmed', 'pending')
+            AND check_out_date >= CURRENT_DATE
+        ) THEN 'reserved'
+        ELSE 'available'
+    END
+"#;
 
 /// Get next room status - SQLite version (inline logic since no stored function)
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
@@ -1582,7 +1618,7 @@ SELECT
             SELECT 1 FROM bookings
             WHERE room_id = ?1
             AND status IN ('confirmed', 'pending')
-            AND check_in_date >= date('now')
+            AND check_out_date >= date('now')
         ) THEN 'reserved'
         ELSE 'available'
     END

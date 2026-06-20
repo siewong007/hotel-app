@@ -57,9 +57,12 @@ const getPaymentTimestamp = (payment: CheckoutPaymentRecord): string => (
   payment.payment_date || payment.created_at || ''
 );
 
+const isDateOnlyValue = (value: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
 const formatPaymentDateForInput = (payment: CheckoutPaymentRecord): string => {
   const timestamp = getPaymentTimestamp(payment);
   if (!timestamp) return formatLocalDate();
+  if (isDateOnlyValue(timestamp)) return timestamp;
   const date = new Date(timestamp);
   return isNaN(date.getTime()) ? formatLocalDate() : formatLocalDate(date);
 };
@@ -67,6 +70,7 @@ const formatPaymentDateForInput = (payment: CheckoutPaymentRecord): string => {
 const formatPaymentDateTime = (payment: CheckoutPaymentRecord): string => {
   const timestamp = getPaymentTimestamp(payment);
   if (!timestamp) return '-';
+  if (isDateOnlyValue(timestamp)) return parseLocalDate(timestamp).toLocaleDateString();
   const date = new Date(timestamp);
   return isNaN(date.getTime()) ? '-' : date.toLocaleString();
 };
@@ -1104,7 +1108,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <PaymentIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
                   Payments
                 </Typography>
-                {balanceDue > 0 && (
+                {balanceDue > 0 && !editingPayment && (
                   <Button
                     size="small"
                     variant="outlined"
@@ -1228,7 +1232,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 size="small"
                                 sx={{ minWidth: 'auto', p: 0.5 }}
                                 onClick={() => handleStartEdit(p)}
-                                disabled={deletingPaymentId === p.id}
+                                disabled={deletingPaymentId === p.id || (!!editingPayment && editingPayment.id !== p.id)}
                               >
                                 <EditIcon fontSize="small" />
                               </Button>
@@ -1237,7 +1241,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 color="error"
                                 sx={{ minWidth: 'auto', p: 0.5 }}
                                 onClick={() => handleDeletePayment(p.id)}
-                                disabled={deletingPaymentId === p.id}
+                                disabled={deletingPaymentId === p.id || (!!editingPayment && editingPayment.id !== p.id)}
                               >
                                 {deletingPaymentId === p.id ? (
                                   <CircularProgress size={16} />
@@ -1361,7 +1365,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 size="small"
                                 sx={{ minWidth: 'auto', p: 0.5 }}
                                 onClick={() => handleStartEdit(p)}
-                                disabled={deletingPaymentId === p.id}
+                                disabled={deletingPaymentId === p.id || (!!editingPayment && editingPayment.id !== p.id)}
                               >
                                 <EditIcon fontSize="small" />
                               </Button>
@@ -1370,7 +1374,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 color="error"
                                 sx={{ minWidth: 'auto', p: 0.5 }}
                                 onClick={() => handleDeletePayment(p.id)}
-                                disabled={deletingPaymentId === p.id}
+                                disabled={deletingPaymentId === p.id || (!!editingPayment && editingPayment.id !== p.id)}
                               >
                                 {deletingPaymentId === p.id ? (
                                   <CircularProgress size={16} />
@@ -1393,8 +1397,9 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 </Box>
               )}
 
-              {/* Record Payment Form */}
-              <Collapse in={showPaymentForm}>
+              {/* Record Payment Form — locked once fully paid (no outstanding
+                  balance) and while a payment row is being edited. */}
+              <Collapse in={showPaymentForm && balanceDue > 0 && !editingPayment}>
                 <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderTop: '1px solid #ddd' }}>
                   <Grid container spacing={2}>
                     <Grid size={4}>
@@ -1458,7 +1463,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         variant="contained"
                         size="small"
                         onClick={handleRecordPayment}
-                        disabled={recordingPayment || paymentAmount <= 0}
+                        disabled={recordingPayment || paymentAmount <= 0 || paymentAmount > balanceDue + 0.005}
                         startIcon={recordingPayment ? <CircularProgress size={14} /> : <PaymentIcon />}
                       >
                         {recordingPayment ? 'Recording...' : 'Record Payment'}

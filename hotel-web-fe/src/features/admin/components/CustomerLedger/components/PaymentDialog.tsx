@@ -121,6 +121,15 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                 InputProps={{
                   startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                 }}
+                inputProps={{ min: 0, max: paymentLedger ? getLedgerBalanceDue(paymentLedger) : undefined, step: 0.01 }}
+                error={!!paymentLedger && paymentFormData.payment_amount > getLedgerBalanceDue(paymentLedger) + 0.005}
+                helperText={
+                  paymentLedger
+                    ? paymentFormData.payment_amount > getLedgerBalanceDue(paymentLedger) + 0.005
+                      ? `Cannot exceed outstanding balance of ${formatCurrency(getLedgerBalanceDue(paymentLedger))}`
+                      : `Outstanding balance: ${formatCurrency(getLedgerBalanceDue(paymentLedger))}`
+                    : undefined
+                }
               />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
