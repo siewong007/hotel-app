@@ -70,6 +70,8 @@ pub async fn record_payment(
         .ok_or_else(|| ApiError::BadRequest("Invalid amount".to_string()))?;
 
     let payment_type = request.payment_type.as_deref().unwrap_or("booking");
+    
+    let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
     // A booking room-charge payment can never exceed the outstanding balance.
     // This also blocks recording any payment once the booking is fully settled
@@ -82,7 +84,7 @@ pub async fn record_payment(
         }
 
         if let Some(summary) =
-            PaymentRepository::workflow_summary_row(pool, request.booking_id).await?
+            PaymentRepository::workflow_summary_row(&mut *tx, request.booking_id).await?
         {
             let balance_due = if summary.total_amount > summary.total_paid {
                 summary.total_amount - summary.total_paid
@@ -105,7 +107,7 @@ pub async fn record_payment(
         .map(|d| format!("{} 12:00:00", d));
 
     let row = PaymentRepository::record_payment(
-        pool,
+        &mut tx,
         user_id,
         &request,
         amount,
@@ -114,7 +116,9 @@ pub async fn record_payment(
     )
     .await?;
 
-    recompute_payment_status(pool, request.booking_id).await?;
+    recompute_payment_status_tx(&mut tx, request.booking_id).await?;
+    
+    tx.commit().await.map_err(ApiError::from)?;
 
     Ok(row.into_response())
 }

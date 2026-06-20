@@ -249,14 +249,13 @@ impl PaymentRepository {
     }
 
     pub async fn record_payment(
-        pool: &DbPool,
+        tx: &mut sqlx::Transaction<'_, crate::core::db::DbDatabase>,
         user_id: i64,
         request: &RecordPaymentRequest,
         amount: Decimal,
         payment_type: &str,
         created_at_override: Option<&str>,
     ) -> Result<PaymentEntryRow, ApiError> {
-        let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
         if let Some(ref txn_ref) = request.transaction_reference
             && !txn_ref.is_empty()
@@ -282,11 +281,35 @@ impl PaymentRepository {
 
             let duplicate = sqlx::query_as::<_, PaymentEntryRow>(duplicate_sql)
                 .bind(txn_ref)
-                .fetch_optional(&mut *tx)
+                .fetch_optional(&mut **tx)
                 .await
                 .map_err(ApiError::from)?;
 
             if let Some(row) = duplicate {
+                return Ok(row);
+            }
+        }
+
+        let row = Self::insert_payment(
+            &mut **tx,
+            user_id,
+            request,
+            amount,
+            payment_type,
+            created_at_override,
+        )
+        .await?;
+
+        Ok(row)
+    }
+
+    pub async fn insert_payment<'e, E>(
+        executor: E,
+        user_id: i64,
+        request: &RecordPaymentRequest,
+        amount: Decimal,
+        payment_type: &str,
+        created_at_override: Option<&str>,
     ) -> Result<PaymentEntryRow, ApiError>
     where
         E: sqlx::Executor<'e, Database = crate::core::db::DbDatabase>,

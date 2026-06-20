@@ -20,11 +20,11 @@ mod sqlite_tests {
     use super::common::setup_test_db;
     use sqlx::SqlitePool;
 
-    /// Insert a room-charge ledger row for `booking_id`. `ledger_number` must be
-    /// unique per row (NOT NULL UNIQUE in the schema).
+    /// Insert a room-charge ledger row for `booking_id`. `folio_number` must be
+    /// unique per row (represented by folio_number).
     const INSERT_ROOM_CHARGE: &str = "INSERT INTO customer_ledgers \
-        (ledger_number, transaction_type, transaction_date, description, balance, booking_id, post_type) \
-        VALUES (?1, 'debit', '2026-01-01', 'Room charge', 0, ?2, 'room_charge')";
+        (company_name, description, expense_type, amount, booking_id, post_type, folio_number) \
+        VALUES ('Test Company', 'Room charge', 'accommodation', 150.0, ?2, 'room_charge', ?1)";
 
     /// Seed the room/guest/booking rows a `customer_ledgers.booking_id` foreign
     /// key needs (SQLite enforces foreign keys in the test pool).
@@ -89,8 +89,8 @@ mod sqlite_tests {
         seed_booking(&pool, 7).await;
 
         let sql = "INSERT INTO customer_ledgers \
-            (ledger_number, transaction_type, transaction_date, description, balance, booking_id, post_type) \
-            VALUES (?1, 'debit', '2026-01-01', 'Room charge', 0, ?2, 'room_charge') \
+            (company_name, description, expense_type, amount, booking_id, post_type, folio_number) \
+            VALUES ('Test Company', 'Room charge', 'accommodation', 150.0, ?2, 'room_charge', ?1) \
             ON CONFLICT DO NOTHING RETURNING id";
 
         let first: Option<i64> = sqlx::query_scalar(sql)
@@ -139,8 +139,8 @@ mod sqlite_tests {
         // A different post_type for the same booking is outside the partial index.
         let payment = sqlx::query(
             "INSERT INTO customer_ledgers \
-             (ledger_number, transaction_type, transaction_date, description, balance, booking_id, post_type) \
-             VALUES ('L-2', 'credit', '2026-01-01', 'Payment', 0, 3, 'payment')",
+              (company_name, description, expense_type, amount, booking_id, post_type, folio_number, transaction_type) \
+              VALUES ('Test Company', 'Payment', 'accommodation', 150.0, 3, 'payment', 'L-2', 'credit')",
         )
         .execute(&pool)
         .await;
