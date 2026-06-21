@@ -180,6 +180,7 @@ impl EkycRepository {
         .map_err(|e: sqlx::Error| ApiError::Database(e.to_string()))
     }
 
+    #[allow(dead_code)]
     pub async fn latest_guest_summary(
         pool: &DbPool,
         guest_id: i64,
@@ -969,6 +970,7 @@ impl EkycRepository {
         .await
     }
 
+    #[allow(dead_code)]
     pub async fn approved_self_checkin_for_user(
         pool: &DbPool,
         user_id: i64,
@@ -982,6 +984,7 @@ impl EkycRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    #[allow(dead_code)]
     pub async fn confirmed_booking_for_user(
         pool: &DbPool,
         booking_id: i64,
@@ -1003,6 +1006,7 @@ impl EkycRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    #[allow(dead_code)]
     pub async fn room_number(pool: &DbPool, room_id: i64) -> Result<String, ApiError> {
         let query = crate::sql_query!(
             postgres: "SELECT room_number FROM rooms WHERE id = $1",
@@ -1016,6 +1020,7 @@ impl EkycRepository {
             .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    #[allow(dead_code)]
     pub async fn mark_booking_checked_in(pool: &DbPool, booking_id: i64) -> Result<(), ApiError> {
         sqlx::query(
             r#"
@@ -1032,6 +1037,7 @@ impl EkycRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    #[allow(dead_code)]
     pub async fn insert_self_checkin_event(
         pool: &DbPool,
         booking_id: i64,

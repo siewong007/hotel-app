@@ -121,6 +121,7 @@ impl LoyaltyRepository {
         Ok(row_to_rules(&row))
     }
 
+    #[allow(dead_code)] // part of the loyalty module API; not yet wired to a caller
     pub async fn list_tiers(pool: &DbPool) -> Result<Vec<LoyaltyTier>, ApiError> {
         let rows =
             sqlx::query("SELECT * FROM loyalty_tiers WHERE is_active = true ORDER BY sort_order")
@@ -319,6 +320,7 @@ impl LoyaltyRepository {
             .ok_or_else(|| ApiError::Internal("Created loyalty member was not found".to_string()))
     }
 
+    #[allow(dead_code)] // part of the loyalty module API; not yet wired to a caller
     pub async fn available_balance(pool: &DbPool, member_id: i64) -> Result<i32, ApiError> {
         sqlx::query_scalar(
             "SELECT COALESCE(SUM(available_delta), 0) FROM loyalty_transactions WHERE member_id = $1",
@@ -487,6 +489,7 @@ impl LoyaltyRepository {
         Ok(())
     }
 
+    #[allow(dead_code)] // part of the loyalty module API; not yet wired to a caller
     pub async fn update_account_tier(
         pool: &DbPool,
         account_id: i64,
