@@ -51,6 +51,7 @@ import { emitApiNotification } from '../../../utils/apiNotifications';
 import { getPaginationState, normalizePage, toPaginationSearchParams } from '../../../utils/pagination';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import {
+  useApplyGuestTourismFromLastCheckIn,
   useCreateGuest,
   useDeleteGuest,
   useGuestBookings,
@@ -102,6 +103,27 @@ const duplicateGuestReference = (message: string) => {
     name: match[1],
     id: match[2],
   };
+};
+
+const hasGuestValue = (value?: string | null) => Boolean(value?.trim());
+
+const validateRequiredGuestInformation = (
+  formData: Pick<GuestFormData, 'email' | 'phone' | 'ic_number'>
+): string | null => {
+  const hasContact = hasGuestValue(formData.email) || hasGuestValue(formData.phone);
+  const hasIdentityDocument = hasGuestValue(formData.ic_number);
+
+  if (!hasContact && !hasIdentityDocument) {
+    return 'IC number / passport is required, and either email or phone number is required';
+  }
+  if (!hasContact) {
+    return 'Either email or phone number is required';
+  }
+  if (!hasIdentityDocument) {
+    return 'IC number / passport is required';
+  }
+
+  return null;
 };
 
 type GuestBookingHistoryRow = {
@@ -188,6 +210,7 @@ const GuestConfigurationPage: React.FC = () => {
   const roomsQuery = useRooms(hasAccess);
   const createGuestMutation = useCreateGuest();
   const updateGuestMutation = useUpdateGuest();
+  const applyGuestTourismMutation = useApplyGuestTourismFromLastCheckIn();
   const deleteGuestMutation = useDeleteGuest();
   const guests = guestsQuery.data?.data ?? [];
   const rooms = roomsQuery.data ?? [];
@@ -272,6 +295,7 @@ const GuestConfigurationPage: React.FC = () => {
   const [deletingGuest, setDeletingGuest] = useState<Guest | null>(null);
   const [viewingGuest, setViewingGuest] = useState<Guest | null>(null);
   const [formLoading, setFormLoading] = useState(false);
+  const [tourismConversionGuestId, setTourismConversionGuestId] = useState<number | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const guestBookingsQuery = useGuestBookings(viewingGuest?.id, bookingsDialogOpen && !!viewingGuest);
   const guestCreditsQuery = useGuestCredits(viewingGuest?.id, creditsDialogOpen && !!viewingGuest);
@@ -543,6 +567,18 @@ const GuestConfigurationPage: React.FC = () => {
       return;
     }
 
+    const tourismType = formData.tourism_type;
+    if (!tourismType) {
+      setDialogError('Tourism type is required');
+      return;
+    }
+
+    const requiredInformationError = validateRequiredGuestInformation(formData);
+    if (requiredInformationError) {
+      setDialogError(requiredInformationError);
+      return;
+    }
+
     // Validate email format only if provided
     if (formData.email && formData.email.trim()) {
       const emailError = validateEmail(formData.email);
@@ -558,6 +594,7 @@ const GuestConfigurationPage: React.FC = () => {
       // Sanitize form data - convert empty strings to undefined
       const sanitizedData = {
         ...formData,
+        tourism_type: tourismType,
         email: formData.email?.trim() || undefined,
         phone: formData.phone?.trim() || undefined,
         ic_number: formData.ic_number?.trim() || undefined,
@@ -593,6 +630,21 @@ const GuestConfigurationPage: React.FC = () => {
       return;
     }
 
+    const requiredInformationError = validateRequiredGuestInformation(formData);
+    if (requiredInformationError) {
+      setDialogError(requiredInformationError);
+      return;
+    }
+
+    // Validate email format only if provided
+    if (formData.email && formData.email.trim()) {
+      const emailError = validateEmail(formData.email);
+      if (emailError) {
+        setDialogError(emailError);
+        return;
+      }
+    }
+
     try {
       setFormLoading(true);
       setDialogError(null);
@@ -609,6 +661,25 @@ const GuestConfigurationPage: React.FC = () => {
       focusDuplicateGuestSearch(message);
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  const handleApplyTourismFromLastCheckIn = async (guest: Guest) => {
+    try {
+      setTourismConversionGuestId(guest.id);
+      setError(null);
+      const response = await applyGuestTourismMutation.mutateAsync(guest.id);
+      const tourismLabel = response.guest.tourism_type === 'foreign' ? 'Tourist' : 'Local';
+      const bookingLabel = response.source.booking_number || `#${response.source.booking_id}`;
+      emitApiNotification({
+        message: `${guest.full_name} marked ${tourismLabel} from booking ${bookingLabel}`,
+        severity: 'success',
+      });
+      await loadGuests();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update guest tourism type');
+    } finally {
+      setTourismConversionGuestId(null);
     }
   };
 
@@ -1271,6 +1342,28 @@ const GuestConfigurationPage: React.FC = () => {
                         Edit profile
                       </Button>
                     </Box>
+                    <Button
+                      startIcon={
+                        tourismConversionGuestId === g.id
+                          ? <CircularProgress size={16} />
+                          : <ConvertIcon sx={{ fontSize: 16 }} />
+                      }
+                      onClick={() => handleApplyTourismFromLastCheckIn(g)}
+                      disabled={tourismConversionGuestId === g.id}
+                      sx={{
+                        py: 1.25,
+                        borderRadius: 1.25,
+                        border: `1px solid ${GUEST_DESIGN.rule}`,
+                        color: GUEST_DESIGN.blue,
+                        fontWeight: 700,
+                        fontSize: 12.5,
+                        textTransform: 'none',
+                        '&:hover': { bgcolor: GUEST_DESIGN.blueBg },
+                        '&.Mui-disabled': { color: GUEST_DESIGN.ink4 },
+                      }}
+                    >
+                      Set tourism from last check-in
+                    </Button>
                     {!isMember && (
                       <Button
                         startIcon={<ConvertIcon sx={{ fontSize: 16 }} />}

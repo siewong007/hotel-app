@@ -317,6 +317,7 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               type="email"
               value={newGuestForm.email}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, email: e.target.value })}
+              required={!newGuestForm.phone.trim()}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
@@ -325,11 +326,13 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               label="Phone"
               value={newGuestForm.phone}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, phone: e.target.value })}
+              required={!newGuestForm.email.trim()}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
+              required
               label="IC/Passport Number"
               value={newGuestForm.ic_number}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, ic_number: e.target.value })}
@@ -353,15 +356,15 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
-            <FormControl fullWidth>
+            <FormControl fullWidth required>
               <InputLabel>Tourism Type</InputLabel>
               <Select
                 value={newGuestForm.tourism_type || ''}
                 label="Tourism Type"
                 onChange={(e) => onNewGuestFormChange({ ...newGuestForm, tourism_type: e.target.value as TourismType || undefined })}
               >
-                <MenuItem value="">
-                  <em>Not specified</em>
+                <MenuItem value="" disabled>
+                  Select tourism type
                 </MenuItem>
                 <MenuItem value="local">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

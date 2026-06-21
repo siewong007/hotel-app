@@ -113,6 +113,19 @@ export function useUpdateGuest() {
   });
 }
 
+export function useApplyGuestTourismFromLastCheckIn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (guestId: number) => GuestsService.applyTourismTypeFromLastCheckIn(guestId),
+    onSuccess: (response, guestId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.guests.detail(guestId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.guests.profile(guestId) });
+      queryClient.setQueryData(queryKeys.guests.detail(guestId), response.guest);
+      invalidateGuestDependencies(queryClient);
+    },
+  });
+}
+
 export function useDeleteGuest() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -833,6 +833,14 @@ VALUES
         'payments',
         'Payment methods available to walk-in and payment workflows',
         0
+    ),
+    (
+        'report_font_size',
+        '14',
+        'number',
+        'reports',
+        'Base font size in pixels for generated report previews and print output',
+        0
     );
 
 
@@ -1437,5 +1445,4 @@ WHERE status = 'cancelled';
 UPDATE ekyc_verifications
 SET status = 'void'
 WHERE status = 'cancelled';
-
 

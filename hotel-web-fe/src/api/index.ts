@@ -95,6 +95,7 @@ export class HotelAPIService {
   static getGuest = GuestsService.getGuest;
   static createGuest = GuestsService.createGuest;
   static updateGuest = GuestsService.updateGuest;
+  static applyTourismTypeFromLastCheckIn = GuestsService.applyTourismTypeFromLastCheckIn;
   static deleteGuest = GuestsService.deleteGuest;
   static getGuestBookings = GuestsService.getGuestBookings;
   static getMyGuests = GuestsService.getMyGuests;

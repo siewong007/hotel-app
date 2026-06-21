@@ -23,7 +23,7 @@ export function useGuestConfigurationPageState() {
   const [bookingGuest, setBookingGuest] = useState<Guest | null>(null);
   const [formData, setFormData] = useState({
     first_name: '', last_name: '', email: '', phone: '', ic_number: '',
-    nationality: '', guest_type: 'individual' as string, tourism_type: 'local' as string,
+    nationality: '', guest_type: 'individual' as string, tourism_type: '' as string,
     company_name: '', address_line1: '', city: '', state_province: '',
     postal_code: '', country: '', title: '', alt_phone: '',
   });
@@ -44,7 +44,7 @@ export function useGuestConfigurationPageState() {
   const handleCreateClick = useCallback(() => {
     setFormData({
       first_name: '', last_name: '', email: '', phone: '', ic_number: '',
-      nationality: '', guest_type: 'individual', tourism_type: 'local',
+      nationality: '', guest_type: 'individual', tourism_type: '',
       company_name: '', address_line1: '', city: '', state_province: '',
       postal_code: '', country: '', title: '', alt_phone: '',
     });
@@ -58,7 +58,7 @@ export function useGuestConfigurationPageState() {
       first_name: (guest as any).first_name || '', last_name: (guest as any).last_name || '',
       email: guest.email || '', phone: guest.phone || '', ic_number: guest.ic_number || '',
       nationality: guest.nationality || '', guest_type: guest.guest_type || 'individual',
-      tourism_type: guest.tourism_type || 'local', company_name: guest.company_name || '',
+      tourism_type: guest.tourism_type || '', company_name: guest.company_name || '',
       address_line1: guest.address_line1 || '', city: guest.city || '',
       state_province: guest.state_province || '', postal_code: guest.postal_code || '',
       country: guest.country || '', title: guest.title || '', alt_phone: guest.alt_phone || '',

@@ -180,6 +180,37 @@ pub struct GuestUpdateValues {
     pub company_name: Option<String>,
 }
 
+/// Latest check-in payment/tourism-tax signal used to classify a guest quickly.
+#[derive(Debug)]
+pub struct GuestTourismTaxSignal {
+    pub booking_id: i64,
+    pub booking_number: Option<String>,
+    pub check_in_date: chrono::NaiveDate,
+    pub check_out_date: chrono::NaiveDate,
+    pub tourism_tax_amount: Decimal,
+    pub net_paid_amount: Decimal,
+}
+
+/// Source details returned after applying a tourism classification from history.
+#[derive(Debug, Clone, Serialize)]
+pub struct GuestTourismConversionSource {
+    pub booking_id: i64,
+    pub booking_number: Option<String>,
+    pub check_in_date: chrono::NaiveDate,
+    pub check_out_date: chrono::NaiveDate,
+    pub tourism_tax_amount: Decimal,
+    pub net_paid_amount: Decimal,
+    pub paid_tourism_tax: bool,
+    pub inferred_tourism_type: TourismType,
+}
+
+/// Response for the fast-lane tourism conversion workflow.
+#[derive(Debug, Clone, Serialize)]
+pub struct GuestTourismConversionResponse {
+    pub guest: Guest,
+    pub source: GuestTourismConversionSource,
+}
+
 /// Guest booking row for the guest detail endpoint.
 #[derive(Debug)]
 pub struct GuestBookingRow {
@@ -290,7 +321,7 @@ pub struct GuestPaginationParams {
     pub guest_type: Option<String>,
     /// Filter by tourism type: "local" or "foreign".
     pub tourism_type: Option<String>,
-    /// Filter to guests missing one or more key profile fields.
+    /// Filter to guests missing one or more required profile fields.
     pub missing_info: Option<bool>,
 }
 

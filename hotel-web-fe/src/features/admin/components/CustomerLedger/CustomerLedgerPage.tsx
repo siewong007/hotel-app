@@ -242,6 +242,7 @@ const CustomerLedgerPage: React.FC = () => {
     email: '',
     phone: '',
     ic_number: '',
+    tourism_type: '',
     nationality: '',
     address_line1: '',
     city: '',
@@ -548,6 +549,24 @@ const CustomerLedgerPage: React.FC = () => {
           return;
         }
 
+        if (!newCheckInGuestForm.ic_number.trim()) {
+          showSnackbar('Please enter IC/Passport number for the guest', 'warning');
+          setProcessingCheckIn(false);
+          return;
+        }
+
+        if (!newCheckInGuestForm.email.trim() && !newCheckInGuestForm.phone.trim()) {
+          showSnackbar('Please enter either email or phone number for the guest', 'warning');
+          setProcessingCheckIn(false);
+          return;
+        }
+
+        if (!newCheckInGuestForm.tourism_type) {
+          showSnackbar('Please select tourism type for the guest', 'warning');
+          setProcessingCheckIn(false);
+          return;
+        }
+
         // Validate email format only if provided
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (newCheckInGuestForm.email && newCheckInGuestForm.email.trim() && !emailRegex.test(newCheckInGuestForm.email)) {
@@ -562,6 +581,7 @@ const CustomerLedgerPage: React.FC = () => {
           email: newCheckInGuestForm.email || undefined,
           phone: newCheckInGuestForm.phone || undefined,
           ic_number: newCheckInGuestForm.ic_number || undefined,
+          tourism_type: newCheckInGuestForm.tourism_type as 'local' | 'foreign',
           nationality: newCheckInGuestForm.nationality || undefined,
           address_line1: newCheckInGuestForm.address_line1 || undefined,
           city: newCheckInGuestForm.city || undefined,
@@ -649,6 +669,7 @@ const CustomerLedgerPage: React.FC = () => {
       email: '',
       phone: '',
       ic_number: '',
+      tourism_type: '',
       nationality: '',
       address_line1: '',
       city: '',

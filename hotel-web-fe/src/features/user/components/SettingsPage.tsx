@@ -22,12 +22,19 @@ import {
   Save as SaveIcon,
   Security as SecurityIcon,
   Settings as SettingsIcon,
-  Add as AddIcon
+  Add as AddIcon,
+  Assessment as ReportIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { setCurrentCurrency, SUPPORTED_CURRENCIES } from '../../../utils/currency';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { HotelSettings, BookingChannel } from '../../../utils/hotelSettings';
+import {
+  HotelSettings,
+  BookingChannel,
+  REPORT_FONT_SIZE_MAX,
+  REPORT_FONT_SIZE_MIN,
+  normalizeReportFontSize
+} from '../../../utils/hotelSettings';
 import { useHotelSettingsQuery, useSaveHotelSettingsMutation } from '../hooks/useSettingsQueries';
 
 // Common timezones for hotels
@@ -79,6 +86,9 @@ const SettingsPage: React.FC = () => {
   const [serviceTaxRate, setServiceTaxRate] = useState(8);
   const [tourismTaxRate, setTourismTaxRate] = useState(10);
   const [defaultPaymentTermsDays, setDefaultPaymentTermsDays] = useState(30);
+
+  // Report Settings
+  const [reportFontSize, setReportFontSize] = useState(14);
 
   // Security Settings
   const [maxLoginAttempts, setMaxLoginAttempts] = useState(5);
@@ -132,6 +142,7 @@ const SettingsPage: React.FC = () => {
     setServiceTaxRate(settings.service_tax_rate);
     setTourismTaxRate(settings.tourism_tax_rate);
     setDefaultPaymentTermsDays(settings.default_payment_terms_days);
+    setReportFontSize(settings.report_font_size);
     setMaxLoginAttempts(settings.max_login_attempts);
     setTotpIssuerName(settings.totp_issuer_name);
     setPasskeyRelyingPartyName(settings.passkey_relying_party_name);
@@ -176,6 +187,7 @@ const SettingsPage: React.FC = () => {
         service_tax_rate: serviceTaxRate,
         tourism_tax_rate: tourismTaxRate,
         default_payment_terms_days: defaultPaymentTermsDays,
+        report_font_size: normalizeReportFontSize(reportFontSize),
         max_login_attempts: maxLoginAttempts,
         totp_issuer_name: totpIssuerName,
         passkey_relying_party_name: passkeyRelyingPartyName,
@@ -536,6 +548,39 @@ const SettingsPage: React.FC = () => {
           <Alert severity="info" sx={{ mt: 2 }}>
             These amounts will be used as defaults in the quick booking form. Tourism tax is charged per night for guests marked as tourists.
           </Alert>
+        </CardContent>
+      </Card>
+
+      {/* Report Settings */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <ReportIcon sx={{ mr: 1, color: 'primary.main' }} />
+            <Typography variant="h6">Report Settings</Typography>
+          </Box>
+          <Divider sx={{ mb: 3 }} />
+
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <TextField
+                fullWidth
+                label="Report Font Size"
+                type="number"
+                value={reportFontSize}
+                onChange={(e) => setReportFontSize(parseInt(e.target.value, 10) || REPORT_FONT_SIZE_MIN)}
+                helperText="Base font size for generated report previews and print output"
+                disabled={!isAdmin}
+                InputProps={{
+                  endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>
+                }}
+                inputProps={{
+                  min: REPORT_FONT_SIZE_MIN,
+                  max: REPORT_FONT_SIZE_MAX,
+                  step: 1
+                }}
+              />
+            </Grid>
+          </Grid>
         </CardContent>
       </Card>
 

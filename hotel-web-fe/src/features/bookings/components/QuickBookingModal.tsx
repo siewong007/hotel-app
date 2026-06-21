@@ -16,13 +16,14 @@ import {
   Paper,
   FormControlLabel,
   Checkbox,
+  MenuItem,
 } from '@mui/material';
 import {
   PersonAdd as PersonAddIcon,
   EventAvailable as BookIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
-import { Room, Guest, RoomType } from '../../../types';
+import { Room, Guest, RoomType, TourismType } from '../../../types';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { useAuth } from '../../../auth/AuthContext';
@@ -77,6 +78,8 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   const [newGuestLastName, setNewGuestLastName] = useState('');
   const [newGuestEmail, setNewGuestEmail] = useState('');
   const [newGuestPhone, setNewGuestPhone] = useState('');
+  const [newGuestIcNumber, setNewGuestIcNumber] = useState('');
+  const [newGuestTourismType, setNewGuestTourismType] = useState<TourismType | ''>('');
   const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
 
@@ -182,6 +185,8 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     setNewGuestLastName('');
     setNewGuestEmail('');
     setNewGuestPhone('');
+    setNewGuestIcNumber('');
+    setNewGuestTourismType('');
     setCheckInDate('');
     setCheckInTime(defaultCheckInTime);
     setCheckOutDate('');
@@ -218,6 +223,21 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
       return null;
     }
 
+    if (!newGuestIcNumber.trim()) {
+      setError('IC number / passport is required for new guest');
+      return null;
+    }
+
+    if (!newGuestEmail.trim() && !newGuestPhone.trim()) {
+      setError('Email or phone number is required for new guest');
+      return null;
+    }
+
+    if (!newGuestTourismType) {
+      setError('Tourism type is required for new guest');
+      return null;
+    }
+
     // Validate email format only if provided
     if (newGuestEmail && newGuestEmail.trim()) {
       const emailValidation = validateEmail(newGuestEmail);
@@ -234,6 +254,8 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
         last_name: newGuestLastName,
         email: newGuestEmail || undefined,
         phone: newGuestPhone || undefined,
+        ic_number: newGuestIcNumber || undefined,
+        tourism_type: newGuestTourismType,
       });
 
       // The guests list is managed by useQuery — invalidate it so the new guest appears
@@ -504,6 +526,8 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   setNewGuestLastName('');
                   setNewGuestEmail('');
                   setNewGuestPhone('');
+                  setNewGuestIcNumber('');
+                  setNewGuestTourismType('');
                 }}>
                   Cancel
                 </Button>
@@ -531,7 +555,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
-                    label="Email (Optional)"
+                    label="Email"
                     type="email"
                     value={newGuestEmail}
                     onChange={(e) => {
@@ -548,12 +572,13 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                     error={!!emailError}
                     helperText={emailError}
                     size="small"
+                    required={!newGuestPhone.trim()}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
-                    label="Phone (Optional)"
+                    label="Phone"
                     value={newGuestPhone}
                     onChange={(e) => {
                       setNewGuestPhone(e.target.value);
@@ -563,7 +588,37 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                     error={!!phoneError}
                     helperText={phoneError}
                     size="small"
+                    required={!newGuestEmail.trim()}
                   />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    fullWidth
+                    required
+                    label="IC/Passport Number"
+                    value={newGuestIcNumber}
+                    onChange={(e) => setNewGuestIcNumber(e.target.value)}
+                    size="small"
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6 }}>
+                  <TextField
+                    fullWidth
+                    select
+                    required
+                    label="Tourism Type"
+                    value={newGuestTourismType}
+                    onChange={(e) => {
+                      const value = e.target.value as TourismType;
+                      setNewGuestTourismType(value);
+                      setIsTourist(value === 'foreign');
+                    }}
+                    size="small"
+                  >
+                    <MenuItem value="" disabled>Select tourism type</MenuItem>
+                    <MenuItem value="local">Local - no tourism tax</MenuItem>
+                    <MenuItem value="foreign">Foreign - tourism tax applies</MenuItem>
+                  </TextField>
                 </Grid>
               </Grid>
             </Paper>
@@ -892,6 +947,10 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
             !checkOutDate ||
             !checkInTime ||
             !checkOutTime ||
+            (showNewGuestForm && (
+              !newGuestIcNumber.trim() ||
+              (!newGuestEmail.trim() && !newGuestPhone.trim())
+            )) ||
             roomIsAvailable === false ||
             checkingAvailability
           }

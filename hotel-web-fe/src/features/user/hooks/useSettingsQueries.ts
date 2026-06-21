@@ -4,6 +4,7 @@ import { queryKeys } from '../../../api/queryKeys';
 import {
   getHotelSettings,
   normalizeBookingChannels,
+  normalizeReportFontSize,
   normalizeStringList,
   saveHotelSettings,
   type BookingChannel,
@@ -25,6 +26,7 @@ const DB_SETTING_KEYS = [
   'service_tax_rate',
   'tourism_tax_rate',
   'default_payment_terms_days',
+  'report_font_size',
   'max_login_attempts',
   'totp_issuer_name',
   'passkey_relying_party_name',
@@ -107,6 +109,10 @@ const mergeSystemSettings = (
     default_payment_terms_days: parseNumberSetting(
       values.get('default_payment_terms_days'),
       localSettings.default_payment_terms_days
+    ),
+    report_font_size: normalizeReportFontSize(
+      values.get('report_font_size') ?? localSettings.report_font_size,
+      localSettings.report_font_size
     ),
     max_login_attempts: parseNumberSetting(values.get('max_login_attempts'), localSettings.max_login_attempts),
     totp_issuer_name: values.get('totp_issuer_name') ?? localSettings.totp_issuer_name,

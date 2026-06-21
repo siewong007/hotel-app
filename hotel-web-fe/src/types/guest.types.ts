@@ -84,6 +84,22 @@ export interface GuestProfile {
   duplicate_candidates: GuestDuplicateCandidate[];
 }
 
+export interface GuestTourismConversionSource {
+  booking_id: number;
+  booking_number?: string | null;
+  check_in_date: string;
+  check_out_date: string;
+  tourism_tax_amount: string | number;
+  net_paid_amount: string | number;
+  paid_tourism_tax: boolean;
+  inferred_tourism_type: TourismType;
+}
+
+export interface GuestTourismConversionResponse {
+  guest: Guest;
+  source: GuestTourismConversionSource;
+}
+
 export interface GuestCreateRequest {
   first_name: string;
   last_name: string;
@@ -98,7 +114,7 @@ export interface GuestCreateRequest {
   country?: string;
   is_active?: boolean;
   guest_type?: GuestType;
-  tourism_type?: TourismType;
+  tourism_type: TourismType;
   discount_percentage?: number;
   company_name?: string;
 }

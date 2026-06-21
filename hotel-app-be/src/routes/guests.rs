@@ -32,6 +32,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/guests/{id}", patch(update_guest))
         .route("/guests/{id}", delete(delete_guest))
         .route("/guests/{id}/profile", get(get_guest_profile))
+        .route(
+            "/guests/{id}/tourism-from-last-check-in",
+            post(apply_tourism_type_from_last_check_in),
+        )
         .route("/guests/{id}/bookings", get(get_guest_bookings))
         .route("/guests/{id}/credits", get(get_guest_credits))
 }
@@ -116,6 +120,20 @@ async fn update_guest(
 ) -> Result<Json<models::Guest>, ApiError> {
     require_permission_helper(&pool, &headers, "guests:update").await?;
     handlers::guests::update_guest_handler(State(pool), path, Json(input)).await
+}
+
+async fn apply_tourism_type_from_last_check_in(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::GuestTourismConversionResponse>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "guests:update").await?;
+    handlers::guests::apply_tourism_type_from_last_check_in_handler(
+        State(pool),
+        Extension(user_id),
+        path,
+    )
+    .await
 }
 
 async fn delete_guest(

@@ -29,19 +29,37 @@ describe('guest segment utilities', () => {
     });
   });
 
-  it('treats blank profile fields as missing info', () => {
+  it('treats blank required profile fields as missing info', () => {
     expect(guestHasMissingProfileInfo({
       email: 'guest@example.com',
       phone: '60123456789',
       ic_number: 'A123',
-      company_name: 'Acme Travel',
     })).toBe(false);
+
+    const guestWithoutCompany = {
+      email: 'guest@example.com',
+      phone: '60123456789',
+      ic_number: 'A123',
+      company_name: '',
+    };
+    expect(guestHasMissingProfileInfo(guestWithoutCompany)).toBe(false);
 
     expect(guestHasMissingProfileInfo({
       email: ' ',
       phone: '60123456789',
       ic_number: 'A123',
-      company_name: 'Acme Travel',
+    })).toBe(false);
+
+    expect(guestHasMissingProfileInfo({
+      email: ' ',
+      phone: ' ',
+      ic_number: 'A123',
+    })).toBe(true);
+
+    expect(guestHasMissingProfileInfo({
+      email: 'guest@example.com',
+      phone: ' ',
+      ic_number: ' ',
     })).toBe(true);
   });
 });
