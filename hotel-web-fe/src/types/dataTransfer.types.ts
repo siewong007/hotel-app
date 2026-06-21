@@ -53,6 +53,12 @@ export interface BookingDataExport {
   night_audit_posted_nights: any[];
 }
 
+export interface ExportPreview {
+  generated_at: string;
+  counts: Record<string, number>;
+  total_records: number;
+}
+
 export interface ImportResult {
   success: boolean;
   mode: string;

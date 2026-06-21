@@ -7,7 +7,7 @@ use serde_json::Value;
 use crate::constants::ImportMode;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::models::{BookingDataExport, ImportRequest};
+use crate::models::{BookingDataExport, ExportPreview, ImportRequest};
 use crate::repositories::data_transfer::{DataTransferRepository, ImportRowPolicy};
 
 /// Every transferable table in foreign-key-safe **insert** order (parents
@@ -97,6 +97,23 @@ const AUDIT_USER_FK_COLUMNS: &[&str] = &[
     "response_by",
 ];
 
+pub async fn preview_export_counts(pool: &DbPool) -> Result<ExportPreview, ApiError> {
+    let mut counts = HashMap::new();
+    let mut total_records = 0_i64;
+
+    for table in ALL_IMPORT_TABLES {
+        let count = DataTransferRepository::count_table(pool, table).await?;
+        counts.insert((*table).to_string(), count);
+        total_records += count;
+    }
+
+    Ok(ExportPreview {
+        generated_at: chrono::Utc::now().to_rfc3339(),
+        counts,
+        total_records,
+    })
+}
+
 pub async fn export_booking_data(pool: &DbPool) -> Result<BookingDataExport, ApiError> {
     Ok(BookingDataExport {
         version: "1.0".to_string(),
@@ -180,7 +197,10 @@ pub async fn import_booking_data(
         ("booking_channels", &data.booking_channels),
         ("companies", &data.companies),
         ("corporate_accounts", &data.corporate_accounts),
-        ("corporate_account_contacts", &data.corporate_account_contacts),
+        (
+            "corporate_account_contacts",
+            &data.corporate_account_contacts,
+        ),
         ("email_templates", &data.email_templates),
         ("guests", &data.guests),
         ("guest_documents", &data.guest_documents),
@@ -239,7 +259,10 @@ pub async fn import_booking_data(
             .map(|(table, _)| *table)
             .collect();
         DataTransferRepository::clear_tables(&mut tx, &clear_tables).await?;
-        log::info!("Phase 1: cleared {} table(s) for overwrite", clear_tables.len());
+        log::info!(
+            "Phase 1: cleared {} table(s) for overwrite",
+            clear_tables.len()
+        );
     }
 
     DataTransferRepository::align_status_constraints(&mut tx).await?;
@@ -385,7 +408,7 @@ fn import_error_detail(error: &ApiError) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        base_generated_columns, ALL_IMPORT_TABLES, COMPOSITE_PK_TABLES, TABLE_INSERT_ORDER,
+        ALL_IMPORT_TABLES, COMPOSITE_PK_TABLES, TABLE_INSERT_ORDER, base_generated_columns,
     };
     use std::collections::HashSet;
 

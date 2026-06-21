@@ -31,11 +31,20 @@ import { useCurrency } from '../../../hooks/useCurrency';
 import {
   HotelSettings,
   BookingChannel,
+  REPORT_DISPLAY_FONT_SIZE_MAX,
+  REPORT_DISPLAY_FONT_SIZE_MIN,
+  REPORT_FONT_FAMILY_OPTIONS,
   REPORT_FONT_SIZE_MAX,
   REPORT_FONT_SIZE_MIN,
+  normalizeReportFontFamily,
   normalizeReportFontSize
 } from '../../../utils/hotelSettings';
 import { useHotelSettingsQuery, useSaveHotelSettingsMutation } from '../hooks/useSettingsQueries';
+import {
+  REPORT_TYPOGRAPHY_PRESETS,
+  getReportTypographyPreset,
+  type ReportTypographyPresetKey,
+} from '../../reports/utils/reportTypography';
 
 // Common timezones for hotels
 const TIMEZONES = [
@@ -89,6 +98,12 @@ const SettingsPage: React.FC = () => {
 
   // Report Settings
   const [reportFontSize, setReportFontSize] = useState(14);
+  const [reportFontFamily, setReportFontFamily] = useState<string>(REPORT_FONT_FAMILY_OPTIONS[0].value);
+  const [reportHeadingFontSize, setReportHeadingFontSize] = useState(24);
+  const [reportSectionHeadingFontSize, setReportSectionHeadingFontSize] = useState(18);
+  const [reportTableFontSize, setReportTableFontSize] = useState(14);
+  const [reportCaptionFontSize, setReportCaptionFontSize] = useState(13);
+  const [reportChipFontSize, setReportChipFontSize] = useState(12);
 
   // Security Settings
   const [maxLoginAttempts, setMaxLoginAttempts] = useState(5);
@@ -143,6 +158,12 @@ const SettingsPage: React.FC = () => {
     setTourismTaxRate(settings.tourism_tax_rate);
     setDefaultPaymentTermsDays(settings.default_payment_terms_days);
     setReportFontSize(settings.report_font_size);
+    setReportFontFamily(settings.report_font_family);
+    setReportHeadingFontSize(settings.report_heading_font_size);
+    setReportSectionHeadingFontSize(settings.report_section_heading_font_size);
+    setReportTableFontSize(settings.report_table_font_size);
+    setReportCaptionFontSize(settings.report_caption_font_size);
+    setReportChipFontSize(settings.report_chip_font_size);
     setMaxLoginAttempts(settings.max_login_attempts);
     setTotpIssuerName(settings.totp_issuer_name);
     setPasskeyRelyingPartyName(settings.passkey_relying_party_name);
@@ -171,6 +192,8 @@ const SettingsPage: React.FC = () => {
     setSuccess('');
 
     try {
+      const normalizedReportBodyFontSize = normalizeReportFontSize(reportFontSize);
+
       // Prepare settings object
       const settings: HotelSettings = {
         hotel_name: hotelName,
@@ -187,7 +210,27 @@ const SettingsPage: React.FC = () => {
         service_tax_rate: serviceTaxRate,
         tourism_tax_rate: tourismTaxRate,
         default_payment_terms_days: defaultPaymentTermsDays,
-        report_font_size: normalizeReportFontSize(reportFontSize),
+        report_font_size: normalizedReportBodyFontSize,
+        report_font_family: normalizeReportFontFamily(reportFontFamily),
+        report_heading_font_size: normalizeReportFontSize(
+          reportHeadingFontSize,
+          Math.max(normalizedReportBodyFontSize + 10, 20),
+          { min: REPORT_DISPLAY_FONT_SIZE_MIN, max: REPORT_DISPLAY_FONT_SIZE_MAX }
+        ),
+        report_section_heading_font_size: normalizeReportFontSize(
+          reportSectionHeadingFontSize,
+          Math.max(normalizedReportBodyFontSize + 4, 14),
+          { min: REPORT_FONT_SIZE_MIN, max: REPORT_DISPLAY_FONT_SIZE_MAX }
+        ),
+        report_table_font_size: normalizeReportFontSize(reportTableFontSize, normalizedReportBodyFontSize),
+        report_caption_font_size: normalizeReportFontSize(
+          reportCaptionFontSize,
+          Math.max(normalizedReportBodyFontSize - 1, REPORT_FONT_SIZE_MIN)
+        ),
+        report_chip_font_size: normalizeReportFontSize(
+          reportChipFontSize,
+          Math.max(normalizedReportBodyFontSize - 2, REPORT_FONT_SIZE_MIN)
+        ),
         max_login_attempts: maxLoginAttempts,
         totp_issuer_name: totpIssuerName,
         passkey_relying_party_name: passkeyRelyingPartyName,
@@ -214,6 +257,28 @@ const SettingsPage: React.FC = () => {
     } catch (err: any) {
       setError(err.message || 'Failed to save settings');
     }
+  };
+
+  const selectedReportPreset = REPORT_TYPOGRAPHY_PRESETS.find(preset => (
+    preset.sizes.report_font_size === reportFontSize &&
+    preset.sizes.report_heading_font_size === reportHeadingFontSize &&
+    preset.sizes.report_section_heading_font_size === reportSectionHeadingFontSize &&
+    preset.sizes.report_table_font_size === reportTableFontSize &&
+    preset.sizes.report_caption_font_size === reportCaptionFontSize &&
+    preset.sizes.report_chip_font_size === reportChipFontSize
+  ));
+  const reportPresetValue = selectedReportPreset?.key ?? 'custom';
+  const reportPresetHelperText = selectedReportPreset?.description ?? 'Custom report font sizes are active';
+
+  const applyReportTypographyPreset = (value: string) => {
+    if (value === 'custom') return;
+    const preset = getReportTypographyPreset(value as ReportTypographyPresetKey);
+    setReportFontSize(preset.sizes.report_font_size);
+    setReportHeadingFontSize(preset.sizes.report_heading_font_size);
+    setReportSectionHeadingFontSize(preset.sizes.report_section_heading_font_size);
+    setReportTableFontSize(preset.sizes.report_table_font_size);
+    setReportCaptionFontSize(preset.sizes.report_caption_font_size);
+    setReportChipFontSize(preset.sizes.report_chip_font_size);
   };
 
   if (loading) {
@@ -563,12 +628,140 @@ const SettingsPage: React.FC = () => {
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, md: 4 }}>
               <TextField
+                select
                 fullWidth
-                label="Report Font Size"
+                label="Report Font Preset"
+                value={reportPresetValue}
+                onChange={(e) => applyReportTypographyPreset(e.target.value)}
+                helperText={reportPresetHelperText}
+                disabled={!isAdmin}
+                SelectProps={{ native: true }}
+              >
+                <option value="custom">Custom</option>
+                {REPORT_TYPOGRAPHY_PRESETS.map(preset => (
+                  <option key={preset.key} value={preset.key}>{preset.label}</option>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <TextField
+                select
+                fullWidth
+                label="Report Font Family"
+                value={reportFontFamily}
+                onChange={(e) => setReportFontFamily(e.target.value)}
+                helperText="Font used by generated report previews and print output"
+                disabled={!isAdmin}
+                SelectProps={{ native: true }}
+              >
+                {REPORT_FONT_FAMILY_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <TextField
+                fullWidth
+                label="Report Body Font Size"
                 type="number"
                 value={reportFontSize}
                 onChange={(e) => setReportFontSize(parseInt(e.target.value, 10) || REPORT_FONT_SIZE_MIN)}
-                helperText="Base font size for generated report previews and print output"
+                helperText="Main report text size"
+                disabled={!isAdmin}
+                InputProps={{
+                  endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>
+                }}
+                inputProps={{
+                  min: REPORT_FONT_SIZE_MIN,
+                  max: REPORT_FONT_SIZE_MAX,
+                  step: 1
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <TextField
+                fullWidth
+                label="Heading / KPI Font Size"
+                type="number"
+                value={reportHeadingFontSize}
+                onChange={(e) => setReportHeadingFontSize(parseInt(e.target.value, 10) || REPORT_DISPLAY_FONT_SIZE_MIN)}
+                helperText="Large report titles and metric values"
+                disabled={!isAdmin}
+                InputProps={{
+                  endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>
+                }}
+                inputProps={{
+                  min: REPORT_DISPLAY_FONT_SIZE_MIN,
+                  max: REPORT_DISPLAY_FONT_SIZE_MAX,
+                  step: 1
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <TextField
+                fullWidth
+                label="Section Heading Font Size"
+                type="number"
+                value={reportSectionHeadingFontSize}
+                onChange={(e) => setReportSectionHeadingFontSize(parseInt(e.target.value, 10) || REPORT_FONT_SIZE_MIN)}
+                helperText="Report section labels and subheads"
+                disabled={!isAdmin}
+                InputProps={{
+                  endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>
+                }}
+                inputProps={{
+                  min: REPORT_FONT_SIZE_MIN,
+                  max: REPORT_DISPLAY_FONT_SIZE_MAX,
+                  step: 1
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <TextField
+                fullWidth
+                label="Table Font Size"
+                type="number"
+                value={reportTableFontSize}
+                onChange={(e) => setReportTableFontSize(parseInt(e.target.value, 10) || REPORT_FONT_SIZE_MIN)}
+                helperText="Rows, totals, and table headers"
+                disabled={!isAdmin}
+                InputProps={{
+                  endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>
+                }}
+                inputProps={{
+                  min: REPORT_FONT_SIZE_MIN,
+                  max: REPORT_FONT_SIZE_MAX,
+                  step: 1
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <TextField
+                fullWidth
+                label="Caption Font Size"
+                type="number"
+                value={reportCaptionFontSize}
+                onChange={(e) => setReportCaptionFontSize(parseInt(e.target.value, 10) || REPORT_FONT_SIZE_MIN)}
+                helperText="Secondary labels and captions"
+                disabled={!isAdmin}
+                InputProps={{
+                  endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>
+                }}
+                inputProps={{
+                  min: REPORT_FONT_SIZE_MIN,
+                  max: REPORT_FONT_SIZE_MAX,
+                  step: 1
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+              <TextField
+                fullWidth
+                label="Status Chip Font Size"
+                type="number"
+                value={reportChipFontSize}
+                onChange={(e) => setReportChipFontSize(parseInt(e.target.value, 10) || REPORT_FONT_SIZE_MIN)}
+                helperText="Payment and posting status chips"
                 disabled={!isAdmin}
                 InputProps={{
                   endAdornment: <Typography sx={{ ml: 0.5 }}>px</Typography>

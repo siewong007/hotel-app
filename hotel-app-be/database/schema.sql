@@ -5444,3 +5444,61 @@ VALUES (
     false
 )
 ON CONFLICT (key) DO NOTHING;
+
+-- ============================================================================
+-- 036_report_font_style_settings.sql
+-- ============================================================================
+-- Allow generated report previews and print output to style every report text
+-- role from persisted system settings.
+
+INSERT INTO system_settings (key, value, value_type, category, description, is_public)
+VALUES
+    (
+        'report_font_family',
+        'Arial, Helvetica, sans-serif',
+        'string',
+        'reports',
+        'Font family for generated report previews and print output',
+        false
+    ),
+    (
+        'report_heading_font_size',
+        '24',
+        'number',
+        'reports',
+        'Large heading and KPI font size in pixels for generated reports',
+        false
+    ),
+    (
+        'report_section_heading_font_size',
+        '18',
+        'number',
+        'reports',
+        'Section heading font size in pixels for generated reports',
+        false
+    ),
+    (
+        'report_table_font_size',
+        '14',
+        'number',
+        'reports',
+        'Table font size in pixels for generated reports',
+        false
+    ),
+    (
+        'report_caption_font_size',
+        '13',
+        'number',
+        'reports',
+        'Caption and secondary label font size in pixels for generated reports',
+        false
+    ),
+    (
+        'report_chip_font_size',
+        '12',
+        'number',
+        'reports',
+        'Status chip font size in pixels for generated reports',
+        false
+    )
+ON CONFLICT (key) DO NOTHING;

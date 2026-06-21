@@ -60,7 +60,7 @@ export type {
 export type { Company, CompanyCreateRequest, CompanyUpdateRequest } from './company.types';
 
 // Data transfer types
-export type { BookingDataExport, ImportMode, ImportResult } from './dataTransfer.types';
+export type { BookingDataExport, ExportPreview, ImportMode, ImportResult } from './dataTransfer.types';
 
 // Night audit types
 export type {

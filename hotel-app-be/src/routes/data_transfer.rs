@@ -15,6 +15,7 @@ use axum::{
 
 pub fn routes() -> Router<DbPool> {
     Router::new()
+        .route("/data-transfer/export/preview", get(preview_export_counts))
         .route("/data-transfer/export", get(export_data))
         .route(
             "/data-transfer/import",
@@ -28,6 +29,14 @@ async fn export_data(
 ) -> Result<Json<models::BookingDataExport>, ApiError> {
     require_permission_helper(&pool, &headers, "settings:manage").await?;
     handlers::data_transfer::export_booking_data_handler(State(pool)).await
+}
+
+async fn preview_export_counts(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+) -> Result<Json<models::ExportPreview>, ApiError> {
+    require_permission_helper(&pool, &headers, "settings:manage").await?;
+    handlers::data_transfer::preview_export_counts_handler(State(pool)).await
 }
 
 async fn import_data(

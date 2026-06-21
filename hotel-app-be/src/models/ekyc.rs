@@ -28,6 +28,30 @@ pub struct EkycSubmissionRequest {
     pub current_address: Option<String>,
 }
 
+/// Admin-initiated eKYC creation request (front-desk verifies a walk-in's
+/// documents in person). Produces an already-approved verification.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EkycAdminCreateRequest {
+    pub guest_id: i64,
+    pub selfie_image: String,
+    pub id_front_image: String,
+    pub id_back_image: Option<String>,
+    pub id_type: String,
+    pub id_number: String,
+    pub full_name: String,
+    pub date_of_birth: String,
+    pub nationality: Option<String>,
+    pub id_expiry_date: String,
+    pub id_issue_date: Option<String>,
+    pub id_issuing_country: Option<String>,
+    pub proof_of_address: Option<String>,
+    pub phone: Option<String>,
+    pub email: Option<String>,
+    pub current_address: Option<String>,
+    /// Whether the customer may use self/kiosk check-in. Defaults to true.
+    pub self_checkin_enabled: Option<bool>,
+}
+
 /// Full eKYC verification row. Do not return this directly to customer-facing APIs.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct EkycVerification {

@@ -722,30 +722,30 @@ pub async fn export_admin_applications_csv(
     )
     .await?;
 
+    // This export is gated by `ekyc:export` and audited above, so it emits the
+    // real (unmasked) PII — a masked export carries no compliance value.
     let mut csv = String::from(
-        "application_id,status,risk_level,risk_score,full_name,email_masked,phone_masked,id_type,id_number_masked,nationality,country,provider_result,assigned_reviewer,submitted_at,updated_at\n",
+        "application_id,status,risk_level,risk_score,full_name,email,phone,id_type,id_number,nationality,country,provider_result,assigned_reviewer,submitted_at,updated_at\n",
     );
     for row in rows {
-        let summary = summary_from_row(row);
         csv.push_str(&csv_row(&[
-            summary.application_id,
-            summary.status,
-            summary.risk_level,
-            summary.risk_score.to_string(),
-            summary.full_name.unwrap_or_default(),
-            summary.email_masked.unwrap_or_default(),
-            summary.phone_masked.unwrap_or_default(),
-            summary.id_type.unwrap_or_default(),
-            summary.id_number_masked.unwrap_or_default(),
-            summary.nationality.unwrap_or_default(),
-            summary.country.unwrap_or_default(),
-            summary.provider_verification_result.unwrap_or_default(),
-            summary.assigned_reviewer_name.unwrap_or_default(),
-            summary
-                .submitted_at
+            application_id(row.id),
+            row.status,
+            row.risk_level.unwrap_or_else(|| "medium".to_string()),
+            row.risk_score.unwrap_or(0).to_string(),
+            row.full_name.unwrap_or_default(),
+            row.email.unwrap_or_default(),
+            row.phone.unwrap_or_default(),
+            row.id_type.unwrap_or_default(),
+            row.id_number.unwrap_or_default(),
+            row.nationality.unwrap_or_default(),
+            row.id_issuing_country.unwrap_or_default(),
+            row.provider_verification_result.unwrap_or_default(),
+            row.assigned_reviewer_name.unwrap_or_default(),
+            row.submitted_at
                 .map(|value| value.to_rfc3339())
                 .unwrap_or_default(),
-            summary.updated_at.to_rfc3339(),
+            row.updated_at.to_rfc3339(),
         ]));
     }
     Ok(csv)
