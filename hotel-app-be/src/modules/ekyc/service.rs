@@ -128,8 +128,11 @@ pub async fn admin_create_verification(
         ));
     }
 
-    let (date_of_birth, id_expiry_date, id_issue_date) =
-        validation::validate_date_strings(&req.date_of_birth, &req.id_expiry_date, &req.id_issue_date)?;
+    let (date_of_birth, id_expiry_date, id_issue_date) = validation::validate_date_strings(
+        &req.date_of_birth,
+        &req.id_expiry_date,
+        &req.id_issue_date,
+    )?;
 
     // Images are uploaded by the admin via /ekyc/upload-document, so the stored
     // path is tied to the admin's (actor) user id.

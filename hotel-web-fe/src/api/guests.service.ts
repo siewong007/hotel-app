@@ -99,6 +99,7 @@ export class GuestsService {
     search?: string;
     guest_type?: GuestType;
     tourism_type?: TourismType;
+    missing_tourism?: boolean;
     missing_info?: boolean;
   } = {}): Promise<{ data: Guest[]; total: number; page: number; page_size: number }> {
     const searchParams: Record<string, any> = {
@@ -107,6 +108,7 @@ export class GuestsService {
     if (params.search) searchParams.search = params.search;
     if (params.guest_type) searchParams.guest_type = params.guest_type;
     if (params.tourism_type) searchParams.tourism_type = params.tourism_type;
+    if (params.missing_tourism != null) searchParams.missing_tourism = String(params.missing_tourism);
     if (params.missing_info != null) searchParams.missing_info = String(params.missing_info);
 
     try {
