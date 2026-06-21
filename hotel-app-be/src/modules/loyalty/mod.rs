@@ -1,10 +1,12 @@
-//! Loyalty program module
+//! Loyalty program portal domain.
 //!
-//! Loyalty points, tiers, rewards, and statistics.
+//! Guest-facing enrollment, append-only points ledger, tier progress, rewards,
+//! and staff administration for the loyalty program portal.
 
+pub mod handlers;
+pub mod models;
+pub mod queries;
+pub mod repository;
 pub mod routes;
 pub mod service;
-
-pub use crate::models::loyalty::{LoyaltyProgram, LoyaltyMembershipWithDetails, LoyaltyStatistics,
-    LoyaltyReward, UserLoyaltyMembership, PointsTransaction, RewardRedemptionResponse,
-    RewardRedemptionWithDetails, AddPointsInput, RedeemRewardInput, RewardInput, RewardUpdateInput};
+pub mod validation;

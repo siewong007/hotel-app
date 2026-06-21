@@ -7,9 +7,11 @@ use sqlx::Row;
 use crate::constants::EkycStatus;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::row_mappers;
 use crate::models::{
     EkycApplicationSummaryRow, EkycDashboardRow, EkycDecisionHistory, EkycListQuery, EkycNote,
-    EkycReasonCode, EkycVerification, EkycVerificationUpdate, SelfCheckinEvent,
+    EkycReasonCode, EkycVerification, EkycVerificationUpdate, GuestEkycStatusSummary,
+    SelfCheckinEvent,
 };
 
 pub struct NewEkycVerification<'a> {
@@ -80,6 +82,16 @@ pub struct AdminApproval {
     pub decision_reason: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct GuestEkycSummaryRecord {
+    pub verification_id: i64,
+    pub user_id: i64,
+    pub guest_id: i64,
+    pub status: String,
+    pub self_checkin_enabled: bool,
+    pub verified_at: Option<DateTime<Utc>>,
+}
+
 /// Build a unique, deterministic username/email pair for a provisioned guest
 /// account. The account is a login-disabled anchor for the eKYC `user_id` FK, so
 /// it uses a stable per-guest placeholder rather than the guest's real email —
@@ -111,11 +123,79 @@ impl EkycRepository {
     }
 
     pub async fn guest_id_for_user(pool: &DbPool, user_id: i64) -> Result<Option<i64>, ApiError> {
-        sqlx::query_scalar("SELECT guest_id FROM users WHERE id = $1")
+        let query = crate::sql_query!(
+            postgres: "SELECT guest_id FROM users WHERE id = $1",
+            sqlite: "SELECT guest_id FROM users WHERE id = ?1"
+        );
+
+        sqlx::query_scalar(query)
             .bind(user_id)
             .fetch_one(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    pub async fn latest_guest_summary_record(
+        pool: &DbPool,
+        guest_id: i64,
+    ) -> Result<Option<GuestEkycSummaryRecord>, ApiError> {
+        let query = crate::sql_query!(
+            postgres: r#"
+                SELECT id, user_id, guest_id, status,
+                       COALESCE(self_checkin_enabled, false) AS self_checkin_enabled,
+                       verified_at
+                FROM ekyc_verifications
+                WHERE guest_id = $1
+                ORDER BY COALESCE(submitted_at, created_at) DESC, updated_at DESC, id DESC
+                LIMIT 1
+            "#,
+            sqlite: r#"
+                SELECT id, user_id, guest_id, status,
+                       COALESCE(self_checkin_enabled, 0) AS self_checkin_enabled,
+                       verified_at
+                FROM ekyc_verifications
+                WHERE guest_id = ?1
+                ORDER BY COALESCE(submitted_at, created_at) DESC, updated_at DESC, id DESC
+                LIMIT 1
+            "#
+        );
+
+        let row = sqlx::query(query)
+            .bind(guest_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        row.map(|row| {
+            Ok(GuestEkycSummaryRecord {
+                verification_id: row.try_get("id")?,
+                user_id: row.try_get("user_id")?,
+                guest_id: row.try_get("guest_id")?,
+                status: row.try_get("status")?,
+                self_checkin_enabled: row_mappers::get_bool(&row, "self_checkin_enabled"),
+                verified_at: row.try_get("verified_at").ok().flatten(),
+            })
+        })
+        .transpose()
+        .map_err(|e: sqlx::Error| ApiError::Database(e.to_string()))
+    }
+
+    pub async fn latest_guest_summary(
+        pool: &DbPool,
+        guest_id: i64,
+    ) -> Result<GuestEkycStatusSummary, ApiError> {
+        Ok(Self::latest_guest_summary_record(pool, guest_id)
+            .await?
+            .map(|record| GuestEkycStatusSummary {
+                guest_id: record.guest_id,
+                ekyc_verification_id: Some(record.verification_id),
+                status: record.status,
+                self_checkin_enabled: record.self_checkin_enabled,
+                verified_at: record.verified_at,
+                can_auto_checkin: false,
+                auto_checkin_block_reason: None,
+            })
+            .unwrap_or_else(|| GuestEkycStatusSummary::not_submitted(guest_id)))
     }
 
     pub async fn exists_open_for_guest(pool: &DbPool, guest_id: i64) -> Result<bool, ApiError> {
@@ -924,7 +1004,12 @@ impl EkycRepository {
     }
 
     pub async fn room_number(pool: &DbPool, room_id: i64) -> Result<String, ApiError> {
-        sqlx::query_scalar("SELECT room_number FROM rooms WHERE id = $1")
+        let query = crate::sql_query!(
+            postgres: "SELECT room_number FROM rooms WHERE id = $1",
+            sqlite: "SELECT room_number FROM rooms WHERE id = ?1"
+        );
+
+        sqlx::query_scalar(query)
             .bind(room_id)
             .fetch_one(pool)
             .await

@@ -12,7 +12,7 @@ use axum::{
     extract::{Extension, Path, State},
     http::HeaderMap,
     response::Json,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
 };
 
 const RBAC_SNAPSHOT_PERMISSIONS: &[&str] = &[
@@ -39,6 +39,8 @@ const PERMISSION_DELETE_PERMISSIONS: &[&str] = &["permissions:delete", "permissi
 const PERMISSION_MANAGE_PERMISSIONS: &[&str] = &["permissions:manage"];
 const USER_READ_PERMISSIONS: &[&str] = &["users:read", "users:manage"];
 const USER_CREATE_PERMISSIONS: &[&str] = &["users:create", "users:manage"];
+const USER_UPDATE_PERMISSIONS: &[&str] = &["users:update", "users:manage"];
+const USER_DELETE_PERMISSIONS: &[&str] = &["users:delete", "users:manage"];
 const USER_ROLE_MANAGE_PERMISSIONS: &[&str] = &["users:update", "users:manage"];
 
 /// Create RBAC routes
@@ -78,6 +80,8 @@ pub fn routes() -> Router<DbPool> {
         .route("/rbac/users", get(get_users))
         .route("/rbac/users", post(create_user))
         .route("/rbac/users/{user_id}", get(get_user))
+        .route("/rbac/users/{user_id}", patch(update_user))
+        .route("/rbac/users/{user_id}", delete(delete_user))
 }
 
 async fn get_snapshot(
@@ -253,6 +257,28 @@ async fn create_user(
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_CREATE_PERMISSIONS).await?;
     handlers::rbac::create_user_handler(State(pool), Extension(actor_user_id), Json(input)).await
+}
+
+async fn update_user(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+    Json(input): Json<models::UserUpdateInput>,
+) -> Result<Json<models::UserResponse>, ApiError> {
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_UPDATE_PERMISSIONS).await?;
+    handlers::rbac::update_user_handler(State(pool), Extension(actor_user_id), path, Json(input))
+        .await
+}
+
+async fn delete_user(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let actor_user_id =
+        require_any_permission_helper(&pool, &headers, USER_DELETE_PERMISSIONS).await?;
+    handlers::rbac::delete_user_handler(State(pool), Extension(actor_user_id), path).await
 }
 
 async fn get_user(

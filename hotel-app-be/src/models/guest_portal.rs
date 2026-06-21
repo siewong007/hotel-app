@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{Booking, Guest};
+use super::{Booking, Guest, GuestEkycStatusSummary};
 
 /// Request for verifying a guest booking.
 #[derive(Debug, Deserialize)]
@@ -24,4 +24,5 @@ pub struct GuestPortalVerifyResponse {
 pub struct GuestPortalBookingResponse {
     pub booking: Booking,
     pub guest: Guest,
+    pub ekyc_summary: GuestEkycStatusSummary,
 }

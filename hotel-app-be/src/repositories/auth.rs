@@ -221,31 +221,6 @@ impl AuthRepository {
             .await
             .map_err(ApiError::from)?;
 
-        let loyalty_program_id: Option<i64> = sqlx::query_scalar(
-            "SELECT id FROM loyalty_programs WHERE tier_level = 1 ORDER BY created_at LIMIT 1",
-        )
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(ApiError::from)?;
-
-        if let Some(program_id) = loyalty_program_id {
-            sqlx::query(
-                r#"
-                INSERT INTO loyalty_memberships (
-                    guest_id, program_id, membership_number,
-                    points_balance, lifetime_points, tier_level, status, enrolled_date
-                )
-                VALUES ($1, $2, $3, 0, 0, 1, 'active', CURRENT_DATE)
-                "#,
-            )
-            .bind(guest.id)
-            .bind(program_id)
-            .bind(format!("LM-{:08}", guest.id))
-            .execute(&mut *tx)
-            .await
-            .map_err(ApiError::from)?;
-        }
-
         tx.commit().await.map_err(ApiError::from)?;
 
         Ok((guest, user))
