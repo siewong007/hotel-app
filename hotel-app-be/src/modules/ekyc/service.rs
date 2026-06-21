@@ -21,6 +21,7 @@ use crate::repositories::ekyc::{
     NewEkycVerification,
 };
 use crate::services::audit::AuditLog;
+use crate::services::auto_checkin;
 
 pub async fn submit_ekyc(
     pool: &DbPool,
@@ -735,45 +736,22 @@ pub async fn self_checkin(
     user_id: i64,
     req: SelfCheckinRequest,
 ) -> Result<serde_json::Value, ApiError> {
-    let (ekyc_id, self_checkin_enabled) =
-        EkycRepository::approved_self_checkin_for_user(pool, user_id)
-            .await?
-            .ok_or_else(|| {
-                ApiError::Forbidden("eKYC verification required for self check-in".to_string())
-            })?;
-
-    if !self_checkin_enabled {
-        return Err(ApiError::Forbidden(
-            "Self check-in not enabled for your account".to_string(),
-        ));
-    }
-
-    let (booking_id, room_id) =
-        EkycRepository::confirmed_booking_for_user(pool, req.booking_id, user_id)
-            .await?
-            .ok_or_else(|| ApiError::NotFound("Booking not found or not confirmed".to_string()))?;
-    let room_number = EkycRepository::room_number(pool, room_id).await?;
-
-    EkycRepository::mark_booking_checked_in(pool, booking_id).await?;
-    let checked_in_at = Utc::now();
-    let event = EkycRepository::insert_self_checkin_event(
+    let response = auto_checkin::auto_checkin_for_user(
         pool,
-        booking_id,
-        ekyc_id,
         user_id,
-        checked_in_at,
-        &req.device_type,
-        &req.checkin_location,
+        req.booking_id,
+        req.device_type,
+        req.checkin_location,
     )
     .await?;
 
     Ok(serde_json::json!({
-        "success": true,
-        "booking_id": booking_id,
-        "room_number": room_number,
-        "digital_key_sent": event.digital_key_sent,
-        "checked_in_at": event.checked_in_at,
-        "message": format!("Successfully checked in to room {}. Your digital key has been sent.", room_number)
+        "success": response.success,
+        "booking_id": response.booking_id,
+        "room_number": response.room_number,
+        "digital_key_sent": response.digital_key_sent,
+        "checked_in_at": response.checked_in_at,
+        "message": response.message
     }))
 }
 

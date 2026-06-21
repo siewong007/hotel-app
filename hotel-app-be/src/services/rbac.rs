@@ -248,6 +248,108 @@ pub async fn create_user(
     Ok(user.into())
 }
 
+pub async fn update_user(
+    pool: &DbPool,
+    admin_user_id: i64,
+    user_id: i64,
+    mut input: UserUpdateInput,
+) -> Result<UserResponse, ApiError> {
+    input.password = input
+        .password
+        .take()
+        .filter(|password| !password.trim().is_empty());
+    sanitize_user_update_input(&mut input);
+    input
+        .validate()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    let existing = RbacRepository::find_user_by_id(pool, user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+    ensure_actor_can_manage_user(pool, admin_user_id, user_id).await?;
+
+    if admin_user_id == user_id && input.is_active == Some(false) {
+        return Err(ApiError::BadRequest(
+            "Cannot deactivate your own user account".to_string(),
+        ));
+    }
+
+    if RbacRepository::username_or_email_exists_for_other(
+        pool,
+        user_id,
+        input.username.as_deref(),
+        input.email.as_deref(),
+    )
+    .await?
+    {
+        return Err(ApiError::BadRequest(
+            "Username or email already exists".to_string(),
+        ));
+    }
+
+    let password_hash = match &input.password {
+        Some(password) => {
+            AuthService::validate_password(password).map_err(ApiError::BadRequest)?;
+            Some(
+                AuthService::hash_password(password)
+                    .await
+                    .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?,
+            )
+        }
+        None => None,
+    };
+
+    let changed_fields = changed_user_fields(&existing, &input, password_hash.is_some());
+    let user = RbacRepository::update_user(pool, user_id, &input, password_hash.as_deref()).await?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(admin_user_id),
+        "user_updated",
+        "user",
+        Some(user_id),
+        Some(serde_json::json!({"changed_fields": changed_fields})),
+        None,
+        None,
+    )
+    .await;
+    crate::core::rbac_cache::invalidate_all();
+
+    Ok(user.into())
+}
+
+pub async fn delete_user(pool: &DbPool, admin_user_id: i64, user_id: i64) -> Result<(), ApiError> {
+    if admin_user_id == user_id {
+        return Err(ApiError::BadRequest(
+            "Cannot delete your own user account".to_string(),
+        ));
+    }
+
+    if !RbacRepository::user_exists(pool, user_id).await? {
+        return Err(ApiError::NotFound("User not found".to_string()));
+    }
+    ensure_actor_can_manage_user(pool, admin_user_id, user_id).await?;
+
+    if !RbacRepository::soft_delete_user(pool, user_id).await? {
+        return Err(ApiError::NotFound("User not found".to_string()));
+    }
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(admin_user_id),
+        "user_deleted",
+        "user",
+        Some(user_id),
+        None,
+        None,
+        None,
+    )
+    .await;
+    crate::core::rbac_cache::invalidate_all();
+
+    Ok(())
+}
+
 pub async fn user_roles_permissions(
     pool: &DbPool,
     user_id: i64,
@@ -361,6 +463,61 @@ fn unique_ids(ids: Vec<i64>) -> Vec<i64> {
     ids.into_iter().filter(|id| seen.insert(*id)).collect()
 }
 
+fn sanitize_optional_text(value: &mut Option<String>, sanitizer: fn(&str) -> String) {
+    if let Some(raw) = value {
+        *raw = sanitizer(raw);
+    }
+}
+
+fn sanitize_user_update_input(input: &mut UserUpdateInput) {
+    sanitize_optional_text(&mut input.username, |value| {
+        Sanitizer::sanitize_text(value).trim().to_string()
+    });
+    sanitize_optional_text(&mut input.email, Sanitizer::sanitize_email);
+    sanitize_optional_text(&mut input.full_name, Sanitizer::sanitize_guest_name);
+    sanitize_optional_text(&mut input.phone, Sanitizer::sanitize_phone);
+}
+
+fn changed_user_fields(
+    existing: &User,
+    input: &UserUpdateInput,
+    password_changed: bool,
+) -> Vec<&'static str> {
+    let mut fields = Vec::new();
+
+    if input
+        .username
+        .as_ref()
+        .is_some_and(|username| username != &existing.username)
+    {
+        fields.push("username");
+    }
+    if input
+        .email
+        .as_ref()
+        .is_some_and(|email| email != &existing.email)
+    {
+        fields.push("email");
+    }
+    if input.full_name.is_some() && input.full_name.as_ref() != existing.full_name.as_ref() {
+        fields.push("full_name");
+    }
+    if input.phone.is_some() && input.phone.as_ref() != existing.phone.as_ref() {
+        fields.push("phone");
+    }
+    if input
+        .is_active
+        .is_some_and(|is_active| is_active != existing.is_active)
+    {
+        fields.push("is_active");
+    }
+    if password_changed {
+        fields.push("password");
+    }
+
+    fields
+}
+
 fn validate_access_code(value: &str, kind: &str) -> Result<(), ApiError> {
     let valid = value
         .chars()
@@ -418,4 +575,13 @@ async fn ensure_actor_can_manage_roles(
     }
 
     Ok(())
+}
+
+async fn ensure_actor_can_manage_user(
+    pool: &DbPool,
+    actor_user_id: i64,
+    target_user_id: i64,
+) -> Result<(), ApiError> {
+    let target_role_ids = RbacRepository::user_role_ids(pool, target_user_id).await?;
+    ensure_actor_can_manage_roles(pool, actor_user_id, &target_role_ids).await
 }

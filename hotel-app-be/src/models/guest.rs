@@ -37,6 +37,42 @@ pub struct Guest {
     pub bookings_count: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_stay_date: Option<chrono::NaiveDate>,
+    /// Computed from `ekyc_verifications.guest_id`; never stored on guests.
+    #[serde(default)]
+    #[sqlx(skip)]
+    pub ekyc_summary: GuestEkycStatusSummary,
+}
+
+/// Computed guest eKYC status used by guest, booking, and portal responses.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GuestEkycStatusSummary {
+    pub guest_id: i64,
+    pub ekyc_verification_id: Option<i64>,
+    pub status: String,
+    pub self_checkin_enabled: bool,
+    pub verified_at: Option<DateTime<Utc>>,
+    pub can_auto_checkin: bool,
+    pub auto_checkin_block_reason: Option<String>,
+}
+
+impl Default for GuestEkycStatusSummary {
+    fn default() -> Self {
+        Self::not_submitted(0)
+    }
+}
+
+impl GuestEkycStatusSummary {
+    pub fn not_submitted(guest_id: i64) -> Self {
+        Self {
+            guest_id,
+            ekyc_verification_id: None,
+            status: "not_submitted".to_string(),
+            self_checkin_enabled: false,
+            verified_at: None,
+            can_auto_checkin: false,
+            auto_checkin_block_reason: Some("eKYC has not been submitted.".to_string()),
+        }
+    }
 }
 
 /// Authoritative metrics for the Guest 360 profile view.
@@ -88,6 +124,7 @@ pub struct GuestDuplicateCandidate {
 pub struct GuestProfile {
     pub guest: Guest,
     pub summary: GuestSummary,
+    pub ekyc_summary: GuestEkycStatusSummary,
     pub reservations: Vec<GuestProfileBooking>,
     pub duplicate_candidates: Vec<GuestDuplicateCandidate>,
 }
