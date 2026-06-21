@@ -30,6 +30,66 @@ pub struct BookingDataExport {
     pub rooms: Vec<Value>,
     #[serde(default)]
     pub room_types: Vec<Value>,
+
+    // ----- Extended full-backup tables (business config + operational). -----
+    // All default to empty so older export files (and partial exports) still
+    // deserialize cleanly.
+    #[serde(default)]
+    pub system_settings: Vec<Value>,
+    #[serde(default)]
+    pub rate_plans: Vec<Value>,
+    #[serde(default)]
+    pub room_rates: Vec<Value>,
+    #[serde(default)]
+    pub amenities: Vec<Value>,
+    #[serde(default)]
+    pub room_type_amenities: Vec<Value>,
+    #[serde(default)]
+    pub services: Vec<Value>,
+    #[serde(default)]
+    pub booking_services: Vec<Value>,
+    #[serde(default)]
+    pub booking_channels: Vec<Value>,
+    #[serde(default)]
+    pub room_status_transitions: Vec<Value>,
+    #[serde(default)]
+    pub room_history: Vec<Value>,
+    #[serde(default)]
+    pub room_status_change_log: Vec<Value>,
+    #[serde(default)]
+    pub email_templates: Vec<Value>,
+    #[serde(default)]
+    pub loyalty_programs: Vec<Value>,
+    #[serde(default)]
+    pub loyalty_tiers: Vec<Value>,
+    #[serde(default)]
+    pub loyalty_memberships: Vec<Value>,
+    #[serde(default)]
+    pub points_transactions: Vec<Value>,
+    #[serde(default)]
+    pub reward_catalog: Vec<Value>,
+    #[serde(default)]
+    pub reward_redemptions: Vec<Value>,
+    #[serde(default)]
+    pub corporate_accounts: Vec<Value>,
+    #[serde(default)]
+    pub corporate_account_contacts: Vec<Value>,
+    #[serde(default)]
+    pub housekeeping_tasks: Vec<Value>,
+    #[serde(default)]
+    pub maintenance_tickets: Vec<Value>,
+    #[serde(default)]
+    pub guest_documents: Vec<Value>,
+    #[serde(default)]
+    pub guest_notes: Vec<Value>,
+    #[serde(default)]
+    pub guest_preferences: Vec<Value>,
+    #[serde(default)]
+    pub guest_reviews: Vec<Value>,
+    #[serde(default)]
+    pub self_checkin_events: Vec<Value>,
+    #[serde(default)]
+    pub night_audit_posted_nights: Vec<Value>,
 }
 
 /// Import request wrapper.
