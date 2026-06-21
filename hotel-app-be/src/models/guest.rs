@@ -37,6 +37,42 @@ pub struct Guest {
     pub bookings_count: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_stay_date: Option<chrono::NaiveDate>,
+    /// Computed from `ekyc_verifications.guest_id`; never stored on guests.
+    #[serde(default)]
+    #[sqlx(skip)]
+    pub ekyc_summary: GuestEkycStatusSummary,
+}
+
+/// Computed guest eKYC status used by guest, booking, and portal responses.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GuestEkycStatusSummary {
+    pub guest_id: i64,
+    pub ekyc_verification_id: Option<i64>,
+    pub status: String,
+    pub self_checkin_enabled: bool,
+    pub verified_at: Option<DateTime<Utc>>,
+    pub can_auto_checkin: bool,
+    pub auto_checkin_block_reason: Option<String>,
+}
+
+impl Default for GuestEkycStatusSummary {
+    fn default() -> Self {
+        Self::not_submitted(0)
+    }
+}
+
+impl GuestEkycStatusSummary {
+    pub fn not_submitted(guest_id: i64) -> Self {
+        Self {
+            guest_id,
+            ekyc_verification_id: None,
+            status: "not_submitted".to_string(),
+            self_checkin_enabled: false,
+            verified_at: None,
+            can_auto_checkin: false,
+            auto_checkin_block_reason: Some("eKYC has not been submitted.".to_string()),
+        }
+    }
 }
 
 /// Authoritative metrics for the Guest 360 profile view.
@@ -88,6 +124,7 @@ pub struct GuestDuplicateCandidate {
 pub struct GuestProfile {
     pub guest: Guest,
     pub summary: GuestSummary,
+    pub ekyc_summary: GuestEkycStatusSummary,
     pub reservations: Vec<GuestProfileBooking>,
     pub duplicate_candidates: Vec<GuestDuplicateCandidate>,
 }
@@ -178,6 +215,37 @@ pub struct GuestUpdateValues {
     pub tourism_type: Option<TourismType>,
     pub discount_percentage: i32,
     pub company_name: Option<String>,
+}
+
+/// Latest check-in payment/tourism-tax signal used to classify a guest quickly.
+#[derive(Debug)]
+pub struct GuestTourismTaxSignal {
+    pub booking_id: i64,
+    pub booking_number: Option<String>,
+    pub check_in_date: chrono::NaiveDate,
+    pub check_out_date: chrono::NaiveDate,
+    pub tourism_tax_amount: Decimal,
+    pub net_paid_amount: Decimal,
+}
+
+/// Source details returned after applying a tourism classification from history.
+#[derive(Debug, Clone, Serialize)]
+pub struct GuestTourismConversionSource {
+    pub booking_id: i64,
+    pub booking_number: Option<String>,
+    pub check_in_date: chrono::NaiveDate,
+    pub check_out_date: chrono::NaiveDate,
+    pub tourism_tax_amount: Decimal,
+    pub net_paid_amount: Decimal,
+    pub paid_tourism_tax: bool,
+    pub inferred_tourism_type: TourismType,
+}
+
+/// Response for the fast-lane tourism conversion workflow.
+#[derive(Debug, Clone, Serialize)]
+pub struct GuestTourismConversionResponse {
+    pub guest: Guest,
+    pub source: GuestTourismConversionSource,
 }
 
 /// Guest booking row for the guest detail endpoint.
@@ -290,7 +358,9 @@ pub struct GuestPaginationParams {
     pub guest_type: Option<String>,
     /// Filter by tourism type: "local" or "foreign".
     pub tourism_type: Option<String>,
-    /// Filter to guests missing one or more key profile fields.
+    /// Filter to guests with no tourism type configured.
+    pub missing_tourism: Option<bool>,
+    /// Filter to guests missing one or more required profile fields.
     pub missing_info: Option<bool>,
 }
 

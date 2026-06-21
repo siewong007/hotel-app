@@ -11,7 +11,8 @@ type StorageKey =
   | 'routePolicies'
   | 'themeMode'
   | 'cmdRecents'
-  | 'ekycAdminFilters';
+  | 'ekycAdminFilters'
+  | 'dataTransferHistory';
 
 interface StorageCache {
   [key: string]: any;

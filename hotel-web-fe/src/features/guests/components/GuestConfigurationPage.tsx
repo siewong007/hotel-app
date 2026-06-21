@@ -39,6 +39,8 @@ import {
   Edit as EditIcon,
   FileDownloadOutlined as ExportIcon,
   AutoAwesome as ConvertIcon,
+  VerifiedUserOutlined as EkycIcon,
+  WarningAmberOutlined as MissingTourismIcon,
 } from '@mui/icons-material';
 import { Guest } from '../../../types';
 import { DataTable, type ColumnDef } from '../../../components';
@@ -51,6 +53,7 @@ import { emitApiNotification } from '../../../utils/apiNotifications';
 import { getPaginationState, normalizePage, toPaginationSearchParams } from '../../../utils/pagination';
 import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
 import {
+  useApplyGuestTourismFromLastCheckIn,
   useCreateGuest,
   useDeleteGuest,
   useGuestBookings,
@@ -61,6 +64,7 @@ import {
 } from '../hooks/useGuestQueries';
 import { useRooms } from '../../rooms/hooks/useRoomQueries';
 import { Star as MemberIcon } from '@mui/icons-material';
+import EkycCreateDialog from '../../ekyc/components/EkycCreateDialog';
 import GuestFormDialog from './GuestFormDialog';
 import { ContactRow, StatTile } from './GuestDetailPanelParts';
 import { AVATAR_PALETTE, GUEST_DESIGN } from '../constants';
@@ -69,6 +73,7 @@ import {
   getGuestSegmentCounts,
   getGuestSegmentQueryParams,
   guestHasMissingProfileInfo,
+  guestHasMissingTourismType,
   type GuestSegment,
 } from '../utils';
 import { formatLocalDate } from '../../../utils/date';
@@ -102,6 +107,27 @@ const duplicateGuestReference = (message: string) => {
     name: match[1],
     id: match[2],
   };
+};
+
+const hasGuestValue = (value?: string | null) => Boolean(value?.trim());
+
+const validateRequiredGuestInformation = (
+  formData: Pick<GuestFormData, 'email' | 'phone' | 'ic_number'>
+): string | null => {
+  const hasContact = hasGuestValue(formData.email) || hasGuestValue(formData.phone);
+  const hasIdentityDocument = hasGuestValue(formData.ic_number);
+
+  if (!hasContact && !hasIdentityDocument) {
+    return 'IC number / passport is required, and either email or phone number is required';
+  }
+  if (!hasContact) {
+    return 'Either email or phone number is required';
+  }
+  if (!hasIdentityDocument) {
+    return 'IC number / passport is required';
+  }
+
+  return null;
 };
 
 type GuestBookingHistoryRow = {
@@ -165,6 +191,7 @@ const GuestConfigurationPage: React.FC = () => {
   const { hasPermission } = useAuth();
   const { format: formatCurrency } = useCurrency();
   const hasAccess = hasPermission('guests:read') || hasPermission('guests:manage');
+  const canCreateEkyc = hasPermission('ekyc:approve');
 
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -184,10 +211,12 @@ const GuestConfigurationPage: React.FC = () => {
   const statsTotalQuery = useGuestsPage(toPaginationSearchParams({ page: 1, pageSize: 1 }), hasAccess);
   const statsMembersQuery = useGuestsPage({ ...toPaginationSearchParams({ page: 1, pageSize: 1 }), guest_type: 'member' }, hasAccess);
   const statsMissingInfoQuery = useGuestsPage({ ...toPaginationSearchParams({ page: 1, pageSize: 1 }), missing_info: true }, hasAccess);
+  const statsMissingTourismQuery = useGuestsPage({ ...toPaginationSearchParams({ page: 1, pageSize: 1 }), missing_tourism: true }, hasAccess);
   const statsTouristsQuery = useGuestsPage({ ...toPaginationSearchParams({ page: 1, pageSize: 1 }), tourism_type: 'foreign' }, hasAccess);
   const roomsQuery = useRooms(hasAccess);
   const createGuestMutation = useCreateGuest();
   const updateGuestMutation = useUpdateGuest();
+  const applyGuestTourismMutation = useApplyGuestTourismFromLastCheckIn();
   const deleteGuestMutation = useDeleteGuest();
   const guests = guestsQuery.data?.data ?? [];
   const rooms = roomsQuery.data ?? [];
@@ -195,9 +224,10 @@ const GuestConfigurationPage: React.FC = () => {
   const statsTotal = statsTotalQuery.data?.total ?? 0;
   const statsMembers = statsMembersQuery.data?.total ?? 0;
   const statsMissingInfo = statsMissingInfoQuery.data?.total ?? 0;
+  const statsMissingTourism = statsMissingTourismQuery.data?.total ?? 0;
   const statsTourists = statsTouristsQuery.data?.total ?? 0;
   const loading = guestsQuery.isPending;
-  const queryError = guestsQuery.error || statsTotalQuery.error || statsMembersQuery.error || statsMissingInfoQuery.error || statsTouristsQuery.error || roomsQuery.error;
+  const queryError = guestsQuery.error || statsTotalQuery.error || statsMembersQuery.error || statsMissingInfoQuery.error || statsMissingTourismQuery.error || statsTouristsQuery.error || roomsQuery.error;
   const pageError = error || (queryError instanceof Error ? queryError.message : null);
   // Currently selected guest in the right detail pane.
   const [selectedGuestId, setSelectedGuestId] = useState<number | null>(null);
@@ -226,6 +256,7 @@ const GuestConfigurationPage: React.FC = () => {
   const [creditsDialogOpen, setCreditsDialogOpen] = useState(false);
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [bookingGuest, setBookingGuest] = useState<Guest | null>(null);
+  const [ekycGuest, setEkycGuest] = useState<Guest | null>(null);
 
   // The booking modal searches its guest list client-side, so it needs the
   // full roster — not the 50-row page shown in the table. Load it lazily, only
@@ -272,6 +303,7 @@ const GuestConfigurationPage: React.FC = () => {
   const [deletingGuest, setDeletingGuest] = useState<Guest | null>(null);
   const [viewingGuest, setViewingGuest] = useState<Guest | null>(null);
   const [formLoading, setFormLoading] = useState(false);
+  const [tourismConversionGuestId, setTourismConversionGuestId] = useState<number | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const guestBookingsQuery = useGuestBookings(viewingGuest?.id, bookingsDialogOpen && !!viewingGuest);
   const guestCreditsQuery = useGuestCredits(viewingGuest?.id, creditsDialogOpen && !!viewingGuest);
@@ -352,9 +384,10 @@ const GuestConfigurationPage: React.FC = () => {
       statsTotalQuery.refetch(),
       statsMembersQuery.refetch(),
       statsMissingInfoQuery.refetch(),
+      statsMissingTourismQuery.refetch(),
       statsTouristsQuery.refetch(),
     ]);
-  }, [guestsQuery, statsMembersQuery, statsMissingInfoQuery, statsTotalQuery, statsTouristsQuery]);
+  }, [guestsQuery, statsMembersQuery, statsMissingInfoQuery, statsMissingTourismQuery, statsTotalQuery, statsTouristsQuery]);
 
   const loadRooms = useCallback(async () => {
     await roomsQuery.refetch();
@@ -369,6 +402,7 @@ const GuestConfigurationPage: React.FC = () => {
       if (segment === 'non' && g.guest_type !== 'non_member') return false;
       if (segment === 'incomplete' && !guestHasMissingProfileInfo(g)) return false;
       if (segment === 'tourist' && g.tourism_type !== 'foreign') return false;
+      if (segment === 'missingTourism' && !guestHasMissingTourismType(g)) return false;
       return true;
     });
   }, [guests, segment]);
@@ -543,6 +577,18 @@ const GuestConfigurationPage: React.FC = () => {
       return;
     }
 
+    const tourismType = formData.tourism_type;
+    if (!tourismType) {
+      setDialogError('Tourism type is required');
+      return;
+    }
+
+    const requiredInformationError = validateRequiredGuestInformation(formData);
+    if (requiredInformationError) {
+      setDialogError(requiredInformationError);
+      return;
+    }
+
     // Validate email format only if provided
     if (formData.email && formData.email.trim()) {
       const emailError = validateEmail(formData.email);
@@ -558,6 +604,7 @@ const GuestConfigurationPage: React.FC = () => {
       // Sanitize form data - convert empty strings to undefined
       const sanitizedData = {
         ...formData,
+        tourism_type: tourismType,
         email: formData.email?.trim() || undefined,
         phone: formData.phone?.trim() || undefined,
         ic_number: formData.ic_number?.trim() || undefined,
@@ -593,6 +640,21 @@ const GuestConfigurationPage: React.FC = () => {
       return;
     }
 
+    const requiredInformationError = validateRequiredGuestInformation(formData);
+    if (requiredInformationError) {
+      setDialogError(requiredInformationError);
+      return;
+    }
+
+    // Validate email format only if provided
+    if (formData.email && formData.email.trim()) {
+      const emailError = validateEmail(formData.email);
+      if (emailError) {
+        setDialogError(emailError);
+        return;
+      }
+    }
+
     try {
       setFormLoading(true);
       setDialogError(null);
@@ -609,6 +671,25 @@ const GuestConfigurationPage: React.FC = () => {
       focusDuplicateGuestSearch(message);
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  const handleApplyTourismFromLastCheckIn = async (guest: Guest) => {
+    try {
+      setTourismConversionGuestId(guest.id);
+      setError(null);
+      const response = await applyGuestTourismMutation.mutateAsync(guest.id);
+      const tourismLabel = response.guest.tourism_type === 'foreign' ? 'Tourist' : 'Local';
+      const bookingLabel = response.source.booking_number || `#${response.source.booking_id}`;
+      emitApiNotification({
+        message: `${guest.full_name} marked ${tourismLabel} from booking ${bookingLabel}`,
+        severity: 'success',
+      });
+      await loadGuests();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update guest tourism type');
+    } finally {
+      setTourismConversionGuestId(null);
     }
   };
 
@@ -647,6 +728,7 @@ const GuestConfigurationPage: React.FC = () => {
     total: statsTotal,
     members: statsMembers,
     missingInfo: statsMissingInfo,
+    missingTourism: statsMissingTourism,
     tourists: statsTourists,
   });
 
@@ -664,6 +746,7 @@ const GuestConfigurationPage: React.FC = () => {
     { k: 'non', label: 'Non-members', count: segmentCounts.non },
     { k: 'incomplete', label: 'Missing info', count: segmentCounts.incomplete, tone: GUEST_DESIGN.amber },
     { k: 'tourist', label: 'Tourists', count: segmentCounts.tourist, tone: GUEST_DESIGN.blue },
+    { k: 'missingTourism', label: 'Missing tourism', count: segmentCounts.missingTourism, icon: <MissingTourismIcon sx={{ fontSize: 14 }} />, tone: GUEST_DESIGN.rose },
   ];
 
   const onSegmentChange = (next: GuestSegment) => {
@@ -697,6 +780,8 @@ const GuestConfigurationPage: React.FC = () => {
             <Box component="strong" sx={{ color: GUEST_DESIGN.gold, fontVariantNumeric: 'tabular-nums' }}>{statsMembers}</Box> members
             {' · '}
             <Box component="strong" sx={{ color: GUEST_DESIGN.ink3, fontVariantNumeric: 'tabular-nums' }}>{nonMemberStats}</Box> non-members
+            {' · '}
+            <Box component="strong" sx={{ color: GUEST_DESIGN.rose, fontVariantNumeric: 'tabular-nums' }}>{statsMissingTourism}</Box> missing tourism
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
@@ -988,6 +1073,20 @@ const GuestConfigurationPage: React.FC = () => {
                               Local
                             </Box>
                           )}
+                          {guestHasMissingTourismType(g) && (
+                            <Box sx={{
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              color: GUEST_DESIGN.rose,
+                              px: 0.85,
+                              py: '2px',
+                              bgcolor: alpha(GUEST_DESIGN.rose, 0.1),
+                              borderRadius: 999,
+                              flexShrink: 0,
+                            }}>
+                              Missing tourism
+                            </Box>
+                          )}
                         </Box>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75, fontSize: 12.5, color: GUEST_DESIGN.ink3, flexWrap: 'wrap' }}>
                           {g.phone ? (
@@ -1170,6 +1269,19 @@ const GuestConfigurationPage: React.FC = () => {
                               {g.tourism_type === 'foreign' ? 'Tourist' : 'Local'}
                             </Box>
                           )}
+                          {guestHasMissingTourismType(g) && (
+                            <Box sx={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: GUEST_DESIGN.rose,
+                              px: 1,
+                              py: '2px',
+                              bgcolor: alpha(GUEST_DESIGN.rose, 0.1),
+                              borderRadius: 999,
+                            }}>
+                              Missing tourism
+                            </Box>
+                          )}
                         </Box>
                       </Box>
                     </Box>
@@ -1237,6 +1349,24 @@ const GuestConfigurationPage: React.FC = () => {
                     >
                       New booking for {firstName}
                     </Button>
+                    {canCreateEkyc && (
+                      <Button
+                        startIcon={<EkycIcon sx={{ fontSize: 16 }} />}
+                        onClick={() => setEkycGuest(g)}
+                        sx={{
+                          py: 1.25,
+                          borderRadius: 1.25,
+                          border: `1px solid ${GUEST_DESIGN.rule}`,
+                          color: GUEST_DESIGN.green700,
+                          fontWeight: 700,
+                          fontSize: 12.5,
+                          textTransform: 'none',
+                          '&:hover': { bgcolor: GUEST_DESIGN.green50 },
+                        }}
+                      >
+                        Create eKYC
+                      </Button>
+                    )}
                     <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
                       <Button
                         startIcon={<HistoryIcon sx={{ fontSize: 16 }} />}
@@ -1271,6 +1401,28 @@ const GuestConfigurationPage: React.FC = () => {
                         Edit profile
                       </Button>
                     </Box>
+                    <Button
+                      startIcon={
+                        tourismConversionGuestId === g.id
+                          ? <CircularProgress size={16} />
+                          : <ConvertIcon sx={{ fontSize: 16 }} />
+                      }
+                      onClick={() => handleApplyTourismFromLastCheckIn(g)}
+                      disabled={tourismConversionGuestId === g.id}
+                      sx={{
+                        py: 1.25,
+                        borderRadius: 1.25,
+                        border: `1px solid ${GUEST_DESIGN.rule}`,
+                        color: GUEST_DESIGN.blue,
+                        fontWeight: 700,
+                        fontSize: 12.5,
+                        textTransform: 'none',
+                        '&:hover': { bgcolor: GUEST_DESIGN.blueBg },
+                        '&.Mui-disabled': { color: GUEST_DESIGN.ink4 },
+                      }}
+                    >
+                      Set tourism from last check-in
+                    </Button>
                     {!isMember && (
                       <Button
                         startIcon={<ConvertIcon sx={{ fontSize: 16 }} />}
@@ -1334,6 +1486,19 @@ const GuestConfigurationPage: React.FC = () => {
           await Promise.all([loadGuests(), loadRooms()]);
         }}
       />
+
+      {canCreateEkyc && (
+        <EkycCreateDialog
+          open={Boolean(ekycGuest)}
+          initialGuest={ekycGuest}
+          lockGuest
+          onClose={() => setEkycGuest(null)}
+          onCreated={(message) => {
+            emitApiNotification({ message, severity: 'success' });
+            void loadGuests();
+          }}
+        />
+      )}
 
       <GuestFormDialog
         open={createDialogOpen}

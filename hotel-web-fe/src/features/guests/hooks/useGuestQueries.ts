@@ -16,6 +16,7 @@ type GuestPageParams = {
   search?: string;
   guest_type?: GuestType;
   tourism_type?: TourismType;
+  missing_tourism?: boolean;
   missing_info?: boolean;
 };
 
@@ -108,6 +109,19 @@ export function useUpdateGuest() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.guests.detail(variables.guestId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.guests.profile(variables.guestId) });
+      invalidateGuestDependencies(queryClient);
+    },
+  });
+}
+
+export function useApplyGuestTourismFromLastCheckIn() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (guestId: number) => GuestsService.applyTourismTypeFromLastCheckIn(guestId),
+    onSuccess: (response, guestId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.guests.detail(guestId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.guests.profile(guestId) });
+      queryClient.setQueryData(queryKeys.guests.detail(guestId), response.guest);
       invalidateGuestDependencies(queryClient);
     },
   });

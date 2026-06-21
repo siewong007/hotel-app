@@ -2,8 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AdminService, type SystemSetting } from '../../../api/admin.service';
 import { queryKeys } from '../../../api/queryKeys';
 import {
+  REPORT_DISPLAY_FONT_SIZE_MAX,
+  REPORT_DISPLAY_FONT_SIZE_MIN,
+  REPORT_FONT_SIZE_MIN,
   getHotelSettings,
   normalizeBookingChannels,
+  normalizeReportFontFamily,
+  normalizeReportFontSize,
   normalizeStringList,
   saveHotelSettings,
   type BookingChannel,
@@ -25,6 +30,13 @@ const DB_SETTING_KEYS = [
   'service_tax_rate',
   'tourism_tax_rate',
   'default_payment_terms_days',
+  'report_font_size',
+  'report_font_family',
+  'report_heading_font_size',
+  'report_section_heading_font_size',
+  'report_table_font_size',
+  'report_caption_font_size',
+  'report_chip_font_size',
   'max_login_attempts',
   'totp_issuer_name',
   'passkey_relying_party_name',
@@ -107,6 +119,35 @@ const mergeSystemSettings = (
     default_payment_terms_days: parseNumberSetting(
       values.get('default_payment_terms_days'),
       localSettings.default_payment_terms_days
+    ),
+    report_font_size: normalizeReportFontSize(
+      values.get('report_font_size') ?? localSettings.report_font_size,
+      localSettings.report_font_size
+    ),
+    report_font_family: normalizeReportFontFamily(
+      values.get('report_font_family') ?? localSettings.report_font_family
+    ),
+    report_heading_font_size: normalizeReportFontSize(
+      values.get('report_heading_font_size') ?? localSettings.report_heading_font_size,
+      localSettings.report_heading_font_size,
+      { min: REPORT_DISPLAY_FONT_SIZE_MIN, max: REPORT_DISPLAY_FONT_SIZE_MAX }
+    ),
+    report_section_heading_font_size: normalizeReportFontSize(
+      values.get('report_section_heading_font_size') ?? localSettings.report_section_heading_font_size,
+      localSettings.report_section_heading_font_size,
+      { min: REPORT_FONT_SIZE_MIN, max: REPORT_DISPLAY_FONT_SIZE_MAX }
+    ),
+    report_table_font_size: normalizeReportFontSize(
+      values.get('report_table_font_size') ?? localSettings.report_table_font_size,
+      localSettings.report_table_font_size
+    ),
+    report_caption_font_size: normalizeReportFontSize(
+      values.get('report_caption_font_size') ?? localSettings.report_caption_font_size,
+      localSettings.report_caption_font_size
+    ),
+    report_chip_font_size: normalizeReportFontSize(
+      values.get('report_chip_font_size') ?? localSettings.report_chip_font_size,
+      localSettings.report_chip_font_size
     ),
     max_login_attempts: parseNumberSetting(values.get('max_login_attempts'), localSettings.max_login_attempts),
     totp_issuer_name: values.get('totp_issuer_name') ?? localSettings.totp_issuer_name,

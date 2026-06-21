@@ -73,7 +73,7 @@ import {
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../../api';
 
-import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory } from '../../../../types';
+import { Room, Guest, BookingWithDetails, BookingCreateRequest, RoomHistory, TourismType } from '../../../../types';
 import { useCurrency } from '../../../../hooks/useCurrency';
 import {
   useBookingNotes,
@@ -142,6 +142,29 @@ const getOverdueDays = (checkOutDate: string, todayIso: string) => {
   const checkOut = parseLocalDate(getDateOnly(checkOutDate));
   const today = parseLocalDate(todayIso);
   return Math.max(1, Math.ceil((today.getTime() - checkOut.getTime()) / DAY_MS));
+};
+
+type GuestInformationDraft = {
+  email: string;
+  phone: string;
+  ic_number: string;
+  tourism_type?: string;
+};
+
+const validateGuestInformationDraft = (guest: GuestInformationDraft): string | null => {
+  if (!guest.ic_number.trim()) {
+    return 'Please enter IC/Passport number';
+  }
+
+  if (!guest.email.trim() && !guest.phone.trim()) {
+    return 'Please enter either email or phone number';
+  }
+
+  if (!guest.tourism_type) {
+    return 'Please select tourism type';
+  }
+
+  return null;
 };
 
 const RoomManagementPage: React.FC = () => {
@@ -277,7 +300,8 @@ const RoomManagementPage: React.FC = () => {
     email: '',
     phone: '',
     nationality: '',
-    ic_number: ''
+    ic_number: '',
+    tourism_type: ''
   });
   // Walk-in payment/deposit state
   const [walkInDeposit, setWalkInDeposit] = useState<number>(0);
@@ -298,7 +322,8 @@ const RoomManagementPage: React.FC = () => {
     email: '',
     phone: '',
     nationality: '',
-    ic_number: ''
+    ic_number: '',
+    tourism_type: ''
   });
 
   // Complimentary check-in state
@@ -426,7 +451,8 @@ const RoomManagementPage: React.FC = () => {
       email: '',
       phone: '',
       nationality: '',
-      ic_number: ''
+      ic_number: '',
+      tourism_type: ''
     });
     // Reset deposit/payment state
     setWalkInDeposit(0);
@@ -449,7 +475,8 @@ const RoomManagementPage: React.FC = () => {
       email: '',
       phone: '',
       nationality: '',
-      ic_number: ''
+      ic_number: '',
+      tourism_type: ''
     });
   };
 
@@ -530,6 +557,13 @@ const RoomManagementPage: React.FC = () => {
           return;
         }
 
+        const guestInformationError = validateGuestInformationDraft(newGuestForm);
+        if (guestInformationError) {
+          showSnackbar(guestInformationError, 'warning');
+          setCreatingBooking(false);
+          return;
+        }
+
         // Validate email format only if provided
         if (newGuestForm.email && newGuestForm.email.trim() && !isValidEmail(newGuestForm.email)) {
           showSnackbar('Please enter a valid email address', 'warning');
@@ -564,6 +598,7 @@ const RoomManagementPage: React.FC = () => {
           phone: newGuestForm.phone,
           ic_number: newGuestForm.ic_number,
           nationality: newGuestForm.nationality,
+          tourism_type: newGuestForm.tourism_type as TourismType,
         });
 
         guestToUse = newGuest;
@@ -578,7 +613,8 @@ const RoomManagementPage: React.FC = () => {
           email: '',
           phone: '',
           nationality: '',
-          ic_number: ''
+          ic_number: '',
+          tourism_type: ''
         });
       } else {
         // Use existing selected guest
@@ -773,6 +809,13 @@ const RoomManagementPage: React.FC = () => {
           return;
         }
 
+        const guestInformationError = validateGuestInformationDraft(newOnlineGuestForm);
+        if (guestInformationError) {
+          showSnackbar(guestInformationError, 'warning');
+          setCreatingBooking(false);
+          return;
+        }
+
         // Validate email format only if provided
         if (newOnlineGuestForm.email && newOnlineGuestForm.email.trim() && !isValidEmail(newOnlineGuestForm.email)) {
           showSnackbar('Please enter a valid email address', 'warning');
@@ -807,6 +850,7 @@ const RoomManagementPage: React.FC = () => {
           phone: newOnlineGuestForm.phone,
           ic_number: newOnlineGuestForm.ic_number,
           nationality: newOnlineGuestForm.nationality,
+          tourism_type: newOnlineGuestForm.tourism_type as TourismType,
         });
 
         guestToUse = newGuest;
@@ -821,7 +865,8 @@ const RoomManagementPage: React.FC = () => {
           email: '',
           phone: '',
           nationality: '',
-          ic_number: ''
+          ic_number: '',
+          tourism_type: ''
         });
       } else {
         // Use existing selected guest
@@ -908,7 +953,8 @@ const RoomManagementPage: React.FC = () => {
         email: '',
         phone: '',
         nationality: '',
-        ic_number: ''
+        ic_number: '',
+        tourism_type: ''
       });
 
       await loadData();

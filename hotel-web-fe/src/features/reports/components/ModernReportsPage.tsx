@@ -50,6 +50,11 @@ import { ReportsService, type BookingChannel } from '../../../api/reports.servic
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { useReportData } from '../hooks/useReportData';
+import {
+  createReportContentSx,
+  createReportPrintStyles,
+  createReportTypography,
+} from '../utils/reportTypography';
 
 type ReportType =
   // New hotel management reports
@@ -220,6 +225,9 @@ const REPORT_CONFIGS = [
 const ModernReportsPage: React.FC = () => {
   const { symbol: currencySymbol } = useCurrency();
   const hotelSettings = getHotelSettings();
+  const reportTypography = createReportTypography(hotelSettings);
+  const reportContentSx = createReportContentSx(reportTypography);
+  const reportPrintStyles = createReportPrintStyles(reportTypography);
   const printRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -353,14 +361,7 @@ const ModernReportsPage: React.FC = () => {
             <head>
               <title>Report - ${selectedReport}</title>
               <style>
-                body { font-family: Arial, sans-serif; padding: 20px; margin: 0; }
-                table { border-collapse: collapse; width: 100%; margin: 10px 0; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                th { background-color: #f5f5f5; }
-                h1, h2, h3, h4, h5, h6 { margin: 10px 0; }
-                .header { text-align: center; margin-bottom: 20px; }
-                .MuiChip-root { display: inline-block; padding: 2px 8px; border-radius: 16px; font-size: 12px; }
-                .MuiPaper-root { box-shadow: none !important; }
+                ${reportPrintStyles}
               </style>
             </head>
             <body>${printContent.innerHTML}</body>
@@ -379,14 +380,7 @@ const ModernReportsPage: React.FC = () => {
         <head>
           <title>Report - ${selectedReport}</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 20px; margin: 0; }
-            table { border-collapse: collapse; width: 100%; margin: 10px 0; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f5f5f5; }
-            h1, h2, h3, h4, h5, h6 { margin: 10px 0; }
-            .header { text-align: center; margin-bottom: 20px; }
-            .MuiChip-root { display: inline-block; padding: 2px 8px; border-radius: 16px; font-size: 12px; }
-            .MuiPaper-root { box-shadow: none !important; }
+            ${reportPrintStyles}
           </style>
         </head>
         <body>${printContent.innerHTML}</body>
@@ -2190,7 +2184,7 @@ const ModernReportsPage: React.FC = () => {
           <CardContent>
             <Typography variant="h6" gutterBottom>Report Preview</Typography>
             <Divider sx={{ mb: 2 }} />
-            <Box ref={printRef} sx={{ p: 2, bgcolor: 'white' }}>
+            <Box ref={printRef} sx={[{ p: 2, bgcolor: 'white' }, reportContentSx]}>
               {renderReport()}
             </Box>
           </CardContent>
@@ -2219,17 +2213,22 @@ const ModernReportsPage: React.FC = () => {
         <DialogContent sx={{ p: 0 }}>
           <Box
             id="print-preview-content"
-            sx={{
-              p: 3,
-              bgcolor: 'white',
-              minHeight: '100%',
-              '@media print': {
-                p: 2,
-                '& .MuiPaper-root': {
-                  boxShadow: 'none',
+            sx={[
+              {
+                p: 3,
+                bgcolor: 'white',
+                minHeight: '100%',
+              },
+              reportContentSx,
+              {
+                '@media print': {
+                  p: 2,
+                  '& .MuiPaper-root': {
+                    boxShadow: 'none',
+                  },
                 },
               },
-            }}
+            ]}
           >
             {renderReport()}
           </Box>

@@ -287,4 +287,34 @@ export class EkycService {
       return await mapHttpError(error, 'Document upload failed');
     }
   }
+
+  static async createEkycApplication(
+    payload: EkycAdminCreatePayload
+  ): Promise<EkycApplicationDetail> {
+    try {
+      return await api.post('ekyc/admin/applications', { json: payload }).json();
+    } catch (error) {
+      return await mapHttpError(error, 'Unable to create eKYC verification');
+    }
+  }
+}
+
+export interface EkycAdminCreatePayload {
+  guest_id: number;
+  selfie_image: string;
+  id_front_image: string;
+  id_back_image?: string;
+  id_type: string;
+  id_number: string;
+  full_name: string;
+  date_of_birth: string;
+  nationality?: string;
+  id_expiry_date: string;
+  id_issue_date?: string;
+  id_issuing_country?: string;
+  proof_of_address?: string;
+  phone?: string;
+  email?: string;
+  current_address?: string;
+  self_checkin_enabled?: boolean;
 }

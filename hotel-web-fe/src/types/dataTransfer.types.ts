@@ -22,6 +22,41 @@ export interface BookingDataExport {
   user_guests: any[];
   rooms: any[];
   room_types: any[];
+  // Extended full-backup tables (business config + operational).
+  system_settings: any[];
+  rate_plans: any[];
+  room_rates: any[];
+  amenities: any[];
+  room_type_amenities: any[];
+  services: any[];
+  booking_services: any[];
+  booking_channels: any[];
+  room_status_transitions: any[];
+  room_history: any[];
+  room_status_change_log: any[];
+  email_templates: any[];
+  loyalty_programs: any[];
+  loyalty_tiers: any[];
+  loyalty_memberships: any[];
+  points_transactions: any[];
+  reward_catalog: any[];
+  reward_redemptions: any[];
+  corporate_accounts: any[];
+  corporate_account_contacts: any[];
+  housekeeping_tasks: any[];
+  maintenance_tickets: any[];
+  guest_documents: any[];
+  guest_notes: any[];
+  guest_preferences: any[];
+  guest_reviews: any[];
+  self_checkin_events: any[];
+  night_audit_posted_nights: any[];
+}
+
+export interface ExportPreview {
+  generated_at: string;
+  counts: Record<string, number>;
+  total_records: number;
 }
 
 export interface ImportResult {

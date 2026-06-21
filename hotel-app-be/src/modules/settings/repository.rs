@@ -114,27 +114,73 @@ impl SettingsRepository {
         pool: &DbPool,
         check_in_time: &str,
         check_out_time: &str,
+        requires_ekyc: bool,
     ) -> Result<u64, ApiError> {
+        let ekyc_clause = if requires_ekyc {
+            crate::sql_query!(
+                postgres: r#"
+              AND (
+                    SELECT e.status
+                    FROM ekyc_verifications e
+                    WHERE e.guest_id = bookings.guest_id
+                    ORDER BY COALESCE(e.submitted_at, e.created_at) DESC, e.updated_at DESC, e.id DESC
+                    LIMIT 1
+                  ) IN ('approved', 'verified')
+              AND COALESCE((
+                    SELECT e.self_checkin_enabled
+                    FROM ekyc_verifications e
+                    WHERE e.guest_id = bookings.guest_id
+                    ORDER BY COALESCE(e.submitted_at, e.created_at) DESC, e.updated_at DESC, e.id DESC
+                    LIMIT 1
+                  ), false) = true
+            "#,
+                sqlite: r#"
+              AND (
+                    SELECT e.status
+                    FROM ekyc_verifications e
+                    WHERE e.guest_id = bookings.guest_id
+                    ORDER BY COALESCE(e.submitted_at, e.created_at) DESC, e.updated_at DESC, e.id DESC
+                    LIMIT 1
+                  ) IN ('approved', 'verified')
+              AND COALESCE((
+                    SELECT e.self_checkin_enabled
+                    FROM ekyc_verifications e
+                    WHERE e.guest_id = bookings.guest_id
+                    ORDER BY COALESCE(e.submitted_at, e.created_at) DESC, e.updated_at DESC, e.id DESC
+                    LIMIT 1
+                  ), 0) = 1
+            "#
+            )
+        } else {
+            ""
+        };
+
         let query = crate::sql_query!(
-            postgres: r#"
+            postgres: format!(
+                r#"
             UPDATE bookings
             SET status = 'auto_checked_in', updated_at = CURRENT_TIMESTAMP
             WHERE status = 'confirmed'
               AND check_in_date = CURRENT_DATE
               AND CURRENT_TIME >= $1::TIME
               AND CURRENT_TIME < $2::TIME
-            "#,
-            sqlite: r#"
+              {ekyc_clause}
+            "#
+            ),
+            sqlite: format!(
+                r#"
             UPDATE bookings
             SET status = 'auto_checked_in', updated_at = datetime('now')
             WHERE status = 'confirmed'
               AND check_in_date = date('now')
               AND time('now') >= time(?1)
               AND time('now') < time(?2)
+              {ekyc_clause}
             "#
+            )
         );
 
-        sqlx::query(query)
+        sqlx::query(&query)
             .bind(check_in_time)
             .bind(check_out_time)
             .execute(pool)

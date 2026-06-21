@@ -28,6 +28,7 @@ interface OnlineGuestForm {
   phone: string;
   ic_number: string;
   nationality: string;
+  tourism_type: string;
 }
 
 interface BookingChannelOption {
@@ -175,6 +176,7 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
                   type="email"
                   value={newGuestForm.email}
                   onChange={(e) => onNewGuestFieldChange('email', e.target.value)}
+                  required={!newGuestForm.phone.trim()}
                 />
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
@@ -183,11 +185,13 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
                   label="Phone"
                   value={newGuestForm.phone}
                   onChange={(e) => onNewGuestFieldChange('phone', e.target.value)}
+                  required={!newGuestForm.email.trim()}
                 />
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField
                   fullWidth
+                  required
                   label="IC/Passport Number"
                   value={newGuestForm.ic_number}
                   onChange={(e) => onNewGuestFieldChange('ic_number', e.target.value)}
@@ -200,6 +204,20 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
                   value={newGuestForm.nationality}
                   onChange={(e) => onNewGuestFieldChange('nationality', e.target.value)}
                 />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  select
+                  required
+                  label="Tourism Type"
+                  value={newGuestForm.tourism_type}
+                  onChange={(e) => onNewGuestFieldChange('tourism_type', e.target.value)}
+                >
+                  <MenuItem value="" disabled>Select tourism type</MenuItem>
+                  <MenuItem value="local">Local - no tourism tax</MenuItem>
+                  <MenuItem value="foreign">Foreign - tourism tax applies</MenuItem>
+                </TextField>
               </Grid>
             </>
           )}
@@ -318,7 +336,12 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
             creating ||
             !bookingChannel ||
             (!isCreatingNewGuest && !selectedGuest) ||
-            (isCreatingNewGuest && (!newGuestForm.first_name || !newGuestForm.last_name))
+            (isCreatingNewGuest && (
+              !newGuestForm.first_name ||
+              !newGuestForm.last_name ||
+              !newGuestForm.ic_number.trim() ||
+              (!newGuestForm.email.trim() && !newGuestForm.phone.trim())
+            ))
           }
           startIcon={creating ? <CircularProgress size={20} /> : null}
           size="large"

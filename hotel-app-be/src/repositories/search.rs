@@ -31,6 +31,32 @@ fn encode_query_component(value: &str) -> String {
         .collect()
 }
 
+fn matches_search_query(value: &str, query: &str) -> bool {
+    !query.is_empty() && !value.is_empty() && value.to_lowercase().contains(query)
+}
+
+fn select_ledger_reference_title(
+    query: &str,
+    ledger_id: i64,
+    invoice_number: &str,
+    folio_number: &str,
+    booking_number: &str,
+) -> (String, String) {
+    for value in [invoice_number, folio_number, booking_number] {
+        if matches_search_query(value, query) {
+            return (value.to_string(), value.to_string());
+        }
+    }
+
+    for value in [invoice_number, folio_number, booking_number] {
+        if !value.is_empty() {
+            return (value.to_string(), value.to_string());
+        }
+    }
+
+    (format!("Ledger #{}", ledger_id), ledger_id.to_string())
+}
+
 pub struct SearchRepository;
 
 impl SearchRepository {
@@ -229,18 +255,13 @@ impl SearchRepository {
             .into_iter()
             .map(|row| {
                 let query = pattern.trim_matches('%').to_lowercase();
-                let booking_number_matches = !query.is_empty()
-                    && !row.booking_number.is_empty()
-                    && row.booking_number.to_lowercase().contains(&query);
-                let (title, route_search_value) = if booking_number_matches {
-                    (row.booking_number.clone(), row.booking_number.clone())
-                } else if !row.invoice_number.is_empty() {
-                    (row.invoice_number.clone(), row.invoice_number.clone())
-                } else if !row.folio_number.is_empty() {
-                    (row.folio_number.clone(), row.folio_number.clone())
-                } else {
-                    (format!("Ledger #{}", row.id), row.id.to_string())
-                };
+                let (title, route_search_value) = select_ledger_reference_title(
+                    &query,
+                    row.id,
+                    &row.invoice_number,
+                    &row.folio_number,
+                    &row.booking_number,
+                );
 
                 let mut subtitle = row.company_name.clone();
                 if !row.booking_number.is_empty() && row.booking_number != title {
@@ -330,5 +351,52 @@ impl SearchRepository {
                 }
             })
             .collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ledger_search_title_uses_matching_invoice_number() {
+        let (title, route_search_value) = select_ledger_reference_title(
+            "inv-202606-0296",
+            43,
+            "INV-202606-0296",
+            "CL-20260620-000234",
+            "BK-20260620-390178d0",
+        );
+
+        assert_eq!(title, "INV-202606-0296");
+        assert_eq!(route_search_value, "INV-202606-0296");
+    }
+
+    #[test]
+    fn ledger_search_title_uses_matching_folio_booking_reference() {
+        let (title, route_search_value) = select_ledger_reference_title(
+            "cl-20260620-000234",
+            43,
+            "INV-202606-0296",
+            "CL-20260620-000234",
+            "BK-20260620-390178d0",
+        );
+
+        assert_eq!(title, "CL-20260620-000234");
+        assert_eq!(route_search_value, "CL-20260620-000234");
+    }
+
+    #[test]
+    fn ledger_search_title_uses_matching_joined_booking_number() {
+        let (title, route_search_value) = select_ledger_reference_title(
+            "bk-20260620-390178d0",
+            43,
+            "INV-202606-0296",
+            "CL-20260620-000234",
+            "BK-20260620-390178d0",
+        );
+
+        assert_eq!(title, "BK-20260620-390178d0");
+        assert_eq!(route_search_value, "BK-20260620-390178d0");
     }
 }

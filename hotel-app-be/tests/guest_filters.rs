@@ -17,7 +17,9 @@ mod sqlite_tests {
                 (8101, 'Alice', 'Member', 'Alice Member', 'alice@example.com', '60111111111', 'A111', 'Acme', 'member', 'foreign'),
                 (8102, 'Bob', 'Local', 'Bob Local', ' ', '60222222222', 'B222', 'Beta', 'non_member', 'local'),
                 (8103, 'Cara', 'Tourist', 'Cara Tourist', 'cara@example.com', '60333333333', 'C333', 'Cobalt', 'non_member', 'foreign'),
-                (8104, 'Dan', 'Member', 'Dan Member', 'dan@example.com', '60444444444', 'D444', NULL, 'member', 'local')
+                (8104, 'Dan', 'Member', 'Dan Member', 'dan@example.com', '60444444444', 'D444', NULL, 'member', 'local'),
+                (8105, 'Erin', 'NoContact', 'Erin NoContact', ' ', ' ', 'E555', NULL, 'non_member', 'local'),
+                (8106, 'Finn', 'NoIc', 'Finn NoIc', 'finn@example.com', '60666666666', ' ', NULL, 'non_member', 'local')
             "#,
         )
         .execute(pool)
@@ -61,7 +63,7 @@ mod sqlite_tests {
         non_member_params.guest_type = Some("non_member".to_string());
         assert_eq!(
             filtered_ids(&pool, non_member_params).await,
-            (2, vec![8102, 8103])
+            (4, vec![8102, 8103, 8105, 8106])
         );
 
         let mut tourist_params = params();
@@ -75,15 +77,15 @@ mod sqlite_tests {
         missing_info_params.missing_info = Some(true);
         assert_eq!(
             filtered_ids(&pool, missing_info_params).await,
-            (2, vec![8102, 8104])
+            (2, vec![8105, 8106])
         );
 
         let mut searched_missing_params = params();
-        searched_missing_params.search = Some("Dan".to_string());
+        searched_missing_params.search = Some("Finn".to_string());
         searched_missing_params.missing_info = Some(true);
         assert_eq!(
             filtered_ids(&pool, searched_missing_params).await,
-            (1, vec![8104])
+            (1, vec![8106])
         );
     }
 }

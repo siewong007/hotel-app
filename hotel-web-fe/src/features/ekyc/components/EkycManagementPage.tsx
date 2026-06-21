@@ -25,6 +25,7 @@ import {
   Paper,
   Select,
   Skeleton,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -38,11 +39,13 @@ import {
   Typography,
 } from '@mui/material';
 import {
+  Add as AddIcon,
   AssignmentInd as ClaimIcon,
   Cancel as RejectIcon,
   CheckCircle as ApproveIcon,
   Close as CloseIcon,
   FileDownload as ExportIcon,
+  ImageNotSupported as ImageNotSupportedIcon,
   LockOpen as RevealIcon,
   PauseCircle as HoldIcon,
   PlayCircle as ReleaseIcon,
@@ -65,6 +68,7 @@ import {
 } from '../../../api/ekyc.service';
 import { api } from '../../../api/client';
 import { storage } from '../../../utils/storage';
+import { useAuth } from '../../../auth/AuthContext';
 import {
   useAllEkycVerifications,
   useEkycApplication,
@@ -72,6 +76,7 @@ import {
   useRevealEkycField,
   useReviewEkycAction,
 } from '../hooks/useEkycQueries';
+import EkycCreateDialog from './EkycCreateDialog';
 
 const STATUS_OPTIONS = [
   'submitted',
@@ -132,12 +137,32 @@ function labelize(value?: string | null): string {
   return value.split('_').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
 }
 
-function statusColor(status: string): 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' {
-  if (status === 'approved') return 'success';
-  if (status === 'rejected' || status === 'expired' || status === 'void') return 'error';
-  if (status === 'escalated') return 'warning';
-  if (status === 'in_review' || status === 'pending_manual_review') return 'info';
-  return 'default';
+// Distinct colour per eKYC status. MUI's Chip `color` prop only exposes a
+// handful of palette names, so we style the chip directly to keep each status
+// visually separable. Returned object is spread into the Chip `sx`.
+const STATUS_CHIP_COLORS: Record<string, { bg: string; fg: string }> = {
+  draft: { bg: '#9e9e9e', fg: '#ffffff' },
+  submitted: { bg: '#0288d1', fg: '#ffffff' },
+  automated_review: { bg: '#0097a7', fg: '#ffffff' },
+  pending_manual_review: { bg: '#ed6c02', fg: '#ffffff' },
+  in_review: { bg: '#6a1b9a', fg: '#ffffff' },
+  additional_information_required: { bg: '#d84315', fg: '#ffffff' },
+  on_hold: { bg: '#f9a825', fg: '#1a1a1a' },
+  escalated: { bg: '#ad1457', fg: '#ffffff' },
+  approved: { bg: '#2e7d32', fg: '#ffffff' },
+  rejected: { bg: '#c62828', fg: '#ffffff' },
+  expired: { bg: '#5d4037', fg: '#ffffff' },
+  void: { bg: '#455a64', fg: '#ffffff' },
+};
+
+function statusChipSx(status: string) {
+  const colors = STATUS_CHIP_COLORS[status] ?? { bg: '#757575', fg: '#ffffff' };
+  return {
+    bgcolor: colors.bg,
+    color: colors.fg,
+    fontWeight: 600,
+    '& .MuiChip-label': { color: colors.fg },
+  };
 }
 
 function riskColor(risk: string): 'default' | 'success' | 'warning' | 'error' {
@@ -153,16 +178,17 @@ const SecureDocumentImage: React.FC<{
   alt: string;
 }> = ({ applicationId, kind, alt }) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [loadState, setLoadState] = useState<'loading' | 'ok' | 'missing' | 'error'>('loading');
   const [rotation, setRotation] = useState(0);
   const [zoom, setZoom] = useState(1);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
 
     setImageUrl(null);
-    setFailed(false);
+    setLoadState('loading');
 
     api
       .get(`ekyc/admin/applications/${applicationId}/documents/${kind}`)
@@ -171,16 +197,21 @@ const SecureDocumentImage: React.FC<{
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
         setImageUrl(objectUrl);
+        setLoadState('ok');
       })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
+      .catch((err) => {
+        if (cancelled) return;
+        // A 404 means the file simply isn't on record; anything else is a
+        // transient/load problem the user can retry.
+        const status = err?.response?.status;
+        setLoadState(status === 404 ? 'missing' : 'error');
       });
 
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [applicationId, kind]);
+  }, [applicationId, kind, reloadKey]);
 
   return (
     <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
@@ -211,11 +242,22 @@ const SecureDocumentImage: React.FC<{
         </Stack>
       </Stack>
       <Box sx={{ height: 260, display: 'grid', placeItems: 'center', bgcolor: 'grey.50', overflow: 'auto' }}>
-        {failed && (
-          <Typography variant="caption" color="text.secondary">Unavailable</Typography>
+        {loadState === 'loading' && <CircularProgress size={24} />}
+        {loadState === 'missing' && (
+          <Stack spacing={0.5} alignItems="center" sx={{ color: 'text.disabled', px: 2, textAlign: 'center' }}>
+            <ImageNotSupportedIcon fontSize="large" />
+            <Typography variant="caption">No document on file</Typography>
+          </Stack>
         )}
-        {!failed && !imageUrl && <CircularProgress size={24} />}
-        {imageUrl && (
+        {loadState === 'error' && (
+          <Stack spacing={1} alignItems="center" sx={{ color: 'text.secondary', px: 2, textAlign: 'center' }}>
+            <Typography variant="caption">Couldn’t load this document</Typography>
+            <Button size="small" variant="outlined" onClick={() => setReloadKey(value => value + 1)}>
+              Retry
+            </Button>
+          </Stack>
+        )}
+        {loadState === 'ok' && imageUrl && (
           <Box
             component="img"
             src={imageUrl}
@@ -267,6 +309,11 @@ const EkycManagementPage: React.FC = () => {
   const [revealField, setRevealField] = useState('id_number');
   const [revealReason, setRevealReason] = useState('');
   const [revealedValue, setRevealedValue] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission('ekyc:approve');
 
   const listQuery = useAllEkycVerifications(filters);
   const detailQuery = useEkycApplication(selectedId);
@@ -400,6 +447,11 @@ const EkycManagementPage: React.FC = () => {
             <Button variant="outlined" startIcon={<ExportIcon />} onClick={exportCsv}>
               CSV
             </Button>
+            {canCreate && (
+              <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateOpen(true)}>
+                Create eKYC
+              </Button>
+            )}
           </Stack>
         </Stack>
 
@@ -540,7 +592,7 @@ const EkycManagementPage: React.FC = () => {
                       <Typography variant="caption" color="text.secondary">{application.id_number_masked ?? '-'}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip size="small" color={statusColor(application.status)} label={labelize(application.status)} />
+                      <Chip size="small" sx={statusChipSx(application.status)} label={labelize(application.status)} />
                     </TableCell>
                     <TableCell>
                       <Stack direction="row" spacing={1} alignItems="center">
@@ -580,7 +632,7 @@ const EkycManagementPage: React.FC = () => {
             <Box>
               <Typography variant="h6">{selectedSummary?.application_id ?? 'Application'}</Typography>
               <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
-                {selectedSummary && <Chip size="small" color={statusColor(selectedSummary.status)} label={labelize(selectedSummary.status)} />}
+                {selectedSummary && <Chip size="small" sx={statusChipSx(selectedSummary.status)} label={labelize(selectedSummary.status)} />}
                 {selectedSummary && <Chip size="small" color={riskColor(selectedSummary.risk_level)} label={`${labelize(selectedSummary.risk_level)} ${selectedSummary.risk_score}`} />}
               </Stack>
             </Box>
@@ -704,6 +756,28 @@ const EkycManagementPage: React.FC = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {canCreate && (
+        <EkycCreateDialog
+          open={createOpen}
+          onClose={() => setCreateOpen(false)}
+          onCreated={(message) => {
+            setSuccessMsg(message);
+            listQuery.refetch();
+          }}
+        />
+      )}
+
+      <Snackbar
+        open={!!successMsg}
+        autoHideDuration={4000}
+        onClose={() => setSuccessMsg('')}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert severity="success" variant="filled" onClose={() => setSuccessMsg('')}>
+          {successMsg}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

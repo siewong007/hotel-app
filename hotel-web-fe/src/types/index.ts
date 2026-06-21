@@ -30,6 +30,8 @@ export type {
   GuestProfile,
   GuestProfileBooking,
   GuestSummary,
+  GuestTourismConversionResponse,
+  GuestTourismConversionSource,
   GuestUpdateRequest,
   GuestType,
   TourismType,
@@ -58,7 +60,7 @@ export type {
 export type { Company, CompanyCreateRequest, CompanyUpdateRequest } from './company.types';
 
 // Data transfer types
-export type { BookingDataExport, ImportMode, ImportResult } from './dataTransfer.types';
+export type { BookingDataExport, ExportPreview, ImportMode, ImportResult } from './dataTransfer.types';
 
 // Night audit types
 export type {
@@ -130,6 +132,29 @@ export type {
   RewardUpdateInput,
   RewardRedemption,
 } from './loyalty.types';
+
+// Loyalty admin types (live `modules::loyalty` backend contract)
+export type {
+  LoyaltyMemberStatus,
+  LoyaltyRedemptionStatus,
+  TierQualificationMetric,
+  LoyaltyTier,
+  LoyaltyProgramRules,
+  LoyaltyRulesInput,
+  LoyaltyMemberSummary,
+  TierProgress,
+  LoyaltyTransaction,
+  AdminLoyaltyReward,
+  LoyaltyRedemption,
+  LoyaltyMemberDetail,
+  ManualAdjustmentInput,
+  AdminRewardInput,
+  AdminRewardUpdateInput,
+  RejectRedemptionInput,
+  LoyaltyMemberQueryParams,
+  LoyaltyRewardQueryParams,
+  LoyaltyRedemptionQueryParams,
+} from './loyaltyAdmin.types';
 
 // Payment types
 export * from './payment.types';

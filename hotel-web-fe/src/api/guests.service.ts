@@ -1,6 +1,6 @@
 import { HTTPError } from 'ky';
 import { api, APIError } from './client';
-import { Guest, GuestCreateRequest, GuestProfile, GuestType, TourismType } from '../types';
+import { Guest, GuestCreateRequest, GuestProfile, GuestTourismConversionResponse, GuestType, TourismType } from '../types';
 import { withRetry } from '../utils/retry';
 import { getPaginationState, toPaginationSearchParams } from '../utils/pagination';
 
@@ -99,6 +99,7 @@ export class GuestsService {
     search?: string;
     guest_type?: GuestType;
     tourism_type?: TourismType;
+    missing_tourism?: boolean;
     missing_info?: boolean;
   } = {}): Promise<{ data: Guest[]; total: number; page: number; page_size: number }> {
     const searchParams: Record<string, any> = {
@@ -107,6 +108,7 @@ export class GuestsService {
     if (params.search) searchParams.search = params.search;
     if (params.guest_type) searchParams.guest_type = params.guest_type;
     if (params.tourism_type) searchParams.tourism_type = params.tourism_type;
+    if (params.missing_tourism != null) searchParams.missing_tourism = String(params.missing_tourism);
     if (params.missing_info != null) searchParams.missing_info = String(params.missing_info);
 
     try {
@@ -160,6 +162,14 @@ export class GuestsService {
       return await api.patch(`guests/${guestId}`, { json: guestData }).json<Guest>();
     } catch (error) {
       throw await toGuestApiError(error, 'Failed to update guest');
+    }
+  }
+
+  static async applyTourismTypeFromLastCheckIn(guestId: number): Promise<GuestTourismConversionResponse> {
+    try {
+      return await api.post(`guests/${guestId}/tourism-from-last-check-in`).json<GuestTourismConversionResponse>();
+    } catch (error) {
+      throw await toGuestApiError(error, 'Failed to update guest tourism type');
     }
   }
 

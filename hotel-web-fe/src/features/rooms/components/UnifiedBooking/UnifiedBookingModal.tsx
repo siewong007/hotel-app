@@ -54,6 +54,24 @@ const getGuestCreditRoomTypeLabels = (guest: GuestWithCredits | null): string =>
     .join(', ');
 };
 
+const validateNewGuestRequiredInformation = (
+  guest: Pick<NewGuestForm, 'email' | 'phone' | 'ic_number' | 'tourism_type'>
+): string | null => {
+  if (!guest.ic_number.trim()) {
+    return 'Please enter IC/Passport number';
+  }
+
+  if (!guest.email.trim() && !guest.phone.trim()) {
+    return 'Please enter either email or phone number';
+  }
+
+  if (!guest.tourism_type) {
+    return 'Please select tourism type';
+  }
+
+  return null;
+};
+
 const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   open,
   onClose,
@@ -370,6 +388,19 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           return;
         }
 
+        const guestInformationError = validateNewGuestRequiredInformation(newGuestForm);
+        if (guestInformationError) {
+          onError(guestInformationError);
+          setProcessing(false);
+          return;
+        }
+        const tourismType = newGuestForm.tourism_type;
+        if (!tourismType) {
+          onError('Please select tourism type');
+          setProcessing(false);
+          return;
+        }
+
         if (newGuestForm.email && newGuestForm.email.trim() && !isValidEmail(newGuestForm.email)) {
           onError('Please enter a valid email address');
           setProcessing(false);
@@ -402,7 +433,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           phone: newGuestForm.phone,
           ic_number: newGuestForm.ic_number,
           nationality: newGuestForm.nationality,
-          tourism_type: newGuestForm.tourism_type,
+          tourism_type: tourismType,
           guest_type: newGuestForm.guest_type || 'non_member',
           company_name: newGuestForm.company_name || undefined,
           address_line1: newGuestForm.address_line1 || undefined,
@@ -605,6 +636,19 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             return;
           }
 
+          const guestInformationError = validateNewGuestRequiredInformation(newGuestForm);
+          if (guestInformationError) {
+            onError(guestInformationError);
+            setProcessing(false);
+            return;
+          }
+          const tourismType = newGuestForm.tourism_type;
+          if (!tourismType) {
+            onError('Please select tourism type');
+            setProcessing(false);
+            return;
+          }
+
           if (newGuestForm.email && newGuestForm.email.trim() && !isValidEmail(newGuestForm.email)) {
             onError('Please enter a valid email address');
             setProcessing(false);
@@ -628,7 +672,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             phone: newGuestForm.phone,
             ic_number: newGuestForm.ic_number,
             nationality: newGuestForm.nationality,
-            tourism_type: newGuestForm.tourism_type,
+            tourism_type: tourismType,
             guest_type: newGuestForm.guest_type || 'non_member',
             company_name: newGuestForm.company_name || undefined,
           });

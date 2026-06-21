@@ -10,7 +10,7 @@ use axum::{
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
-    GuestPortalBookingResponse, GuestPortalVerifyRequest, GuestPortalVerifyResponse,
+    AutoCheckinResponse, GuestPortalBookingResponse, GuestPortalVerifyRequest, GuestPortalVerifyResponse,
     PreCheckInUpdateRequest,
 };
 use crate::services::guest_portal as guest_portal_service;
@@ -43,5 +43,15 @@ pub async fn submit_precheckin_update(
 ) -> Result<Json<GuestPortalBookingResponse>, ApiError> {
     Ok(Json(
         guest_portal_service::submit_precheckin_update(&pool, &token, request).await?,
+    ))
+}
+
+/// POST /guest-portal/auto-checkin/:token
+pub async fn auto_checkin_by_token(
+    State(pool): State<DbPool>,
+    Path(token): Path<String>,
+) -> Result<Json<AutoCheckinResponse>, ApiError> {
+    Ok(Json(
+        guest_portal_service::auto_checkin_by_token(&pool, &token).await?,
     ))
 }

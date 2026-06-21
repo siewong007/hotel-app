@@ -15,6 +15,10 @@ pub mod data_transfer;
 pub mod guest_portal;
 pub mod guests;
 pub mod ledgers;
+// Loyalty routes now live in modules::loyalty::routes (merged below); the old
+// routes/loyalty.rs file is preserved on disk for backward reference during
+// migration but is no longer wired into the router.
+#[allow(dead_code)]
 pub mod loyalty;
 pub mod night_audit;
 pub mod passkey;
@@ -126,7 +130,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(rates::routes())
         .merge(payments::routes())
         .merge(ledgers::routes())
-        .merge(loyalty::routes())
+        .merge(crate::modules::loyalty::routes::routes())
         .merge(rbac::routes())
         .merge(profile::routes())
         .merge(analytics::routes())
