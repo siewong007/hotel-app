@@ -184,7 +184,7 @@ WHERE r.name = 'guest'
 
 UPDATE route_access_policies
 SET nav_label = 'Loyalty',
-    nav_group = 'operations',
+    nav_group = 'admin',
     nav_permissions = '["navigation_loyalty:read","loyalty:read","loyalty:manage"]',
     is_navigation = 1,
     updated_at = datetime('now')

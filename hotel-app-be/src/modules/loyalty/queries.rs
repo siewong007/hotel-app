@@ -1,3 +1,4 @@
+#[allow(dead_code)] // seed defaults; not yet wired to a seeding routine
 pub const DEFAULT_TIERS: [(&str, &str, i32, i32, i32, f64, &str); 3] = [
     (
         "silver",
@@ -28,6 +29,7 @@ pub const DEFAULT_TIERS: [(&str, &str, i32, i32, i32, f64, &str); 3] = [
     ),
 ];
 
+#[allow(dead_code)] // seed defaults; not yet wired to a seeding routine
 pub const DEFAULT_REWARDS: [(&str, &str, &str, i32, bool); 3] = [
     (
         "Late checkout",

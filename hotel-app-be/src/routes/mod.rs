@@ -15,6 +15,10 @@ pub mod data_transfer;
 pub mod guest_portal;
 pub mod guests;
 pub mod ledgers;
+// Loyalty routes now live in modules::loyalty::routes (merged below); the old
+// routes/loyalty.rs file is preserved on disk for backward reference during
+// migration but is no longer wired into the router.
+#[allow(dead_code)]
 pub mod loyalty;
 pub mod night_audit;
 pub mod passkey;

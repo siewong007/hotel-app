@@ -147,6 +147,7 @@ CREATE TEMP TABLE expected_system_settings (
 INSERT INTO expected_system_settings (key)
 VALUES
     ('booking_channels'),
+    ('auto_checkin_requires_ekyc'),
     ('check_in_time'),
     ('check_out_time'),
     ('currency'),
@@ -639,6 +640,7 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('hotel_address', '123 Main Street, City', 'string', 'general', 'Hotel address', true),
 ('hotel_phone', '+1-555-0123', 'string', 'general', 'Hotel contact phone', true),
 ('hotel_email', 'info@grandhotel.com', 'string', 'general', 'Hotel contact email', true),
+('auto_checkin_requires_ekyc', 'true', 'boolean', 'frontdesk', 'Require approved guest eKYC before scheduled auto check-in', false),
 ('check_in_time', '15:00', 'string', 'general', 'Standard check-in time', true),
 ('check_out_time', '11:00', 'string', 'general', 'Standard check-out time', true),
 ('night_shift_time', '23:00', 'string', 'operations', 'Scheduled night audit posting time', false),

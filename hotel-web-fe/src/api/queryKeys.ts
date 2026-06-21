@@ -138,6 +138,13 @@ export const queryKeys = {
     rewards: () => [...loyalty, 'rewards'] as const,
     myRewards: () => [...loyalty, 'my-rewards'] as const,
     myMembership: () => [...loyalty, 'my-membership'] as const,
+    // Admin portal (live modules::loyalty API)
+    adminMembers: (params?: unknown) => [...loyalty, 'admin', 'members', params ?? {}] as const,
+    adminMemberDetail: (id: number) => [...loyalty, 'admin', 'members', id] as const,
+    adminRewards: (params?: unknown) => [...loyalty, 'admin', 'rewards', params ?? {}] as const,
+    adminRedemptions: (params?: unknown) =>
+      [...loyalty, 'admin', 'redemptions', params ?? {}] as const,
+    adminRules: () => [...loyalty, 'admin', 'rules'] as const,
   },
   analytics: {
     all: analytics,

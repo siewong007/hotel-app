@@ -396,6 +396,7 @@ pub struct SelfCheckinRequest {
 }
 
 /// Self check-in event record.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct SelfCheckinEvent {
     pub id: i64,
