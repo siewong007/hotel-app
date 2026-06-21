@@ -21,7 +21,14 @@ pub struct ImportRowPolicy<'a> {
 
 impl DataTransferRepository {
     pub async fn export_table(pool: &DbPool, table: &str) -> Result<Vec<Value>, ApiError> {
-        Self::export_query(pool, &format!("SELECT * FROM {} ORDER BY id", table)).await
+        // Most tables have a serial `id`; composite-keyed tables are ordered by
+        // their primary-key columns instead so export stays deterministic.
+        let order_by = match table {
+            "room_type_amenities" => "room_type_id, amenity_id",
+            "room_status_transitions" => "from_status, to_status",
+            _ => "id",
+        };
+        Self::export_query(pool, &format!("SELECT * FROM {} ORDER BY {}", table, order_by)).await
     }
 
     pub async fn export_query(pool: &DbPool, query: &str) -> Result<Vec<Value>, ApiError> {
