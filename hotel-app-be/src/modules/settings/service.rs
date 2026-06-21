@@ -44,14 +44,23 @@ pub async fn process_auto_checkin_checkout(pool: &DbPool) -> Result<serde_json::
     let late_checkout_enabled = get_setting_value(pool, "late_checkout_enabled").await?;
     let check_in_time = get_setting_value(pool, "check_in_time").await?;
     let check_out_time = get_setting_value(pool, "check_out_time").await?;
+    let auto_checkin_requires_ekyc = SettingsRepository::get_value(pool, "auto_checkin_requires_ekyc")
+        .await?
+        .unwrap_or_else(|| "true".to_string())
+        != "false";
 
     let mut checked_in = 0;
     let mut marked_late = 0;
 
     if auto_checkin_enabled == "true" {
         checked_in =
-            SettingsRepository::auto_check_in_bookings(pool, &check_in_time, &check_out_time)
-                .await? as i32;
+            SettingsRepository::auto_check_in_bookings(
+                pool,
+                &check_in_time,
+                &check_out_time,
+                auto_checkin_requires_ekyc,
+            )
+            .await? as i32;
 
         if checked_in > 0 {
             let _ = SettingsRepository::mark_auto_checked_in_rooms_occupied(pool).await;

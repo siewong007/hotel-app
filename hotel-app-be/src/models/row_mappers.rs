@@ -116,13 +116,15 @@ pub fn get_opt_bool(row: &DbRow, col: &str) -> Option<bool> {
 // =============================================================================
 
 use super::booking::BookingWithDetails;
+use super::guest::GuestEkycStatusSummary;
 
 pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
+    let guest_id = row.try_get("guest_id").unwrap_or_default();
     BookingWithDetails {
         id: row.try_get("id").unwrap_or_default(),
         booking_number: row.try_get("booking_number").unwrap_or_default(),
         folio_number: row.try_get("folio_number").ok(),
-        guest_id: row.try_get("guest_id").unwrap_or_default(),
+        guest_id,
         guest_name: row.try_get("guest_name").unwrap_or_default(),
         guest_email: row.try_get("guest_email").ok(),
         guest_type: row.try_get("guest_type").ok(),
@@ -174,6 +176,7 @@ pub fn row_to_booking_with_details(row: &DbRow) -> BookingWithDetails {
         daily_rates: row.try_get("daily_rates").ok().flatten(),
         invoice_number: row.try_get("invoice_number").ok(),
         cleaning_preference: get_opt_bool(row, "cleaning_preference"),
+        ekyc_summary: GuestEkycStatusSummary::not_submitted(guest_id),
     }
 }
 

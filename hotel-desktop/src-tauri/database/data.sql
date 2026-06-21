@@ -165,6 +165,7 @@ VALUES
     ('passkey_relying_party_name'),
     ('payment_methods'),
     ('rate_codes'),
+    ('report_font_size'),
     ('service_tax_rate'),
     ('session_timeout'),
     ('timezone'),
@@ -650,6 +651,7 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('market_codes', '["WKII","CORP","GOVT","OTA","DIRECT","GROUP","EVENTS","LEISURE"]', 'json', 'sales', 'Market segment codes', true),
 ('booking_channels', '[{"name":"Booking.com","abbreviation":"B.C"},{"name":"Agoda","abbreviation":"A.C"},{"name":"Traveloka","abbreviation":"T.C"},{"name":"Expedia","abbreviation":"E.C"},{"name":"Hotels.com","abbreviation":"H.C"},{"name":"Airbnb","abbreviation":"AB"},{"name":"Trip.com","abbreviation":"TR"},{"name":"Direct Website","abbreviation":"DW"},{"name":"Other OTA","abbreviation":"OT"}]', 'json', 'sales', 'Online and direct booking channels available to front desk workflows', true),
 ('payment_methods', '["Cash","Visa Card","Master Card","Debit Card","Sarawak Pay","American Express","Bank Transfer","E-Wallet","Other"]', 'json', 'payments', 'Payment methods available to walk-in and payment workflows', true),
+('report_font_size', '14', 'number', 'reports', 'Base font size in pixels for generated report previews and print output', false),
 ('guest_titles', '["Mr","Mrs","Ms","Miss","Dr","Prof","Rev"]', 'json', 'guests', 'Guest title options', true)
 ON CONFLICT (key) DO UPDATE SET
     value = EXCLUDED.value,

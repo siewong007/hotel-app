@@ -135,3 +135,27 @@ pub struct UserCreateInput {
     pub phone: Option<String>,
     pub role_ids: Option<Vec<i64>>,
 }
+
+/// Input for updating a user from RBAC administration
+#[derive(Debug, Serialize, Deserialize, Validate, Default)]
+pub struct UserUpdateInput {
+    #[validate(length(
+        min = 3,
+        max = 50,
+        message = "Username must be between 3 and 50 characters"
+    ))]
+    pub username: Option<String>,
+    #[validate(email(message = "Invalid email format"))]
+    pub email: Option<String>,
+    #[validate(length(max = 100, message = "Full name is too long"))]
+    pub full_name: Option<String>,
+    #[validate(length(max = 30, message = "Phone number is too long"))]
+    pub phone: Option<String>,
+    pub is_active: Option<bool>,
+    #[validate(length(
+        min = 8,
+        max = 128,
+        message = "Password must be between 8 and 128 characters"
+    ))]
+    pub password: Option<String>,
+}

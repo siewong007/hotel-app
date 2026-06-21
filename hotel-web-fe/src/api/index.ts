@@ -42,7 +42,7 @@ export { AuditService } from './audit.service';
 export { NightAuditService } from './nightAudit.service';
 export { DataTransferService } from './dataTransfer.service';
 export type { Company, CompanyCreateRequest, CompanyUpdateRequest } from '../types';
-export type { BookingDataExport, ImportResult } from '../types';
+export type { BookingDataExport, ExportPreview, ImportResult } from '../types';
 export type {
   NightAuditPreview,
   NightAuditRun,
@@ -95,6 +95,7 @@ export class HotelAPIService {
   static getGuest = GuestsService.getGuest;
   static createGuest = GuestsService.createGuest;
   static updateGuest = GuestsService.updateGuest;
+  static applyTourismTypeFromLastCheckIn = GuestsService.applyTourismTypeFromLastCheckIn;
   static deleteGuest = GuestsService.deleteGuest;
   static getGuestBookings = GuestsService.getGuestBookings;
   static getMyGuests = GuestsService.getMyGuests;

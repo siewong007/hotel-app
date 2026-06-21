@@ -10,16 +10,18 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::check_permission;
 use crate::modules::ekyc::models::{
-    EkycAdminListResponse, EkycApplicationDetail, EkycApplicationSummary,
+    EkycAdminCreateRequest, EkycAdminListResponse, EkycApplicationDetail, EkycApplicationSummary,
     EkycApplicationSummaryRow, EkycDashboardMetrics, EkycDocumentAvailability, EkycListQuery,
     EkycReasonCode, EkycReviewActionRequest, EkycSensitiveRevealRequest,
     EkycSensitiveRevealResponse, EkycStatusResponse, EkycSubmissionRequest, EkycVerification,
     EkycVerificationUpdate, SelfCheckinRequest,
 };
 use crate::repositories::ekyc::{
-    EkycActionUpdate, EkycHistoryInsert, EkycNoteInsert, EkycRepository, NewEkycVerification,
+    AdminApproval, EkycActionUpdate, EkycHistoryInsert, EkycNoteInsert, EkycRepository,
+    NewEkycVerification,
 };
 use crate::services::audit::AuditLog;
+use crate::services::auto_checkin;
 
 pub async fn submit_ekyc(
     pool: &DbPool,
@@ -101,6 +103,129 @@ pub async fn submit_ekyc(
     .await;
 
     Ok(validation::status_response(&verification))
+}
+
+/// Admin-initiated creation of an already-approved eKYC verification for a guest.
+/// Front-desk staff verify the customer's documents in person; the resulting
+/// record is `approved` with self check-in enabled so the customer can check in
+/// directly. A login-disabled guest portal account is provisioned if the guest
+/// doesn't already have one (eKYC requires a NOT NULL user_id).
+pub async fn admin_create_verification(
+    pool: &DbPool,
+    actor_id: i64,
+    req: EkycAdminCreateRequest,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+) -> Result<EkycApplicationDetail, ApiError> {
+    check_permission(pool, actor_id, "ekyc:approve").await?;
+
+    if !EkycRepository::guest_exists(pool, req.guest_id).await? {
+        return Err(ApiError::BadRequest("Guest not found".to_string()));
+    }
+
+    if EkycRepository::exists_open_for_guest(pool, req.guest_id).await? {
+        return Err(ApiError::BadRequest(
+            "This guest already has an active eKYC verification.".to_string(),
+        ));
+    }
+
+    let (date_of_birth, id_expiry_date, id_issue_date) = validation::validate_date_strings(
+        &req.date_of_birth,
+        &req.id_expiry_date,
+        &req.id_issue_date,
+    )?;
+
+    // Images are uploaded by the admin via /ekyc/upload-document, so the stored
+    // path is tied to the admin's (actor) user id.
+    let id_front_path =
+        validation::prepare_ekyc_image_reference(&req.id_front_image, actor_id, "id_front")?;
+    let id_back_path = req
+        .id_back_image
+        .as_ref()
+        .map(|img| validation::prepare_ekyc_image_reference(img, actor_id, "id_back"))
+        .transpose()?;
+    let selfie_path =
+        validation::prepare_ekyc_image_reference(&req.selfie_image, actor_id, "selfie")?;
+    let proof_path = req
+        .proof_of_address
+        .as_ref()
+        .map(|img| validation::prepare_ekyc_image_reference(img, actor_id, "proof"))
+        .transpose()?;
+
+    // Resolve (or provision) the guest's portal account to satisfy the FK.
+    let user_id = match EkycRepository::find_guest_user(pool, req.guest_id).await? {
+        Some(id) => id,
+        None => EkycRepository::provision_guest_user(pool, req.guest_id, &req.full_name).await?,
+    };
+
+    let self_checkin_enabled = req.self_checkin_enabled.unwrap_or(true);
+
+    let verification = EkycRepository::insert_admin_verification(
+        pool,
+        NewEkycVerification {
+            user_id,
+            guest_id: req.guest_id,
+            full_name: &req.full_name,
+            date_of_birth,
+            nationality: &req.nationality,
+            phone: &req.phone,
+            email: &req.email,
+            current_address: &req.current_address,
+            id_type: &req.id_type,
+            id_number: &req.id_number,
+            id_issuing_country: &req.id_issuing_country,
+            id_issue_date,
+            id_expiry_date,
+            id_front_path: &id_front_path,
+            id_back_path,
+            selfie_path: &selfie_path,
+            proof_path,
+            ip_address: ip_address.clone(),
+            user_agent: user_agent.clone(),
+        },
+        AdminApproval {
+            self_checkin_enabled,
+            verified_by: actor_id,
+            decision_reason: Some("Verified at front desk by staff".to_string()),
+        },
+    )
+    .await?;
+
+    EkycRepository::insert_decision_history(
+        pool,
+        verification.id,
+        actor_id,
+        EkycHistoryInsert {
+            action: "admin_create".to_string(),
+            from_status: None,
+            to_status: Some(verification.status.clone()),
+            reason_code: None,
+            reason: Some("Verified at front desk by staff".to_string()),
+            details: Some(serde_json::json!({
+                "self_checkin_enabled": self_checkin_enabled,
+                "provisioned_user_id": user_id
+            })),
+        },
+    )
+    .await?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(actor_id),
+        "ekyc_admin_created",
+        "ekyc_verification",
+        Some(verification.id),
+        Some(serde_json::json!({
+            "guest_id": req.guest_id,
+            "status": verification.status,
+            "self_checkin_enabled": self_checkin_enabled
+        })),
+        ip_address.clone(),
+        user_agent.clone(),
+    )
+    .await;
+
+    get_admin_application(pool, actor_id, verification.id, ip_address, user_agent).await
 }
 
 pub async fn get_ekyc_status(
@@ -611,45 +736,22 @@ pub async fn self_checkin(
     user_id: i64,
     req: SelfCheckinRequest,
 ) -> Result<serde_json::Value, ApiError> {
-    let (ekyc_id, self_checkin_enabled) =
-        EkycRepository::approved_self_checkin_for_user(pool, user_id)
-            .await?
-            .ok_or_else(|| {
-                ApiError::Forbidden("eKYC verification required for self check-in".to_string())
-            })?;
-
-    if !self_checkin_enabled {
-        return Err(ApiError::Forbidden(
-            "Self check-in not enabled for your account".to_string(),
-        ));
-    }
-
-    let (booking_id, room_id) =
-        EkycRepository::confirmed_booking_for_user(pool, req.booking_id, user_id)
-            .await?
-            .ok_or_else(|| ApiError::NotFound("Booking not found or not confirmed".to_string()))?;
-    let room_number = EkycRepository::room_number(pool, room_id).await?;
-
-    EkycRepository::mark_booking_checked_in(pool, booking_id).await?;
-    let checked_in_at = Utc::now();
-    let event = EkycRepository::insert_self_checkin_event(
+    let response = auto_checkin::auto_checkin_for_user(
         pool,
-        booking_id,
-        ekyc_id,
         user_id,
-        checked_in_at,
-        &req.device_type,
-        &req.checkin_location,
+        req.booking_id,
+        req.device_type,
+        req.checkin_location,
     )
     .await?;
 
     Ok(serde_json::json!({
-        "success": true,
-        "booking_id": booking_id,
-        "room_number": room_number,
-        "digital_key_sent": event.digital_key_sent,
-        "checked_in_at": event.checked_in_at,
-        "message": format!("Successfully checked in to room {}. Your digital key has been sent.", room_number)
+        "success": response.success,
+        "booking_id": response.booking_id,
+        "room_number": response.room_number,
+        "digital_key_sent": response.digital_key_sent,
+        "checked_in_at": response.checked_in_at,
+        "message": response.message
     }))
 }
 

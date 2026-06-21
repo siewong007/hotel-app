@@ -15,6 +15,7 @@ import {
   Autocomplete,
   CircularProgress,
   InputAdornment,
+  MenuItem,
 } from '@mui/material';
 import {
   Login as CheckInIcon,
@@ -32,6 +33,7 @@ export interface NewCheckInGuestForm {
   email: string;
   phone: string;
   ic_number: string;
+  tourism_type: string;
   nationality: string;
   address_line1: string;
   city: string;
@@ -271,12 +273,13 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
-                  label="Email (Optional)"
+                  label="Email"
                   type="email"
                   value={newCheckInGuestForm.email}
                   onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, email: e.target.value })}
                   helperText="Used for sending booking confirmations and invoices"
                   error={newCheckInGuestForm.email !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email)}
+                  required={!newCheckInGuestForm.phone.trim()}
                 />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -285,11 +288,13 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                   label="Phone"
                   value={newCheckInGuestForm.phone}
                   onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, phone: e.target.value })}
+                  required={!newCheckInGuestForm.email.trim()}
                 />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   fullWidth
+                  required
                   label="IC/Passport Number"
                   value={newCheckInGuestForm.ic_number}
                   onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, ic_number: e.target.value })}
@@ -303,6 +308,20 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                   onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, nationality: e.target.value })}
                   placeholder="e.g. Malaysian"
                 />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField
+                  fullWidth
+                  select
+                  required
+                  label="Tourism Type"
+                  value={newCheckInGuestForm.tourism_type}
+                  onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, tourism_type: e.target.value })}
+                >
+                  <MenuItem value="" disabled>Select tourism type</MenuItem>
+                  <MenuItem value="local">Local - no tourism tax</MenuItem>
+                  <MenuItem value="foreign">Foreign - tourism tax applies</MenuItem>
+                </TextField>
               </Grid>
               <Grid size={12}>
                 <TextField
@@ -498,6 +517,9 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
           (isCreatingNewCheckInGuest && (
             !newCheckInGuestForm.first_name ||
             !newCheckInGuestForm.last_name ||
+            !newCheckInGuestForm.ic_number.trim() ||
+            (!newCheckInGuestForm.email.trim() && !newCheckInGuestForm.phone.trim()) ||
+            !newCheckInGuestForm.tourism_type ||
             Boolean(newCheckInGuestForm.email && newCheckInGuestForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email))
           ))
         }

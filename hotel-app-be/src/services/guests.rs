@@ -1,15 +1,17 @@
 //! Guest business workflows.
 
-use crate::constants::GuestType;
+use crate::constants::{GuestType, TourismType};
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::*;
 use crate::repositories::guest::GuestRepository;
 use crate::services::audit::AuditLog;
+use crate::services::auto_checkin;
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
 use regex::Regex;
+use rust_decimal::Decimal;
 
 pub async fn list_guests(
     pool: &DbPool,
@@ -33,7 +35,8 @@ pub async fn list_guests(
     }
 
     let pagination = normalize_pagination(params.page, params.page_size, 100, 500);
-    let (total, guests) = GuestRepository::find_paginated(pool, &params, pagination).await?;
+    let (total, mut guests) = GuestRepository::find_paginated(pool, &params, pagination).await?;
+    auto_checkin::attach_guest_ekyc_summaries(pool, &mut guests).await?;
 
     Ok(GuestPaginatedResponse {
         data: guests,
@@ -44,9 +47,11 @@ pub async fn list_guests(
 }
 
 pub async fn get_guest(pool: &DbPool, guest_id: i64) -> Result<Guest, ApiError> {
-    GuestRepository::find_by_id(pool, guest_id)
+    let mut guest = GuestRepository::find_by_id(pool, guest_id)
         .await?
-        .ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))
+        .ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
+    auto_checkin::attach_guest_ekyc_summary(pool, &mut guest).await?;
+    Ok(guest)
 }
 
 pub async fn guest_profile(pool: &DbPool, guest_id: i64) -> Result<GuestProfile, ApiError> {
@@ -54,10 +59,12 @@ pub async fn guest_profile(pool: &DbPool, guest_id: i64) -> Result<GuestProfile,
     let summary = GuestRepository::guest_summary(pool, guest_id).await?;
     let reservations = GuestRepository::guest_profile_bookings(pool, guest_id).await?;
     let duplicate_candidates = duplicate_candidates(pool, &guest).await?;
+    let ekyc_summary = guest.ekyc_summary.clone();
 
     Ok(GuestProfile {
         guest,
         summary,
+        ekyc_summary,
         reservations,
         duplicate_candidates,
     })
@@ -79,21 +86,15 @@ pub async fn create_guest(
         ));
     }
 
-    if let Some(ref email) = input.email
-        && !email.trim().is_empty()
-        && !email_regex().is_match(email)
-    {
-        return Err(ApiError::BadRequest("Invalid email format".to_string()));
-    }
+    let email = normalize_guest_email(input.email)?;
+    let phone = normalize_guest_phone(input.phone);
+    let ic_number = normalize_guest_text(input.ic_number);
+    validate_required_guest_information(email.as_deref(), phone.as_deref(), ic_number.as_deref())?;
 
     let first_name = Sanitizer::sanitize_guest_name(&input.first_name);
     let last_name = Sanitizer::sanitize_guest_name(&input.last_name);
-    let email = input
-        .email
-        .as_deref()
-        .filter(|email| !email.trim().is_empty())
-        .map(Sanitizer::sanitize_email);
     let full_name = format!("{} {}", first_name, last_name).trim().to_string();
+    let tourism_type = require_guest_tourism_type(input.tourism_type)?;
 
     if let Some(conflicting_guest_id) =
         GuestRepository::full_name_conflict_id(pool, &full_name, None).await?
@@ -106,6 +107,7 @@ pub async fn create_guest(
 
     let guest_type = input.guest_type.unwrap_or(GuestType::NonMember);
     let discount_percentage = input.discount_percentage.unwrap_or(0);
+    let tourism_type = Some(tourism_type);
 
     let guest = GuestRepository::create_detailed(
         pool,
@@ -113,8 +115,8 @@ pub async fn create_guest(
         &first_name,
         &last_name,
         email.as_deref(),
-        input.phone.as_deref().map(Sanitizer::sanitize_phone),
-        input.ic_number.as_deref().map(Sanitizer::sanitize_text),
+        phone,
+        ic_number,
         input.nationality.as_deref().map(Sanitizer::sanitize_text),
         input.address_line1.as_deref().map(Sanitizer::sanitize_text),
         input.city.as_deref().map(Sanitizer::sanitize_text),
@@ -125,7 +127,7 @@ pub async fn create_guest(
         input.postal_code.as_deref().map(Sanitizer::sanitize_text),
         input.country.as_deref().map(Sanitizer::sanitize_text),
         &guest_type,
-        &input.tourism_type,
+        &tourism_type,
         discount_percentage,
         input.company_name.as_deref().map(Sanitizer::sanitize_text),
         user_id,
@@ -159,16 +161,18 @@ pub async fn update_guest(
     let first_name = input.first_name.unwrap_or(existing.first_name);
     let last_name = input.last_name.unwrap_or(existing.last_name);
     let email = match input.email {
-        Some(ref email) if email.trim().is_empty() => None,
-        Some(email) => {
-            let trimmed = email.trim().to_string();
-            if !email_regex().is_match(&trimmed) {
-                return Err(ApiError::BadRequest("Invalid email format".to_string()));
-            }
-            Some(trimmed)
-        }
-        None => existing.email,
+        Some(email) => normalize_guest_email(Some(email))?,
+        None => normalize_stored_guest_email(existing.email),
     };
+    let phone = match input.phone {
+        Some(phone) => normalize_guest_phone(Some(phone)),
+        None => normalize_guest_phone(existing.phone),
+    };
+    let ic_number = match input.ic_number {
+        Some(ic_number) => normalize_guest_text(Some(ic_number)),
+        None => normalize_guest_text(existing.ic_number),
+    };
+    validate_required_guest_information(email.as_deref(), phone.as_deref(), ic_number.as_deref())?;
     let company_name = match input.company_name {
         Some(ref company) if company.trim().is_empty() => None,
         Some(company) => Some(company),
@@ -193,8 +197,8 @@ pub async fn update_guest(
         first_name,
         last_name,
         email,
-        phone: input.phone.or(existing.phone),
-        ic_number: input.ic_number.or(existing.ic_number),
+        phone,
+        ic_number,
         nationality: input.nationality.or(existing.nationality),
         address_line1: input.address_line1.or(existing.address_line1),
         city: input.city.or(existing.city),
@@ -225,7 +229,71 @@ pub async fn update_guest(
     )
     .await;
 
+    let mut updated_guest = updated_guest;
+    auto_checkin::attach_guest_ekyc_summary(pool, &mut updated_guest).await?;
     Ok(updated_guest)
+}
+
+pub async fn apply_tourism_type_from_last_check_in(
+    pool: &DbPool,
+    user_id: i64,
+    guest_id: i64,
+) -> Result<GuestTourismConversionResponse, ApiError> {
+    if !GuestRepository::exists(pool, guest_id).await? {
+        return Err(ApiError::NotFound("Guest not found".to_string()));
+    }
+
+    let signal = GuestRepository::last_check_in_tourism_tax_signal(pool, guest_id)
+        .await?
+        .ok_or_else(|| {
+            ApiError::BadRequest(
+                "No checked-in booking was found for this guest. Check the guest in first, then try again."
+                    .to_string(),
+            )
+        })?;
+
+    let paid_tourism_tax = has_paid_tourism_tax(&signal);
+    let inferred_tourism_type = if paid_tourism_tax {
+        TourismType::Foreign
+    } else {
+        TourismType::Local
+    };
+
+    let guest = GuestRepository::set_tourism_type(pool, guest_id, &inferred_tourism_type).await?;
+    let source = GuestTourismConversionSource {
+        booking_id: signal.booking_id,
+        booking_number: signal.booking_number,
+        check_in_date: signal.check_in_date,
+        check_out_date: signal.check_out_date,
+        tourism_tax_amount: signal.tourism_tax_amount,
+        net_paid_amount: signal.net_paid_amount,
+        paid_tourism_tax,
+        inferred_tourism_type,
+    };
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "guest_tourism_type_inferred",
+        "guest",
+        Some(guest_id),
+        Some(serde_json::json!({
+            "tourism_type": guest.tourism_type.as_ref().map(|value| match value {
+                TourismType::Local => "local",
+                TourismType::Foreign => "foreign",
+            }),
+            "booking_id": source.booking_id,
+            "booking_number": &source.booking_number,
+            "tourism_tax_amount": source.tourism_tax_amount.to_string(),
+            "net_paid_amount": source.net_paid_amount.to_string(),
+            "paid_tourism_tax": source.paid_tourism_tax,
+        })),
+        None,
+        None,
+    )
+    .await;
+
+    Ok(GuestTourismConversionResponse { guest, source })
 }
 
 pub async fn delete_guest(pool: &DbPool, guest_id: i64) -> Result<(), ApiError> {
@@ -303,7 +371,9 @@ pub async fn unlink_guest(pool: &DbPool, user_id: i64, guest_id: i64) -> Result<
 }
 
 pub async fn my_guests(pool: &DbPool, user_id: i64) -> Result<Vec<Guest>, ApiError> {
-    GuestRepository::linked_guests(pool, user_id).await
+    let mut guests = GuestRepository::linked_guests(pool, user_id).await?;
+    auto_checkin::attach_guest_ekyc_summaries(pool, &mut guests).await?;
+    Ok(guests)
 }
 
 pub async fn upgrade_guest_to_user(
@@ -433,6 +503,80 @@ pub async fn my_guests_with_credits(
     }
 
     Ok(result)
+}
+
+fn normalize_guest_email(email: Option<String>) -> Result<Option<String>, ApiError> {
+    let Some(email) = email else {
+        return Ok(None);
+    };
+
+    let trimmed = email.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if !email_regex().is_match(trimmed) {
+        return Err(ApiError::BadRequest("Invalid email format".to_string()));
+    }
+
+    Ok(Some(Sanitizer::sanitize_email(trimmed)))
+}
+
+fn normalize_stored_guest_email(email: Option<String>) -> Option<String> {
+    email.as_deref().and_then(|email| {
+        let trimmed = email.trim();
+        (!trimmed.is_empty()).then(|| Sanitizer::sanitize_email(trimmed))
+    })
+}
+
+fn normalize_guest_phone(phone: Option<String>) -> Option<String> {
+    phone.as_deref().and_then(|phone| {
+        let trimmed = phone.trim();
+        (!trimmed.is_empty()).then(|| Sanitizer::sanitize_phone(trimmed))
+    })
+}
+
+fn normalize_guest_text(value: Option<String>) -> Option<String> {
+    value.as_deref().and_then(|value| {
+        let trimmed = value.trim();
+        (!trimmed.is_empty()).then(|| Sanitizer::sanitize_text(trimmed))
+    })
+}
+
+fn require_guest_tourism_type(tourism_type: Option<TourismType>) -> Result<TourismType, ApiError> {
+    tourism_type.ok_or_else(|| {
+        ApiError::BadRequest("Tourism type is required when creating a guest".to_string())
+    })
+}
+
+fn has_paid_tourism_tax(signal: &GuestTourismTaxSignal) -> bool {
+    signal.tourism_tax_amount > Decimal::ZERO && signal.net_paid_amount >= signal.tourism_tax_amount
+}
+
+fn has_guest_value(value: Option<&str>) -> bool {
+    value.is_some_and(|value| !value.trim().is_empty())
+}
+
+fn validate_required_guest_information(
+    email: Option<&str>,
+    phone: Option<&str>,
+    ic_number: Option<&str>,
+) -> Result<(), ApiError> {
+    let has_contact = has_guest_value(email) || has_guest_value(phone);
+    let has_identity_document = has_guest_value(ic_number);
+
+    match (has_contact, has_identity_document) {
+        (true, true) => Ok(()),
+        (false, false) => Err(ApiError::BadRequest(
+            "IC number / passport is required, and either email or phone number is required"
+                .to_string(),
+        )),
+        (false, true) => Err(ApiError::BadRequest(
+            "Either email or phone number is required".to_string(),
+        )),
+        (true, false) => Err(ApiError::BadRequest(
+            "IC number / passport is required".to_string(),
+        )),
+    }
 }
 
 fn email_regex() -> Regex {
@@ -625,7 +769,7 @@ fn names_are_similar(left: &str, right: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::constants::GuestType;
+    use crate::constants::{GuestType, TourismType};
     use chrono::Utc;
 
     fn guest(
@@ -659,6 +803,7 @@ mod tests {
             updated_at: Utc::now(),
             bookings_count: None,
             last_stay_date: None,
+            ekyc_summary: GuestEkycStatusSummary::not_submitted(id),
         }
     }
 
@@ -720,5 +865,60 @@ mod tests {
             candidate.blocking_reasons,
             vec!["Conflicting identity document"]
         );
+    }
+
+    #[test]
+    fn required_guest_information_allows_email_or_phone_with_identity_document() {
+        assert!(
+            validate_required_guest_information(Some("guest@example.com"), None, Some("A123"))
+                .is_ok()
+        );
+        assert!(
+            validate_required_guest_information(None, Some("60123456789"), Some("A123")).is_ok()
+        );
+    }
+
+    #[test]
+    fn required_guest_information_rejects_missing_contact_or_identity_document() {
+        assert!(validate_required_guest_information(None, None, Some("A123")).is_err());
+        assert!(
+            validate_required_guest_information(Some("guest@example.com"), None, None).is_err()
+        );
+        assert!(validate_required_guest_information(Some(" "), Some(" "), Some(" ")).is_err());
+    }
+
+    #[test]
+    fn required_guest_tourism_type_rejects_unspecified_create_value() {
+        assert!(require_guest_tourism_type(None).is_err());
+        assert_eq!(
+            require_guest_tourism_type(Some(TourismType::Foreign)).unwrap(),
+            TourismType::Foreign
+        );
+    }
+
+    #[test]
+    fn tourism_tax_signal_requires_tax_to_be_charged_and_paid() {
+        let signal = GuestTourismTaxSignal {
+            booking_id: 1,
+            booking_number: Some("B-1".to_string()),
+            check_in_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
+            check_out_date: chrono::NaiveDate::from_ymd_opt(2026, 1, 2).unwrap(),
+            tourism_tax_amount: Decimal::new(1000, 2),
+            net_paid_amount: Decimal::new(1000, 2),
+        };
+        assert!(has_paid_tourism_tax(&signal));
+
+        let unpaid_signal = GuestTourismTaxSignal {
+            net_paid_amount: Decimal::new(999, 2),
+            ..signal
+        };
+        assert!(!has_paid_tourism_tax(&unpaid_signal));
+
+        let no_tax_signal = GuestTourismTaxSignal {
+            tourism_tax_amount: Decimal::ZERO,
+            net_paid_amount: Decimal::new(1000, 2),
+            ..unpaid_signal
+        };
+        assert!(!has_paid_tourism_tax(&no_tax_signal));
     }
 }

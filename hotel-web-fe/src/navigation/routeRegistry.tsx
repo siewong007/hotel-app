@@ -13,6 +13,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import PersonIcon from '@mui/icons-material/Person';
 import SecurityIcon from '@mui/icons-material/Security';
 import SettingsIcon from '@mui/icons-material/Settings';
+import StarIcon from '@mui/icons-material/Star';
 import SyncAltIcon from '@mui/icons-material/SyncAlt';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import { lazyRoute, type PreloadableRouteComponent } from './lazyRoute';
@@ -154,14 +155,6 @@ const routeDefinitions: AppRouteDefinition[] = [
     accessControlled: true,
   },
   {
-    id: 'loyalty',
-    path: '/loyalty',
-    component: LoyaltyPortal,
-    animationType: 'grow',
-    visibility: 'auth',
-    accessControlled: true,
-  },
-  {
     id: 'my-rewards',
     path: '/my-rewards',
     component: LoyaltyDashboard,
@@ -274,6 +267,18 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: CardGiftcardIcon,
     breadcrumbLabel: 'Complimentary Nights',
     navLabel: 'Complimentary Nights',
+    navGroup: 'admin',
+    accessControlled: true,
+  },
+  {
+    id: 'loyalty',
+    path: '/loyalty',
+    component: LoyaltyPortal,
+    animationType: 'grow',
+    visibility: 'auth',
+    icon: StarIcon,
+    breadcrumbLabel: 'Loyalty',
+    navLabel: 'Loyalty',
     navGroup: 'admin',
     accessControlled: true,
   },

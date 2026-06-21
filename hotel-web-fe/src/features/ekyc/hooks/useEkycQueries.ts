@@ -1,7 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
-import { EkycActionPayload, EkycListParams, EkycService } from '../../../api/ekyc.service';
+import {
+  EkycActionPayload,
+  EkycAdminCreatePayload,
+  EkycListParams,
+  EkycService,
+} from '../../../api/ekyc.service';
 
 export function useEkycStatus() {
   return useQuery({
@@ -48,6 +53,16 @@ export function useSubmitEkycVerification() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: any) => EkycService.submitEkycVerification(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.ekyc.all });
+    },
+  });
+}
+
+export function useCreateEkycApplication() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: EkycAdminCreatePayload) => EkycService.createEkycApplication(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.ekyc.all });
     },

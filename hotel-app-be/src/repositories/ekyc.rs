@@ -7,9 +7,11 @@ use sqlx::Row;
 use crate::constants::EkycStatus;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::models::row_mappers;
 use crate::models::{
     EkycApplicationSummaryRow, EkycDashboardRow, EkycDecisionHistory, EkycListQuery, EkycNote,
-    EkycReasonCode, EkycVerification, EkycVerificationUpdate, SelfCheckinEvent,
+    EkycReasonCode, EkycVerification, EkycVerificationUpdate, GuestEkycStatusSummary,
+    SelfCheckinEvent,
 };
 
 pub struct NewEkycVerification<'a> {
@@ -73,6 +75,35 @@ pub struct EkycNoteInsert {
     pub customer_visible: bool,
 }
 
+/// Extra fields applied when an admin creates an already-approved verification.
+pub struct AdminApproval {
+    pub self_checkin_enabled: bool,
+    pub verified_by: i64,
+    pub decision_reason: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GuestEkycSummaryRecord {
+    pub verification_id: i64,
+    pub user_id: i64,
+    pub guest_id: i64,
+    pub status: String,
+    pub self_checkin_enabled: bool,
+    pub verified_at: Option<DateTime<Utc>>,
+}
+
+/// Build a unique, deterministic username/email pair for a provisioned guest
+/// account. The account is a login-disabled anchor for the eKYC `user_id` FK, so
+/// it uses a stable per-guest placeholder rather than the guest's real email —
+/// the guest id keeps both values collision-free against the UNIQUE constraints
+/// (the real email is still stored on the verification and guest profile).
+pub fn synthesize_guest_credentials(guest_id: i64) -> (String, String) {
+    (
+        format!("guest_{guest_id}"),
+        format!("guest_{guest_id}@ekyc.local"),
+    )
+}
+
 pub struct EkycRepository;
 
 impl EkycRepository {
@@ -92,11 +123,80 @@ impl EkycRepository {
     }
 
     pub async fn guest_id_for_user(pool: &DbPool, user_id: i64) -> Result<Option<i64>, ApiError> {
-        sqlx::query_scalar("SELECT guest_id FROM users WHERE id = $1")
+        let query = crate::sql_query!(
+            postgres: "SELECT guest_id FROM users WHERE id = $1",
+            sqlite: "SELECT guest_id FROM users WHERE id = ?1"
+        );
+
+        sqlx::query_scalar(query)
             .bind(user_id)
             .fetch_one(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    pub async fn latest_guest_summary_record(
+        pool: &DbPool,
+        guest_id: i64,
+    ) -> Result<Option<GuestEkycSummaryRecord>, ApiError> {
+        let query = crate::sql_query!(
+            postgres: r#"
+                SELECT id, user_id, guest_id, status,
+                       COALESCE(self_checkin_enabled, false) AS self_checkin_enabled,
+                       verified_at
+                FROM ekyc_verifications
+                WHERE guest_id = $1
+                ORDER BY COALESCE(submitted_at, created_at) DESC, updated_at DESC, id DESC
+                LIMIT 1
+            "#,
+            sqlite: r#"
+                SELECT id, user_id, guest_id, status,
+                       COALESCE(self_checkin_enabled, 0) AS self_checkin_enabled,
+                       verified_at
+                FROM ekyc_verifications
+                WHERE guest_id = ?1
+                ORDER BY COALESCE(submitted_at, created_at) DESC, updated_at DESC, id DESC
+                LIMIT 1
+            "#
+        );
+
+        let row = sqlx::query(query)
+            .bind(guest_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        row.map(|row| {
+            Ok(GuestEkycSummaryRecord {
+                verification_id: row.try_get("id")?,
+                user_id: row.try_get("user_id")?,
+                guest_id: row.try_get("guest_id")?,
+                status: row.try_get("status")?,
+                self_checkin_enabled: row_mappers::get_bool(&row, "self_checkin_enabled"),
+                verified_at: row.try_get("verified_at").ok().flatten(),
+            })
+        })
+        .transpose()
+        .map_err(|e: sqlx::Error| ApiError::Database(e.to_string()))
+    }
+
+    #[allow(dead_code)]
+    pub async fn latest_guest_summary(
+        pool: &DbPool,
+        guest_id: i64,
+    ) -> Result<GuestEkycStatusSummary, ApiError> {
+        Ok(Self::latest_guest_summary_record(pool, guest_id)
+            .await?
+            .map(|record| GuestEkycStatusSummary {
+                guest_id: record.guest_id,
+                ekyc_verification_id: Some(record.verification_id),
+                status: record.status,
+                self_checkin_enabled: record.self_checkin_enabled,
+                verified_at: record.verified_at,
+                can_auto_checkin: false,
+                auto_checkin_block_reason: None,
+            })
+            .unwrap_or_else(|| GuestEkycStatusSummary::not_submitted(guest_id)))
     }
 
     pub async fn exists_open_for_guest(pool: &DbPool, guest_id: i64) -> Result<bool, ApiError> {
@@ -194,6 +294,182 @@ impl EkycRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    /// Insert an admin-created verification that is already approved (front-desk
+    /// staff verified the customer's documents in person). Mirrors
+    /// `insert_verification` but lands in the `approved` state with self check-in
+    /// enabled and the reviewer stamped.
+    pub async fn insert_admin_verification(
+        pool: &DbPool,
+        data: NewEkycVerification<'_>,
+        approval: AdminApproval,
+    ) -> Result<EkycVerification, ApiError> {
+        let user_entered_data = serde_json::json!({
+            "full_name": data.full_name,
+            "date_of_birth": data.date_of_birth,
+            "nationality": data.nationality,
+            "phone": data.phone,
+            "email": data.email,
+            "current_address": data.current_address,
+            "id_type": data.id_type,
+            "id_issuing_country": data.id_issuing_country,
+            "id_issue_date": data.id_issue_date,
+            "id_expiry_date": data.id_expiry_date
+        });
+        let metadata = serde_json::json!({
+            "user_agent": data.user_agent,
+            "source": "admin_created"
+        });
+
+        sqlx::query_as(
+            r#"
+            INSERT INTO ekyc_verifications (
+                user_id, guest_id, full_name, date_of_birth, nationality, phone, email,
+                current_address, id_type, id_number, id_issuing_country, id_issue_date,
+                id_expiry_date, id_front_image_path, id_back_image_path, selfie_image_path,
+                proof_of_address_path, status, provider_verification_result,
+                user_entered_data, ip_address, submission_metadata, face_match_passed,
+                liveness_passed, auto_verified, manual_review_required, risk_level,
+                risk_score, risk_flags, recommended_action, self_checkin_enabled,
+                self_checkin_activated_at, verified_by, verified_at, decision_reason,
+                submitted_at, updated_at
+            )
+            VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+                $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26,
+                $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37
+            )
+            RETURNING *
+            "#,
+        )
+        .bind(data.user_id)
+        .bind(data.guest_id)
+        .bind(data.full_name)
+        .bind(data.date_of_birth)
+        .bind(data.nationality)
+        .bind(data.phone)
+        .bind(data.email)
+        .bind(data.current_address)
+        .bind(data.id_type)
+        .bind(data.id_number)
+        .bind(data.id_issuing_country)
+        .bind(data.id_issue_date)
+        .bind(data.id_expiry_date)
+        .bind(data.id_front_path)
+        .bind(data.id_back_path)
+        .bind(data.selfie_path)
+        .bind(data.proof_path)
+        .bind(EkycStatus::Approved.to_string())
+        .bind("manual")
+        .bind(user_entered_data)
+        .bind(data.ip_address)
+        .bind(metadata)
+        .bind(true)
+        .bind(true)
+        .bind(false)
+        .bind(false)
+        .bind("low")
+        .bind(5_i32)
+        .bind(serde_json::json!([]))
+        .bind("approve")
+        .bind(approval.self_checkin_enabled)
+        .bind(if approval.self_checkin_enabled {
+            Some(Utc::now())
+        } else {
+            None
+        })
+        .bind(approval.verified_by)
+        .bind(Utc::now())
+        .bind(approval.decision_reason)
+        .bind(Utc::now())
+        .bind(Utc::now())
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// Record a decision-history row outside of the review-action transaction
+    /// (used by admin-create).
+    pub async fn insert_decision_history(
+        pool: &DbPool,
+        application_id: i64,
+        actor_id: i64,
+        history: EkycHistoryInsert,
+    ) -> Result<(), ApiError> {
+        sqlx::query(
+            r#"
+            INSERT INTO ekyc_decision_history (
+                application_id, actor_id, action, from_status, to_status,
+                reason_code, reason, details, created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+            "#,
+        )
+        .bind(application_id)
+        .bind(actor_id)
+        .bind(&history.action)
+        .bind(&history.from_status)
+        .bind(&history.to_status)
+        .bind(&history.reason_code)
+        .bind(&history.reason)
+        .bind(&history.details)
+        .execute(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Whether a guest profile exists.
+    pub async fn guest_exists(pool: &DbPool, guest_id: i64) -> Result<bool, ApiError> {
+        sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM guests WHERE id = $1)")
+            .bind(guest_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// The id of an existing guest-type portal user linked to this guest, if any.
+    pub async fn find_guest_user(pool: &DbPool, guest_id: i64) -> Result<Option<i64>, ApiError> {
+        let query = crate::sql_query!(
+            postgres: "SELECT id FROM users WHERE guest_id = $1 AND user_type = 'guest' ORDER BY id LIMIT 1",
+            sqlite: "SELECT id FROM users WHERE guest_id = ?1 AND user_type = 'guest' ORDER BY id LIMIT 1"
+        );
+        sqlx::query_scalar(query)
+            .bind(guest_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// Provision a minimal, login-disabled guest portal account linked to the
+    /// given guest so an eKYC verification (which requires a NOT NULL user_id)
+    /// can be created for a walk-in customer.
+    pub async fn provision_guest_user(
+        pool: &DbPool,
+        guest_id: i64,
+        full_name: &str,
+    ) -> Result<i64, ApiError> {
+        let (username, email) = synthesize_guest_credentials(guest_id);
+        let full_name = if full_name.trim().is_empty() {
+            format!("Guest {guest_id}")
+        } else {
+            full_name.to_string()
+        };
+        let query = crate::sql_query!(
+            postgres: "INSERT INTO users (username, email, full_name, user_type, guest_id, is_active, is_verified) \
+                       VALUES ($1, $2, $3, 'guest', $4, false, true) RETURNING id",
+            sqlite: "INSERT INTO users (username, email, full_name, user_type, guest_id, is_active, is_verified) \
+                     VALUES (?1, ?2, ?3, 'guest', ?4, 0, 1) RETURNING id"
+        );
+        sqlx::query_scalar(query)
+            .bind(username)
+            .bind(email)
+            .bind(full_name)
+            .bind(guest_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
     pub async fn find_by_guest(
         pool: &DbPool,
         guest_id: i64,
@@ -289,7 +565,7 @@ impl EkycRepository {
                 COALESCE(SUM(CASE WHEN status = 'escalated' OR risk_level IN ('high', 'critical') THEN 1 ELSE 0 END), 0)::BIGINT AS escalated_high_risk,
                 AVG(CASE WHEN verified_at IS NOT NULL AND submitted_at IS NOT NULL
                     THEN EXTRACT(EPOCH FROM (verified_at - submitted_at)) / 60.0
-                    ELSE NULL END) AS average_processing_minutes,
+                    ELSE NULL END)::float8 AS average_processing_minutes,
                 COALESCE(SUM(CASE WHEN submitted_at <= CURRENT_TIMESTAMP - INTERVAL '20 hours'
                          AND submitted_at > CURRENT_TIMESTAMP - INTERVAL '24 hours'
                          AND status NOT IN ('approved', 'rejected', 'expired', 'void')
@@ -694,6 +970,7 @@ impl EkycRepository {
         .await
     }
 
+    #[allow(dead_code)]
     pub async fn approved_self_checkin_for_user(
         pool: &DbPool,
         user_id: i64,
@@ -707,6 +984,7 @@ impl EkycRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    #[allow(dead_code)]
     pub async fn confirmed_booking_for_user(
         pool: &DbPool,
         booking_id: i64,
@@ -728,14 +1006,21 @@ impl EkycRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    #[allow(dead_code)]
     pub async fn room_number(pool: &DbPool, room_id: i64) -> Result<String, ApiError> {
-        sqlx::query_scalar("SELECT room_number FROM rooms WHERE id = $1")
+        let query = crate::sql_query!(
+            postgres: "SELECT room_number FROM rooms WHERE id = $1",
+            sqlite: "SELECT room_number FROM rooms WHERE id = ?1"
+        );
+
+        sqlx::query_scalar(query)
             .bind(room_id)
             .fetch_one(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    #[allow(dead_code)]
     pub async fn mark_booking_checked_in(pool: &DbPool, booking_id: i64) -> Result<(), ApiError> {
         sqlx::query(
             r#"
@@ -752,6 +1037,7 @@ impl EkycRepository {
         .map_err(|e| ApiError::Database(e.to_string()))
     }
 
+    #[allow(dead_code)]
     pub async fn insert_self_checkin_event(
         pool: &DbPool,
         booking_id: i64,
@@ -1076,4 +1362,22 @@ fn bind_data_filters<'q>(
         .bind(params.manual_review_required)
         .bind(exact_search.as_ref())
         .bind(like_search.as_ref())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::synthesize_guest_credentials;
+
+    #[test]
+    fn synthesize_guest_credentials_is_unique_and_deterministic_per_guest() {
+        let (username, email) = synthesize_guest_credentials(42);
+        assert_eq!(username, "guest_42");
+        assert_eq!(email, "guest_42@ekyc.local");
+
+        // Same guest → same credentials (idempotent), different guest → different.
+        assert_eq!(synthesize_guest_credentials(42), (username, email));
+        let (other_username, other_email) = synthesize_guest_credentials(43);
+        assert_ne!(other_username, "guest_42");
+        assert_ne!(other_email, "guest_42@ekyc.local");
+    }
 }

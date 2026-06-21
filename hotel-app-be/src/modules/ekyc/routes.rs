@@ -30,7 +30,10 @@ pub fn routes() -> Router<DbPool> {
         .route("/ekyc/self-checkin", post(self_checkin))
         // Admin eKYC routes
         .route("/ekyc/admin/dashboard", get(get_dashboard))
-        .route("/ekyc/admin/applications", get(list_admin_applications))
+        .route(
+            "/ekyc/admin/applications",
+            get(list_admin_applications).post(create_admin_application),
+        )
         .route(
             "/ekyc/admin/applications/export",
             get(export_admin_applications),
@@ -191,6 +194,24 @@ async fn get_admin_application(
             &pool,
             actor_id,
             id,
+            client_ip(&headers),
+            user_agent(&headers),
+        )
+        .await?,
+    ))
+}
+
+async fn create_admin_application(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    Json(input): Json<models::EkycAdminCreateRequest>,
+) -> Result<Json<models::EkycApplicationDetail>, ApiError> {
+    let actor_id = require_auth(&headers).await?;
+    Ok(Json(
+        service::admin_create_verification(
+            &pool,
+            actor_id,
+            input,
             client_ip(&headers),
             user_agent(&headers),
         )

@@ -4,7 +4,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
     Permission, Role, RolePermissionAssignment, RouteAccessPolicy, RouteAccessPolicyInput, User,
-    UserCreateInput, UserRoleAssignment, UserWithRolesAndPermissions,
+    UserCreateInput, UserRoleAssignment, UserUpdateInput, UserWithRolesAndPermissions,
 };
 use sqlx::FromRow;
 
@@ -562,6 +562,145 @@ impl RbacRepository {
         .fetch_optional(pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    pub async fn username_or_email_exists_for_other(
+        pool: &DbPool,
+        user_id: i64,
+        username: Option<&str>,
+        email: Option<&str>,
+    ) -> Result<bool, ApiError> {
+        let query = crate::sql_query!(
+            postgres: r#"
+                SELECT id
+                FROM users
+                WHERE deleted_at IS NULL
+                  AND id != $1
+                  AND (
+                    ($2::text IS NOT NULL AND username = $2)
+                    OR ($3::text IS NOT NULL AND email = $3)
+                  )
+                LIMIT 1
+            "#,
+            sqlite: r#"
+                SELECT id
+                FROM users
+                WHERE deleted_at IS NULL
+                  AND id != ?1
+                  AND (
+                    (?2 IS NOT NULL AND username = ?2)
+                    OR (?3 IS NOT NULL AND email = ?3)
+                  )
+                LIMIT 1
+            "#
+        );
+
+        let id: Option<i64> = sqlx::query_scalar(query)
+            .bind(user_id)
+            .bind(username)
+            .bind(email)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(id.is_some())
+    }
+
+    pub async fn update_user(
+        pool: &DbPool,
+        user_id: i64,
+        input: &UserUpdateInput,
+        password_hash: Option<&str>,
+    ) -> Result<User, ApiError> {
+        let query = crate::sql_query!(
+            postgres: r#"
+                UPDATE users
+                SET username = COALESCE($2, username),
+                    email = COALESCE($3, email),
+                    full_name = COALESCE($4, full_name),
+                    phone = COALESCE($5, phone),
+                    is_active = COALESCE($6, is_active),
+                    password_hash = COALESCE($7, password_hash),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $1 AND deleted_at IS NULL
+                RETURNING id, username, email, full_name, phone, is_active, is_verified,
+                          user_type, two_factor_enabled, two_factor_secret,
+                          two_factor_recovery_codes, created_at, updated_at
+            "#,
+            sqlite: r#"
+                UPDATE users
+                SET username = COALESCE(?2, username),
+                    email = COALESCE(?3, email),
+                    full_name = COALESCE(?4, full_name),
+                    phone = COALESCE(?5, phone),
+                    is_active = COALESCE(?6, is_active),
+                    password_hash = COALESCE(?7, password_hash),
+                    updated_at = datetime('now')
+                WHERE id = ?1 AND deleted_at IS NULL
+                RETURNING id, username, email, full_name, phone, is_active, is_verified,
+                          user_type, two_factor_enabled, two_factor_secret,
+                          two_factor_recovery_codes, created_at, updated_at
+            "#
+        );
+
+        sqlx::query_as::<_, User>(query)
+            .bind(user_id)
+            .bind(input.username.as_deref())
+            .bind(input.email.as_deref())
+            .bind(input.full_name.as_deref())
+            .bind(input.phone.as_deref())
+            .bind(input.is_active)
+            .bind(password_hash)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?
+            .ok_or_else(|| ApiError::NotFound("User not found".to_string()))
+    }
+
+    pub async fn soft_delete_user(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
+        let delete_roles_query = crate::sql_query!(
+            postgres: "DELETE FROM user_roles WHERE user_id = $1",
+            sqlite: "DELETE FROM user_roles WHERE user_id = ?1"
+        );
+        let delete_user_query = crate::sql_query!(
+            postgres: r#"
+                UPDATE users
+                SET is_active = false,
+                    deleted_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $1 AND deleted_at IS NULL
+            "#,
+            sqlite: r#"
+                UPDATE users
+                SET is_active = 0,
+                    deleted_at = datetime('now'),
+                    updated_at = datetime('now')
+                WHERE id = ?1 AND deleted_at IS NULL
+            "#
+        );
+
+        let mut tx = pool
+            .begin()
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        sqlx::query(delete_roles_query)
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        let result = sqlx::query(delete_user_query)
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        tx.commit()
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        Ok(result.rows_affected() > 0)
     }
 
     pub async fn get_user_permissions(
