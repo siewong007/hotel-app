@@ -2,7 +2,7 @@
 //! during incremental migration.
 
 pub use crate::models::ekyc::{
-    EkycAdminListResponse, EkycApplicationDetail, EkycApplicationSummary,
+    EkycAdminCreateRequest, EkycAdminListResponse, EkycApplicationDetail, EkycApplicationSummary,
     EkycApplicationSummaryRow, EkycDashboardMetrics, EkycDashboardRow, EkycDocumentAvailability,
     EkycFieldComparison, EkycListQuery, EkycReasonCode, EkycReviewActionRequest,
     EkycSensitiveRevealRequest, EkycSensitiveRevealResponse, EkycStatusResponse,

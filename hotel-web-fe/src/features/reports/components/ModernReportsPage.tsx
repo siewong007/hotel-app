@@ -48,8 +48,13 @@ import {
 } from '@mui/icons-material';
 import { ReportsService, type BookingChannel } from '../../../api/reports.service';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { getHotelSettings, normalizeReportFontSize } from '../../../utils/hotelSettings';
+import { getHotelSettings } from '../../../utils/hotelSettings';
 import { useReportData } from '../hooks/useReportData';
+import {
+  createReportContentSx,
+  createReportPrintStyles,
+  createReportTypography,
+} from '../utils/reportTypography';
 
 type ReportType =
   // New hotel management reports
@@ -220,54 +225,9 @@ const REPORT_CONFIGS = [
 const ModernReportsPage: React.FC = () => {
   const { symbol: currencySymbol } = useCurrency();
   const hotelSettings = getHotelSettings();
-  const reportFontSize = normalizeReportFontSize(hotelSettings.report_font_size);
-  const reportBodyFontSize = `${reportFontSize}px`;
-  const reportHeadingFontSize = `${Math.max(reportFontSize + 10, 20)}px`;
-  const reportSubheadingFontSize = `${Math.max(reportFontSize + 4, 14)}px`;
-  const reportCaptionFontSize = `${Math.max(reportFontSize - 1, 10)}px`;
-  const reportChipFontSize = `${Math.max(reportFontSize - 2, 9)}px`;
-  const reportContentSx = {
-    fontSize: reportBodyFontSize,
-    lineHeight: 1.45,
-    '& .MuiTypography-root': {
-      fontSize: 'inherit',
-    },
-    '& .MuiTypography-h4': {
-      fontSize: reportHeadingFontSize,
-      lineHeight: 1.2,
-    },
-    '& .MuiTypography-h6': {
-      fontSize: reportSubheadingFontSize,
-      lineHeight: 1.3,
-    },
-    '& .MuiTypography-subtitle1, & .MuiTypography-subtitle2': {
-      fontSize: reportBodyFontSize,
-    },
-    '& .MuiTypography-body2, & .MuiTypography-caption': {
-      fontSize: reportCaptionFontSize,
-    },
-    '& .MuiTableCell-root': {
-      fontSize: reportBodyFontSize,
-      lineHeight: 1.4,
-    },
-    '& .MuiChip-root': {
-      fontSize: reportChipFontSize,
-    },
-  };
-  const reportPrintStyles = `
-    body { font-family: Arial, sans-serif; font-size: ${reportBodyFontSize}; padding: 20px; margin: 0; line-height: 1.45; }
-    table { border-collapse: collapse; width: 100%; margin: 10px 0; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: ${reportBodyFontSize}; line-height: 1.4; }
-    th { background-color: #f5f5f5; }
-    h1, h2, h3, h4, h5, h6 { margin: 10px 0; }
-    .MuiTypography-root { font-size: inherit; }
-    h4, .MuiTypography-h4 { font-size: ${reportHeadingFontSize}; line-height: 1.2; }
-    h6, .MuiTypography-h6 { font-size: ${reportSubheadingFontSize}; line-height: 1.3; }
-    .MuiTypography-body2, .MuiTypography-caption { font-size: ${reportCaptionFontSize}; }
-    .header { text-align: center; margin-bottom: 20px; }
-    .MuiChip-root { display: inline-block; padding: 2px 8px; border-radius: 16px; font-size: ${reportChipFontSize}; }
-    .MuiPaper-root { box-shadow: none !important; }
-  `;
+  const reportTypography = createReportTypography(hotelSettings);
+  const reportContentSx = createReportContentSx(reportTypography);
+  const reportPrintStyles = createReportPrintStyles(reportTypography);
   const printRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -2224,7 +2184,7 @@ const ModernReportsPage: React.FC = () => {
           <CardContent>
             <Typography variant="h6" gutterBottom>Report Preview</Typography>
             <Divider sx={{ mb: 2 }} />
-            <Box ref={printRef} sx={{ p: 2, bgcolor: 'white', ...reportContentSx }}>
+            <Box ref={printRef} sx={[{ p: 2, bgcolor: 'white' }, reportContentSx]}>
               {renderReport()}
             </Box>
           </CardContent>
@@ -2253,18 +2213,22 @@ const ModernReportsPage: React.FC = () => {
         <DialogContent sx={{ p: 0 }}>
           <Box
             id="print-preview-content"
-            sx={{
-              p: 3,
-              bgcolor: 'white',
-              minHeight: '100%',
-              ...reportContentSx,
-              '@media print': {
-                p: 2,
-                '& .MuiPaper-root': {
-                  boxShadow: 'none',
+            sx={[
+              {
+                p: 3,
+                bgcolor: 'white',
+                minHeight: '100%',
+              },
+              reportContentSx,
+              {
+                '@media print': {
+                  p: 2,
+                  '& .MuiPaper-root': {
+                    boxShadow: 'none',
+                  },
                 },
               },
-            }}
+            ]}
           >
             {renderReport()}
           </Box>

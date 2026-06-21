@@ -1,5 +1,7 @@
 //! Data-transfer API models.
 
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -90,6 +92,14 @@ pub struct BookingDataExport {
     pub self_checkin_events: Vec<Value>,
     #[serde(default)]
     pub night_audit_posted_nights: Vec<Value>,
+}
+
+/// Count preview for all transferable tables before generating an export file.
+#[derive(Debug, Serialize)]
+pub struct ExportPreview {
+    pub generated_at: String,
+    pub counts: HashMap<String, i64>,
+    pub total_records: i64,
 }
 
 /// Import request wrapper.

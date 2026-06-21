@@ -87,6 +87,7 @@ export const queryKeys = {
   dataTransfer: {
     all: dataTransfer,
     export: () => [...dataTransfer, 'export'] as const,
+    exportPreview: () => [...dataTransfer, 'export-preview'] as const,
   },
   settings: {
     all: settings,

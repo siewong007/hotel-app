@@ -42,7 +42,7 @@ export { AuditService } from './audit.service';
 export { NightAuditService } from './nightAudit.service';
 export { DataTransferService } from './dataTransfer.service';
 export type { Company, CompanyCreateRequest, CompanyUpdateRequest } from '../types';
-export type { BookingDataExport, ImportResult } from '../types';
+export type { BookingDataExport, ExportPreview, ImportResult } from '../types';
 export type {
   NightAuditPreview,
   NightAuditRun,

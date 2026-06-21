@@ -92,7 +92,7 @@ import {
 import { BookingDataExport, ImportResult } from '../../../api';
 import type { ImportMode } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
-import { useExportDataMutation, useImportDataMutation } from '../hooks/useDataTransferQueries';
+import { useExportDataMutation, useExportPreviewMutation, useImportDataMutation } from '../hooks/useDataTransferQueries';
 import { formatLocalDate } from '../../../utils/date';
 import { storage } from '../../../utils/storage';
 import {
@@ -225,9 +225,13 @@ const DataTransferPage: React.FC = () => {
     () => storage.getItem<HistoryEntry[]>('dataTransferHistory') || []
   );
 
+  const exportPreviewMutation = useExportPreviewMutation();
   const exportMutation = useExportDataMutation();
   const importMutation = useImportDataMutation();
-  const busy = exportMutation.isPending || importMutation.isPending;
+  const previewBusy = exportPreviewMutation.isPending;
+  const exportBusy = exportMutation.isPending;
+  const importBusy = importMutation.isPending;
+  const busy = previewBusy || exportBusy || importBusy;
 
   const performedBy = user?.full_name || user?.username || 'Unknown user';
   const isImportContext = tab === 'import' && !!importFile;
@@ -238,7 +242,7 @@ const DataTransferPage: React.FC = () => {
   );
 
   // Record count for a category: from the parsed file in import context,
-  // otherwise from the last export's cached counts (unknown until exported).
+  // otherwise from the last preview/export's cached counts.
   const countOf = (id: CategoryId): number | null => {
     if (isImportContext) return (importFile as any)?.[id]?.length ?? 0;
     if (exportCounts) return exportCounts[id] ?? 0;
@@ -262,6 +266,15 @@ const DataTransferPage: React.FC = () => {
     if (names.length <= 3) return names.join(', ');
     return `${names.slice(0, 3).join(', ')} +${names.length - 3} more`;
   };
+
+  const countsFromExportData = (data: BookingDataExport): Record<string, number> => {
+    const counts: Record<string, number> = {};
+    ALL_CATEGORY_IDS.forEach((id) => (counts[id] = (data as any)[id]?.length ?? 0));
+    return counts;
+  };
+
+  const selectedRecordCountFromCounts = (counts: Record<string, number>) =>
+    selectedIds.reduce((sum, id) => sum + (counts[id] ?? 0), 0);
 
   if (!hasPermission('settings:manage')) {
     return (
@@ -359,6 +372,21 @@ const DataTransferPage: React.FC = () => {
     setToast({ open: true, msg, severity });
 
   // -- export ---------------------------------------------------------------
+  const handlePreviewExport = async () => {
+    if (selectedIds.length === 0) {
+      notify('Select at least one category to preview.', 'warning');
+      return;
+    }
+    try {
+      const preview = await exportPreviewMutation.mutateAsync();
+      setExportCounts(preview.counts);
+      const records = selectedRecordCountFromCounts(preview.counts);
+      notify(`Preview ready — ${formatNum(records)} records will be exported.`, 'info');
+    } catch (err: any) {
+      notify(err?.message || 'Failed to preview export data.', 'error');
+    }
+  };
+
   const handleExport = async () => {
     if (selectedIds.length === 0) {
       notify('Select at least one category to export.', 'warning');
@@ -367,9 +395,8 @@ const DataTransferPage: React.FC = () => {
     try {
       const data = await exportMutation.mutateAsync();
 
-      // cache counts so the export cards can show record totals afterwards
-      const counts: Record<string, number> = {};
-      ALL_CATEGORY_IDS.forEach((id) => (counts[id] = (data as any)[id]?.length ?? 0));
+      // Cache counts so the export cards can show record totals afterwards.
+      const counts = countsFromExportData(data);
       setExportCounts(counts);
 
       // filter the payload down to the selected categories (client-side)
@@ -388,7 +415,7 @@ const DataTransferPage: React.FC = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      const records = selectedIds.reduce((sum, id) => sum + (counts[id] ?? 0), 0);
+      const records = selectedRecordCountFromCounts(counts);
       pushHistory({ type: 'export', categories: selectedCategoryNames(), records, status: 'success' });
       notify(`Export ready — ${formatNum(records)} records downloaded.`);
     } catch (err: any) {
@@ -522,7 +549,7 @@ const DataTransferPage: React.FC = () => {
     bgcolor: 'background.paper',
   } as const;
 
-  const CategoryRow: React.FC<{ meta: CategoryDef }> = ({ meta }) => {
+  const CategoryCard: React.FC<{ meta: CategoryDef }> = ({ meta }) => {
     const checked = !!selected[meta.id];
     const count = countOf(meta.id);
     const depNames = directDependencies(meta.id).map(nameOf).join(', ');
@@ -531,64 +558,120 @@ const DataTransferPage: React.FC = () => {
         onClick={() => toggle(meta.id)}
         sx={{
           display: 'flex',
-          alignItems: 'flex-start',
-          gap: 1.5,
+          flexDirection: 'column',
+          gap: 1,
           p: 1.75,
+          minHeight: 166,
+          height: '100%',
           cursor: 'pointer',
           borderRadius: 2,
-          border: `1px solid ${checked ? theme.palette.primary.main : 'transparent'}`,
-          bgcolor: checked ? alpha(theme.palette.primary.main, 0.06) : 'transparent',
-          transition: 'background-color .15s, border-color .15s',
-          '&:hover': { bgcolor: checked ? alpha(theme.palette.primary.main, 0.1) : theme.palette.action.hover },
+          border: `1px solid ${checked ? theme.palette.primary.main : theme.palette.divider}`,
+          bgcolor: checked ? alpha(theme.palette.primary.main, 0.06) : 'background.paper',
+          transition: 'background-color .15s, border-color .15s, box-shadow .15s',
+          '&:hover': {
+            borderColor: checked ? theme.palette.primary.main : alpha(theme.palette.primary.main, 0.45),
+            bgcolor: checked ? alpha(theme.palette.primary.main, 0.1) : theme.palette.action.hover,
+            boxShadow: theme.shadows[1],
+          },
         }}
       >
-        <Checkbox checked={checked} size="small" sx={{ p: 0.25, mt: 0.25 }} onClick={(e) => e.stopPropagation()} onChange={() => toggle(meta.id)} />
-        <Box
-          sx={{
-            width: 38,
-            height: 38,
-            borderRadius: 2,
-            flex: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            bgcolor: alpha(theme.palette.primary.main, 0.1),
-            color: 'primary.main',
-            '& svg': { fontSize: 20 },
-          }}
-        >
-          {ICONS[meta.id]}
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25 }}>
+          <Box
+            sx={{
+              width: 38,
+              height: 38,
+              borderRadius: 2,
+              flex: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: alpha(theme.palette.primary.main, 0.1),
+              color: 'primary.main',
+              '& svg': { fontSize: 20 },
+            }}
+          >
+            {ICONS[meta.id]}
+          </Box>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: 14, lineHeight: 1.25, overflowWrap: 'anywhere' }}>
+                {meta.name}
+              </Typography>
+              {isImportContext && (
+                <Chip
+                  label={(count ?? 0) > 0 ? 'Detected' : 'Empty'}
+                  size="small"
+                  color={(count ?? 0) > 0 ? 'primary' : 'default'}
+                  variant={(count ?? 0) > 0 ? 'filled' : 'outlined'}
+                  sx={{ height: 18, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}
+                />
+              )}
+            </Box>
+          </Box>
+          <Checkbox checked={checked} size="small" sx={{ p: 0.25, mt: -0.25 }} onClick={(e) => e.stopPropagation()} onChange={() => toggle(meta.id)} />
         </Box>
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 14 }}>{meta.name}</Typography>
-            {isImportContext && (
+
+        <Typography variant="body2" color="text.secondary" sx={{ fontSize: 12.5, lineHeight: 1.45, flex: 1 }}>
+          {meta.desc}
+        </Typography>
+
+        {(count != null || depNames) && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 'auto', flexWrap: 'wrap' }}>
+            {count != null && (
               <Chip
-                label={(count ?? 0) > 0 ? 'Detected' : 'Empty'}
+                label={`${formatNum(count)} records${isImportContext ? ' detected' : ''}`}
                 size="small"
-                color={(count ?? 0) > 0 ? 'primary' : 'default'}
-                variant={(count ?? 0) > 0 ? 'filled' : 'outlined'}
-                sx={{ height: 18, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em' }}
+                variant="outlined"
+                sx={{ height: 22, fontSize: 11, fontWeight: 700, maxWidth: '100%' }}
               />
             )}
-          </Box>
-          <Typography variant="body2" color="text.secondary" sx={{ fontSize: 12.5, mt: 0.25 }}>
-            {meta.desc}
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-              {count == null ? 'Count available after export' : `${formatNum(count)} records${isImportContext ? ' detected' : ''}`}
-            </Typography>
             {depNames && (
-              <Typography variant="caption" sx={{ color: 'text.disabled' }}>
-                · Depends on: {depNames}
-              </Typography>
+              <Tooltip title={`Depends on: ${depNames}`}>
+                <Chip
+                  icon={<DependencyIcon sx={{ fontSize: '14px !important' }} />}
+                  label={`Depends on: ${depNames}`}
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    height: 22,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    maxWidth: '100%',
+                    '& .MuiChip-label': {
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    },
+                  }}
+                />
+              </Tooltip>
             )}
           </Box>
-        </Box>
+        )}
       </Box>
     );
   };
+
+  const CategoryGrid: React.FC<{ cats: CategoryDef[] }> = ({ cats }) => (
+    <Box
+      sx={{
+        p: 1.25,
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: 'repeat(2, minmax(0, 1fr))',
+          lg: 'repeat(3, minmax(0, 1fr))',
+          xl: 'repeat(4, minmax(0, 1fr))',
+        },
+        gap: 1,
+        alignItems: 'stretch',
+      }}
+    >
+      {cats.map((c) => (
+        <CategoryCard key={c.id} meta={c} />
+      ))}
+    </Box>
+  );
 
   const Section: React.FC<{
     title: string;
@@ -649,11 +732,7 @@ const DataTransferPage: React.FC = () => {
           </Box>
         </Box>
       </Box>
-      <Box sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-        {cats.map((c) => (
-          <CategoryRow key={c.id} meta={c} />
-        ))}
-      </Box>
+      <CategoryGrid cats={cats} />
     </Paper>
   );
 
@@ -754,15 +833,24 @@ const DataTransferPage: React.FC = () => {
         cats={OPERATIONAL_CATEGORIES}
       />
       <SummaryFooter
-        recordsLabel="records selected"
+        recordsLabel="records to export"
         action={
           <>
             <Button variant="text" startIcon={<TemplateIcon />} onClick={downloadTemplate} sx={{ fontWeight: 700 }}>
               Download template
             </Button>
             <Button
+              variant="outlined"
+              startIcon={previewBusy ? <CircularProgress size={18} color="inherit" /> : <InfoIcon />}
+              onClick={handlePreviewExport}
+              disabled={busy}
+              sx={{ fontWeight: 700 }}
+            >
+              Preview counts
+            </Button>
+            <Button
               variant="contained"
-              startIcon={busy ? <CircularProgress size={18} color="inherit" /> : <DownloadIcon />}
+              startIcon={exportBusy ? <CircularProgress size={18} color="inherit" /> : <DownloadIcon />}
               onClick={handleExport}
               disabled={busy}
               sx={{ fontWeight: 700 }}
@@ -955,7 +1043,7 @@ const DataTransferPage: React.FC = () => {
   // =========================================================================
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1100, mx: 'auto' }}>
+    <Box sx={{ p: 3, maxWidth: 1320, mx: 'auto' }}>
       {/* Title row */}
       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap', mb: 2 }}>
         <Box>

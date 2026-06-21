@@ -148,11 +148,21 @@ pub fn save_base64_image(
 pub fn validate_dates(
     req: &EkycSubmissionRequest,
 ) -> Result<(NaiveDate, NaiveDate, Option<NaiveDate>), ApiError> {
-    let date_of_birth = NaiveDate::parse_from_str(&req.date_of_birth, "%Y-%m-%d")
+    validate_date_strings(&req.date_of_birth, &req.id_expiry_date, &req.id_issue_date)
+}
+
+/// Shared date parsing/validation for both the guest-facing submission and the
+/// admin-initiated creation flow.
+pub fn validate_date_strings(
+    date_of_birth: &str,
+    id_expiry_date: &str,
+    id_issue_date: &Option<String>,
+) -> Result<(NaiveDate, NaiveDate, Option<NaiveDate>), ApiError> {
+    let date_of_birth = NaiveDate::parse_from_str(date_of_birth, "%Y-%m-%d")
         .map_err(|_| ApiError::BadRequest("Invalid date of birth. Use YYYY-MM-DD".to_string()))?;
-    let id_expiry_date = NaiveDate::parse_from_str(&req.id_expiry_date, "%Y-%m-%d")
+    let id_expiry_date = NaiveDate::parse_from_str(id_expiry_date, "%Y-%m-%d")
         .map_err(|_| ApiError::BadRequest("Invalid ID expiry date. Use YYYY-MM-DD".to_string()))?;
-    let id_issue_date = if let Some(date_str) = &req.id_issue_date {
+    let id_issue_date = if let Some(date_str) = id_issue_date {
         Some(
             NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
                 ApiError::BadRequest("Invalid ID issue date. Use YYYY-MM-DD".to_string())

@@ -7,6 +7,19 @@ export interface BookingChannel {
 
 export const REPORT_FONT_SIZE_MIN = 10;
 export const REPORT_FONT_SIZE_MAX = 24;
+export const REPORT_DISPLAY_FONT_SIZE_MIN = 12;
+export const REPORT_DISPLAY_FONT_SIZE_MAX = 40;
+
+export const REPORT_FONT_FAMILY_OPTIONS = [
+  { label: 'Arial', value: 'Arial, Helvetica, sans-serif' },
+  { label: 'Helvetica', value: 'Helvetica, Arial, sans-serif' },
+  { label: 'Georgia', value: 'Georgia, "Times New Roman", serif' },
+  { label: 'Times New Roman', value: '"Times New Roman", Times, serif' },
+  { label: 'Tahoma', value: 'Tahoma, Geneva, sans-serif' },
+  { label: 'Courier New', value: '"Courier New", Courier, monospace' },
+] as const;
+
+export const DEFAULT_REPORT_FONT_FAMILY = REPORT_FONT_FAMILY_OPTIONS[0].value;
 
 export interface HotelSettings {
   hotel_name: string;
@@ -24,6 +37,12 @@ export interface HotelSettings {
   tourism_tax_rate: number; // Per night tourism tax
   default_payment_terms_days: number; // Default ledger due-date offset
   report_font_size: number; // Base report preview/print font size in pixels
+  report_font_family: string; // Font family for generated report previews and print output
+  report_heading_font_size: number; // Large report headings and KPI values in pixels
+  report_section_heading_font_size: number; // Section heading size in pixels
+  report_table_font_size: number; // Report table text size in pixels
+  report_caption_font_size: number; // Report captions and secondary labels in pixels
+  report_chip_font_size: number; // Report status chip text size in pixels
   max_login_attempts: number; // Failed login attempts before lockout
   totp_issuer_name: string; // Issuer shown in authenticator apps
   passkey_relying_party_name: string; // Display name shown by passkey authenticators
@@ -49,6 +68,12 @@ const DEFAULT_SETTINGS: HotelSettings = {
   tourism_tax_rate: 10, // RM 10 per night for tourists (Malaysia standard)
   default_payment_terms_days: 30,
   report_font_size: 14,
+  report_font_family: DEFAULT_REPORT_FONT_FAMILY,
+  report_heading_font_size: 24,
+  report_section_heading_font_size: 18,
+  report_table_font_size: 14,
+  report_caption_font_size: 13,
+  report_chip_font_size: 12,
   max_login_attempts: 5,
   totp_issuer_name: 'Hotel Management System',
   passkey_relying_party_name: 'Hotel Management System',
@@ -111,11 +136,22 @@ export const normalizeBookingChannels = (raw: unknown): BookingChannel[] => {
 
 export const normalizeReportFontSize = (
   raw: unknown,
-  fallback = DEFAULT_SETTINGS.report_font_size
+  fallback = DEFAULT_SETTINGS.report_font_size,
+  options: { min?: number; max?: number } = {}
 ): number => {
   const parsed = Number(raw);
   const base = Number.isFinite(parsed) ? parsed : fallback;
-  return Math.min(REPORT_FONT_SIZE_MAX, Math.max(REPORT_FONT_SIZE_MIN, Math.round(base)));
+  const min = options.min ?? REPORT_FONT_SIZE_MIN;
+  const max = options.max ?? REPORT_FONT_SIZE_MAX;
+  return Math.min(max, Math.max(min, Math.round(base)));
+};
+
+export const normalizeReportFontFamily = (raw: unknown): string => {
+  if (typeof raw !== 'string') return DEFAULT_REPORT_FONT_FAMILY;
+  const trimmed = raw.trim();
+  return REPORT_FONT_FAMILY_OPTIONS.some(option => option.value === trimmed)
+    ? trimmed
+    : DEFAULT_REPORT_FONT_FAMILY;
 };
 
 // Get hotel settings from localStorage or return defaults
@@ -126,6 +162,7 @@ export const getHotelSettings = (): HotelSettings => {
       const parsed = JSON.parse(stored);
       // Merge with defaults to ensure all fields exist
       const merged = { ...DEFAULT_SETTINGS, ...parsed };
+      const reportBaseFontSize = normalizeReportFontSize(merged.report_font_size);
       // Ensure numeric fields are properly typed (localStorage may store them as strings)
       return {
         ...merged,
@@ -133,7 +170,30 @@ export const getHotelSettings = (): HotelSettings => {
         service_tax_rate: Number(merged.service_tax_rate) || DEFAULT_SETTINGS.service_tax_rate,
         tourism_tax_rate: Number(merged.tourism_tax_rate) || DEFAULT_SETTINGS.tourism_tax_rate,
         default_payment_terms_days: Number(merged.default_payment_terms_days) || DEFAULT_SETTINGS.default_payment_terms_days,
-        report_font_size: normalizeReportFontSize(merged.report_font_size),
+        report_font_size: reportBaseFontSize,
+        report_font_family: normalizeReportFontFamily(merged.report_font_family),
+        report_heading_font_size: normalizeReportFontSize(
+          merged.report_heading_font_size,
+          Math.max(reportBaseFontSize + 10, 20),
+          { min: REPORT_DISPLAY_FONT_SIZE_MIN, max: REPORT_DISPLAY_FONT_SIZE_MAX }
+        ),
+        report_section_heading_font_size: normalizeReportFontSize(
+          merged.report_section_heading_font_size,
+          Math.max(reportBaseFontSize + 4, 14),
+          { min: REPORT_FONT_SIZE_MIN, max: REPORT_DISPLAY_FONT_SIZE_MAX }
+        ),
+        report_table_font_size: normalizeReportFontSize(
+          merged.report_table_font_size,
+          reportBaseFontSize
+        ),
+        report_caption_font_size: normalizeReportFontSize(
+          merged.report_caption_font_size,
+          Math.max(reportBaseFontSize - 1, REPORT_FONT_SIZE_MIN)
+        ),
+        report_chip_font_size: normalizeReportFontSize(
+          merged.report_chip_font_size,
+          Math.max(reportBaseFontSize - 2, REPORT_FONT_SIZE_MIN)
+        ),
         max_login_attempts: Number(merged.max_login_attempts) || DEFAULT_SETTINGS.max_login_attempts,
         rate_codes: normalizeStringList(merged.rate_codes, DEFAULT_SETTINGS.rate_codes),
         market_codes: normalizeStringList(merged.market_codes, DEFAULT_SETTINGS.market_codes),
