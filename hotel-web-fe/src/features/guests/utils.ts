@@ -17,11 +17,9 @@ type GuestSegmentTotals = {
 
 const hasValue = (value?: string | null) => Boolean(value?.trim());
 
-export const guestHasMissingProfileInfo = (guest: Pick<Guest, 'email' | 'phone' | 'ic_number' | 'company_name'>) => (
-  !hasValue(guest.email)
-  || !hasValue(guest.phone)
+export const guestHasMissingProfileInfo = (guest: Pick<Guest, 'email' | 'phone' | 'ic_number'>) => (
+  (!hasValue(guest.email) && !hasValue(guest.phone))
   || !hasValue(guest.ic_number)
-  || !hasValue(guest.company_name)
 );
 
 export const getGuestSegmentQueryParams = (segment: GuestSegment): GuestSegmentQueryParams => {

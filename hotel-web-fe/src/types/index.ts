@@ -30,6 +30,8 @@ export type {
   GuestProfile,
   GuestProfileBooking,
   GuestSummary,
+  GuestTourismConversionResponse,
+  GuestTourismConversionSource,
   GuestUpdateRequest,
   GuestType,
   TourismType,

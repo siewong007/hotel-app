@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Chip,
@@ -32,12 +33,15 @@ import {
 } from '@mui/icons-material';
 import {
   GUEST_TYPE_CONFIG,
+  type Company,
   type GuestType,
   TOURISM_TYPE_CONFIG,
   type TourismType,
 } from '../../../types';
 import { GUEST_DESIGN } from '../constants';
 import type { GuestFormData } from '../types';
+import { useDebouncedValue } from '../../../hooks/useDebouncedValue';
+import { useGuestCompanyOptions } from '../hooks/useGuestCompanyOptions';
 
 interface GuestFormDialogProps {
   open: boolean;
@@ -106,9 +110,29 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
     ? 'Update guest profile, membership and tourism details.'
     : 'Add guest profile, membership and tourism details.';
   const primaryLabel = isEdit ? 'Save Changes' : 'Create Guest';
+  const [companySearch, setCompanySearch] = React.useState(formData.company_name || '');
+  const debouncedCompanySearch = useDebouncedValue(companySearch, 250);
+  const companyOptionsQuery = useGuestCompanyOptions(debouncedCompanySearch, open);
+  const companyOptions = companyOptionsQuery.data ?? [];
 
   const updateField = <K extends keyof GuestFormData>(key: K, value: GuestFormData[K]) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
+  };
+
+  React.useEffect(() => {
+    if (!open) return;
+    setCompanySearch(formData.company_name || '');
+  }, [formData.company_name, open]);
+
+  const handleCompanyChange = (_event: React.SyntheticEvent, value: Company | string | null) => {
+    const companyName = typeof value === 'string' ? value : value?.company_name || '';
+    setCompanySearch(companyName);
+    updateField('company_name', companyName);
+  };
+
+  const handleCompanyInputChange = (_event: React.SyntheticEvent, value: string) => {
+    setCompanySearch(value);
+    updateField('company_name', value);
   };
 
   return (
@@ -198,6 +222,8 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
             value={formData.email || ''}
             onChange={(value) => updateField('email', value)}
             type="email"
+            required={!formData.phone?.trim()}
+            helperText={!formData.phone?.trim() ? 'Required if phone is blank' : undefined}
           />
           <GuestDialogField
             label="Phone"
@@ -205,6 +231,8 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
             value={formData.phone || ''}
             onChange={(value) => updateField('phone', value)}
             icon={<PhoneIcon />}
+            required={!formData.email?.trim()}
+            helperText={!formData.email?.trim() ? 'Required if email is blank' : undefined}
           />
           <GuestDialogField
             label="IC Number / Passport"
@@ -212,6 +240,7 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
             value={formData.ic_number || ''}
             onChange={(value) => updateField('ic_number', value)}
             icon={<IdIcon />}
+            required
           />
           <GuestDialogField
             label="Nationality"
@@ -220,11 +249,13 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
             onChange={(value) => updateField('nationality', value)}
             icon={<PublicIcon />}
           />
-          <GuestDialogField
-            label="Company Name"
-            placeholder="Company Name"
+          <GuestCompanyField
             value={formData.company_name || ''}
-            onChange={(value) => updateField('company_name', value)}
+            inputValue={companySearch}
+            options={companyOptions}
+            loading={companyOptionsQuery.isLoading || companyOptionsQuery.isFetching}
+            onChange={handleCompanyChange}
+            onInputChange={handleCompanyInputChange}
           />
           <GuestDialogField
             label="Address"
@@ -329,12 +360,13 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
                   <TextField
                     select
                     fullWidth
+                    required={!isEdit}
                     value={formData.tourism_type || ''}
                     onChange={(e) => updateField('tourism_type', e.target.value as TourismType || undefined)}
                     sx={guestInputSx}
                   >
-                    <MenuItem value="">
-                      <Box sx={{ color: 'text.secondary' }}>Not specified</Box>
+                    <MenuItem value="" disabled={!isEdit}>
+                      <Box sx={{ color: 'text.secondary' }}>{isEdit ? 'Not specified' : 'Select tourism type'}</Box>
                     </MenuItem>
                     <MenuItem value="local">
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2 }}>
@@ -417,6 +449,7 @@ interface GuestDialogFieldProps {
   type?: string;
   icon?: React.ReactNode;
   required?: boolean;
+  helperText?: string;
   size?: React.ComponentProps<typeof Grid>['size'];
 }
 
@@ -428,6 +461,7 @@ const GuestDialogField: React.FC<GuestDialogFieldProps> = ({
   type = 'text',
   icon,
   required,
+  helperText,
   size = { xs: 12, md: 6 },
 }) => (
   <Grid size={size}>
@@ -440,9 +474,83 @@ const GuestDialogField: React.FC<GuestDialogFieldProps> = ({
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       sx={guestInputSx}
+      helperText={helperText}
       InputProps={icon ? {
         endAdornment: <InputAdornment position="end">{icon}</InputAdornment>,
       } : undefined}
+    />
+  </Grid>
+);
+
+interface GuestCompanyFieldProps {
+  value: string;
+  inputValue: string;
+  options: Company[];
+  loading: boolean;
+  onChange: (event: React.SyntheticEvent, value: Company | string | null) => void;
+  onInputChange: (event: React.SyntheticEvent, value: string) => void;
+}
+
+const GuestCompanyField: React.FC<GuestCompanyFieldProps> = ({
+  value,
+  inputValue,
+  options,
+  loading,
+  onChange,
+  onInputChange,
+}) => (
+  <Grid size={{ xs: 12, md: 6 }}>
+    <GuestDialogLabel>Company Name</GuestDialogLabel>
+    <Autocomplete<Company, false, false, true>
+      freeSolo
+      selectOnFocus
+      handleHomeEndKeys
+      options={options}
+      value={value}
+      inputValue={inputValue}
+      loading={loading}
+      onChange={onChange}
+      onInputChange={onInputChange}
+      getOptionLabel={(option) => typeof option === 'string' ? option : option.company_name}
+      isOptionEqualToValue={(option, selectedValue) => option.id === selectedValue.id}
+      noOptionsText={inputValue.trim() ? 'No companies found' : 'No active companies'}
+      renderOption={(props, option) => {
+        const { key, ...otherProps } = props;
+        return (
+          <li key={key} {...otherProps}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, minWidth: 0 }}>
+              <CompanyIcon color="action" fontSize="small" />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: 15, lineHeight: 1.25 }}>
+                  {option.company_name}
+                </Typography>
+                {option.contact_person && (
+                  <Typography sx={{ color: 'text.secondary', fontSize: 12.5, lineHeight: 1.25 }}>
+                    {option.contact_person}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          </li>
+        );
+      }}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          fullWidth
+          placeholder="Company Name"
+          sx={guestInputSx}
+          InputProps={{
+            ...params.InputProps,
+            endAdornment: (
+              <>
+                {loading && <CircularProgress color="inherit" size={20} />}
+                {params.InputProps.endAdornment}
+              </>
+            ),
+          }}
+        />
+      )}
     />
   </Grid>
 );

@@ -5427,3 +5427,20 @@ SET is_allowed = EXCLUDED.is_allowed,
     notes = EXCLUDED.notes;
 
 DELETE FROM system_settings WHERE key = 'night_audit_auto_clean_dirty_rooms';
+
+-- ============================================================================
+-- 035_report_font_size_setting.sql
+-- ============================================================================
+-- Allow generated report previews and print output to use a configurable base
+-- font size.
+
+INSERT INTO system_settings (key, value, value_type, category, description, is_public)
+VALUES (
+    'report_font_size',
+    '14',
+    'number',
+    'reports',
+    'Base font size in pixels for generated report previews and print output',
+    false
+)
+ON CONFLICT (key) DO NOTHING;

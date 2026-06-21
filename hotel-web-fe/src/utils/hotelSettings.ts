@@ -5,6 +5,9 @@ export interface BookingChannel {
   abbreviation: string;
 }
 
+export const REPORT_FONT_SIZE_MIN = 10;
+export const REPORT_FONT_SIZE_MAX = 24;
+
 export interface HotelSettings {
   hotel_name: string;
   hotel_address: string;
@@ -20,6 +23,7 @@ export interface HotelSettings {
   service_tax_rate: number; // Percentage (e.g., 8 for 8%)
   tourism_tax_rate: number; // Per night tourism tax
   default_payment_terms_days: number; // Default ledger due-date offset
+  report_font_size: number; // Base report preview/print font size in pixels
   max_login_attempts: number; // Failed login attempts before lockout
   totp_issuer_name: string; // Issuer shown in authenticator apps
   passkey_relying_party_name: string; // Display name shown by passkey authenticators
@@ -44,6 +48,7 @@ const DEFAULT_SETTINGS: HotelSettings = {
   service_tax_rate: 8, // 8% service tax
   tourism_tax_rate: 10, // RM 10 per night for tourists (Malaysia standard)
   default_payment_terms_days: 30,
+  report_font_size: 14,
   max_login_attempts: 5,
   totp_issuer_name: 'Hotel Management System',
   passkey_relying_party_name: 'Hotel Management System',
@@ -104,6 +109,15 @@ export const normalizeBookingChannels = (raw: unknown): BookingChannel[] => {
   return result.length > 0 ? result : DEFAULT_SETTINGS.booking_channels;
 };
 
+export const normalizeReportFontSize = (
+  raw: unknown,
+  fallback = DEFAULT_SETTINGS.report_font_size
+): number => {
+  const parsed = Number(raw);
+  const base = Number.isFinite(parsed) ? parsed : fallback;
+  return Math.min(REPORT_FONT_SIZE_MAX, Math.max(REPORT_FONT_SIZE_MIN, Math.round(base)));
+};
+
 // Get hotel settings from localStorage or return defaults
 export const getHotelSettings = (): HotelSettings => {
   try {
@@ -119,6 +133,7 @@ export const getHotelSettings = (): HotelSettings => {
         service_tax_rate: Number(merged.service_tax_rate) || DEFAULT_SETTINGS.service_tax_rate,
         tourism_tax_rate: Number(merged.tourism_tax_rate) || DEFAULT_SETTINGS.tourism_tax_rate,
         default_payment_terms_days: Number(merged.default_payment_terms_days) || DEFAULT_SETTINGS.default_payment_terms_days,
+        report_font_size: normalizeReportFontSize(merged.report_font_size),
         max_login_attempts: Number(merged.max_login_attempts) || DEFAULT_SETTINGS.max_login_attempts,
         rate_codes: normalizeStringList(merged.rate_codes, DEFAULT_SETTINGS.rate_codes),
         market_codes: normalizeStringList(merged.market_codes, DEFAULT_SETTINGS.market_codes),

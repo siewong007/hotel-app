@@ -1,6 +1,6 @@
 import { HTTPError } from 'ky';
 import { api, APIError } from './client';
-import { Guest, GuestCreateRequest, GuestProfile, GuestType, TourismType } from '../types';
+import { Guest, GuestCreateRequest, GuestProfile, GuestTourismConversionResponse, GuestType, TourismType } from '../types';
 import { withRetry } from '../utils/retry';
 import { getPaginationState, toPaginationSearchParams } from '../utils/pagination';
 
@@ -160,6 +160,14 @@ export class GuestsService {
       return await api.patch(`guests/${guestId}`, { json: guestData }).json<Guest>();
     } catch (error) {
       throw await toGuestApiError(error, 'Failed to update guest');
+    }
+  }
+
+  static async applyTourismTypeFromLastCheckIn(guestId: number): Promise<GuestTourismConversionResponse> {
+    try {
+      return await api.post(`guests/${guestId}/tourism-from-last-check-in`).json<GuestTourismConversionResponse>();
+    } catch (error) {
+      throw await toGuestApiError(error, 'Failed to update guest tourism type');
     }
   }
 

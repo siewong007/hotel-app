@@ -49,6 +49,16 @@ pub async fn update_guest_handler(
     Ok(Json(svc::update_guest(&pool, guest_id, input).await?))
 }
 
+pub async fn apply_tourism_type_from_last_check_in_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(guest_id): Path<i64>,
+) -> Result<Json<GuestTourismConversionResponse>, ApiError> {
+    Ok(Json(
+        svc::apply_tourism_type_from_last_check_in(&pool, user_id, guest_id).await?,
+    ))
+}
+
 pub async fn delete_guest_handler(
     State(pool): State<DbPool>,
     Path(guest_id): Path<i64>,
