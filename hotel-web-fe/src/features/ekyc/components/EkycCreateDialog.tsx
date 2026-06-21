@@ -35,6 +35,8 @@ interface EkycCreateDialogProps {
   open: boolean;
   onClose: () => void;
   onCreated: (message: string) => void;
+  initialGuest?: Guest | null;
+  lockGuest?: boolean;
 }
 
 const emptyForm = {
@@ -50,6 +52,23 @@ const emptyForm = {
   idIssueDate: '',
   idExpiryDate: '',
 };
+
+const guestAddress = (guest: Guest) =>
+  [guest.address_line1, guest.city, guest.state_province, guest.postal_code, guest.country]
+    .filter((part): part is string => Boolean(part?.trim()))
+    .join(', ');
+
+const withGuestDefaults = (form: typeof emptyForm, guest: Guest) => ({
+  ...form,
+  fullName: form.fullName || guest.full_name || '',
+  nationality: form.nationality || guest.nationality || '',
+  phone: form.phone || guest.phone || '',
+  email: form.email || guest.email || '',
+  currentAddress: form.currentAddress || guestAddress(guest),
+  idNumber: form.idNumber || guest.ic_number || '',
+});
+
+const formFromGuest = (guest: Guest) => withGuestDefaults({ ...emptyForm }, guest);
 
 const FileField: React.FC<{
   label: string;
@@ -75,7 +94,13 @@ const FileField: React.FC<{
   </Button>
 );
 
-const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({ open, onClose, onCreated }) => {
+const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
+  open,
+  onClose,
+  onCreated,
+  initialGuest = null,
+  lockGuest = false,
+}) => {
   const createMutation = useCreateEkycApplication();
 
   const [guest, setGuest] = useState<Guest | null>(null);
@@ -99,6 +124,7 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({ open, onClose, onCr
     setGuest(null);
     setGuestInput('');
     setGuestOptions([]);
+    setGuestLoading(false);
     setForm({ ...emptyForm });
     setSelfCheckin(true);
     setIdFront(null);
@@ -109,7 +135,16 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({ open, onClose, onCr
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !initialGuest) return;
+    setGuest(initialGuest);
+    setGuestInput(initialGuest.full_name || '');
+    setGuestOptions([initialGuest]);
+    setForm(formFromGuest(initialGuest));
+    setError(null);
+  }, [initialGuest?.id, open]);
+
+  useEffect(() => {
+    if (!open || lockGuest) return;
     let active = true;
     const query = debouncedGuestQuery.trim();
     if (query.length < 2) {
@@ -130,7 +165,12 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({ open, onClose, onCr
     return () => {
       active = false;
     };
-  }, [debouncedGuestQuery, open]);
+  }, [debouncedGuestQuery, lockGuest, open]);
+
+  const guestSelectOptions = useMemo(() => {
+    if (!guest) return guestOptions;
+    return [guest, ...guestOptions.filter((option) => option.id !== guest.id)];
+  }, [guest, guestOptions]);
 
   const validationError = useMemo(
     () =>
@@ -149,13 +189,10 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({ open, onClose, onCr
 
   const handleSelectGuest = (value: Guest | null) => {
     setGuest(value);
+    setGuestInput(value?.full_name || '');
     if (value) {
-      setForm((prev) => ({
-        ...prev,
-        fullName: prev.fullName || value.full_name || '',
-        email: prev.email || value.email || '',
-        phone: prev.phone || value.phone || '',
-      }));
+      setGuestOptions((prev) => [value, ...prev.filter((option) => option.id !== value.id)]);
+      setForm((prev) => withGuestDefaults(prev, value));
     }
   };
 
@@ -229,11 +266,16 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({ open, onClose, onCr
         <Grid container spacing={2}>
           <Grid size={12}>
             <Autocomplete
-              options={guestOptions}
+              options={guestSelectOptions}
               value={guest}
-              loading={guestLoading}
-              onChange={(_, value) => handleSelectGuest(value)}
-              onInputChange={(_, value) => setGuestInput(value)}
+              disabled={lockGuest}
+              loading={!lockGuest && guestLoading}
+              onChange={(_, value) => {
+                if (!lockGuest) handleSelectGuest(value);
+              }}
+              onInputChange={(_, value) => {
+                if (!lockGuest) setGuestInput(value);
+              }}
               getOptionLabel={(g) => (g ? `${g.full_name}${g.email ? ` · ${g.email}` : ''}` : '')}
               isOptionEqualToValue={(a, b) => a.id === b.id}
               noOptionsText={guestInput.trim().length < 2 ? 'Type to search guests…' : 'No guests found'}
@@ -241,13 +283,13 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({ open, onClose, onCr
                 <TextField
                   {...params}
                   label="Guest *"
-                  placeholder="Search by name, email, or phone"
-                  helperText="Pick the guest this verification is for. Create the guest first if they don't exist."
+                  placeholder={lockGuest ? undefined : 'Search by name, email, or phone'}
+                  helperText={lockGuest ? 'Selected guest' : "Pick the guest this verification is for. Create the guest first if they don't exist."}
                   InputProps={{
                     ...params.InputProps,
                     endAdornment: (
                       <>
-                        {guestLoading ? <CircularProgress size={18} /> : null}
+                        {!lockGuest && guestLoading ? <CircularProgress size={18} /> : null}
                         {params.InputProps.endAdornment}
                       </>
                     ),

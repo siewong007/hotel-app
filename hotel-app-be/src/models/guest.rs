@@ -321,6 +321,8 @@ pub struct GuestPaginationParams {
     pub guest_type: Option<String>,
     /// Filter by tourism type: "local" or "foreign".
     pub tourism_type: Option<String>,
+    /// Filter to guests with no tourism type configured.
+    pub missing_tourism: Option<bool>,
     /// Filter to guests missing one or more required profile fields.
     pub missing_info: Option<bool>,
 }

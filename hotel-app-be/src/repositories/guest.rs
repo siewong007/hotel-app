@@ -246,6 +246,7 @@ impl GuestRepository {
             .tourism_type
             .as_deref()
             .filter(|s| !s.trim().is_empty());
+        let missing_tourism_filter = params.missing_tourism.unwrap_or(false);
         let missing_info_filter = params.missing_info.unwrap_or(false);
 
         #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
@@ -268,6 +269,12 @@ impl GuestRepository {
             Some("local") => filter_clause.push_str(" AND tourism_type = 'local'"),
             Some("foreign") => filter_clause.push_str(" AND tourism_type = 'foreign'"),
             _ => {}
+        }
+        if missing_tourism_filter {
+            #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+            filter_clause.push_str(" AND NULLIF(TRIM(COALESCE(tourism_type, '')), '') IS NULL");
+            #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+            filter_clause.push_str(" AND tourism_type IS NULL");
         }
         if missing_info_filter {
             filter_clause.push_str(

@@ -16,6 +16,7 @@ type GuestPageParams = {
   search?: string;
   guest_type?: GuestType;
   tourism_type?: TourismType;
+  missing_tourism?: boolean;
   missing_info?: boolean;
 };
 

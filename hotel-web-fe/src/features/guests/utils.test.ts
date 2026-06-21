@@ -3,6 +3,7 @@ import {
   getGuestSegmentCounts,
   getGuestSegmentQueryParams,
   guestHasMissingProfileInfo,
+  guestHasMissingTourismType,
 } from './utils';
 
 describe('guest segment utilities', () => {
@@ -12,6 +13,7 @@ describe('guest segment utilities', () => {
     expect(getGuestSegmentQueryParams('non')).toEqual({ guest_type: 'non_member' });
     expect(getGuestSegmentQueryParams('incomplete')).toEqual({ missing_info: true });
     expect(getGuestSegmentQueryParams('tourist')).toEqual({ tourism_type: 'foreign' });
+    expect(getGuestSegmentQueryParams('missingTourism')).toEqual({ missing_tourism: true });
   });
 
   it('derives chip tallies from full dataset stats instead of the visible page', () => {
@@ -19,6 +21,7 @@ describe('guest segment utilities', () => {
       total: 1228,
       members: 11,
       missingInfo: 49,
+      missingTourism: 17,
       tourists: 7,
     })).toEqual({
       all: 1228,
@@ -26,6 +29,7 @@ describe('guest segment utilities', () => {
       non: 1217,
       incomplete: 49,
       tourist: 7,
+      missingTourism: 17,
     });
   });
 
@@ -61,5 +65,11 @@ describe('guest segment utilities', () => {
       phone: ' ',
       ic_number: ' ',
     })).toBe(true);
+  });
+
+  it('flags guests without tourism type configured', () => {
+    expect(guestHasMissingTourismType({ tourism_type: 'local' })).toBe(false);
+    expect(guestHasMissingTourismType({ tourism_type: 'foreign' })).toBe(false);
+    expect(guestHasMissingTourismType({ tourism_type: undefined })).toBe(true);
   });
 });
