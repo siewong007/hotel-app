@@ -149,11 +149,17 @@ const ICONS: Record<CategoryId, React.ReactElement> = {
   room_status_change_log: <RoomStatusLogIcon />,
   email_templates: <EmailIcon />,
   loyalty_programs: <LoyaltyProgramIcon />,
+  loyalty_program_rules: <LoyaltyProgramIcon />,
   loyalty_tiers: <LoyaltyTierIcon />,
   loyalty_memberships: <LoyaltyProgramIcon />,
+  loyalty_members: <LoyaltyProgramIcon />,
+  loyalty_accounts: <LoyaltyProgramIcon />,
   points_transactions: <PointsIcon />,
+  loyalty_transactions: <PointsIcon />,
   reward_catalog: <RewardCatalogIcon />,
+  loyalty_rewards: <RewardCatalogIcon />,
   reward_redemptions: <RewardRedemptionIcon />,
+  loyalty_redemptions: <RewardRedemptionIcon />,
   corporate_accounts: <CorporateAccountIcon />,
   corporate_account_contacts: <CorporateContactIcon />,
   housekeeping_tasks: <HousekeepingIcon />,
@@ -298,10 +304,11 @@ const DataTransferPage: React.FC = () => {
     })),
     ...(importMode === 'overwrite'
       ? overwriteRisks.map((r) => ({
-          severity: 'warning' as const,
+          severity: r.blocked.length ? ('error' as const) : ('warning' as const),
           text: `Overwriting ${nameOf(r.id)} will ${[
             r.cascade.length ? `delete ${r.cascade.map(nameOf).join(', ')}` : '',
             r.orphan.length ? `orphan ${r.orphan.map(nameOf).join(', ')}` : '',
+            r.blocked.length ? `be blocked by ${r.blocked.map(nameOf).join(', ')}` : '',
           ]
             .filter(Boolean)
             .join(' and ')} (not selected).`,
@@ -496,7 +503,7 @@ const DataTransferPage: React.FC = () => {
     const records = selectedRecords;
     const names = selectedCategoryNames();
     try {
-      const result = await importMutation.mutateAsync({ mode: importMode, data: payload });
+      const result = await importMutation.mutateAsync({ mode: importMode, data: payload, tables: selectedIds });
       setImportResult(result);
       const failed = result.errors ? Object.values(result.errors).reduce((a, e) => a + (e.failed || 0), 0) : 0;
       pushHistory({
@@ -1281,6 +1288,7 @@ const DataTransferPage: React.FC = () => {
                     const parts = [
                       r.cascade.length ? `deletes ${r.cascade.map(nameOf).join(', ')}` : '',
                       r.orphan.length ? `orphans ${r.orphan.map(nameOf).join(', ')}` : '',
+                      r.blocked.length ? `is blocked by ${r.blocked.map(nameOf).join(', ')}` : '',
                     ].filter(Boolean);
                     return (
                       <li key={r.id}>

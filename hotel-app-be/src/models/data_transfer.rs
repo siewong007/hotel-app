@@ -67,11 +67,23 @@ pub struct BookingDataExport {
     #[serde(default)]
     pub loyalty_memberships: Vec<Value>,
     #[serde(default)]
+    pub loyalty_members: Vec<Value>,
+    #[serde(default)]
+    pub loyalty_accounts: Vec<Value>,
+    #[serde(default)]
     pub points_transactions: Vec<Value>,
+    #[serde(default)]
+    pub loyalty_transactions: Vec<Value>,
     #[serde(default)]
     pub reward_catalog: Vec<Value>,
     #[serde(default)]
+    pub loyalty_rewards: Vec<Value>,
+    #[serde(default)]
     pub reward_redemptions: Vec<Value>,
+    #[serde(default)]
+    pub loyalty_redemptions: Vec<Value>,
+    #[serde(default)]
+    pub loyalty_program_rules: Vec<Value>,
     #[serde(default)]
     pub corporate_accounts: Vec<Value>,
     #[serde(default)]
@@ -107,4 +119,6 @@ pub struct ExportPreview {
 pub struct ImportRequest {
     pub mode: ImportMode,
     pub data: BookingDataExport,
+    #[serde(default)]
+    pub tables: Vec<String>,
 }

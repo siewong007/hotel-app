@@ -11,6 +11,7 @@ import { alpha } from '@mui/material/styles';
 import type { CustomerLedger } from '../../../../../types';
 import type { CustomerLedgerSummary } from '../hooks/useCustomerLedgerWorkspace';
 import { asMoney, getLedgerUiStatus } from '../helpers';
+import { isPositiveMoney, sumMoney, toMoneyNumber } from '../../../../../utils/money';
 
 interface LedgerSummaryStripProps {
   summary: CustomerLedgerSummary | null;
@@ -29,14 +30,14 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
 }) => {
   if (!summary) return null;
 
-  const totalAmount = parseFloat(String(summary.total_amount || 0));
-  const totalPaid = parseFloat(String(summary.total_paid || 0));
-  const totalDue = parseFloat(String(summary.total_outstanding || 0));
+  const totalAmount = toMoneyNumber(summary.total_amount);
+  const totalPaid = toMoneyNumber(summary.total_paid);
+  const totalDue = toMoneyNumber(summary.total_outstanding);
   const overdueAmount = ledgers.reduce(
-    (sum, l) => (getLedgerUiStatus(l) === 'overdue' ? sum + asMoney(l.balance_due) : sum),
+    (sum, l) => (getLedgerUiStatus(l) === 'overdue' ? sumMoney([sum, asMoney(l.balance_due)]) : sum),
     0,
   );
-  const collectionPct = totalAmount > 0 ? Math.round((totalPaid / totalAmount) * 100) : 0;
+  const collectionPct = isPositiveMoney(totalAmount) ? Math.round((totalPaid / totalAmount) * 100) : 0;
   const readyToBillCount = ledgers.filter(l => getLedgerUiStatus(l) === 'ready_to_invoice').length;
   const openInvoiceCount = ledgers.filter(l => {
     const s = getLedgerUiStatus(l);
@@ -77,7 +78,7 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
       key: 'overdue',
       icon: <WarningIcon fontSize="small" />,
       iconBg: (theme: any) => alpha(theme.palette.error.main, 0.12),
-      iconColor: overdueAmount > 0 ? 'error.main' : 'text.secondary',
+      iconColor: isPositiveMoney(overdueAmount) ? 'error.main' : 'text.secondary',
       label: 'Overdue',
       value: formatCurrency(overdueAmount).replace(currencySymbol, '').trim(),
       delta: `${readyToBillCount} ready to bill`,

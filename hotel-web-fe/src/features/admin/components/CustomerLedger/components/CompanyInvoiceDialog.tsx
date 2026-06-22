@@ -30,6 +30,7 @@ import type { Company, CustomerLedger } from '../../../../../types';
 import type { HotelSettings } from '../../../../../utils/hotelSettings';
 import { formatDateForDisplay, getLedgerUiStatus } from '../helpers';
 import { LedgerStatusBadge } from '../StatusPill';
+import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 
 type InvoiceListFilter = 'billable' | 'all' | 'invoiced';
 
@@ -256,8 +257,8 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                     </TableHead>
                     <TableBody>
                       {visibleInvoiceLedgerEntries.map((ledger) => {
-                        const amount = typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount;
-                        const balanceDue = typeof ledger.balance_due === 'string' ? parseFloat(ledger.balance_due) : (ledger.balance_due || 0);
+                        const amount = toMoneyNumber(ledger.amount);
+                        const balanceDue = toMoneyNumber(ledger.balance_due);
                         const eligible = isInvoiceEligible(ledger);
                         return (
                           <TableRow
@@ -293,7 +294,7 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                             </TableCell>
                             <TableCell align="right">{formatCurrency(amount)}</TableCell>
                             <TableCell align="right">
-                              <Typography color={balanceDue > 0 ? 'error.main' : 'success.main'} fontWeight={500}>
+                              <Typography color={isPositiveMoney(balanceDue) ? 'error.main' : 'success.main'} fontWeight={500}>
                                 {formatCurrency(balanceDue)}
                               </Typography>
                             </TableCell>
@@ -461,8 +462,8 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                 <Typography variant="body2" sx={{ color: '#666' }}>Status:</Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600, ml: 2, color: getSelectedLedgerBalanceDue() > 0 ? '#d32f2f' : '#2e7d32' }}>
-                  {getSelectedLedgerBalanceDue() > 0 ? 'Outstanding' : 'Settled'}
+                <Typography variant="body2" sx={{ fontWeight: 600, ml: 2, color: isPositiveMoney(getSelectedLedgerBalanceDue()) ? '#d32f2f' : '#2e7d32' }}>
+                  {isPositiveMoney(getSelectedLedgerBalanceDue()) ? 'Outstanding' : 'Settled'}
                 </Typography>
               </Box>
             </Box>
@@ -497,9 +498,9 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                 {invoiceLedgerEntries
                   .filter(l => selectedInvoiceLedgers.includes(l.id))
                   .map((ledger, idx) => {
-                    const amount = typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount;
-                    const paidAmount = typeof ledger.paid_amount === 'string' ? parseFloat(ledger.paid_amount) : (ledger.paid_amount || 0);
-                    const balanceDue = typeof ledger.balance_due === 'string' ? parseFloat(ledger.balance_due) : (ledger.balance_due || 0);
+                    const amount = toMoneyNumber(ledger.amount);
+                    const paidAmount = toMoneyNumber(ledger.paid_amount);
+                    const balanceDue = toMoneyNumber(ledger.balance_due);
                     return (
                       <TableRow key={ledger.id} sx={{ bgcolor: idx % 2 === 0 ? 'white' : '#fafafa' }}>
                         <TableCell sx={{ py: 1.5, fontSize: 13 }}>{ledger.description}</TableCell>
@@ -509,9 +510,9 @@ const CompanyInvoiceDialog: React.FC<CompanyInvoiceDialogProps> = ({
                           {formatCurrency(amount)}
                         </TableCell>
                         <TableCell align="right" sx={{ py: 1.5, fontSize: 13, fontWeight: 600, color: '#2e7d32' }}>
-                          {paidAmount > 0 ? formatCurrency(paidAmount) : '-'}
+                          {isPositiveMoney(paidAmount) ? formatCurrency(paidAmount) : '-'}
                         </TableCell>
-                        <TableCell align="right" sx={{ py: 1.5, fontSize: 13, fontWeight: 600, color: balanceDue > 0 ? '#d32f2f' : '#2e7d32' }}>
+                        <TableCell align="right" sx={{ py: 1.5, fontSize: 13, fontWeight: 600, color: isPositiveMoney(balanceDue) ? '#d32f2f' : '#2e7d32' }}>
                           {formatCurrency(balanceDue)}
                         </TableCell>
                       </TableRow>

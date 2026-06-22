@@ -4,6 +4,7 @@
 import React from 'react';
 import { Box, Typography, LinearProgress } from '@mui/material';
 import type { CompanyLedgerAggregate } from '../hooks/useCustomerLedgerWorkspace';
+import { isPositiveMoney } from '../../../../../utils/money';
 
 interface CompanyBalanceMeterProps {
   agg: CompanyLedgerAggregate;
@@ -16,7 +17,7 @@ const CompanyBalanceMeter: React.FC<CompanyBalanceMeterProps> = ({
   currencySymbol,
   formatCurrency,
 }) => {
-  const pct = agg.total > 0 ? (agg.paid / agg.total) * 100 : 0;
+  const pct = isPositiveMoney(agg.total) ? (agg.paid / agg.total) * 100 : 0;
   const cells: Array<{
     key: string;
     label: string;
@@ -46,7 +47,7 @@ const CompanyBalanceMeter: React.FC<CompanyBalanceMeterProps> = ({
       label: 'Outstanding',
       value: agg.due,
       color: 'error.main',
-      barWidth: Math.min(100, agg.total > 0 ? (agg.due / agg.total) * 100 : 0),
+      barWidth: Math.min(100, isPositiveMoney(agg.total) ? (agg.due / agg.total) * 100 : 0),
       barColor: 'error.main',
       sub: `${agg.pending} open item${agg.pending === 1 ? '' : 's'}`,
     },
@@ -54,10 +55,10 @@ const CompanyBalanceMeter: React.FC<CompanyBalanceMeterProps> = ({
       key: 'overdue',
       label: 'Overdue',
       value: agg.overdue,
-      color: agg.overdue > 0 ? 'error.main' : 'success.main',
-      barWidth: Math.min(100, agg.total > 0 ? (agg.overdue / agg.total) * 100 : 0),
+      color: isPositiveMoney(agg.overdue) ? 'error.main' : 'success.main',
+      barWidth: Math.min(100, isPositiveMoney(agg.total) ? (agg.overdue / agg.total) * 100 : 0),
       barColor: 'error.main',
-      sub: agg.overdue > 0 ? 'needs follow-up' : 'none overdue',
+      sub: isPositiveMoney(agg.overdue) ? 'needs follow-up' : 'none overdue',
     },
     {
       key: 'collection',

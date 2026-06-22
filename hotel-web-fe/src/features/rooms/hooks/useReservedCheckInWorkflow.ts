@@ -3,6 +3,7 @@ import { HotelAPIService } from '../../../api';
 import type { BookingWithDetails } from '../../../types';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
+import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
 
 type PaymentChoice = 'pay_now' | 'pay_later';
 type DepositChoice = 'receive' | 'waive';
@@ -39,7 +40,7 @@ export function useReservedCheckInWorkflow({
     fallbackPaymentMethod = 'Cash',
   ) => {
     const settingsDeposit = getHotelSettings().deposit_amount;
-    const totalAmount = Number(nextBooking.total_amount || 0);
+    const totalAmount = toMoneyNumber(nextBooking.total_amount);
 
     setBooking(nextBooking);
     resetDepositState();
@@ -73,7 +74,7 @@ export function useReservedCheckInWorkflow({
       return;
     }
 
-    if (depositChoice === 'receive' && Number(depositAmount) <= 0) {
+    if (depositChoice === 'receive' && !isPositiveMoney(depositAmount)) {
       showSnackbar('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.', 'warning');
       return;
     }
@@ -84,7 +85,7 @@ export function useReservedCheckInWorkflow({
       const updateData: Record<string, unknown> = {};
       if (paymentChoice === 'pay_now') {
         updateData.payment_status = 'paid';
-        updateData.amount_paid = amountPaid;
+        updateData.amount_paid = toMoneyNumber(amountPaid);
         updateData.payment_method = paymentMethod;
       } else {
         updateData.payment_status = 'unpaid';
@@ -92,7 +93,7 @@ export function useReservedCheckInWorkflow({
 
       if (depositChoice === 'receive') {
         updateData.deposit_paid = true;
-        updateData.deposit_amount = depositAmount;
+        updateData.deposit_amount = toMoneyNumber(depositAmount);
         updateData.payment_note = `Deposit received (${depositMethod})`;
       } else {
         updateData.deposit_paid = false;
@@ -102,10 +103,10 @@ export function useReservedCheckInWorkflow({
 
       await HotelAPIService.updateBooking(booking.id, updateData);
 
-      const checkinPayload = paymentChoice === 'pay_now' && amountPaid > 0
+      const checkinPayload = paymentChoice === 'pay_now' && isPositiveMoney(amountPaid)
         ? {
             payment_record: {
-              amount: amountPaid,
+              amount: toMoneyNumber(amountPaid),
               payment_method: paymentMethod,
               payment_type: 'booking',
               notes: 'Payment collected at check-in',

@@ -7,6 +7,7 @@ import { useCurrency } from '../../../../hooks/useCurrency';
 import { useRoomAvailabilityCheck } from '../../../../hooks/useRoomAvailabilityCheck';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../../utils/date';
+import { isPositiveMoney, multiplyMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
 import { useUnifiedBookingData } from '../../hooks/useUnifiedBookingData';
 import { isValidEmail } from '../../../../utils/validation';
 import GuestSelector, { NewGuestForm, GuestWithCredits, emptyNewGuestForm } from '../GuestSelector';
@@ -209,9 +210,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const allowsExtraBed = roomTypeConfig?.allows_extra_bed ?? false;
   const maxExtraBeds = roomTypeConfig?.max_extra_beds ?? 0;
   const extraBedChargePerBed = roomTypeConfig
-    ? (typeof roomTypeConfig.extra_bed_charge === 'string'
-        ? parseFloat(roomTypeConfig.extra_bed_charge)
-        : roomTypeConfig.extra_bed_charge) || 0
+    ? toMoneyNumber(roomTypeConfig.extra_bed_charge)
     : 0;
 
   // Load room type config when room changes
@@ -477,9 +476,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         special_requests: bookingNotes.trim() || undefined,
         source: 'walk_in' as const,
         payment_status: 'unpaid' as const,
-        room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
+        room_rate_override: useCustomRate && isPositiveMoney(customRate) ? customRate : undefined,
         extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
-        extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
+        extra_bed_charge: isPositiveMoney(extraBedCharge) ? extraBedCharge : undefined,
       };
 
       const [createdBookingResult] = await createBookingsForSelectedRooms(bookingData);
@@ -501,7 +500,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         created_at: createdBookingResult.created_at,
         updated_at: createdBookingResult.updated_at,
         is_tourist: isTourist,
-        tourism_tax_amount: createdBookingResult.tourism_tax_amount || (tourismTaxAmount > 0 ? tourismTaxAmount : undefined),
+        tourism_tax_amount: createdBookingResult.tourism_tax_amount || (isPositiveMoney(tourismTaxAmount) ? tourismTaxAmount : undefined),
         source: 'walk_in',
       };
 
@@ -716,9 +715,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             special_requests: bookingNotes.trim() || undefined,
             source: 'walk_in' as const,
             payment_status: 'unpaid' as const,
-            room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
+            room_rate_override: useCustomRate && isPositiveMoney(customRate) ? customRate : undefined,
             extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
-            extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
+            extra_bed_charge: isPositiveMoney(extraBedCharge) ? extraBedCharge : undefined,
           };
 
           await createBookingsForSelectedRooms(bookingData);
@@ -747,16 +746,16 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             source: 'online' as const,
             booking_remarks: onlineRemarks,
             special_requests: bookingNotes.trim() || undefined,
-            room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
+            room_rate_override: useCustomRate && isPositiveMoney(customRate) ? customRate : undefined,
             extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
-            extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
+            extra_bed_charge: isPositiveMoney(extraBedCharge) ? extraBedCharge : undefined,
             payment_status: 'unpaid' as const,
           };
 
           await createBookingsForSelectedRooms({
             ...bookingData,
             extra_bed_count: extraBedCount > 0 ? extraBedCount : undefined,
-            extra_bed_charge: extraBedCharge > 0 ? extraBedCharge : undefined,
+            extra_bed_charge: isPositiveMoney(extraBedCharge) ? extraBedCharge : undefined,
           });
 
           onSuccess(
@@ -826,22 +825,21 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   const pricingRoomCount = Math.max(1, roomCount);
 
   // Calculate tourism tax amount
-  const perRoomTourismTaxAmount = isTourist ? billableNights * hotelSettings.tourism_tax_rate : 0;
-  const tourismTaxAmount = perRoomTourismTaxAmount * pricingRoomCount;
+  const perRoomTourismTaxAmount = isTourist ? multiplyMoney(hotelSettings.tourism_tax_rate, billableNights) : 0;
+  const tourismTaxAmount = multiplyMoney(perRoomTourismTaxAmount, pricingRoomCount);
 
   // Calculate total amount
   const calculateTotal = () => {
     let roomSubtotal: number;
-    if (useCustomRate && customRate > 0) {
-      roomSubtotal = customRate * billableNights * pricingRoomCount;
+    if (useCustomRate && isPositiveMoney(customRate)) {
+      roomSubtotal = multiplyMoney(customRate, billableNights * pricingRoomCount);
     } else {
       roomSubtotal = selectedBookingRooms.reduce((sum, bookingRoom) => {
-        const price = bookingRoom.price_per_night || 0;
-        const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-        return sum + (numPrice * billableNights);
+        const roomTotal = multiplyMoney(bookingRoom.price_per_night, billableNights);
+        return sumMoney([sum, roomTotal]);
       }, 0);
     }
-    return roomSubtotal + tourismTaxAmount + extraBedCharge;
+    return sumMoney([roomSubtotal, tourismTaxAmount, extraBedCharge]);
   };
 
 
@@ -1006,18 +1004,15 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     : `${effectiveType === 'walk_in' ? 'Walk-in' : effectiveType === 'complimentary' ? 'Complimentary' : 'Online'} · Reservation`;
 
   // Rate per night used for the summary preview
-  const ratePerNight = useCustomRate && customRate > 0
+  const ratePerNight = useCustomRate && isPositiveMoney(customRate)
     ? customRate
-    : (typeof room?.price_per_night === 'string' ? parseFloat(room.price_per_night) : (room?.price_per_night || 0));
-  const nightlyRoomTotal = useCustomRate && customRate > 0
-    ? customRate * pricingRoomCount
+    : toMoneyNumber(room?.price_per_night);
+  const nightlyRoomTotal = useCustomRate && isPositiveMoney(customRate)
+    ? multiplyMoney(customRate, pricingRoomCount)
     : selectedBookingRooms.reduce((sum, bookingRoom) => {
-        const price = typeof bookingRoom.price_per_night === 'string'
-          ? parseFloat(bookingRoom.price_per_night)
-          : (bookingRoom.price_per_night || 0);
-        return sum + price;
+        return sumMoney([sum, bookingRoom.price_per_night]);
       }, 0);
-  const subtotal = nightlyRoomTotal * billableNights;
+  const subtotal = multiplyMoney(nightlyRoomTotal, billableNights);
   const total = calculateTotal();
 
   // Step glyphs auto-shift down when the Room picker section is rendered up

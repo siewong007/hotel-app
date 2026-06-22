@@ -1054,19 +1054,22 @@ fn row_to_transaction(row: &DbRow) -> LoyaltyTransaction {
         points_delta: row.try_get("points_delta").unwrap_or_default(),
         available_delta: row.try_get("available_delta").unwrap_or_default(),
         balance_after: row.try_get("balance_after").unwrap_or_default(),
-        source_type: row.try_get("source_type").ok(),
-        source_id: row.try_get("source_id").ok(),
-        booking_id: row.try_get("booking_id").ok(),
-        payment_id: row.try_get("payment_id").ok(),
-        invoice_id: row.try_get("invoice_id").ok(),
-        related_transaction_id: row.try_get("related_transaction_id").ok(),
-        description: row.try_get("description").ok(),
+        source_type: row.try_get::<Option<String>, _>("source_type").ok().flatten(),
+        source_id: row.try_get::<Option<i64>, _>("source_id").ok().flatten(),
+        booking_id: row.try_get::<Option<i64>, _>("booking_id").ok().flatten(),
+        payment_id: row.try_get::<Option<i64>, _>("payment_id").ok().flatten(),
+        invoice_id: row.try_get::<Option<i64>, _>("invoice_id").ok().flatten(),
+        related_transaction_id: row
+            .try_get::<Option<i64>, _>("related_transaction_id")
+            .ok()
+            .flatten(),
+        description: row.try_get::<Option<String>, _>("description").ok().flatten(),
         metadata: row
             .try_get::<Option<String>, _>("metadata")
             .ok()
             .flatten()
             .and_then(|raw| serde_json::from_str(&raw).ok()),
-        actor_user_id: row.try_get("actor_user_id").ok(),
+        actor_user_id: row.try_get::<Option<i64>, _>("actor_user_id").ok().flatten(),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
     }
 }
@@ -1076,7 +1079,7 @@ fn row_to_award_candidate(row: &DbRow) -> PaymentAwardCandidate {
         booking_id: row.try_get("booking_id").unwrap_or_default(),
         guest_id: row.try_get("guest_id").unwrap_or_default(),
         payment_id: row.try_get("payment_id").unwrap_or_default(),
-        invoice_id: row.try_get("invoice_id").ok(),
+        invoice_id: row.try_get::<Option<i64>, _>("invoice_id").ok().flatten(),
         amount: row
             .try_get::<String, _>("amount")
             .ok()
@@ -1116,11 +1119,11 @@ fn row_to_reward(row: &DbRow) -> LoyaltyReward {
         description: row.try_get("description").ok(),
         category: row.try_get("category").unwrap_or_default(),
         points_cost: row.try_get("points_cost").unwrap_or_default(),
-        minimum_tier_id: row.try_get("minimum_tier_id").ok(),
+        minimum_tier_id: row.try_get::<Option<i64>, _>("minimum_tier_id").ok().flatten(),
         minimum_tier_name: row.try_get("minimum_tier_name").ok(),
         requires_approval: row_mappers::get_bool(row, "requires_approval"),
         is_active: row_mappers::get_bool(row, "is_active"),
-        inventory_count: row.try_get("inventory_count").ok(),
+        inventory_count: row.try_get::<Option<i32>, _>("inventory_count").ok().flatten(),
         valid_from: row.try_get("valid_from").ok(),
         valid_to: row.try_get("valid_to").ok(),
         terms_conditions: row.try_get("terms_conditions").ok(),

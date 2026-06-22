@@ -35,10 +35,10 @@ export class DataTransferService {
     }
   }
 
-  static async importData(mode: ImportMode, data: BookingDataExport): Promise<ImportResult> {
+  static async importData(mode: ImportMode, data: BookingDataExport, tables: string[]): Promise<ImportResult> {
     try {
       return await api.post('data-transfer/import', {
-        json: { mode, data },
+        json: { mode, data, tables },
         timeout: false, // no timeout for potentially large imports
       }).json<ImportResult>();
     } catch (error) {

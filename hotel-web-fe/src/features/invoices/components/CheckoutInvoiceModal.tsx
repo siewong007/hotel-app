@@ -44,6 +44,7 @@ import { calculateChargesFromInputs, emptyCharges, ChargesBreakdown } from '../u
 import type { CheckoutPaymentRecord } from '../types';
 import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
 import { formatLocalDate, parseLocalDate, addLocalDays } from '../../../utils/date';
+import { isGreaterMoney, isPositiveMoney, subtractMoney, sumMoney } from '../../../utils/money';
 
 interface CheckoutInvoiceModalProps {
   open: boolean;
@@ -173,25 +174,26 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     if (open && booking && charges.grandTotal > 0) {
       const totalPaid = payments
         .filter((payment) => payment.payment_status === 'completed')
-        .reduce((sum, payment) => sum + parseFloat(String(payment.total_amount || '0')), 0);
-      const balance = charges.grandTotal - totalPaid;
-      if (balance > 0) {
-        setPaymentAmount(parseFloat(balance.toFixed(2)));
+        .reduce((sum, payment) => sumMoney([sum, payment.total_amount]), 0);
+      const balance = subtractMoney(charges.grandTotal, totalPaid);
+      if (isPositiveMoney(balance)) {
+        setPaymentAmount(balance);
       }
     }
   }, [open, booking, charges.grandTotal, payments]);
 
   const totalPayments = payments
     .filter((payment) => payment.payment_status === 'completed')
-    .reduce((sum, payment) => sum + parseFloat(String(payment.total_amount || '0')), 0);
-  const balanceDue = charges.grandTotal - totalPayments;
+    .reduce((sum, payment) => sumMoney([sum, payment.total_amount]), 0);
+  const balanceDue = subtractMoney(charges.grandTotal, totalPayments);
+  const hasBalanceDue = isPositiveMoney(balanceDue);
   const isCompanyBilling = Boolean(booking?.company_id || booking?.company_name?.trim());
-  const requiresFullPaymentBeforeCheckout = !isCompanyBilling && balanceDue > 0;
+  const requiresFullPaymentBeforeCheckout = !isCompanyBilling && hasBalanceDue;
   const completedPayments = payments.filter((payment) => payment.payment_status === 'completed');
   const refundedPayments = payments.filter((payment) => payment.payment_status === 'refunded');
 
   const handleRecordPayment = async () => {
-    if (!booking || paymentAmount <= 0) return;
+    if (!booking || !isPositiveMoney(paymentAmount)) return;
     try {
       setRecordingPayment(true);
       const newPayment = await InvoicesService.recordPayment({
@@ -1108,7 +1110,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <PaymentIcon sx={{ fontSize: 16, mr: 0.5, verticalAlign: 'text-bottom' }} />
                   Payments
                 </Typography>
-                {balanceDue > 0 && !editingPayment && (
+                {hasBalanceDue && !editingPayment && (
                   <Button
                     size="small"
                     variant="outlined"
@@ -1399,7 +1401,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
               {/* Record Payment Form — locked once fully paid (no outstanding
                   balance) and while a payment row is being edited. */}
-              <Collapse in={showPaymentForm && balanceDue > 0 && !editingPayment}>
+              <Collapse in={showPaymentForm && hasBalanceDue && !editingPayment}>
                 <Box sx={{ p: 2, bgcolor: '#f5f5f5', borderTop: '1px solid #ddd' }}>
                   <Grid container spacing={2}>
                     <Grid size={4}>
@@ -1463,7 +1465,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         variant="contained"
                         size="small"
                         onClick={handleRecordPayment}
-                        disabled={recordingPayment || paymentAmount <= 0 || paymentAmount > balanceDue + 0.005}
+                        disabled={recordingPayment || !isPositiveMoney(paymentAmount) || isGreaterMoney(paymentAmount, balanceDue)}
                         startIcon={recordingPayment ? <CircularProgress size={14} /> : <PaymentIcon />}
                       >
                         {recordingPayment ? 'Recording...' : 'Record Payment'}
@@ -1474,15 +1476,15 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Collapse>
 
               {/* Balance Due */}
-              <Box sx={{ p: 1.5, bgcolor: balanceDue > 0 ? '#fff3e0' : '#e8f5e9', borderTop: '2px solid #ddd' }}>
+              <Box sx={{ p: 1.5, bgcolor: hasBalanceDue ? '#fff3e0' : '#e8f5e9', borderTop: '2px solid #ddd' }}>
                 <Grid container>
                   <Grid size={8}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: balanceDue > 0 ? '#e65100' : '#2e7d32' }}>
-                      {balanceDue > 0 ? 'Balance Due' : balanceDue < 0 ? 'Overpayment' : 'Fully Paid'}
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: hasBalanceDue ? '#e65100' : '#2e7d32' }}>
+                      {hasBalanceDue ? 'Balance Due' : balanceDue < 0 ? 'Overpayment' : 'Fully Paid'}
                     </Typography>
                   </Grid>
                   <Grid sx={{ textAlign: 'right' }} size={4}>
-                    <Typography variant="body2" sx={{ fontWeight: 700, color: balanceDue > 0 ? '#e65100' : '#2e7d32' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: hasBalanceDue ? '#e65100' : '#2e7d32' }}>
                       {formatCurrency(Math.abs(balanceDue))}
                     </Typography>
                   </Grid>
