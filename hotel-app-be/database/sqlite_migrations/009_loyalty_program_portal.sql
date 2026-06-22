@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS loyalty_redemptions (
     reward_id INTEGER NOT NULL REFERENCES loyalty_rewards(id),
     transaction_id INTEGER REFERENCES loyalty_transactions(id),
     points_spent INTEGER NOT NULL CHECK (points_spent > 0),
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'fulfilled', 'cancelled')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'fulfilled')),
     requested_at TEXT NOT NULL DEFAULT (datetime('now')),
     reviewed_by INTEGER REFERENCES users(id),
     reviewed_at TEXT,
