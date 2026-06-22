@@ -4,6 +4,7 @@ import { Search as SearchIcon } from '@mui/icons-material';
 import { Room } from '../../../../../types';
 import { BookingTokens } from '../bookingTokens';
 import SectionHeader from './SectionHeader';
+import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 
 interface RoomPickerSectionProps {
   D: BookingTokens;
@@ -58,9 +59,7 @@ const RoomPickerSection: React.FC<RoomPickerSectionProps> = ({
       )}
       renderOption={(props, option) => {
         const { key, ...rest } = props;
-        const price = typeof option.price_per_night === 'string'
-          ? parseFloat(option.price_per_night)
-          : (option.price_per_night || 0);
+        const price = toMoneyNumber(option.price_per_night);
         return (
           <Box component="li" key={key} {...rest} sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ fontWeight: 800, fontSize: 16, letterSpacing: '-0.5px', color: D.ink, minWidth: 38 }}>
@@ -71,7 +70,7 @@ const RoomPickerSection: React.FC<RoomPickerSectionProps> = ({
                 {option.room_type}
               </Box>
               <Box sx={{ fontSize: 11, color: D.ink3 }}>
-                {price > 0 ? `${currencySymbol} ${price.toFixed(2)} / night` : 'Rate not set'}
+                {isPositiveMoney(price) ? `${currencySymbol} ${price.toFixed(2)} / night` : 'Rate not set'}
                 {option.floor != null ? ` · Floor ${option.floor}` : ''}
               </Box>
             </Box>

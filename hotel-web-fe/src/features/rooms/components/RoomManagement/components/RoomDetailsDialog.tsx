@@ -11,6 +11,7 @@ import {
 } from '@mui/material';
 import { Settings as SettingsIcon } from '@mui/icons-material';
 import { Room } from '../../../../../types';
+import { toMoneyNumber } from '../../../../../utils/money';
 
 interface RoomDetailsDialogProps {
   open: boolean;
@@ -49,7 +50,7 @@ const RoomDetailsDialog: React.FC<RoomDetailsDialogProps> = ({
               </Grid>
               <Grid size={6}>
                 <Typography variant="caption" color="text.secondary">Price per Night</Typography>
-                <Typography variant="body1" fontWeight={600}>{formatCurrency(Number(room.price_per_night))}</Typography>
+                <Typography variant="body1" fontWeight={600}>{formatCurrency(toMoneyNumber(room.price_per_night))}</Typography>
               </Grid>
               <Grid size={6}>
                 <Typography variant="caption" color="text.secondary">Max Occupancy</Typography>

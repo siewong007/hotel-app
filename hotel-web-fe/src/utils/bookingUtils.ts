@@ -11,6 +11,7 @@ import {
   BookingStatusType,
   BookingWithDetails,
 } from '../types';
+import { multiplyMoney, sumMoney, toMoneyNumber } from './money';
 
 /**
  * Validate booking dates
@@ -130,7 +131,7 @@ export const calculateTotalAmount = (
   checkOut: string
 ): number => {
   const nights = calculateNights(checkIn, checkOut);
-  return pricePerNight * nights;
+  return multiplyMoney(pricePerNight, nights);
 };
 
 /**
@@ -150,7 +151,7 @@ export const formatDateForDisplay = (dateString: string): string => {
  * Format currency for display
  */
 export const formatCurrency = (amount: number | string): string => {
-  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  const numAmount = toMoneyNumber(amount);
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -307,10 +308,7 @@ export const enhanceBookingDetails = (
   const checkOutDate = booking.check_out_date;
 
   const nights = calculateNights(checkInDate, checkOutDate);
-  const totalAmount =
-    typeof booking.total_amount === 'string'
-      ? parseFloat(booking.total_amount)
-      : booking.total_amount;
+  const totalAmount = toMoneyNumber(booking.total_amount);
 
   return {
     ...booking,
@@ -382,13 +380,7 @@ export const getBookingStatistics = (
 
   const totalRevenue = bookings
     .filter((b) => b.status !== BookingStatus.VOIDED && b.status !== 'voided')
-    .reduce((sum, booking) => {
-      const amount =
-        typeof booking.total_amount === 'string'
-          ? parseFloat(booking.total_amount)
-          : booking.total_amount;
-      return sum + amount;
-    }, 0);
+    .reduce((sum, booking) => sumMoney([sum, booking.total_amount]), 0);
 
   return {
     total: bookings.length,

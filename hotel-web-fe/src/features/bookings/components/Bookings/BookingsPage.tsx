@@ -95,7 +95,7 @@ import {
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { getPaginationState } from '../../../../utils/pagination';
 import { formatLocalDate, parseLocalDate } from '../../../../utils/date';
-import { addMoney, isGreaterMoney, isLessMoney, isPositiveMoney, subtractMoney, toMoneyNumber } from '../../../../utils/money';
+import { addMoney, divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, multiplyMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
 import type { Company } from '../../../../types';
 
 type BookingView = 'all' | 'arriving' | 'in_house' | 'departing' | 'upcoming' | 'balance' | 'normal_balance' | 'company_balance';
@@ -415,12 +415,10 @@ const BookingsPage: React.FC = () => {
       setUpdating(true);
 
       // Get the original booking rate
-      const originalPrice = typeof editingBooking.price_per_night === 'string'
-        ? parseFloat(editingBooking.price_per_night) || 0
-        : editingBooking.price_per_night || 0;
+      const originalPrice = toMoneyNumber(editingBooking.price_per_night);
 
-      const newPrice = editFormData.price_per_night || 0;
-      const priceChanged = Math.abs(newPrice - originalPrice) > 0.01;
+      const newPrice = toMoneyNumber(editFormData.price_per_night);
+      const priceChanged = isPositiveMoney(Math.abs(subtractMoney(newPrice, originalPrice)));
 
       // Include room_id only if it changed (compare as strings to avoid type mismatch)
       const roomChanged = editFormData.room_id && String(editFormData.room_id) !== String(editingBooking.room_id);
@@ -432,7 +430,7 @@ const BookingsPage: React.FC = () => {
         ...editFormData,
         payment_method: editFormData.payment_method || null,
         // Always send room_rate_override if there's a price value
-        room_rate_override: newPrice > 0 ? newPrice : undefined,
+        room_rate_override: isPositiveMoney(newPrice) ? newPrice : undefined,
         extra_bed_count: editFormData.extra_bed_count || 0,
         extra_bed_charge: editFormData.extra_bed_charge || 0,
         company_id: editFormData.company_id || undefined,
@@ -551,8 +549,8 @@ const BookingsPage: React.FC = () => {
     const totalNights = calculateTotalNights();
     if (totalNights === 0) return '0.00';
     const paidNights = calculatePaidNights();
-    const pricePerNight = Number(complimentaryBooking.total_amount) / totalNights;
-    return (paidNights * pricePerNight).toFixed(2);
+    const pricePerNight = divideMoney(complimentaryBooking.total_amount, totalNights);
+    return multiplyMoney(pricePerNight, paidNights).toFixed(2);
   };
 
   const handleConfirmComplimentary = async () => {
@@ -683,7 +681,7 @@ const BookingsPage: React.FC = () => {
         setError('Booking not found');
         return;
       }
-      const totalAmt = Number(booking.total_amount || 0);
+      const totalAmt = toMoneyNumber(booking.total_amount);
       const settingsDeposit = getHotelSettings().deposit_amount;
       setCheckinBooking(booking);
       setCiPaymentChoice(booking.payment_status === 'paid' ? 'pay_now' : 'pay_later');
@@ -701,7 +699,7 @@ const BookingsPage: React.FC = () => {
 
   const handleConfirmCheckIn = async () => {
     if (!checkinBooking) return;
-    if (ciDepositChoice === 'receive' && Number(ciDepositAmount) <= 0) {
+    if (ciDepositChoice === 'receive' && !isPositiveMoney(ciDepositAmount)) {
       setError('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.');
       return;
     }
@@ -717,7 +715,7 @@ const BookingsPage: React.FC = () => {
       }
       if (ciDepositChoice === 'receive') {
         bookingUpdate.deposit_paid = true;
-        bookingUpdate.deposit_amount = ciDepositAmount;
+        bookingUpdate.deposit_amount = toMoneyNumber(ciDepositAmount);
         bookingUpdate.payment_note = `Deposit received (${ciDepositMethod})`;
       } else {
         bookingUpdate.deposit_paid = false;
@@ -725,9 +723,9 @@ const BookingsPage: React.FC = () => {
         bookingUpdate.payment_note = `Deposit waived: ${ciWaiveReason}`;
       }
       const checkinPayload: any = { booking_update: bookingUpdate };
-      if (ciPaymentChoice === 'pay_now' && ciAmountPaid > 0) {
+      if (ciPaymentChoice === 'pay_now' && isPositiveMoney(ciAmountPaid)) {
         checkinPayload.payment_record = {
-          amount: ciAmountPaid,
+          amount: toMoneyNumber(ciAmountPaid),
           payment_method: ciPaymentMethod,
           payment_type: 'booking',
           notes: 'Payment collected at check-in',
@@ -1024,8 +1022,8 @@ const BookingsPage: React.FC = () => {
 
   const totalGuestsInHouse = inHouseBookings.reduce((sum, booking) => sum + Number((booking as any).adults || 1) + Number((booking as any).children || 0), 0);
   const roomCount = rooms.length || 0;
-  const normalOutstandingDue = normalDueBookings.reduce((sum, booking) => sum + getBookingBalance(booking), 0);
-  const companyOutstandingDue = companyDueBookings.reduce((sum, booking) => sum + getBookingBalance(booking), 0);
+  const normalOutstandingDue = normalDueBookings.reduce((sum, booking) => sumMoney([sum, getBookingBalance(booking)]), 0);
+  const companyOutstandingDue = companyDueBookings.reduce((sum, booking) => sumMoney([sum, getBookingBalance(booking)]), 0);
   const normalBalanceScope = summaryLoaded ? 'past checkout date' : 'past checkout date on this page';
   const companyBalanceScope = summaryLoaded ? `past ${COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT} month from checkout` : `past ${COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT} month from checkout on this page`;
   const paymentActionDetail = `${formatCurrency(normalOutstandingDue)} normal outstanding`;
@@ -1113,7 +1111,7 @@ const BookingsPage: React.FC = () => {
       icon: <BookIcon fontSize="small" />,
       view: 'upcoming',
     },
-    ...(normalOutstandingDue > 0
+    ...(isPositiveMoney(normalOutstandingDue)
       ? [{
         title: 'Normal outstanding',
         value: formatCurrency(normalOutstandingDue),
@@ -1124,7 +1122,7 @@ const BookingsPage: React.FC = () => {
         alert: true,
       }]
       : []),
-    ...(companyOutstandingDue > 0
+    ...(isPositiveMoney(companyOutstandingDue)
       ? [{
         title: 'Company outstanding',
         value: formatCurrency(companyOutstandingDue),
@@ -1242,7 +1240,7 @@ const BookingsPage: React.FC = () => {
         ))}
       </Box>
 
-      {normalOutstandingDue > 0 && (
+      {isPositiveMoney(normalOutstandingDue) && (
         <Grid container spacing={2} mb={2.5}>
           <Grid size={{ xs: 12 }}>
             <Card
@@ -1461,7 +1459,7 @@ const BookingsPage: React.FC = () => {
                       </Box>
                       <Box sx={{ textAlign: { xs: 'left', md: 'right' }, gridColumn: { xs: '2 / span 1', md: 'auto' } }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatCurrency(getBookingTotal(booking))}</Typography>
-                        {balance > 0 ? (
+	                        {isPositiveMoney(balance) ? (
                           <Typography variant="body2" color="error.main" sx={{ fontWeight: 800 }}>Due {formatCurrency(balance)}</Typography>
                         ) : (
                           <Typography variant="body2" color="success.main" sx={{ fontWeight: 800 }}>✓ {isPaid ? 'Paid' : getPaymentStatusText(booking.payment_status)}</Typography>
@@ -1575,8 +1573,8 @@ const BookingsPage: React.FC = () => {
                       <Typography variant="subtitle1">Total</Typography>
                       <Typography variant="subtitle1" sx={{ fontWeight: 900 }}>{formatCurrency(getBookingTotal(selectedBooking))}</Typography>
                     </Stack>
-                    <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: getBookingBalance(selectedBooking) > 0 ? alpha('#c43d32', 0.08) : alpha('#2f6f52', 0.1), color: getBookingBalance(selectedBooking) > 0 ? '#c43d32' : '#2f6f52', fontWeight: 900 }}>
-                      {getBookingBalance(selectedBooking) > 0
+	                    <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: isPositiveMoney(getBookingBalance(selectedBooking)) ? alpha('#c43d32', 0.08) : alpha('#2f6f52', 0.1), color: isPositiveMoney(getBookingBalance(selectedBooking)) ? '#c43d32' : '#2f6f52', fontWeight: 900 }}>
+	                      {isPositiveMoney(getBookingBalance(selectedBooking))
                         ? `Due ${formatCurrency(getBookingBalance(selectedBooking))}`
                         : `✓ Fully paid${selectedBooking.payment_method ? ` via ${selectedBooking.payment_method.replace(/_/g, ' ')}` : ''}`}
                     </Box>
@@ -1599,7 +1597,7 @@ const BookingsPage: React.FC = () => {
                       <Button variant="contained" color="warning" startIcon={<CheckOutIcon />} onClick={() => handleCheckOut(selectedBooking)}>Check out</Button>
                     )}
                     {/* Locked once fully settled; reappears when a balance returns. */}
-                    {!selectedBooking.is_complimentary && getBookingBalance(selectedBooking) > 0 && (
+	                    {!selectedBooking.is_complimentary && isPositiveMoney(getBookingBalance(selectedBooking)) && (
                       <Button variant="outlined" color="success" startIcon={<PaymentIcon />} onClick={() => handleUpdatePaymentStatus(selectedBooking)}>Payment</Button>
                     )}
                     <Button variant="outlined" startIcon={<HistoryIcon />} onClick={() => handleViewWorkflow(selectedBooking)}>Workflow</Button>
@@ -2380,7 +2378,7 @@ const BookingsPage: React.FC = () => {
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="caption" color="text.secondary">Total Amount</Typography>
-                    <Typography variant="body2" fontWeight={500}>{formatCurrency(Number(checkinBooking.total_amount || 0))}</Typography>
+	                    <Typography variant="body2" fontWeight={500}>{formatCurrency(toMoneyNumber(checkinBooking.total_amount))}</Typography>
                   </Grid>
                 </Grid>
               </Box>

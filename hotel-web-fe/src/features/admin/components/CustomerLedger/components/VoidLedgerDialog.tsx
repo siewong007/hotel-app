@@ -11,6 +11,7 @@ import {
   TextField,
 } from '@mui/material';
 import type { CustomerLedger } from '../../../../../types';
+import { toMoneyNumber } from '../../../../../utils/money';
 
 interface VoidLedgerDialogProps {
   open: boolean;
@@ -41,7 +42,7 @@ const VoidLedgerDialog: React.FC<VoidLedgerDialogProps> = ({
       </Alert>
       <Box sx={{ mb: 2 }}>
         <Typography variant="body2"><strong>Company:</strong> {voidingLedger?.company_name}</Typography>
-        <Typography variant="body2"><strong>Amount:</strong> {formatCurrency(parseFloat(String(voidingLedger?.amount || 0)))}</Typography>
+        <Typography variant="body2"><strong>Amount:</strong> {formatCurrency(toMoneyNumber(voidingLedger?.amount))}</Typography>
         <Typography variant="body2"><strong>Description:</strong> {voidingLedger?.description}</Typography>
       </Box>
       <TextField

@@ -118,7 +118,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                 label="Payment Amount"
                 type="number"
                 value={paymentFormData.payment_amount}
-                onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_amount: parseFloat(e.target.value) || 0 })}
+                onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_amount: toMoneyNumber(e.target.value) })}
                 InputProps={{
                   startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                 }}
@@ -248,7 +248,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                       primary={
                         <Box display="flex" justifyContent="space-between" alignItems="center" pr={6}>
                           <Typography variant="body1" fontWeight="medium">
-                            {formatCurrency(parseFloat(String(payment.payment_amount)))}
+                            {formatCurrency(toMoneyNumber(payment.payment_amount))}
                           </Typography>
                           <Chip label={payment.payment_method} size="small" variant="outlined" />
                         </Box>
