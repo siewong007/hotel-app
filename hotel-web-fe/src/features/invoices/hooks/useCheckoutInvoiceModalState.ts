@@ -9,6 +9,7 @@ import { BookingWithDetails } from '../../../types';
 import { queryKeys } from '../../../api/queryKeys';
 import { InvoicesService } from '../../../api/invoices.service';
 import { formatLocalDate } from '../../../utils/date';
+import { isPositiveMoney, subtractMoney, sumMoney } from '../../../utils/money';
 
 interface UseCheckoutInvoiceModalStateProps {
   booking: BookingWithDetails | null;
@@ -143,7 +144,10 @@ export function useCheckoutInvoiceModalState(
   const [savingRates, setSavingRates] = useState(false);
 
   // Computed
-  const totalPayments: number = payments.filter((p: any) => p.payment_status === 'completed').reduce((sum: number, p: any) => sum + parseFloat(p.total_amount || '0'), 0);
+  const totalPayments: number = payments
+    .filter((p: any) => p.payment_status === 'completed')
+    .reduce((sum: number, p: any) => sumMoney([sum, p.total_amount]), 0);
+  const balanceDue = subtractMoney(booking?.total_amount, totalPayments);
 
   const invalidateInvoiceState = () => {
     if (!booking) return;
@@ -174,16 +178,16 @@ export function useCheckoutInvoiceModalState(
   // Pre-fill payment amount when charges update
   useEffect(() => {
     if (open && booking) {
-      const balance = Number(booking.total_amount) - totalPayments;
-      if (balance > 0) {
-        setPaymentAmount(parseFloat(balance.toFixed(2)));
+      const balance = subtractMoney(booking.total_amount, totalPayments);
+      if (isPositiveMoney(balance)) {
+        setPaymentAmount(balance);
       }
     }
   }, [open, booking, totalPayments]);
 
   // Handlers
   const handleRecordPayment = async () => {
-    if (!booking || paymentAmount <= 0) return;
+    if (!booking || !isPositiveMoney(paymentAmount)) return;
     try {
       setRecordingPayment(true);
       const newPayment = await InvoicesService.recordPayment({
@@ -332,7 +336,7 @@ export function useCheckoutInvoiceModalState(
     refundingDeposit, refundPaymentMethod,
     depositWaived, depositWaiveReason,
     editingRates, savingRates,
-    totalPayments, balanceDue: Number(booking?.total_amount || 0) - totalPayments,
+    totalPayments, balanceDue,
     setLoading, setError, setCheckoutStep,
     setShowPaymentForm, setPaymentAmount, setPaymentMethod, setPaymentReference, setPaymentNotes, setPaymentDate,
     setEditingPayment, setEditAmount, setEditMethod, setEditReference, setEditNotes, setEditDate,

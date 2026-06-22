@@ -21,6 +21,7 @@ import { HotelAPIService } from '../../../api';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { formatLocalDate, addLocalDays } from '../../../utils/date';
+import { isGreaterMoney, multiplyMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
 
 interface UpdateCheckoutDateDialogProps {
   open: boolean;
@@ -60,12 +61,10 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
     ? booking.check_out_date.split('T')[0]
     : formatLocalDate(new Date(booking.check_out_date));
 
-  const pricePerNight = typeof booking.price_per_night === 'string'
-    ? parseFloat(booking.price_per_night)
-    : booking.price_per_night || 0;
+  const pricePerNight = toMoneyNumber(booking.price_per_night);
   const hotelSettings = getHotelSettings();
   const isForeignTourist = booking.guest_tourism_type === 'foreign' || booking.is_tourist === true;
-  const tourismTaxRate = Number(hotelSettings.tourism_tax_rate) || 0;
+  const tourismTaxRate = toMoneyNumber(hotelSettings.tourism_tax_rate);
 
   const currentNights = Math.max(
     Math.ceil((new Date(currentCheckoutDate).getTime() - new Date(checkInDate).getTime()) / (1000 * 60 * 60 * 24)),
@@ -80,13 +79,13 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
     : currentNights;
 
   const previewNights = Math.max(newNights, 1);
-  const currentRoomTotal = pricePerNight * currentNights;
-  const newRoomTotal = pricePerNight * previewNights;
-  const currentTourismTax = isForeignTourist ? tourismTaxRate * currentNights : 0;
-  const newTourismTax = isForeignTourist ? tourismTaxRate * previewNights : 0;
-  const currentTotal = currentRoomTotal + currentTourismTax;
-  const newTotal = newRoomTotal + newTourismTax;
-  const difference = newTotal - currentTotal;
+  const currentRoomTotal = multiplyMoney(pricePerNight, currentNights);
+  const newRoomTotal = multiplyMoney(pricePerNight, previewNights);
+  const currentTourismTax = isForeignTourist ? multiplyMoney(tourismTaxRate, currentNights) : 0;
+  const newTourismTax = isForeignTourist ? multiplyMoney(tourismTaxRate, previewNights) : 0;
+  const currentTotal = sumMoney([currentRoomTotal, currentTourismTax]);
+  const newTotal = sumMoney([newRoomTotal, newTourismTax]);
+  const difference = subtractMoney(newTotal, currentTotal);
   const isValid = newNights >= 1 && newCheckoutDate !== currentCheckoutDate;
 
   const handleSubmit = async () => {
@@ -218,18 +217,18 @@ const UpdateCheckoutDateDialog: React.FC<UpdateCheckoutDateDialogProps> = ({
                     <Typography
                       variant="body2"
                       fontWeight={600}
-                      color={difference > 0 ? 'error.main' : 'success.main'}
-                    >
-                      {difference > 0 ? 'Additional Charge' : 'Reduction'}
+	                      color={isGreaterMoney(difference, 0) ? 'error.main' : 'success.main'}
+	                    >
+	                      {isGreaterMoney(difference, 0) ? 'Additional Charge' : 'Reduction'}
                     </Typography>
                   </Grid>
                   <Grid sx={{ textAlign: 'right' }} size={4}>
                     <Typography
                       variant="body2"
                       fontWeight={600}
-                      color={difference > 0 ? 'error.main' : 'success.main'}
-                    >
-                      {difference > 0 ? '+' : '-'}{formatCurrency(Math.abs(difference))}
+	                      color={isGreaterMoney(difference, 0) ? 'error.main' : 'success.main'}
+	                    >
+	                      {isGreaterMoney(difference, 0) ? '+' : '-'}{formatCurrency(Math.abs(difference))}
                     </Typography>
                   </Grid>
                 </>

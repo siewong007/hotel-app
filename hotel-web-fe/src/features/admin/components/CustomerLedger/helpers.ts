@@ -3,6 +3,7 @@
 import type { CustomerLedger } from '../../../../types';
 import type { LedgerUiStatus, ToneName } from './types';
 import { formatLocalDate } from '../../../../utils/date';
+import { isPositiveMoney, toMoneyNumber } from '../../../../utils/money';
 
 // Date-only ISO 8601 (YYYY-MM-DD): date columns from the backend arrive
 // without a time/offset. Plain `new Date("YYYY-MM-DD")` parses as UTC midnight,
@@ -71,8 +72,7 @@ export const getStatusText = (status: string): string => {
 };
 
 export const asMoney = (value: number | string | null | undefined): number => {
-  const parsed = typeof value === 'string' ? parseFloat(value) : value;
-  return Number.isFinite(parsed) ? Number(parsed) : 0;
+  return toMoneyNumber(value);
 };
 
 // Initials for company avatars (e.g. "Farley Sibu" -> "FS")
@@ -98,11 +98,11 @@ export const getLedgerUiStatus = (ledger: CustomerLedger): LedgerUiStatus => {
   // Balance-first: an entry is only "paid" when nothing is outstanding. If a
   // charge later increases the amount (balance > 0 again), the entry reopens to
   // partial/pending even if the stored status column still says 'paid'.
-  if (balance <= 0) return 'paid';
+  if (!isPositiveMoney(balance)) return 'paid';
   if (ledger.status === 'overdue' || isDateOverdue(ledger.due_date)) return 'overdue';
-  if (paid > 0) return 'partial';
+  if (isPositiveMoney(paid)) return 'partial';
   if (ledger.invoice_number) return 'invoiced';
-  if (balance > 0) return 'ready_to_invoice';
+  if (isPositiveMoney(balance)) return 'ready_to_invoice';
   return 'draft';
 };
 

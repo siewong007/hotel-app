@@ -38,9 +38,15 @@ export interface BookingDataExport {
   loyalty_programs: any[];
   loyalty_tiers: any[];
   loyalty_memberships: any[];
+  loyalty_members: any[];
+  loyalty_accounts: any[];
   points_transactions: any[];
+  loyalty_transactions: any[];
   reward_catalog: any[];
+  loyalty_rewards: any[];
   reward_redemptions: any[];
+  loyalty_redemptions: any[];
+  loyalty_program_rules: any[];
   corporate_accounts: any[];
   corporate_account_contacts: any[];
   housekeeping_tasks: any[];

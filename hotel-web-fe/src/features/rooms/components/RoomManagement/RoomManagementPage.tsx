@@ -86,6 +86,7 @@ import {
 } from '../../hooks';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../../utils/date';
+import { isGreaterMoney, isLessMoney, subtractMoney, toMoneyNumber } from '../../../../utils/money';
 import { isValidEmail } from '../../../../utils/validation';
 import {
   getUnifiedStatusColor,
@@ -1129,15 +1130,11 @@ const RoomManagementPage: React.FC = () => {
       setChangingRoom(true);
 
       // Determine the effective rate
-      const customRate = changeRoomCustomRate ? parseFloat(changeRoomCustomRate) : null;
-      const effectiveRate = customRate && !isNaN(customRate) ? customRate
-        : typeof newSelectedRoom.price_per_night === 'string'
-          ? parseFloat(newSelectedRoom.price_per_night)
-          : newSelectedRoom.price_per_night;
-      const oldPrice = typeof selectedRoom.price_per_night === 'string'
-        ? parseFloat(selectedRoom.price_per_night)
-        : selectedRoom.price_per_night;
-      const priceDifference = effectiveRate - oldPrice;
+      const customRate = toMoneyNumber(changeRoomCustomRate);
+      const effectiveRate = changeRoomCustomRate.trim() && isGreaterMoney(customRate, 0)
+        ? customRate
+        : toMoneyNumber(newSelectedRoom.price_per_night);
+      const priceDifference = subtractMoney(effectiveRate, selectedRoom.price_per_night);
 
       // Update booking with new room and rate
       await HotelAPIService.updateBooking(selectedBooking.id, {
@@ -1157,9 +1154,9 @@ const RoomManagementPage: React.FC = () => {
         notes: `Guest moved from room ${selectedRoom.room_number}`,
       });
 
-      const changeMessage = priceDifference > 0
+      const changeMessage = isGreaterMoney(priceDifference, 0)
         ? `Room changed successfully. Additional charge: ${currencySymbol}${Math.abs(priceDifference).toFixed(2)}/night`
-        : priceDifference < 0
+        : isLessMoney(priceDifference, 0)
         ? `Room changed successfully. Credit applied: ${currencySymbol}${Math.abs(priceDifference).toFixed(2)}/night`
         : 'Room changed successfully. No additional charges.';
 

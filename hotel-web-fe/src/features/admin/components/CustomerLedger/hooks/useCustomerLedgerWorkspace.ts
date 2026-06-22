@@ -4,6 +4,7 @@ import type { BookingWithDetails, Company, CustomerLedger } from '../../../../..
 import { useLedgersPage } from '../../../hooks/useLedgers';
 import { getLedgerUiStatus } from '../helpers';
 import type { EntryStatusFilter } from '../types';
+import { isPositiveMoney, sumMoney, toMoneyNumber } from '../../../../../utils/money';
 
 export type CompanyListFilter = 'all' | 'due' | 'clear';
 
@@ -73,9 +74,9 @@ export function useCustomerLedgerWorkspace({
     let overdue_count = 0;
 
     ledgers.forEach((ledger) => {
-      total_amount += parseFloat(String(ledger.amount || 0));
-      total_paid += parseFloat(String(ledger.paid_amount || 0));
-      total_outstanding += parseFloat(String(ledger.balance_due || 0));
+      total_amount = sumMoney([total_amount, ledger.amount]);
+      total_paid = sumMoney([total_paid, ledger.paid_amount]);
+      total_outstanding = sumMoney([total_outstanding, ledger.balance_due]);
       if (ledger.status === 'pending') pending_count += 1;
       else if (ledger.status === 'partial') partial_count += 1;
       else if (ledger.status === 'overdue') overdue_count += 1;
@@ -97,15 +98,15 @@ export function useCustomerLedgerWorkspace({
     ledgers.forEach((ledger) => {
       const current = rows.get(ledger.company_name) || { ...EMPTY_AGGREGATE };
       const uiStatus = getLedgerUiStatus(ledger);
-      const amount = parseFloat(String(ledger.amount || 0));
-      const paid = parseFloat(String(ledger.paid_amount || 0));
-      const balance = parseFloat(String(ledger.balance_due || 0));
-      current.total += amount;
-      current.paid += paid;
-      current.due += balance;
+      const amount = toMoneyNumber(ledger.amount);
+      const paid = toMoneyNumber(ledger.paid_amount);
+      const balance = toMoneyNumber(ledger.balance_due);
+      current.total = sumMoney([current.total, amount]);
+      current.paid = sumMoney([current.paid, paid]);
+      current.due = sumMoney([current.due, balance]);
       current.count += 1;
-      if (balance > 0) current.pending += 1;
-      if (uiStatus === 'overdue') current.overdue += balance;
+      if (isPositiveMoney(balance)) current.pending += 1;
+      if (uiStatus === 'overdue') current.overdue = sumMoney([current.overdue, balance]);
       rows.set(ledger.company_name, current);
     });
     return rows;
@@ -116,8 +117,8 @@ export function useCustomerLedgerWorkspace({
     return companies
       .map((company) => ({ c: company, agg: companyAggregates.get(company.company_name) || EMPTY_AGGREGATE }))
       .filter(({ c, agg }) => {
-        if (companyListFilter === 'due' && agg.due <= 0) return false;
-        if (companyListFilter === 'clear' && agg.due > 0) return false;
+        if (companyListFilter === 'due' && !isPositiveMoney(agg.due)) return false;
+        if (companyListFilter === 'clear' && isPositiveMoney(agg.due)) return false;
         if (!q) return true;
         return (
           c.company_name.toLowerCase().includes(q) ||
@@ -129,7 +130,7 @@ export function useCustomerLedgerWorkspace({
   }, [companies, companyAggregates, companyListSearch, companyListFilter]);
 
   const dueCount = useMemo(
-    () => companies.filter((company) => (companyAggregates.get(company.company_name)?.due || 0) > 0).length,
+    () => companies.filter((company) => isPositiveMoney(companyAggregates.get(company.company_name)?.due || 0)).length,
     [companies, companyAggregates],
   );
   const clearCount = companies.length - dueCount;

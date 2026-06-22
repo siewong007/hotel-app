@@ -27,8 +27,12 @@ const TABLE_INSERT_ORDER: &[&str] = &[
     "guest_notes",
     "guest_preferences",
     "loyalty_programs",
+    "loyalty_program_rules",
     "loyalty_tiers",
     "loyalty_memberships",
+    "loyalty_members",
+    "loyalty_accounts",
+    "loyalty_rewards",
     "night_audit_runs",
     "night_audit_details",
     "points_transactions",
@@ -52,7 +56,9 @@ const TABLE_INSERT_ORDER: &[&str] = &[
     "maintenance_tickets",
     "night_audit_posted_nights",
     "payments",
+    "loyalty_transactions",
     "reward_redemptions",
+    "loyalty_redemptions",
     "room_changes",
     "room_history",
     "room_status_change_log",
@@ -95,6 +101,64 @@ const AUDIT_USER_FK_COLUMNS: &[&str] = &[
     "linked_by",
     "verified_by",
     "response_by",
+];
+
+/// Child -> parent relationships where deleting the parent either deletes the
+/// child too (`CASCADE`) or is blocked until the child is removed
+/// (`NO ACTION`/`RESTRICT`). Overwrite expands through this graph so old export
+/// files that predate newer dependent tables can still clear a selected parent
+/// without hitting FK violations mid-transaction.
+const OVERWRITE_DELETE_DEPENDENCIES: &[(&str, &str)] = &[
+    ("rooms", "room_types"),
+    ("bookings", "companies"),
+    ("bookings", "guests"),
+    ("bookings", "rooms"),
+    ("bookings", "booking_channels"),
+    ("booking_guests", "bookings"),
+    ("booking_modifications", "bookings"),
+    ("booking_history", "bookings"),
+    ("payments", "bookings"),
+    ("invoices", "bookings"),
+    ("customer_ledger_payments", "customer_ledgers"),
+    ("night_audit_details", "night_audit_runs"),
+    ("room_changes", "bookings"),
+    ("room_changes", "rooms"),
+    ("user_guests", "guests"),
+    ("guest_complimentary_credits", "guests"),
+    ("guest_complimentary_credits", "room_types"),
+    ("room_rates", "rate_plans"),
+    ("room_rates", "room_types"),
+    ("room_type_amenities", "amenities"),
+    ("room_type_amenities", "room_types"),
+    ("loyalty_tiers", "loyalty_programs"),
+    ("loyalty_memberships", "guests"),
+    ("loyalty_memberships", "loyalty_programs"),
+    ("loyalty_memberships", "loyalty_tiers"),
+    ("points_transactions", "loyalty_memberships"),
+    ("reward_catalog", "loyalty_programs"),
+    ("reward_redemptions", "loyalty_memberships"),
+    ("reward_redemptions", "reward_catalog"),
+    ("corporate_account_contacts", "corporate_accounts"),
+    ("booking_services", "bookings"),
+    ("booking_services", "services"),
+    ("room_history", "rooms"),
+    ("room_status_change_log", "rooms"),
+    ("loyalty_members", "guests"),
+    ("loyalty_accounts", "loyalty_members"),
+    ("loyalty_accounts", "loyalty_tiers"),
+    ("loyalty_rewards", "loyalty_tiers"),
+    ("loyalty_transactions", "loyalty_members"),
+    ("loyalty_transactions", "loyalty_accounts"),
+    ("loyalty_redemptions", "loyalty_members"),
+    ("loyalty_redemptions", "loyalty_rewards"),
+    ("loyalty_redemptions", "loyalty_transactions"),
+    ("housekeeping_tasks", "rooms"),
+    ("guest_documents", "guests"),
+    ("guest_notes", "guests"),
+    ("guest_preferences", "guests"),
+    ("guest_reviews", "guests"),
+    ("self_checkin_events", "bookings"),
+    ("night_audit_posted_nights", "bookings"),
 ];
 
 pub async fn preview_export_counts(pool: &DbPool) -> Result<ExportPreview, ApiError> {
@@ -152,9 +216,15 @@ pub async fn export_booking_data(pool: &DbPool) -> Result<BookingDataExport, Api
         loyalty_programs: export_table(pool, "loyalty_programs").await?,
         loyalty_tiers: export_table(pool, "loyalty_tiers").await?,
         loyalty_memberships: export_table(pool, "loyalty_memberships").await?,
+        loyalty_members: export_table(pool, "loyalty_members").await?,
+        loyalty_accounts: export_table(pool, "loyalty_accounts").await?,
         points_transactions: export_table(pool, "points_transactions").await?,
+        loyalty_transactions: export_table(pool, "loyalty_transactions").await?,
         reward_catalog: export_table(pool, "reward_catalog").await?,
+        loyalty_rewards: export_table(pool, "loyalty_rewards").await?,
         reward_redemptions: export_table(pool, "reward_redemptions").await?,
+        loyalty_redemptions: export_table(pool, "loyalty_redemptions").await?,
+        loyalty_program_rules: export_table(pool, "loyalty_program_rules").await?,
         corporate_accounts: export_table(pool, "corporate_accounts").await?,
         corporate_account_contacts: export_table(pool, "corporate_account_contacts").await?,
         housekeeping_tasks: export_table(pool, "housekeeping_tasks").await?,
@@ -173,8 +243,8 @@ pub async fn import_booking_data(
     import_user_id: i64,
     request: ImportRequest,
 ) -> Result<Value, ApiError> {
-    let data = request.data;
-    let is_overwrite = request.mode == ImportMode::Overwrite;
+    let ImportRequest { mode, data, tables } = request;
+    let is_overwrite = mode == ImportMode::Overwrite;
 
     let mut generated_columns = base_generated_columns();
     let existing_user_ids = DataTransferRepository::existing_user_ids(pool).await?;
@@ -207,8 +277,12 @@ pub async fn import_booking_data(
         ("guest_notes", &data.guest_notes),
         ("guest_preferences", &data.guest_preferences),
         ("loyalty_programs", &data.loyalty_programs),
+        ("loyalty_program_rules", &data.loyalty_program_rules),
         ("loyalty_tiers", &data.loyalty_tiers),
         ("loyalty_memberships", &data.loyalty_memberships),
+        ("loyalty_members", &data.loyalty_members),
+        ("loyalty_accounts", &data.loyalty_accounts),
+        ("loyalty_rewards", &data.loyalty_rewards),
         ("night_audit_runs", &data.night_audit_runs),
         ("night_audit_details", &data.night_audit_details),
         ("points_transactions", &data.points_transactions),
@@ -235,7 +309,9 @@ pub async fn import_booking_data(
         ("maintenance_tickets", &data.maintenance_tickets),
         ("night_audit_posted_nights", &data.night_audit_posted_nights),
         ("payments", &data.payments),
+        ("loyalty_transactions", &data.loyalty_transactions),
         ("reward_redemptions", &data.reward_redemptions),
+        ("loyalty_redemptions", &data.loyalty_redemptions),
         ("room_changes", &data.room_changes),
         ("room_history", &data.room_history),
         ("room_status_change_log", &data.room_status_change_log),
@@ -245,20 +321,33 @@ pub async fn import_booking_data(
         ("system_settings", &data.system_settings),
         ("user_guests", &data.user_guests),
     ];
+    let mut selected_tables = selected_import_tables(&tables, &tables_and_data)?;
+    if is_overwrite {
+        expand_overwrite_clear_tables(&mut selected_tables);
+    }
 
     let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
     if is_overwrite {
-        // Clear only the tables actually present in this payload, in reverse
-        // (child-before-parent) order. This restores exactly what's included
-        // and leaves untouched any table the file doesn't carry.
+        // Clear selected tables in reverse (child-before-parent) order. The UI
+        // sends this list explicitly so an overwrite can intentionally restore
+        // a table to empty rows.
         let clear_tables: Vec<&str> = tables_and_data
             .iter()
             .rev()
-            .filter(|(_, rows)| !rows.is_empty())
+            .filter(|(table, _)| selected_tables.contains(*table))
             .map(|(table, _)| *table)
             .collect();
-        DataTransferRepository::clear_tables(&mut tx, &clear_tables).await?;
+        if let Err(error) = DataTransferRepository::clear_tables(&mut tx, &clear_tables).await {
+            let error_detail = import_error_detail(&error);
+            let message = format!(
+                "Overwrite failed while clearing selected data: {}. Include dependent tables in the overwrite selection or remove the blocked references before retrying. No changes were saved.",
+                error_detail
+            );
+            log::warn!("{}", message);
+            let _ = tx.rollback().await;
+            return Err(ApiError::BadRequest(message));
+        }
         log::info!(
             "Phase 1: cleared {} table(s) for overwrite",
             clear_tables.len()
@@ -271,6 +360,10 @@ pub async fn import_booking_data(
     let mut counts = serde_json::Map::new();
 
     for (table, rows) in tables_and_data {
+        if !selected_tables.contains(table) {
+            continue;
+        }
+
         let skip = generated_columns.get(table).unwrap_or(&empty_skip);
         let mut inserted = 0usize;
 
@@ -405,11 +498,54 @@ fn import_error_detail(error: &ApiError) -> String {
     }
 }
 
+fn selected_import_tables(
+    requested_tables: &[String],
+    tables_and_data: &[(&str, &[Value])],
+) -> Result<HashSet<String>, ApiError> {
+    if requested_tables.is_empty() {
+        return Ok(tables_and_data
+            .iter()
+            .filter(|(_, rows)| !rows.is_empty())
+            .map(|(table, _)| (*table).to_string())
+            .collect());
+    }
+
+    let known_tables: HashSet<&str> = tables_and_data.iter().map(|(table, _)| *table).collect();
+    let mut selected = HashSet::new();
+
+    for table in requested_tables {
+        if !known_tables.contains(table.as_str()) {
+            return Err(ApiError::BadRequest(format!(
+                "Unknown import table '{}' was requested",
+                table
+            )));
+        }
+        selected.insert(table.clone());
+    }
+
+    Ok(selected)
+}
+
+fn expand_overwrite_clear_tables(selected_tables: &mut HashSet<String>) {
+    let mut changed = true;
+    while changed {
+        changed = false;
+
+        for (child, parent) in OVERWRITE_DELETE_DEPENDENCIES {
+            if selected_tables.contains(*parent) && selected_tables.insert((*child).to_string()) {
+                changed = true;
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         ALL_IMPORT_TABLES, COMPOSITE_PK_TABLES, TABLE_INSERT_ORDER, base_generated_columns,
+        expand_overwrite_clear_tables, selected_import_tables,
     };
+    use serde_json::{Value, json};
     use std::collections::HashSet;
 
     #[test]
@@ -421,7 +557,7 @@ mod tests {
             "TABLE_INSERT_ORDER must not contain duplicates"
         );
         // The full-backup set the API exports/imports.
-        assert_eq!(TABLE_INSERT_ORDER.len(), 45);
+        assert_eq!(TABLE_INSERT_ORDER.len(), 51);
         // Introspection list and the canonical order must stay in lock-step.
         assert_eq!(ALL_IMPORT_TABLES, TABLE_INSERT_ORDER);
     }
@@ -455,5 +591,56 @@ mod tests {
         assert!(booking_columns.contains("nights"));
         assert!(booking_columns.contains("total_guests"));
         assert!(booking_columns.contains("tourism_billable_amount"));
+    }
+
+    #[test]
+    fn selected_import_tables_uses_explicit_table_list_even_when_rows_are_empty() {
+        let empty_rows: Vec<Value> = vec![];
+        let guest_rows = vec![json!({"id": 1})];
+        let tables_and_data = vec![
+            ("guests", guest_rows.as_slice()),
+            ("loyalty_rewards", empty_rows.as_slice()),
+        ];
+
+        let selected = selected_import_tables(
+            &["guests".to_string(), "loyalty_rewards".to_string()],
+            &tables_and_data,
+        )
+        .expect("explicit table selection should be accepted");
+
+        assert!(selected.contains("guests"));
+        assert!(selected.contains("loyalty_rewards"));
+    }
+
+    #[test]
+    fn selected_import_tables_keeps_legacy_non_empty_payload_behavior() {
+        let empty_rows: Vec<Value> = vec![];
+        let guest_rows = vec![json!({"id": 1})];
+        let tables_and_data = vec![
+            ("guests", guest_rows.as_slice()),
+            ("loyalty_rewards", empty_rows.as_slice()),
+        ];
+
+        let selected =
+            selected_import_tables(&[], &tables_and_data).expect("legacy selection should work");
+
+        assert!(selected.contains("guests"));
+        assert!(!selected.contains("loyalty_rewards"));
+    }
+
+    #[test]
+    fn overwrite_clear_expands_through_fk_blocking_dependents() {
+        let mut selected = HashSet::from(["loyalty_tiers".to_string()]);
+
+        expand_overwrite_clear_tables(&mut selected);
+
+        assert!(selected.contains("loyalty_tiers"));
+        assert!(selected.contains("loyalty_rewards"));
+        assert!(selected.contains("loyalty_redemptions"));
+        assert!(selected.contains("loyalty_accounts"));
+        assert!(selected.contains("loyalty_transactions"));
+        assert!(selected.contains("loyalty_memberships"));
+        assert!(selected.contains("points_transactions"));
+        assert!(!selected.contains("payments"));
     }
 }
