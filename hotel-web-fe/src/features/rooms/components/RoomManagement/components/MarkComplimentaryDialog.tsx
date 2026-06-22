@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import { CardGiftcard as GiftIcon } from '@mui/icons-material';
 import { Room, BookingWithDetails } from '../../../../../types';
+import { toMoneyNumber } from '../../../../../utils/money';
 
 interface MarkComplimentaryDialogProps {
   open: boolean;
@@ -114,7 +115,7 @@ const MarkComplimentaryDialog: React.FC<MarkComplimentaryDialogProps> = ({
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2" sx={{ textDecoration: 'line-through', color: 'error.main' }}>
-                      {currencySymbol}{Number(booking.total_amount).toFixed(2)}
+                      {currencySymbol}{toMoneyNumber(booking.total_amount).toFixed(2)}
                     </Typography>
                   </Grid>
                   <Grid size={6}>

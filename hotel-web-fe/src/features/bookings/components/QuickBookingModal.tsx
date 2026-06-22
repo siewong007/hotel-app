@@ -33,6 +33,7 @@ import { useGuests } from '../../guests/hooks/useGuestQueries';
 import { useAllRoomTypes } from '../../rooms/hooks/useRoomQueries';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../utils/date';
+import { isPositiveMoney, multiplyMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
 
 interface QuickBookingModalProps {
   open: boolean;
@@ -150,9 +151,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   // Reinitialize daily rates when dates change while custom rate is active
   useEffect(() => {
     if (useCustomRate && checkInDate && checkOutDate && room) {
-      const price = typeof room.price_per_night === 'string'
-        ? parseFloat(room.price_per_night)
-        : room.price_per_night;
+      const price = toMoneyNumber(room.price_per_night);
       initializeDailyRates(customRate || price);
     }
   }, [checkInDate, checkOutDate]);
@@ -162,7 +161,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     if (isTourist && checkInDate && checkOutDate) {
       const settings = getHotelSettings();
       const nights = calculateNights();
-      setTourismTax(nights * settings.tourism_tax_rate);
+      setTourismTax(multiplyMoney(settings.tourism_tax_rate, nights));
     } else {
       setTourismTax(0);
     }
@@ -172,11 +171,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   // Derived extra bed config from room type
   const allowsExtraBed = roomTypeConfig?.allows_extra_bed ?? false;
   const maxExtraBeds = roomTypeConfig?.max_extra_beds ?? 0;
-  const extraBedChargePerBed = roomTypeConfig
-    ? (typeof roomTypeConfig.extra_bed_charge === 'string'
-        ? parseFloat(roomTypeConfig.extra_bed_charge)
-        : roomTypeConfig.extra_bed_charge) || 0
-    : 0;
+  const extraBedChargePerBed = roomTypeConfig ? toMoneyNumber(roomTypeConfig.extra_bed_charge) : 0;
 
   const resetForm = () => {
     setSelectedGuest(null);
@@ -331,14 +326,16 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
         rate_code: rateCode,
         booking_remarks: remarks || undefined,
         extra_bed_count: extraBedCount,
-        extra_bed_charge: extraBedCharge,
+        extra_bed_charge: toMoneyNumber(extraBedCharge),
 
         payment_status: 'unpaid',
         amount_paid: 0,
         deposit_paid: false,
         deposit_amount: 0,
-        room_rate_override: useCustomRate && customRate > 0 ? customRate : undefined,
-        daily_rates: useCustomRate && Object.keys(dailyRates).length > 0 ? dailyRates : undefined,
+        room_rate_override: useCustomRate && isPositiveMoney(customRate) ? toMoneyNumber(customRate) : undefined,
+        daily_rates: useCustomRate && Object.keys(dailyRates).length > 0
+          ? Object.fromEntries(Object.entries(dailyRates).map(([date, rate]) => [date, toMoneyNumber(rate)]))
+          : undefined,
       });
 
       // Note: Booking is created with status 'confirmed' which shows room as 'reserved'
@@ -388,20 +385,17 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     if (!room) return 0;
     const nights = calculateNights();
     if (useCustomRate && Object.keys(dailyRates).length > 0) {
-      return Object.values(dailyRates).reduce((sum, rate) => sum + rate, 0);
+      return sumMoney(Object.values(dailyRates));
     }
-    if (useCustomRate && customRate > 0) {
-      return customRate * nights;
+    if (useCustomRate && isPositiveMoney(customRate)) {
+      return multiplyMoney(customRate, nights);
     }
-    const price = typeof room.price_per_night === 'string'
-      ? parseFloat(room.price_per_night)
-      : room.price_per_night;
-    return price * nights;
+    return multiplyMoney(room.price_per_night, nights);
   };
 
   const calculateTotal = () => {
     const roomTotal = calculateRoomTotal();
-    return roomTotal + tourismTax + extraBedCharge;
+    return sumMoney([roomTotal, tourismTax, extraBedCharge]);
   };
 
   return (
@@ -414,9 +408,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
           </Typography>
         </Box>
         <Typography variant="caption" color="text.secondary">
-          {room?.room_type} • {formatCurrency(typeof room?.price_per_night === 'string'
-            ? parseFloat(room.price_per_night)
-            : room?.price_per_night || 0)}/night
+          {room?.room_type} • {formatCurrency(toMoneyNumber(room?.price_per_night))}/night
         </Typography>
       </DialogTitle>
 
@@ -690,9 +682,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                       onChange={(e) => {
                         setUseCustomRate(e.target.checked);
                         if (e.target.checked && room) {
-                          const price = typeof room.price_per_night === 'string'
-                            ? parseFloat(room.price_per_night)
-                            : room.price_per_night;
+                          const price = toMoneyNumber(room.price_per_night);
                           setCustomRate(price);
                           initializeDailyRates(price);
                         } else {
@@ -722,7 +712,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                         Rate per Day
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        Default: {formatCurrency(typeof room?.price_per_night === 'string' ? parseFloat(room.price_per_night) : room?.price_per_night || 0)}/night
+                        Default: {formatCurrency(toMoneyNumber(room?.price_per_night))}/night
                       </Typography>
                     </Box>
                     <Grid container spacing={1}>
@@ -738,7 +728,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                               type="number"
                               value={dailyRates[date] ?? customRate}
                               onChange={(e) => {
-                                const val = parseFloat(e.target.value) || 0;
+                                const val = toMoneyNumber(e.target.value);
                                 setDailyRates(prev => ({ ...prev, [date]: val }));
                               }}
                               InputProps={{
@@ -821,7 +811,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                       onChange={(e) => {
                         const count = Math.min(Math.max(parseInt(e.target.value) || 0, 0), maxExtraBeds);
                         setExtraBedCount(count);
-                        setExtraBedCharge(count * extraBedChargePerBed);
+                        setExtraBedCharge(multiplyMoney(extraBedChargePerBed, count));
                       }}
                       inputProps={{ min: 0, max: maxExtraBeds }}
                       helperText={`${formatCurrency(extraBedChargePerBed)} per extra bed (max ${maxExtraBeds})`}
@@ -833,7 +823,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                       label="Extra Bed Charge"
                       type="number"
                       value={extraBedCharge}
-                      onChange={(e) => setExtraBedCharge(parseFloat(e.target.value) || 0)}
+                      onChange={(e) => setExtraBedCharge(toMoneyNumber(e.target.value))}
                       InputProps={{ startAdornment: <Typography sx={{ mr: 0.5 }}>{currencySymbol}</Typography> }}
                       helperText="Auto-calculated or manually adjust"
                     />
@@ -885,7 +875,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                     )}
                   </Typography>
                 </Grid>
-                {tourismTax > 0 && (
+                {isPositiveMoney(tourismTax) && (
                   <>
                     <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">
@@ -899,7 +889,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                     </Grid>
                   </>
                 )}
-                {extraBedCharge > 0 && (
+                {isPositiveMoney(extraBedCharge) && (
                   <>
                     <Grid size={6}>
                       <Typography variant="body2" color="text.secondary">

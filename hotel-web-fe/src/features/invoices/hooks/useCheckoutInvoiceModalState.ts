@@ -9,7 +9,7 @@ import { BookingWithDetails } from '../../../types';
 import { queryKeys } from '../../../api/queryKeys';
 import { InvoicesService } from '../../../api/invoices.service';
 import { formatLocalDate } from '../../../utils/date';
-import { isPositiveMoney, subtractMoney, sumMoney } from '../../../utils/money';
+import { isPositiveMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
 
 interface UseCheckoutInvoiceModalStateProps {
   booking: BookingWithDetails | null;
@@ -214,7 +214,7 @@ export function useCheckoutInvoiceModalState(
 
   const handleStartEdit = (payment: any) => {
     setEditingPayment(payment);
-    setEditAmount(parseFloat(payment.total_amount || '0'));
+    setEditAmount(toMoneyNumber(payment.total_amount));
     setEditMethod(payment.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Cash');
     setEditReference(payment.transaction_reference || '');
     setEditNotes(payment.notes || '');
@@ -240,7 +240,7 @@ export function useCheckoutInvoiceModalState(
   };
 
   const handleUpdatePayment = async () => {
-    if (!editingPayment || editAmount <= 0) return;
+    if (!editingPayment || !isPositiveMoney(editAmount)) return;
     try {
       setUpdatingPayment(true);
       const updatedPayment = await InvoicesService.updatePayment(editingPayment.id, {

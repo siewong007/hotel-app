@@ -3,6 +3,7 @@ import { Box, Typography, TextField, Checkbox } from '@mui/material';
 import { Room } from '../../../../../types';
 import { BookingTokens } from '../bookingTokens';
 import SectionHeader from './SectionHeader';
+import { toMoneyNumber } from '../../../../../utils/money';
 
 interface RatePaymentSectionProps {
   D: BookingTokens;
@@ -19,9 +20,7 @@ interface RatePaymentSectionProps {
 }
 
 const defaultRate = (room: Room | null): number =>
-  typeof room?.price_per_night === 'string'
-    ? parseFloat(room.price_per_night)
-    : (room?.price_per_night || 0);
+  toMoneyNumber(room?.price_per_night);
 
 const RatePaymentSection: React.FC<RatePaymentSectionProps> = ({
   D,
@@ -47,7 +46,7 @@ const RatePaymentSection: React.FC<RatePaymentSectionProps> = ({
           fullWidth
           value={useCustomRate ? customRate : defaultRate(room)}
           onChange={(e) => {
-            onCustomRateChange(parseFloat(e.target.value) || 0);
+            onCustomRateChange(toMoneyNumber(e.target.value));
             onUseCustomRateChange(true);
           }}
           InputProps={{ startAdornment: <Box sx={{ color: D.ink3, mr: 1, fontSize: 13 }}>{currencySymbol}</Box> }}

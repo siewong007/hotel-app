@@ -44,7 +44,7 @@ import { calculateChargesFromInputs, emptyCharges, ChargesBreakdown } from '../u
 import type { CheckoutPaymentRecord } from '../types';
 import CheckoutInvoicePrintView from './CheckoutInvoicePrintView';
 import { formatLocalDate, parseLocalDate, addLocalDays } from '../../../utils/date';
-import { isGreaterMoney, isPositiveMoney, subtractMoney, sumMoney } from '../../../utils/money';
+import { divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
 
 interface CheckoutInvoiceModalProps {
   open: boolean;
@@ -171,7 +171,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
   // Pre-fill payment amount when charges or payments update
   useEffect(() => {
-    if (open && booking && charges.grandTotal > 0) {
+    if (open && booking && isPositiveMoney(charges.grandTotal)) {
       const totalPaid = payments
         .filter((payment) => payment.payment_status === 'completed')
         .reduce((sum, payment) => sumMoney([sum, payment.total_amount]), 0);
@@ -220,7 +220,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
   const handleStartEdit = (payment: CheckoutPaymentRecord) => {
     setEditingPayment(payment);
-    setEditAmount(parseFloat(String(payment.total_amount || '0')));
+    setEditAmount(toMoneyNumber(payment.total_amount));
     setEditMethod(payment.payment_method?.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Cash');
     setEditReference(payment.transaction_reference || '');
     setEditNotes(payment.notes || '');
@@ -237,7 +237,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   };
 
   const handleUpdatePayment = async () => {
-    if (!editingPayment || editAmount <= 0) return;
+    if (!editingPayment || !isPositiveMoney(editAmount)) return;
     try {
       setUpdatingPayment(true);
       const updatedPayment = await InvoicesService.updatePayment(editingPayment.id, {
@@ -800,11 +800,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         const dateStr = date.toLocaleDateString();
                         const dateKey = formatLocalDate(date);
                         const taxInclusiveRate = editableDailyRates[dateKey] || 0;
-                        const dayRate = taxInclusiveRate / taxMultiplier;
-                        const dayTax = taxInclusiveRate - dayRate;
+                        const dayRate = divideMoney(taxInclusiveRate, taxMultiplier);
+                        const dayTax = subtractMoney(taxInclusiveRate, dayRate);
                         return (
                           <React.Fragment key={i}>
-                            <Box sx={{ p: 1.5, borderBottom: dayTax > 0 ? 'none' : '1px solid #ddd' }}>
+                            <Box sx={{ p: 1.5, borderBottom: isPositiveMoney(dayTax) ? 'none' : '1px solid #ddd' }}>
                               <Grid container alignItems="center">
                                 <Grid size={editingRates ? 5 : 8}>
                                   <Typography variant="body2">
@@ -818,7 +818,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                       type="number"
                                       value={taxInclusiveRate || ''}
                                       onChange={(e) => {
-                                        const val = parseFloat(e.target.value) || 0;
+                                        const val = toMoneyNumber(e.target.value);
                                         setEditableDailyRates(prev => ({ ...prev, [dateKey]: val }));
                                       }}
                                       InputProps={{
@@ -835,7 +835,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 </Grid>
                               </Grid>
                             </Box>
-                            {dayTax > 0 && (
+                            {isPositiveMoney(dayTax) && (
                               <Box sx={{ p: 1.5, pl: 3, borderBottom: '1px solid #ddd', bgcolor: '#fafafa' }}>
                                 <Grid container>
                                   <Grid size={8}>
@@ -859,7 +859,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 )}
 
                 {/* Tourism Tax — billed per night */}
-                {charges.tourismTax > 0 && (() => {
+                {isPositiveMoney(charges.tourismTax) && (() => {
                   const nights = calculateNights();
                   if (isHourlyBooking || nights <= 0) {
                     return (
@@ -877,7 +877,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       </Box>
                     );
                   }
-                  const perNight = charges.tourismTax / nights;
+                  const perNight = divideMoney(charges.tourismTax, nights);
                   const checkIn = new Date(booking.check_in_date);
                   return Array.from({ length: nights }, (_, i) => {
                     const date = new Date(checkIn);
@@ -902,7 +902,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 })()}
 
                 {/* Extra Bed */}
-                {charges.extraBedCharge > 0 && (
+                {isPositiveMoney(charges.extraBedCharge) && (
                   <Box sx={{ p: 1.5, borderBottom: '1px solid #ddd' }}>
                     <Grid container>
                       <Grid size={8}>
@@ -913,7 +913,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           {formatCurrency(charges.extraBedCharge)}
                         </Typography>
                       </Grid>
-                      {charges.extraBedServiceTax > 0 && (
+                      {isPositiveMoney(charges.extraBedServiceTax) && (
                         <>
                           <Grid size={8}>
                             <Typography variant="body2" color="text.secondary" sx={{ pl: 2, fontSize: '0.8rem' }}>
@@ -952,7 +952,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             </Box>
 
             {/* Deposit Refund Section */}
-            {charges.depositRefund > 0 && !depositWaived ? (
+            {isPositiveMoney(charges.depositRefund) && !depositWaived ? (
               <Box sx={{ border: '1px solid #ddd', borderRadius: 1, overflow: 'hidden', mb: 3 }}>
                 <Box sx={{ p: 1.5, bgcolor: depositRefunded ? '#e8f5e9' : '#fff3e0' }}>
                   <Grid container alignItems="center">
@@ -1139,7 +1139,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 size="small"
                                 fullWidth
                                 value={editAmount || ''}
-                                onChange={(e) => setEditAmount(parseFloat(e.target.value) || 0)}
+                                onChange={(e) => setEditAmount(toMoneyNumber(e.target.value))}
                                 InputProps={{
                                   startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                                 }}
@@ -1201,7 +1201,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               size="small"
                               variant="contained"
                               onClick={handleUpdatePayment}
-                              disabled={updatingPayment || editAmount <= 0}
+                              disabled={updatingPayment || !isPositiveMoney(editAmount)}
                             >
                               {updatingPayment ? 'Saving...' : 'Save'}
                             </Button>
@@ -1225,7 +1225,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={3}>
                             <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
-                              {formatCurrency(parseFloat(String(p.total_amount || '0')))}
+                              {formatCurrency(toMoneyNumber(p.total_amount))}
                             </Typography>
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={2}>
@@ -1275,7 +1275,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                                 size="small"
                                 fullWidth
                                 value={editAmount || ''}
-                                onChange={(e) => setEditAmount(parseFloat(e.target.value) || 0)}
+                                onChange={(e) => setEditAmount(toMoneyNumber(e.target.value))}
                                 InputProps={{
                                   startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                                 }}
@@ -1337,7 +1337,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                               size="small"
                               variant="contained"
                               onClick={handleUpdatePayment}
-                              disabled={updatingPayment || editAmount <= 0}
+                              disabled={updatingPayment || !isPositiveMoney(editAmount)}
                             >
                               {updatingPayment ? 'Saving...' : 'Save'}
                             </Button>
@@ -1358,7 +1358,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={3}>
                             <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
-                              -{formatCurrency(parseFloat(String(p.total_amount || '0')))}
+                              -{formatCurrency(toMoneyNumber(p.total_amount))}
                             </Typography>
                           </Grid>
                           <Grid sx={{ textAlign: 'right' }} size={2}>
@@ -1411,7 +1411,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                         size="small"
                         fullWidth
                         value={paymentAmount || ''}
-                        onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
+                        onChange={(e) => setPaymentAmount(toMoneyNumber(e.target.value))}
                         InputProps={{
                           startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                         }}
@@ -1480,7 +1480,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 <Grid container>
                   <Grid size={8}>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: hasBalanceDue ? '#e65100' : '#2e7d32' }}>
-                      {hasBalanceDue ? 'Balance Due' : balanceDue < 0 ? 'Overpayment' : 'Fully Paid'}
+                      {hasBalanceDue ? 'Balance Due' : isLessMoney(balanceDue, 0) ? 'Overpayment' : 'Fully Paid'}
                     </Typography>
                   </Grid>
                   <Grid sx={{ textAlign: 'right' }} size={4}>
@@ -1493,7 +1493,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
             </Box>
 
             {/* Notes */}
-            {charges.depositRefund > 0 && !depositRefunded && !depositWaived && !readOnly && (
+            {isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived && !readOnly && (
               <Alert severity="warning" sx={{ mb: 2 }}>
                 <Typography variant="body2" fontWeight={600}>
                   Deposit refund required
@@ -1617,7 +1617,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               </Grid>
 
               {/* Service Tax */}
-              {charges.serviceTax > 0 && (
+              {isPositiveMoney(charges.serviceTax) && (
                 <>
                   <Grid size={8}>
                     <Typography variant="body2" color="text.secondary">
@@ -1633,7 +1633,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               )}
 
               {/* Tourism Tax — billed per night */}
-              {charges.tourismTax > 0 && (() => {
+              {isPositiveMoney(charges.tourismTax) && (() => {
                 const nights = calculateNights();
                 if (isHourlyBooking || nights <= 0) {
                   return (
@@ -1651,7 +1651,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     </React.Fragment>
                   );
                 }
-                const perNight = charges.tourismTax / nights;
+                  const perNight = divideMoney(charges.tourismTax, nights);
                 const checkIn = new Date(booking.check_in_date);
                 return Array.from({ length: nights }, (_, i) => {
                   const date = new Date(checkIn);
@@ -1674,7 +1674,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               })()}
 
               {/* Extra Bed */}
-              {charges.extraBedCharge > 0 && (
+              {isPositiveMoney(charges.extraBedCharge) && (
                 <>
                   <Grid size={8}>
                     <Typography variant="body2" color="text.secondary">
@@ -1686,7 +1686,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                       {formatCurrency(charges.extraBedCharge)}
                     </Typography>
                   </Grid>
-                  {charges.extraBedServiceTax > 0 && (
+                  {isPositiveMoney(charges.extraBedServiceTax) && (
                     <>
                       <Grid size={8}>
                         <Typography variant="body2" color="text.secondary" sx={{ pl: 2 }}>
@@ -1736,7 +1736,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     <Chip label="Waived" size="small" color="warning" sx={{ height: 20, fontSize: '0.7rem' }} />
                   </Grid>
                 </>
-              ) : charges.depositRefund > 0 && (
+              ) : isPositiveMoney(charges.depositRefund) && (
                 <>
                   <Grid size={8}>
                     <Typography variant="body2" sx={{ color: 'success.main' }}>
@@ -1778,7 +1778,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                 Room card deposit has been waived. Reason: {depositWaiveReason}
               </Typography>
             </Alert>
-          ) : charges.depositRefund > 0 && (
+          ) : isPositiveMoney(charges.depositRefund) && (
             <Alert severity="success">
               <Typography variant="body2">
                 Room card deposit of {formatCurrency(charges.depositRefund)} has been refunded to the guest.
@@ -1812,7 +1812,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               variant="outlined"
               onClick={handlePrint}
               startIcon={<PrintIcon />}
-              disabled={(charges.depositRefund > 0 && !depositRefunded && !depositWaived) || requiresFullPaymentBeforeCheckout}
+              disabled={(isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived) || requiresFullPaymentBeforeCheckout}
             >
               Print Preview
             </Button>
@@ -1820,7 +1820,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
               variant="contained"
               onClick={handleProceedToConfirm}
               startIcon={<CheckIcon />}
-              disabled={(charges.depositRefund > 0 && !depositRefunded && !depositWaived) || requiresFullPaymentBeforeCheckout}
+              disabled={(isPositiveMoney(charges.depositRefund) && !depositRefunded && !depositWaived) || requiresFullPaymentBeforeCheckout}
             >
               Proceed to Checkout
             </Button>

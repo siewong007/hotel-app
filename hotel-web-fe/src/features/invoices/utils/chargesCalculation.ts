@@ -1,6 +1,6 @@
 import { BookingWithDetails } from '../../../types';
 import { HotelSettings } from '../../../utils/hotelSettings';
-import { divideMoney, multiplyMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
+import { divideMoney, isPositiveMoney, multiplyMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
 
 export interface ChargesBreakdown {
   roomCharges: number;
@@ -75,7 +75,7 @@ export function calculateChargesFromInputs(
   }
 
   const extraBedChargeInclTax = toMoneyNumber(booking.extra_bed_charge);
-  const extraBedCharge = extraBedChargeInclTax > 0 ? divideMoney(extraBedChargeInclTax, taxMultiplier) : 0;
+  const extraBedCharge = isPositiveMoney(extraBedChargeInclTax) ? divideMoney(extraBedChargeInclTax, taxMultiplier) : 0;
   const extraBedServiceTax = subtractMoney(extraBedChargeInclTax, extraBedCharge);
 
   const subtotal = sumMoney([roomCharges, serviceTax, tourismTax, extraBedCharge, extraBedServiceTax]);

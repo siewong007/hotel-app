@@ -8,6 +8,7 @@ import { queryKeys } from '../../../api/queryKeys';
 import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
 import type { CheckoutPaymentRecord } from '../types';
 import { formatLocalDate, parseLocalDate, addLocalDays } from '../../../utils/date';
+import { toMoneyNumber } from '../../../utils/money';
 
 export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open: boolean) {
   const queryClient = useQueryClient();
@@ -62,10 +63,7 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
     }).then(rooms => {
       const room = rooms.find(r => r.id.toString() === booking.room_id.toString());
       if (room) {
-        const price = typeof room.price_per_night === 'string'
-          ? parseFloat(room.price_per_night)
-          : room.price_per_night || 0;
-        setRoomPrice(price);
+        setRoomPrice(toMoneyNumber(room.price_per_night));
       } else {
         setRoomPrice(0);
       }
@@ -109,13 +107,12 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
     const rawNights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
     const isHourly = booking.post_type === 'hourly' || rawNights === 0;
     if (!isHourly) {
-      const pricePerNight = typeof booking.price_per_night === 'string'
-        ? parseFloat(booking.price_per_night) : booking.price_per_night || 0;
+      const pricePerNight = toMoneyNumber(booking.price_per_night);
       const rates: Record<string, number> = {};
       for (let i = 0; i < rawNights; i++) {
         const key = formatLocalDate(addLocalDays(checkIn, i));
         if (booking.daily_rates && typeof booking.daily_rates === 'object' && booking.daily_rates[key] !== undefined) {
-          rates[key] = parseFloat(String(booking.daily_rates[key])) || 0;
+          rates[key] = toMoneyNumber(booking.daily_rates[key]);
         } else {
           rates[key] = pricePerNight;
         }
