@@ -11,9 +11,7 @@ export interface CurrencyInfo {
 
 // Helper to safely convert to number - exported for use in components
 export const toNumber = (value: number | string | null | undefined): number => {
-  if (value === null || value === undefined) return 0;
-  const num = typeof value === 'string' ? parseFloat(value) : value;
-  return isNaN(num) ? 0 : num;
+  return toMoneyNumber(value);
 };
 
 export const SUPPORTED_CURRENCIES: Record<string, CurrencyInfo> = {

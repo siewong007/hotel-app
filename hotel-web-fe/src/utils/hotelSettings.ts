@@ -1,5 +1,7 @@
 // Hotel settings utility functions
 
+import { toMoneyNumber } from './money';
+
 export interface BookingChannel {
   name: string;
   abbreviation: string;
@@ -166,9 +168,9 @@ export const getHotelSettings = (): HotelSettings => {
       // Ensure numeric fields are properly typed (localStorage may store them as strings)
       return {
         ...merged,
-        deposit_amount: Number(merged.deposit_amount) || DEFAULT_SETTINGS.deposit_amount,
+        deposit_amount: toMoneyNumber(merged.deposit_amount) || DEFAULT_SETTINGS.deposit_amount,
         service_tax_rate: Number(merged.service_tax_rate) || DEFAULT_SETTINGS.service_tax_rate,
-        tourism_tax_rate: Number(merged.tourism_tax_rate) || DEFAULT_SETTINGS.tourism_tax_rate,
+        tourism_tax_rate: toMoneyNumber(merged.tourism_tax_rate) || DEFAULT_SETTINGS.tourism_tax_rate,
         default_payment_terms_days: Number(merged.default_payment_terms_days) || DEFAULT_SETTINGS.default_payment_terms_days,
         report_font_size: reportBaseFontSize,
         report_font_family: normalizeReportFontFamily(merged.report_font_family),

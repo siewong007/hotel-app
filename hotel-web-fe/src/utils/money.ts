@@ -31,7 +31,7 @@ export const fromMinorUnits = (minorUnits: number): number => minorUnits / MINOR
 export const toMoneyNumber = (value: MoneyInput): number => fromMinorUnits(toMinorUnits(value));
 
 export const addMoney = (...values: MoneyInput[]): number =>
-  fromMinorUnits(values.reduce((sum, value) => sum + toMinorUnits(value), 0));
+  fromMinorUnits(values.reduce<number>((sum, value) => sum + toMinorUnits(value), 0));
 
 export const subtractMoney = (left: MoneyInput, right: MoneyInput): number =>
   fromMinorUnits(toMinorUnits(left) - toMinorUnits(right));
