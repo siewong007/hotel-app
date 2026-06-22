@@ -28,6 +28,7 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
+import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
 
 interface InvoiceModalProps {
   open: boolean;
@@ -83,8 +84,7 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({ open, onClose, bookingId })
   };
 
   const formatCurrency = (amount: number | string): string => {
-    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return `$${num.toFixed(2)}`;
+    return `$${toMoneyNumber(amount).toFixed(2)}`;
   };
 
   const formatDate = (dateString?: string): string => {
@@ -210,7 +210,7 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({ open, onClose, bookingId })
                   </TableRow>
 
                   {/* Service Charge */}
-                  {parseFloat(invoice.service_charge) > 0 && (
+                  {isPositiveMoney(invoice.service_charge) && (
                     <TableRow>
                       <TableCell colSpan={3} align="right">
                         Service Charge ({invoice.service_charge_percentage}%):
@@ -220,7 +220,7 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({ open, onClose, bookingId })
                   )}
 
                   {/* Tax */}
-                  {parseFloat(invoice.tax_amount) > 0 && (
+                  {isPositiveMoney(invoice.tax_amount) && (
                     <TableRow>
                       <TableCell colSpan={3} align="right">
                         Tax ({invoice.tax_percentage}%):
@@ -230,7 +230,7 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({ open, onClose, bookingId })
                   )}
 
                   {/* Keycard Deposit */}
-                  {parseFloat(invoice.keycard_deposit) > 0 && (
+                  {isPositiveMoney(invoice.keycard_deposit) && (
                     <TableRow>
                       <TableCell colSpan={3} align="right">
                         Keycard Deposit (Refundable):

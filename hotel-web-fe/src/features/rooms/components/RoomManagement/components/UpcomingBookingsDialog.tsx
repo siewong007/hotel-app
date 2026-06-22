@@ -20,6 +20,7 @@ import {
   CardGiftcard as GiftIcon,
 } from '@mui/icons-material';
 import { BookingWithDetails } from '../../../../../types';
+import { toMoneyNumber } from '../../../../../utils/money';
 
 interface UpcomingBookingsDialogProps {
   open: boolean;
@@ -162,7 +163,7 @@ const UpcomingBookingsDialog: React.FC<UpcomingBookingsDialogProps> = ({
                         />
                       )}
                       <Chip
-                        label={formatCurrency(Number(booking.total_amount || 0))}
+                        label={formatCurrency(toMoneyNumber(booking.total_amount))}
                         size="small"
                         variant="outlined"
                       />

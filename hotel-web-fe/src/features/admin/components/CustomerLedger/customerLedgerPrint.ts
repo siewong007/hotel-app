@@ -222,7 +222,7 @@ export function downloadCompanyInvoice(params: {
             <div class="detail-row"><span class="dlabel">Invoice Date:</span><span class="dvalue">${formatDateForDisplay(invoiceDate)}</span></div>
             <div class="detail-row"><span class="dlabel">Due Date:</span><span class="dvalue">${formatDateForDisplay(invoiceDueDate)}</span></div>
             <div class="detail-row"><span class="dlabel">Terms:</span><span class="dvalue">${invoiceCompany?.payment_terms_days || 30} days</span></div>
-            <div class="detail-row"><span class="dlabel">Status:</span><span class="dvalue ${selectedLedgerBalanceDue > 0 ? 'red' : 'green'}">${selectedLedgerBalanceDue > 0 ? 'Outstanding' : 'Settled'}</span></div>
+            <div class="detail-row"><span class="dlabel">Status:</span><span class="dvalue ${isPositiveMoney(selectedLedgerBalanceDue) ? 'red' : 'green'}">${isPositiveMoney(selectedLedgerBalanceDue) ? 'Outstanding' : 'Settled'}</span></div>
           </div>
         </div>
 
@@ -356,7 +356,7 @@ export function printCompanyStatement(params: {
           </div>
           <div class="summary-item">
             <div class="label">Balance Due</div>
-            <div class="value" style="color: ${totalBalance > 0 ? 'red' : 'green'};">${formatCurrency(totalBalance)}</div>
+            <div class="value" style="color: ${isPositiveMoney(totalBalance) ? 'red' : 'green'};">${formatCurrency(totalBalance)}</div>
           </div>
         </div>
         <table>

@@ -9,6 +9,7 @@ import {
 } from '@mui/icons-material';
 import type { Company } from '../../../../../types';
 import { companyInitials } from '../helpers';
+import { toMoneyNumber } from '../../../../../utils/money';
 
 interface CompanyDetailHeaderProps {
   company: Company;
@@ -88,7 +89,7 @@ const CompanyDetailHeader: React.FC<CompanyDetailHeaderProps> = ({
             {company.credit_limit != null && (
               <Chip
                 size="small"
-                label={`Limit ${formatCurrency(parseFloat(String(company.credit_limit)))}`}
+                label={`Limit ${formatCurrency(toMoneyNumber(company.credit_limit))}`}
                 sx={{ height: 20, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.3 }}
               />
             )}

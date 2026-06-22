@@ -27,6 +27,7 @@ import {
   CardGiftcard as GiftIcon,
 } from '@mui/icons-material';
 import { BookingWithDetails } from '../../../../../types';
+import { toMoneyNumber } from '../../../../../utils/money';
 
 type PaymentChoice = 'pay_now' | 'pay_later';
 type DepositChoice = 'receive' | 'waive';
@@ -143,7 +144,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
                 <Grid size={6}>
                   <Typography variant="caption" color="text.secondary">Total Amount</Typography>
                   <Typography variant="body2" fontWeight={500}>
-                    {formatCurrency(Number(booking.total_amount || 0))}
+                    {formatCurrency(toMoneyNumber(booking.total_amount))}
                   </Typography>
                 </Grid>
               </Grid>
@@ -192,7 +193,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
                     label="Amount Paid"
                     type="number"
                     value={amountPaid}
-                    onChange={(e) => onAmountPaidChange(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => onAmountPaidChange(toMoneyNumber(e.target.value))}
                     InputProps={{
                       startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                       inputProps: { min: 0, step: 0.01 },
@@ -251,7 +252,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
                     label="Deposit Amount"
                     type="number"
                     value={depositAmount}
-                    onChange={(e) => onDepositAmountChange(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => onDepositAmountChange(toMoneyNumber(e.target.value))}
                     InputProps={{
                       startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                       inputProps: { min: 0, step: 0.01 },

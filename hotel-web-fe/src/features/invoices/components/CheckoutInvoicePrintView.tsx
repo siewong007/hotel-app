@@ -5,7 +5,7 @@ import type { HotelSettings } from '../../../utils/hotelSettings';
 import type { ChargesBreakdown } from '../utils/chargesCalculation';
 import type { CheckoutPaymentRecord } from '../types';
 import { formatLocalDate, parseLocalDate, addLocalDays } from '../../../utils/date';
-import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
+import { divideMoney, isLessMoney, isPositiveMoney, subtractMoney, toMoneyNumber } from '../../../utils/money';
 
 interface CheckoutInvoicePrintViewProps {
   booking: BookingWithDetails;
@@ -165,15 +165,15 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
               const date = addLocalDays(checkIn, i);
               const dateKey = formatLocalDate(date);
               const taxInclusiveRate = editableDailyRates[dateKey] || 0;
-              const dayRate = taxInclusiveRate / taxMultiplier;
-              const dayTax = taxInclusiveRate - dayRate;
+              const dayRate = divideMoney(taxInclusiveRate, taxMultiplier);
+              const dayTax = subtractMoney(taxInclusiveRate, dayRate);
               return (
                 <React.Fragment key={i}>
                   <tr>
                     <td>Room Charge — {date.toLocaleDateString()}</td>
                     <td className="amount">{formatCurrency(dayRate)}</td>
                   </tr>
-                  {dayTax > 0 && (
+                  {isPositiveMoney(dayTax) && (
                     <tr style={{ color: '#666' }}>
                       <td style={{ paddingLeft: '24px' }}>Service Tax ({hotelSettings.service_tax_rate}%)</td>
                       <td className="amount">{formatCurrency(dayTax)}</td>
@@ -185,7 +185,7 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
           })()
         )}
 
-        {charges.tourismTax > 0 && (() => {
+        {isPositiveMoney(charges.tourismTax) && (() => {
           const tourismTaxNights = calculateNights();
           if (isHourlyBooking || tourismTaxNights <= 0) {
             return (
@@ -195,7 +195,7 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
               </tr>
             );
           }
-          const perNight = charges.tourismTax / tourismTaxNights;
+          const perNight = divideMoney(charges.tourismTax, tourismTaxNights);
           const checkIn = new Date(booking.check_in_date);
           return Array.from({ length: tourismTaxNights }, (_, i) => {
             const date = new Date(checkIn);
@@ -209,13 +209,13 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
           });
         })()}
 
-        {charges.extraBedCharge > 0 && (
+        {isPositiveMoney(charges.extraBedCharge) && (
           <>
             <tr>
               <td>Extra Bed Charge</td>
               <td className="amount">{formatCurrency(charges.extraBedCharge)}</td>
             </tr>
-            {charges.extraBedServiceTax > 0 && (
+            {isPositiveMoney(charges.extraBedServiceTax) && (
               <tr>
                 <td style={{ paddingLeft: '24px' }}>Service Tax ({hotelSettings.service_tax_rate}%)</td>
                 <td className="amount">{formatCurrency(charges.extraBedServiceTax)}</td>
@@ -224,7 +224,7 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
           </>
         )}
 
-        {charges.depositRefund > 0 ? (
+        {isPositiveMoney(charges.depositRefund) ? (
           <tr className="refund-row">
             <td>Deposit {depositRefunded ? '(Refunded)' : '(Pending Refund)'}</td>
             <td className="amount">{formatCurrency(charges.depositRefund)}</td>
@@ -261,8 +261,8 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
           )}
           {!isPositiveMoney(balanceDue) && (
             <tr style={{ color: '#2e7d32', fontWeight: 700 }}>
-              <td>{balanceDue < 0 ? 'Overpayment' : 'Fully Paid'}</td>
-              <td className="amount">{balanceDue < 0 ? formatCurrency(Math.abs(balanceDue)) : '-'}</td>
+              <td>{isLessMoney(balanceDue, 0) ? 'Overpayment' : 'Fully Paid'}</td>
+              <td className="amount">{isLessMoney(balanceDue, 0) ? formatCurrency(Math.abs(balanceDue)) : '-'}</td>
             </tr>
           )}
         </tbody>
@@ -274,7 +274,7 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
         <strong style={{ color: '#e65100' }}>Deposit - Waived</strong>
         Reason: {depositWaiveReason}
       </div>
-    ) : charges.depositRefund > 0 ? (
+    ) : isPositiveMoney(charges.depositRefund) ? (
       <div className="notes success-note">
         <strong>Deposit</strong>
         Deposit of {formatCurrency(charges.depositRefund)} has been refunded separately to the guest.

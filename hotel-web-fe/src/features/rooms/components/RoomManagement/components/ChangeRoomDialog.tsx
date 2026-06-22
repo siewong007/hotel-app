@@ -18,7 +18,7 @@ import {
 } from '@mui/material';
 import { Hotel as HotelIcon } from '@mui/icons-material';
 import { Room } from '../../../../../types';
-import { isGreaterMoney, isLessMoney, subtractMoney, toMoneyNumber } from '../../../../../utils/money';
+import { isGreaterMoney, isLessMoney, isPositiveMoney, subtractMoney, toMoneyNumber } from '../../../../../utils/money';
 
 interface ChangeRoomDialogProps {
   open: boolean;
@@ -49,8 +49,7 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
   changing,
   onConfirm,
 }) => {
-  const parsedCustomRate = Number.parseFloat(customRate);
-  const hasCustomRate = customRate.trim() !== '' && Number.isFinite(parsedCustomRate);
+  const hasCustomRate = customRate.trim() !== '' && isPositiveMoney(customRate);
   const effectiveSelectedRate = selectedNewRoom
     ? (hasCustomRate ? toMoneyNumber(customRate) : toMoneyNumber(selectedNewRoom.price_per_night))
     : 0;
@@ -107,7 +106,7 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
                 </Grid>
                 <Grid size={6}>
                   <Typography variant="body2">
-                    {currencySymbol}{currentRoom?.price_per_night} / night
+                    {currencySymbol}{toMoneyNumber(currentRoom?.price_per_night).toFixed(2)} / night
                   </Typography>
                 </Grid>
               </Grid>
@@ -138,7 +137,7 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
                   })
                   .map((room) => (
                     <MenuItem key={room.id} value={room.id}>
-                      Room {room.room_number} - {room.room_type} ({currencySymbol}{room.price_per_night}/night)
+                      Room {room.room_number} - {room.room_type} ({currencySymbol}{toMoneyNumber(room.price_per_night).toFixed(2)}/night)
                     </MenuItem>
                   ))}
               </Select>
@@ -153,8 +152,8 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
               type="number"
               value={customRate}
               onChange={(e) => onCustomRateChange(e.target.value)}
-              placeholder={selectedNewRoom ? String(selectedNewRoom.price_per_night) : ''}
-              helperText={selectedNewRoom ? `Default room rate: ${currencySymbol}${selectedNewRoom.price_per_night}/night. Leave empty to use default.` : 'Select a room first, or enter a custom rate.'}
+              placeholder={selectedNewRoom ? toMoneyNumber(selectedNewRoom.price_per_night).toFixed(2) : ''}
+              helperText={selectedNewRoom ? `Default room rate: ${currencySymbol}${toMoneyNumber(selectedNewRoom.price_per_night).toFixed(2)}/night. Leave empty to use default.` : 'Select a room first, or enter a custom rate.'}
               InputProps={{
                 startAdornment: <Typography sx={{ mr: 0.5, color: 'text.secondary' }}>{currencySymbol}</Typography>,
               }}
@@ -178,10 +177,10 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
                     </Grid>
                     <Grid size={6}>
                       <Typography variant="body2" fontWeight="bold">
-	                        {currencySymbol}{hasCustomRate ? effectiveSelectedRate.toFixed(2) : selectedNewRoom.price_per_night} / night
-	                        {hasCustomRate && (
-	                          <Typography component="span" variant="caption" color="text.secondary"> (custom)</Typography>
-	                        )}
+                        {currencySymbol}{effectiveSelectedRate.toFixed(2)} / night
+                        {hasCustomRate && (
+                          <Typography component="span" variant="caption" color="text.secondary"> (custom)</Typography>
+                        )}
                       </Typography>
                     </Grid>
                     <Grid size={6}>
@@ -194,17 +193,17 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
                         variant="body2"
                         fontWeight="bold"
                         color={(() => {
-	                          const diff = subtractMoney(effectiveSelectedRate, currentRoom.price_per_night);
-	                          return isGreaterMoney(diff, 0) ? 'error.main' : isLessMoney(diff, 0) ? 'success.main' : 'text.primary';
-	                        })()}
-	                      >
-	                        {(() => {
-	                          const diff = subtractMoney(effectiveSelectedRate, currentRoom.price_per_night);
-	                          return isGreaterMoney(diff, 0)
-	                            ? `+${currencySymbol}${diff.toFixed(2)} (Additional Charge)`
-	                            : isLessMoney(diff, 0)
-	                            ? `-${currencySymbol}${Math.abs(diff).toFixed(2)} (Credit)`
-	                            : `${currencySymbol}0.00 (No Change)`;
+                          const diff = subtractMoney(effectiveSelectedRate, currentRoom.price_per_night);
+                          return isGreaterMoney(diff, 0) ? 'error.main' : isLessMoney(diff, 0) ? 'success.main' : 'text.primary';
+                        })()}
+                      >
+                        {(() => {
+                          const diff = subtractMoney(effectiveSelectedRate, currentRoom.price_per_night);
+                          return isGreaterMoney(diff, 0)
+                            ? `+${currencySymbol}${diff.toFixed(2)} (Additional Charge)`
+                            : isLessMoney(diff, 0)
+                            ? `-${currencySymbol}${Math.abs(diff).toFixed(2)} (Credit)`
+                            : `${currencySymbol}0.00 (No Change)`;
                         })()}
                       </Typography>
                     </Grid>

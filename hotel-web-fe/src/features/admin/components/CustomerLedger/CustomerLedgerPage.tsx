@@ -90,7 +90,7 @@ import { useCurrency } from '../../../../hooks/useCurrency';
 import { useSearchParams } from '../../../../router';
 import { getHotelSettings, HotelSettings } from '../../../../utils/hotelSettings';
 import { formatLocalDate, addLocalDays } from '../../../../utils/date';
-import { isGreaterMoney, isPositiveMoney, minMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
+import { compareMoney, isGreaterMoney, isPositiveMoney, minMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
 import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceModals';
 import { useCheckoutFlow } from '../../../invoices/hooks/useCheckoutFlow';
 import { enhanceBookingDetails } from '../../../../utils/bookingUtils';
@@ -531,8 +531,8 @@ const CustomerLedgerPage: React.FC = () => {
     }
 
     const customRoomRateInput = checkInRoomRate.trim();
-    const roomRateOverride = customRoomRateInput ? Number(customRoomRateInput) : undefined;
-    if (roomRateOverride !== undefined && (!Number.isFinite(roomRateOverride) || roomRateOverride <= 0)) {
+    const roomRateOverride = customRoomRateInput ? toMoneyNumber(customRoomRateInput) : undefined;
+    if (roomRateOverride !== undefined && !isPositiveMoney(roomRateOverride)) {
       showSnackbar('Please enter a valid room rate', 'warning');
       return;
     }
@@ -1073,13 +1073,8 @@ const CustomerLedgerPage: React.FC = () => {
     }
   };
 
-  const getSelectedLedgerTotal = () => {
-    return getSelectedInvoiceLedgers()
-      .reduce((sum, l) => {
-        const amount = typeof l.amount === 'string' ? parseFloat(l.amount) : l.amount;
-        return sum + amount;
-      }, 0);
-  };
+  const getSelectedLedgerTotal = () =>
+    getSelectedInvoiceLedgers().reduce((sum, l) => sumMoney([sum, l.amount]), 0);
 
   const getSelectedLedgerPaidTotal = () => {
     return getSelectedInvoiceLedgers()
@@ -1134,9 +1129,9 @@ const CustomerLedgerPage: React.FC = () => {
     const company = createFormData.company_name.trim().toLowerCase();
     const room = (createFormData.room_number || '').trim().toLowerCase();
     const stayDate = createFormData.posting_date || createFormData.transaction_date || createFormData.invoice_date || '';
-    const amount = Number(createFormData.amount || 0).toFixed(2);
+    const amount = toMoneyNumber(createFormData.amount);
 
-    if (!company || !room || !stayDate || Number(amount) <= 0) return null;
+    if (!company || !room || !stayDate || !isPositiveMoney(amount)) return null;
 
     return ledgers.find((ledger) => {
       const ledgerDate = formatDateForInput(ledger.posting_date || ledger.transaction_date || ledger.invoice_date || ledger.created_at);
@@ -1144,7 +1139,7 @@ const CustomerLedgerPage: React.FC = () => {
         ledger.company_name.trim().toLowerCase() === company &&
         (ledger.room_number || '').trim().toLowerCase() === room &&
         ledgerDate === stayDate &&
-        asMoney(ledger.amount).toFixed(2) === amount &&
+        compareMoney(ledger.amount, amount) === 0 &&
         !isLedgerVoided(ledger)
       );
     }) || null;
@@ -1216,7 +1211,10 @@ const CustomerLedgerPage: React.FC = () => {
 
     try {
       setCreating(true);
-      await HotelAPIService.createCustomerLedger(createFormData);
+      await HotelAPIService.createCustomerLedger({
+        ...createFormData,
+        amount: toMoneyNumber(createFormData.amount),
+      });
       showSnackbar('Ledger entry created successfully!');
       setCreateDialogOpen(false);
       setDuplicateDialogOpen(false);
@@ -1268,8 +1266,8 @@ const CustomerLedgerPage: React.FC = () => {
     if (ledger.booking_id && ledger.post_type === 'room_charge') {
       try {
         const booking = await HotelAPIService.getBookingById(String(ledger.booking_id));
-        const roomRate = Number(booking.room_rate ?? 0);
-        setEditBookingRoomRate(Number.isFinite(roomRate) && roomRate > 0 ? roomRate.toFixed(2) : '');
+        const roomRate = toMoneyNumber(booking.room_rate);
+        setEditBookingRoomRate(isPositiveMoney(roomRate) ? roomRate.toFixed(2) : '');
       } catch (err) {
         console.error('Failed to load booking rate for ledger entry:', err);
         showSnackbar('Unable to load booking room rate', 'warning');
@@ -1284,11 +1282,11 @@ const CustomerLedgerPage: React.FC = () => {
 
     const bookingRoomRateInput = editBookingRoomRate.trim();
     const bookingRoomRateOverride = editingLedger.booking_id && editingLedger.post_type === 'room_charge' && bookingRoomRateInput
-      ? Number(bookingRoomRateInput)
+      ? toMoneyNumber(bookingRoomRateInput)
       : undefined;
     if (
       bookingRoomRateOverride !== undefined &&
-      (!Number.isFinite(bookingRoomRateOverride) || bookingRoomRateOverride <= 0)
+      !isPositiveMoney(bookingRoomRateOverride)
     ) {
       showSnackbar('Please enter a valid booking room rate', 'warning');
       return;

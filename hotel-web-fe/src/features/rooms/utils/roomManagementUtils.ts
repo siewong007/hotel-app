@@ -1,5 +1,6 @@
 import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../utils/date';
 import { getHotelSetting } from '../../../utils/hotelSettings';
+import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -232,8 +233,8 @@ export const canCoverRoomsWithCredits = (
 };
 
 export const getPositiveRatePerNight = (source: RateSource | null | undefined): number | null => {
-  const value = Number(source?.price_per_night ?? source?.room_rate);
-  return Number.isFinite(value) && value > 0 ? value : null;
+  const value = toMoneyNumber(source?.price_per_night ?? source?.room_rate);
+  return isPositiveMoney(value) ? value : null;
 };
 
 export const deriveRoomStatusInfo = <
