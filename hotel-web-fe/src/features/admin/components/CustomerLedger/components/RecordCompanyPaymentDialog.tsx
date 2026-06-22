@@ -19,6 +19,7 @@ import {
 import { Payment as PaymentIcon } from '@mui/icons-material';
 import type { Company, CustomerLedger } from '../../../../../types';
 import { asMoney } from '../helpers';
+import { isGreaterMoney, isPositiveMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../../../utils/money';
 
 export interface CompanyPaymentForm {
   payment_amount: string;
@@ -109,8 +110,10 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
                 />
               </Box>
               {paymentCompanyLedgers.map((ledger) => {
-                const amount = typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount;
-                const balanceDue = typeof ledger.balance_due === 'string' ? parseFloat(ledger.balance_due) : (ledger.balance_due || amount);
+                const amount = asMoney(ledger.amount);
+                const balanceDue = ledger.balance_due === null || ledger.balance_due === undefined
+                  ? amount
+                  : asMoney(ledger.balance_due);
                 const isSelected = selectedLedgersForPayment.some(l => l.id === ledger.id);
                 return (
                   <Box
@@ -160,8 +163,7 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
                     <Typography variant="caption" color="text.secondary">Total Amount</Typography>
                     <Typography variant="body2">
                       {formatCurrency(selectedLedgersForPayment.reduce((sum, l) => {
-                        const amt = typeof l.amount === 'string' ? parseFloat(l.amount) : l.amount;
-                        return sum + amt;
+                        return sumMoney([sum, l.amount]);
                       }, 0))}
                     </Typography>
                   </Grid>
@@ -169,9 +171,11 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
                     <Typography variant="caption" color="text.secondary">Total Balance Due</Typography>
                     <Typography variant="body2" color="error.main" fontWeight={600}>
                       {formatCurrency(selectedLedgersForPayment.reduce((sum, l) => {
-                        const amt = typeof l.amount === 'string' ? parseFloat(l.amount) : l.amount;
-                        const bal = typeof l.balance_due === 'string' ? parseFloat(l.balance_due) : (l.balance_due || amt);
-                        return sum + bal;
+                        const amount = asMoney(l.amount);
+                        const balanceDue = l.balance_due === null || l.balance_due === undefined
+                          ? amount
+                          : asMoney(l.balance_due);
+                        return sumMoney([sum, balanceDue]);
                       }, 0))}
                     </Typography>
                   </Grid>
@@ -182,26 +186,28 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
 
           {/* Payment overflow warnings (v2) */}
           {(() => {
-            const amt = parseFloat(companyPaymentForm.payment_amount || '0') || 0;
+            const amt = toMoneyNumber(companyPaymentForm.payment_amount);
             const selectedDue = selectedLedgersForPayment.reduce((sum, l) => {
-              const a = typeof l.amount === 'string' ? parseFloat(l.amount) : l.amount;
-              const bal = typeof l.balance_due === 'string' ? parseFloat(l.balance_due) : (l.balance_due || a);
-              return sum + bal;
+              const amount = asMoney(l.amount);
+              const balanceDue = l.balance_due === null || l.balance_due === undefined
+                ? amount
+                : asMoney(l.balance_due);
+              return sumMoney([sum, balanceDue]);
             }, 0);
             const companyDue = paymentCompany
               ? ledgers
                   .filter(l => l.company_name === paymentCompany.company_name)
-                  .reduce((sum, l) => sum + asMoney(l.balance_due), 0)
+                  .reduce((sum, l) => sumMoney([sum, l.balance_due]), 0)
               : 0;
-            const exceedsSelection = amt > selectedDue + 0.001 && amt <= companyDue + 0.001;
-            const exceedsOutstanding = amt > companyDue + 0.001;
+            const exceedsSelection = isGreaterMoney(amt, selectedDue) && !isGreaterMoney(amt, companyDue);
+            const exceedsOutstanding = isGreaterMoney(amt, companyDue);
             if (!exceedsSelection && !exceedsOutstanding) return null;
             return (
               <Grid size={12}>
                 {exceedsSelection && (
                   <Alert severity="warning" sx={{ mb: 1 }}>
                     Payment amount exceeds selected entries by{' '}
-                    <strong>{formatCurrency(amt - selectedDue)}</strong>. The excess will be parked as
+                    <strong>{formatCurrency(subtractMoney(amt, selectedDue))}</strong>. The excess will be parked as
                     credit on account.
                   </Alert>
                 )}
@@ -231,7 +237,7 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
                       min: 0,
                       max: ledgers
                         .filter(l => l.company_name === paymentCompany.company_name)
-                        .reduce((sum, l) => sum + asMoney(l.balance_due), 0)
+                        .reduce((sum, l) => sumMoney([sum, l.balance_due]), 0)
                         .toFixed(2),
                     }
                   : { min: 0 },
@@ -241,7 +247,7 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
                   ? `Max ${formatCurrency(
                       ledgers
                         .filter(l => l.company_name === paymentCompany.company_name)
-                        .reduce((sum, l) => sum + asMoney(l.balance_due), 0),
+                        .reduce((sum, l) => sumMoney([sum, l.balance_due]), 0),
                     )}`
                   : undefined
               }
@@ -321,16 +327,16 @@ const RecordCompanyPaymentDialog: React.FC<RecordCompanyPaymentDialogProps> = ({
         disabled={(() => {
           if (processingCompanyPayment) return true;
           if (selectedLedgersForPayment.length === 0) return true;
-          const amt = parseFloat(companyPaymentForm.payment_amount || '0') || 0;
-          if (amt <= 0) return true;
+          const amt = toMoneyNumber(companyPaymentForm.payment_amount);
+          if (!isPositiveMoney(amt)) return true;
           // v2: only block when payment exceeds the company's TOTAL outstanding
           // (exceeding the current selection is allowed — handled as credit on account).
           const companyDue = paymentCompany
             ? ledgers
                 .filter(l => l.company_name === paymentCompany.company_name)
-                .reduce((sum, l) => sum + asMoney(l.balance_due), 0)
+                .reduce((sum, l) => sumMoney([sum, l.balance_due]), 0)
             : 0;
-          return amt > companyDue + 0.001;
+          return isGreaterMoney(amt, companyDue);
         })()}
         startIcon={processingCompanyPayment ? <CircularProgress size={20} /> : <PaymentIcon />}
       >

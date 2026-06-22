@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import { Hotel as HotelIcon } from '@mui/icons-material';
 import { Room } from '../../../../../types';
+import { isGreaterMoney, isLessMoney, subtractMoney, toMoneyNumber } from '../../../../../utils/money';
 
 interface ChangeRoomDialogProps {
   open: boolean;
@@ -48,6 +49,12 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
   changing,
   onConfirm,
 }) => {
+  const parsedCustomRate = Number.parseFloat(customRate);
+  const hasCustomRate = customRate.trim() !== '' && Number.isFinite(parsedCustomRate);
+  const effectiveSelectedRate = selectedNewRoom
+    ? (hasCustomRate ? toMoneyNumber(customRate) : toMoneyNumber(selectedNewRoom.price_per_night))
+    : 0;
+
   return (
     <Dialog
       open={open}
@@ -171,10 +178,10 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
                     </Grid>
                     <Grid size={6}>
                       <Typography variant="body2" fontWeight="bold">
-                        {currencySymbol}{customRate && !isNaN(parseFloat(customRate)) ? parseFloat(customRate).toFixed(2) : selectedNewRoom.price_per_night} / night
-                        {customRate && !isNaN(parseFloat(customRate)) && (
-                          <Typography component="span" variant="caption" color="text.secondary"> (custom)</Typography>
-                        )}
+	                        {currencySymbol}{hasCustomRate ? effectiveSelectedRate.toFixed(2) : selectedNewRoom.price_per_night} / night
+	                        {hasCustomRate && (
+	                          <Typography component="span" variant="caption" color="text.secondary"> (custom)</Typography>
+	                        )}
                       </Typography>
                     </Grid>
                     <Grid size={6}>
@@ -187,33 +194,17 @@ const ChangeRoomDialog: React.FC<ChangeRoomDialogProps> = ({
                         variant="body2"
                         fontWeight="bold"
                         color={(() => {
-                          const oldPrice = typeof currentRoom.price_per_night === 'string'
-                            ? parseFloat(currentRoom.price_per_night)
-                            : currentRoom.price_per_night;
-                          const effectiveRate = customRate && !isNaN(parseFloat(customRate))
-                            ? parseFloat(customRate)
-                            : typeof selectedNewRoom.price_per_night === 'string'
-                              ? parseFloat(selectedNewRoom.price_per_night)
-                              : selectedNewRoom.price_per_night;
-                          const diff = effectiveRate - oldPrice;
-                          return diff > 0 ? 'error.main' : diff < 0 ? 'success.main' : 'text.primary';
-                        })()}
-                      >
-                        {(() => {
-                          const oldPrice = typeof currentRoom.price_per_night === 'string'
-                            ? parseFloat(currentRoom.price_per_night)
-                            : currentRoom.price_per_night;
-                          const effectiveRate = customRate && !isNaN(parseFloat(customRate))
-                            ? parseFloat(customRate)
-                            : typeof selectedNewRoom.price_per_night === 'string'
-                              ? parseFloat(selectedNewRoom.price_per_night)
-                              : selectedNewRoom.price_per_night;
-                          const diff = effectiveRate - oldPrice;
-                          return diff > 0
-                            ? `+${currencySymbol}${diff.toFixed(2)} (Additional Charge)`
-                            : diff < 0
-                            ? `-${currencySymbol}${Math.abs(diff).toFixed(2)} (Credit)`
-                            : `${currencySymbol}0.00 (No Change)`;
+	                          const diff = subtractMoney(effectiveSelectedRate, currentRoom.price_per_night);
+	                          return isGreaterMoney(diff, 0) ? 'error.main' : isLessMoney(diff, 0) ? 'success.main' : 'text.primary';
+	                        })()}
+	                      >
+	                        {(() => {
+	                          const diff = subtractMoney(effectiveSelectedRate, currentRoom.price_per_night);
+	                          return isGreaterMoney(diff, 0)
+	                            ? `+${currencySymbol}${diff.toFixed(2)} (Additional Charge)`
+	                            : isLessMoney(diff, 0)
+	                            ? `-${currencySymbol}${Math.abs(diff).toFixed(2)} (Credit)`
+	                            : `${currencySymbol}0.00 (No Change)`;
                         })()}
                       </Typography>
                     </Grid>

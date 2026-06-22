@@ -2621,6 +2621,11 @@ mod postgres_creation_tests {
             .execute(pool)
             .await
             .unwrap();
+        sqlx::query("DELETE FROM room_status_change_log WHERE room_id = $1")
+            .bind(room_id)
+            .execute(pool)
+            .await
+            .unwrap();
         sqlx::query("DELETE FROM rooms WHERE id = $1")
             .bind(room_id)
             .execute(pool)
@@ -2642,10 +2647,10 @@ mod postgres_creation_tests {
         sqlx::query("INSERT INTO users (id, username, email, full_name, user_type, is_active, is_verified) VALUES ($1, $2, $3, $4, 'staff', true, true) ON CONFLICT DO NOTHING")
             .bind(actor_id).bind(format!("pg_creation_actor_{actor_id}")).bind(format!("pg-create-{actor_id}@hotel.local")).bind(format!("Actor {actor_id}")).execute(pool).await.unwrap();
 
-        sqlx::query("INSERT INTO guests (id, first_name, last_name) VALUES ($1, 'Create', 'Guest') ON CONFLICT DO NOTHING")
+        sqlx::query("INSERT INTO guests (id, first_name, last_name, full_name) VALUES ($1, 'Create', 'Guest', 'Create Guest') ON CONFLICT DO NOTHING")
             .bind(guest_id).execute(pool).await.unwrap();
 
-        sqlx::query("INSERT OR IGNORE INTO room_types (id, name, code, base_price) VALUES (1, 'Base', 'BASE', 100.0) ON CONFLICT DO NOTHING")
+        sqlx::query("INSERT INTO room_types (id, name, code, base_price) VALUES (1, 'Base', 'BASE', 100.0) ON CONFLICT DO NOTHING")
             .execute(pool).await.unwrap();
 
         sqlx::query("INSERT INTO rooms (id, room_number, room_type_id, status, is_active) VALUES ($1, $2, 1, 'available', true) ON CONFLICT DO NOTHING")
@@ -2775,8 +2780,11 @@ mod postgres_creation_tests {
         let second =
             create_booking_handler(State(pool.clone()), Extension(actor_id), input_b).await;
         assert!(
-            matches!(second, Err(ApiError::Database(_))),
-            "second creation with same booking number should fail uniquely: {:?}",
+            matches!(
+                second,
+                Err(ApiError::Database(_)) | Err(ApiError::BadRequest(_))
+            ),
+            "second creation with same booking number should be rejected (unique booking number or room overlap): {:?}",
             second
         );
 

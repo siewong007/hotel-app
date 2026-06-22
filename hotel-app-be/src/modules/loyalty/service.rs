@@ -68,6 +68,19 @@ pub async fn enroll(pool: &DbPool, user_id: i64) -> Result<LoyaltyEnrollmentResp
     })
 }
 
+pub async fn ensure_member_for_guest(
+    pool: &DbPool,
+    guest_id: i64,
+) -> Result<LoyaltyMemberSummary, ApiError> {
+    if let Some(member) = LoyaltyRepository::member_by_guest(pool, guest_id).await? {
+        return Ok(member);
+    }
+
+    let default_tier_id = LoyaltyRepository::default_tier_id(pool).await?;
+    let member_number = format!("LP{:08}", guest_id);
+    LoyaltyRepository::create_member(pool, guest_id, &member_number, default_tier_id).await
+}
+
 pub async fn activity(pool: &DbPool, user_id: i64) -> Result<Vec<LoyaltyTransaction>, ApiError> {
     let profile = resolve_user_guest(pool, user_id).await?;
     let member = active_member_for_guest(pool, profile.guest_id).await?;

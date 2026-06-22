@@ -95,6 +95,7 @@ import {
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { getPaginationState } from '../../../../utils/pagination';
 import { formatLocalDate, parseLocalDate } from '../../../../utils/date';
+import { addMoney, isGreaterMoney, isLessMoney, isPositiveMoney, subtractMoney, toMoneyNumber } from '../../../../utils/money';
 import type { Company } from '../../../../types';
 
 type BookingView = 'all' | 'arriving' | 'in_house' | 'departing' | 'upcoming' | 'balance' | 'normal_balance' | 'company_balance';
@@ -590,9 +591,9 @@ const BookingsPage: React.FC = () => {
   // Payment status handlers
   const handleUpdatePaymentStatus = (booking: BookingWithDetails) => {
     setPaymentBooking(booking);
-    const balanceDue = Number(booking.balance_due || 0);
-    const totalAmount = Number(booking.total_amount || 0);
-    setPaymentAmount(balanceDue > 0 ? balanceDue : totalAmount);
+    const balanceDue = toMoneyNumber(booking.balance_due);
+    const totalAmount = toMoneyNumber(booking.total_amount);
+    setPaymentAmount(isPositiveMoney(balanceDue) ? balanceDue : totalAmount);
     setPaymentMethod(booking.payment_method || 'Cash');
     setPaymentNote('');
     setPaymentDialogContext('manual');
@@ -601,17 +602,17 @@ const BookingsPage: React.FC = () => {
 
   const handleConfirmPaymentUpdate = async () => {
     if (!paymentBooking) return;
-    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+    if (!Number.isFinite(paymentAmount) || !isPositiveMoney(paymentAmount)) {
       setError('Payment amount must be greater than 0.');
       return;
     }
-    const requiredCheckoutBalance = Number(paymentBooking.balance_due || 0);
-    if (paymentDialogContext === 'checkout_required' && paymentAmount + 0.005 < requiredCheckoutBalance) {
+    const requiredCheckoutBalance = getBookingBalance(paymentBooking);
+    if (paymentDialogContext === 'checkout_required' && isLessMoney(paymentAmount, requiredCheckoutBalance)) {
       setError('Payment amount must cover the full outstanding balance before checkout.');
       return;
     }
     // Block overpayment — a payment can never exceed the outstanding balance.
-    if (paymentAmount > requiredCheckoutBalance + 0.005) {
+    if (isGreaterMoney(paymentAmount, requiredCheckoutBalance)) {
       setError(`Payment amount cannot exceed the outstanding balance of ${formatCurrency(requiredCheckoutBalance)}.`);
       return;
     }
@@ -632,10 +633,11 @@ const BookingsPage: React.FC = () => {
       });
 
       // Work out what's still owed after this payment.
-      const prevBalance = Number(paymentBooking.balance_due || 0);
-      const prevPaid = Number(paymentBooking.total_paid || 0);
-      const remainingBalance = Math.max(0, prevBalance - paymentAmount);
-      const fullySettled = remainingBalance <= 0.005;
+      const prevBalance = getBookingBalance(paymentBooking);
+      const prevPaid = toMoneyNumber(paymentBooking.total_paid);
+      const nextBalance = subtractMoney(prevBalance, paymentAmount);
+      const remainingBalance = isPositiveMoney(nextBalance) ? nextBalance : 0;
+      const fullySettled = !isPositiveMoney(remainingBalance);
 
       await reloadBookingData();
 
@@ -658,7 +660,7 @@ const BookingsPage: React.FC = () => {
         showSnackbar(`Payment of ${formatCurrency(paymentAmount)} accepted via ${paymentMethod}. Balance still outstanding.`);
         setPaymentBooking({
           ...paymentBooking,
-          total_paid: prevPaid + paymentAmount,
+          total_paid: addMoney(prevPaid, paymentAmount),
           balance_due: remainingBalance,
           payment_status: 'partial',
         });
@@ -827,7 +829,7 @@ const BookingsPage: React.FC = () => {
   // Check-out functions
   const handleCheckOut = (booking: BookingWithDetails) => {
     const balanceDue = getBookingBalance(booking);
-    if (balanceDue > 0 && !isCompanyBooking(booking)) {
+    if (isPositiveMoney(balanceDue) && !isCompanyBooking(booking)) {
       setPaymentBooking(booking);
       setPaymentAmount(balanceDue);
       setPaymentMethod(booking.payment_method || 'Cash');
@@ -924,15 +926,15 @@ const BookingsPage: React.FC = () => {
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
   };
 
-  const getBookingBalance = (booking: BookingWithDetails | null) => Number(booking?.balance_due ?? 0);
-  const getBookingTotal = (booking: BookingWithDetails | null) => Number(booking?.total_amount ?? 0);
+  const getBookingBalance = (booking: BookingWithDetails | null) => toMoneyNumber(booking?.balance_due);
+  const getBookingTotal = (booking: BookingWithDetails | null) => toMoneyNumber(booking?.total_amount);
   const isCompanyBooking = (booking: BookingWithDetails) => Boolean(booking.company_id || booking.company_name?.trim());
   const getBillingChipLabel = (booking: BookingWithDetails) => {
     if (isCompanyBooking(booking)) return 'Company Billing';
     if (!booking.guest_type) return null;
     return booking.guest_type === 'non_member' ? 'Non-member' : 'Member';
   };
-  const hasOutstandingBalance = (booking: BookingWithDetails) => booking.status !== 'voided' && getBookingBalance(booking) > 0;
+  const hasOutstandingBalance = (booking: BookingWithDetails) => booking.status !== 'voided' && isPositiveMoney(getBookingBalance(booking));
   const getKnownNightAuditDates = (booking: BookingWithDetails | null) => {
     if (!booking) return [];
     const dates = new Set<string>();
@@ -1660,8 +1662,8 @@ const BookingsPage: React.FC = () => {
                     </Box>
                     <Box>
                       <Typography variant="caption" color="text.secondary">Balance</Typography>
-                      <Typography variant="subtitle2" color={Number(workflowSummary.balance_due || 0) > 0 ? 'warning.main' : 'success.main'}>
-                        {formatCurrency(Number(workflowSummary.balance_due || 0))}
+                      <Typography variant="subtitle2" color={isPositiveMoney(workflowSummary.balance_due) ? 'warning.main' : 'success.main'}>
+                        {formatCurrency(toMoneyNumber(workflowSummary.balance_due))}
                       </Typography>
                     </Box>
                     <Box>
@@ -2239,9 +2241,9 @@ const BookingsPage: React.FC = () => {
 
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 1.25 }}>
                 {[
-                  { label: 'Total', value: formatCurrency(Number(paymentBooking.total_amount || 0)), color: 'text.primary' },
-                  { label: 'Paid', value: formatCurrency(Number(paymentBooking.total_paid || 0)), color: 'success.main' },
-                  { label: 'Balance', value: formatCurrency(Number(paymentBooking.balance_due || 0)), color: Number(paymentBooking.balance_due || 0) > 0 ? 'error.main' : 'success.main' },
+                  { label: 'Total', value: formatCurrency(toMoneyNumber(paymentBooking.total_amount)), color: 'text.primary' },
+                  { label: 'Paid', value: formatCurrency(toMoneyNumber(paymentBooking.total_paid)), color: 'success.main' },
+                  { label: 'Balance', value: formatCurrency(getBookingBalance(paymentBooking)), color: isPositiveMoney(getBookingBalance(paymentBooking)) ? 'error.main' : 'success.main' },
                 ].map((item) => (
                   <Box key={item.label} sx={{ p: 1.5, borderRadius: 1.5, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
@@ -2262,17 +2264,17 @@ const BookingsPage: React.FC = () => {
                   value={paymentAmount || ''}
                   onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
                   InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
-                  inputProps={{ min: 0, max: Number(paymentBooking.balance_due || 0), step: 0.01 }}
+                  inputProps={{ min: 0, max: getBookingBalance(paymentBooking), step: 0.01 }}
                   error={
-                    (paymentDialogContext === 'checkout_required' && paymentAmount + 0.005 < Number(paymentBooking.balance_due || 0)) ||
-                    paymentAmount > Number(paymentBooking.balance_due || 0) + 0.005
+                    (paymentDialogContext === 'checkout_required' && isLessMoney(paymentAmount, getBookingBalance(paymentBooking))) ||
+                    isGreaterMoney(paymentAmount, getBookingBalance(paymentBooking))
                   }
                   helperText={
-                    paymentAmount > Number(paymentBooking.balance_due || 0) + 0.005
-                      ? `Cannot exceed outstanding balance of ${formatCurrency(Number(paymentBooking.balance_due || 0))}`
+                    isGreaterMoney(paymentAmount, getBookingBalance(paymentBooking))
+                      ? `Cannot exceed outstanding balance of ${formatCurrency(getBookingBalance(paymentBooking))}`
                       : paymentDialogContext === 'checkout_required'
-                        ? `Full balance required: ${formatCurrency(Number(paymentBooking.balance_due || 0))}`
-                        : `Outstanding balance: ${formatCurrency(Number(paymentBooking.balance_due || 0))}`
+                        ? `Full balance required: ${formatCurrency(getBookingBalance(paymentBooking))}`
+                        : `Outstanding balance: ${formatCurrency(getBookingBalance(paymentBooking))}`
                   }
                   required
                 />
@@ -2319,10 +2321,10 @@ const BookingsPage: React.FC = () => {
             variant="contained"
             color="primary"
             disabled={
-              paymentAmount <= 0 ||
+              !isPositiveMoney(paymentAmount) ||
               updatingPayment ||
-              (paymentDialogContext === 'checkout_required' && paymentAmount + 0.005 < Number(paymentBooking?.balance_due || 0)) ||
-              paymentAmount > Number(paymentBooking?.balance_due || 0) + 0.005
+              (paymentDialogContext === 'checkout_required' && isLessMoney(paymentAmount, getBookingBalance(paymentBooking))) ||
+              isGreaterMoney(paymentAmount, getBookingBalance(paymentBooking))
             }
           >
             {updatingPayment ? 'Processing...' : 'Accept Payment'}

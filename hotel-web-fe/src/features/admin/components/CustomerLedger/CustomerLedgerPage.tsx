@@ -90,6 +90,7 @@ import { useCurrency } from '../../../../hooks/useCurrency';
 import { useSearchParams } from '../../../../router';
 import { getHotelSettings, HotelSettings } from '../../../../utils/hotelSettings';
 import { formatLocalDate, addLocalDays } from '../../../../utils/date';
+import { isGreaterMoney, isPositiveMoney, minMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
 import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceModals';
 import { useCheckoutFlow } from '../../../invoices/hooks/useCheckoutFlow';
 import { enhanceBookingDetails } from '../../../../utils/bookingUtils';
@@ -896,7 +897,7 @@ const CustomerLedgerPage: React.FC = () => {
     // Load unpaid/partial ledger entries for this company
     const companyLedgersFiltered = ledgers.filter(
       l => l.company_name === company.company_name &&
-           getLedgerBalanceDue(l) > 0 &&
+           isPositiveMoney(getLedgerBalanceDue(l)) &&
            !isVoidedLedger(l)
     );
     setPaymentCompanyLedgers(companyLedgersFiltered);
@@ -920,7 +921,7 @@ const CustomerLedgerPage: React.FC = () => {
   };
 
   const isInvoiceEligible = (ledger: CustomerLedger) => {
-    return !ledger.invoice_number && !isVoidedLedger(ledger) && getLedgerBalanceDue(ledger) > 0;
+    return !ledger.invoice_number && !isVoidedLedger(ledger) && isPositiveMoney(getLedgerBalanceDue(ledger));
   };
 
   const getSelectedInvoiceLedgers = () =>
@@ -933,14 +934,14 @@ const CustomerLedgerPage: React.FC = () => {
       return;
     }
 
-    const paymentAmount = parseFloat(companyPaymentForm.payment_amount);
-    if (isNaN(paymentAmount) || paymentAmount <= 0) {
+    const paymentAmount = toMoneyNumber(companyPaymentForm.payment_amount);
+    if (!isPositiveMoney(paymentAmount)) {
       showSnackbar('Please enter a valid payment amount', 'warning');
       return;
     }
 
-    const selectedBalance = selectedLedgersForPayment.reduce((sum, ledger) => sum + getLedgerBalanceDue(ledger), 0);
-    if (paymentAmount > selectedBalance) {
+    const selectedBalance = sumMoney(selectedLedgersForPayment.map(getLedgerBalanceDue));
+    if (isGreaterMoney(paymentAmount, selectedBalance)) {
       showSnackbar('Payment amount cannot exceed the selected outstanding balance', 'warning');
       return;
     }
@@ -962,22 +963,20 @@ const CustomerLedgerPage: React.FC = () => {
       // Distribute payment across selected ledgers in order
       let remaining = paymentAmount;
       for (const ledger of selectedLedgersForPayment) {
-        if (remaining <= 0) break;
-        const balance = typeof ledger.balance_due === 'string'
-          ? parseFloat(ledger.balance_due)
-          : (ledger.balance_due || (typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount));
-        const allocate = Math.min(remaining, balance);
-        if (allocate <= 0) continue;
+        if (!isPositiveMoney(remaining)) break;
+        const balance = getLedgerBalanceDue(ledger);
+        const allocate = minMoney(remaining, balance);
+        if (!isPositiveMoney(allocate)) continue;
 
         await HotelAPIService.createLedgerPayment(ledger.id, {
-          payment_amount: parseFloat(allocate.toFixed(2)),
+          payment_amount: allocate,
           payment_method: companyPaymentForm.payment_method,
           payment_reference: companyPaymentForm.payment_reference || undefined,
           receipt_number: companyPaymentForm.receipt_number || undefined,
           notes: companyPaymentForm.notes || undefined,
           payment_date: companyPaymentForm.payment_date || undefined,
         });
-        remaining -= allocate;
+        remaining = subtractMoney(remaining, allocate);
       }
 
       // Re-fetch the entries we just paid against to see what's still owed.
@@ -987,7 +986,7 @@ const CustomerLedgerPage: React.FC = () => {
         )
       );
       const stillOutstanding = refreshed.filter(
-        l => getLedgerBalanceDue(l) > 0 && !isVoidedLedger(l)
+        l => isPositiveMoney(getLedgerBalanceDue(l)) && !isVoidedLedger(l)
       );
 
       // Reload the page table.
@@ -1084,15 +1083,12 @@ const CustomerLedgerPage: React.FC = () => {
 
   const getSelectedLedgerPaidTotal = () => {
     return getSelectedInvoiceLedgers()
-      .reduce((sum, l) => sum + asMoney(l.paid_amount), 0);
+      .reduce((sum, l) => sumMoney([sum, l.paid_amount]), 0);
   };
 
   const getSelectedLedgerBalanceDue = () => {
     return getSelectedInvoiceLedgers()
-      .reduce((sum, l) => {
-        const balanceDue = typeof l.balance_due === 'string' ? parseFloat(l.balance_due) : (l.balance_due || 0);
-        return sum + balanceDue;
-      }, 0);
+      .reduce((sum, l) => sumMoney([sum, l.balance_due]), 0);
   };
 
   // Validate the invoice number + selection, then switch to the preview pane.
@@ -1325,7 +1321,7 @@ const CustomerLedgerPage: React.FC = () => {
   const handleOpenPaymentDialog = async (ledger: CustomerLedger) => {
     setPaymentLedger(ledger);
     setPaymentFormData({
-      payment_amount: parseFloat(String(ledger.balance_due)),
+      payment_amount: getLedgerBalanceDue(ledger),
       payment_method: 'cash',
       payment_date: formatLocalDate(),
     });
@@ -1346,7 +1342,7 @@ const CustomerLedgerPage: React.FC = () => {
     if (!paymentLedger) return;
 
     const balanceDue = getLedgerBalanceDue(paymentLedger);
-    if (paymentFormData.payment_amount > balanceDue) {
+    if (isGreaterMoney(paymentFormData.payment_amount, balanceDue)) {
       showSnackbar('Payment amount cannot exceed the outstanding balance', 'warning');
       return;
     }
@@ -1375,7 +1371,7 @@ const CustomerLedgerPage: React.FC = () => {
       await loadData();
 
       const remainingBalance = getLedgerBalanceDue(updatedLedger);
-      if (remainingBalance <= 0.001) {
+      if (!isPositiveMoney(remainingBalance)) {
         // Fully settled — close the window.
         showSnackbar('Payment recorded — balance fully settled!');
         setPaymentDialogOpen(false);
@@ -1449,7 +1445,7 @@ const CustomerLedgerPage: React.FC = () => {
   };
 
   const getLedgerBalanceDue = (ledger: CustomerLedger) => {
-    return isVoidedLedger(ledger) ? 0 : parseFloat(String(ledger.balance_due || 0));
+    return isVoidedLedger(ledger) ? 0 : toMoneyNumber(ledger.balance_due);
   };
 
 

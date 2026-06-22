@@ -5,11 +5,15 @@ mod common;
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 mod sqlite_tests {
     use crate::common;
+    use hotel_app_be::constants::{GuestType, TourismType};
     use hotel_app_be::core::error::ApiError;
+    use hotel_app_be::models::GuestInput;
     use hotel_app_be::modules::loyalty::models::{
-        LoyaltyRulesInput, ManualAdjustmentInput, RedeemRewardInput, RejectRedemptionInput,
+        LoyaltyMemberQuery, LoyaltyRulesInput, ManualAdjustmentInput, RedeemRewardInput,
+        RejectRedemptionInput,
     };
     use hotel_app_be::modules::loyalty::service;
+    use hotel_app_be::services::guests as guest_service;
 
     async fn seed_guest_user(pool: &sqlx::SqlitePool, guest_id: i64, user_id: i64, email: &str) {
         sqlx::query(
@@ -113,6 +117,50 @@ mod sqlite_tests {
     }
 
     #[tokio::test]
+    async fn member_guest_creation_syncs_to_loyalty_admin_members() {
+        let pool = common::setup_test_db().await;
+
+        let guest = guest_service::create_guest(
+            &pool,
+            1,
+            GuestInput {
+                first_name: "Dashboard".to_string(),
+                last_name: "Member".to_string(),
+                email: Some("dashboard-member@example.com".to_string()),
+                phone: Some("60123456780".to_string()),
+                ic_number: Some("DM-001".to_string()),
+                nationality: None,
+                address_line1: None,
+                city: None,
+                state_province: None,
+                postal_code: None,
+                country: None,
+                guest_type: Some(GuestType::Member),
+                tourism_type: Some(TourismType::Local),
+                discount_percentage: Some(10),
+                company_name: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let members = service::admin_members(
+            &pool,
+            LoyaltyMemberQuery {
+                search: Some("Dashboard Member".to_string()),
+                status: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].guest_id, guest.id);
+        assert_eq!(members[0].member_number, format!("LP{:08}", guest.id));
+        assert_eq!(members[0].status, "active");
+    }
+
+    #[tokio::test]
     async fn manual_adjustment_requires_reason_and_updates_ledger_balance() {
         let pool = common::setup_test_db().await;
         seed_guest_user(&pool, 9902, 9902, "loyal2@example.com").await;
@@ -147,7 +195,9 @@ mod sqlite_tests {
         assert_eq!(adjustment.transaction_type, "adjusted");
         assert_eq!(adjustment.balance_after, 250);
 
-        let detail = service::admin_member_detail(&pool, member.id).await.unwrap();
+        let detail = service::admin_member_detail(&pool, member.id)
+            .await
+            .unwrap();
         assert_eq!(detail.member.available_points, 250);
     }
 
@@ -168,9 +218,17 @@ mod sqlite_tests {
             .await
             .unwrap();
         assert_eq!(second[0].points_awarded, 0);
-        assert!(second[0].skipped_reason.as_deref().unwrap().contains("already awarded"));
+        assert!(
+            second[0]
+                .skipped_reason
+                .as_deref()
+                .unwrap()
+                .contains("already awarded")
+        );
 
-        let detail = service::admin_member_detail(&pool, member.id).await.unwrap();
+        let detail = service::admin_member_detail(&pool, member.id)
+            .await
+            .unwrap();
         assert_eq!(detail.member.available_points, 6000);
         assert_eq!(detail.member.tier_name, "Gold");
         assert!(detail.tier_progress.current_value >= 6000.0);
@@ -239,7 +297,9 @@ mod sqlite_tests {
         .unwrap();
         assert_eq!(rejected.status, "rejected");
 
-        let detail = service::admin_member_detail(&pool, member.id).await.unwrap();
+        let detail = service::admin_member_detail(&pool, member.id)
+            .await
+            .unwrap();
         assert_eq!(detail.member.available_points, 1000);
     }
 
@@ -264,7 +324,9 @@ mod sqlite_tests {
             .unwrap();
         assert!(second.is_empty());
 
-        let detail = service::admin_member_detail(&pool, member.id).await.unwrap();
+        let detail = service::admin_member_detail(&pool, member.id)
+            .await
+            .unwrap();
         assert_eq!(detail.member.available_points, 0);
     }
 

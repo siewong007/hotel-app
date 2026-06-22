@@ -399,10 +399,15 @@ fn reset_sequence_sql(table: &str) -> String {
     let quoted_table = quote_identifier(table);
     let table_regclass = quote_literal(&format!("public.{table}"));
     let table_name = quote_literal(table);
+    let max_id_query = quote_literal(&format!("SELECT MAX(id)::bigint FROM {quoted_table}"));
 
     format!(
         r#"
-        WITH sequence_name AS (
+        DO $$
+        DECLARE
+            sequence_name text;
+            max_id bigint;
+        BEGIN
             SELECT COALESCE(
                 pg_get_serial_sequence({table_regclass}, 'id'),
                 (
@@ -412,17 +417,20 @@ fn reset_sequence_sql(table: &str) -> String {
                       AND table_name = {table_name}
                       AND column_name = 'id'
                 )
-            ) AS name
-        ),
-        bounds AS (
-            SELECT MAX(id) AS max_id FROM {quoted_table}
-        )
-        SELECT CASE
-            WHEN sequence_name.name IS NULL THEN NULL
-            WHEN bounds.max_id IS NULL THEN setval(sequence_name.name::regclass, 1, false)
-            ELSE setval(sequence_name.name::regclass, GREATEST(bounds.max_id, 1), true)
-        END
-        FROM sequence_name, bounds
+            ) INTO sequence_name;
+
+            IF sequence_name IS NULL THEN
+                RETURN;
+            END IF;
+
+            EXECUTE {max_id_query} INTO max_id;
+
+            IF max_id IS NULL THEN
+                PERFORM setval(sequence_name::regclass, 1, false);
+            ELSE
+                PERFORM setval(sequence_name::regclass, GREATEST(max_id, 1), true);
+            END IF;
+        END $$;
         "#
     )
 }
@@ -532,10 +540,9 @@ mod tests {
         assert!(sql.contains("pg_get_serial_sequence('public.payments', 'id')"));
         assert!(sql.contains("substring(column_default FROM"));
         assert!(sql.contains("table_name = 'payments'"));
-        assert!(sql.contains("SELECT MAX(id) AS max_id FROM \"payments\""));
-        assert!(
-            sql.contains("setval(sequence_name.name::regclass, GREATEST(bounds.max_id, 1), true)")
-        );
+        assert!(sql.contains("EXECUTE 'SELECT MAX(id)::bigint FROM \"payments\"' INTO max_id"));
+        assert!(sql.contains("PERFORM setval(sequence_name::regclass, GREATEST(max_id, 1), true)"));
+        assert!(sql.contains("IF sequence_name IS NULL THEN"));
     }
 
     #[test]
@@ -544,6 +551,6 @@ mod tests {
 
         assert!(sql.contains("pg_get_serial_sequence('public.odd''table', 'id')"));
         assert!(sql.contains("table_name = 'odd''table'"));
-        assert!(sql.contains("FROM \"odd'table\""));
+        assert!(sql.contains("FROM \"odd''table\""));
     }
 }

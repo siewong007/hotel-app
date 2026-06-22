@@ -21,8 +21,8 @@ export function useExportDataMutation() {
 export function useImportDataMutation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ mode, data }: { mode: ImportMode; data: BookingDataExport }) =>
-      DataTransferService.importData(mode, data),
+    mutationFn: ({ mode, data, tables }: { mode: ImportMode; data: BookingDataExport; tables: string[] }) =>
+      DataTransferService.importData(mode, data, tables),
     onSuccess: () => invalidateImportedData(queryClient),
   });
 }

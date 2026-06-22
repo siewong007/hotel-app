@@ -10,6 +10,7 @@
 import type { CustomerLedger, Company } from '../../../../types';
 import type { HotelSettings } from '../../../../utils/hotelSettings';
 import { formatDateForDisplay } from './helpers';
+import { isPositiveMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
 
 type FormatCurrency = (value: number) => string;
 
@@ -240,16 +241,16 @@ export function downloadCompanyInvoice(params: {
             ${invoiceLedgerEntries
               .filter(l => selectedInvoiceLedgers.includes(l.id))
               .map((ledger, idx) => {
-                const amount = typeof ledger.amount === 'string' ? parseFloat(ledger.amount) : ledger.amount;
-                const paidAmount = typeof ledger.paid_amount === 'string' ? parseFloat(ledger.paid_amount) : (ledger.paid_amount || 0);
-                const balanceDue = typeof ledger.balance_due === 'string' ? parseFloat(ledger.balance_due) : (ledger.balance_due || 0);
+                const amount = toMoneyNumber(ledger.amount);
+                const paidAmount = toMoneyNumber(ledger.paid_amount);
+                const balanceDue = toMoneyNumber(ledger.balance_due);
                 return `<tr class="${idx % 2 !== 0 ? 'alt' : ''}">
                   <td>${ledger.description}</td>
                   <td>${formatDateForDisplay(ledger.created_at)}</td>
                   <td>${ledger.room_number || '-'}</td>
                   <td class="right">${formatCurrency(amount)}</td>
-                  <td class="right green">${paidAmount > 0 ? formatCurrency(paidAmount) : '-'}</td>
-                  <td class="right ${balanceDue > 0 ? 'red' : 'green'}">${formatCurrency(balanceDue)}</td>
+                  <td class="right green">${isPositiveMoney(paidAmount) ? formatCurrency(paidAmount) : '-'}</td>
+                  <td class="right ${isPositiveMoney(balanceDue) ? 'red' : 'green'}">${formatCurrency(balanceDue)}</td>
                 </tr>`;
               }).join('')}
             <tr class="subtotal">
@@ -301,9 +302,9 @@ export function printCompanyStatement(params: {
     onEmpty();
     return;
   }
-  const totalAmount = entries.reduce((sum, e) => sum + parseFloat(String(e.amount)), 0);
-  const totalPaid = entries.reduce((sum, e) => sum + parseFloat(String(e.paid_amount)), 0);
-  const totalBalance = entries.reduce((sum, e) => sum + parseFloat(String(e.balance_due)), 0);
+  const totalAmount = entries.reduce((sum, e) => sumMoney([sum, e.amount]), 0);
+  const totalPaid = entries.reduce((sum, e) => sumMoney([sum, e.paid_amount]), 0);
+  const totalBalance = entries.reduce((sum, e) => sumMoney([sum, e.balance_due]), 0);
 
   const htmlContent = `
     <html>
@@ -378,9 +379,9 @@ export function printCompanyStatement(params: {
                 <td>${new Date(entry.created_at).toLocaleDateString()}</td>
                 <td>${entry.description}</td>
                 <td>${entry.expense_type}</td>
-                <td class="text-right">${formatCurrency(parseFloat(String(entry.amount)))}</td>
-                <td class="text-right">${formatCurrency(parseFloat(String(entry.paid_amount)))}</td>
-                <td class="text-right">${formatCurrency(parseFloat(String(entry.balance_due)))}</td>
+                <td class="text-right">${formatCurrency(toMoneyNumber(entry.amount))}</td>
+                <td class="text-right">${formatCurrency(toMoneyNumber(entry.paid_amount))}</td>
+                <td class="text-right">${formatCurrency(toMoneyNumber(entry.balance_due))}</td>
                 <td class="status-${entry.status}">${entry.status.toUpperCase()}</td>
               </tr>
             `).join('')}
@@ -479,15 +480,15 @@ export function printSingleReceipt(params: {
         <div class="amount-section">
           <div class="amount-row">
             <span>Total Amount</span>
-            <span>${formatCurrency(parseFloat(String(entry.amount)))}</span>
+            <span>${formatCurrency(toMoneyNumber(entry.amount))}</span>
           </div>
           <div class="amount-row">
             <span>Paid Amount</span>
-            <span style="color: green;">${formatCurrency(parseFloat(String(entry.paid_amount)))}</span>
+            <span style="color: green;">${formatCurrency(toMoneyNumber(entry.paid_amount))}</span>
           </div>
           <div class="amount-row total">
             <span>Balance Due</span>
-            <span style="color: ${parseFloat(String(entry.balance_due)) > 0 ? 'red' : 'green'};">${formatCurrency(parseFloat(String(entry.balance_due)))}</span>
+            <span style="color: ${isPositiveMoney(entry.balance_due) ? 'red' : 'green'};">${formatCurrency(toMoneyNumber(entry.balance_due))}</span>
           </div>
         </div>
         ${entry.notes ? `<div style="margin-top: 15px;"><strong>Notes:</strong> ${entry.notes}</div>` : ''}

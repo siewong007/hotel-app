@@ -29,6 +29,7 @@ import type { CustomerLedger, CustomerLedgerPayment } from '../../../../../types
 import type { EntryStatusFilter } from '../types';
 import { formatDateForDisplay, getLedgerUiStatus, isLedgerVoided } from '../helpers';
 import { LedgerStatusBadge } from '../StatusPill';
+import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 
 interface LedgerEntriesTabProps {
   search: string;
@@ -195,9 +196,9 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
             </TableHead>
             <TableBody>
               {entries.map((entry) => {
-                const amount = parseFloat(String(entry.amount || 0));
-                const paid = parseFloat(String(entry.paid_amount || 0));
-                const balance = parseFloat(String(entry.balance_due || 0));
+                const amount = toMoneyNumber(entry.amount);
+                const paid = toMoneyNumber(entry.paid_amount);
+                const balance = toMoneyNumber(entry.balance_due);
                 const voided = isLedgerVoided(entry);
                 const uiStatus = getLedgerUiStatus(entry);
                 const receiptNumber = (payments[entry.id] || [])
@@ -259,7 +260,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
                         fontVariantNumeric: 'tabular-nums',
                         fontWeight: 700,
                         fontSize: 13,
-                        color: paid > 0 ? 'success.main' : 'text.secondary',
+                        color: isPositiveMoney(paid) ? 'success.main' : 'text.secondary',
                       }}
                     >
                       {formatCurrency(paid)}
@@ -271,7 +272,7 @@ const LedgerEntriesTab: React.FC<LedgerEntriesTabProps> = ({
                         fontVariantNumeric: 'tabular-nums',
                         fontWeight: 700,
                         fontSize: 13,
-                        color: balance > 0 ? 'error.main' : 'success.main',
+                        color: isPositiveMoney(balance) ? 'error.main' : 'success.main',
                       }}
                     >
                       {formatCurrency(balance)}

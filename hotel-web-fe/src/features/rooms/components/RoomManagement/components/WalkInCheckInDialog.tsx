@@ -22,6 +22,7 @@ import {
   CardGiftcard as GiftIcon,
 } from '@mui/icons-material';
 import { Guest } from '../../../../../types';
+import { multiplyMoney, toMoneyNumber } from '../../../../../utils/money';
 
 interface WalkInGuestForm {
   first_name: string;
@@ -286,7 +287,7 @@ const WalkInCheckInDialog: React.FC<WalkInCheckInDialogProps> = ({
                 </Grid>
                 <Grid size={6}>
                   <Typography variant="body2">
-                    {currencySymbol}{roomPricePerNight || 0} / night
+	                    {currencySymbol}{roomPricePerNight || 0} / night
                   </Typography>
                 </Grid>
                 <Grid size={6}>
@@ -297,10 +298,8 @@ const WalkInCheckInDialog: React.FC<WalkInCheckInDialogProps> = ({
                 <Grid size={6}>
                   <Typography variant="body2">
                     {currencySymbol}{(() => {
-                      const price = roomPricePerNight || 0;
-                      const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-                      return (numPrice * numberOfNights).toFixed(2);
-                    })()}
+	                      return multiplyMoney(toMoneyNumber(roomPricePerNight), numberOfNights).toFixed(2);
+	                    })()}
                   </Typography>
                 </Grid>
               </Grid>
