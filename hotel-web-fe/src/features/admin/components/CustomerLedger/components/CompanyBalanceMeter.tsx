@@ -12,21 +12,23 @@ interface CompanyBalanceMeterProps {
   formatCurrency: (value: number) => string;
 }
 
+interface BalanceCell {
+  key: string;
+  label: string;
+  value: number;
+  color?: 'success.main' | 'error.main';
+  barWidth: number;
+  barColor: string;
+  sub?: string;
+}
+
 const CompanyBalanceMeter: React.FC<CompanyBalanceMeterProps> = ({
   agg,
   currencySymbol,
   formatCurrency,
 }) => {
   const pct = isPositiveMoney(agg.total) ? (agg.paid / agg.total) * 100 : 0;
-  const cells: Array<{
-    key: string;
-    label: string;
-    value: number;
-    color?: 'success.main' | 'error.main';
-    barWidth: number;
-    barColor: string;
-    sub?: string;
-  }> = [
+  const allCells: BalanceCell[] = [
     {
       key: 'billed',
       label: 'Total Billed',
@@ -70,11 +72,17 @@ const CompanyBalanceMeter: React.FC<CompanyBalanceMeterProps> = ({
       sub: `${Math.round(pct)}% collected`,
     },
   ];
+  const cells = allCells.filter((cell) => cell.key !== 'overdue' || isPositiveMoney(agg.overdue));
+
   return (
     <Box
       sx={{
         display: 'grid',
-        gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(5, 1fr)' },
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: 'repeat(2, 1fr)',
+          lg: `repeat(${cells.length}, minmax(0, 1fr))`,
+        },
         bgcolor: 'action.hover',
         borderBottom: '1px solid',
         borderColor: 'divider',

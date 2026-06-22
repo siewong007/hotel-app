@@ -739,7 +739,7 @@ const CustomerLedgerPage: React.FC = () => {
         billing_city: companyRegForm.billing_city.trim() || undefined,
         billing_state: companyRegForm.billing_state.trim() || undefined,
         billing_postal_code: companyRegForm.billing_postal_code.trim() || undefined,
-        credit_limit: companyRegForm.credit_limit ? parseFloat(companyRegForm.credit_limit) : undefined,
+        credit_limit: companyRegForm.credit_limit ? toMoneyNumber(companyRegForm.credit_limit) : undefined,
         payment_terms_days: companyRegForm.payment_terms_days ? parseInt(companyRegForm.payment_terms_days) : 30,
         notes: companyRegForm.notes.trim() || undefined,
       });
@@ -843,7 +843,7 @@ const CustomerLedgerPage: React.FC = () => {
         billing_city: companyEditForm.billing_city.trim() || undefined,
         billing_state: companyEditForm.billing_state.trim() || undefined,
         billing_postal_code: companyEditForm.billing_postal_code.trim() || undefined,
-        credit_limit: companyEditForm.credit_limit ? parseFloat(companyEditForm.credit_limit) : undefined,
+        credit_limit: companyEditForm.credit_limit ? toMoneyNumber(companyEditForm.credit_limit) : undefined,
         payment_terms_days: companyEditForm.payment_terms_days ? parseInt(companyEditForm.payment_terms_days) : 30,
         notes: companyEditForm.notes.trim() || undefined,
       });
@@ -1756,7 +1756,7 @@ const CustomerLedgerPage: React.FC = () => {
             <MenuItem onClick={() => openContextualCreate('invoice')}>
               <InvoiceIcon fontSize="small" sx={{ mr: 1 }} /> Generate Invoice
             </MenuItem>
-            <MenuItem onClick={() => openContextualCreate('payment')} disabled={!activeCompany || activeAgg.due <= 0}>
+            <MenuItem onClick={() => openContextualCreate('payment')} disabled={!activeCompany || !isPositiveMoney(activeAgg.due)}>
               <PaymentIcon fontSize="small" sx={{ mr: 1 }} /> Record Payment
             </MenuItem>
             <MenuItem onClick={() => openContextualCreate('checkin')}>

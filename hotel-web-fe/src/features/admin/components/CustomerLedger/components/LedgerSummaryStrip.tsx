@@ -38,7 +38,7 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
     0,
   );
   const collectionPct = isPositiveMoney(totalAmount) ? Math.round((totalPaid / totalAmount) * 100) : 0;
-  const readyToBillCount = ledgers.filter(l => getLedgerUiStatus(l) === 'ready_to_invoice').length;
+  const overdueCount = ledgers.filter(l => getLedgerUiStatus(l) === 'overdue').length;
   const openInvoiceCount = ledgers.filter(l => {
     const s = getLedgerUiStatus(l);
     return s === 'invoiced' || s === 'partial' || s === 'overdue';
@@ -81,10 +81,11 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
       iconColor: isPositiveMoney(overdueAmount) ? 'error.main' : 'text.secondary',
       label: 'Overdue',
       value: formatCurrency(overdueAmount).replace(currencySymbol, '').trim(),
-      delta: `${readyToBillCount} ready to bill`,
+      delta: `${overdueCount} overdue item${overdueCount === 1 ? '' : 's'}`,
       currency: currencySymbol,
     },
-  ];
+  ].filter((stat) => stat.key !== 'overdue' || isPositiveMoney(overdueAmount));
+
   return (
     <Card
       variant="outlined"
@@ -94,7 +95,7 @@ const LedgerSummaryStrip: React.FC<LedgerSummaryStripProps> = ({
         gridTemplateColumns: {
           xs: '1fr',
           sm: 'repeat(2, 1fr)',
-          md: 'repeat(4, 1fr)',
+          md: `repeat(${stats.length}, minmax(0, 1fr))`,
         },
         overflow: 'hidden',
       }}
