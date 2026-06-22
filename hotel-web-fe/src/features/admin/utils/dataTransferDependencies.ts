@@ -53,9 +53,15 @@ export type CategoryId =
   | 'loyalty_programs'
   | 'loyalty_tiers'
   | 'loyalty_memberships'
+  | 'loyalty_members'
+  | 'loyalty_accounts'
   | 'points_transactions'
+  | 'loyalty_transactions'
   | 'reward_catalog'
+  | 'loyalty_rewards'
   | 'reward_redemptions'
+  | 'loyalty_redemptions'
+  | 'loyalty_program_rules'
   | 'corporate_accounts'
   | 'corporate_account_contacts'
   | 'housekeeping_tasks'
@@ -171,8 +177,10 @@ export const CATEGORY_DEFS: CategoryDef[] = [
   { id: 'room_status_transitions', name: 'Room Status Transitions', desc: 'Allowed room-status state machine and permissions.', group: 'system', fks: [] },
   { id: 'email_templates', name: 'Email Templates', desc: 'Transactional email/notification templates.', group: 'system', fks: [] },
   { id: 'loyalty_programs', name: 'Loyalty Programs', desc: 'Loyalty program definitions.', group: 'system', fks: [] },
+  { id: 'loyalty_program_rules', name: 'Loyalty Rules', desc: 'Point earning, expiry, and redemption policy.', group: 'system', fks: [] },
   { id: 'loyalty_tiers', name: 'Loyalty Tiers', desc: 'Tier thresholds and benefits per program.', group: 'system', fks: [{ to: 'loyalty_programs', onDelete: 'cascade' }] },
   { id: 'reward_catalog', name: 'Reward Catalog', desc: 'Redeemable rewards per loyalty program.', group: 'system', fks: [{ to: 'loyalty_programs', onDelete: 'cascade' }] },
+  { id: 'loyalty_rewards', name: 'Loyalty Rewards', desc: 'Portal reward catalog and tier requirements.', group: 'system', fks: [{ to: 'loyalty_tiers', onDelete: 'restrict' }] },
   { id: 'corporate_accounts', name: 'Corporate Accounts', desc: 'Corporate account master records.', group: 'system', fks: [] },
   { id: 'corporate_account_contacts', name: 'Corporate Contacts', desc: 'Contacts attached to corporate accounts.', group: 'system', fks: [{ to: 'corporate_accounts', onDelete: 'cascade' }] },
 
@@ -181,8 +189,24 @@ export const CATEGORY_DEFS: CategoryDef[] = [
   { id: 'room_history', name: 'Room History', desc: 'Historical room status/occupancy records.', group: 'operational', fks: [{ to: 'rooms', onDelete: 'cascade' }] },
   { id: 'room_status_change_log', name: 'Room Status Log', desc: 'Audit log of room status changes.', group: 'operational', fks: [{ to: 'rooms', onDelete: 'restrict' }] },
   { id: 'loyalty_memberships', name: 'Loyalty Memberships', desc: 'Guest enrollments in loyalty programs.', group: 'operational', fks: [{ to: 'guests', onDelete: 'cascade' }, { to: 'loyalty_programs', onDelete: 'cascade' }, { to: 'loyalty_tiers', onDelete: 'restrict' }] },
+  { id: 'loyalty_members', name: 'Loyalty Members', desc: 'Portal loyalty member records linked to guests.', group: 'operational', fks: [{ to: 'guests', onDelete: 'cascade' }] },
+  { id: 'loyalty_accounts', name: 'Loyalty Accounts', desc: 'Portal loyalty balances, qualification metrics, and current tiers.', group: 'operational', fks: [{ to: 'loyalty_members', onDelete: 'cascade' }, { to: 'loyalty_tiers', onDelete: 'restrict' }] },
   { id: 'points_transactions', name: 'Points Transactions', desc: 'Loyalty point earn/redeem ledger.', group: 'operational', fks: [{ to: 'loyalty_memberships', onDelete: 'cascade' }] },
+  {
+    id: 'loyalty_transactions',
+    name: 'Loyalty Transactions',
+    desc: 'Portal loyalty transaction ledger.',
+    group: 'operational',
+    fks: [
+      { to: 'loyalty_members', onDelete: 'cascade' },
+      { to: 'loyalty_accounts', onDelete: 'cascade' },
+      { to: 'bookings', onDelete: 'set_null' },
+      { to: 'payments', onDelete: 'set_null' },
+      { to: 'invoices', onDelete: 'set_null' },
+    ],
+  },
   { id: 'reward_redemptions', name: 'Reward Redemptions', desc: 'Rewards redeemed by members.', group: 'operational', fks: [{ to: 'loyalty_memberships', onDelete: 'cascade' }, { to: 'reward_catalog', onDelete: 'restrict' }, { to: 'bookings', onDelete: 'set_null' }] },
+  { id: 'loyalty_redemptions', name: 'Loyalty Redemptions', desc: 'Portal reward redemption requests and reviews.', group: 'operational', fks: [{ to: 'loyalty_members', onDelete: 'cascade' }, { to: 'loyalty_rewards', onDelete: 'restrict' }, { to: 'loyalty_transactions', onDelete: 'restrict' }] },
   { id: 'housekeeping_tasks', name: 'Housekeeping Tasks', desc: 'Cleaning and turndown task records.', group: 'operational', fks: [{ to: 'rooms', onDelete: 'cascade' }] },
   { id: 'maintenance_tickets', name: 'Maintenance Tickets', desc: 'Room maintenance and repair tickets.', group: 'operational', fks: [{ to: 'rooms', onDelete: 'set_null' }] },
   { id: 'guest_documents', name: 'Guest Documents', desc: 'Uploaded guest identity documents.', group: 'operational', fks: [{ to: 'guests', onDelete: 'cascade' }] },
@@ -303,6 +327,8 @@ export interface OverwriteRisk {
   cascade: CategoryId[];
   /** Unselected children whose reference would be nulled (orphaned/leakage). */
   orphan: CategoryId[];
+  /** Unselected children that would block the overwrite until selected too. */
+  blocked: CategoryId[];
 }
 
 /**
@@ -315,15 +341,17 @@ export const getOverwriteRisks = (selectedIds: CategoryId[]): OverwriteRisk[] =>
   for (const id of selectedIds) {
     const cascade: CategoryId[] = [];
     const orphan: CategoryId[] = [];
+    const blocked: CategoryId[] = [];
     for (const child of CATEGORY_DEFS) {
       if (set.has(child.id)) continue;
       for (const fk of child.fks) {
         if (fk.to !== id) continue;
         if (fk.onDelete === 'cascade') cascade.push(child.id);
         else if (fk.onDelete === 'set_null') orphan.push(child.id);
+        else blocked.push(child.id);
       }
     }
-    if (cascade.length || orphan.length) out.push({ id, cascade, orphan });
+    if (cascade.length || orphan.length || blocked.length) out.push({ id, cascade, orphan, blocked });
   }
   return out;
 };
@@ -366,7 +394,9 @@ export const SAFE_PRESETS: Preset[] = [
     'room_status_transitions',
     'email_templates',
     'loyalty_programs',
+    'loyalty_program_rules',
     'loyalty_tiers',
+    'loyalty_rewards',
     'reward_catalog',
     'corporate_accounts',
     'corporate_account_contacts',
@@ -399,9 +429,15 @@ export const SAFE_PRESETS: Preset[] = [
     'loyalty_programs',
     'loyalty_tiers',
     'loyalty_memberships',
+    'loyalty_members',
+    'loyalty_accounts',
     'points_transactions',
+    'loyalty_transactions',
     'reward_catalog',
+    'loyalty_rewards',
     'reward_redemptions',
+    'loyalty_redemptions',
+    'loyalty_program_rules',
   ]),
   preset('housekeeping', 'Housekeeping & maintenance', 'Cleaning tasks and maintenance tickets with their rooms.', [
     'housekeeping_tasks',

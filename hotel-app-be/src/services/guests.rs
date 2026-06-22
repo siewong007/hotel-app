@@ -134,6 +134,8 @@ pub async fn create_guest(
     )
     .await?;
 
+    ensure_loyalty_member_for_guest_type(pool, &guest).await?;
+
     let _ = AuditLog::log_event(
         pool,
         Some(user_id),
@@ -216,6 +218,7 @@ pub async fn update_guest(
     };
 
     let updated_guest = GuestRepository::update_detailed(pool, guest_id, &values).await?;
+    ensure_loyalty_member_for_guest_type(pool, &updated_guest).await?;
 
     let _ = AuditLog::log_event(
         pool,
@@ -294,6 +297,16 @@ pub async fn apply_tourism_type_from_last_check_in(
     .await;
 
     Ok(GuestTourismConversionResponse { guest, source })
+}
+
+async fn ensure_loyalty_member_for_guest_type(
+    pool: &DbPool,
+    guest: &Guest,
+) -> Result<(), ApiError> {
+    if guest.guest_type == GuestType::Member {
+        crate::modules::loyalty::service::ensure_member_for_guest(pool, guest.id).await?;
+    }
+    Ok(())
 }
 
 pub async fn delete_guest(pool: &DbPool, guest_id: i64) -> Result<(), ApiError> {

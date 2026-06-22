@@ -5,6 +5,7 @@ import type { HotelSettings } from '../../../utils/hotelSettings';
 import type { ChargesBreakdown } from '../utils/chargesCalculation';
 import type { CheckoutPaymentRecord } from '../types';
 import { formatLocalDate, parseLocalDate, addLocalDays } from '../../../utils/date';
+import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
 
 interface CheckoutInvoicePrintViewProps {
   booking: BookingWithDetails;
@@ -249,16 +250,16 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
           {completedPayments(payments).map((payment, idx) => (
             <tr key={payment.id || idx}>
               <td>{formatPaymentMethod(payment.payment_method)}</td>
-              <td className="amount">{formatCurrency(parseFloat(String(payment.total_amount || '0')))}</td>
+              <td className="amount">{formatCurrency(toMoneyNumber(payment.total_amount))}</td>
             </tr>
           ))}
-          {balanceDue > 0 && (
+          {isPositiveMoney(balanceDue) && (
             <tr style={{ color: '#e65100', fontWeight: 700 }}>
               <td>Balance Due</td>
               <td className="amount">{formatCurrency(balanceDue)}</td>
             </tr>
           )}
-          {balanceDue <= 0 && (
+          {!isPositiveMoney(balanceDue) && (
             <tr style={{ color: '#2e7d32', fontWeight: 700 }}>
               <td>{balanceDue < 0 ? 'Overpayment' : 'Fully Paid'}</td>
               <td className="amount">{balanceDue < 0 ? formatCurrency(Math.abs(balanceDue)) : '-'}</td>

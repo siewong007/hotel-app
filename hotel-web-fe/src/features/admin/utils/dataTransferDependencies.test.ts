@@ -96,10 +96,10 @@ describe('reverse closure (removing a parent removes dependents)', () => {
 
   it('deselecting a leaf only removes the leaf', () => {
     const full = buildSelection([...ALL_CATEGORY_IDS]);
-    const { selection, affected } = deselectWithDependents(full, 'payments');
-    expect(selection.payments).toBe(false);
+    const { selection, affected } = deselectWithDependents(full, 'guest_documents');
+    expect(selection.guest_documents).toBe(false);
     expect(affected).toEqual([]);
-    expect(selection.bookings).toBe(true);
+    expect(selection.guests).toBe(true);
   });
 });
 
@@ -152,6 +152,15 @@ describe('getOverwriteRisks (data leakage on overwrite)', () => {
     expect(risk.orphan).toContain('invoices'); // invoices.guest_id SET NULL
     expect(risk.cascade).not.toContain('invoices');
   });
+
+  it('classifies restrict children as blockers', () => {
+    const risk = getOverwriteRisks(['loyalty_tiers']).find((r) => r.id === 'loyalty_tiers')!;
+    expect(risk.blocked).toEqual(
+      expect.arrayContaining(['loyalty_memberships', 'loyalty_accounts', 'loyalty_rewards'])
+    );
+    expect(risk.cascade).toEqual([]);
+    expect(risk.orphan).toEqual([]);
+  });
 });
 
 describe('safe presets', () => {
@@ -184,8 +193,10 @@ describe('safe presets', () => {
 
 describe('extended full-backup tables', () => {
   it('includes the complete table set', () => {
-    expect(ALL_CATEGORY_IDS).toHaveLength(45);
-    expect(ALL_CATEGORY_IDS).toEqual(expect.arrayContaining(['system_settings', 'rate_plans', 'loyalty_memberships', 'housekeeping_tasks']));
+    expect(ALL_CATEGORY_IDS).toHaveLength(51);
+    expect(ALL_CATEGORY_IDS).toEqual(
+      expect.arrayContaining(['system_settings', 'rate_plans', 'loyalty_memberships', 'loyalty_rewards', 'housekeeping_tasks'])
+    );
   });
 
   it('closes a deep loyalty/reward chain over its full ancestry', () => {
@@ -211,6 +222,27 @@ describe('extended full-backup tables', () => {
   it('keeps composite-keyed config tables in the graph', () => {
     expect(directDependencies('room_type_amenities').sort()).toEqual(['amenities', 'room_types']);
     expect(ALL_CATEGORY_IDS).toContain('room_status_transitions');
+  });
+
+  it('closes the portal loyalty transaction chain over booking financials', () => {
+    const deps = collectDependencies(['loyalty_redemptions']);
+    expect(deps).toEqual(
+      expect.arrayContaining([
+        'loyalty_members',
+        'loyalty_accounts',
+        'loyalty_transactions',
+        'loyalty_rewards',
+        'loyalty_tiers',
+        'bookings',
+        'payments',
+        'invoices',
+        'guests',
+        'rooms',
+        'room_types',
+        'companies',
+        'booking_channels',
+      ])
+    );
   });
 });
 

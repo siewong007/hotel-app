@@ -1,5 +1,6 @@
 import { BookingWithDetails } from '../../../types';
 import { HotelSettings } from '../../../utils/hotelSettings';
+import { divideMoney, multiplyMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../utils/money';
 
 export interface ChargesBreakdown {
   roomCharges: number;
@@ -37,9 +38,7 @@ export function calculateChargesFromInputs(
   const isHourly = booking.post_type === 'hourly' || rawNights === 0;
   const nights = isHourly ? 1 : rawNights;
 
-  let bookingPricePerNight = typeof booking.price_per_night === 'string'
-    ? parseFloat(booking.price_per_night)
-    : booking.price_per_night || 0;
+  let bookingPricePerNight = toMoneyNumber(booking.price_per_night);
 
   const taxRate = hotelSettings.service_tax_rate / 100;
   const taxMultiplier = 1 + taxRate;
@@ -49,41 +48,37 @@ export function calculateChargesFromInputs(
     taxInclusivePrice = roomPrice;
   }
   if (!taxInclusivePrice || taxInclusivePrice === 0) {
-    const totalAmount = typeof booking.total_amount === 'string'
-      ? parseFloat(booking.total_amount)
-      : booking.total_amount || 0;
-    taxInclusivePrice = nights > 0 ? totalAmount / nights : 0;
+    const totalAmount = toMoneyNumber(booking.total_amount);
+    taxInclusivePrice = nights > 0 ? divideMoney(totalAmount, nights) : 0;
   }
 
   let roomSubtotal: number;
   if (Object.keys(editableDailyRates).length > 0) {
-    roomSubtotal = Object.values(editableDailyRates).reduce((sum, rate) => sum + (rate || 0), 0);
+    roomSubtotal = sumMoney(Object.values(editableDailyRates));
   } else if (booking.daily_rates && typeof booking.daily_rates === 'object' && Object.keys(booking.daily_rates).length > 0) {
-    roomSubtotal = Object.values(booking.daily_rates).reduce((sum: number, rate: any) => sum + (parseFloat(rate) || 0), 0);
+    roomSubtotal = sumMoney(Object.values(booking.daily_rates));
   } else {
-    roomSubtotal = taxInclusivePrice * nights;
+    roomSubtotal = multiplyMoney(taxInclusivePrice, nights);
   }
 
-  const roomCharges = roomSubtotal / taxMultiplier;
-  const serviceTax = roomSubtotal - roomCharges;
+  const roomCharges = divideMoney(roomSubtotal, taxMultiplier);
+  const serviceTax = subtractMoney(roomSubtotal, roomCharges);
 
   const roomCardDeposit = booking.deposit_paid
-    ? (typeof booking.deposit_amount === 'string' ? parseFloat(booking.deposit_amount) : booking.deposit_amount) || 0
+    ? toMoneyNumber(booking.deposit_amount)
     : 0;
 
   const isForeignTourist = booking.guest_tourism_type === 'foreign' || booking.is_tourist === true;
   let tourismTax = 0;
   if (isForeignTourist) {
-    tourismTax = nights * hotelSettings.tourism_tax_rate;
+    tourismTax = multiplyMoney(hotelSettings.tourism_tax_rate, nights);
   }
 
-  const extraBedChargeInclTax = booking.extra_bed_charge
-    ? (typeof booking.extra_bed_charge === 'string' ? parseFloat(booking.extra_bed_charge) : booking.extra_bed_charge)
-    : 0;
-  const extraBedCharge = extraBedChargeInclTax > 0 ? extraBedChargeInclTax / (1 + hotelSettings.service_tax_rate / 100) : 0;
-  const extraBedServiceTax = extraBedChargeInclTax - extraBedCharge;
+  const extraBedChargeInclTax = toMoneyNumber(booking.extra_bed_charge);
+  const extraBedCharge = extraBedChargeInclTax > 0 ? divideMoney(extraBedChargeInclTax, taxMultiplier) : 0;
+  const extraBedServiceTax = subtractMoney(extraBedChargeInclTax, extraBedCharge);
 
-  const subtotal = roomCharges + serviceTax + tourismTax + extraBedCharge + extraBedServiceTax;
+  const subtotal = sumMoney([roomCharges, serviceTax, tourismTax, extraBedCharge, extraBedServiceTax]);
   const depositRefund = roomCardDeposit;
   const grandTotal = subtotal;
 

@@ -5248,6 +5248,159 @@ CREATE TRIGGER update_loyalty_rewards_updated_at
     BEFORE UPDATE ON loyalty_rewards
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Backfill the portal loyalty tables for databases that already had guests
+-- flagged as members or legacy loyalty_memberships rows before the portal
+-- schema was introduced. This is intentionally idempotent for startup reruns.
+WITH legacy_membership AS (
+    SELECT DISTINCT ON (guest_id)
+        id,
+        guest_id,
+        tier_id,
+        COALESCE(points_balance, 0) AS points_balance,
+        COALESCE(lifetime_points, 0) AS lifetime_points,
+        status,
+        enrolled_at
+    FROM loyalty_memberships
+    WHERE status IN ('active', 'inactive', 'suspended')
+    ORDER BY
+        guest_id,
+        CASE status WHEN 'active' THEN 0 WHEN 'suspended' THEN 1 ELSE 2 END,
+        enrolled_at DESC NULLS LAST,
+        id DESC
+),
+source_guests AS (
+    SELECT
+        g.id AS guest_id,
+        COALESCE(legacy_membership.enrolled_at, g.created_at, CURRENT_TIMESTAMP) AS enrolled_at,
+        CASE legacy_membership.status
+            WHEN 'suspended' THEN 'suspended'
+            WHEN 'inactive' THEN 'closed'
+            ELSE 'active'
+        END AS status
+    FROM guests g
+    LEFT JOIN legacy_membership ON legacy_membership.guest_id = g.id
+    WHERE g.deleted_at IS NULL
+      AND (g.guest_type = 'member' OR legacy_membership.id IS NOT NULL)
+)
+INSERT INTO loyalty_members (guest_id, member_number, status, enrolled_at)
+SELECT
+    guest_id,
+    format('LP%s', lpad(guest_id::text, 8, '0')),
+    status,
+    enrolled_at
+FROM source_guests
+ON CONFLICT DO NOTHING;
+
+WITH default_tier AS (
+    SELECT id
+    FROM loyalty_tiers
+    WHERE is_active = true
+    ORDER BY sort_order, id
+    LIMIT 1
+),
+legacy_membership AS (
+    SELECT DISTINCT ON (guest_id)
+        id,
+        guest_id,
+        tier_id,
+        COALESCE(points_balance, 0) AS points_balance,
+        COALESCE(lifetime_points, 0) AS lifetime_points
+    FROM loyalty_memberships
+    WHERE status IN ('active', 'inactive', 'suspended')
+    ORDER BY
+        guest_id,
+        CASE status WHEN 'active' THEN 0 WHEN 'suspended' THEN 1 ELSE 2 END,
+        enrolled_at DESC NULLS LAST,
+        id DESC
+),
+source_guests AS (
+    SELECT
+        g.id AS guest_id,
+        COALESCE(legacy_membership.tier_id, default_tier.id) AS tier_id,
+        default_tier.id AS default_tier_id,
+        GREATEST(
+            COALESCE(legacy_membership.lifetime_points, 0),
+            COALESCE(legacy_membership.points_balance, 0)
+        ) AS lifetime_points
+    FROM guests g
+    CROSS JOIN default_tier
+    LEFT JOIN legacy_membership ON legacy_membership.guest_id = g.id
+    WHERE g.deleted_at IS NULL
+      AND (g.guest_type = 'member' OR legacy_membership.id IS NOT NULL)
+)
+INSERT INTO loyalty_accounts (
+    member_id,
+    current_tier_id,
+    lifetime_points,
+    qualifying_points,
+    qualifying_nights,
+    qualifying_spend
+)
+SELECT
+    lm.id,
+    COALESCE(lt.id, source_guests.default_tier_id),
+    source_guests.lifetime_points,
+    source_guests.lifetime_points,
+    0,
+    0
+FROM source_guests
+JOIN loyalty_members lm ON lm.guest_id = source_guests.guest_id
+LEFT JOIN loyalty_tiers lt ON lt.id = source_guests.tier_id
+ON CONFLICT (member_id) DO UPDATE SET
+    lifetime_points = GREATEST(loyalty_accounts.lifetime_points, EXCLUDED.lifetime_points),
+    qualifying_points = GREATEST(loyalty_accounts.qualifying_points, EXCLUDED.qualifying_points),
+    updated_at = CURRENT_TIMESTAMP;
+
+WITH legacy_membership AS (
+    SELECT DISTINCT ON (guest_id)
+        id,
+        guest_id,
+        COALESCE(points_balance, 0) AS points_balance,
+        enrolled_at
+    FROM loyalty_memberships
+    WHERE status IN ('active', 'inactive', 'suspended')
+    ORDER BY
+        guest_id,
+        CASE status WHEN 'active' THEN 0 WHEN 'suspended' THEN 1 ELSE 2 END,
+        enrolled_at DESC NULLS LAST,
+        id DESC
+)
+INSERT INTO loyalty_transactions (
+    member_id,
+    account_id,
+    transaction_type,
+    points_delta,
+    available_delta,
+    balance_after,
+    source_type,
+    source_id,
+    description,
+    created_at
+)
+SELECT
+    lm.id,
+    la.id,
+    'adjusted',
+    legacy_membership.points_balance,
+    legacy_membership.points_balance,
+    legacy_membership.points_balance,
+    'legacy_membership',
+    legacy_membership.id,
+    'Opening balance from legacy loyalty membership',
+    COALESCE(legacy_membership.enrolled_at, CURRENT_TIMESTAMP)
+FROM legacy_membership
+JOIN loyalty_members lm ON lm.guest_id = legacy_membership.guest_id
+JOIN loyalty_accounts la ON la.member_id = lm.id
+WHERE legacy_membership.points_balance <> 0
+  AND NOT EXISTS (
+      SELECT 1
+      FROM loyalty_transactions existing
+      WHERE existing.member_id = lm.id
+        AND existing.source_type = 'legacy_membership'
+        AND existing.source_id = legacy_membership.id
+        AND existing.transaction_type = 'adjusted'
+  );
+
 INSERT INTO loyalty_program_rules (id, points_per_currency_unit, tier_qualification_metric, point_expiry_months, redemption_approval_required, earning_enabled, min_eligible_amount)
 VALUES (1, 1, 'points', 24, true, true, 0)
 ON CONFLICT (id) DO NOTHING;

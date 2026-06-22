@@ -26,6 +26,7 @@ import type {
   CompanyListFilter,
 } from '../hooks/useCustomerLedgerWorkspace';
 import { companyInitials } from '../helpers';
+import { isPositiveMoney } from '../../../../../utils/money';
 
 interface CompanyListRow {
   c: Company;
@@ -203,7 +204,7 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
         ) : (
           companyListRows.map(({ c, agg }) => {
             const isOn = c.id === selectedCompanyId;
-            const pct = agg.total > 0 ? (agg.paid / agg.total) * 100 : 0;
+            const pct = isPositiveMoney(agg.total) ? (agg.paid / agg.total) * 100 : 0;
             return (
               <Box
                 key={c.id}
@@ -308,15 +309,15 @@ const CompanyListPane: React.FC<CompanyListPaneProps> = ({
                       ml: 'auto',
                       fontSize: 12,
                       fontWeight: 700,
-                      color: agg.due > 0 ? 'error.main' : 'success.main',
+	                      color: isPositiveMoney(agg.due) ? 'error.main' : 'success.main',
                       fontFamily: '"JetBrains Mono", ui-monospace, monospace',
                       fontVariantNumeric: 'tabular-nums',
                     }}
                   >
-                    {agg.due > 0 ? formatCurrency(agg.due) : 'Settled'}
+	                    {isPositiveMoney(agg.due) ? formatCurrency(agg.due) : 'Settled'}
                   </Typography>
                 </Box>
-                {agg.total > 0 && (
+	                {isPositiveMoney(agg.total) && (
                   <Box
                     sx={{
                       height: 3,

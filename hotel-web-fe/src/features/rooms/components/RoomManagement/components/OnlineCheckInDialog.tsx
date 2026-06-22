@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import { EventAvailable as BookingIcon } from '@mui/icons-material';
 import { Guest } from '../../../../../types';
+import { multiplyMoney, toMoneyNumber } from '../../../../../utils/money';
 
 interface OnlineGuestForm {
   first_name: string;
@@ -312,10 +313,8 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
                 <Grid size={6}>
                   <Typography variant="body2" fontWeight="bold">
                     {currencySymbol}{(() => {
-                      const price = roomPricePerNight || 0;
-                      const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-                      return (numPrice * numberOfNights).toFixed(2);
-                    })()}
+	                      return multiplyMoney(toMoneyNumber(roomPricePerNight), numberOfNights).toFixed(2);
+	                    })()}
                   </Typography>
                 </Grid>
               </Grid>

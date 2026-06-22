@@ -38,6 +38,7 @@ import type {
 } from '../../../../../types';
 import { formatDateForDisplay, formatDateForInput } from '../helpers';
 import { PAYMENT_METHODS } from '../constants';
+import { isGreaterMoney, isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 
 interface PaymentDialogProps {
   // Dialog state
@@ -103,9 +104,9 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
         <Box>
           <Alert severity="info" sx={{ mb: 2 }}>
             <Typography variant="body2">
-              <strong>Total Amount:</strong> {formatCurrency(parseFloat(String(paymentLedger?.amount || 0)))}<br />
-              <strong>Already Paid:</strong> {formatCurrency(parseFloat(String(paymentLedger?.paid_amount || 0)))}<br />
-              <strong>Balance Due:</strong> {formatCurrency(parseFloat(String(paymentLedger?.balance_due || 0)))}
+              <strong>Total Amount:</strong> {formatCurrency(toMoneyNumber(paymentLedger?.amount))}<br />
+              <strong>Already Paid:</strong> {formatCurrency(toMoneyNumber(paymentLedger?.paid_amount))}<br />
+              <strong>Balance Due:</strong> {formatCurrency(toMoneyNumber(paymentLedger?.balance_due))}
             </Typography>
           </Alert>
 
@@ -122,10 +123,10 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
                   startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                 }}
                 inputProps={{ min: 0, max: paymentLedger ? getLedgerBalanceDue(paymentLedger) : undefined, step: 0.01 }}
-                error={!!paymentLedger && paymentFormData.payment_amount > getLedgerBalanceDue(paymentLedger) + 0.005}
+                error={!!paymentLedger && isGreaterMoney(paymentFormData.payment_amount, getLedgerBalanceDue(paymentLedger))}
                 helperText={
                   paymentLedger
-                    ? paymentFormData.payment_amount > getLedgerBalanceDue(paymentLedger) + 0.005
+                    ? isGreaterMoney(paymentFormData.payment_amount, getLedgerBalanceDue(paymentLedger))
                       ? `Cannot exceed outstanding balance of ${formatCurrency(getLedgerBalanceDue(paymentLedger))}`
                       : `Outstanding balance: ${formatCurrency(getLedgerBalanceDue(paymentLedger))}`
                     : undefined
@@ -299,8 +300,8 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({
           variant="contained"
           disabled={
             processingPayment ||
-            paymentFormData.payment_amount <= 0 ||
-            (paymentLedger ? paymentFormData.payment_amount > getLedgerBalanceDue(paymentLedger) : true)
+            !isPositiveMoney(paymentFormData.payment_amount) ||
+            (paymentLedger ? isGreaterMoney(paymentFormData.payment_amount, getLedgerBalanceDue(paymentLedger)) : true)
           }
         >
           {processingPayment ? 'Processing...' : 'Record Payment'}

@@ -3,6 +3,7 @@ import { Box, Typography, CircularProgress } from '@mui/material';
 import { ListAlt as SummaryIcon, Check as CheckIcon } from '@mui/icons-material';
 import { Room } from '../../../../../types';
 import { BookingTokens } from '../bookingTokens';
+import { isPositiveMoney } from '../../../../../utils/money';
 
 interface BookingSummaryAsideProps {
   D: BookingTokens;
@@ -144,11 +145,11 @@ const BookingSummaryAside: React.FC<BookingSummaryAsideProps> = ({
       </Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, fontSize: 12.5 }}>
         <Box sx={{ color: D.ink3 }}>Tourism tax</Box>
-        <Box sx={{ color: tourismTaxAmount > 0 ? D.ink : D.ink3, fontWeight: tourismTaxAmount > 0 ? 600 : 500 }}>
-          {tourismTaxAmount > 0 ? formatCurrency(tourismTaxAmount) : '—'}
+        <Box sx={{ color: isPositiveMoney(tourismTaxAmount) ? D.ink : D.ink3, fontWeight: isPositiveMoney(tourismTaxAmount) ? 600 : 500 }}>
+          {isPositiveMoney(tourismTaxAmount) ? formatCurrency(tourismTaxAmount) : '—'}
         </Box>
       </Box>
-      {extraBedCharge > 0 && (
+      {isPositiveMoney(extraBedCharge) && (
         <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.75, fontSize: 12.5 }}>
           <Box sx={{ color: D.ink3 }}>Extra bed</Box>
           <Box sx={{ color: D.ink, fontWeight: 600 }}>{formatCurrency(extraBedCharge)}</Box>
