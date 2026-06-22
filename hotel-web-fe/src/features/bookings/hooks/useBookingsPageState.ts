@@ -9,6 +9,7 @@ import { Room, BookingWithDetails } from '../../../types';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../../api/queryKeys';
+import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
 
 export interface BookingsPageState {
   // Dialog states
@@ -339,7 +340,7 @@ export function useBookingsPageState(): BookingsPageState {
   }, []);
 
   const handleConfirmPaymentUpdate = useCallback(async () => {
-    if (!paymentBooking || paymentAmount <= 0) {
+    if (!paymentBooking || !isPositiveMoney(paymentAmount)) {
       showSnackbarError('Please enter a valid payment amount');
       return;
     }
@@ -347,7 +348,7 @@ export function useBookingsPageState(): BookingsPageState {
       setUpdatingPayment(true);
       await HotelAPIService.recordPayment({
         booking_id: paymentBooking.id,
-        amount: paymentAmount,
+        amount: toMoneyNumber(paymentAmount),
         payment_method: paymentMethod,
         notes: paymentNote,
       } as any);
@@ -365,14 +366,10 @@ export function useBookingsPageState(): BookingsPageState {
 
   const handleEditBooking = useCallback((booking: BookingWithDetails) => {
     setEditingBooking(booking);
-    const bookingRate = typeof booking.price_per_night === 'string'
-      ? parseFloat(booking.price_per_night) || 0
-      : booking.price_per_night || 0;
+    const bookingRate = toMoneyNumber(booking.price_per_night);
 
     const extraBedCount = booking.extra_bed_count || 0;
-    const extraBedCharge = typeof booking.extra_bed_charge === 'string'
-      ? parseFloat(booking.extra_bed_charge) || 0
-      : booking.extra_bed_charge || 0;
+    const extraBedCharge = toMoneyNumber(booking.extra_bed_charge);
 
     setEditFormData({
       status: booking.status,
@@ -389,7 +386,7 @@ export function useBookingsPageState(): BookingsPageState {
       remarks: booking.remarks || '',
       special_requests: booking.special_requests || '',
       price_per_night: bookingRate,
-      has_override: bookingRate > 0,
+      has_override: isPositiveMoney(bookingRate),
       extra_bed_count: extraBedCount,
       extra_bed_charge: extraBedCharge,
       room_id: booking.room_id,

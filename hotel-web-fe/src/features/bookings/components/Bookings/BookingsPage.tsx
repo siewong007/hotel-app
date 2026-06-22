@@ -95,7 +95,7 @@ import {
 import { emitApiNotification } from '../../../../utils/apiNotifications';
 import { getPaginationState } from '../../../../utils/pagination';
 import { formatLocalDate, parseLocalDate } from '../../../../utils/date';
-import { addMoney, divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, multiplyMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
+import { addMoney, compareMoney, divideMoney, isGreaterMoney, isLessMoney, isPositiveMoney, multiplyMoney, subtractMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
 import type { Company } from '../../../../types';
 
 type BookingView = 'all' | 'arriving' | 'in_house' | 'departing' | 'upcoming' | 'balance' | 'normal_balance' | 'company_balance';
@@ -323,14 +323,10 @@ const BookingsPage: React.FC = () => {
     setEditingBooking(booking);
 
     // Get the booking's room rate (price_per_night) - this contains the override if one was set
-    const bookingRate = typeof booking.price_per_night === 'string'
-      ? parseFloat(booking.price_per_night) || 0
-      : booking.price_per_night || 0;
+    const bookingRate = toMoneyNumber(booking.price_per_night);
 
     const extraBedCount = booking.extra_bed_count || 0;
-    const extraBedCharge = typeof booking.extra_bed_charge === 'string'
-      ? parseFloat(booking.extra_bed_charge) || 0
-      : booking.extra_bed_charge || 0;
+    const extraBedCharge = toMoneyNumber(booking.extra_bed_charge);
 
     const formData = {
       status: booking.status,
@@ -348,7 +344,7 @@ const BookingsPage: React.FC = () => {
       special_requests: booking.special_requests || '',
       // Use the booking's room rate directly (this is the override rate if one was set)
       price_per_night: bookingRate,
-      has_override: bookingRate > 0,
+      has_override: isPositiveMoney(bookingRate),
       extra_bed_count: extraBedCount,
       extra_bed_charge: extraBedCharge,
       room_id: booking.room_id,
@@ -571,7 +567,7 @@ const BookingsPage: React.FC = () => {
 
       showSnackbar(
         `Booking marked as ${statusText}! ${result.complimentary_nights} of ${result.total_nights} nights are complimentary. ` +
-        `New total: ${formatCurrency(Number(result.new_total))}`
+        `New total: ${formatCurrency(toMoneyNumber(result.new_total))}`
       );
       setComplimentaryDialogOpen(false);
       setComplimentaryBooking(null);
@@ -1379,7 +1375,7 @@ const BookingsPage: React.FC = () => {
                 {visibleBookings.map((booking) => {
                   const isSelected = selectedBooking && String(selectedBooking.id) === String(booking.id);
                   const balance = getBookingBalance(booking);
-                  const isPaid = balance <= 0 && ['paid', 'paid_rate'].includes(String(booking.payment_status || '').toLowerCase());
+                  const isPaid = !isPositiveMoney(balance) && ['paid', 'paid_rate'].includes(String(booking.payment_status || '').toLowerCase());
                   const channelInfo = getBookingChannelInfo(booking);
                   const billingChipLabel = getBillingChipLabel(booking);
 
@@ -1561,7 +1557,7 @@ const BookingsPage: React.FC = () => {
                   <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 900 }}>Charges</Typography>
                   <Stack spacing={1.2} sx={{ mt: 1 }}>
                     <Stack direction="row" justifyContent="space-between">
-                      <Typography color="text.secondary">Room · {getNights(selectedBooking)} x {formatCurrency(Number(selectedBooking.price_per_night || 0))}</Typography>
+                      <Typography color="text.secondary">Room · {getNights(selectedBooking)} x {formatCurrency(toMoneyNumber(selectedBooking.price_per_night))}</Typography>
                       <Typography sx={{ fontWeight: 800 }}>{formatCurrency(getBookingTotal(selectedBooking))}</Typography>
                     </Stack>
                     <Stack direction="row" justifyContent="space-between">
@@ -1652,11 +1648,11 @@ const BookingsPage: React.FC = () => {
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5 }}>
                     <Box>
                       <Typography variant="caption" color="text.secondary">Total</Typography>
-                      <Typography variant="subtitle2">{formatCurrency(Number(workflowSummary.total_amount || 0))}</Typography>
+                      <Typography variant="subtitle2">{formatCurrency(toMoneyNumber(workflowSummary.total_amount))}</Typography>
                     </Box>
                     <Box>
                       <Typography variant="caption" color="text.secondary">Paid</Typography>
-                      <Typography variant="subtitle2" color="success.main">{formatCurrency(Number(workflowSummary.total_paid || 0))}</Typography>
+                      <Typography variant="subtitle2" color="success.main">{formatCurrency(toMoneyNumber(workflowSummary.total_paid))}</Typography>
                     </Box>
                     <Box>
                       <Typography variant="caption" color="text.secondary">Balance</Typography>
@@ -1666,7 +1662,7 @@ const BookingsPage: React.FC = () => {
                     </Box>
                     <Box>
                       <Typography variant="caption" color="text.secondary">Refunded</Typography>
-                      <Typography variant="subtitle2" color="info.main">{formatCurrency(Number(workflowSummary.total_refunded || 0))}</Typography>
+                      <Typography variant="subtitle2" color="info.main">{formatCurrency(toMoneyNumber(workflowSummary.total_refunded))}</Typography>
                     </Box>
                   </Box>
                   <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -1749,9 +1745,9 @@ const BookingsPage: React.FC = () => {
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                               <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.primary' }}>
                                 {event.title}
-                                {event.amount && Number(event.amount) !== 0 && (
+                                {event.amount && compareMoney(event.amount, 0) !== 0 && (
                                   <Typography component="span" variant="body2" color="text.secondary">
-                                    {' '}({formatCurrency(Number(event.amount))})
+                                    {' '}({formatCurrency(toMoneyNumber(event.amount))})
                                   </Typography>
                                 )}
                               </Typography>
@@ -1976,7 +1972,7 @@ const BookingsPage: React.FC = () => {
                 value={editFormData.price_per_night || 0}
                 onChange={(e) => setEditFormData((prev: any) => ({
                   ...prev,
-                  price_per_night: parseFloat(e.target.value) || 0,
+                  price_per_night: toMoneyNumber(e.target.value),
                 }))}
                 InputProps={{
                   startAdornment: <span style={{ marginRight: 4 }}>RM</span>,
@@ -1994,23 +1990,17 @@ const BookingsPage: React.FC = () => {
                     value={editFormData.extra_bed_count || 0}
                     onChange={(e) => {
                       const maxBeds = editRoomTypeConfig?.max_extra_beds || 0;
-                      const chargePerBed = editRoomTypeConfig
-                        ? (typeof editRoomTypeConfig.extra_bed_charge === 'string'
-                            ? parseFloat(editRoomTypeConfig.extra_bed_charge)
-                            : editRoomTypeConfig.extra_bed_charge) || 0
-                        : 0;
+                      const chargePerBed = editRoomTypeConfig ? toMoneyNumber(editRoomTypeConfig.extra_bed_charge) : 0;
                       const count = Math.min(Math.max(parseInt(e.target.value) || 0, 0), maxBeds);
                       setEditFormData((prev: any) => ({
                         ...prev,
                         extra_bed_count: count,
-                        extra_bed_charge: count * chargePerBed,
+                        extra_bed_charge: multiplyMoney(chargePerBed, count),
                       }));
                     }}
                     inputProps={{ min: 0, max: editRoomTypeConfig?.max_extra_beds || 0 }}
                     helperText={`${formatCurrency(
-                      (typeof editRoomTypeConfig?.extra_bed_charge === 'string'
-                        ? parseFloat(editRoomTypeConfig.extra_bed_charge)
-                        : editRoomTypeConfig?.extra_bed_charge) || 0
+                      toMoneyNumber(editRoomTypeConfig?.extra_bed_charge)
                     )} per extra bed (max ${editRoomTypeConfig?.max_extra_beds || 0})`}
                   />
                 </Grid>
@@ -2022,7 +2012,7 @@ const BookingsPage: React.FC = () => {
                     value={editFormData.extra_bed_charge || 0}
                     onChange={(e) => setEditFormData((prev: any) => ({
                       ...prev,
-                      extra_bed_charge: parseFloat(e.target.value) || 0,
+                      extra_bed_charge: toMoneyNumber(e.target.value),
                     }))}
                     InputProps={{
                       startAdornment: <span style={{ marginRight: 4 }}>RM</span>,
@@ -2065,7 +2055,7 @@ const BookingsPage: React.FC = () => {
                     onChange={(e) => {
                       const selectedRoom = availableRooms.find(r => r.id === e.target.value);
                       const newRate = selectedRoom
-                        ? (typeof selectedRoom.price_per_night === 'string' ? parseFloat(selectedRoom.price_per_night) : selectedRoom.price_per_night) || 0
+                        ? toMoneyNumber(selectedRoom.price_per_night)
                         : editFormData.price_per_night;
                       setEditFormData((prev: any) => ({
                         ...prev,
@@ -2076,7 +2066,7 @@ const BookingsPage: React.FC = () => {
                   >
                     {availableRooms.map((room) => (
                       <MenuItem key={room.id} value={room.id}>
-                        Room {room.room_number} - {room.room_type} ({formatCurrency(typeof room.price_per_night === 'string' ? parseFloat(room.price_per_night) : room.price_per_night)}/night)
+                        Room {room.room_number} - {room.room_type} ({formatCurrency(toMoneyNumber(room.price_per_night))}/night)
                         {room.id === editingBooking.room_id ? ' (current)' : ''}
                       </MenuItem>
                     ))}
@@ -2260,7 +2250,7 @@ const BookingsPage: React.FC = () => {
                   type="number"
                   label="Payment Amount"
                   value={paymentAmount || ''}
-                  onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => setPaymentAmount(toMoneyNumber(e.target.value))}
                   InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
                   inputProps={{ min: 0, max: getBookingBalance(paymentBooking), step: 0.01 }}
                   error={
@@ -2403,7 +2393,7 @@ const BookingsPage: React.FC = () => {
                     </FormControl>
                   </Grid>
                   <Grid size={6}>
-                    <TextField fullWidth size="small" label="Amount Paid" type="number" value={ciAmountPaid} onChange={(e) => setCiAmountPaid(parseFloat(e.target.value) || 0)}
+                    <TextField fullWidth size="small" label="Amount Paid" type="number" value={ciAmountPaid} onChange={(e) => setCiAmountPaid(toMoneyNumber(e.target.value))}
                       InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }} />
                   </Grid>
                 </Grid>
@@ -2432,7 +2422,7 @@ const BookingsPage: React.FC = () => {
                     </FormControl>
                   </Grid>
                   <Grid size={6}>
-                    <TextField fullWidth size="small" label="Deposit Amount" type="number" value={ciDepositAmount} onChange={(e) => setCiDepositAmount(parseFloat(e.target.value) || 0)}
+                    <TextField fullWidth size="small" label="Deposit Amount" type="number" value={ciDepositAmount} onChange={(e) => setCiDepositAmount(toMoneyNumber(e.target.value))}
                       InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>, inputProps: { min: 0, step: 0.01 } }} />
                   </Grid>
                 </Grid>

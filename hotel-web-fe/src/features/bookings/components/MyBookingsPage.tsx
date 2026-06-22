@@ -41,6 +41,7 @@ import { useBookWithCreditsMutation, useMyBookings } from '../hooks/useBookingQu
 import { useMyGuestsWithCredits } from '../../guests/hooks/useGuestQueries';
 import { useRooms } from '../../rooms/hooks/useRoomQueries';
 import { formatLocalDate, parseLocalDate, addLocalDays } from '../../../utils/date';
+import { toMoneyNumber } from '../../../utils/money';
 
 // Type for guest with credits by room type
 interface GuestWithCredits {
@@ -316,11 +317,10 @@ const MyBookingsPage: React.FC = () => {
     {
       id: 'amount',
       header: 'Amount',
-      accessorFn: (b) =>
-        typeof b.total_amount === 'string' ? parseFloat(b.total_amount) : b.total_amount,
+      accessorFn: (b) => toMoneyNumber(b.total_amount),
       cell: (info) => (
         <Box sx={{ fontWeight: 600, color: 'primary.main' }}>
-          ${(info.getValue() as number).toFixed(2)}
+          ${toMoneyNumber(info.getValue() as number).toFixed(2)}
         </Box>
       ),
     },
