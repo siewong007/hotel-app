@@ -48,8 +48,8 @@ import {
 import { Room, RoomType, RoomTypeCreateInput, RoomTypeUpdateInput } from '../../../types';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
-import { toNumber } from '../../../utils/currency';
 import { emitApiNotification } from '../../../utils/apiNotifications';
+import { compareMoney, toMoneyNumber } from '../../../utils/money';
 import {
   useAllRoomTypes,
   useCreateRoom,
@@ -294,15 +294,15 @@ const RoomConfigurationPage: React.FC = () => {
       name: t.name,
       code: t.code,
       description: t.description || '',
-      base_price: toNumber(t.base_price),
-      weekday_rate: t.weekday_rate ? toNumber(t.weekday_rate) : '',
-      weekend_rate: t.weekend_rate ? toNumber(t.weekend_rate) : '',
+      base_price: toMoneyNumber(t.base_price),
+      weekday_rate: t.weekday_rate ? toMoneyNumber(t.weekday_rate) : '',
+      weekend_rate: t.weekend_rate ? toMoneyNumber(t.weekend_rate) : '',
       max_occupancy: t.max_occupancy,
       bed_type: t.bed_type || 'Queen',
       bed_count: t.bed_count || 1,
       allows_extra_bed: t.allows_extra_bed,
       max_extra_beds: t.max_extra_beds,
-      extra_bed_charge: t.extra_bed_charge ? toNumber(t.extra_bed_charge) : '',
+      extra_bed_charge: t.extra_bed_charge ? toMoneyNumber(t.extra_bed_charge) : '',
       sort_order: t.sort_order,
       is_active: t.is_active,
     });
@@ -330,9 +330,9 @@ const RoomConfigurationPage: React.FC = () => {
         name: typeForm.name.trim(),
         code: typeForm.code.toUpperCase().trim(),
         description: typeForm.description || undefined,
-        base_price: Number(typeForm.base_price),
-        weekday_rate: typeForm.weekday_rate ? Number(typeForm.weekday_rate) : undefined,
-        weekend_rate: typeForm.weekend_rate ? Number(typeForm.weekend_rate) : undefined,
+        base_price: toMoneyNumber(typeForm.base_price),
+        weekday_rate: typeForm.weekday_rate ? toMoneyNumber(typeForm.weekday_rate) : undefined,
+        weekend_rate: typeForm.weekend_rate ? toMoneyNumber(typeForm.weekend_rate) : undefined,
         max_occupancy: Number(typeForm.max_occupancy) || 1,
         bed_type: typeForm.bed_type,
         bed_count: Number(typeForm.bed_count) || 1,
@@ -340,7 +340,7 @@ const RoomConfigurationPage: React.FC = () => {
         max_extra_beds: typeForm.allows_extra_bed ? typeForm.max_extra_beds : 0,
         extra_bed_charge:
           typeForm.allows_extra_bed && typeForm.extra_bed_charge
-            ? Number(typeForm.extra_bed_charge)
+            ? toMoneyNumber(typeForm.extra_bed_charge)
             : 0,
         sort_order: Number(typeForm.sort_order) || 0,
       };
@@ -393,15 +393,15 @@ const RoomConfigurationPage: React.FC = () => {
         name: `${t.name} (Copy)`,
         code: `${t.code}2`.slice(0, 10),
         description: t.description || undefined,
-        base_price: toNumber(t.base_price),
-        weekday_rate: t.weekday_rate ? toNumber(t.weekday_rate) : undefined,
-        weekend_rate: t.weekend_rate ? toNumber(t.weekend_rate) : undefined,
+        base_price: toMoneyNumber(t.base_price),
+        weekday_rate: t.weekday_rate ? toMoneyNumber(t.weekday_rate) : undefined,
+        weekend_rate: t.weekend_rate ? toMoneyNumber(t.weekend_rate) : undefined,
         max_occupancy: t.max_occupancy,
         bed_type: t.bed_type,
         bed_count: t.bed_count,
         allows_extra_bed: t.allows_extra_bed,
         max_extra_beds: t.max_extra_beds,
-        extra_bed_charge: toNumber(t.extra_bed_charge),
+        extra_bed_charge: toMoneyNumber(t.extra_bed_charge),
         sort_order: t.sort_order + 1,
       };
       await createRoomTypeMutation.mutateAsync(input);
@@ -435,12 +435,12 @@ const RoomConfigurationPage: React.FC = () => {
   const openEditRoom = (r: Room) => {
     setEditingRoom(r);
     const t = typeByName[r.room_type];
-    const price = toNumber(r.price_per_night);
+    const price = toMoneyNumber(r.price_per_night);
     setRoomForm({
       room_number: r.room_number,
       floor: r.floor ?? '',
       building: '',
-      custom_price: t && price === toNumber(t.base_price) ? '' : price,
+      custom_price: t && compareMoney(price, t.base_price) === 0 ? '' : price,
       is_accessible: false,
       is_smoking: !!r.is_smoking,
     });
@@ -452,7 +452,7 @@ const RoomConfigurationPage: React.FC = () => {
       setFormLoading(true);
       const t = addingRoomFor;
       const price =
-        roomForm.custom_price !== '' ? Number(roomForm.custom_price) : toNumber(t.base_price);
+        roomForm.custom_price !== '' ? toMoneyNumber(roomForm.custom_price) : toMoneyNumber(t.base_price);
       await createRoomMutation.mutateAsync({
         room_number: roomForm.room_number.trim(),
         room_type: t.name,
@@ -461,7 +461,7 @@ const RoomConfigurationPage: React.FC = () => {
         max_occupancy: t.max_occupancy,
         floor: roomForm.floor === '' ? 1 : Number(roomForm.floor),
         building: roomForm.building || undefined,
-        custom_price: roomForm.custom_price !== '' ? Number(roomForm.custom_price) : undefined,
+        custom_price: roomForm.custom_price !== '' ? toMoneyNumber(roomForm.custom_price) : undefined,
         is_accessible: roomForm.is_accessible,
         is_smoking: roomForm.is_smoking,
       });
@@ -482,7 +482,7 @@ const RoomConfigurationPage: React.FC = () => {
       await updateRoomMutation.mutateAsync({ roomId: editingRoom.id, data: {
         room_number: roomForm.room_number,
         price_per_night:
-          roomForm.custom_price !== '' ? (Number(roomForm.custom_price) as any) : undefined,
+          roomForm.custom_price !== '' ? (toMoneyNumber(roomForm.custom_price) as any) : undefined,
         available: editingRoom.available,
         is_smoking: roomForm.is_smoking,
       } });
@@ -612,8 +612,8 @@ const RoomConfigurationPage: React.FC = () => {
   const RoomCard = ({ room }: { room: Room }) => {
     const t = typeByName[room.room_type];
     const st = roomStatus(room);
-    const price = toNumber(room.price_per_night);
-    const isCustom = !!t && price !== toNumber(t.base_price);
+    const price = toMoneyNumber(room.price_per_night);
+    const isCustom = !!t && compareMoney(price, t.base_price) !== 0;
     return (
       <Box
         sx={{
@@ -954,7 +954,7 @@ const RoomConfigurationPage: React.FC = () => {
                           fontWeight: 700,
                         }}
                       >
-                        {formatCurrency(toNumber(t.base_price))}
+                        {formatCurrency(toMoneyNumber(t.base_price))}
                         <Box component="span" sx={{ color: C.ink3, fontWeight: 500, ml: 0.25 }}>
                           /night
                         </Box>
@@ -979,7 +979,7 @@ const RoomConfigurationPage: React.FC = () => {
                             <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.625 }}>
                               <AddIcon sx={{ fontSize: 12 }} /> Extra bed{' '}
                               <Box component="span" sx={{ color: C.ink2, fontWeight: 600 }}>
-                                {formatCurrency(toNumber(t.extra_bed_charge))}
+                                {formatCurrency(toMoneyNumber(t.extra_bed_charge))}
                               </Box>
                             </Box>
                           </>
@@ -1139,7 +1139,7 @@ const RoomConfigurationPage: React.FC = () => {
                 </Typography>
               </Box>
               <Typography sx={{ fontSize: 16, fontWeight: 700 }}>
-                {formatCurrency(Number(typeForm.base_price) || 0)}
+                {formatCurrency(toMoneyNumber(typeForm.base_price))}
               </Typography>
             </Box>
           </Box>
@@ -1255,7 +1255,7 @@ const RoomConfigurationPage: React.FC = () => {
                 label="Extra Bed Fee / Night"
                 type="number"
                 value={typeForm.extra_bed_charge}
-                onChange={(e) => setTF({ extra_bed_charge: e.target.value ? Number(e.target.value) : '' })}
+                onChange={(e) => setTF({ extra_bed_charge: e.target.value ? toMoneyNumber(e.target.value) : '' })}
                 InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
               />
             </Box>
@@ -1269,7 +1269,7 @@ const RoomConfigurationPage: React.FC = () => {
               required
               type="number"
               value={typeForm.base_price}
-              onChange={(e) => setTF({ base_price: e.target.value ? Number(e.target.value) : '' })}
+              onChange={(e) => setTF({ base_price: e.target.value ? toMoneyNumber(e.target.value) : '' })}
               InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
             />
             <TextField
@@ -1277,7 +1277,7 @@ const RoomConfigurationPage: React.FC = () => {
               label="Weekday"
               type="number"
               value={typeForm.weekday_rate}
-              onChange={(e) => setTF({ weekday_rate: e.target.value ? Number(e.target.value) : '' })}
+              onChange={(e) => setTF({ weekday_rate: e.target.value ? toMoneyNumber(e.target.value) : '' })}
               InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
               placeholder="Base"
             />
@@ -1286,7 +1286,7 @@ const RoomConfigurationPage: React.FC = () => {
               label="Weekend"
               type="number"
               value={typeForm.weekend_rate}
-              onChange={(e) => setTF({ weekend_rate: e.target.value ? Number(e.target.value) : '' })}
+              onChange={(e) => setTF({ weekend_rate: e.target.value ? toMoneyNumber(e.target.value) : '' })}
               InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
               placeholder="Base"
             />
@@ -1364,9 +1364,9 @@ const RoomConfigurationPage: React.FC = () => {
                 label={`Custom Price`}
                 type="number"
                 value={roomForm.custom_price}
-                onChange={(e) => setRoomForm({ ...roomForm, custom_price: e.target.value ? Number(e.target.value) : '' })}
+                onChange={(e) => setRoomForm({ ...roomForm, custom_price: e.target.value ? toMoneyNumber(e.target.value) : '' })}
                 InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
-                helperText={addingRoomFor ? `Base ${formatCurrency(toNumber(addingRoomFor.base_price))}` : ''}
+                helperText={addingRoomFor ? `Base ${formatCurrency(toMoneyNumber(addingRoomFor.base_price))}` : ''}
               />
             </Box>
             <TextField
@@ -1422,7 +1422,7 @@ const RoomConfigurationPage: React.FC = () => {
               label="Custom Price"
               type="number"
               value={roomForm.custom_price}
-              onChange={(e) => setRoomForm({ ...roomForm, custom_price: e.target.value ? Number(e.target.value) : '' })}
+              onChange={(e) => setRoomForm({ ...roomForm, custom_price: e.target.value ? toMoneyNumber(e.target.value) : '' })}
               InputProps={{ startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment> }}
               helperText="Leave empty to use room type base price"
             />
