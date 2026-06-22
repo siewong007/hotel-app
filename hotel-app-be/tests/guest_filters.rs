@@ -34,6 +34,7 @@ mod sqlite_tests {
             search: None,
             guest_type: None,
             tourism_type: None,
+            missing_tourism: None,
             missing_info: None,
         }
     }
