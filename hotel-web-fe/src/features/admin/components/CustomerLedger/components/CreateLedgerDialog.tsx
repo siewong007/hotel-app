@@ -25,6 +25,7 @@ import {
 import type { CustomerLedgerCreateRequest, Room } from '../../../../../types';
 import type { CompanyOption } from '../types';
 import { EXPENSE_TYPES } from '../constants';
+import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 
 interface CreateLedgerDialogProps {
   // Dialog state
@@ -206,7 +207,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
             label="Amount"
             type="number"
             value={createFormData.amount}
-            onChange={(e) => setCreateFormData({ ...createFormData, amount: parseFloat(e.target.value) || 0 })}
+            onChange={(e) => setCreateFormData({ ...createFormData, amount: toMoneyNumber(e.target.value) })}
             InputProps={{
               startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
             }}
@@ -319,7 +320,7 @@ const CreateLedgerDialog: React.FC<CreateLedgerDialogProps> = ({
       <Button
         onClick={onSubmit}
         variant="contained"
-        disabled={creating || !createFormData.company_name || !createFormData.description || createFormData.amount <= 0}
+        disabled={creating || !createFormData.company_name || !createFormData.description || !isPositiveMoney(createFormData.amount)}
       >
         {creating ? 'Creating...' : 'Create Entry'}
       </Button>

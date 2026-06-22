@@ -5,6 +5,7 @@ import { Box, Typography, Button } from '@mui/material';
 import { Edit as EditIcon } from '@mui/icons-material';
 import type { Company } from '../../../../../types';
 import { InfoField } from '../StatusPill';
+import { subtractMoney, toMoneyNumber } from '../../../../../utils/money';
 
 interface CompanyInfoTabProps {
   company: Company;
@@ -99,7 +100,7 @@ const CompanyInfoTab: React.FC<CompanyInfoTabProps> = ({
           label="Credit limit"
           value={
             company.credit_limit != null
-              ? formatCurrency(parseFloat(String(company.credit_limit)))
+              ? formatCurrency(toMoneyNumber(company.credit_limit))
               : '-'
           }
         />
@@ -112,7 +113,7 @@ const CompanyInfoTab: React.FC<CompanyInfoTabProps> = ({
           value={
             company.credit_limit != null
               ? formatCurrency(
-                  Math.max(parseFloat(String(company.credit_limit)) - dueAmount, 0),
+                  Math.max(subtractMoney(company.credit_limit, dueAmount), 0),
                 )
               : '-'
           }

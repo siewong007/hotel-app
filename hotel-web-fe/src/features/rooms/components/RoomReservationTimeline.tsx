@@ -36,6 +36,7 @@ import { useCurrency } from '../../../hooks/useCurrency';
 import { useBookingsWithDetails } from '../../bookings/hooks/useBookingQueries';
 import { useRooms } from '../hooks/useRoomQueries';
 import { formatLocalDate } from '../../../utils/date';
+import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
 
 // ── Layout ────────────────────────────────────────────────────────────────
 const ROOM_COL = 220;
@@ -591,7 +592,7 @@ const RoomReservationTimeline: React.FC = () => {
                         {room.room_type}
                       </Typography>
                       <Typography sx={{ fontFamily: 'inherit', fontSize: 14, color: PALETTE.todayAccent, fontWeight: 600, lineHeight: 1.1 }}>
-                        {formatCurrency(Number(room.price_per_night))}/night
+                        {formatCurrency(toMoneyNumber(room.price_per_night))}/night
                       </Typography>
                     </Box>
 
@@ -683,7 +684,7 @@ const RoomReservationTimeline: React.FC = () => {
                               >
                                 {b.is_complimentary ? `Complimentary (${b.complimentary_nights || 0}N)` : getUnifiedStatusLabel(b.status)}
                               </Typography>
-                              {showRate && b.price_per_night && !b.is_complimentary && (
+                              {showRate && isPositiveMoney(b.price_per_night) && !b.is_complimentary && (
                                 <Typography
                                   sx={{
                                     fontFamily: "'Caveat', cursive",
@@ -692,7 +693,7 @@ const RoomReservationTimeline: React.FC = () => {
                                     lineHeight: 1.1,
                                   }}
                                 >
-                                  {formatCurrency(Number(b.price_per_night))}/night
+                                  {formatCurrency(toMoneyNumber(b.price_per_night))}/night
                                 </Typography>
                               )}
                             </>
@@ -834,11 +835,11 @@ const RoomReservationTimeline: React.FC = () => {
                 <AttachMoney sx={{ fontSize: 18, color: 'success.main' }} />
                 <Box>
                   <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main' }}>
-                    {formatCurrency(Number(hoveredBooking.total_amount || 0))}
+                    {formatCurrency(toMoneyNumber(hoveredBooking.total_amount))}
                   </Typography>
-                  {hoveredBooking.price_per_night && (
+                  {isPositiveMoney(hoveredBooking.price_per_night) && (
                     <Typography variant="caption" color="text.secondary">
-                      {formatCurrency(Number(hoveredBooking.price_per_night))}/night
+                      {formatCurrency(toMoneyNumber(hoveredBooking.price_per_night))}/night
                     </Typography>
                   )}
                 </Box>
@@ -872,11 +873,11 @@ const RoomReservationTimeline: React.FC = () => {
               </Box>
             </Box>
 
-            {(hoveredBooking.deposit_amount || hoveredBooking.deposit_paid) && (
+            {(isPositiveMoney(hoveredBooking.deposit_amount) || hoveredBooking.deposit_paid) && (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
                 <Typography variant="caption" color="text.secondary">Deposit:</Typography>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
-                  {formatCurrency(Number(hoveredBooking.deposit_amount || 0))}
+                  {formatCurrency(toMoneyNumber(hoveredBooking.deposit_amount))}
                 </Typography>
                 {hoveredBooking.deposit_paid && (
                   <Chip label="Collected" size="small" color="success" sx={{ height: 18, fontSize: '0.6rem' }} />

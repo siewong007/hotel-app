@@ -26,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import type { Company, Guest, Room, BookingWithDetails } from '../../../../../types';
 import { formatDateForDisplay } from '../helpers';
+import { isPositiveMoney, toMoneyNumber } from '../../../../../utils/money';
 
 export interface NewCheckInGuestForm {
   first_name: string;
@@ -104,13 +105,9 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
   currencySymbol,
   formatCurrency,
 }) => {
-  const selectedRoomDefaultRate = checkInRoom
-    ? typeof checkInRoom.price_per_night === 'string'
-      ? parseFloat(checkInRoom.price_per_night)
-      : checkInRoom.price_per_night
-    : 0;
-  const customRateValue = customRoomRate.trim() ? parseFloat(customRoomRate) : undefined;
-  const effectiveRoomRate = customRateValue && customRateValue > 0
+  const selectedRoomDefaultRate = checkInRoom ? toMoneyNumber(checkInRoom.price_per_night) : 0;
+  const customRateValue = customRoomRate.trim() ? toMoneyNumber(customRoomRate) : undefined;
+  const effectiveRoomRate = customRateValue !== undefined && isPositiveMoney(customRateValue)
     ? customRateValue
     : selectedRoomDefaultRate;
 
@@ -412,9 +409,7 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
             isOptionEqualToValue={(option, value) => option.id === value.id}
             renderOption={(props, option) => {
               const { key, ...otherProps } = props;
-              const price = typeof option.price_per_night === 'string'
-                ? parseFloat(option.price_per_night)
-                : option.price_per_night;
+              const price = toMoneyNumber(option.price_per_night);
               return (
                 <li key={key} {...otherProps}>
                   <Box display="flex" justifyContent="space-between" width="100%">

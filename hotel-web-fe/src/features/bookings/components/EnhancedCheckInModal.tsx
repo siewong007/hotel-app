@@ -59,6 +59,7 @@ import { useCurrency } from '../../../hooks/useCurrency';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { useCheckInFormData } from '../hooks/useCheckInFormData';
 import { emitApiNotification } from '../../../utils/apiNotifications';
+import { divideMoney, isPositiveMoney, multiplyMoney, toMoneyNumber } from '../../../utils/money';
 
 // Validation helper functions
 const validateEmail = (email: string): boolean => {
@@ -280,11 +281,7 @@ export default function EnhancedCheckInModal({
   // Derived extra bed config from room type
   const allowsExtraBed = roomTypeConfig?.allows_extra_bed ?? false;
   const maxExtraBeds = roomTypeConfig?.max_extra_beds ?? 0;
-  const extraBedChargePerBed = roomTypeConfig
-    ? (typeof roomTypeConfig.extra_bed_charge === 'string'
-        ? parseFloat(roomTypeConfig.extra_bed_charge)
-        : roomTypeConfig.extra_bed_charge) || 0
-    : 0;
+  const extraBedChargePerBed = roomTypeConfig ? toMoneyNumber(roomTypeConfig.extra_bed_charge) : 0;
 
   // Reset form when modal closes - use proper transition detection
   useEffect(() => {
@@ -414,7 +411,7 @@ export default function EnhancedCheckInModal({
     setSpecialRequests(booking.special_requests || '');
 
     // Initialize payment and deposit from booking
-    const totalAmt = typeof booking.total_amount === 'string' ? parseFloat(booking.total_amount) || 0 : booking.total_amount || 0;
+    const totalAmt = toMoneyNumber(booking.total_amount);
     const settingsDeposit = getHotelSettings().deposit_amount;
     setAmountPaid(totalAmt);
     if (booking.payment_status === 'paid') {
@@ -424,7 +421,8 @@ export default function EnhancedCheckInModal({
     }
     if (booking.deposit_paid) {
       setDepositChoice('receive');
-      setDepositAmount(typeof booking.deposit_amount === 'string' ? parseFloat(booking.deposit_amount) || settingsDeposit : booking.deposit_amount || settingsDeposit);
+      const existingDeposit = toMoneyNumber(booking.deposit_amount);
+      setDepositAmount(isPositiveMoney(existingDeposit) ? existingDeposit : settingsDeposit);
     } else {
       setDepositChoice('receive');
       setDepositAmount(settingsDeposit);
@@ -432,10 +430,7 @@ export default function EnhancedCheckInModal({
 
     // Initialize extra bed from booking
     setExtraBedCount(booking.extra_bed_count || 0);
-    const ebCharge = typeof booking.extra_bed_charge === 'string'
-      ? parseFloat(booking.extra_bed_charge) || 0
-      : booking.extra_bed_charge || 0;
-    setExtraBedCharge(ebCharge);
+    setExtraBedCharge(toMoneyNumber(booking.extra_bed_charge));
   };
 
   // Validate a single field
@@ -555,7 +550,7 @@ export default function EnhancedCheckInModal({
       return;
     }
 
-    if (depositChoice === 'receive' && Number(depositAmount) <= 0) {
+    if (depositChoice === 'receive' && !isPositiveMoney(depositAmount)) {
       setError('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.');
       setActiveTab(2);
       return;
@@ -570,12 +565,12 @@ export default function EnhancedCheckInModal({
       // each payment row mutation, so any value sent here would be overridden.
       const paymentFields: Record<string, any> = {};
       if (paymentChoice === 'pay_now') {
-        paymentFields.amount_paid = amountPaid;
+        paymentFields.amount_paid = toMoneyNumber(amountPaid);
         paymentFields.payment_method = paymentType;
       }
       if (depositChoice === 'receive') {
         paymentFields.deposit_paid = true;
-        paymentFields.deposit_amount = depositAmount;
+        paymentFields.deposit_amount = toMoneyNumber(depositAmount);
         paymentFields.payment_note = `Deposit received (${depositMethod})`;
       } else {
         paymentFields.deposit_paid = false;
@@ -589,7 +584,7 @@ export default function EnhancedCheckInModal({
         ...paymentFields,
         special_requests: specialRequests || undefined,
         extra_bed_count: extraBedCount,
-        extra_bed_charge: extraBedCharge,
+        extra_bed_charge: toMoneyNumber(extraBedCharge),
         ...(paymentType === 'Direct Billing' && selectedCompany ? {
           company_id: selectedCompany.id,
           company_name: selectedCompany.company_name,
@@ -604,11 +599,11 @@ export default function EnhancedCheckInModal({
       await HotelAPIService.checkInGuest(booking.id, checkinRequest);
 
       // Record payment if paying now
-      if (paymentChoice === 'pay_now' && amountPaid > 0) {
+      if (paymentChoice === 'pay_now' && isPositiveMoney(amountPaid)) {
         try {
           await InvoicesService.recordPayment({
             booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
-            amount: amountPaid,
+            amount: toMoneyNumber(amountPaid),
             payment_method: paymentType,
             payment_type: 'room_charge',
             notes: 'Payment collected at check-in',
@@ -752,16 +747,16 @@ export default function EnhancedCheckInModal({
             <Grid size={4}>
               <Typography variant="caption" color="text.secondary">Room Rate</Typography>
               <Typography variant="body2">
-                {booking.rate_override_weekday
-                  ? `${formatCurrency(Number(booking.rate_override_weekday))}/night (Custom)`
-                  : `${formatCurrency(Number(booking.total_amount) / Math.max(calculateNights(), 1))}/night`
+                {isPositiveMoney(booking.rate_override_weekday)
+                  ? `${formatCurrency(toMoneyNumber(booking.rate_override_weekday))}/night (Custom)`
+                  : `${formatCurrency(divideMoney(booking.total_amount, Math.max(calculateNights(), 1)))}/night`
                 }
               </Typography>
             </Grid>
-            {booking.is_tourist && Number(booking.tourism_tax_amount || 0) > 0 && (
+            {booking.is_tourist && isPositiveMoney(booking.tourism_tax_amount) && (
               <Grid size={4}>
                 <Typography variant="caption" color="text.secondary">Tourism Tax</Typography>
-                <Typography variant="body2">{formatCurrency(Number(booking.tourism_tax_amount))}</Typography>
+                <Typography variant="body2">{formatCurrency(toMoneyNumber(booking.tourism_tax_amount))}</Typography>
               </Grid>
             )}
             {extraBedCount > 0 && (
@@ -773,13 +768,13 @@ export default function EnhancedCheckInModal({
             <Grid size={4}>
               <Typography variant="caption" color="text.secondary">Total Amount</Typography>
               <Typography variant="body2" fontWeight={600} color="primary.main">
-                {formatCurrency(Number(booking.total_amount))}
+                {formatCurrency(toMoneyNumber(booking.total_amount))}
               </Typography>
             </Grid>
-            {Number(booking.deposit_amount || 0) > 0 && (
+            {isPositiveMoney(booking.deposit_amount) && (
               <Grid size={4}>
                 <Typography variant="caption" color="text.secondary">Deposit Paid</Typography>
-                <Typography variant="body2" color="success.main">{formatCurrency(Number(booking.deposit_amount))}</Typography>
+                <Typography variant="body2" color="success.main">{formatCurrency(toMoneyNumber(booking.deposit_amount))}</Typography>
               </Grid>
             )}
           </Grid>
@@ -1112,7 +1107,7 @@ export default function EnhancedCheckInModal({
                     <Typography variant="body2" color="text.secondary">Total Amount:</Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" fontWeight="bold">{formatCurrency(Number(booking.total_amount))}</Typography>
+                    <Typography variant="body2" fontWeight="bold">{formatCurrency(toMoneyNumber(booking.total_amount))}</Typography>
                   </Grid>
                 </Grid>
               </Paper>
@@ -1221,7 +1216,7 @@ export default function EnhancedCheckInModal({
                     label="Amount Paid"
                     type="number"
                     value={amountPaid}
-                    onChange={(e) => setAmountPaid(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => setAmountPaid(toMoneyNumber(e.target.value))}
                     InputProps={{
                       startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                       inputProps: { min: 0, step: 0.01 },
@@ -1503,7 +1498,7 @@ export default function EnhancedCheckInModal({
                     label="Deposit Amount"
                     type="number"
                     value={depositAmount}
-                    onChange={(e) => setDepositAmount(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => setDepositAmount(toMoneyNumber(e.target.value))}
                     InputProps={{
                       startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                       inputProps: { min: 0, step: 0.01 },
@@ -1537,7 +1532,7 @@ export default function EnhancedCheckInModal({
                     <Typography variant="body2" color="text.secondary">Total Amount:</Typography>
                   </Grid>
                   <Grid size={6}>
-                    <Typography variant="body2" fontWeight={600}>{formatCurrency(Number(booking.total_amount))}</Typography>
+                    <Typography variant="body2" fontWeight={600}>{formatCurrency(toMoneyNumber(booking.total_amount))}</Typography>
                   </Grid>
                   <Grid size={6}>
                     <Typography variant="body2" color="text.secondary">Payment Status:</Typography>
@@ -1735,7 +1730,7 @@ export default function EnhancedCheckInModal({
                     onChange={(e) => {
                       const count = Math.min(Math.max(parseInt(e.target.value) || 0, 0), maxExtraBeds);
                       setExtraBedCount(count);
-                      setExtraBedCharge(count * extraBedChargePerBed);
+                      setExtraBedCharge(multiplyMoney(extraBedChargePerBed, count));
                     }}
                     inputProps={{ min: 0, max: maxExtraBeds }}
                     helperText={`${formatCurrency(extraBedChargePerBed)} per extra bed (max ${maxExtraBeds})`}
@@ -1747,7 +1742,7 @@ export default function EnhancedCheckInModal({
                     label="Extra Bed Charge"
                     type="number"
                     value={extraBedCharge}
-                    onChange={(e) => setExtraBedCharge(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => setExtraBedCharge(toMoneyNumber(e.target.value))}
                     InputProps={{
                       startAdornment: <InputAdornment position="start">{currencySymbol}</InputAdornment>,
                     }}
