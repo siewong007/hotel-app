@@ -20,7 +20,7 @@ use axum::{
     http::HeaderMap,
     response::Json,
 };
-use chrono::{Datelike, Duration, NaiveDate};
+use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sqlx::Row;
 
@@ -126,6 +126,61 @@ pub async fn record_booking_history_tx(
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn record_self_checkin_event_tx(
+    tx: &mut DbTransaction<'_>,
+    booking_id: i64,
+    guest_id: i64,
+    ekyc_verification_id: i64,
+    user_id: i64,
+    source: &str,
+    device_type: Option<&String>,
+    checkin_location: Option<&String>,
+) -> Result<DateTime<Utc>, ApiError> {
+    let checked_in_at = Utc::now();
+    let event_data = serde_json::json!({
+        "source": source,
+        "guest_id": guest_id,
+        "ekyc_verification_id": ekyc_verification_id,
+    })
+    .to_string();
+
+    let query = crate::sql_query!(
+        postgres: r#"
+            INSERT INTO self_checkin_events (
+                booking_id, guest_id, ekyc_verification_id, user_id, checked_in_at,
+                room_key_issued, digital_key_sent, device_type, checkin_location,
+                event_type, source, event_data, created_at
+            )
+            VALUES ($1, $2, $3, $4, $5, true, true, $6, $7, 'auto_checkin', $8, $9, CURRENT_TIMESTAMP)
+            RETURNING checked_in_at
+        "#,
+        sqlite: r#"
+            INSERT INTO self_checkin_events (
+                booking_id, guest_id, ekyc_verification_id, user_id, checked_in_at,
+                room_key_issued, digital_key_sent, device_type, checkin_location,
+                event_type, source, event_data, created_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, 1, 1, ?6, ?7, 'auto_checkin', ?8, ?9, datetime('now'))
+            RETURNING checked_in_at
+        "#
+    );
+
+    sqlx::query_scalar(query)
+        .bind(booking_id)
+        .bind(guest_id)
+        .bind(ekyc_verification_id)
+        .bind(user_id)
+        .bind(checked_in_at)
+        .bind(device_type)
+        .bind(checkin_location)
+        .bind(source)
+        .bind(event_data)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
 }
 
 async fn reconcile_room_status_after_booking_release(
@@ -828,13 +883,14 @@ pub async fn get_bookings_handler(
     Query(params): Query<BookingPaginationParams>,
 ) -> Result<Json<PaginatedResponse<Vec<BookingWithDetails>>>, ApiError> {
     let pagination = normalize_pagination(params.page, params.page_size, 50, 500);
-    let (total, bookings) = BookingRepository::find_paginated_with_details(
+    let (total, mut bookings) = BookingRepository::find_paginated_with_details(
         &pool,
         &params,
         GET_BOOKINGS_BASE_QUERY,
         pagination,
     )
     .await?;
+    crate::services::auto_checkin::attach_booking_ekyc_summaries(&pool, &mut bookings).await?;
 
     Ok(Json(PaginatedResponse {
         data: bookings,
@@ -1103,10 +1159,11 @@ pub async fn get_my_bookings_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    let bookings: Vec<BookingWithDetails> = rows
+    let mut bookings: Vec<BookingWithDetails> = rows
         .iter()
         .map(row_mappers::row_to_booking_with_details)
         .collect();
+    crate::services::auto_checkin::attach_booking_ekyc_summaries(&pool, &mut bookings).await?;
 
     Ok(Json(bookings))
 }
@@ -1506,7 +1563,7 @@ pub async fn get_booking_handler(
         .map_err(|e| ApiError::Database(e.to_string()))?
         .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
 
-    let booking = row_mappers::row_to_booking_with_details(&row);
+    let mut booking = row_mappers::row_to_booking_with_details(&row);
 
     let has_booking_access = AuthService::check_permission(&pool, user_id, "bookings:read")
         .await
@@ -1529,6 +1586,12 @@ pub async fn get_booking_handler(
             "You don't have permission to view this booking".to_string(),
         ));
     }
+
+    crate::services::auto_checkin::attach_booking_ekyc_summaries(
+        &pool,
+        std::slice::from_mut(&mut booking),
+    )
+    .await?;
 
     Ok(Json(booking))
 }
@@ -2058,6 +2121,21 @@ pub async fn update_booking_handler(
                     let _ = crate::handlers::payments::recompute_payment_status(&pool, booking_id)
                         .await;
                 }
+
+                if let Err(e) = crate::modules::loyalty::service::reverse_booking_points(
+                    &pool,
+                    booking_id,
+                    Some(user_id),
+                    "Booking voided",
+                )
+                .await
+                {
+                    log::warn!(
+                        "Failed to reverse loyalty points for voided booking {}: {}",
+                        booking_id,
+                        e
+                    );
+                }
             }
             "checked_out" | "completed" => {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
@@ -2146,6 +2224,21 @@ pub async fn update_booking_handler(
                 {
                     log::warn!(
                         "Failed to create invoice for checked-out booking {}: {}",
+                        booking_id,
+                        e
+                    );
+                }
+
+                if let Err(e) = crate::modules::loyalty::service::award_eligible_booking_points(
+                    &pool,
+                    booking_id,
+                    None,
+                    Some(user_id),
+                )
+                .await
+                {
+                    log::warn!(
+                        "Failed to award loyalty points for checked-out booking {}: {}",
                         booking_id,
                         e
                     );
@@ -3476,6 +3569,32 @@ pub async fn record_booking_void_modification_tx(
 
 /// Read a room's current status on the check-in transaction (used to block
 /// check-in into a room under maintenance / out of order).
+pub async fn fetch_room_status(pool: &DbPool, room_id: i64) -> Result<Option<String>, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let query = "SELECT status FROM rooms WHERE id = ?1";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let query = "SELECT status FROM rooms WHERE id = $1";
+
+    sqlx::query_scalar(query)
+        .bind(room_id)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
+}
+
+pub async fn room_number(pool: &DbPool, room_id: i64) -> Result<String, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let query = "SELECT room_number FROM rooms WHERE id = ?1";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let query = "SELECT room_number FROM rooms WHERE id = $1";
+
+    sqlx::query_scalar(query)
+        .bind(room_id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
+}
+
 pub async fn fetch_room_status_tx(
     tx: &mut DbTransaction<'_>,
     room_id: i64,

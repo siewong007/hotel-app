@@ -2,6 +2,8 @@
 
 pub use crate::repositories::bookings::*;
 
+use chrono::{DateTime, Utc};
+
 use crate::core::auth::AuthService;
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
@@ -10,6 +12,32 @@ use crate::repositories::bookings as booking_repo;
 use crate::services::audit::AuditLog;
 use crate::services::booking as booking_service;
 use crate::services::payments;
+
+#[derive(Debug, Clone)]
+pub struct SelfCheckinEventInsert {
+    pub guest_id: i64,
+    pub ekyc_verification_id: i64,
+    pub source: &'static str,
+    pub device_type: Option<String>,
+    pub checkin_location: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CheckinSourceContext {
+    pub source: &'static str,
+    pub history_reason: &'static str,
+    pub self_checkin_event: Option<SelfCheckinEventInsert>,
+}
+
+impl CheckinSourceContext {
+    fn manual() -> Self {
+        Self {
+            source: "manual_checkin",
+            history_reason: "Guest checked in",
+            self_checkin_event: None,
+        }
+    }
+}
 
 pub async fn void_booking(
     pool: &DbPool,
@@ -79,6 +107,21 @@ pub async fn void_booking(
 
     tx.commit().await.map_err(ApiError::from)?;
 
+    if let Err(err) = crate::modules::loyalty::service::reverse_booking_points(
+        pool,
+        booking_id,
+        Some(user_id),
+        "Booking voided",
+    )
+    .await
+    {
+        log::warn!(
+            "Failed to reverse loyalty points for voided booking {}: {}",
+            booking_id,
+            err
+        );
+    }
+
     Ok(serde_json::json!({
         "message": "Booking voided successfully",
         "booking_id": booking_id,
@@ -124,6 +167,38 @@ pub async fn manual_checkin(
             "You don't have permission to check in this booking".to_string(),
         ));
     }
+
+    let (booking, _) = checkin_booking_flow_for_booking(
+        pool,
+        user_id,
+        booking,
+        checkin_data,
+        CheckinSourceContext::manual(),
+    )
+    .await?;
+
+    Ok(booking)
+}
+
+pub async fn checkin_booking_flow(
+    pool: &DbPool,
+    user_id: i64,
+    booking_id: i64,
+    checkin_data: Option<CheckInRequest>,
+    context: CheckinSourceContext,
+) -> Result<(Booking, Option<DateTime<Utc>>), ApiError> {
+    let booking = booking_service::fetch_booking_by_id(pool, booking_id).await?;
+    checkin_booking_flow_for_booking(pool, user_id, booking, checkin_data, context).await
+}
+
+async fn checkin_booking_flow_for_booking(
+    pool: &DbPool,
+    user_id: i64,
+    booking: Booking,
+    checkin_data: Option<CheckInRequest>,
+    context: CheckinSourceContext,
+) -> Result<(Booking, Option<DateTime<Utc>>), ApiError> {
+    let booking_id = booking.id;
 
     // State validation: only confirmed/pending bookings can be checked in.
     // These are the only pre-arrival booking lifecycle states; `reserved`
@@ -200,11 +275,13 @@ pub async fn manual_checkin(
         Some(&booking.status),
         "checked_in",
         Some(user_id),
-        Some("Guest checked in"),
+        Some(context.history_reason),
         serde_json::json!({
             "guest_id": booking.guest_id,
             "room_id": booking.room_id,
             "payment_recorded": payment_recorded,
+            "source": context.source,
+            "ekyc_verification_id": context.self_checkin_event.as_ref().map(|event| event.ekyc_verification_id),
         }),
     )
     .await?;
@@ -212,16 +289,43 @@ pub async fn manual_checkin(
     AuditLog::log_event_tx(
         &mut tx,
         Some(user_id),
-        "booking_checkin",
+        if context.self_checkin_event.is_some() {
+            "booking_ekyc_auto_checkin"
+        } else {
+            "booking_checkin"
+        },
         "booking",
         Some(booking_id),
-        Some(serde_json::json!({"guest_id": booking.guest_id, "room_id": booking.room_id})),
+        Some(serde_json::json!({
+            "guest_id": booking.guest_id,
+            "room_id": booking.room_id,
+            "source": context.source,
+            "ekyc_verification_id": context.self_checkin_event.as_ref().map(|event| event.ekyc_verification_id),
+        })),
         None,
         None,
     )
     .await?;
 
     booking_repo::record_checkin_modification_tx(&mut tx, &booking, user_id).await?;
+
+    let self_checkin_at = if let Some(event) = context.self_checkin_event {
+        Some(
+            booking_repo::record_self_checkin_event_tx(
+                &mut tx,
+                booking_id,
+                event.guest_id,
+                event.ekyc_verification_id,
+                user_id,
+                event.source,
+                event.device_type.as_ref(),
+                event.checkin_location.as_ref(),
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
 
     tx.commit().await.map_err(ApiError::from)?;
 
@@ -245,7 +349,7 @@ pub async fn manual_checkin(
         );
     }
 
-    Ok(updated_booking)
+    Ok((updated_booking, self_checkin_at))
 }
 
 /// Reactivate a voided booking, preserving the booking state-transition rules

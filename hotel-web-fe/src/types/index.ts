@@ -133,6 +133,29 @@ export type {
   RewardRedemption,
 } from './loyalty.types';
 
+// Loyalty admin types (live `modules::loyalty` backend contract)
+export type {
+  LoyaltyMemberStatus,
+  LoyaltyRedemptionStatus,
+  TierQualificationMetric,
+  LoyaltyTier,
+  LoyaltyProgramRules,
+  LoyaltyRulesInput,
+  LoyaltyMemberSummary,
+  TierProgress,
+  LoyaltyTransaction,
+  AdminLoyaltyReward,
+  LoyaltyRedemption,
+  LoyaltyMemberDetail,
+  ManualAdjustmentInput,
+  AdminRewardInput,
+  AdminRewardUpdateInput,
+  RejectRedemptionInput,
+  LoyaltyMemberQueryParams,
+  LoyaltyRewardQueryParams,
+  LoyaltyRedemptionQueryParams,
+} from './loyaltyAdmin.types';
+
 // Payment types
 export * from './payment.types';
 

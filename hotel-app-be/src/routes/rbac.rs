@@ -259,15 +259,6 @@ async fn create_user(
     handlers::rbac::create_user_handler(State(pool), Extension(actor_user_id), Json(input)).await
 }
 
-async fn get_user(
-    State(pool): State<DbPool>,
-    headers: HeaderMap,
-    path: Path<i64>,
-) -> Result<Json<models::UserWithRolesAndPermissions>, ApiError> {
-    require_any_permission_helper(&pool, &headers, USER_READ_PERMISSIONS).await?;
-    handlers::rbac::get_user_roles_permissions_handler(State(pool), path).await
-}
-
 async fn update_user(
     State(pool): State<DbPool>,
     headers: HeaderMap,
@@ -288,6 +279,15 @@ async fn delete_user(
     let actor_user_id =
         require_any_permission_helper(&pool, &headers, USER_DELETE_PERMISSIONS).await?;
     handlers::rbac::delete_user_handler(State(pool), Extension(actor_user_id), path).await
+}
+
+async fn get_user(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::UserWithRolesAndPermissions>, ApiError> {
+    require_any_permission_helper(&pool, &headers, USER_READ_PERMISSIONS).await?;
+    handlers::rbac::get_user_roles_permissions_handler(State(pool), path).await
 }
 
 async fn update_role(

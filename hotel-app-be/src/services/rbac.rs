@@ -254,21 +254,25 @@ pub async fn update_user(
     user_id: i64,
     mut input: UserUpdateInput,
 ) -> Result<UserResponse, ApiError> {
-    if !RbacRepository::user_exists(pool, user_id).await? {
-        return Err(ApiError::NotFound("User not found".to_string()));
-    }
-    ensure_actor_can_manage_user(pool, admin_user_id, user_id).await?;
-
-    if admin_user_id == user_id && input.is_active == Some(false) {
-        return Err(ApiError::BadRequest(
-            "Cannot deactivate your own account from RBAC management".to_string(),
-        ));
-    }
-
+    input.password = input
+        .password
+        .take()
+        .filter(|password| !password.trim().is_empty());
     sanitize_user_update_input(&mut input);
     input
         .validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    let existing = RbacRepository::find_user_by_id(pool, user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
+    ensure_actor_can_manage_user(pool, admin_user_id, user_id).await?;
+
+    if admin_user_id == user_id && input.is_active == Some(false) {
+        return Err(ApiError::BadRequest(
+            "Cannot deactivate your own user account".to_string(),
+        ));
+    }
 
     if RbacRepository::username_or_email_exists_for_other(
         pool,
@@ -283,18 +287,19 @@ pub async fn update_user(
         ));
     }
 
-    let password_hash = if let Some(password) = &input.password {
-        AuthService::validate_password(password).map_err(ApiError::BadRequest)?;
-        Some(
-            AuthService::hash_password(password)
-                .await
-                .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?,
-        )
-    } else {
-        None
+    let password_hash = match &input.password {
+        Some(password) => {
+            AuthService::validate_password(password).map_err(ApiError::BadRequest)?;
+            Some(
+                AuthService::hash_password(password)
+                    .await
+                    .map_err(|_| ApiError::Internal("Password hashing failed".to_string()))?,
+            )
+        }
+        None => None,
     };
 
-    let changed_fields = changed_user_fields(&input);
+    let changed_fields = changed_user_fields(&existing, &input, password_hash.is_some());
     let user = RbacRepository::update_user(pool, user_id, &input, password_hash.as_deref()).await?;
 
     let _ = AuditLog::log_event(
@@ -303,22 +308,23 @@ pub async fn update_user(
         "user_updated",
         "user",
         Some(user_id),
-        Some(serde_json::json!({ "changed_fields": changed_fields })),
+        Some(serde_json::json!({"changed_fields": changed_fields})),
         None,
         None,
     )
     .await;
-
     crate::core::rbac_cache::invalidate_all();
+
     Ok(user.into())
 }
 
 pub async fn delete_user(pool: &DbPool, admin_user_id: i64, user_id: i64) -> Result<(), ApiError> {
     if admin_user_id == user_id {
         return Err(ApiError::BadRequest(
-            "Cannot delete your own account from RBAC management".to_string(),
+            "Cannot delete your own user account".to_string(),
         ));
     }
+
     if !RbacRepository::user_exists(pool, user_id).await? {
         return Err(ApiError::NotFound("User not found".to_string()));
     }
@@ -339,8 +345,8 @@ pub async fn delete_user(pool: &DbPool, admin_user_id: i64, user_id: i64) -> Res
         None,
     )
     .await;
-
     crate::core::rbac_cache::invalidate_all();
+
     Ok(())
 }
 
@@ -457,65 +463,58 @@ fn unique_ids(ids: Vec<i64>) -> Vec<i64> {
     ids.into_iter().filter(|id| seen.insert(*id)).collect()
 }
 
-fn sanitize_optional_text(value: &mut Option<String>) {
-    if let Some(raw) = value.take() {
-        let sanitized = Sanitizer::sanitize_text(&raw).trim().to_string();
-        if !sanitized.is_empty() {
-            *value = Some(sanitized);
-        }
+fn sanitize_optional_text(value: &mut Option<String>, sanitizer: fn(&str) -> String) {
+    if let Some(raw) = value {
+        *raw = sanitizer(raw);
     }
 }
 
 fn sanitize_user_update_input(input: &mut UserUpdateInput) {
-    if let Some(username) = input.username.take() {
-        let username = Sanitizer::sanitize_text(&username)
-            .trim()
-            .to_ascii_lowercase();
-        if !username.is_empty() {
-            input.username = Some(username);
-        }
-    }
-    if let Some(email) = input.email.take() {
-        let email = Sanitizer::sanitize_email(&email);
-        if !email.is_empty() {
-            input.email = Some(email);
-        }
-    }
-    if let Some(full_name) = input.full_name.take() {
-        let full_name = Sanitizer::sanitize_guest_name(&full_name);
-        if !full_name.trim().is_empty() {
-            input.full_name = Some(full_name);
-        }
-    }
-    if let Some(phone) = input.phone.take() {
-        let phone = Sanitizer::sanitize_phone(&phone);
-        if !phone.is_empty() {
-            input.phone = Some(phone);
-        }
-    }
-    sanitize_optional_text(&mut input.password);
+    sanitize_optional_text(&mut input.username, |value| {
+        Sanitizer::sanitize_text(value).trim().to_string()
+    });
+    sanitize_optional_text(&mut input.email, Sanitizer::sanitize_email);
+    sanitize_optional_text(&mut input.full_name, Sanitizer::sanitize_guest_name);
+    sanitize_optional_text(&mut input.phone, Sanitizer::sanitize_phone);
 }
 
-fn changed_user_fields(input: &UserUpdateInput) -> Vec<&'static str> {
+fn changed_user_fields(
+    existing: &User,
+    input: &UserUpdateInput,
+    password_changed: bool,
+) -> Vec<&'static str> {
     let mut fields = Vec::new();
-    if input.username.is_some() {
+
+    if input
+        .username
+        .as_ref()
+        .is_some_and(|username| username != &existing.username)
+    {
         fields.push("username");
     }
-    if input.email.is_some() {
+    if input
+        .email
+        .as_ref()
+        .is_some_and(|email| email != &existing.email)
+    {
         fields.push("email");
     }
-    if input.full_name.is_some() {
+    if input.full_name.is_some() && input.full_name.as_ref() != existing.full_name.as_ref() {
         fields.push("full_name");
     }
-    if input.phone.is_some() {
+    if input.phone.is_some() && input.phone.as_ref() != existing.phone.as_ref() {
         fields.push("phone");
     }
-    if input.is_active.is_some() {
+    if input
+        .is_active
+        .is_some_and(|is_active| is_active != existing.is_active)
+    {
         fields.push("is_active");
     }
-    if input.password.is_some() {
+    if password_changed {
         fields.push("password");
     }
+
     fields
 }
 

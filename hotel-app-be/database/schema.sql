@@ -496,6 +496,247 @@ COMMENT ON TABLE system_settings IS 'System-wide configuration settings includin
 INSERT INTO system_settings (key, value, description)
 VALUES ('service_tax_rate', '8', 'Service tax percentage applied to room charges (e.g. 8 for 8%)')
 ON CONFLICT (key) DO NOTHING;
+
+-- ============================================================================
+-- 037_guest_ekyc_auto_checkin.sql
+-- ============================================================================
+-- Require approved guest eKYC for scheduled auto check-in by default.
+
+INSERT INTO system_settings (key, value, value_type, category, description, is_public)
+VALUES (
+    'auto_checkin_requires_ekyc',
+    'true',
+    'boolean',
+    'frontdesk',
+    'Require approved guest eKYC before scheduled auto check-in',
+    false
+)
+ON CONFLICT (key) DO NOTHING;
+
+-- ============================================================================
+-- 037_loyalty_program_portal.sql
+-- ============================================================================
+-- Append-only loyalty portal schema. This keeps legacy loyalty tables in place
+-- and adds the guest/admin portal tables used by the new API surface.
+
+INSERT INTO loyalty_programs (name, description, points_per_dollar, currency, is_active)
+VALUES ('Stay Rewards', 'Default guest loyalty program', 1.0, 'USD', true)
+ON CONFLICT (name) DO UPDATE SET
+    description = EXCLUDED.description,
+    is_active = true,
+    updated_at = CURRENT_TIMESTAMP;
+
+ALTER TABLE loyalty_tiers ADD COLUMN IF NOT EXISTS code VARCHAR(50);
+ALTER TABLE loyalty_tiers ADD COLUMN IF NOT EXISTS min_nights INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE loyalty_tiers ADD COLUMN IF NOT EXISTS min_spend DECIMAL(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE loyalty_tiers ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE loyalty_tiers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_loyalty_tiers_code ON loyalty_tiers(code) WHERE code IS NOT NULL;
+
+WITH default_program AS (
+    SELECT id FROM loyalty_programs WHERE name = 'Stay Rewards' LIMIT 1
+)
+INSERT INTO loyalty_tiers (
+    program_id, code, name, min_points, min_nights, min_spend, benefits,
+    discount_percentage, points_multiplier, sort_order, is_active
+)
+SELECT default_program.id, seed.code, seed.name, seed.min_points, seed.min_nights,
+       seed.min_spend, seed.benefits::jsonb, 0, seed.points_multiplier, seed.sort_order, true
+FROM default_program
+CROSS JOIN (
+    VALUES
+        ('silver', 'Silver', 0, 0, 0.00, '["Member rates","Points on eligible stays"]', 1.00, 1),
+        ('gold', 'Gold', 5000, 10, 2500.00, '["Priority support","Late checkout when available","Bonus earning"]', 1.10, 2),
+        ('platinum', 'Platinum', 15000, 30, 7500.00, '["Room upgrade priority","Welcome amenity","Highest earning rate"]', 1.25, 3)
+) AS seed(code, name, min_points, min_nights, min_spend, benefits, points_multiplier, sort_order)
+ON CONFLICT (program_id, name) DO UPDATE SET
+    code = EXCLUDED.code,
+    min_points = EXCLUDED.min_points,
+    min_nights = EXCLUDED.min_nights,
+    min_spend = EXCLUDED.min_spend,
+    benefits = EXCLUDED.benefits,
+    points_multiplier = EXCLUDED.points_multiplier,
+    sort_order = EXCLUDED.sort_order,
+    is_active = true,
+    updated_at = CURRENT_TIMESTAMP;
+
+CREATE SEQUENCE IF NOT EXISTS loyalty_members_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS loyalty_accounts_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS loyalty_transactions_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS loyalty_rewards_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS loyalty_redemptions_id_seq START WITH 1;
+
+CREATE TABLE IF NOT EXISTS loyalty_members (
+    id BIGINT PRIMARY KEY DEFAULT nextval('loyalty_members_id_seq'),
+    guest_id BIGINT NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+    member_number VARCHAR(50) UNIQUE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'closed')),
+    enrolled_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    closed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (guest_id)
+);
+
+CREATE TABLE IF NOT EXISTS loyalty_accounts (
+    id BIGINT PRIMARY KEY DEFAULT nextval('loyalty_accounts_id_seq'),
+    member_id BIGINT NOT NULL UNIQUE REFERENCES loyalty_members(id) ON DELETE CASCADE,
+    current_tier_id BIGINT NOT NULL REFERENCES loyalty_tiers(id),
+    lifetime_points INTEGER NOT NULL DEFAULT 0,
+    qualifying_points INTEGER NOT NULL DEFAULT 0,
+    qualifying_nights INTEGER NOT NULL DEFAULT 0,
+    qualifying_spend DECIMAL(12,2) NOT NULL DEFAULT 0,
+    tier_evaluation_year INTEGER NOT NULL DEFAULT EXTRACT(YEAR FROM CURRENT_DATE)::integer,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS loyalty_transactions (
+    id BIGINT PRIMARY KEY DEFAULT nextval('loyalty_transactions_id_seq'),
+    member_id BIGINT NOT NULL REFERENCES loyalty_members(id) ON DELETE CASCADE,
+    account_id BIGINT NOT NULL REFERENCES loyalty_accounts(id) ON DELETE CASCADE,
+    transaction_type VARCHAR(20) NOT NULL CHECK (transaction_type IN ('pending', 'earned', 'redeemed', 'expired', 'adjusted', 'reversed')),
+    points_delta INTEGER NOT NULL,
+    available_delta INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL,
+    source_type VARCHAR(50),
+    source_id BIGINT,
+    booking_id BIGINT REFERENCES bookings(id) ON DELETE SET NULL,
+    payment_id BIGINT REFERENCES payments(id) ON DELETE SET NULL,
+    invoice_id BIGINT REFERENCES invoices(id) ON DELETE SET NULL,
+    related_transaction_id BIGINT REFERENCES loyalty_transactions(id),
+    description TEXT,
+    metadata TEXT,
+    actor_user_id BIGINT REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS loyalty_rewards (
+    id BIGINT PRIMARY KEY DEFAULT nextval('loyalty_rewards_id_seq'),
+    name VARCHAR(120) NOT NULL,
+    description TEXT,
+    category VARCHAR(50) NOT NULL,
+    points_cost INTEGER NOT NULL CHECK (points_cost > 0),
+    minimum_tier_id BIGINT REFERENCES loyalty_tiers(id),
+    requires_approval BOOLEAN NOT NULL DEFAULT false,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    inventory_count INTEGER,
+    valid_from DATE,
+    valid_to DATE,
+    terms_conditions TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS loyalty_redemptions (
+    id BIGINT PRIMARY KEY DEFAULT nextval('loyalty_redemptions_id_seq'),
+    member_id BIGINT NOT NULL REFERENCES loyalty_members(id) ON DELETE CASCADE,
+    reward_id BIGINT NOT NULL REFERENCES loyalty_rewards(id),
+    transaction_id BIGINT REFERENCES loyalty_transactions(id),
+    points_spent INTEGER NOT NULL CHECK (points_spent > 0),
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'fulfilled', 'cancelled')),
+    requested_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_by BIGINT REFERENCES users(id),
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    rejection_reason TEXT,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS loyalty_program_rules (
+    id BIGINT PRIMARY KEY CHECK (id = 1),
+    points_per_currency_unit DECIMAL(10,4) NOT NULL DEFAULT 1,
+    tier_qualification_metric VARCHAR(20) NOT NULL DEFAULT 'points' CHECK (tier_qualification_metric IN ('points', 'nights', 'spend')),
+    point_expiry_months INTEGER,
+    redemption_approval_required BOOLEAN NOT NULL DEFAULT true,
+    earning_enabled BOOLEAN NOT NULL DEFAULT true,
+    min_eligible_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_loyalty_members_guest ON loyalty_members(guest_id);
+CREATE INDEX IF NOT EXISTS idx_loyalty_members_number ON loyalty_members(member_number);
+CREATE INDEX IF NOT EXISTS idx_loyalty_members_status ON loyalty_members(status);
+CREATE INDEX IF NOT EXISTS idx_loyalty_transactions_member_created ON loyalty_transactions(member_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_loyalty_transactions_source ON loyalty_transactions(source_type, source_id);
+CREATE INDEX IF NOT EXISTS idx_loyalty_transactions_booking ON loyalty_transactions(booking_id);
+CREATE INDEX IF NOT EXISTS idx_loyalty_rewards_status ON loyalty_rewards(is_active, category);
+CREATE INDEX IF NOT EXISTS idx_loyalty_redemptions_status ON loyalty_redemptions(status, requested_at DESC);
+CREATE INDEX IF NOT EXISTS idx_loyalty_redemptions_member ON loyalty_redemptions(member_id, requested_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_loyalty_earned_source
+    ON loyalty_transactions(member_id, source_type, source_id, transaction_type)
+    WHERE source_type IS NOT NULL AND source_id IS NOT NULL AND transaction_type = 'earned';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_loyalty_reversal_once
+    ON loyalty_transactions(related_transaction_id, transaction_type)
+    WHERE related_transaction_id IS NOT NULL AND transaction_type = 'reversed';
+
+DROP TRIGGER IF EXISTS update_loyalty_members_updated_at ON loyalty_members;
+CREATE TRIGGER update_loyalty_members_updated_at
+    BEFORE UPDATE ON loyalty_members
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_loyalty_accounts_updated_at ON loyalty_accounts;
+CREATE TRIGGER update_loyalty_accounts_updated_at
+    BEFORE UPDATE ON loyalty_accounts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_loyalty_rewards_updated_at ON loyalty_rewards;
+CREATE TRIGGER update_loyalty_rewards_updated_at
+    BEFORE UPDATE ON loyalty_rewards
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+INSERT INTO loyalty_program_rules (id, points_per_currency_unit, tier_qualification_metric, point_expiry_months, redemption_approval_required, earning_enabled, min_eligible_amount)
+VALUES (1, 1, 'points', 24, true, true, 0)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO loyalty_rewards (name, description, category, points_cost, minimum_tier_id, requires_approval, is_active, terms_conditions)
+SELECT 'Late checkout', 'Request a late checkout on an eligible stay.', 'service', 750, id, true, true, 'Subject to availability.'
+FROM loyalty_tiers WHERE code = 'silver'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO loyalty_rewards (name, description, category, points_cost, minimum_tier_id, requires_approval, is_active, terms_conditions)
+SELECT 'Room upgrade request', 'Request a one-category room upgrade when available.', 'room_upgrade', 2000, id, true, true, 'Subject to availability and room type.'
+FROM loyalty_tiers WHERE code = 'gold'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO loyalty_rewards (name, description, category, points_cost, minimum_tier_id, requires_approval, is_active, terms_conditions)
+SELECT 'Dining credit', 'Apply a dining credit during a future stay.', 'dining', 1500, id, false, true, 'Valid for one eligible stay.'
+FROM loyalty_tiers WHERE code = 'silver'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO permissions (name, resource, action, description, is_system_permission)
+VALUES
+    ('navigation_loyalty:read', 'navigation:loyalty', 'read', 'Show Loyalty navigation', true),
+    ('navigation_my_rewards:read', 'navigation:my-rewards', 'read', 'Show My Rewards navigation', true)
+ON CONFLICT (name) DO UPDATE SET
+    resource = EXCLUDED.resource,
+    action = EXCLUDED.action,
+    description = EXCLUDED.description,
+    is_system_permission = EXCLUDED.is_system_permission;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name IN ('admin', 'super_admin')
+  AND p.name IN ('navigation_loyalty:read', 'loyalty:read', 'loyalty:manage')
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'guest'
+  AND p.name IN ('navigation_my_rewards:read', 'rewards:read')
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- NOTE: the loyalty / my-rewards route_access_policies seed lives later in this
+-- file (search for "loyalty navigation patch"), after route_access_policies is
+-- created and seeded. It must not run here — route_access_policies does not exist
+-- yet at this point, mirroring the ekyc-admin patch arrangement.
 COMMENT ON TABLE email_templates IS 'Transactional email templates with variable support';
 
 -- ============================================================================
@@ -2777,6 +3018,7 @@ CREATE TABLE IF NOT EXISTS ekyc_reason_codes (
 CREATE TABLE IF NOT EXISTS self_checkin_events (
     id BIGINT PRIMARY KEY DEFAULT nextval('self_checkin_events_id_seq'),
     booking_id BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    guest_id BIGINT REFERENCES guests(id) ON DELETE SET NULL,
     ekyc_verification_id BIGINT REFERENCES ekyc_verifications(id) ON DELETE SET NULL,
     user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
     checked_in_at TIMESTAMP WITH TIME ZONE,
@@ -2785,11 +3027,22 @@ CREATE TABLE IF NOT EXISTS self_checkin_events (
     device_type VARCHAR(100),
     checkin_location VARCHAR(255),
     event_type VARCHAR(100),
+    source VARCHAR(100),
     event_data TEXT,
     ip_address VARCHAR(64),
     user_agent TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE self_checkin_events ADD COLUMN IF NOT EXISTS guest_id BIGINT REFERENCES guests(id) ON DELETE SET NULL;
+ALTER TABLE self_checkin_events ADD COLUMN IF NOT EXISTS source VARCHAR(100);
+
+UPDATE ekyc_verifications e
+SET guest_id = u.guest_id
+FROM users u
+WHERE e.guest_id IS NULL
+  AND e.user_id = u.id
+  AND u.guest_id IS NOT NULL;
 
 INSERT INTO ekyc_reason_codes (code, label, category, requires_details, customer_message_template)
 VALUES
@@ -2816,6 +3069,9 @@ ON CONFLICT (code) DO UPDATE SET
 CREATE INDEX IF NOT EXISTS idx_ekyc_status ON ekyc_verifications(status);
 CREATE INDEX IF NOT EXISTS idx_ekyc_submitted_at ON ekyc_verifications(submitted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ekyc_assigned_reviewer ON ekyc_verifications(assigned_reviewer_id);
+CREATE INDEX IF NOT EXISTS idx_ekyc_guest_latest ON ekyc_verifications(guest_id, submitted_at DESC, updated_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_self_checkin_events_guest ON self_checkin_events(guest_id);
+CREATE INDEX IF NOT EXISTS idx_self_checkin_events_source ON self_checkin_events(source);
 CREATE INDEX IF NOT EXISTS idx_ekyc_risk ON ekyc_verifications(risk_level, risk_score DESC);
 CREATE INDEX IF NOT EXISTS idx_ekyc_manual_review ON ekyc_verifications(manual_review_required);
 CREATE INDEX IF NOT EXISTS idx_ekyc_guest ON ekyc_verifications(guest_id);
@@ -4991,11 +5247,11 @@ INSERT INTO route_access_policies (
 )
 VALUES
     ('dashboard', '/', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false),
-    ('timeline', '/timeline', 'Timeline', 'main', '["rooms:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_timeline:read","bookings:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
+    ('timeline', '/timeline', 'Timeline', 'main', '["rooms:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_timeline:read","bookings:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true),
     ('guest-config', '/guest-config', 'Guests', 'main', '["guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_guest_config:read","guests:read","guests:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
-    ('bookings', '/bookings', 'Bookings', 'main', '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_bookings:read","bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
+    ('bookings', '/bookings', 'Bookings', 'main', '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_bookings:read","bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true),
     ('my-bookings', '/my-bookings', 'My Bookings', 'main', '["bookings:read"]'::jsonb, '[]'::jsonb, '["super_admin","admin","manager","receptionist","staff"]'::jsonb, '["navigation_my_bookings:read","bookings:read"]'::jsonb, '[]'::jsonb, '["super_admin","admin","manager","receptionist","staff"]'::jsonb, true),
-    ('room-management', '/room-management', 'Rooms', 'main', '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_room_management:read","rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
+    ('room-management', '/room-management', 'Rooms', 'main', '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_room_management:read","rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true),
     ('reports', '/reports', 'Reports', 'operations', '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_reports:read","analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
     ('loyalty', '/loyalty', NULL, NULL, '["loyalty:read","loyalty:manage","analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false),
     ('profile', '/profile', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false),
@@ -5008,7 +5264,7 @@ VALUES
     ('company-ledger', '/company-ledger', 'Ledger', 'operations', '["ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_company_ledger:read","ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
     ('night-audit', '/night-audit', 'Night Audit', 'admin', '["night_audit:read","night_audit:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_night_audit:read","night_audit:read","night_audit:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
     ('audit-log', '/audit-log', 'Audit Log', 'admin', '["audit:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_audit_log:read","audit:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
-    ('complimentary', '/complimentary', 'Complimentary Nights', 'admin', '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_complimentary:read","bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
+    ('complimentary', '/complimentary', 'Complimentary Nights', 'admin', '["bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_complimentary:read","bookings:read","bookings:update"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true),
     ('data-transfer', '/data-transfer', 'Data Transfer', 'admin', '["settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_data_transfer:read","settings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true)
 ON CONFLICT (route_id) DO NOTHING;
 
@@ -5021,6 +5277,82 @@ SET required_permissions = '["ekyc:read"]'::jsonb,
     nav_permissions = '["navigation_ekyc_admin:read","ekyc:read"]'::jsonb,
     updated_at = CURRENT_TIMESTAMP
 WHERE route_id = 'ekyc-admin';
+
+-- Hide the operational/admin navigation entries (Timeline, Bookings, Rooms,
+-- Complimentary Nights) from guests. The seed INSERT above uses ON CONFLICT DO
+-- NOTHING, so these UPDATEs bring any pre-existing rows in line with the seed by
+-- setting nav_excluded_roles to exclude 'guest' (which short-circuits nav
+-- visibility regardless of the guest role's permissions). My Bookings is
+-- intentionally left visible to guests (it is their own bookings page).
+UPDATE route_access_policies
+SET nav_excluded_roles = '["guest"]'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
+WHERE route_id IN ('timeline', 'bookings', 'room-management', 'complimentary')
+  AND nav_excluded_roles IS DISTINCT FROM '["guest"]'::jsonb;
+
+-- Revert any prior guest exclusion on My Bookings so guests retain access.
+UPDATE route_access_policies
+SET nav_excluded_roles = '["super_admin","admin","manager","receptionist","staff"]'::jsonb,
+    updated_at = CURRENT_TIMESTAMP
+WHERE route_id = 'my-bookings'
+  AND nav_excluded_roles IS DISTINCT FROM '["super_admin","admin","manager","receptionist","staff"]'::jsonb;
+
+-- ----------------------------------------------------------------------------
+-- loyalty navigation patch
+-- ----------------------------------------------------------------------------
+-- Runs here (not in the 037 loyalty block earlier) because both the
+-- loyalty:read/loyalty:manage permissions and the route_access_policies table
+-- are created/seeded further down/above this point — the earlier block executes
+-- before either exists, so its grants and policy updates silently no-op.
+
+-- Grant the loyalty feature + navigation permissions to admin / super_admin.
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name IN ('admin', 'super_admin')
+  AND p.name IN ('navigation_loyalty:read', 'loyalty:read', 'loyalty:manage')
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- Grant the guest-facing rewards permissions to the guest role.
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'guest'
+  AND p.name IN ('navigation_my_rewards:read', 'rewards:read')
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- Turn the loyalty route into a visible navigation entry (admin group, listed
+-- after Complimentary Nights via the frontend routeRegistry order).
+UPDATE route_access_policies
+SET nav_label = 'Loyalty',
+    nav_group = 'admin',
+    nav_permissions = '["navigation_loyalty:read","loyalty:read","loyalty:manage"]'::jsonb,
+    is_navigation = true,
+    updated_at = CURRENT_TIMESTAMP
+WHERE route_id = 'loyalty';
+
+-- Seed the guest-facing My Rewards navigation entry (hidden from staff roles).
+INSERT INTO route_access_policies (
+    route_id, path, nav_label, nav_group, required_permissions, required_roles,
+    excluded_roles, nav_permissions, nav_roles, nav_excluded_roles, is_navigation
+)
+VALUES (
+    'my-rewards', '/my-rewards', 'My Rewards', 'main', '["rewards:read"]'::jsonb, '[]'::jsonb,
+    '["super_admin","admin","manager","receptionist","staff"]'::jsonb,
+    '["navigation_my_rewards:read","rewards:read"]'::jsonb, '[]'::jsonb,
+    '["super_admin","admin","manager","receptionist","staff"]'::jsonb, true
+)
+ON CONFLICT (route_id) DO UPDATE SET
+    nav_label = EXCLUDED.nav_label,
+    nav_group = EXCLUDED.nav_group,
+    required_permissions = EXCLUDED.required_permissions,
+    excluded_roles = EXCLUDED.excluded_roles,
+    nav_permissions = EXCLUDED.nav_permissions,
+    nav_excluded_roles = EXCLUDED.nav_excluded_roles,
+    is_navigation = EXCLUDED.is_navigation,
+    updated_at = CURRENT_TIMESTAMP;
 
 -- ============================================================================
 -- 031_bootstrap_quarantine.sql

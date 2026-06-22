@@ -57,8 +57,32 @@ pub async fn create_payment(
         _ => None,
     };
 
-    PaymentRepository::create_completed_payment(pool, user_id, &request, &summary, payment_gateway)
-        .await
+    let payment = PaymentRepository::create_completed_payment(
+        pool,
+        user_id,
+        &request,
+        &summary,
+        payment_gateway,
+    )
+    .await?;
+
+    if let Err(err) = crate::modules::loyalty::service::award_eligible_booking_points(
+        pool,
+        payment.booking_id,
+        Some(payment.id),
+        Some(user_id),
+    )
+    .await
+    {
+        log::warn!(
+            "Failed to award loyalty points for payment {} on booking {}: {}",
+            payment.id,
+            payment.booking_id,
+            err
+        );
+    }
+
+    Ok(payment)
 }
 
 pub async fn record_payment(
@@ -118,7 +142,25 @@ pub async fn record_payment(
 
     recompute_payment_status_tx(&mut tx, request.booking_id).await?;
 
+    let booking_id = row.booking_id;
+    let payment_id = row.id;
     tx.commit().await.map_err(ApiError::from)?;
+
+    if let Err(err) = crate::modules::loyalty::service::award_eligible_booking_points(
+        pool,
+        booking_id,
+        Some(payment_id),
+        Some(user_id),
+    )
+    .await
+    {
+        log::warn!(
+            "Failed to award loyalty points for payment {} on booking {}: {}",
+            payment_id,
+            booking_id,
+            err
+        );
+    }
 
     Ok(row.into_response())
 }
@@ -292,6 +334,20 @@ pub async fn update_payment(
 ) -> Result<serde_json::Value, ApiError> {
     let row = PaymentRepository::update_payment(pool, payment_id, &request).await?;
     recompute_payment_status(pool, row.booking_id).await?;
+    if let Err(err) = crate::modules::loyalty::service::award_eligible_booking_points(
+        pool,
+        row.booking_id,
+        Some(row.id),
+        None,
+    )
+    .await
+    {
+        log::warn!(
+            "Failed to reconcile loyalty points for updated payment {}: {}",
+            payment_id,
+            err
+        );
+    }
     Ok(row.into_response())
 }
 
