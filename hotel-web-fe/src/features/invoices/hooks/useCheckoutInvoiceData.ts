@@ -32,8 +32,16 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
       });
       const normalizedPayments = (existing || []) as CheckoutPaymentRecord[];
       setPayments(normalizedPayments);
+      // Detect a refunded keycard deposit structurally rather than by an exact
+      // note string. The backend marks deposit refunds with payment_type='refund'
+      // / status='refunded' (see refund_deposit + bookings_queries deposit_refunded),
+      // so match on those signals and treat a deposit-related note only as a
+      // fallback. This stays correct even if the note text/method changes.
       const hasRefund = normalizedPayments.some(
-        (p) => p.payment_status === 'refunded' && p.notes === 'Keycard deposit refund'
+        (p) =>
+          p.payment_status === 'refunded' ||
+          (p.payment_type || '').toLowerCase() === 'refund' ||
+          /deposit\s*refund/i.test(p.notes || '')
       );
       setDepositRefunded(hasRefund);
     } catch {
