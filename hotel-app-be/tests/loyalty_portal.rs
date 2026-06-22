@@ -46,6 +46,21 @@ mod sqlite_tests {
         guest_id: i64,
         amount: f64,
     ) -> i64 {
+        // Bookings reference a room (FK enforced under SQLite); seed a minimal
+        // room + room type once per database.
+        sqlx::query(
+            "INSERT OR IGNORE INTO room_types (id, name, code, base_price) VALUES (1, 'Standard', 'STD', 100)",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT OR IGNORE INTO rooms (id, room_number, room_type_id, status) VALUES (1, '101', 1, 'available')",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+
         sqlx::query(
             r#"
             INSERT INTO bookings (
