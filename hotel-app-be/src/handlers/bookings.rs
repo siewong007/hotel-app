@@ -120,6 +120,25 @@ pub async fn manual_checkin_handler(
     Ok(Json(booking))
 }
 
+pub async fn auto_checkin_eligibility_handler(
+    State(pool): State<DbPool>,
+    Path(booking_id): Path<i64>,
+) -> Result<Json<GuestEkycStatusSummary>, ApiError> {
+    Ok(Json(
+        crate::services::auto_checkin::auto_checkin_eligibility(&pool, booking_id).await?,
+    ))
+}
+
+pub async fn auto_checkin_handler(
+    State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
+    Path(booking_id): Path<i64>,
+) -> Result<Json<AutoCheckinResponse>, ApiError> {
+    Ok(Json(
+        crate::services::auto_checkin::auto_checkin_for_staff(&pool, user_id, booking_id).await?,
+    ))
+}
+
 pub async fn pre_checkin_update_handler(
     State(pool): State<DbPool>,
     Path(booking_id): Path<i64>,

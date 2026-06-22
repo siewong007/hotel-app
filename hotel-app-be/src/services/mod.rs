@@ -6,6 +6,7 @@ pub mod analytics;
 #[allow(dead_code)]
 pub mod audit;
 pub mod auth;
+pub mod auto_checkin;
 pub mod booking;
 pub mod booking_channels;
 pub mod bookings;

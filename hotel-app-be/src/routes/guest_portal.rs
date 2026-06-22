@@ -23,6 +23,7 @@ pub fn routes() -> Router<DbPool> {
         .route("/guest-portal/verify", post(verify_booking))
         .route("/guest-portal/booking/{token}", get(get_booking))
         .route("/guest-portal/pre-checkin/{token}", post(submit_precheckin))
+        .route("/guest-portal/auto-checkin/{token}", post(auto_checkin))
 }
 
 async fn verify_booking(
@@ -80,4 +81,11 @@ async fn submit_precheckin(
     Json(input): Json<models::PreCheckInUpdateRequest>,
 ) -> Result<Json<models::GuestPortalBookingResponse>, ApiError> {
     handlers::guest_portal::submit_precheckin_update(State(pool), path, Json(input)).await
+}
+
+async fn auto_checkin(
+    State(pool): State<DbPool>,
+    path: Path<String>,
+) -> Result<Json<models::AutoCheckinResponse>, ApiError> {
+    handlers::guest_portal::auto_checkin_by_token(State(pool), path).await
 }

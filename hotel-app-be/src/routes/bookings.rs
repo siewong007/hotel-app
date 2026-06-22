@@ -43,6 +43,11 @@ pub fn routes() -> Router<DbPool> {
         // Specific parameterized routes (MUST come before generic /bookings/:id routes)
         .route("/bookings/{id}/reactivate", post(reactivate_booking))
         .route("/bookings/{id}/checkin", post(manual_checkin))
+        .route(
+            "/bookings/{id}/auto-checkin-eligibility",
+            get(auto_checkin_eligibility),
+        )
+        .route("/bookings/{id}/auto-checkin", post(auto_checkin))
         .route("/bookings/{id}/checkin-advisory", get(checkin_advisory))
         .route("/bookings/{id}/timeline", get(get_booking_timeline))
         .route("/bookings/{id}/pre-checkin", patch(pre_checkin_update))
@@ -150,6 +155,24 @@ async fn manual_checkin(
     let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
     handlers::bookings::manual_checkin_handler(State(pool), Extension(user_id), path, Json(data))
         .await
+}
+
+async fn auto_checkin_eligibility(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::GuestEkycStatusSummary>, ApiError> {
+    require_permission_helper(&pool, &headers, "bookings:read").await?;
+    handlers::bookings::auto_checkin_eligibility_handler(State(pool), path).await
+}
+
+async fn auto_checkin(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<models::AutoCheckinResponse>, ApiError> {
+    let user_id = require_permission_helper(&pool, &headers, "bookings:update").await?;
+    handlers::bookings::auto_checkin_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn checkin_advisory(

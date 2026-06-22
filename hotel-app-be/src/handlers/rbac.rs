@@ -157,13 +157,6 @@ pub async fn create_user_handler(
     Ok(Json(svc::create_user(&pool, admin_user_id, input).await?))
 }
 
-pub async fn get_user_roles_permissions_handler(
-    State(pool): State<DbPool>,
-    Path(user_id): Path<i64>,
-) -> Result<Json<UserWithRolesAndPermissions>, ApiError> {
-    Ok(Json(svc::user_roles_permissions(&pool, user_id).await?))
-}
-
 pub async fn update_user_handler(
     State(pool): State<DbPool>,
     Extension(admin_user_id): Extension<i64>,
@@ -185,6 +178,13 @@ pub async fn delete_user_handler(
     Ok(Json(
         serde_json::json!({"message": "User deleted successfully"}),
     ))
+}
+
+pub async fn get_user_roles_permissions_handler(
+    State(pool): State<DbPool>,
+    Path(user_id): Path<i64>,
+) -> Result<Json<UserWithRolesAndPermissions>, ApiError> {
+    Ok(Json(svc::user_roles_permissions(&pool, user_id).await?))
 }
 
 pub async fn update_role_handler(

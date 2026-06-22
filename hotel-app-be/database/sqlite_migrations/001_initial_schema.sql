@@ -1041,11 +1041,11 @@ INSERT INTO route_access_policies (
 )
 VALUES
     ('dashboard', '/', NULL, NULL, '[]', '[]', '[]', '[]', '[]', '[]', 0),
-    ('timeline', '/timeline', 'Timeline', 'main', '["rooms:read"]', '[]', '[]', '["navigation_timeline:read","bookings:read"]', '[]', '[]', 1),
+    ('timeline', '/timeline', 'Timeline', 'main', '["rooms:read"]', '[]', '[]', '["navigation_timeline:read","bookings:read"]', '[]', '["guest"]', 1),
     ('guest-config', '/guest-config', 'Guests', 'main', '["guests:read","guests:manage"]', '[]', '[]', '["navigation_guest_config:read","guests:read","guests:manage"]', '[]', '[]', 1),
-    ('bookings', '/bookings', 'Bookings', 'main', '["bookings:read","bookings:manage"]', '[]', '[]', '["navigation_bookings:read","bookings:read","bookings:manage"]', '[]', '[]', 1),
+    ('bookings', '/bookings', 'Bookings', 'main', '["bookings:read","bookings:manage"]', '[]', '[]', '["navigation_bookings:read","bookings:read","bookings:manage"]', '[]', '["guest"]', 1),
     ('my-bookings', '/my-bookings', 'My Bookings', 'main', '["bookings:read"]', '[]', '["super_admin","admin","manager","receptionist","staff"]', '["navigation_my_bookings:read","bookings:read"]', '[]', '["super_admin","admin","manager","receptionist","staff"]', 1),
-    ('room-management', '/room-management', 'Rooms', 'main', '["rooms:read","rooms:manage"]', '[]', '[]', '["navigation_room_management:read","rooms:read","rooms:manage"]', '[]', '[]', 1),
+    ('room-management', '/room-management', 'Rooms', 'main', '["rooms:read","rooms:manage"]', '[]', '[]', '["navigation_room_management:read","rooms:read","rooms:manage"]', '[]', '["guest"]', 1),
     ('reports', '/reports', 'Reports', 'operations', '["analytics:read","reports:execute"]', '[]', '[]', '["navigation_reports:read","analytics:read","reports:execute"]', '[]', '[]', 1),
     ('loyalty', '/loyalty', NULL, NULL, '["loyalty:read","loyalty:manage","analytics:read"]', '[]', '[]', '[]', '[]', '[]', 0),
     ('profile', '/profile', NULL, NULL, '[]', '[]', '[]', '[]', '[]', '[]', 0),
@@ -1058,7 +1058,7 @@ VALUES
     ('company-ledger', '/company-ledger', 'Ledger', 'operations', '["ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]', '[]', '[]', '["navigation_company_ledger:read","ledgers:read","ledgers:create","ledgers:update","ledgers:void","ledgers:manage"]', '[]', '[]', 1),
     ('night-audit', '/night-audit', 'Night Audit', 'admin', '["night_audit:read","night_audit:execute"]', '[]', '[]', '["navigation_night_audit:read","night_audit:read","night_audit:execute"]', '[]', '[]', 1),
     ('audit-log', '/audit-log', 'Audit Log', 'admin', '["audit:read"]', '[]', '[]', '["navigation_audit_log:read","audit:read"]', '[]', '[]', 1),
-    ('complimentary', '/complimentary', 'Complimentary Nights', 'admin', '["bookings:read","bookings:update"]', '[]', '[]', '["navigation_complimentary:read","bookings:read","bookings:update"]', '[]', '[]', 1),
+    ('complimentary', '/complimentary', 'Complimentary Nights', 'admin', '["bookings:read","bookings:update"]', '[]', '[]', '["navigation_complimentary:read","bookings:read","bookings:update"]', '[]', '["guest"]', 1),
     ('data-transfer', '/data-transfer', 'Data Transfer', 'admin', '["settings:manage"]', '[]', '[]', '["navigation_data_transfer:read","settings:manage"]', '[]', '[]', 1)
 ON CONFLICT(route_id) DO NOTHING;
 

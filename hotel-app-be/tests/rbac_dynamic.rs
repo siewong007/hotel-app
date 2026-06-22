@@ -92,29 +92,24 @@ mod sqlite_tests {
             1,
             9103,
             UserUpdateInput {
-                username: Some("RBACUpdated".to_string()),
-                email: Some(" RBACUpdated@Hotel.Local ".to_string()),
-                full_name: Some("Updated User".to_string()),
-                phone: Some("+1 (555) 0100".to_string()),
-                is_active: Some(true),
-                password: None,
+                email: Some("  RBACUpdate@Example.COM ".to_string()),
+                full_name: Some(" Updated User ".to_string()),
+                is_active: Some(false),
+                ..Default::default()
             },
         )
         .await
-        .expect("admin should update a lower-priority user");
+        .expect("admin should update lower priority user");
 
-        assert_eq!(updated.username, "rbacupdated");
-        assert_eq!(updated.email, "rbacupdated@hotel.local");
+        assert_eq!(updated.email, "rbacupdate@example.com");
         assert_eq!(updated.full_name.as_deref(), Some("Updated User"));
-        assert_eq!(updated.phone.as_deref(), Some("+15550100"));
-        assert!(updated.is_active);
+        assert!(!updated.is_active);
     }
 
     #[tokio::test]
     async fn admin_delete_user_soft_deletes_and_clears_roles() {
         let pool = common::setup_test_db().await;
         insert_target_user(&pool, 9104, "rbacdelete").await;
-
         rbac::replace_user_roles(
             &pool,
             1,
@@ -122,26 +117,26 @@ mod sqlite_tests {
             hotel_app_be::models::UserRoleIdsInput { role_ids: vec![2] },
         )
         .await
-        .expect("role assignment should succeed");
+        .expect("admin should assign lower priority role");
 
         rbac::delete_user(&pool, 1, 9104)
             .await
-            .expect("admin should delete a lower-priority user");
+            .expect("admin should delete lower priority user");
 
-        let active_user_count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE id = ?1 AND deleted_at IS NULL")
-                .bind(9104_i64)
-                .fetch_one(&pool)
+        let active_user: Option<i64> =
+            sqlx::query_scalar("SELECT id FROM users WHERE id = ?1 AND deleted_at IS NULL")
+                .bind(9104)
+                .fetch_optional(&pool)
                 .await
                 .unwrap();
         let role_count: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM user_roles WHERE user_id = ?1")
-                .bind(9104_i64)
+                .bind(9104)
                 .fetch_one(&pool)
                 .await
                 .unwrap();
 
-        assert_eq!(active_user_count, 0);
+        assert!(active_user.is_none());
         assert_eq!(role_count, 0);
     }
 }

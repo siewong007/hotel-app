@@ -7,6 +7,7 @@ use crate::core::error::ApiError;
 use crate::models::*;
 use crate::repositories::guest::GuestRepository;
 use crate::services::audit::AuditLog;
+use crate::services::auto_checkin;
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
 use regex::Regex;
@@ -34,7 +35,8 @@ pub async fn list_guests(
     }
 
     let pagination = normalize_pagination(params.page, params.page_size, 100, 500);
-    let (total, guests) = GuestRepository::find_paginated(pool, &params, pagination).await?;
+    let (total, mut guests) = GuestRepository::find_paginated(pool, &params, pagination).await?;
+    auto_checkin::attach_guest_ekyc_summaries(pool, &mut guests).await?;
 
     Ok(GuestPaginatedResponse {
         data: guests,
@@ -45,9 +47,11 @@ pub async fn list_guests(
 }
 
 pub async fn get_guest(pool: &DbPool, guest_id: i64) -> Result<Guest, ApiError> {
-    GuestRepository::find_by_id(pool, guest_id)
+    let mut guest = GuestRepository::find_by_id(pool, guest_id)
         .await?
-        .ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))
+        .ok_or_else(|| ApiError::NotFound("Guest not found".to_string()))?;
+    auto_checkin::attach_guest_ekyc_summary(pool, &mut guest).await?;
+    Ok(guest)
 }
 
 pub async fn guest_profile(pool: &DbPool, guest_id: i64) -> Result<GuestProfile, ApiError> {
@@ -55,10 +59,12 @@ pub async fn guest_profile(pool: &DbPool, guest_id: i64) -> Result<GuestProfile,
     let summary = GuestRepository::guest_summary(pool, guest_id).await?;
     let reservations = GuestRepository::guest_profile_bookings(pool, guest_id).await?;
     let duplicate_candidates = duplicate_candidates(pool, &guest).await?;
+    let ekyc_summary = guest.ekyc_summary.clone();
 
     Ok(GuestProfile {
         guest,
         summary,
+        ekyc_summary,
         reservations,
         duplicate_candidates,
     })
@@ -223,6 +229,8 @@ pub async fn update_guest(
     )
     .await;
 
+    let mut updated_guest = updated_guest;
+    auto_checkin::attach_guest_ekyc_summary(pool, &mut updated_guest).await?;
     Ok(updated_guest)
 }
 
@@ -363,7 +371,9 @@ pub async fn unlink_guest(pool: &DbPool, user_id: i64, guest_id: i64) -> Result<
 }
 
 pub async fn my_guests(pool: &DbPool, user_id: i64) -> Result<Vec<Guest>, ApiError> {
-    GuestRepository::linked_guests(pool, user_id).await
+    let mut guests = GuestRepository::linked_guests(pool, user_id).await?;
+    auto_checkin::attach_guest_ekyc_summaries(pool, &mut guests).await?;
+    Ok(guests)
 }
 
 pub async fn upgrade_guest_to_user(
@@ -793,6 +803,7 @@ mod tests {
             updated_at: Utc::now(),
             bookings_count: None,
             last_stay_date: None,
+            ekyc_summary: GuestEkycStatusSummary::not_submitted(id),
         }
     }
 

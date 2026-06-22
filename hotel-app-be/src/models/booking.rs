@@ -4,7 +4,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-use super::guest::GuestUpdateInput;
+use super::guest::{GuestEkycStatusSummary, GuestUpdateInput};
 
 /// Pagination and filter query parameters for bookings.
 #[derive(Debug, Deserialize)]
@@ -319,6 +319,21 @@ pub struct BookingWithDetails {
     pub invoice_number: Option<String>,
     // Per-booking daily-cleaning preference (NULL = not set)
     pub cleaning_preference: Option<bool>,
+    /// Computed from the booking guest's latest eKYC verification and booking eligibility.
+    #[serde(default)]
+    pub ekyc_summary: GuestEkycStatusSummary,
+}
+
+/// Response returned after staff or guest eKYC auto-check-in.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoCheckinResponse {
+    pub success: bool,
+    pub booking_id: i64,
+    pub room_number: String,
+    pub digital_key_sent: bool,
+    pub checked_in_at: DateTime<Utc>,
+    pub ekyc_summary: GuestEkycStatusSummary,
+    pub message: String,
 }
 
 /// Timeline event for a booking workflow.
@@ -497,11 +512,12 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Booking {
 impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for BookingWithDetails {
     fn from_row(row: &'r crate::core::db::DbRow) -> Result<Self, sqlx::Error> {
         use sqlx::Row;
+        let guest_id = row.try_get("guest_id")?;
         Ok(BookingWithDetails {
             id: row.try_get("id")?,
             booking_number: row.try_get("booking_number")?,
             folio_number: row.try_get("folio_number")?,
-            guest_id: row.try_get("guest_id")?,
+            guest_id,
             guest_name: row.try_get("guest_name")?,
             guest_email: row.try_get("guest_email")?,
             guest_type: row.try_get("guest_type")?,
@@ -678,6 +694,7 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for BookingWithDetails {
             daily_rates: row.try_get("daily_rates")?,
             invoice_number: row.try_get("invoice_number")?,
             cleaning_preference: row.try_get("cleaning_preference")?,
+            ekyc_summary: GuestEkycStatusSummary::not_submitted(guest_id),
         })
     }
 }

@@ -11,6 +11,7 @@ use crate::models::{
     PreCheckInUpdateRequest,
 };
 use crate::repositories::guest_portal::GuestPortalRepository;
+use crate::services::auto_checkin;
 
 const VERIFY_BOOKING_FAILURE: &str =
     "Unable to verify booking details. Please check the booking number and email.";
@@ -70,9 +71,7 @@ pub async fn get_booking_by_token(
     token: &str,
 ) -> Result<GuestPortalBookingResponse, ApiError> {
     let booking = require_valid_token(pool, token).await?;
-    let guest = GuestPortalRepository::find_guest(pool, booking.guest_id).await?;
-
-    Ok(GuestPortalBookingResponse { booking, guest })
+    portal_response(pool, booking).await
 }
 
 pub async fn submit_precheckin_update(
@@ -96,12 +95,16 @@ pub async fn submit_precheckin_update(
     .await?;
 
     let updated_booking = GuestPortalRepository::find_booking_by_id(pool, booking.id).await?;
-    let updated_guest = GuestPortalRepository::find_guest(pool, updated_booking.guest_id).await?;
 
-    Ok(GuestPortalBookingResponse {
-        booking: updated_booking,
-        guest: updated_guest,
-    })
+    portal_response(pool, updated_booking).await
+}
+
+pub async fn auto_checkin_by_token(
+    pool: &DbPool,
+    token: &str,
+) -> Result<crate::models::AutoCheckinResponse, ApiError> {
+    let booking = require_valid_token(pool, token).await?;
+    auto_checkin::auto_checkin_for_guest_portal(pool, booking.id).await
 }
 
 async fn require_valid_token(pool: &DbPool, token: &str) -> Result<Booking, ApiError> {
@@ -133,6 +136,21 @@ fn normalize_guest_email(request: &mut PreCheckInUpdateRequest) {
     } else {
         request.guest_update.email = None;
     }
+}
+
+async fn portal_response(
+    pool: &DbPool,
+    booking: Booking,
+) -> Result<GuestPortalBookingResponse, ApiError> {
+    let mut guest = GuestPortalRepository::find_guest(pool, booking.guest_id).await?;
+    auto_checkin::attach_guest_ekyc_summary(pool, &mut guest).await?;
+    let ekyc_summary = auto_checkin::auto_checkin_eligibility(pool, booking.id).await?;
+
+    Ok(GuestPortalBookingResponse {
+        booking,
+        guest,
+        ekyc_summary,
+    })
 }
 
 #[cfg(test)]
