@@ -1002,7 +1002,7 @@ pub async fn generate_journal_sections(
         JOIN bookings b ON p.booking_id = b.id
         JOIN rooms r ON b.room_id = r.id
         WHERE p.status = 'completed'
-        AND p.payment_type != 'refund'
+        AND COALESCE(LOWER(TRIM(p.payment_type)), '') != 'refund'
         AND b.status != 'voided'
         AND (p.created_at AT TIME ZONE $2)::date = $1
         ORDER BY r.room_number
@@ -1026,7 +1026,7 @@ pub async fn generate_journal_sections(
                 let booking_remarks: String = row.get("booking_remarks");
                 let check_in_date: NaiveDate = row.get("check_in_date");
 
-                if payment_type == "refund" {
+                if payment_type.trim().eq_ignore_ascii_case("refund") {
                     continue;
                 }
 
@@ -1080,8 +1080,10 @@ pub async fn generate_journal_sections(
         FROM payments p
         JOIN bookings b ON p.booking_id = b.id
         JOIN rooms r ON b.room_id = r.id
-        WHERE p.payment_type = 'refund'
-        AND p.status = 'refunded'
+        WHERE (
+            COALESCE(LOWER(TRIM(p.payment_type)), '') = 'refund'
+            OR COALESCE(LOWER(TRIM(p.status)), '') = 'refunded'
+        )
         AND b.status != 'voided'
         AND (p.created_at AT TIME ZONE $2)::date = $1
         ORDER BY r.room_number
