@@ -647,7 +647,7 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('check_out_time', '11:00', 'string', 'general', 'Standard check-out time', true),
 ('night_shift_time', '23:00', 'string', 'operations', 'Scheduled night audit posting time', false),
 ('currency', 'USD', 'string', 'general', 'Default currency code', true),
-('timezone', 'America/New_York', 'string', 'general', 'Hotel timezone', false),
+('timezone', 'Asia/Kuala_Lumpur', 'string', 'general', 'Hotel timezone', false),
 ('deposit_amount', '50', 'number', 'payments', 'Default room card or check-in deposit amount', false),
 ('tourism_tax_rate', '10', 'number', 'tax', 'Tourism tax amount charged per night for foreign guests', false),
 ('default_payment_terms_days', '30', 'number', 'ledger', 'Default ledger due-date offset in days when a company has no payment terms', false),
