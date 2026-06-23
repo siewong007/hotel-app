@@ -58,7 +58,11 @@ interface LedgerEntriesTabProps {
 // (and the entry isn't voided). Keyed off the balance-driven UI status so a
 // settled entry locks at zero balance but automatically reopens — the action
 // reappears — the moment its balance returns.
+// Invoice-backed (booking) entries record payments inside the invoice itself,
+// so the standalone Record Payment action is only offered for manual entries
+// that have no invoice to collect against.
 const canRecordPayment = (ledger: CustomerLedger) => {
+  if (ledger.booking_id) return false;
   const uiStatus = getLedgerUiStatus(ledger);
   return uiStatus !== 'paid' && uiStatus !== 'voided';
 };

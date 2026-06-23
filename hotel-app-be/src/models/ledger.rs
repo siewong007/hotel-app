@@ -167,10 +167,21 @@ pub struct CustomerLedgerPaymentRequest {
     pub payment_date: Option<String>,
 }
 
-/// Input for updating a ledger payment
+/// Input for updating a ledger payment. Only `payment_date` is required (so the
+/// existing date-only edit path keeps working); the other fields are optional
+/// and, when present, allow editing the full payment details (amount, method,
+/// reference, notes).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UpdateLedgerPaymentRequest {
     pub payment_date: String,
+    #[serde(default)]
+    pub payment_amount: Option<f64>,
+    #[serde(default)]
+    pub payment_method: Option<String>,
+    #[serde(default)]
+    pub payment_reference: Option<String>,
+    #[serde(default)]
+    pub notes: Option<String>,
 }
 
 /// Ledger with payment history

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { BookingWithDetails } from '../../../types';
+import { BookingWithDetails, CustomerLedger, CustomerLedgerPayment } from '../../../types';
 import { HotelAPIService } from '../../../api';
 import { InvoicesService } from '../../../api/invoices.service';
+import { LedgerService } from '../../../api/ledger.service';
 import { queryStaleTime } from '../../../api/queryConfig';
 import { queryKeys } from '../../../api/queryKeys';
 import { getHotelSettings, HotelSettings } from '../../../utils/hotelSettings';
@@ -10,7 +11,29 @@ import type { CheckoutPaymentRecord } from '../types';
 import { formatLocalDate, parseLocalDate, addLocalDays } from '../../../utils/date';
 import { toMoneyNumber } from '../../../utils/money';
 
-export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open: boolean) {
+// Map a company city-ledger payment onto the shared payment-row shape so the
+// invoice modal can render ledger payments the same way it renders booking
+// payments. Company-billed bookings record their payments against the customer
+// ledger (`customer_ledger_payments`), not the booking `payments` table.
+function ledgerPaymentToRecord(payment: CustomerLedgerPayment): CheckoutPaymentRecord {
+  return {
+    id: payment.id,
+    payment_status: 'completed',
+    total_amount: payment.payment_amount,
+    payment_method: payment.payment_method,
+    payment_type: 'payment',
+    transaction_reference: payment.payment_reference || payment.receipt_number || null,
+    notes: payment.notes || null,
+    payment_date: payment.payment_date,
+    created_at: payment.created_at,
+  };
+}
+
+export function useCheckoutInvoiceData(
+  booking: BookingWithDetails | null,
+  open: boolean,
+  ledger?: CustomerLedger | null,
+) {
   const queryClient = useQueryClient();
   const [hotelSettings, setHotelSettings] = useState<HotelSettings>(getHotelSettings());
   const [roomPrice, setRoomPrice] = useState(0);
@@ -24,6 +47,23 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
 
   const reloadPayments = useCallback(async () => {
     if (!booking) return;
+    // City-ledger receipts: payments live on the customer ledger, not the
+    // booking. Source them from there so the modal reflects what was actually
+    // collected (and the resulting balance due) for company-billed stays.
+    if (ledger?.id) {
+      try {
+        const ledgerPayments = await queryClient.fetchQuery({
+          queryKey: queryKeys.ledgers.payments(ledger.id),
+          queryFn: () => LedgerService.getLedgerPayments(ledger.id),
+          staleTime: 0,
+        });
+        setPayments((ledgerPayments || []).map(ledgerPaymentToRecord));
+      } catch {
+        setPayments([]);
+      }
+      setDepositRefunded(false);
+      return;
+    }
     try {
       const existing = await queryClient.fetchQuery({
         queryKey: queryKeys.invoices.payments(booking.id),
@@ -47,7 +87,7 @@ export function useCheckoutInvoiceData(booking: BookingWithDetails | null, open:
     } catch {
       setPayments([]);
     }
-  }, [booking, queryClient]);
+  }, [booking, queryClient, ledger?.id]);
 
   useEffect(() => {
     if (!open || !booking) return;

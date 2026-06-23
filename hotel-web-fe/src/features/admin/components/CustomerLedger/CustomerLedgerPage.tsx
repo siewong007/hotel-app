@@ -1477,7 +1477,7 @@ const CustomerLedgerPage: React.FC = () => {
     try {
       setLoadingLedgerInvoice(true);
       const booking = await api.get(`bookings/${ledger.booking_id}`).json<BookingWithDetails>();
-      checkoutFlow.openReceipt(enhanceBookingDetails(booking));
+      checkoutFlow.openReceipt(enhanceBookingDetails(booking), ledger);
     } catch (err: any) {
       showSnackbar(err.message || 'Failed to load invoice', 'error');
     } finally {
@@ -2157,7 +2157,10 @@ const CustomerLedgerPage: React.FC = () => {
 
       {/* Checkout Invoice Modal */}
       {/* Shared checkout + read-only receipt modals */}
-      <CheckoutInvoiceModals flow={checkoutFlow} />
+      <CheckoutInvoiceModals
+        flow={checkoutFlow}
+        onReceiptPaymentsChanged={() => { void loadData(); }}
+      />
 
       {/* Company Registration Dialog */}
       <CompanyFormDialog
