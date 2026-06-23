@@ -122,6 +122,33 @@ export class LedgerService {
     return await api.get(`ledgers/${ledgerId}/with-payments`).json<CustomerLedgerWithPayments>();
   }
 
+  /**
+   * Find the company city-ledger room-charge row backing a booking, if any.
+   * Company-billed bookings record payments against this ledger (not the
+   * booking `payments` table), so the booking-page invoice sources its payment
+   * history from here. Returns `null` when the booking has no posted room charge
+   * (e.g. not yet checked out, or not company-billed).
+   *
+   * There is no server-side `booking_id` filter, so we narrow by `room_number`
+   * (and `post_type=room_charge`) server-side, then match the booking and skip
+   * reversal rows client-side. The partial unique index guarantees at most one
+   * non-reversal room_charge per booking.
+   */
+  static async getRoomChargeLedgerForBooking(
+    bookingId: number,
+    roomNumber?: string,
+  ): Promise<CustomerLedger | null> {
+    const ledgers = await this.getCustomerLedgers({
+      post_type: 'room_charge',
+      ...(roomNumber ? { room_number: roomNumber } : {}),
+    });
+    return (
+      ledgers.find(
+        (l) => Number(l.booking_id) === Number(bookingId) && !l.is_reversal,
+      ) || null
+    );
+  }
+
   static async createCustomerLedger(data: CustomerLedgerCreateRequest): Promise<CustomerLedger> {
     return await api.post('ledgers', { json: data }).json<CustomerLedger>();
   }
@@ -148,6 +175,23 @@ export class LedgerService {
 
   static async updateLedgerPaymentDate(ledgerId: number, paymentId: number, paymentDate: string): Promise<CustomerLedgerPayment> {
     return await api.patch(`ledgers/${ledgerId}/payments/${paymentId}`, { json: { payment_date: paymentDate } }).json<CustomerLedgerPayment>();
+  }
+
+  // Edit the full details of an existing ledger payment. `payment_date` is
+  // required by the backend; the other fields are optional and only applied
+  // when provided. The ledger's paid_amount/status are recomputed server-side.
+  static async updateLedgerPayment(
+    ledgerId: number,
+    paymentId: number,
+    data: {
+      payment_date: string;
+      payment_amount?: number;
+      payment_method?: string;
+      payment_reference?: string;
+      notes?: string;
+    },
+  ): Promise<CustomerLedgerPayment> {
+    return await api.patch(`ledgers/${ledgerId}/payments/${paymentId}`, { json: data }).json<CustomerLedgerPayment>();
   }
 
   static async deleteLedgerPayment(ledgerId: number, paymentId: number): Promise<void> {

@@ -78,6 +78,7 @@ import { useCurrency } from '../../../../hooks/useCurrency';
 import { useSearchParams } from '../../../../router';
 import CheckoutInvoiceModals from '../../../invoices/components/CheckoutInvoiceModals';
 import { useCheckoutFlow } from '../../../invoices/hooks/useCheckoutFlow';
+import { LedgerService } from '../../../../api/ledger.service';
 import UnifiedBookingModal from '../../../rooms/components/UnifiedBooking';
 import { getHotelSettings } from '../../../../utils/hotelSettings';
 import { getBookedViaText, getBookingChannelInfo } from '../../utils/bookingChannel';
@@ -739,9 +740,26 @@ const BookingsPage: React.FC = () => {
     }
   };
 
-  // View invoice for checked-out bookings
-  const handleViewInvoice = (booking: BookingWithDetails) => {
-    checkoutFlow.openReceipt(booking);
+  // View invoice for checked-out bookings. For company city-ledger bookings the
+  // payments live on the customer ledger (not the booking `payments` table), so
+  // look up the backing room-charge ledger and pass it through — the invoice
+  // then renders the ledger's payment history, same as the ledger page.
+  const handleViewInvoice = async (booking: BookingWithDetails) => {
+    const isCompanyBilling = Boolean(booking.company_id || booking.company_name?.trim());
+    if (!isCompanyBilling) {
+      checkoutFlow.openReceipt(booking);
+      return;
+    }
+    try {
+      const ledger = await LedgerService.getRoomChargeLedgerForBooking(
+        Number(booking.id),
+        booking.room_number,
+      );
+      checkoutFlow.openReceipt(booking, ledger);
+    } catch {
+      // Fall back to the booking-sourced receipt if the ledger lookup fails.
+      checkoutFlow.openReceipt(booking);
+    }
   };
 
   const handleViewWorkflow = async (booking: BookingWithDetails) => {
@@ -1592,8 +1610,13 @@ const BookingsPage: React.FC = () => {
                     {canCheckOut(selectedBooking) && (
                       <Button variant="contained" color="warning" startIcon={<CheckOutIcon />} onClick={() => handleCheckOut(selectedBooking)}>Check out</Button>
                     )}
-                    {/* Locked once fully settled; reappears when a balance returns. */}
-	                    {!selectedBooking.is_complimentary && isPositiveMoney(getBookingBalance(selectedBooking)) && (
+                    {/* Standalone payment entry is only for pre-arrival bookings
+                        (confirmed/pending) that have no invoice yet. Once checked in,
+                        out, or completed, payments are recorded inside the invoice
+                        (checkout preview / receipt). Locked once fully settled. */}
+                    {!selectedBooking.is_complimentary
+                      && isPositiveMoney(getBookingBalance(selectedBooking))
+                      && !['checked_in', 'checked_out', 'completed'].includes(selectedBooking.status) && (
                       <Button variant="outlined" color="success" startIcon={<PaymentIcon />} onClick={() => handleUpdatePaymentStatus(selectedBooking)}>Payment</Button>
                     )}
                     <Button variant="outlined" startIcon={<HistoryIcon />} onClick={() => handleViewWorkflow(selectedBooking)}>Workflow</Button>
@@ -2322,7 +2345,10 @@ const BookingsPage: React.FC = () => {
 
       {/* Checkout Invoice Modal */}
       {/* Shared checkout + read-only receipt modals */}
-      <CheckoutInvoiceModals flow={checkoutFlow} />
+      <CheckoutInvoiceModals
+        flow={checkoutFlow}
+        onReceiptPaymentsChanged={() => { void reloadBookingData(); }}
+      />
 
       {/* Check-In Dialog */}
       <Dialog

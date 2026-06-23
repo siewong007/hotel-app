@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { BookingWithDetails } from '../../../types';
+import type { BookingWithDetails, CustomerLedger } from '../../../types';
 import { HotelAPIService } from '../../../api';
 
 export interface LateCheckoutData {
@@ -44,7 +44,10 @@ export interface CheckoutFlow {
   // Read-only receipt/invoice modal state
   receiptOpen: boolean;
   receiptBooking: BookingWithDetails | null;
-  openReceipt: (booking: BookingWithDetails) => void;
+  /** Set when the receipt is a company city-ledger invoice; payments are then
+   * sourced from this ledger instead of the booking. */
+  receiptLedger: CustomerLedger | null;
+  openReceipt: (booking: BookingWithDetails, ledger?: CustomerLedger | null) => void;
   closeReceipt: () => void;
   // Shared confirm-checkout orchestration (matches CheckoutInvoiceModal's
   // onConfirmCheckout signature). Re-throws on error so the modal can display it.
@@ -70,6 +73,7 @@ export function useCheckoutFlow(options: UseCheckoutFlowOptions = {}): CheckoutF
   const [checkoutBooking, setCheckoutBooking] = useState<BookingWithDetails | null>(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptBooking, setReceiptBooking] = useState<BookingWithDetails | null>(null);
+  const [receiptLedger, setReceiptLedger] = useState<CustomerLedger | null>(null);
 
   const openCheckout = useCallback((booking: BookingWithDetails) => {
     setCheckoutBooking(booking);
@@ -81,14 +85,16 @@ export function useCheckoutFlow(options: UseCheckoutFlowOptions = {}): CheckoutF
     setCheckoutBooking(null);
   }, []);
 
-  const openReceipt = useCallback((booking: BookingWithDetails) => {
+  const openReceipt = useCallback((booking: BookingWithDetails, ledger: CustomerLedger | null = null) => {
     setReceiptBooking(booking);
+    setReceiptLedger(ledger);
     setReceiptOpen(true);
   }, []);
 
   const closeReceipt = useCallback(() => {
     setReceiptOpen(false);
     setReceiptBooking(null);
+    setReceiptLedger(null);
   }, []);
 
   const confirmCheckout = useCallback(
@@ -143,6 +149,7 @@ export function useCheckoutFlow(options: UseCheckoutFlowOptions = {}): CheckoutF
     closeCheckout,
     receiptOpen,
     receiptBooking,
+    receiptLedger,
     openReceipt,
     closeReceipt,
     confirmCheckout,

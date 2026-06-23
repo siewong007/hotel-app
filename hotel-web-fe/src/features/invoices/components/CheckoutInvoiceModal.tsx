@@ -34,10 +34,11 @@ import {
   Edit as EditIcon,
   Delete as DeleteIcon,
 } from '@mui/icons-material';
-import { BookingWithDetails } from '../../../types';
+import { BookingWithDetails, CustomerLedger } from '../../../types';
 import { useCurrency } from '../../../hooks/useCurrency';
 import { HotelAPIService } from '../../../api';
 import { InvoicesService } from '../../../api/invoices.service';
+import { LedgerService } from '../../../api/ledger.service';
 import { queryKeys } from '../../../api/queryKeys';
 import { useCheckoutInvoiceData } from '../hooks/useCheckoutInvoiceData';
 import { calculateChargesFromInputs, emptyCharges, ChargesBreakdown } from '../utils/chargesCalculation';
@@ -52,6 +53,20 @@ interface CheckoutInvoiceModalProps {
   booking: BookingWithDetails | null;
   onConfirmCheckout?: (lateCheckoutData?: { penalty: number; notes: string }, paymentMethod?: string) => Promise<void>;
   readOnly?: boolean;
+  /**
+   * When viewing a company city-ledger invoice, the customer ledger whose
+   * payments back this booking. Payments and balance are then sourced from the
+   * ledger (`customer_ledger_payments`) instead of the booking payments table,
+   * and the inline record/edit/delete payment controls are hidden — company
+   * payments are managed on the ledger itself.
+   */
+  ledger?: CustomerLedger | null;
+  /**
+   * Called after a city-ledger payment is recorded/edited/deleted from this
+   * modal, so the parent (e.g. the Customer Ledger page) can refresh its
+   * balances/collection totals.
+   */
+  onLedgerPaymentsChanged?: () => void;
 }
 
 const getPaymentTimestamp = (payment: CheckoutPaymentRecord): string => (
@@ -82,6 +97,8 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
   booking,
   onConfirmCheckout,
   readOnly = false,
+  ledger = null,
+  onLedgerPaymentsChanged,
 }) => {
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const queryClient = useQueryClient();
@@ -103,7 +120,11 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     editableDailyRates,
     setEditableDailyRates,
     reloadPayments,
-  } = useCheckoutInvoiceData(booking, open);
+  } = useCheckoutInvoiceData(booking, open, ledger);
+
+  // Company city-ledger receipt: payments come from the ledger and are managed
+  // there, so the inline record/edit/delete controls are hidden here.
+  const isLedgerView = Boolean(ledger);
 
   const invalidateInvoiceState = () => {
     if (!booking) return;
@@ -169,23 +190,36 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     }
   }, [open, booking]);
 
-  // Pre-fill payment amount when charges or payments update
+  // Pre-fill payment amount with the outstanding balance. For a city-ledger
+  // invoice that balance comes from the ledger (the receipt's authoritative
+  // balance_due); otherwise it's the booking total minus payments collected.
   useEffect(() => {
-    if (open && booking && isPositiveMoney(charges.grandTotal)) {
-      const totalPaid = payments
-        .filter((payment) => payment.payment_status === 'completed')
-        .reduce((sum, payment) => sumMoney([sum, payment.total_amount]), 0);
-      const balance = subtractMoney(charges.grandTotal, totalPaid);
-      if (isPositiveMoney(balance)) {
-        setPaymentAmount(balance);
-      }
+    if (!open || !booking) return;
+    const balance = isLedgerView && ledger
+      ? toMoneyNumber(ledger.balance_due)
+      : subtractMoney(
+          charges.grandTotal,
+          payments
+            .filter((payment) => payment.payment_status === 'completed')
+            .reduce((sum, payment) => sumMoney([sum, payment.total_amount]), 0),
+        );
+    if (isPositiveMoney(balance)) {
+      setPaymentAmount(balance);
     }
-  }, [open, booking, charges.grandTotal, payments]);
+  }, [open, booking, charges.grandTotal, payments, isLedgerView, ledger]);
 
-  const totalPayments = payments
+  const paymentRowsTotal = payments
     .filter((payment) => payment.payment_status === 'completed')
     .reduce((sum, payment) => sumMoney([sum, payment.total_amount]), 0);
-  const balanceDue = subtractMoney(charges.grandTotal, totalPayments);
+  // For a company city-ledger invoice the ledger is the source of truth for the
+  // invoiced amount and outstanding balance (per CLAUDE.md the backend is the
+  // sole authority for company ledger rows). The booking-derived charges are
+  // only a line-item breakdown and can diverge after manual ledger adjustments,
+  // so the header total and balance due mirror the ledger to match the receipt.
+  const displayTotal = isLedgerView && ledger ? toMoneyNumber(ledger.amount) : charges.grandTotal;
+  const balanceDue = isLedgerView && ledger
+    ? toMoneyNumber(ledger.balance_due)
+    : subtractMoney(charges.grandTotal, paymentRowsTotal);
   const hasBalanceDue = isPositiveMoney(balanceDue);
   const isCompanyBilling = Boolean(booking?.company_id || booking?.company_name?.trim());
   const requiresFullPaymentBeforeCheckout = !isCompanyBilling && hasBalanceDue;
@@ -196,16 +230,29 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     if (!booking || !isPositiveMoney(paymentAmount)) return;
     try {
       setRecordingPayment(true);
-      const newPayment = await InvoicesService.recordPayment({
-        booking_id: Number(booking.id),
-        amount: paymentAmount,
-        payment_method: paymentMethod,
-        transaction_reference: paymentReference || undefined,
-        notes: paymentNotes || undefined,
-        payment_date: paymentDate || undefined,
-      });
-      setPayments(prev => [...prev, newPayment]);
-      invalidateInvoiceState();
+      if (isLedgerView && ledger) {
+        // City-ledger invoice: post against the customer ledger, not the booking.
+        await LedgerService.createLedgerPayment(ledger.id, {
+          payment_amount: paymentAmount,
+          payment_method: paymentMethod,
+          payment_reference: paymentReference || undefined,
+          notes: paymentNotes || undefined,
+          payment_date: paymentDate || undefined,
+        });
+        await reloadPayments();
+        onLedgerPaymentsChanged?.();
+      } else {
+        const newPayment = await InvoicesService.recordPayment({
+          booking_id: Number(booking.id),
+          amount: paymentAmount,
+          payment_method: paymentMethod,
+          transaction_reference: paymentReference || undefined,
+          notes: paymentNotes || undefined,
+          payment_date: paymentDate || undefined,
+        });
+        setPayments(prev => [...prev, newPayment]);
+        invalidateInvoiceState();
+      }
       setShowPaymentForm(false);
       setPaymentAmount(0);
       setPaymentReference('');
@@ -240,15 +287,27 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     if (!editingPayment || !isPositiveMoney(editAmount)) return;
     try {
       setUpdatingPayment(true);
-      const updatedPayment = await InvoicesService.updatePayment(editingPayment.id, {
-        amount: editAmount,
-        payment_method: editMethod,
-        transaction_reference: editReference || undefined,
-        notes: editNotes || undefined,
-        payment_date: editDate || undefined,
-      });
-      setPayments(prev => prev.map(p => p.id === editingPayment.id ? updatedPayment : p));
-      invalidateInvoiceState();
+      if (isLedgerView && ledger) {
+        await LedgerService.updateLedgerPayment(ledger.id, editingPayment.id, {
+          payment_date: editDate || formatLocalDate(),
+          payment_amount: editAmount,
+          payment_method: editMethod,
+          payment_reference: editReference || undefined,
+          notes: editNotes || undefined,
+        });
+        await reloadPayments();
+        onLedgerPaymentsChanged?.();
+      } else {
+        const updatedPayment = await InvoicesService.updatePayment(editingPayment.id, {
+          amount: editAmount,
+          payment_method: editMethod,
+          transaction_reference: editReference || undefined,
+          notes: editNotes || undefined,
+          payment_date: editDate || undefined,
+        });
+        setPayments(prev => prev.map(p => p.id === editingPayment.id ? updatedPayment : p));
+        invalidateInvoiceState();
+      }
       handleCancelEdit();
     } catch (err: any) {
       setError(err.message || 'Failed to update payment');
@@ -261,6 +320,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     if (!window.confirm('Are you sure you want to delete this payment record?')) return;
     try {
       setDeletingPaymentId(paymentId);
+      if (isLedgerView && ledger) {
+        await LedgerService.deleteLedgerPayment(ledger.id, paymentId);
+        await reloadPayments();
+        onLedgerPaymentsChanged?.();
+        return;
+      }
       // Check if this is a refund payment before deleting
       const deletedPayment = payments.find(p => p.id === paymentId);
       await InvoicesService.deletePayment(paymentId);
@@ -938,12 +1003,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   <Grid container>
                     <Grid size={8}>
                       <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        {charges.grandTotal >= 0 ? 'Total Amount Due' : 'Total Refund'}
+                        {displayTotal >= 0 ? 'Total Amount Due' : 'Total Refund'}
                       </Typography>
                     </Grid>
                     <Grid sx={{ textAlign: 'right' }} size={4}>
                       <Typography variant="h5" sx={{ fontWeight: 700, color: '#1976d2' }}>
-                        {formatCurrency(Math.abs(charges.grandTotal))}
+                        {formatCurrency(Math.abs(displayTotal))}
                       </Typography>
                     </Grid>
                   </Grid>

@@ -1906,7 +1906,11 @@ pub async fn create_ledger_reversal(
     Ok(reversal)
 }
 
-/// Update the payment date on an existing ledger payment (SQLite version)
+/// Update an existing ledger payment (SQLite version). `payment_date` is always
+/// applied; `payment_amount`/`payment_method`/`payment_reference`/`notes` are
+/// applied only when provided (others are left unchanged). The ledger's
+/// `paid_amount`, `status` and `payment_date` are recomputed from the resulting
+/// set of payments.
 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
 pub async fn update_ledger_payment(
     pool: &DbPool,
@@ -1929,22 +1933,102 @@ pub async fn update_ledger_payment(
         return Err(ApiError::NotFound("Payment not found".to_string()));
     }
 
-    sqlx::query("UPDATE customer_ledger_payments SET payment_date = ?1 WHERE id = ?2")
-        .bind(&payment_date_value)
-        .bind(payment_id)
-        .execute(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+    // Validate the optional new amount and guard against over-payment (the sum
+    // of the other payments plus this one must not exceed the ledger total).
+    let new_amount = match request.payment_amount {
+        Some(a) => {
+            let dec = Decimal::from_f64_retain(a)
+                .ok_or_else(|| ApiError::BadRequest("Invalid payment amount".to_string()))?;
+            if dec <= Decimal::ZERO {
+                return Err(ApiError::BadRequest(
+                    "Payment amount must be positive".to_string(),
+                ));
+            }
+            let total_amount: f64 =
+                sqlx::query_scalar("SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = ?1")
+                    .bind(ledger_id)
+                    .fetch_one(pool)
+                    .await
+                    .map_err(|e| ApiError::Database(e.to_string()))?;
+            let others_paid: f64 = sqlx::query_scalar(
+                "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = ?1 AND id <> ?2",
+            )
+            .bind(ledger_id)
+            .bind(payment_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+            let prospective =
+                Decimal::from_f64_retain(others_paid).unwrap_or(Decimal::ZERO) + dec;
+            if prospective > Decimal::from_f64_retain(total_amount).unwrap_or(Decimal::ZERO) {
+                return Err(ApiError::BadRequest(
+                    "Payment amount cannot exceed outstanding balance".to_string(),
+                ));
+            }
+            Some(dec)
+        }
+        None => None,
+    };
 
-    // Also update the ledger's payment_date to the latest payment date
+    // Update the payment row. COALESCE keeps the existing value when a field is
+    // omitted from the request.
+    sqlx::query(
+        r#"
+        UPDATE customer_ledger_payments
+        SET payment_date = ?1,
+            payment_amount = COALESCE(?2, payment_amount),
+            payment_method = COALESCE(?3, payment_method),
+            payment_reference = COALESCE(?4, payment_reference),
+            notes = COALESCE(?5, notes)
+        WHERE id = ?6
+        "#,
+    )
+    .bind(&payment_date_value)
+    .bind(new_amount.map(decimal_to_db))
+    .bind(request.payment_method.as_deref())
+    .bind(request.payment_reference.as_deref())
+    .bind(request.notes.as_deref())
+    .bind(payment_id)
+    .execute(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    // Recalculate paid_amount + status from all remaining payments.
+    let new_paid: f64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = ?1",
+    )
+    .bind(ledger_id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let total_amount: f64 =
+        sqlx::query_scalar("SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = ?1")
+            .bind(ledger_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let new_status = if new_paid >= total_amount {
+        "paid"
+    } else if new_paid > 0.0 {
+        "partial"
+    } else {
+        "pending"
+    };
+
     sqlx::query(
         r#"
         UPDATE customer_ledgers
-        SET payment_date = (SELECT MAX(payment_date) FROM customer_ledger_payments WHERE ledger_id = ?1),
+        SET paid_amount = ?1,
+            status = ?2,
+            payment_date = (SELECT MAX(payment_date) FROM customer_ledger_payments WHERE ledger_id = ?3),
             updated_at = datetime('now')
-        WHERE id = ?1
+        WHERE id = ?3
         "#,
     )
+    .bind(new_paid)
+    .bind(new_status)
     .bind(ledger_id)
     .execute(pool)
     .await
@@ -1966,7 +2050,10 @@ pub async fn update_ledger_payment(
     Ok(row_to_customer_ledger_payment(&payment_row))
 }
 
-/// Update the payment date on an existing ledger payment (PostgreSQL version)
+/// Update an existing ledger payment (PostgreSQL version). `payment_date` is
+/// always applied; `payment_amount`/`payment_method`/`payment_reference`/`notes`
+/// are applied only when provided. The ledger's `paid_amount`, `status` and
+/// `payment_date` are recomputed from the resulting set of payments.
 #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
 pub async fn update_ledger_payment(
     pool: &DbPool,
@@ -1992,30 +2079,104 @@ pub async fn update_ledger_payment(
         return Err(ApiError::NotFound("Payment not found".to_string()));
     }
 
+    // Validate the optional new amount and guard against over-payment (the sum
+    // of the other payments plus this one must not exceed the ledger total).
+    let new_amount = match request.payment_amount {
+        Some(a) => {
+            let dec = Decimal::from_f64_retain(a)
+                .ok_or_else(|| ApiError::BadRequest("Invalid payment amount".to_string()))?;
+            if dec <= Decimal::ZERO {
+                return Err(ApiError::BadRequest(
+                    "Payment amount must be positive".to_string(),
+                ));
+            }
+            let total_amount: Decimal = sqlx::query_scalar(
+                "SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1",
+            )
+            .bind(ledger_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+            let others_paid: Decimal = sqlx::query_scalar(
+                "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = $1 AND id <> $2",
+            )
+            .bind(ledger_id)
+            .bind(payment_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+            if others_paid + dec > total_amount {
+                return Err(ApiError::BadRequest(
+                    "Payment amount cannot exceed outstanding balance".to_string(),
+                ));
+            }
+            Some(dec)
+        }
+        None => None,
+    };
+
+    // Update the payment row. COALESCE keeps the existing value when a field is
+    // omitted from the request (NULL parameters are cast so Postgres can infer
+    // the column type).
     let payment_row = sqlx::query(
         r#"
         UPDATE customer_ledger_payments
-        SET payment_date = $1
-        WHERE id = $2
+        SET payment_date = $1,
+            payment_amount = COALESCE($2::numeric, payment_amount),
+            payment_method = COALESCE($3::text, payment_method),
+            payment_reference = COALESCE($4::text, payment_reference),
+            notes = COALESCE($5::text, notes)
+        WHERE id = $6
         RETURNING id, ledger_id, payment_amount, payment_method, payment_reference,
                   payment_date, receipt_number, receipt_file_url, notes, processed_by, created_at
         "#,
     )
     .bind(payment_date_ts)
+    .bind(new_amount)
+    .bind(request.payment_method.as_deref())
+    .bind(request.payment_reference.as_deref())
+    .bind(request.notes.as_deref())
     .bind(payment_id)
     .fetch_one(pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    // Also update the ledger's payment_date to the latest payment date
+    // Recalculate paid_amount + status from all remaining payments.
+    let new_paid: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = $1",
+    )
+    .bind(ledger_id)
+    .fetch_one(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let total_amount: Decimal =
+        sqlx::query_scalar("SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = $1")
+            .bind(ledger_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let new_status = if new_paid >= total_amount {
+        "paid"
+    } else if new_paid > Decimal::ZERO {
+        "partial"
+    } else {
+        "pending"
+    };
+
     sqlx::query(
         r#"
         UPDATE customer_ledgers
-        SET payment_date = (SELECT MAX(payment_date) FROM customer_ledger_payments WHERE ledger_id = $1),
+        SET paid_amount = $1,
+            status = $2,
+            payment_date = (SELECT MAX(payment_date) FROM customer_ledger_payments WHERE ledger_id = $3),
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1
+        WHERE id = $3
         "#,
     )
+    .bind(new_paid)
+    .bind(new_status)
     .bind(ledger_id)
     .execute(pool)
     .await
