@@ -72,6 +72,16 @@ pub async fn refund_deposit_handler(
     ))
 }
 
+/// Revert a keycard deposit refund recorded by mistake
+pub async fn revert_deposit_refund_handler(
+    State(pool): State<DbPool>,
+    Path(booking_id): Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    Ok(Json(
+        payments::revert_deposit_refund(&pool, booking_id).await?,
+    ))
+}
+
 /// Get payment for a booking
 pub async fn get_payment_handler(
     State(pool): State<DbPool>,

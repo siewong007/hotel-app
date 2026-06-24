@@ -29,6 +29,8 @@ export function useBookings() {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [searchQuery, setSearchQuery] = useState('');
   const [roomNumberFilter, setRoomNumberFilter] = useState('');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState('');
+  const [onlineChannelFilter, setOnlineChannelFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [customStartDate, setCustomStartDate] = useState('');
@@ -51,6 +53,8 @@ export function useBookings() {
 
     if (debouncedSearchQuery.trim()) params.search = debouncedSearchQuery.trim();
     if (debouncedRoomNumberFilter.trim()) params.room_number = debouncedRoomNumberFilter.trim();
+    if (paymentMethodFilter.trim()) params.payment_method = paymentMethodFilter.trim();
+    if (onlineChannelFilter.trim()) params.online_channel = onlineChannelFilter.trim();
     if (dateFilter === 'today') { params.check_in_from = today; params.check_in_to = today; }
     else if (dateFilter === 'week') { params.check_in_from = today; params.check_in_to = addDays(today, 7); }
     else if (dateFilter === 'month') { params.check_in_from = today; params.check_in_to = addDays(today, 30); }
@@ -58,7 +62,7 @@ export function useBookings() {
     else if (dateFilter === 'date_search' && searchDate) { params.date_search = searchDate; }
 
     return params;
-  }, [currentPage, sortField, sortOrder, debouncedSearchQuery, debouncedRoomNumberFilter, statusFilter, dateFilter, customStartDate, customEndDate, searchDate]);
+  }, [currentPage, sortField, sortOrder, debouncedSearchQuery, debouncedRoomNumberFilter, paymentMethodFilter, onlineChannelFilter, statusFilter, dateFilter, customStartDate, customEndDate, searchDate]);
 
   const bookingsQuery = useBookingsPage(apiParams);
   const roomsQuery = useRooms();
@@ -107,6 +111,8 @@ export function useBookings() {
   const clearFilters = useCallback(() => {
     setSearchQuery('');
     setRoomNumberFilter('');
+    setPaymentMethodFilter('');
+    setOnlineChannelFilter('');
     setStatusFilter('all');
     setDateFilter('all');
     setCustomStartDate('');
@@ -127,6 +133,16 @@ export function useBookings() {
     setCurrentPage(1);
   }, []);
 
+  const handlePaymentMethodFilterChange = useCallback((value: string) => {
+    setPaymentMethodFilter(value);
+    setCurrentPage(1);
+  }, []);
+
+  const handleOnlineChannelFilterChange = useCallback((value: string) => {
+    setOnlineChannelFilter(value);
+    setCurrentPage(1);
+  }, []);
+
   return {
     bookings,
     rooms,
@@ -143,6 +159,10 @@ export function useBookings() {
     setSearchQuery: handleSearchQueryChange,
     roomNumberFilter,
     setRoomNumberFilter: handleRoomNumberFilterChange,
+    paymentMethodFilter,
+    setPaymentMethodFilter: handlePaymentMethodFilterChange,
+    onlineChannelFilter,
+    setOnlineChannelFilter: handleOnlineChannelFilterChange,
     statusFilter,
     setStatusFilter,
     dateFilter,

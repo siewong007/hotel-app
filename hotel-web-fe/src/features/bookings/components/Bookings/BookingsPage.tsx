@@ -132,6 +132,9 @@ const BookingsPage: React.FC = () => {
   const { hasPermission } = useAuth();
   const { format: formatCurrency, symbol: currencySymbol } = useCurrency();
   const PAYMENT_METHODS = getHotelSettings().payment_methods;
+  const ONLINE_CHANNELS = getHotelSettings()
+    .booking_channels.map((channel) => channel.name?.trim())
+    .filter((name): name is string => Boolean(name));
   const isAdmin = hasPermission('bookings:update') || hasPermission('bookings:manage');
   const updateBookingMutation = useUpdateBooking();
   const reactivateBookingMutation = useReactivateBookingMutation();
@@ -165,6 +168,10 @@ const BookingsPage: React.FC = () => {
     setSearchQuery,
     roomNumberFilter,
     setRoomNumberFilter,
+    paymentMethodFilter,
+    setPaymentMethodFilter,
+    onlineChannelFilter,
+    setOnlineChannelFilter,
     statusFilter,
     setStatusFilter,
     dateFilter,
@@ -218,6 +225,7 @@ const BookingsPage: React.FC = () => {
     setBookingView('all');
     setSearchQuery(nextSearch);
     setRoomNumberFilter('');
+    setPaymentMethodFilter('');
     setStatusFilter('all');
     setDateFilter('all');
     setCustomStartDate('');
@@ -233,6 +241,7 @@ const BookingsPage: React.FC = () => {
     routedBookingId,
     setSearchQuery,
     setRoomNumberFilter,
+    setPaymentMethodFilter,
     setDateFilter,
     setCustomStartDate,
     setCustomEndDate,
@@ -1291,7 +1300,7 @@ const BookingsPage: React.FC = () => {
         <Grid size={{ xs: 12, lg: selectedBooking ? 8 : 12 }}>
           <Card elevation={0} sx={{ overflow: 'hidden', height: '100%' }}>
             <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 220px' }, gap: 1.25 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 200px 200px 200px' }, gap: 1.25 }}>
                 <TextField
                   fullWidth
                   size="medium"
@@ -1305,6 +1314,34 @@ const BookingsPage: React.FC = () => {
                       </InputAdornment>
                     ),
                   }}
+                />
+                <Autocomplete<string, false, false, true>
+                  freeSolo
+                  fullWidth
+                  size="medium"
+                  options={PAYMENT_METHODS}
+                  value={paymentMethodFilter || null}
+                  onChange={(_, value) => {
+                    setPaymentMethodFilter(value ?? '');
+                    setBookingView('all');
+                  }}
+                  renderInput={(params) => (
+                    <TextField {...params} label="Payment method" placeholder="Any" />
+                  )}
+                />
+                <Autocomplete<string, false, false, true>
+                  freeSolo
+                  fullWidth
+                  size="medium"
+                  options={ONLINE_CHANNELS}
+                  value={onlineChannelFilter || null}
+                  onChange={(_, value) => {
+                    setOnlineChannelFilter(value ?? '');
+                    setBookingView('all');
+                  }}
+                  renderInput={(params) => (
+                    <TextField {...params} label="Online channel" placeholder="Any" />
+                  )}
                 />
                 <TextField
                   fullWidth
@@ -1344,7 +1381,7 @@ const BookingsPage: React.FC = () => {
                     }}
                   />
                 ))}
-                {(searchQuery || roomNumberFilter || statusFilter !== 'all' || dateFilter !== 'all') && (
+                {(searchQuery || roomNumberFilter || paymentMethodFilter || onlineChannelFilter || statusFilter !== 'all' || dateFilter !== 'all') && (
                   <Chip
                     icon={<ClearIcon />}
                     label="Clear"

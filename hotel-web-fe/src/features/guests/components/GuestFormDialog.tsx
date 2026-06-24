@@ -222,8 +222,6 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
             value={formData.email || ''}
             onChange={(value) => updateField('email', value)}
             type="email"
-            required={!formData.phone?.trim()}
-            helperText={!formData.phone?.trim() ? 'Required if phone is blank' : undefined}
           />
           <GuestDialogField
             label="Phone"
@@ -360,7 +358,6 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
                   <TextField
                     select
                     fullWidth
-                    required={!isEdit}
                     value={formData.tourism_type || ''}
                     onChange={(e) => updateField('tourism_type', e.target.value as TourismType || undefined)}
                     sx={guestInputSx}

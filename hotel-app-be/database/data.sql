@@ -669,15 +669,18 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('report_caption_font_size', '13', 'number', 'reports', 'Caption and secondary label font size in pixels for generated reports', false),
 ('report_chip_font_size', '12', 'number', 'reports', 'Status chip font size in pixels for generated reports', false),
 ('guest_titles', '["Mr","Mrs","Ms","Miss","Dr","Prof","Rev"]', 'json', 'guests', 'Guest title options', true)
+-- NOTE: `value` is intentionally NOT updated here. This seed re-runs on every
+-- desktop restart (see hotel-desktop/src-tauri/src/postgres.rs::run_database_setup),
+-- so overwriting `value` would revert any user-edited setting back to the default
+-- on every restart. New keys are still inserted; existing rows keep their value
+-- while metadata (label/category/type/visibility) stays in sync with the seed.
 ON CONFLICT (key) DO UPDATE SET
-    value = EXCLUDED.value,
     value_type = EXCLUDED.value_type,
     category = EXCLUDED.category,
     description = EXCLUDED.description,
     is_public = EXCLUDED.is_public,
     updated_at = CURRENT_TIMESTAMP
-WHERE system_settings.value IS DISTINCT FROM EXCLUDED.value
-   OR system_settings.value_type IS DISTINCT FROM EXCLUDED.value_type
+WHERE system_settings.value_type IS DISTINCT FROM EXCLUDED.value_type
    OR system_settings.category IS DISTINCT FROM EXCLUDED.category
    OR system_settings.description IS DISTINCT FROM EXCLUDED.description
    OR system_settings.is_public IS DISTINCT FROM EXCLUDED.is_public;

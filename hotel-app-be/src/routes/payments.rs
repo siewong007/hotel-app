@@ -30,6 +30,10 @@ pub fn routes() -> Router<DbPool> {
             "/payments/refund-deposit/{booking_id}",
             post(refund_deposit),
         )
+        .route(
+            "/payments/revert-deposit-refund/{booking_id}",
+            post(revert_deposit_refund),
+        )
         .route("/payments/booking/{booking_id}", get(get_payment))
         .route("/payments/{payment_id}", patch(update_payment))
         .route("/payments/{payment_id}", delete(delete_payment))
@@ -103,6 +107,15 @@ async fn refund_deposit(
     let user_id = require_auth(&headers).await?;
     handlers::payments::refund_deposit_handler(State(pool), Extension(user_id), path, Json(body))
         .await
+}
+
+async fn revert_deposit_refund(
+    State(pool): State<DbPool>,
+    headers: HeaderMap,
+    path: Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_auth(&headers).await?;
+    handlers::payments::revert_deposit_refund_handler(State(pool), path).await
 }
 
 async fn get_invoice_preview(

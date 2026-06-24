@@ -177,7 +177,6 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
                   type="email"
                   value={newGuestForm.email}
                   onChange={(e) => onNewGuestFieldChange('email', e.target.value)}
-                  required={!newGuestForm.phone.trim()}
                 />
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
@@ -210,12 +209,10 @@ const OnlineCheckInDialog: React.FC<OnlineCheckInDialogProps> = ({
                 <TextField
                   fullWidth
                   select
-                  required
                   label="Tourism Type"
-                  value={newGuestForm.tourism_type}
+                  value={newGuestForm.tourism_type || 'local'}
                   onChange={(e) => onNewGuestFieldChange('tourism_type', e.target.value)}
                 >
-                  <MenuItem value="" disabled>Select tourism type</MenuItem>
                   <MenuItem value="local">Local - no tourism tax</MenuItem>
                   <MenuItem value="foreign">Foreign - tourism tax applies</MenuItem>
                 </TextField>

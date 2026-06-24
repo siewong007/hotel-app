@@ -24,7 +24,7 @@ import {
 } from '@mui/icons-material';
 import { HotelAPIService } from '../../../api';
 import { Room, Guest, RoomType, TourismType } from '../../../types';
-import { validateEmail, validatePhone } from '../../../utils/validation';
+import { validateEmail } from '../../../utils/validation';
 import ModernDatePicker from '../../../components/common/ModernDatePicker';
 import { useAuth } from '../../../auth/AuthContext';
 import { useCurrency } from '../../../hooks/useCurrency';
@@ -80,7 +80,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   const [newGuestEmail, setNewGuestEmail] = useState('');
   const [newGuestPhone, setNewGuestPhone] = useState('');
   const [newGuestIcNumber, setNewGuestIcNumber] = useState('');
-  const [newGuestTourismType, setNewGuestTourismType] = useState<TourismType | ''>('');
+  const [newGuestTourismType, setNewGuestTourismType] = useState<TourismType | ''>('local');
   const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
 
@@ -181,7 +181,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     setNewGuestEmail('');
     setNewGuestPhone('');
     setNewGuestIcNumber('');
-    setNewGuestTourismType('');
+    setNewGuestTourismType('local');
     setCheckInDate('');
     setCheckInTime(defaultCheckInTime);
     setCheckOutDate('');
@@ -228,11 +228,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
       return null;
     }
 
-    if (!newGuestTourismType) {
-      setError('Tourism type is required for new guest');
-      return null;
-    }
-
     // Validate email format only if provided
     if (newGuestEmail && newGuestEmail.trim()) {
       const emailValidation = validateEmail(newGuestEmail);
@@ -247,10 +242,10 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
       const newGuest = await HotelAPIService.createGuest({
         first_name: newGuestFirstName,
         last_name: newGuestLastName,
-        email: newGuestEmail || undefined,
-        phone: newGuestPhone || undefined,
-        ic_number: newGuestIcNumber || undefined,
-        tourism_type: newGuestTourismType,
+        email: newGuestEmail.trim() || undefined,
+        phone: newGuestPhone.trim() || undefined,
+        ic_number: newGuestIcNumber.trim() || undefined,
+        tourism_type: newGuestTourismType || 'local',
       });
 
       // The guests list is managed by useQuery — invalidate it so the new guest appears
@@ -519,7 +514,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   setNewGuestEmail('');
                   setNewGuestPhone('');
                   setNewGuestIcNumber('');
-                  setNewGuestTourismType('');
+                  setNewGuestTourismType('local');
                 }}>
                   Cancel
                 </Button>
@@ -564,7 +559,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                     error={!!emailError}
                     helperText={emailError}
                     size="small"
-                    required={!newGuestPhone.trim()}
                   />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
@@ -597,9 +591,8 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                   <TextField
                     fullWidth
                     select
-                    required
                     label="Tourism Type"
-                    value={newGuestTourismType}
+                    value={newGuestTourismType || 'local'}
                     onChange={(e) => {
                       const value = e.target.value as TourismType;
                       setNewGuestTourismType(value);
@@ -607,7 +600,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                     }}
                     size="small"
                   >
-                    <MenuItem value="" disabled>Select tourism type</MenuItem>
                     <MenuItem value="local">Local - no tourism tax</MenuItem>
                     <MenuItem value="foreign">Foreign - tourism tax applies</MenuItem>
                   </TextField>

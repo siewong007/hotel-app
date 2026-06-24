@@ -518,6 +518,51 @@ impl PaymentRepository {
         Ok(row)
     }
 
+    /// Revert a previously-recorded keycard deposit refund for a booking.
+    ///
+    /// Deletes the refund payment row created by [`refund_deposit`] so the
+    /// deposit shows as not-yet-refunded again, drops out of the night-audit
+    /// journal, and can be re-refunded if it was issued by mistake. Returns the
+    /// id of the deleted refund payment. Errors if no such refund exists.
+    pub async fn revert_deposit_refund(
+        pool: &DbPool,
+        booking_id: i64,
+    ) -> Result<i64, ApiError> {
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+
+        // The note/description column differs between databases, but the
+        // marker text is identical to what `refund_deposit` writes.
+        #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+        let select_sql = "SELECT id FROM payments WHERE booking_id = ?1 AND payment_type = 'refund' AND description = 'Keycard deposit refund' ORDER BY id DESC LIMIT 1";
+        #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+        let select_sql = "SELECT id FROM payments WHERE booking_id = $1 AND payment_type = 'refund' AND notes = 'Keycard deposit refund' ORDER BY id DESC LIMIT 1";
+
+        let refund_id: Option<i64> = sqlx::query_scalar(select_sql)
+            .bind(booking_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
+
+        let refund_id = match refund_id {
+            Some(id) => id,
+            None => {
+                return Err(ApiError::BadRequest(
+                    "No deposit refund to revert".to_string(),
+                ));
+            }
+        };
+
+        sqlx::query("DELETE FROM payments WHERE id = $1")
+            .bind(refund_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
+
+        tx.commit().await.map_err(ApiError::from)?;
+
+        Ok(refund_id)
+    }
+
     /// Find payment by booking ID
     pub async fn find_by_booking_id(
         pool: &DbPool,

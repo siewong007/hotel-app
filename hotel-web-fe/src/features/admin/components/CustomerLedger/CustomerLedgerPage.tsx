@@ -243,7 +243,7 @@ const CustomerLedgerPage: React.FC = () => {
     email: '',
     phone: '',
     ic_number: '',
-    tourism_type: '',
+    tourism_type: 'local',
     nationality: '',
     address_line1: '',
     city: '',
@@ -562,12 +562,6 @@ const CustomerLedgerPage: React.FC = () => {
           return;
         }
 
-        if (!newCheckInGuestForm.tourism_type) {
-          showSnackbar('Please select tourism type for the guest', 'warning');
-          setProcessingCheckIn(false);
-          return;
-        }
-
         // Validate email format only if provided
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (newCheckInGuestForm.email && newCheckInGuestForm.email.trim() && !emailRegex.test(newCheckInGuestForm.email)) {
@@ -579,16 +573,16 @@ const CustomerLedgerPage: React.FC = () => {
         const newGuest = await HotelAPIService.createGuest({
           first_name: newCheckInGuestForm.first_name,
           last_name: newCheckInGuestForm.last_name,
-          email: newCheckInGuestForm.email || undefined,
-          phone: newCheckInGuestForm.phone || undefined,
-          ic_number: newCheckInGuestForm.ic_number || undefined,
-          tourism_type: newCheckInGuestForm.tourism_type as 'local' | 'foreign',
-          nationality: newCheckInGuestForm.nationality || undefined,
-          address_line1: newCheckInGuestForm.address_line1 || undefined,
-          city: newCheckInGuestForm.city || undefined,
-          state_province: newCheckInGuestForm.state_province || undefined,
-          postal_code: newCheckInGuestForm.postal_code || undefined,
-          country: newCheckInGuestForm.country || undefined,
+          email: newCheckInGuestForm.email.trim() || undefined,
+          phone: newCheckInGuestForm.phone.trim() || undefined,
+          ic_number: newCheckInGuestForm.ic_number.trim() || undefined,
+          tourism_type: (newCheckInGuestForm.tourism_type || 'local') as 'local' | 'foreign',
+          nationality: newCheckInGuestForm.nationality.trim() || undefined,
+          address_line1: newCheckInGuestForm.address_line1.trim() || undefined,
+          city: newCheckInGuestForm.city.trim() || undefined,
+          state_province: newCheckInGuestForm.state_province.trim() || undefined,
+          postal_code: newCheckInGuestForm.postal_code.trim() || undefined,
+          country: newCheckInGuestForm.country.trim() || undefined,
         });
         guestToUse = newGuest;
       }
@@ -670,7 +664,7 @@ const CustomerLedgerPage: React.FC = () => {
       email: '',
       phone: '',
       ic_number: '',
-      tourism_type: '',
+      tourism_type: 'local',
       nationality: '',
       address_line1: '',
       city: '',

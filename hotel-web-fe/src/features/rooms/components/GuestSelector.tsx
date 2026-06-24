@@ -83,7 +83,7 @@ export const emptyNewGuestForm: NewGuestForm = {
   phone: '',
   nationality: '',
   ic_number: '',
-  tourism_type: undefined,
+  tourism_type: 'local',
   guest_type: 'non_member',
   company_name: '',
   address_line1: '',
@@ -317,16 +317,15 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
               type="email"
               value={newGuestForm.email}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, email: e.target.value })}
-              required={!newGuestForm.phone.trim()}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
+              required
               label="Phone"
               value={newGuestForm.phone}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, phone: e.target.value })}
-              required={!newGuestForm.email.trim()}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
@@ -356,16 +355,13 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
-            <FormControl fullWidth required>
+            <FormControl fullWidth>
               <InputLabel>Tourism Type</InputLabel>
               <Select
-                value={newGuestForm.tourism_type || ''}
+                value={newGuestForm.tourism_type || 'local'}
                 label="Tourism Type"
                 onChange={(e) => onNewGuestFormChange({ ...newGuestForm, tourism_type: e.target.value as TourismType || undefined })}
               >
-                <MenuItem value="" disabled>
-                  Select tourism type
-                </MenuItem>
                 <MenuItem value="local">
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Chip label={TOURISM_TYPE_CONFIG.local.label} size="small" sx={{ bgcolor: TOURISM_TYPE_CONFIG.local.color, color: 'white' }} />

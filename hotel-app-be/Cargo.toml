@@ -59,6 +59,11 @@ tokio = { version = "1.51", features = ["rt-multi-thread", "macros"] }
 tokio-test = "0.4"
 reqwest = { version = "0.12", features = ["json"] }
 
+# Trim debug-build disk usage: line tables keep usable panic backtraces /
+# file:line info while dropping the bulk of DWARF debug info from every .rlib/.o.
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.release-fast]
 inherits = "release"
 codegen-units = 16

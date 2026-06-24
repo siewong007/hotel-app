@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, CircularProgress } from '@mui/material';
+import { Box, Typography, CircularProgress, Alert } from '@mui/material';
 import { ListAlt as SummaryIcon, Check as CheckIcon } from '@mui/icons-material';
 import { Room } from '../../../../../types';
 import { BookingTokens } from '../bookingTokens';
@@ -7,6 +7,8 @@ import { isPositiveMoney } from '../../../../../utils/money';
 
 interface BookingSummaryAsideProps {
   D: BookingTokens;
+  submitError?: { message: string; severity: 'warning' | 'error' } | null;
+  onDismissError?: () => void;
   room: Room | null;
   roomCount: number;
   selectedRoomNumbers: string;
@@ -34,6 +36,8 @@ interface BookingSummaryAsideProps {
 
 const BookingSummaryAside: React.FC<BookingSummaryAsideProps> = ({
   D,
+  submitError,
+  onDismissError,
   room,
   roomCount,
   selectedRoomNumbers,
@@ -70,6 +74,12 @@ const BookingSummaryAside: React.FC<BookingSummaryAsideProps> = ({
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 11, letterSpacing: 1.2, fontWeight: 700, color: D.ink3, textTransform: 'uppercase' }}>
       <SummaryIcon sx={{ fontSize: 14 }} /> Booking summary
     </Box>
+
+    {submitError && (
+      <Alert severity={submitError.severity} onClose={onDismissError} sx={{ alignItems: 'center' }}>
+        {submitError.message}
+      </Alert>
+    )}
 
     {room && (
       <Box sx={{

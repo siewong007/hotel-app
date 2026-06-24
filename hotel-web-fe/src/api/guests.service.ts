@@ -148,8 +148,13 @@ export class GuestsService {
 
   static async createGuest(guestData: GuestCreateRequest): Promise<Guest> {
     try {
+      const payload: GuestCreateRequest = {
+        ...guestData,
+        tourism_type: guestData.tourism_type || 'local',
+      };
+
       return await withRetry(
-        () => api.post('guests', { json: guestData }).json<Guest>(),
+        () => api.post('guests', { json: payload }).json<Guest>(),
         { maxAttempts: 2, initialDelay: 1000 }
       );
     } catch (error) {

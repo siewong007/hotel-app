@@ -119,6 +119,22 @@ export class InvoicesService {
     }
   }
 
+  static async revertDepositRefund(bookingId: string | number): Promise<any> {
+    try {
+      return await api.post(`payments/revert-deposit-refund/${bookingId}`).json<any>();
+    } catch (error) {
+      if (error instanceof HTTPError) {
+        const errorData = await error.response.json().catch(() => ({}));
+        throw new APIError(
+          errorData.error || 'Failed to revert deposit refund',
+          error.response.status,
+          errorData
+        );
+      }
+      throw new APIError('Failed to revert deposit refund');
+    }
+  }
+
   static async getUserInvoices(): Promise<any[]> {
     try {
       return await api.get('invoices').json<any[]>();
