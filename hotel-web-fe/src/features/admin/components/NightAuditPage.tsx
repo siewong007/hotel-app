@@ -1011,8 +1011,8 @@ const NightAuditPage: React.FC = () => {
                                 <TableCell>{booking.booking_number}</TableCell>
                                 <TableCell>{booking.guest_name}</TableCell>
                                 <TableCell>{booking.room_number}</TableCell>
-                                <TableCell>{new Date(booking.check_in_date).toLocaleDateString()}</TableCell>
-                                <TableCell>{new Date(booking.check_out_date).toLocaleDateString()}</TableCell>
+                                <TableCell>{new Date(booking.check_in_date + 'T00:00:00').toLocaleDateString()}</TableCell>
+                                <TableCell>{new Date(booking.check_out_date + 'T00:00:00').toLocaleDateString()}</TableCell>
                                 <TableCell>{getBookingStatusChip(booking.status)}</TableCell>
                                 <TableCell sx={{ textTransform: 'capitalize' }}>
                                   {booking.source?.replace(/_/g, ' ') || '-'}
@@ -1264,7 +1264,7 @@ const NightAuditPage: React.FC = () => {
         <DialogTitle>Confirm Night Audit</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>
-            You are about to run the night audit for <strong>{new Date(auditDate).toLocaleDateString()}</strong>.
+            You are about to run the night audit for <strong>{new Date(auditDate + 'T00:00:00').toLocaleDateString()}</strong>.
           </Typography>
           <Alert severity="warning" sx={{ mb: 2 }}>
             This action will:

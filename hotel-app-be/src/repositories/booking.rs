@@ -40,6 +40,26 @@ impl BookingRepository {
                 } else {
                     q
                 };
+                let q = if let Some(ref v) = binds.payment_method {
+                    q.bind(v.as_str())
+                } else {
+                    q
+                };
+                let q = if let Some(ref v) = binds.payment_date_from {
+                    q.bind(*v)
+                } else {
+                    q
+                };
+                let q = if let Some(ref v) = binds.payment_date_to {
+                    q.bind(*v)
+                } else {
+                    q
+                };
+                let q = if let Some(ref v) = binds.online_channel {
+                    q.bind(v.as_str())
+                } else {
+                    q
+                };
                 let q = if let Some(ref v) = binds.date_search {
                     q.bind(*v)
                 } else {

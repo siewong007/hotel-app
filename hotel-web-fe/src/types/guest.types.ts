@@ -114,7 +114,7 @@ export interface GuestCreateRequest {
   country?: string;
   is_active?: boolean;
   guest_type?: GuestType;
-  tourism_type: TourismType;
+  tourism_type?: TourismType;
   discount_percentage?: number;
   company_name?: string;
 }

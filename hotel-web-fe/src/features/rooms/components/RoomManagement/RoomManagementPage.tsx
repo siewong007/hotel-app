@@ -161,10 +161,6 @@ const validateGuestInformationDraft = (guest: GuestInformationDraft): string | n
     return 'Please enter either email or phone number';
   }
 
-  if (!guest.tourism_type) {
-    return 'Please select tourism type';
-  }
-
   return null;
 };
 
@@ -302,7 +298,7 @@ const RoomManagementPage: React.FC = () => {
     phone: '',
     nationality: '',
     ic_number: '',
-    tourism_type: ''
+    tourism_type: 'local'
   });
   // Walk-in payment/deposit state
   const [walkInDeposit, setWalkInDeposit] = useState<number>(0);
@@ -324,7 +320,7 @@ const RoomManagementPage: React.FC = () => {
     phone: '',
     nationality: '',
     ic_number: '',
-    tourism_type: ''
+    tourism_type: 'local'
   });
 
   // Complimentary check-in state
@@ -453,7 +449,7 @@ const RoomManagementPage: React.FC = () => {
       phone: '',
       nationality: '',
       ic_number: '',
-      tourism_type: ''
+      tourism_type: 'local'
     });
     // Reset deposit/payment state
     setWalkInDeposit(0);
@@ -477,7 +473,7 @@ const RoomManagementPage: React.FC = () => {
       phone: '',
       nationality: '',
       ic_number: '',
-      tourism_type: ''
+      tourism_type: 'local'
     });
   };
 
@@ -599,7 +595,7 @@ const RoomManagementPage: React.FC = () => {
           phone: newGuestForm.phone,
           ic_number: newGuestForm.ic_number,
           nationality: newGuestForm.nationality,
-          tourism_type: newGuestForm.tourism_type as TourismType,
+          tourism_type: (newGuestForm.tourism_type || 'local') as TourismType,
         });
 
         guestToUse = newGuest;
@@ -615,7 +611,7 @@ const RoomManagementPage: React.FC = () => {
           phone: '',
           nationality: '',
           ic_number: '',
-          tourism_type: ''
+          tourism_type: 'local'
         });
       } else {
         // Use existing selected guest
@@ -851,7 +847,7 @@ const RoomManagementPage: React.FC = () => {
           phone: newOnlineGuestForm.phone,
           ic_number: newOnlineGuestForm.ic_number,
           nationality: newOnlineGuestForm.nationality,
-          tourism_type: newOnlineGuestForm.tourism_type as TourismType,
+          tourism_type: (newOnlineGuestForm.tourism_type || 'local') as TourismType,
         });
 
         guestToUse = newGuest;
@@ -867,7 +863,7 @@ const RoomManagementPage: React.FC = () => {
           phone: '',
           nationality: '',
           ic_number: '',
-          tourism_type: ''
+          tourism_type: 'local'
         });
       } else {
         // Use existing selected guest
@@ -955,7 +951,7 @@ const RoomManagementPage: React.FC = () => {
         phone: '',
         nationality: '',
         ic_number: '',
-        tourism_type: ''
+        tourism_type: 'local'
       });
 
       await loadData();

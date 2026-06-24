@@ -276,7 +276,6 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                   onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, email: e.target.value })}
                   helperText="Used for sending booking confirmations and invoices"
                   error={newCheckInGuestForm.email !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email)}
-                  required={!newCheckInGuestForm.phone.trim()}
                 />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -310,12 +309,10 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
                 <TextField
                   fullWidth
                   select
-                  required
                   label="Tourism Type"
-                  value={newCheckInGuestForm.tourism_type}
+                  value={newCheckInGuestForm.tourism_type || 'local'}
                   onChange={(e) => setNewCheckInGuestForm({ ...newCheckInGuestForm, tourism_type: e.target.value })}
                 >
-                  <MenuItem value="" disabled>Select tourism type</MenuItem>
                   <MenuItem value="local">Local - no tourism tax</MenuItem>
                   <MenuItem value="foreign">Foreign - tourism tax applies</MenuItem>
                 </TextField>
@@ -514,7 +511,6 @@ const CompanyCheckInDialog: React.FC<CompanyCheckInDialogProps> = ({
             !newCheckInGuestForm.last_name ||
             !newCheckInGuestForm.ic_number.trim() ||
             (!newCheckInGuestForm.email.trim() && !newCheckInGuestForm.phone.trim()) ||
-            !newCheckInGuestForm.tourism_type ||
             Boolean(newCheckInGuestForm.email && newCheckInGuestForm.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCheckInGuestForm.email))
           ))
         }

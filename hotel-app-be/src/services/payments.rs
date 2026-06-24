@@ -280,6 +280,25 @@ pub async fn refund_deposit(
     }))
 }
 
+/// Revert a keycard deposit refund that was recorded by mistake.
+///
+/// Removes the refund payment row and recomputes the booking's payment status
+/// so the deposit is presented as not-yet-refunded again.
+pub async fn revert_deposit_refund(
+    pool: &DbPool,
+    booking_id: i64,
+) -> Result<serde_json::Value, ApiError> {
+    let reverted_payment_id = PaymentRepository::revert_deposit_refund(pool, booking_id).await?;
+
+    recompute_payment_status(pool, booking_id).await?;
+
+    Ok(serde_json::json!({
+        "booking_id": booking_id,
+        "reverted_payment_id": reverted_payment_id,
+        "deposit_refunded": false,
+    }))
+}
+
 pub async fn get_payment(pool: &DbPool, booking_id: i64) -> Result<Option<Payment>, ApiError> {
     PaymentRepository::find_by_booking_id(pool, booking_id).await
 }

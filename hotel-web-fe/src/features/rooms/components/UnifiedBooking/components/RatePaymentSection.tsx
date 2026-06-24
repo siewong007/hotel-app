@@ -17,6 +17,9 @@ interface RatePaymentSectionProps {
   tourismTaxRate: number;
   currencySymbol: string;
   formatCurrency: (value: number) => string;
+  /** Hide the read-only "Tourism status" field — when creating a new guest the
+   * Tourism Type selector in the guest form already decides this. */
+  hideTourismStatus?: boolean;
 }
 
 const defaultRate = (room: Room | null): number =>
@@ -34,10 +37,11 @@ const RatePaymentSection: React.FC<RatePaymentSectionProps> = ({
   tourismTaxRate,
   currencySymbol,
   formatCurrency,
+  hideTourismStatus = false,
 }) => (
   <Box sx={{ mb: 2.75 }}>
     <SectionHeader D={D} number={glyph} label="Rate & payment" />
-    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: hideTourismStatus ? '1fr' : '1fr 1fr', gap: 1.5 }}>
       <Box>
         <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Rate per night</Typography>
         <TextField
@@ -53,17 +57,19 @@ const RatePaymentSection: React.FC<RatePaymentSectionProps> = ({
           sx={{ bgcolor: D.surface }}
         />
       </Box>
-      <Box>
-        <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Tourism status</Typography>
-        <TextField
-          size="small"
-          fullWidth
-          value={isTourist ? `Foreign guest (${currencySymbol} ${tourismTaxRate}/night)` : 'Local — no tourism tax'}
-          disabled
-          helperText="Set on the guest profile"
-          sx={{ bgcolor: D.surface }}
-        />
-      </Box>
+      {!hideTourismStatus && (
+        <Box>
+          <Typography sx={{ fontSize: 11, color: D.ink3, mb: 0.75, fontWeight: 600 }}>Tourism status</Typography>
+          <TextField
+            size="small"
+            fullWidth
+            value={isTourist ? `Foreign guest (${currencySymbol} ${tourismTaxRate}/night)` : 'Local — no tourism tax'}
+            disabled
+            helperText="Set on the guest profile"
+            sx={{ bgcolor: D.surface }}
+          />
+        </Box>
+      )}
     </Box>
     <Box
       component="label"

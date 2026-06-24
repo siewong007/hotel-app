@@ -293,6 +293,8 @@ export class BookingsService {
     search?: string;
     status?: string;
     room_number?: string;
+    payment_method?: string;
+    online_channel?: string;
     date_search?: string;
     check_in_from?: string;
     check_in_to?: string;
@@ -307,6 +309,8 @@ export class BookingsService {
       if (params.search) searchParams.search = params.search;
       if (params.status && params.status !== 'all') searchParams.status = params.status;
       if (params.room_number) searchParams.room_number = params.room_number;
+      if (params.payment_method) searchParams.payment_method = params.payment_method;
+      if (params.online_channel) searchParams.online_channel = params.online_channel;
       if (params.date_search) searchParams.date_search = params.date_search;
       if (params.check_in_from) searchParams.check_in_from = params.check_in_from;
       if (params.check_in_to) searchParams.check_in_to = params.check_in_to;

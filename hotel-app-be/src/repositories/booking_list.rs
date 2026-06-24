@@ -21,6 +21,12 @@ pub struct BookingListBinds {
     pub status: Option<String>,
     pub search: Option<String>,
     pub room_number: Option<String>,
+    pub payment_method: Option<String>,
+    // Payment-date window. Bound immediately after `payment_method` because the
+    // EXISTS that matches a payment of the given method also constrains its date.
+    pub payment_date_from: Option<NaiveDate>,
+    pub payment_date_to: Option<NaiveDate>,
+    pub online_channel: Option<String>,
     pub date_search: Option<NaiveDate>,
     pub check_in_from: Option<NaiveDate>,
     pub check_in_to: Option<NaiveDate>,
@@ -36,6 +42,14 @@ pub fn build_booking_list_query(
     let status = params.status.as_deref().filter(|s| !s.trim().is_empty());
     let room_number = params
         .room_number
+        .as_deref()
+        .filter(|s| !s.trim().is_empty());
+    let payment_method = params
+        .payment_method
+        .as_deref()
+        .filter(|s| !s.trim().is_empty());
+    let online_channel = params
+        .online_channel
         .as_deref()
         .filter(|s| !s.trim().is_empty());
 
@@ -96,12 +110,92 @@ pub fn build_booking_list_query(
         binds.room_number = Some(format!("%{}%", rn.trim()));
     }
 
+    // When a payment method is filtered, the date filter targets the *payment*
+    // date (the `payments.created_at` day, in hotel-local time via the session
+    // timezone) instead of the booking's stay window. So a "23 Jun + Visa" filter
+    // returns bookings that took a Visa payment on 23 Jun, not bookings merely
+    // staying on 23 Jun that happen to carry a Visa payment from another day.
+    let (pay_date_from, pay_date_to) = if payment_method.is_some() {
+        payment_date_window(params)
+    } else {
+        (None, None)
+    };
+    let payment_date_active = pay_date_from.is_some() || pay_date_to.is_some();
+
+    if let Some(pm) = payment_method {
+        param_idx += 1;
+        let p = param_placeholder(param_idx);
+        binds.payment_method = Some(pm.trim().to_string());
+
+        // EXISTS predicate over the booking's non-void payments of this method.
+        // LOWER() on both sides keeps the (free-typed) filter case-insensitive.
+        // The same placeholder is referenced twice — both PostgreSQL ($N) and
+        // SQLite (?N) resolve a repeated numbered placeholder to the single bind.
+        let mut pay_exists = format!(
+            "LOWER(pay.payment_method) = LOWER({p}) \
+             AND pay.status NOT IN ('void', 'voided', 'failed')"
+        );
+
+        // Fold the payment-date window into the EXISTS so a single payment row
+        // must satisfy both the method and the date. Placeholders are assigned
+        // here (right after the method bind) to keep numbering aligned with the
+        // bind order in `apply_binds!`.
+        if let Some(from) = pay_date_from {
+            param_idx += 1;
+            let dp = param_placeholder(param_idx);
+            pay_exists.push_str(&format!(" AND {} >= {dp}", date_cast("pay.created_at")));
+            binds.payment_date_from = Some(from);
+        }
+        if let Some(to) = pay_date_to {
+            param_idx += 1;
+            let dp = param_placeholder(param_idx);
+            pay_exists.push_str(&format!(" AND {} <= {dp}", date_cast("pay.created_at")));
+            binds.payment_date_to = Some(to);
+        }
+
+        if payment_date_active {
+            // A date constraint requires an actual payment row on that day; the
+            // booking's own `payment_method` column carries no date, so it can't
+            // participate.
+            conditions.push(format!(
+                "EXISTS (SELECT 1 FROM payments pay WHERE pay.booking_id = b.id AND {pay_exists})"
+            ));
+        } else {
+            // No date filter: match the booking's own payment_method column OR any
+            // non-void payment recorded against it. Methods like MAE/DuitNow are
+            // frequently captured as `payments` rows at check-in/checkout and never
+            // written back to `bookings.payment_method`, so a column-only match
+            // misses them.
+            conditions.push(format!(
+                "(LOWER(b.payment_method) = LOWER({p}) \
+                  OR EXISTS (SELECT 1 FROM payments pay \
+                             WHERE pay.booking_id = b.id AND {pay_exists}))"
+            ));
+        }
+    }
+
+    // Online booking channel: the channel name is stored as a prefix in the
+    // booking's free-text remarks (e.g. "Booking.com - Ref: ABC123") and/or the
+    // `source` column, mirroring how the frontend derives the "booked via" label.
+    if let Some(oc) = online_channel {
+        param_idx += 1;
+        let p = param_placeholder(param_idx);
+        conditions.push(format!(
+            "(b.source {like_op} {p} OR b.remarks {like_op} {p})"
+        ));
+        binds.online_channel = Some(format!("%{}%", oc.trim()));
+    }
+
     if matches!(params.company_billed, Some(true)) {
         conditions.push("b.company_id IS NOT NULL".to_string());
     }
 
     // date_search intentionally overrides range filters, matching existing behavior.
-    if let Some(ds) = params.date_search {
+    // Skipped entirely when the date has been redirected to the payment date above.
+    if payment_date_active {
+        // Stay-window filtering is intentionally suppressed: the selected date is
+        // applied to the payment, not the stay.
+    } else if let Some(ds) = params.date_search {
         param_idx += 1;
         let p = param_placeholder(param_idx);
         let col_in = date_cast("b.check_in_date");
@@ -208,6 +302,22 @@ fn like_operator() -> &'static str {
     return "ILIKE";
 }
 
+/// Resolve the payment-date window from the request's date filters.
+///
+/// The frontend sends either a single `date_search` or a `check_in_from`/
+/// `check_in_to` range. When a payment method is also filtered, that date is
+/// reinterpreted as the payment date: a single day collapses to an inclusive
+/// `[day, day]` window; a range is carried through as-is (either bound optional).
+fn payment_date_window(
+    params: &BookingPaginationParams,
+) -> (Option<NaiveDate>, Option<NaiveDate>) {
+    if let Some(ds) = params.date_search {
+        (Some(ds), Some(ds))
+    } else {
+        (params.check_in_from, params.check_in_to)
+    }
+}
+
 fn date_cast(col: &str) -> String {
     #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
     return format!("date({})", col);
@@ -226,6 +336,8 @@ mod tests {
             search: None,
             status: None,
             room_number: None,
+            payment_method: None,
+            online_channel: None,
             company_billed: None,
             date_search: None,
             check_in_from: None,
@@ -315,6 +427,126 @@ mod tests {
         assert_eq!(query.binds.date_search, None);
         assert_eq!(query.binds.check_in_from, params.check_in_from);
         assert_eq!(query.binds.check_in_to, params.check_in_to);
+    }
+
+    #[test]
+    fn payment_method_filter_binds_after_room_number() {
+        let mut params = params();
+        params.room_number = Some("101".to_string());
+        params.payment_method = Some(" Cash ".to_string());
+
+        let query = build_booking_list_query(&params, "SELECT * FROM bookings b ", pagination());
+
+        assert!(query.count_sql.contains(&format!(
+            "r.room_number {} {}",
+            like_operator(),
+            param_placeholder(1)
+        )));
+        assert!(query.count_sql.contains(&format!(
+            "LOWER(b.payment_method) = LOWER({})",
+            param_placeholder(2)
+        )));
+        // The payments-table branch reuses the same numbered placeholder.
+        assert!(query.count_sql.contains(&format!(
+            "LOWER(pay.payment_method) = LOWER({})",
+            param_placeholder(2)
+        )));
+        assert_eq!(query.binds.payment_method.as_deref(), Some("Cash"));
+    }
+
+    #[test]
+    fn payment_method_with_date_search_filters_by_payment_date() {
+        let mut params = params();
+        params.payment_method = Some("Visa".to_string());
+        params.date_search = NaiveDate::from_ymd_opt(2026, 6, 23);
+
+        let query = build_booking_list_query(&params, "SELECT * FROM bookings b ", pagination());
+
+        // The method is bound first ($1), then the payment-date window ($2 = $3 = day).
+        let pay_date = date_cast("pay.created_at");
+        assert!(query.count_sql.contains(&format!(
+            "EXISTS (SELECT 1 FROM payments pay WHERE pay.booking_id = b.id AND LOWER(pay.payment_method) = LOWER({})",
+            param_placeholder(1)
+        )));
+        assert!(
+            query
+                .count_sql
+                .contains(&format!("{pay_date} >= {}", param_placeholder(2)))
+        );
+        assert!(
+            query
+                .count_sql
+                .contains(&format!("{pay_date} <= {}", param_placeholder(3)))
+        );
+        // The stay-window date filter must NOT be applied.
+        assert!(
+            !query
+                .count_sql
+                .contains(&date_cast("b.check_in_date"))
+        );
+        assert_eq!(query.binds.payment_method.as_deref(), Some("Visa"));
+        assert_eq!(query.binds.payment_date_from, params.date_search);
+        assert_eq!(query.binds.payment_date_to, params.date_search);
+        assert_eq!(query.binds.date_search, None);
+    }
+
+    #[test]
+    fn payment_method_with_date_range_filters_payment_date_range() {
+        let mut params = params();
+        params.payment_method = Some("Cash".to_string());
+        params.check_in_from = NaiveDate::from_ymd_opt(2026, 6, 1);
+        params.check_in_to = NaiveDate::from_ymd_opt(2026, 6, 30);
+
+        let query = build_booking_list_query(&params, "SELECT * FROM bookings b ", pagination());
+        let pay_date = date_cast("pay.created_at");
+
+        assert!(
+            query
+                .count_sql
+                .contains(&format!("{pay_date} >= {}", param_placeholder(2)))
+        );
+        assert!(
+            query
+                .count_sql
+                .contains(&format!("{pay_date} <= {}", param_placeholder(3)))
+        );
+        assert!(!query.count_sql.contains(&date_cast("b.check_in_date")));
+        assert_eq!(query.binds.payment_date_from, params.check_in_from);
+        assert_eq!(query.binds.payment_date_to, params.check_in_to);
+        assert_eq!(query.binds.check_in_from, None);
+        assert_eq!(query.binds.check_in_to, None);
+    }
+
+    #[test]
+    fn payment_method_without_date_keeps_column_or_payment_match() {
+        let mut params = params();
+        params.payment_method = Some("Visa".to_string());
+
+        let query = build_booking_list_query(&params, "SELECT * FROM bookings b ", pagination());
+
+        // No date filter → preserve the column-OR-payment match (no date predicate).
+        assert!(query.count_sql.contains(&format!(
+            "LOWER(b.payment_method) = LOWER({})",
+            param_placeholder(1)
+        )));
+        assert!(!query.count_sql.contains(&date_cast("pay.created_at")));
+        assert_eq!(query.binds.payment_date_from, None);
+        assert_eq!(query.binds.payment_date_to, None);
+    }
+
+    #[test]
+    fn online_channel_filter_matches_source_or_remarks() {
+        let mut params = params();
+        params.online_channel = Some("  Booking.com  ".to_string());
+
+        let query = build_booking_list_query(&params, "SELECT * FROM bookings b ", pagination());
+        let p = param_placeholder(1);
+
+        assert!(query.count_sql.contains(&format!(
+            "(b.source {like} {p} OR b.remarks {like} {p})",
+            like = like_operator()
+        )));
+        assert_eq!(query.binds.online_channel.as_deref(), Some("%Booking.com%"));
     }
 
     #[test]

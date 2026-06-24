@@ -56,18 +56,14 @@ const getGuestCreditRoomTypeLabels = (guest: GuestWithCredits | null): string =>
 };
 
 const validateNewGuestRequiredInformation = (
-  guest: Pick<NewGuestForm, 'email' | 'phone' | 'ic_number' | 'tourism_type'>
+  guest: Pick<NewGuestForm, 'phone' | 'ic_number'>
 ): string | null => {
   if (!guest.ic_number.trim()) {
     return 'Please enter IC/Passport number';
   }
 
-  if (!guest.email.trim() && !guest.phone.trim()) {
-    return 'Please enter either email or phone number';
-  }
-
-  if (!guest.tourism_type) {
-    return 'Please select tourism type';
+  if (!guest.phone.trim()) {
+    return 'Please enter phone number';
   }
 
   return null;
@@ -81,7 +77,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   initialGuest = null,
   initialBookingType,
   onSuccess,
-  onError,
   onBookingCreated,
   onRefreshData,
 }) => {
@@ -178,6 +173,23 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   // Processing state
   const [processing, setProcessing] = useState(false);
 
+  // Inline submit/validation error, surfaced at the top of the booking summary
+  // panel (top-right) since the page-level snackbar is hidden behind the modal.
+  // `warning` (yellow) is used for required-field/validation messages; `error`
+  // (red) for actual booking/server failures.
+  const [submitError, setSubmitError] = useState<{
+    message: string;
+    severity: 'warning' | 'error';
+  } | null>(null);
+
+  // Surface validation/submit errors inline inside the modal (booking summary
+  // panel + mobile banner). We intentionally do NOT use the page-level snackbar
+  // here — it renders behind the modal where the user can't see it. Validation
+  // messages default to the yellow `warning` style.
+  const reportError = (message: string, severity: 'warning' | 'error' = 'warning') => {
+    setSubmitError({ message, severity });
+  };
+
   // Room selection state (when room is not pre-selected)
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [selectedRooms, setSelectedRooms] = useState<Room[]>([]);
@@ -238,6 +250,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
       // Batch all state resets together using functional updates.
       // Defaults match the New Booking · Light design (Reservation + Online).
+      setSubmitError(null);
       setBookingMode('reservation');
       setReservationType('online');
       setSelectedGuest(initialGuest);
@@ -269,6 +282,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     // Only run cleanup when transitioning from open to closed
     if (!open && wasOpen) {
       // Reset state when closing (for cleanup)
+      setSubmitError(null);
       setBookingMode(null);
       setReservationType(null);
       setSelectedGuest(null);
@@ -369,8 +383,9 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Create booking and hand off to EnhancedCheckInModal (for direct booking)
   const createBookingAndHandOff = async () => {
+    setSubmitError(null);
     if (!room) {
-      onError('No room selected');
+      reportError('No room selected');
       return;
     }
 
@@ -382,26 +397,21 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       // Create new guest if needed
       if (isCreatingNewGuest) {
         if (!newGuestForm.first_name || !newGuestForm.last_name) {
-          onError('Please fill in required guest fields');
+          reportError('Please fill in required guest fields');
           setProcessing(false);
           return;
         }
 
         const guestInformationError = validateNewGuestRequiredInformation(newGuestForm);
         if (guestInformationError) {
-          onError(guestInformationError);
+          reportError(guestInformationError);
           setProcessing(false);
           return;
         }
-        const tourismType = newGuestForm.tourism_type;
-        if (!tourismType) {
-          onError('Please select tourism type');
-          setProcessing(false);
-          return;
-        }
+        const tourismType = newGuestForm.tourism_type || 'local';
 
         if (newGuestForm.email && newGuestForm.email.trim() && !isValidEmail(newGuestForm.email)) {
-          onError('Please enter a valid email address');
+          reportError('Please enter a valid email address');
           setProcessing(false);
           return;
         }
@@ -410,7 +420,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         const modalFullName = `${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}`.toLowerCase();
         const existingGuestByName = guests.find(g => g.full_name.toLowerCase().trim() === modalFullName);
         if (existingGuestByName) {
-          onError(`A guest with the name '${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}' already exists. Please select the existing guest instead.`);
+          reportError(`A guest with the name '${newGuestForm.first_name.trim()} ${newGuestForm.last_name.trim()}' already exists. Please select the existing guest instead.`);
           setProcessing(false);
           return;
         }
@@ -419,7 +429,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         if (newGuestForm.email && newGuestForm.email.trim()) {
           const existingGuest = guests.find(g => g.email && g.email.toLowerCase() === newGuestForm.email.toLowerCase());
           if (existingGuest) {
-            onError(`A guest with email ${newGuestForm.email} already exists`);
+            reportError(`A guest with email ${newGuestForm.email} already exists`);
             setProcessing(false);
             return;
           }
@@ -428,10 +438,10 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         const newGuest = await HotelAPIService.createGuest({
           first_name: newGuestForm.first_name,
           last_name: newGuestForm.last_name,
-          email: newGuestForm.email || undefined,
-          phone: newGuestForm.phone,
-          ic_number: newGuestForm.ic_number,
-          nationality: newGuestForm.nationality,
+          email: newGuestForm.email.trim() || undefined,
+          phone: newGuestForm.phone.trim() || undefined,
+          ic_number: newGuestForm.ic_number.trim() || undefined,
+          nationality: newGuestForm.nationality.trim() || undefined,
           tourism_type: tourismType,
           guest_type: newGuestForm.guest_type || 'non_member',
           company_name: newGuestForm.company_name || undefined,
@@ -448,7 +458,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       }
 
       if (!guestToUse) {
-        onError('Please select a guest');
+        reportError('Please select a guest');
         setProcessing(false);
         return;
       }
@@ -514,7 +524,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       onClose();
       await onRefreshData();
     } catch (error: any) {
-      onError(error.message || 'Failed to create booking');
+      reportError(error.message || 'Failed to create booking', 'error');
     } finally {
       setProcessing(false);
     }
@@ -610,14 +620,16 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       return;
     }
 
+    setSubmitError(null);
+
     if (!room) {
-      onError('No room selected');
+      reportError('No room selected');
       return;
     }
 
     const effectiveType = getEffectiveBookingType();
     if (!effectiveType) {
-      onError('Please select a booking type');
+      reportError('Please select a booking type');
       return;
     }
 
@@ -630,26 +642,21 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       if (effectiveType !== 'complimentary') {
         if (isCreatingNewGuest) {
           if (!newGuestForm.first_name || !newGuestForm.last_name) {
-            onError('Please fill in required guest fields');
+            reportError('Please fill in required guest fields');
             setProcessing(false);
             return;
           }
 
           const guestInformationError = validateNewGuestRequiredInformation(newGuestForm);
           if (guestInformationError) {
-            onError(guestInformationError);
+            reportError(guestInformationError);
             setProcessing(false);
             return;
           }
-          const tourismType = newGuestForm.tourism_type;
-          if (!tourismType) {
-            onError('Please select tourism type');
-            setProcessing(false);
-            return;
-          }
+          const tourismType = newGuestForm.tourism_type || 'local';
 
           if (newGuestForm.email && newGuestForm.email.trim() && !isValidEmail(newGuestForm.email)) {
-            onError('Please enter a valid email address');
+            reportError('Please enter a valid email address');
             setProcessing(false);
             return;
           }
@@ -658,7 +665,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           if (newGuestForm.email && newGuestForm.email.trim()) {
             const existingGuest = guests.find(g => g.email && g.email.toLowerCase() === newGuestForm.email.toLowerCase());
             if (existingGuest) {
-              onError(`A guest with email ${newGuestForm.email} already exists`);
+              reportError(`A guest with email ${newGuestForm.email} already exists`);
               setProcessing(false);
               return;
             }
@@ -667,10 +674,10 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           const newGuest = await HotelAPIService.createGuest({
             first_name: newGuestForm.first_name,
             last_name: newGuestForm.last_name,
-            email: newGuestForm.email || undefined,
-            phone: newGuestForm.phone,
-            ic_number: newGuestForm.ic_number,
-            nationality: newGuestForm.nationality,
+            email: newGuestForm.email.trim() || undefined,
+            phone: newGuestForm.phone.trim() || undefined,
+            ic_number: newGuestForm.ic_number.trim() || undefined,
+            nationality: newGuestForm.nationality.trim() || undefined,
             tourism_type: tourismType,
             guest_type: newGuestForm.guest_type || 'non_member',
             company_name: newGuestForm.company_name || undefined,
@@ -682,7 +689,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         }
 
         if (!guestToUse) {
-          onError('Please select a guest');
+          reportError('Please select a guest');
           setProcessing(false);
           return;
         }
@@ -770,13 +777,13 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
         case 'complimentary': {
           if (!selectedGuestWithCredits) {
-            onError('Please select a guest with free room credits');
+            reportError('Please select a guest with free room credits');
             setProcessing(false);
             return;
           }
 
           if (!canCoverRoomsWithCredits(selectedGuestWithCredits, selectedBookingRooms, requiredCreditNights)) {
-            onError('Selected guest does not have enough complimentary credit for the selected room type.');
+            reportError('Selected guest does not have enough complimentary credit for the selected room type.');
             setProcessing(false);
             return;
           }
@@ -814,7 +821,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         }
       }
     } catch (error: any) {
-      onError(error.message || 'Failed to create booking');
+      reportError(error.message || 'Failed to create booking', 'error');
     } finally {
       setProcessing(false);
     }
@@ -953,8 +960,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Lenient submit gate — only block on truly impossible state. The downstream
   // submit handlers (createBookingAndHandOff / handleSubmit) already validate
-  // guest, channel, etc. and surface precise errors via onError(), so we don't
-  // need to disable the button for those cases.
+  // guest, channel, etc. and surface precise errors via reportError(), so we
+  // don't need to disable the button for those cases.
   const formIsValid = (() => {
     if (selectedBookingRooms.length === 0) return false;
     if (!bookingMode) return false;
@@ -1059,6 +1066,18 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       }}>
         {/* LEFT — FORM */}
         <Box sx={{ p: '22px 24px', overflowY: 'auto' }}>
+
+          {/* Mobile-only error banner (the summary aside that shows it on
+             desktop is hidden on xs). */}
+          {submitError && (
+            <Alert
+              severity={submitError.severity}
+              onClose={() => setSubmitError(null)}
+              sx={{ display: { xs: 'flex', md: 'none' }, mb: 2 }}
+            >
+              {submitError.message}
+            </Alert>
+          )}
 
           {/* Room picker — only when opened without a pre-selected room
              (e.g. the "Add booking" CTA on the Bookings page). */}
@@ -1205,6 +1224,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             tourismTaxRate={hotelSettings.tourism_tax_rate}
             currencySymbol={currencySymbol}
             formatCurrency={formatCurrency}
+            hideTourismStatus={isCreatingNewGuest}
           />
 
           {/* Notes */}
@@ -1219,6 +1239,8 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         {/* RIGHT — LIVE SUMMARY */}
         <BookingSummaryAside
           D={D}
+          submitError={submitError}
+          onDismissError={() => setSubmitError(null)}
           room={room}
           roomCount={roomCount}
           selectedRoomNumbers={selectedRoomNumbers}

@@ -17,6 +17,10 @@ pub struct BookingPaginationParams {
     pub status: Option<String>,
     /// Filter by room number (partial match).
     pub room_number: Option<String>,
+    /// Filter by exact payment method.
+    pub payment_method: Option<String>,
+    /// Filter by online booking channel (matched against booking source/remarks).
+    pub online_channel: Option<String>,
     /// Only return bookings billed to a company.
     pub company_billed: Option<bool>,
     /// Only bookings whose check-in date matches this date.

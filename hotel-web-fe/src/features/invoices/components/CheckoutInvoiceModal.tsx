@@ -156,6 +156,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
 
   // Deposit refund state
   const [refundingDeposit, setRefundingDeposit] = useState(false);
+  const [revertingRefund, setRevertingRefund] = useState(false);
   const [refundPaymentMethod, setRefundPaymentMethod] = useState('cash');
 
   // Deposit waive state
@@ -354,6 +355,23 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
       setError(err.message || 'Failed to refund deposit');
     } finally {
       setRefundingDeposit(false);
+    }
+  };
+
+  const handleRevertDepositRefund = async () => {
+    if (!booking) return;
+    if (!window.confirm('Revert the deposit refund? This removes the refund record so the deposit can be refunded again.')) return;
+    try {
+      setRevertingRefund(true);
+      await InvoicesService.revertDepositRefund(booking.id);
+      // Drop the refund payment row(s) locally and reset the refunded flag.
+      setPayments(prev => prev.filter(p => p.payment_status !== 'refunded' && p.payment_type !== 'refund'));
+      setDepositRefunded(false);
+      invalidateInvoiceState();
+    } catch (err: any) {
+      setError(err.message || 'Failed to revert deposit refund');
+    } finally {
+      setRevertingRefund(false);
     }
   };
 
@@ -1036,6 +1054,19 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                           <Typography variant="body2" sx={{ fontWeight: 600, color: '#2e7d32' }}>
                             {formatCurrency(charges.depositRefund)}
                           </Typography>
+                          {!readOnly && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              color="warning"
+                              onClick={handleRevertDepositRefund}
+                              disabled={revertingRefund}
+                              startIcon={revertingRefund ? <CircularProgress size={14} /> : undefined}
+                              sx={{ fontSize: '0.7rem', py: 0.25 }}
+                            >
+                              Revert
+                            </Button>
+                          )}
                         </>
                       ) : (
                         <>

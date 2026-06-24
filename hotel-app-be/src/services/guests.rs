@@ -94,7 +94,7 @@ pub async fn create_guest(
     let first_name = Sanitizer::sanitize_guest_name(&input.first_name);
     let last_name = Sanitizer::sanitize_guest_name(&input.last_name);
     let full_name = format!("{} {}", first_name, last_name).trim().to_string();
-    let tourism_type = require_guest_tourism_type(input.tourism_type)?;
+    let tourism_type = resolve_guest_tourism_type(input.tourism_type);
 
     if let Some(conflicting_guest_id) =
         GuestRepository::full_name_conflict_id(pool, &full_name, None).await?
@@ -555,10 +555,8 @@ fn normalize_guest_text(value: Option<String>) -> Option<String> {
     })
 }
 
-fn require_guest_tourism_type(tourism_type: Option<TourismType>) -> Result<TourismType, ApiError> {
-    tourism_type.ok_or_else(|| {
-        ApiError::BadRequest("Tourism type is required when creating a guest".to_string())
-    })
+fn resolve_guest_tourism_type(tourism_type: Option<TourismType>) -> TourismType {
+    tourism_type.unwrap_or(TourismType::Local)
 }
 
 fn has_paid_tourism_tax(signal: &GuestTourismTaxSignal) -> bool {
@@ -901,12 +899,23 @@ mod tests {
     }
 
     #[test]
-    fn required_guest_tourism_type_rejects_unspecified_create_value() {
-        assert!(require_guest_tourism_type(None).is_err());
+    fn guest_tourism_type_defaults_to_local_when_unspecified() {
+        assert_eq!(resolve_guest_tourism_type(None), TourismType::Local);
         assert_eq!(
-            require_guest_tourism_type(Some(TourismType::Foreign)).unwrap(),
+            resolve_guest_tourism_type(Some(TourismType::Foreign)),
             TourismType::Foreign
         );
+    }
+
+    #[test]
+    fn guest_email_is_optional_but_validated_when_provided() {
+        assert_eq!(normalize_guest_email(None).unwrap(), None);
+        assert_eq!(normalize_guest_email(Some("  ".to_string())).unwrap(), None);
+        assert_eq!(
+            normalize_guest_email(Some("  GUEST@Example.COM  ".to_string())).unwrap(),
+            Some("guest@example.com".to_string())
+        );
+        assert!(normalize_guest_email(Some("not-an-email".to_string())).is_err());
     }
 
     #[test]

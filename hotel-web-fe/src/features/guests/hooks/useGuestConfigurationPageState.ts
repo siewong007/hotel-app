@@ -23,7 +23,7 @@ export function useGuestConfigurationPageState() {
   const [bookingGuest, setBookingGuest] = useState<Guest | null>(null);
   const [formData, setFormData] = useState({
     first_name: '', last_name: '', email: '', phone: '', ic_number: '',
-    nationality: '', guest_type: 'individual' as string, tourism_type: '' as string,
+    nationality: '', guest_type: 'individual' as string, tourism_type: 'local' as string,
     company_name: '', address_line1: '', city: '', state_province: '',
     postal_code: '', country: '', title: '', alt_phone: '',
   });
@@ -44,7 +44,7 @@ export function useGuestConfigurationPageState() {
   const handleCreateClick = useCallback(() => {
     setFormData({
       first_name: '', last_name: '', email: '', phone: '', ic_number: '',
-      nationality: '', guest_type: 'individual', tourism_type: '',
+      nationality: '', guest_type: 'individual', tourism_type: 'local',
       company_name: '', address_line1: '', city: '', state_province: '',
       postal_code: '', country: '', title: '', alt_phone: '',
     });

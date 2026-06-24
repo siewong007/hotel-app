@@ -295,7 +295,7 @@ const GuestConfigurationPage: React.FC = () => {
     country: '',
     company_name: '',
     guest_type: 'non_member',
-    tourism_type: undefined,
+    tourism_type: 'local',
     discount_percentage: 0,
   });
 
@@ -502,7 +502,7 @@ const GuestConfigurationPage: React.FC = () => {
       country: '',
       company_name: '',
       guest_type: 'non_member',
-      tourism_type: undefined,
+      tourism_type: 'local',
       discount_percentage: 0,
     });
   };
@@ -577,11 +577,7 @@ const GuestConfigurationPage: React.FC = () => {
       return;
     }
 
-    const tourismType = formData.tourism_type;
-    if (!tourismType) {
-      setDialogError('Tourism type is required');
-      return;
-    }
+    const tourismType = formData.tourism_type || 'local';
 
     const requiredInformationError = validateRequiredGuestInformation(formData);
     if (requiredInformationError) {
