@@ -422,6 +422,8 @@ impl PaymentRepository {
                 b.status AS booking_status,
                 COALESCE(b.payment_status, 'unpaid') AS payment_status,
                 b.total_amount,
+                COALESCE(b.tourism_tax_amount, 0) AS tourism_tax_amount,
+                COALESCE(b.extra_bed_charge, 0) AS extra_bed_charge,
                 COALESCE((SELECT SUM(p.amount) FROM payments p
                     WHERE p.booking_id = b.id AND p.status = 'completed'
                       AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -446,6 +448,8 @@ impl PaymentRepository {
                 b.status AS booking_status,
                 COALESCE(b.payment_status, 'unpaid') AS payment_status,
                 b.total_amount,
+                COALESCE(b.tourism_tax_amount, 0) AS tourism_tax_amount,
+                COALESCE(b.extra_bed_charge, 0) AS extra_bed_charge,
                 COALESCE((SELECT SUM(p.amount) FROM payments p
                     WHERE p.booking_id = b.id AND p.status = 'completed'
                       AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) AS total_paid,
@@ -1088,6 +1092,8 @@ fn map_workflow_summary_row(row: &DbRow) -> PaymentWorkflowSummaryRow {
         booking_status: row.get("booking_status"),
         payment_status: row.get("payment_status"),
         total_amount: row_mappers::get_decimal(row, "total_amount"),
+        tourism_tax_amount: row_mappers::get_decimal(row, "tourism_tax_amount"),
+        extra_bed_charge: row_mappers::get_decimal(row, "extra_bed_charge"),
         total_paid: row_mappers::get_decimal(row, "total_paid"),
         total_refunded: row_mappers::get_decimal(row, "total_refunded"),
         deposit_collected: row_mappers::get_decimal(row, "deposit_collected"),

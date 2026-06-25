@@ -124,11 +124,28 @@ pub struct PaymentWorkflowSummaryRow {
     pub booking_status: String,
     pub payment_status: String,
     pub total_amount: Decimal,
+    /// Tourism tax billed to the guest. Stored separately from `total_amount`
+    /// (which is room-only), but it is part of what the checkout invoice asks
+    /// the guest to settle.
+    pub tourism_tax_amount: Decimal,
+    /// Extra-bed charge billed to the guest. Like tourism tax, this is invoiced
+    /// on top of the room-only `total_amount`.
+    pub extra_bed_charge: Decimal,
     pub total_paid: Decimal,
     pub total_refunded: Decimal,
     pub deposit_collected: Decimal,
     pub deposit_refunded: Decimal,
     pub has_failed_payment: bool,
+}
+
+impl PaymentWorkflowSummaryRow {
+    /// The full amount invoiced to the guest: the room-only `total_amount` plus
+    /// ancillary charges (tourism tax, extra bed) that the checkout invoice adds
+    /// on top of it. Payment balances are computed against this so a fully
+    /// room-paid booking still shows the tourism tax / extra bed as collectable.
+    pub fn billable_total(&self) -> Decimal {
+        self.total_amount + self.tourism_tax_amount + self.extra_bed_charge
+    }
 }
 
 #[derive(Debug, Clone)]
