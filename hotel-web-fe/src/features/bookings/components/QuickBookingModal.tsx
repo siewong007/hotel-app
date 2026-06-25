@@ -218,15 +218,9 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
       return null;
     }
 
-    if (!newGuestIcNumber.trim()) {
-      setError('IC number / passport is required for new guest');
-      return null;
-    }
-
-    if (!newGuestEmail.trim() && !newGuestPhone.trim()) {
-      setError('Email or phone number is required for new guest');
-      return null;
-    }
+    // IC / passport, email and phone are all optional at booking creation —
+    // online bookings often arrive without contact details, which are collected
+    // at check-in. Do not block booking creation on missing email/phone.
 
     // Validate email format only if provided
     if (newGuestEmail && newGuestEmail.trim()) {
@@ -580,8 +574,8 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <TextField
                     fullWidth
-                    required
                     label="IC/Passport Number"
+                    helperText="Optional — collected at check-in"
                     value={newGuestIcNumber}
                     onChange={(e) => setNewGuestIcNumber(e.target.value)}
                     size="small"

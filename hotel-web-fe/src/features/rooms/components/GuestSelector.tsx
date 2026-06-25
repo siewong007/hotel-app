@@ -322,8 +322,8 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
           <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
-              required
               label="Phone"
+              helperText="Optional — collected at check-in"
               value={newGuestForm.phone}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, phone: e.target.value })}
             />
@@ -331,8 +331,8 @@ const GuestSelector: React.FC<GuestSelectorProps> = ({
           <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               fullWidth
-              required
               label="IC/Passport Number"
+              helperText="Optional — collected at check-in"
               value={newGuestForm.ic_number}
               onChange={(e) => onNewGuestFormChange({ ...newGuestForm, ic_number: e.target.value })}
             />

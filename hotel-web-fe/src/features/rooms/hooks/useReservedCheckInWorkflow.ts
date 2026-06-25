@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { HotelAPIService } from '../../../api';
-import type { BookingWithDetails } from '../../../types';
+import type { BookingWithDetails, CheckInRequest } from '../../../types';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import type { ApiNotificationSeverity } from '../../../utils/apiNotifications';
 import { isPositiveMoney, toMoneyNumber } from '../../../utils/money';
@@ -29,6 +29,11 @@ export function useReservedCheckInWorkflow({
   const [depositAmount, setDepositAmount] = useState(0);
   const [depositMethod, setDepositMethod] = useState('Cash');
   const [waiveReason, setWaiveReason] = useState('');
+  // Identity document is required at check-in (it is optional at booking
+  // creation); phone is optional. Pre-filled from the guest record on open so
+  // guests who already have these on file don't need to re-enter them.
+  const [icNumber, setIcNumber] = useState('');
+  const [phone, setPhone] = useState('');
 
   const resetDepositState = useCallback(() => {
     setCollectingDeposit(false);
@@ -51,7 +56,24 @@ export function useReservedCheckInWorkflow({
     setDepositAmount(settingsDeposit);
     setDepositMethod('Cash');
     setWaiveReason('');
+    setIcNumber('');
+    setPhone(nextBooking.guest_phone || '');
     setDialogOpen(true);
+
+    // Back-fill the identity document and phone from the guest profile (the
+    // booking summary doesn't carry the IC). Best-effort: a failure just leaves
+    // the fields for staff to complete manually.
+    const guestId = nextBooking.guest_id;
+    if (guestId !== undefined && guestId !== null) {
+      HotelAPIService.getGuest(guestId)
+        .then((guest) => {
+          setIcNumber((current) => (current.trim() ? current : guest.ic_number || ''));
+          setPhone((current) => (current.trim() ? current : guest.phone || ''));
+        })
+        .catch(() => {
+          /* leave fields empty for manual entry */
+        });
+    }
   }, [resetDepositState]);
 
   const close = useCallback(() => {
@@ -59,18 +81,27 @@ export function useReservedCheckInWorkflow({
 
     setDialogOpen(false);
     setBooking(null);
+    setIcNumber('');
+    setPhone('');
     resetDepositState();
   }, [processing, resetDepositState]);
 
   const cancel = useCallback(() => {
     setDialogOpen(false);
     setBooking(null);
+    setIcNumber('');
+    setPhone('');
     resetDepositState();
   }, [resetDepositState]);
 
   const checkIn = useCallback(async () => {
     if (!booking) {
       showSnackbar('No booking selected', 'warning');
+      return;
+    }
+
+    if (!icNumber.trim()) {
+      showSnackbar('IC / passport number is required to complete check-in.', 'warning');
       return;
     }
 
@@ -103,22 +134,28 @@ export function useReservedCheckInWorkflow({
 
       await HotelAPIService.updateBooking(booking.id, updateData);
 
-      const checkinPayload = paymentChoice === 'pay_now' && isPositiveMoney(amountPaid)
-        ? {
-            payment_record: {
-              amount: toMoneyNumber(amountPaid),
-              payment_method: paymentMethod,
-              payment_type: 'booking',
-              notes: 'Payment collected at check-in',
-            },
-          }
-        : undefined;
+      const checkinPayload: CheckInRequest = {
+        guest_update: {
+          ic_number: icNumber.trim(),
+          ...(phone.trim() ? { phone: phone.trim() } : {}),
+        },
+      };
+      if (paymentChoice === 'pay_now' && isPositiveMoney(amountPaid)) {
+        checkinPayload.payment_record = {
+          amount: toMoneyNumber(amountPaid),
+          payment_method: paymentMethod,
+          payment_type: 'booking',
+          notes: 'Payment collected at check-in',
+        };
+      }
 
       await HotelAPIService.checkInGuest(String(booking.id), checkinPayload);
 
       showSnackbar(`Guest ${booking.guest_name} checked in successfully to Room ${booking.room_number}`, 'success');
       setDialogOpen(false);
       setBooking(null);
+      setIcNumber('');
+      setPhone('');
       resetDepositState();
       await reload();
     } catch (error: any) {
@@ -132,8 +169,10 @@ export function useReservedCheckInWorkflow({
     depositAmount,
     depositChoice,
     depositMethod,
+    icNumber,
     paymentChoice,
     paymentMethod,
+    phone,
     reload,
     resetDepositState,
     showSnackbar,
@@ -160,6 +199,10 @@ export function useReservedCheckInWorkflow({
     setDepositAmount,
     waiveReason,
     setWaiveReason,
+    icNumber,
+    setIcNumber,
+    phone,
+    setPhone,
     openWithBooking,
     close,
     cancel,

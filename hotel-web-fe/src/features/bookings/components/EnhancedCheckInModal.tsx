@@ -60,21 +60,12 @@ import { getHotelSettings } from '../../../utils/hotelSettings';
 import { useCheckInFormData } from '../hooks/useCheckInFormData';
 import { emitApiNotification } from '../../../utils/apiNotifications';
 import { divideMoney, isPositiveMoney, multiplyMoney, toMoneyNumber } from '../../../utils/money';
+import { getBookingChannelInfo } from '../utils/bookingChannel';
 
 // Validation helper functions
-const validateEmail = (email: string): boolean => {
-  if (!email) return true; // Optional field
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
-
-const validatePhone = (phone: string): boolean => {
-  if (!phone) return true; // Optional field
-  // Malaysian phone format: +60XXXXXXXXX, 60XXXXXXXXX, 0XXXXXXXXX, or just digits
-  const phoneRegex = /^(\+?60|0)?[0-9]{8,11}$/;
-  return phoneRegex.test(phone.replace(/[\s-]/g, ''));
-};
-
+// Note: Email and phone are intentionally not format-validated at check-in —
+// online bookings may arrive without (or with imperfect) contact details, and
+// staff should not be blocked from checking the guest in.
 const validateICNumber = (ic: string): boolean => {
   if (!ic) return true; // Optional field
   // Malaysian IC format: YYMMDD-SS-NNNN or YYMMDDSSNNNN (12 digits)
@@ -441,14 +432,14 @@ export default function EnhancedCheckInModal({
         if (value.trim().length < 2) return 'First name must be at least 2 characters';
         return undefined;
       case 'email':
-        if (value && !validateEmail(value)) return 'Please enter a valid email address';
         return undefined;
       case 'phone':
         return undefined;
       case 'alt_phone':
         return undefined;
       case 'ic_number':
-        if (value && !validateICNumber(value)) return 'Please enter a valid IC/Passport number';
+        if (!value || !value.trim()) return 'IC/Passport number is required to complete check-in';
+        if (!validateICNumber(value)) return 'Please enter a valid IC/Passport number';
         return undefined;
       case 'cardNumber':
         if (value && !validateCardNumber(value)) return 'Please enter a valid card number (13-19 digits)';
@@ -596,10 +587,27 @@ export default function EnhancedCheckInModal({
         booking_update: bookingUpdateWithCompany,
       };
 
+      // Online reservations auto-record a payment for the outstanding balance on
+      // the backend (source === 'online'). If staff instead collect at the desk
+      // ("Make Payment Now"), pass the amount as a check-in payment_record so the
+      // backend records exactly that and skips its auto-settlement — preventing a
+      // double charge from the separate recordPayment call below.
+      const collectingOnlineAtDesk =
+        isOnlineReservation && paymentChoice === 'pay_now' && isPositiveMoney(amountPaid);
+      if (collectingOnlineAtDesk) {
+        checkinRequest.payment_record = {
+          amount: toMoneyNumber(amountPaid),
+          payment_method: paymentType,
+          payment_type: 'booking',
+          notes: 'Payment collected at check-in',
+        };
+      }
+
       await HotelAPIService.checkInGuest(booking.id, checkinRequest);
 
-      // Record payment if paying now
-      if (paymentChoice === 'pay_now' && isPositiveMoney(amountPaid)) {
+      // Record payment if paying now (online desk-collection is already handled
+      // above via payment_record, so skip the duplicate posting here).
+      if (paymentChoice === 'pay_now' && isPositiveMoney(amountPaid) && !collectingOnlineAtDesk) {
         try {
           await InvoicesService.recordPayment({
             booking_id: typeof booking.id === 'string' ? parseInt(booking.id) : booking.id,
@@ -617,6 +625,15 @@ export default function EnhancedCheckInModal({
       // Frontend must not create company ledger entries here to avoid duplicate
       // postings or race conditions. Leave any admin-ledger creation to the
       // dedicated ledger UI.
+
+      // Non-blocking reminder: online bookings often arrive without a contact
+      // number. Prompt staff to collect one (does not force / block check-in).
+      if (!guestData.phone?.trim() && !guestData.alt_phone?.trim()) {
+        emitApiNotification({
+          message: 'No phone number on file for this guest — please ask for a contact number when convenient.',
+          severity: 'info',
+        });
+      }
 
       onCheckInSuccess();
       onClose();
@@ -646,6 +663,12 @@ export default function EnhancedCheckInModal({
   };
 
   if (!booking || !guest) return null;
+
+  // Online reservations are settled on the booking platform; the backend
+  // auto-records a payment for the outstanding balance when `source === 'online'`.
+  // Gate the messaging on that exact source so the prompt matches backend behavior.
+  const isOnlineReservation = (booking.source || '').trim().toLowerCase() === 'online';
+  const onlinePlatformName = getBookingChannelInfo(booking)?.name || 'the online platform';
 
   return (
     <>
@@ -861,10 +884,16 @@ export default function EnhancedCheckInModal({
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
+                required
                 label="Reference/IC Number"
                 value={guestData.ic_number || ''}
-                disabled
-                InputProps={{ readOnly: true }}
+                onChange={(e) => handleGuestChange('ic_number', e.target.value)}
+                onBlur={(e) => handleBlur('ic_number', e.target.value)}
+                error={touched.ic_number && Boolean(validationErrors.ic_number)}
+                helperText={
+                  (touched.ic_number && validationErrors.ic_number)
+                  || 'Collected at check-in if not provided during booking'
+                }
               />
             </Grid>
             <Grid size={12}>
@@ -1171,6 +1200,16 @@ export default function EnhancedCheckInModal({
               </Typography>
               <Divider sx={{ mb: 2 }} />
             </Grid>
+            {isOnlineReservation && (
+              <Grid size={12}>
+                <Alert severity="success" sx={{ mb: 1 }}>
+                  Payment was settled on {onlinePlatformName}. The full amount
+                  {' '}({formatCurrency(toMoneyNumber(booking.total_amount))}) is recorded
+                  automatically on check-in — keep this on “Settled Online”. Switch to “Make Payment Now”
+                  only if you are collecting at the desk instead.
+                </Alert>
+              </Grid>
+            )}
             <Grid size={12}>
               <ToggleButtonGroup
                 value={paymentChoice}
@@ -1186,7 +1225,7 @@ export default function EnhancedCheckInModal({
                 </ToggleButton>
                 <ToggleButton value="pay_later" color="warning" sx={{ py: 1.5, fontWeight: 600 }}>
                   <MoneyOffIcon sx={{ mr: 1 }} />
-                  Pay Later
+                  {isOnlineReservation ? 'Settled Online' : 'Pay Later'}
                 </ToggleButton>
               </ToggleButtonGroup>
             </Grid>
@@ -1441,7 +1480,7 @@ export default function EnhancedCheckInModal({
               </>
             )}
 
-            {paymentChoice === 'pay_later' && (
+            {paymentChoice === 'pay_later' && !isOnlineReservation && (
               <Grid size={12}>
                 <Alert severity="info">
                   Payment will be collected later. Guest will check in with unpaid status.
@@ -1539,9 +1578,9 @@ export default function EnhancedCheckInModal({
                   </Grid>
                   <Grid size={6}>
                     <Chip
-                      label={paymentChoice === 'pay_now' ? 'Paid' : 'Unpaid'}
+                      label={paymentChoice === 'pay_now' ? 'Paid' : isOnlineReservation ? 'Settled Online' : 'Unpaid'}
                       size="small"
-                      color={paymentChoice === 'pay_now' ? 'success' : 'warning'}
+                      color={paymentChoice === 'pay_now' || isOnlineReservation ? 'success' : 'warning'}
                       sx={{ fontWeight: 600 }}
                     />
                   </Grid>

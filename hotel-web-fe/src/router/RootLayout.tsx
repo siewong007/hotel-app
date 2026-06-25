@@ -6,11 +6,9 @@ import { NavigationTabs } from '../components/layout/NavigationTabs';
 import { LoadingFallback, MinimalLoadingFallback } from './RouteFallbacks';
 import { FirstLoginPasskeyPrompt } from '../navigation/routeRegistry';
 import { ErrorBoundary, PageErrorBoundary } from '../components';
-import { useThemeMode } from './ThemeModeContext';
 
 export const RootLayout: React.FC = () => {
   const { isAuthenticated, isLoading, shouldPromptPasskey, user, dismissPasskeyPrompt } = useAuth();
-  const { themeMode, onThemeModeChange } = useThemeMode();
   const location = useLocation();
   const pathname = location.pathname;
   const isTimelinePage = pathname.startsWith('/timeline');
@@ -54,11 +52,7 @@ export const RootLayout: React.FC = () => {
           boxShadow: '0 1px 0 rgba(0,0,0,0.08)',
         } : undefined}
       >
-        <NavigationTabs
-          darkBg={appBarSkinActive}
-          themeMode={themeMode}
-          onThemeModeChange={onThemeModeChange}
-        />
+        <NavigationTabs darkBg={appBarSkinActive} />
       </AppBar>
 
       <Suspense fallback={<MinimalLoadingFallback />}>

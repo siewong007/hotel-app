@@ -8,11 +8,8 @@ import {
   ListItemIcon,
   ListItemText,
   Divider,
-  Tooltip,
   Popover,
   InputBase,
-  ToggleButton,
-  ToggleButtonGroup,
   CircularProgress,
 } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -24,14 +21,11 @@ import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import HotelIcon from '@mui/icons-material/Hotel';
-import LightModeIcon from '@mui/icons-material/LightMode';
-import DarkModeIcon from '@mui/icons-material/DarkMode';
-import NightsStayIcon from '@mui/icons-material/NightsStay';
 import { Link, useLocation, useNavigate } from '../../router';
 import { useAuth } from '../../auth/AuthContext';
 import { storage } from '../../utils/storage';
 import { useGlobalSearch } from '../../hooks/useGlobalSearch';
-import type { ThemeMode } from '../../theme';
+import { NotificationCenter } from './NotificationCenter';
 import {
   canAccessNavigationRoute,
   navigationRouteDefinitions,
@@ -40,8 +34,6 @@ import {
 
 interface NavigationTabsProps {
   darkBg?: boolean;
-  themeMode?: ThemeMode;
-  onThemeModeChange?: (mode: ThemeMode) => void;
 }
 
 const EMERALD = '#10A47C';
@@ -49,8 +41,6 @@ const EMERALD_DEEP = '#0E8C6A';
 
 export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function NavigationTabs({
   darkBg = false,
-  themeMode,
-  onThemeModeChange,
 }: NavigationTabsProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -512,42 +502,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
           </Box>
         )}
 
-        {themeMode && onThemeModeChange && (
-          <ToggleButtonGroup
-            exclusive
-            size="small"
-            value={themeMode}
-            onChange={(_, value) => {
-              if (value === 'light' || value === 'dark' || value === 'night') onThemeModeChange(value);
-            }}
-            sx={{
-              bgcolor: 'rgba(255,255,255,0.10)',
-              borderRadius: 999,
-              p: 0.25,
-              flexShrink: 0,
-              display: { xs: 'none', md: 'flex' },
-              '& .MuiToggleButton-root': {
-                color: 'rgba(255,255,255,0.85)',
-                border: 'none',
-                borderRadius: '999px !important',
-                px: 1,
-                '&.Mui-selected': { color: '#1f5a36', bgcolor: 'rgba(255,255,255,0.95)' },
-                '&.Mui-selected:hover': { bgcolor: 'rgba(255,255,255,0.85)' },
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.18)' },
-              },
-            }}
-          >
-            <ToggleButton value="light" aria-label="Light mode">
-              <Tooltip title="Light mode"><LightModeIcon fontSize="small" /></Tooltip>
-            </ToggleButton>
-            <ToggleButton value="dark" aria-label="Dark mode">
-              <Tooltip title="Dark mode"><DarkModeIcon fontSize="small" /></Tooltip>
-            </ToggleButton>
-            <ToggleButton value="night" aria-label="Night mode">
-              <Tooltip title="Night mode"><NightsStayIcon fontSize="small" /></Tooltip>
-            </ToggleButton>
-          </ToggleButtonGroup>
-        )}
+        <NotificationCenter darkBg={darkBg} />
 
         {/* User pill */}
         <Box

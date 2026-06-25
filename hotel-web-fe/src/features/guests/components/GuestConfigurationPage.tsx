@@ -109,27 +109,6 @@ const duplicateGuestReference = (message: string) => {
   };
 };
 
-const hasGuestValue = (value?: string | null) => Boolean(value?.trim());
-
-const validateRequiredGuestInformation = (
-  formData: Pick<GuestFormData, 'email' | 'phone' | 'ic_number'>
-): string | null => {
-  const hasContact = hasGuestValue(formData.email) || hasGuestValue(formData.phone);
-  const hasIdentityDocument = hasGuestValue(formData.ic_number);
-
-  if (!hasContact && !hasIdentityDocument) {
-    return 'IC number / passport is required, and either email or phone number is required';
-  }
-  if (!hasContact) {
-    return 'Either email or phone number is required';
-  }
-  if (!hasIdentityDocument) {
-    return 'IC number / passport is required';
-  }
-
-  return null;
-};
-
 type GuestBookingHistoryRow = {
   id: string | number;
   booking_number?: string | null;
@@ -579,11 +558,8 @@ const GuestConfigurationPage: React.FC = () => {
 
     const tourismType = formData.tourism_type || 'local';
 
-    const requiredInformationError = validateRequiredGuestInformation(formData);
-    if (requiredInformationError) {
-      setDialogError(requiredInformationError);
-      return;
-    }
+    // Email and phone are both optional — contact details are collected at
+    // check-in, so guest creation/editing is not blocked when both are absent.
 
     // Validate email format only if provided
     if (formData.email && formData.email.trim()) {
@@ -636,11 +612,8 @@ const GuestConfigurationPage: React.FC = () => {
       return;
     }
 
-    const requiredInformationError = validateRequiredGuestInformation(formData);
-    if (requiredInformationError) {
-      setDialogError(requiredInformationError);
-      return;
-    }
+    // Email and phone are both optional — contact details are collected at
+    // check-in, so guest creation/editing is not blocked when both are absent.
 
     // Validate email format only if provided
     if (formData.email && formData.email.trim()) {

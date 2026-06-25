@@ -203,6 +203,9 @@ const BookingsPage: React.FC = () => {
   const [ciDepositAmount, setCiDepositAmount] = useState(0);
   const [ciDepositMethod, setCiDepositMethod] = useState('Cash');
   const [ciWaiveReason, setCiWaiveReason] = useState('');
+  // IC is collected at check-in (optional at booking creation); phone optional.
+  const [ciIcNumber, setCiIcNumber] = useState('');
+  const [ciPhone, setCiPhone] = useState('');
   const [workflowDialogOpen, setWorkflowDialogOpen] = useState(false);
   const [workflowBooking, setWorkflowBooking] = useState<BookingWithDetails | null>(null);
   const [workflowSummary, setWorkflowSummary] = useState<PaymentWorkflowSummary | null>(null);
@@ -697,7 +700,19 @@ const BookingsPage: React.FC = () => {
       setCiDepositAmount(settingsDeposit);
       setCiDepositMethod('Cash');
       setCiWaiveReason('');
+      setCiIcNumber('');
+      setCiPhone(booking.guest_phone || '');
       setShowCheckinModal(true);
+
+      // Back-fill IC / phone from the guest profile (booking summary omits IC).
+      if (booking.guest_id !== undefined && booking.guest_id !== null) {
+        HotelAPIService.getGuest(booking.guest_id)
+          .then((guest) => {
+            setCiIcNumber((current) => (current.trim() ? current : guest.ic_number || ''));
+            setCiPhone((current) => (current.trim() ? current : guest.phone || ''));
+          })
+          .catch(() => { /* leave for manual entry */ });
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load check-in data');
     }
@@ -705,6 +720,10 @@ const BookingsPage: React.FC = () => {
 
   const handleConfirmCheckIn = async () => {
     if (!checkinBooking) return;
+    if (!ciIcNumber.trim()) {
+      setError('IC / passport number is required to complete check-in.');
+      return;
+    }
     if (ciDepositChoice === 'receive' && !isPositiveMoney(ciDepositAmount)) {
       setError('Deposit amount must be greater than 0. To skip the deposit, choose "Waive" instead.');
       return;
@@ -728,7 +747,13 @@ const BookingsPage: React.FC = () => {
         bookingUpdate.deposit_amount = 0;
         bookingUpdate.payment_note = `Deposit waived: ${ciWaiveReason}`;
       }
-      const checkinPayload: any = { booking_update: bookingUpdate };
+      const checkinPayload: any = {
+        booking_update: bookingUpdate,
+        guest_update: {
+          ic_number: ciIcNumber.trim(),
+          ...(ciPhone.trim() ? { phone: ciPhone.trim() } : {}),
+        },
+      };
       if (ciPaymentChoice === 'pay_now' && isPositiveMoney(ciAmountPaid)) {
         checkinPayload.payment_record = {
           amount: toMoneyNumber(ciAmountPaid),
@@ -1166,6 +1191,13 @@ const BookingsPage: React.FC = () => {
       </MuiBox>
     );
   }
+
+  // Online reservations are settled on the booking platform; the backend
+  // auto-records a payment for the outstanding balance when `source === 'online'`,
+  // so the check-in dialog surfaces that instead of the generic "unpaid" message.
+  const ciIsOnlineReservation = (checkinBooking?.source || '').trim().toLowerCase() === 'online';
+  const ciOnlinePlatformName =
+    (checkinBooking ? getBookingChannelInfo(checkinBooking)?.name : null) || 'the online platform';
 
   return (
     <Box sx={{ pb: 4 }}>
@@ -2436,13 +2468,35 @@ const BookingsPage: React.FC = () => {
                 </Grid>
               </Box>
 
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Guest Information</Typography>
+              <Grid container spacing={1.5} sx={{ mb: 2 }}>
+                <Grid size={6}>
+                  <TextField fullWidth size="small" required label="IC / Passport Number" value={ciIcNumber}
+                    onChange={(e) => setCiIcNumber(e.target.value)}
+                    error={!ciIcNumber.trim()}
+                    helperText={!ciIcNumber.trim() ? 'Required to complete check-in' : ' '} />
+                </Grid>
+                <Grid size={6}>
+                  <TextField fullWidth size="small" label="Phone Number" value={ciPhone}
+                    onChange={(e) => setCiPhone(e.target.value)} helperText="Optional" />
+                </Grid>
+              </Grid>
+
               <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Payment</Typography>
+              {ciIsOnlineReservation && (
+                <Alert severity="success" sx={{ mb: 1.5, py: 0 }}>
+                  Payment was settled on {ciOnlinePlatformName}. The full amount
+                  {' '}({formatCurrency(toMoneyNumber(checkinBooking.total_amount))}) is recorded
+                  automatically on check-in — keep this on “Settled Online”. Switch to “Make Payment Now”
+                  only if you are collecting at the desk instead.
+                </Alert>
+              )}
               <ToggleButtonGroup value={ciPaymentChoice} exclusive onChange={(_, val) => { if (val) setCiPaymentChoice(val); }} fullWidth size="small" sx={{ mb: 1.5 }}>
                 <ToggleButton value="pay_now" color="success" sx={{ py: 1, fontWeight: 600 }}>
                   <PaymentIcon sx={{ mr: 0.5, fontSize: 18 }} /> Make Payment Now
                 </ToggleButton>
                 <ToggleButton value="pay_later" color="warning" sx={{ py: 1, fontWeight: 600 }}>
-                  <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} /> Pay Later
+                  <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} /> {ciIsOnlineReservation ? 'Settled Online' : 'Pay Later'}
                 </ToggleButton>
               </ToggleButtonGroup>
               {ciPaymentChoice === 'pay_now' && (
@@ -2461,7 +2515,7 @@ const BookingsPage: React.FC = () => {
                   </Grid>
                 </Grid>
               )}
-              {ciPaymentChoice === 'pay_later' && (
+              {ciPaymentChoice === 'pay_later' && !ciIsOnlineReservation && (
                 <Alert severity="info" sx={{ mb: 1.5, py: 0 }}>Payment will be collected later.</Alert>
               )}
 
@@ -2499,7 +2553,7 @@ const BookingsPage: React.FC = () => {
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2, bgcolor: 'grey.50', borderTop: 1, borderColor: 'divider' }}>
           <Button onClick={() => { setShowCheckinModal(false); setCheckinBooking(null); }} disabled={processingCheckIn}>Cancel</Button>
-          <Button variant="contained" color="success" onClick={handleConfirmCheckIn} disabled={processingCheckIn}
+          <Button variant="contained" color="success" onClick={handleConfirmCheckIn} disabled={processingCheckIn || !ciIcNumber.trim()}
             startIcon={processingCheckIn ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}>
             {processingCheckIn ? 'Processing...' : 'Check-In Now'}
           </Button>

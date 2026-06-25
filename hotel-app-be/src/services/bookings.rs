@@ -39,6 +39,15 @@ impl CheckinSourceContext {
     }
 }
 
+/// Whether a booking originated from an online reservation channel.
+///
+/// `source` is the canonical channel marker (`walk_in`, `online`, `phone`,
+/// `agent`); OTA imports set it to `online`. Matched case-insensitively and
+/// trimmed to be robust to imported casing/whitespace.
+fn is_online_source(source: Option<&str>) -> bool {
+    source.is_some_and(|s| s.trim().eq_ignore_ascii_case("online"))
+}
+
 pub async fn void_booking(
     pool: &DbPool,
     user_id: i64,
@@ -234,6 +243,26 @@ async fn checkin_booking_flow_for_booking(
         )));
     }
 
+    // Identity document is optional at booking creation but required at arrival:
+    // refuse to complete check-in unless an IC / passport ends up on file. An
+    // explicit value in the check-in patch wins (including an empty one, which
+    // clears the field); otherwise the guest's stored value must be non-empty.
+    let ic_in_patch = checkin_data
+        .as_ref()
+        .and_then(|checkin| checkin.guest_update.as_ref())
+        .and_then(|guest_update| guest_update.ic_number.as_ref());
+    let has_identity_document = match ic_in_patch {
+        Some(value) => !value.trim().is_empty(),
+        None => booking_repo::fetch_guest_ic_number_tx(&mut tx, booking.guest_id)
+            .await?
+            .is_some_and(|value| !value.trim().is_empty()),
+    };
+    if !has_identity_document {
+        return Err(ApiError::BadRequest(
+            "IC / passport number is required to complete check-in".to_string(),
+        ));
+    }
+
     // Optional guest/booking edits supplied with the check-in payload.
     if let Some(ref checkin) = checkin_data {
         if let Some(ref guest_update) = checkin.guest_update {
@@ -249,6 +278,11 @@ async fn checkin_booking_flow_for_booking(
     let updated_booking = booking_repo::checkin_booking_tx(&mut tx, booking_id).await?;
 
     // Optional payment captured at check-in; recompute the stored status after.
+    let explicit_payment_captured = checkin_data
+        .as_ref()
+        .and_then(|data| data.payment_record.as_ref())
+        .map(|payment| payment.amount > 0.0)
+        .unwrap_or(false);
     if let Some(ref checkin) = checkin_data
         && let Some(ref payment) = checkin.payment_record
         && payment.amount > 0.0
@@ -256,6 +290,23 @@ async fn checkin_booking_flow_for_booking(
         booking_repo::record_checkin_payment_tx(&mut tx, booking_id, payment, user_id).await?;
         payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
     }
+
+    // Online reservations are prepaid: when staff didn't capture a payment at
+    // check-in, auto-post the outstanding balance so the folio reflects the
+    // online payment. The repo call no-ops when nothing is owed, so it never
+    // double-charges a booking that already has a payment.
+    let auto_online_payment_recorded = if !explicit_payment_captured
+        && is_online_source(booking.source.as_deref())
+    {
+        let recorded =
+            booking_repo::record_online_checkin_payment_tx(&mut tx, &booking, user_id).await?;
+        if recorded {
+            payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
+        }
+        recorded
+    } else {
+        false
+    };
 
     // Only occupy the room for current/future stays (skip back-dated check-ins).
     let today = chrono::Local::now().date_naive();
@@ -280,6 +331,7 @@ async fn checkin_booking_flow_for_booking(
             "guest_id": booking.guest_id,
             "room_id": booking.room_id,
             "payment_recorded": payment_recorded,
+            "auto_online_payment_recorded": auto_online_payment_recorded,
             "source": context.source,
             "ekyc_verification_id": context.self_checkin_event.as_ref().map(|event| event.ekyc_verification_id),
         }),
@@ -438,4 +490,25 @@ pub async fn reactivate_booking(
     let _ = booking_repo::record_booking_reactivation_modification(pool, booking_id, user_id).await;
 
     Ok(booking)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_online_source;
+
+    #[test]
+    fn online_source_is_detected_case_and_whitespace_insensitive() {
+        assert!(is_online_source(Some("online")));
+        assert!(is_online_source(Some("Online")));
+        assert!(is_online_source(Some("  ONLINE  ")));
+    }
+
+    #[test]
+    fn non_online_sources_are_rejected() {
+        assert!(!is_online_source(Some("walk_in")));
+        assert!(!is_online_source(Some("phone")));
+        assert!(!is_online_source(Some("agent")));
+        assert!(!is_online_source(Some("")));
+        assert!(!is_online_source(None));
+    }
 }

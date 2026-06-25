@@ -28,6 +28,7 @@ import {
 } from '@mui/icons-material';
 import { BookingWithDetails } from '../../../../../types';
 import { toMoneyNumber } from '../../../../../utils/money';
+import { getBookingChannelInfo } from '../../../../bookings/utils/bookingChannel';
 
 type PaymentChoice = 'pay_now' | 'pay_later';
 type DepositChoice = 'receive' | 'waive';
@@ -54,6 +55,10 @@ interface ReservedCheckInDialogProps {
   onDepositAmountChange: (value: number) => void;
   waiveReason: string;
   onWaiveReasonChange: (value: string) => void;
+  icNumber: string;
+  onIcNumberChange: (value: string) => void;
+  phone: string;
+  onPhoneChange: (value: string) => void;
   processing: boolean;
   onCheckIn: () => void;
 }
@@ -80,9 +85,23 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
   onDepositAmountChange,
   waiveReason,
   onWaiveReasonChange,
+  icNumber,
+  onIcNumberChange,
+  phone,
+  onPhoneChange,
   processing,
   onCheckIn,
 }) => {
+  const icMissing = !icNumber.trim();
+  // Online reservations are settled on the booking platform (Traveloka,
+  // Booking.com, …). The backend auto-records a payment for the outstanding
+  // balance when `source === 'online'`, so we surface that here instead of the
+  // generic "unpaid" messaging. Gate on the exact source the backend keys off
+  // so the prompt never promises an auto-settlement that won't happen.
+  const isOnlineReservation = (booking?.source || '').trim().toLowerCase() === 'online';
+  const onlinePlatformName =
+    (booking ? getBookingChannelInfo(booking)?.name : null) || 'the online platform';
+
   return (
     <Dialog
       open={open}
@@ -150,8 +169,44 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
               </Grid>
             </Paper>
 
+            {/* Guest Information — IC is collected at check-in (optional at
+                booking creation); phone is optional. */}
+            <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Guest Information</Typography>
+            <Grid container spacing={1.5} sx={{ mb: 2 }}>
+              <Grid size={6}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  required
+                  label="IC / Passport Number"
+                  value={icNumber}
+                  onChange={(e) => onIcNumberChange(e.target.value)}
+                  error={icMissing}
+                  helperText={icMissing ? 'Required to complete check-in' : ' '}
+                />
+              </Grid>
+              <Grid size={6}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Phone Number"
+                  value={phone}
+                  onChange={(e) => onPhoneChange(e.target.value)}
+                  helperText="Optional"
+                />
+              </Grid>
+            </Grid>
+
             {/* Payment Section */}
             <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>Payment</Typography>
+            {isOnlineReservation && (
+              <Alert severity="success" sx={{ mb: 1.5, py: 0 }}>
+                Payment was settled on {onlinePlatformName}. The full amount
+                {' '}({formatCurrency(toMoneyNumber(booking.total_amount))}) is recorded
+                automatically on check-in — keep this on “Settled Online”. Switch to “Make Payment Now”
+                only if you are collecting at the desk instead.
+              </Alert>
+            )}
             <ToggleButtonGroup
               value={paymentChoice}
               exclusive
@@ -166,7 +221,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
               </ToggleButton>
               <ToggleButton value="pay_later" color="warning" sx={{ py: 1, fontWeight: 600 }}>
                 <MoneyOffIcon sx={{ mr: 0.5, fontSize: 18 }} />
-                Pay Later
+                {isOnlineReservation ? 'Settled Online' : 'Pay Later'}
               </ToggleButton>
             </ToggleButtonGroup>
 
@@ -203,7 +258,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
               </Grid>
             )}
 
-            {paymentChoice === 'pay_later' && (
+            {paymentChoice === 'pay_later' && !isOnlineReservation && (
               <Alert severity="info" sx={{ mb: 1.5, py: 0 }}>
                 Payment will be collected later. Guest checks in with unpaid status.
               </Alert>
@@ -309,7 +364,7 @@ const ReservedCheckInDialog: React.FC<ReservedCheckInDialogProps> = ({
           variant="contained"
           color="success"
           onClick={onCheckIn}
-          disabled={processing}
+          disabled={processing || icMissing}
           startIcon={processing ? <CircularProgress size={20} color="inherit" /> : <LoginIcon />}
         >
           {processing ? 'Processing...' : 'Check-In Now'}

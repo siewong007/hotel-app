@@ -13,7 +13,10 @@ import {
   Chip,
   Stack,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip
 } from '@mui/material';
 import {
   Business as BusinessIcon,
@@ -23,9 +26,15 @@ import {
   Security as SecurityIcon,
   Settings as SettingsIcon,
   Add as AddIcon,
-  Assessment as ReportIcon
+  Assessment as ReportIcon,
+  Palette as PaletteIcon,
+  LightMode as LightModeIcon,
+  DarkMode as DarkModeIcon,
+  NightsStay as NightsStayIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
+import { useThemeMode } from '../../../router/ThemeModeContext';
+import type { ThemeMode } from '../../../theme';
 import { setCurrentCurrency, SUPPORTED_CURRENCIES } from '../../../utils/currency';
 import { useCurrency } from '../../../hooks/useCurrency';
 import {
@@ -67,6 +76,7 @@ const TIMEZONES = [
 
 const SettingsPage: React.FC = () => {
   const { hasPermission } = useAuth();
+  const { themeMode, onThemeModeChange } = useThemeMode();
   const isAdmin = hasPermission('settings:update') || hasPermission('settings:manage');
   const { symbol: currencySymbol } = useCurrency();
   const settingsQuery = useHotelSettingsQuery();
@@ -824,6 +834,46 @@ const SettingsPage: React.FC = () => {
               />
             </Grid>
           </Grid>
+        </CardContent>
+      </Card>
+
+      {/* Appearance */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <PaletteIcon sx={{ mr: 1, color: 'primary.main' }} />
+            <Typography variant="h6">Appearance</Typography>
+          </Box>
+          <Divider sx={{ mb: 3 }} />
+
+          <Typography variant="subtitle1" gutterBottom fontWeight="medium">
+            Theme Mode
+          </Typography>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            Choose how the interface looks on this device. This preference is saved locally and applies immediately.
+          </Typography>
+
+          <ToggleButtonGroup
+            exclusive
+            value={themeMode}
+            onChange={(_, value: ThemeMode | null) => {
+              if (value === 'light' || value === 'dark' || value === 'night') onThemeModeChange(value);
+            }}
+            sx={{ mt: 2 }}
+          >
+            <ToggleButton value="light" aria-label="Light mode">
+              <Tooltip title="Light mode"><LightModeIcon fontSize="small" /></Tooltip>
+              <Box component="span" sx={{ ml: 1 }}>Light</Box>
+            </ToggleButton>
+            <ToggleButton value="dark" aria-label="Dark mode">
+              <Tooltip title="Dark mode"><DarkModeIcon fontSize="small" /></Tooltip>
+              <Box component="span" sx={{ ml: 1 }}>Dark</Box>
+            </ToggleButton>
+            <ToggleButton value="night" aria-label="Night mode">
+              <Tooltip title="Night mode"><NightsStayIcon fontSize="small" /></Tooltip>
+              <Box component="span" sx={{ ml: 1 }}>Night</Box>
+            </ToggleButton>
+          </ToggleButtonGroup>
         </CardContent>
       </Card>
 
