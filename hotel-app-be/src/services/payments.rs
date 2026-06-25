@@ -110,8 +110,13 @@ pub async fn record_payment(
         if let Some(summary) =
             PaymentRepository::workflow_summary_row(&mut *tx, request.booking_id).await?
         {
-            let balance_due = if summary.total_amount > summary.total_paid {
-                summary.total_amount - summary.total_paid
+            // Validate against the full invoiced amount (room + tourism tax +
+            // extra bed), not the room-only `total_amount`. Otherwise a booking
+            // whose room charge is fully paid would reject collection of the
+            // tourism tax / extra bed that the checkout invoice still bills.
+            let billable_total = summary.billable_total();
+            let balance_due = if billable_total > summary.total_paid {
+                billable_total - summary.total_paid
             } else {
                 Decimal::ZERO
             };
@@ -184,8 +189,11 @@ pub async fn get_payment_workflow_summary(
         .await?
         .ok_or_else(|| ApiError::NotFound("Booking not found".to_string()))?;
 
-    let balance_due = if row.total_amount > row.total_paid {
-        row.total_amount - row.total_paid
+    // Report against the full invoiced amount (room + tourism tax + extra bed)
+    // so the summary's balance mirrors what the checkout invoice bills.
+    let billable_total = row.billable_total();
+    let balance_due = if billable_total > row.total_paid {
+        billable_total - row.total_paid
     } else {
         Decimal::ZERO
     };
@@ -224,7 +232,7 @@ pub async fn get_payment_workflow_summary(
         booking_id,
         booking_status: row.booking_status,
         payment_status: row.payment_status,
-        total_amount: row.total_amount,
+        total_amount: billable_total,
         total_paid: row.total_paid,
         total_refunded: row.total_refunded,
         balance_due,
