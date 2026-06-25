@@ -3611,6 +3611,25 @@ pub async fn fetch_room_status_tx(
         .map_err(|e| ApiError::Database(e.to_string()))
 }
 
+/// Read the guest's current IC / passport number within the check-in transaction
+/// so the caller can enforce that one is on file before completing check-in.
+pub async fn fetch_guest_ic_number_tx(
+    tx: &mut DbTransaction<'_>,
+    guest_id: i64,
+) -> Result<Option<String>, ApiError> {
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let query = "SELECT ic_number FROM guests WHERE id = ?1";
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let query = "SELECT ic_number FROM guests WHERE id = $1";
+
+    sqlx::query_scalar(query)
+        .bind(guest_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map(Option::flatten)
+        .map_err(|e| ApiError::Database(e.to_string()))
+}
+
 /// Apply optional guest-profile edits supplied at check-in. PostgreSQL-flavoured
 /// dynamic update (the column set is variable). No-op when nothing changes.
 pub async fn apply_guest_update_tx(
@@ -3851,6 +3870,79 @@ pub async fn record_checkin_payment_tx(
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
     Ok(())
+}
+
+/// Auto-post the outstanding balance as a completed payment when an online
+/// reservation is checked in.
+///
+/// Online bookings are prepaid (OTA/web), so on arrival we record the amount
+/// still owed as a `booking` payment so the folio reflects the collected money
+/// and `payment_status` recomputes to `paid`. The remainder is computed in SQL
+/// (`total_amount` minus completed non-refund payments) and the row is inserted
+/// only when that remainder is positive, so the call is safe to run
+/// unconditionally — it no-ops when the booking is already fully paid and never
+/// double-charges an existing payment. Returns `true` when a payment row was
+/// actually inserted.
+pub async fn record_online_checkin_payment_tx(
+    tx: &mut DbTransaction<'_>,
+    booking: &Booking,
+    user_id: i64,
+) -> Result<bool, ApiError> {
+    // Mirror the explicit check-in payment: fall back to a generic online
+    // method when the reservation didn't carry one.
+    let payment_method = booking
+        .payment_method
+        .clone()
+        .unwrap_or_else(|| "online_banking".to_string());
+    let notes = "Auto-recorded at check-in for online reservation";
+
+    // The completed-non-refund SUM and the `> 0` guard mirror
+    // `recompute_booking_payment_status_tx`, keeping the posted amount and the
+    // resulting status in agreement.
+    #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+    let insert_query = r#"
+        INSERT INTO payments (payment_number, booking_id, amount, payment_method, payment_type, status, description, processed_by)
+        SELECT ?1, b.id,
+               b.total_amount - COALESCE((SELECT SUM(p.amount) FROM payments p
+                   WHERE p.booking_id = b.id
+                     AND p.status = 'completed'
+                     AND COALESCE(p.payment_type, 'booking') != 'refund'), 0),
+               ?2, 'booking', 'completed', ?3, ?4
+        FROM bookings b
+        WHERE b.id = ?5
+          AND b.total_amount - COALESCE((SELECT SUM(p.amount) FROM payments p
+                   WHERE p.booking_id = b.id
+                     AND p.status = 'completed'
+                     AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
+    "#;
+    #[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+    let insert_query = r#"
+        INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
+        SELECT $1::uuid, b.id,
+               b.total_amount - COALESCE((SELECT SUM(p.amount) FROM payments p
+                   WHERE p.booking_id = b.id
+                     AND p.status = 'completed'
+                     AND COALESCE(p.payment_type, 'booking') != 'refund'), 0),
+               $2, 'booking', 'completed', $3, $4
+        FROM bookings b
+        WHERE b.id = $5
+          AND b.total_amount - COALESCE((SELECT SUM(p.amount) FROM payments p
+                   WHERE p.booking_id = b.id
+                     AND p.status = 'completed'
+                     AND COALESCE(p.payment_type, 'booking') != 'refund'), 0) > 0
+    "#;
+
+    let result = sqlx::query(insert_query)
+        .bind(crate::core::db::generate_uuid())
+        .bind(&payment_method)
+        .bind(notes)
+        .bind(user_id)
+        .bind(booking.id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(result.rows_affected() > 0)
 }
 
 /// Set the room to `occupied` as part of check-in.

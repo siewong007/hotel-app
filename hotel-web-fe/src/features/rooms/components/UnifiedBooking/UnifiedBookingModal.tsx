@@ -10,6 +10,7 @@ import { addLocalDays, formatLocalDate, parseLocalDate } from '../../../../utils
 import { isPositiveMoney, multiplyMoney, sumMoney, toMoneyNumber } from '../../../../utils/money';
 import { useUnifiedBookingData } from '../../hooks/useUnifiedBookingData';
 import { isValidEmail } from '../../../../utils/validation';
+import { emitApiNotification } from '../../../../utils/apiNotifications';
 import GuestSelector, { NewGuestForm, GuestWithCredits, emptyNewGuestForm } from '../GuestSelector';
 import { canCoverRoomsWithCredits, type RoomCreditBucket } from '../../utils/roomManagementUtils';
 import { buildBookingTokens } from './bookingTokens';
@@ -55,18 +56,19 @@ const getGuestCreditRoomTypeLabels = (guest: GuestWithCredits | null): string =>
     .join(', ');
 };
 
-const validateNewGuestRequiredInformation = (
-  guest: Pick<NewGuestForm, 'phone' | 'ic_number'>
-): string | null => {
-  if (!guest.ic_number.trim()) {
-    return 'Please enter IC/Passport number';
-  }
-
+// Phone and IC/passport are optional at booking creation — both are collected
+// at check-in. Online bookings frequently arrive without a contact number, so we
+// must not block booking creation on it. Instead, surface a non-blocking,
+// informational nudge encouraging staff to complete the phone number at check-in.
+const notifyIfGuestContactIncomplete = (
+  guest: Pick<NewGuestForm, 'phone'>
+): void => {
   if (!guest.phone.trim()) {
-    return 'Please enter phone number';
+    emitApiNotification({
+      message: 'No phone number entered — please collect a contact number from the guest at check-in.',
+      severity: 'info',
+    });
   }
-
-  return null;
 };
 
 const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
@@ -173,21 +175,12 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   // Processing state
   const [processing, setProcessing] = useState(false);
 
-  // Inline submit/validation error, surfaced at the top of the booking summary
-  // panel (top-right) since the page-level snackbar is hidden behind the modal.
-  // `warning` (yellow) is used for required-field/validation messages; `error`
-  // (red) for actual booking/server failures.
-  const [submitError, setSubmitError] = useState<{
-    message: string;
-    severity: 'warning' | 'error';
-  } | null>(null);
-
-  // Surface validation/submit errors inline inside the modal (booking summary
-  // panel + mobile banner). We intentionally do NOT use the page-level snackbar
-  // here — it renders behind the modal where the user can't see it. Validation
-  // messages default to the yellow `warning` style.
+  // Surface validation/submit errors as a floating top-right notification via
+  // the global ApiNotificationHost snackbar (it portals above the modal, so the
+  // user always sees it). `warning` (deep yellow) is used for required-field /
+  // validation messages; `error` (red) for actual booking/server failures.
   const reportError = (message: string, severity: 'warning' | 'error' = 'warning') => {
-    setSubmitError({ message, severity });
+    emitApiNotification({ message, severity });
   };
 
   // Room selection state (when room is not pre-selected)
@@ -250,7 +243,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
       // Batch all state resets together using functional updates.
       // Defaults match the New Booking · Light design (Reservation + Online).
-      setSubmitError(null);
       setBookingMode('reservation');
       setReservationType('online');
       setSelectedGuest(initialGuest);
@@ -282,7 +274,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     // Only run cleanup when transitioning from open to closed
     if (!open && wasOpen) {
       // Reset state when closing (for cleanup)
-      setSubmitError(null);
       setBookingMode(null);
       setReservationType(null);
       setSelectedGuest(null);
@@ -383,7 +374,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
 
   // Create booking and hand off to EnhancedCheckInModal (for direct booking)
   const createBookingAndHandOff = async () => {
-    setSubmitError(null);
     if (!room) {
       reportError('No room selected');
       return;
@@ -402,12 +392,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
           return;
         }
 
-        const guestInformationError = validateNewGuestRequiredInformation(newGuestForm);
-        if (guestInformationError) {
-          reportError(guestInformationError);
-          setProcessing(false);
-          return;
-        }
+        notifyIfGuestContactIncomplete(newGuestForm);
         const tourismType = newGuestForm.tourism_type || 'local';
 
         if (newGuestForm.email && newGuestForm.email.trim() && !isValidEmail(newGuestForm.email)) {
@@ -620,8 +605,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       return;
     }
 
-    setSubmitError(null);
-
     if (!room) {
       reportError('No room selected');
       return;
@@ -647,12 +630,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
             return;
           }
 
-          const guestInformationError = validateNewGuestRequiredInformation(newGuestForm);
-          if (guestInformationError) {
-            reportError(guestInformationError);
-            setProcessing(false);
-            return;
-          }
+          notifyIfGuestContactIncomplete(newGuestForm);
           const tourismType = newGuestForm.tourism_type || 'local';
 
           if (newGuestForm.email && newGuestForm.email.trim() && !isValidEmail(newGuestForm.email)) {
@@ -1067,18 +1045,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         {/* LEFT — FORM */}
         <Box sx={{ p: '22px 24px', overflowY: 'auto' }}>
 
-          {/* Mobile-only error banner (the summary aside that shows it on
-             desktop is hidden on xs). */}
-          {submitError && (
-            <Alert
-              severity={submitError.severity}
-              onClose={() => setSubmitError(null)}
-              sx={{ display: { xs: 'flex', md: 'none' }, mb: 2 }}
-            >
-              {submitError.message}
-            </Alert>
-          )}
-
           {/* Room picker — only when opened without a pre-selected room
              (e.g. the "Add booking" CTA on the Bookings page). */}
           {needsRoomSelection && (
@@ -1239,8 +1205,6 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
         {/* RIGHT — LIVE SUMMARY */}
         <BookingSummaryAside
           D={D}
-          submitError={submitError}
-          onDismissError={() => setSubmitError(null)}
           room={room}
           roomCount={roomCount}
           selectedRoomNumbers={selectedRoomNumbers}

@@ -238,7 +238,7 @@ const GuestFormDialog: React.FC<GuestFormDialogProps> = ({
             value={formData.ic_number || ''}
             onChange={(value) => updateField('ic_number', value)}
             icon={<IdIcon />}
-            required
+            helperText="Optional — can be collected at check-in"
           />
           <GuestDialogField
             label="Nationality"

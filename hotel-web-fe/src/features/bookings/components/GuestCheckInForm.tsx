@@ -105,6 +105,12 @@ export const GuestCheckInForm: React.FC = () => {
   };
 
   const handleSubmit = async () => {
+    if (!formData.ic_number?.trim()) {
+      setError('IC/Passport number is required to complete check-in');
+      setActiveTab(0);
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
@@ -286,9 +292,12 @@ export const GuestCheckInForm: React.FC = () => {
             <Grid size={12}>
               <TextField
                 fullWidth
+                required
                 label="IC/Passport Number"
                 value={formData.ic_number || ''}
                 onChange={(e) => handleChange('ic_number', e.target.value)}
+                error={!formData.ic_number?.trim()}
+                helperText={!formData.ic_number?.trim() ? 'Required to complete check-in' : undefined}
               />
             </Grid>
           </Grid>

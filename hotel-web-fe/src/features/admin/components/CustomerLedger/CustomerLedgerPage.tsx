@@ -556,11 +556,8 @@ const CustomerLedgerPage: React.FC = () => {
           return;
         }
 
-        if (!newCheckInGuestForm.email.trim() && !newCheckInGuestForm.phone.trim()) {
-          showSnackbar('Please enter either email or phone number for the guest', 'warning');
-          setProcessingCheckIn(false);
-          return;
-        }
+        // Email and phone are optional — online bookings often arrive without
+        // either, and contact details are collected at check-in. Do not block.
 
         // Validate email format only if provided
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

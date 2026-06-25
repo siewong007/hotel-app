@@ -4,6 +4,7 @@ import {
   API_NOTIFICATION_EVENT,
   ApiNotificationDetail,
 } from '../../utils/apiNotifications';
+import { recordNotification } from '../../utils/notificationStore';
 
 interface QueuedNotification extends ApiNotificationDetail {
   id: number;
@@ -34,6 +35,7 @@ export function ApiNotificationHost() {
       if (lastSeenAt && now - lastSeenAt < DEDUPE_WINDOW_MS) return;
 
       recentNotificationsRef.current.set(dedupeKey, now);
+      recordNotification(detail);
       setQueue((current) => [
         ...current,
         {

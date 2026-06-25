@@ -89,7 +89,8 @@ pub async fn create_guest(
     let email = normalize_guest_email(input.email)?;
     let phone = normalize_guest_phone(input.phone);
     let ic_number = normalize_guest_text(input.ic_number);
-    validate_required_guest_information(email.as_deref(), phone.as_deref(), ic_number.as_deref())?;
+    // Email and phone are both optional — online bookings often arrive without
+    // contact details, which are collected at check-in. Do not block creation.
 
     let first_name = Sanitizer::sanitize_guest_name(&input.first_name);
     let last_name = Sanitizer::sanitize_guest_name(&input.last_name);
@@ -174,7 +175,8 @@ pub async fn update_guest(
         Some(ic_number) => normalize_guest_text(Some(ic_number)),
         None => normalize_guest_text(existing.ic_number),
     };
-    validate_required_guest_information(email.as_deref(), phone.as_deref(), ic_number.as_deref())?;
+    // Email and phone are both optional — see create path. Contact details are
+    // collected at check-in, so editing is not blocked when both are absent.
     let company_name = match input.company_name {
         Some(ref company) if company.trim().is_empty() => None,
         Some(company) => Some(company),
@@ -563,33 +565,6 @@ fn has_paid_tourism_tax(signal: &GuestTourismTaxSignal) -> bool {
     signal.tourism_tax_amount > Decimal::ZERO && signal.net_paid_amount >= signal.tourism_tax_amount
 }
 
-fn has_guest_value(value: Option<&str>) -> bool {
-    value.is_some_and(|value| !value.trim().is_empty())
-}
-
-fn validate_required_guest_information(
-    email: Option<&str>,
-    phone: Option<&str>,
-    ic_number: Option<&str>,
-) -> Result<(), ApiError> {
-    let has_contact = has_guest_value(email) || has_guest_value(phone);
-    let has_identity_document = has_guest_value(ic_number);
-
-    match (has_contact, has_identity_document) {
-        (true, true) => Ok(()),
-        (false, false) => Err(ApiError::BadRequest(
-            "IC number / passport is required, and either email or phone number is required"
-                .to_string(),
-        )),
-        (false, true) => Err(ApiError::BadRequest(
-            "Either email or phone number is required".to_string(),
-        )),
-        (true, false) => Err(ApiError::BadRequest(
-            "IC number / passport is required".to_string(),
-        )),
-    }
-}
-
 fn email_regex() -> Regex {
     Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap()
 }
@@ -876,26 +851,6 @@ mod tests {
             candidate.blocking_reasons,
             vec!["Conflicting identity document"]
         );
-    }
-
-    #[test]
-    fn required_guest_information_allows_email_or_phone_with_identity_document() {
-        assert!(
-            validate_required_guest_information(Some("guest@example.com"), None, Some("A123"))
-                .is_ok()
-        );
-        assert!(
-            validate_required_guest_information(None, Some("60123456789"), Some("A123")).is_ok()
-        );
-    }
-
-    #[test]
-    fn required_guest_information_rejects_missing_contact_or_identity_document() {
-        assert!(validate_required_guest_information(None, None, Some("A123")).is_err());
-        assert!(
-            validate_required_guest_information(Some("guest@example.com"), None, None).is_err()
-        );
-        assert!(validate_required_guest_information(Some(" "), Some(" "), Some(" ")).is_err());
     }
 
     #[test]

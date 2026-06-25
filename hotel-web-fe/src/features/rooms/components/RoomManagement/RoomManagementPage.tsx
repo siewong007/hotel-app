@@ -157,10 +157,8 @@ const validateGuestInformationDraft = (guest: GuestInformationDraft): string | n
     return 'Please enter IC/Passport number';
   }
 
-  if (!guest.email.trim() && !guest.phone.trim()) {
-    return 'Please enter either email or phone number';
-  }
-
+  // Email and phone are optional — online bookings often arrive without either,
+  // and contact details are collected at check-in. Do not block booking creation.
   return null;
 };
 
@@ -1731,6 +1729,10 @@ const RoomManagementPage: React.FC = () => {
         onDepositAmountChange={reservedCheckIn.setDepositAmount}
         waiveReason={reservedCheckIn.waiveReason}
         onWaiveReasonChange={reservedCheckIn.setWaiveReason}
+        icNumber={reservedCheckIn.icNumber}
+        onIcNumberChange={reservedCheckIn.setIcNumber}
+        phone={reservedCheckIn.phone}
+        onPhoneChange={reservedCheckIn.setPhone}
         processing={reservedCheckIn.processing}
         onCheckIn={reservedCheckIn.checkIn}
       />
