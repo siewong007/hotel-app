@@ -350,6 +350,9 @@ const BookingsPage: React.FC = () => {
       source: booking.source || 'walk_in',
       check_in_date: booking.check_in_date.split('T')[0],
       check_out_date: booking.check_out_date.split('T')[0],
+      // Actual checkout date (date portion only) — editable so staff can correct
+      // a backdated / mis-recorded stay. Empty until the booking is checked out.
+      actual_check_out: booking.actual_check_out ? booking.actual_check_out.split('T')[0] : '',
       post_type: booking.post_type || 'normal_stay',
       rate_code: booking.rate_code || 'RACK',
       deposit_paid: booking.deposit_paid || false,
@@ -449,6 +452,11 @@ const BookingsPage: React.FC = () => {
       // Remove fields that are not valid backend fields
       delete updateData.price_per_night;
       delete updateData.has_override;
+      // Only send actual_check_out when a value is set; an empty string would
+      // fail backend date parsing and must not clobber the stored timestamp.
+      if (!editFormData.actual_check_out) {
+        delete updateData.actual_check_out;
+      }
       // Only include room_id if room was changed, and send as string for backend compatibility
       if (roomChanged) {
         updateData.room_id = String(editFormData.room_id);
@@ -1947,13 +1955,26 @@ const BookingsPage: React.FC = () => {
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 fullWidth
-                label="Check-Out Date"
+                label="Scheduled Check-Out Date"
                 type="date"
                 value={editFormData.check_out_date || ''}
                 onChange={(e) => setEditFormData((prev: any) => ({ ...prev, check_out_date: e.target.value }))}
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
+            {(['checked_out', 'late_checkout', 'completed'].includes(editFormData.status) || editingBooking?.actual_check_out) && (
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField
+                  fullWidth
+                  label="Actual Check-Out Date"
+                  type="date"
+                  value={editFormData.actual_check_out || ''}
+                  onChange={(e) => setEditFormData((prev: any) => ({ ...prev, actual_check_out: e.target.value }))}
+                  InputLabelProps={{ shrink: true }}
+                  helperText="The date the guest actually checked out (shown on the invoice)"
+                />
+              </Grid>
+            )}
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField
                 select

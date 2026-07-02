@@ -12,7 +12,7 @@ use crate::repositories::bookings_queries::*;
 use crate::services::audit::AuditLog;
 use crate::services::booking as booking_svc;
 use crate::services::payments;
-use crate::utils::date::parse_date_flexible;
+use crate::utils::date::{parse_date_flexible, parse_datetime_flexible};
 use crate::utils::pagination::normalize_pagination;
 use crate::utils::sanitization::Sanitizer;
 use axum::{
@@ -1687,6 +1687,22 @@ pub async fn update_booking_handler(
         ));
     }
 
+    // Optional explicit actual-checkout override. Empty strings are treated as
+    // "not provided" so the automatic checkout-transition stamping is preserved.
+    let actual_check_out_override: Option<chrono::NaiveDateTime> = match input
+        .actual_check_out
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        Some(value) => Some(parse_datetime_flexible(value).map_err(|_| {
+            ApiError::BadRequest(
+                "Invalid actual checkout date. Use YYYY-MM-DD or an ISO date-time".to_string(),
+            )
+        })?),
+        None => None,
+    };
+
     // Check for room conflicts when room or dates change (skip for non-active statuses)
     let room_changed = input.room_id.is_some() && new_room_id != existing_booking.room_id;
     let dates_changed = input.check_in_date.is_some() || input.check_out_date.is_some();
@@ -1912,7 +1928,7 @@ pub async fn update_booking_handler(
                 extra_bed_charge = COALESCE(?24, extra_bed_charge),
                 daily_rates = COALESCE(?25, daily_rates),
                 cleaning_preference = COALESCE(?26, cleaning_preference),
-                actual_check_out = CASE WHEN ?2 = 'checked_out' AND actual_check_out IS NULL THEN datetime('now') ELSE actual_check_out END,
+                actual_check_out = COALESCE(?28, CASE WHEN ?2 = 'checked_out' AND actual_check_out IS NULL THEN datetime('now') ELSE actual_check_out END),
                 updated_at = datetime('now')
             WHERE id = ?7"#
         )
@@ -1943,6 +1959,7 @@ pub async fn update_booking_handler(
         .bind(daily_rates_json.as_ref().map(|v| v.to_string()))
         .bind(input.cleaning_preference.map(|b| if b { 1i32 } else { 0i32 }))
         .bind(if clear_company { 1i32 } else { 0i32 })
+        .bind(actual_check_out_override.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string()))
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -1987,7 +2004,7 @@ pub async fn update_booking_handler(
                 extra_bed_charge = COALESCE($24, extra_bed_charge),
                 daily_rates = COALESCE($25, daily_rates),
                 cleaning_preference = COALESCE($26, cleaning_preference),
-                actual_check_out = CASE WHEN $2 = 'checked_out' AND actual_check_out IS NULL THEN CURRENT_TIMESTAMP ELSE actual_check_out END,
+                actual_check_out = COALESCE($28, CASE WHEN $2 = 'checked_out' AND actual_check_out IS NULL THEN CURRENT_TIMESTAMP ELSE actual_check_out END),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $7
             RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type, cleaning_preference"#
@@ -2019,6 +2036,8 @@ pub async fn update_booking_handler(
         .bind(&daily_rates_json)
         .bind(input.cleaning_preference)
         .bind(clear_company)
+        .bind(actual_check_out_override
+            .map(|dt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(dt, chrono::Utc)))
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?

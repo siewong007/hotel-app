@@ -159,6 +159,10 @@ pub struct BookingUpdateInput {
     pub room_id: Option<String>,
     pub check_in_date: Option<String>,
     pub check_out_date: Option<String>,
+    /// Explicit actual checkout timestamp override (date-only or datetime).
+    /// When present, it wins over the automatic checkout-transition stamping so
+    /// staff can correct a backdated / mis-recorded stay.
+    pub actual_check_out: Option<String>,
     pub total_amount: Option<f64>,
     pub status: Option<String>,
     pub payment_status: Option<String>,
