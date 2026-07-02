@@ -1,0 +1,25 @@
+{
+  "pkg": "hotel-web-fe",
+  "globalName": "HotelDS",
+  "shape": "package",
+  "srcDir": "src",
+  "entry": "./hotel-web-fe/.ds-entry.tsx",
+  "provider": { "component": "AppThemeProvider" },
+  "readmeHeader": ".design-sync/conventions.md",
+  "componentSrcMap": {
+    "StatCard": "src/components/common/StatCard.tsx",
+    "DataTable": "src/components/data-table/DataTable.tsx",
+    "TabPanel": "src/components/common/TabPanel.tsx",
+    "ModernDatePicker": "src/components/common/ModernDatePicker.tsx",
+    "HotelSpinner": "src/components/common/HotelSpinner.tsx",
+    "LoadingSpinner": "src/components/common/LoadingSpinner.tsx"
+  },
+  "dtsPropsFor": {
+    "StatCard": "/** Primary label shown above/below the value. */\n  title: React.ReactNode;\n  /** The headline metric. */\n  value: React.ReactNode;\n  subtitle?: React.ReactNode;\n  /** Icon element rendered in the card's icon slot. */\n  icon?: React.ReactNode;\n  /** Accent color (MUI palette path or CSS color). Defaults to 'primary.main'. */\n  color?: string;\n  /** CSS gradient used when appearance='gradient'. */\n  gradient?: string;\n  appearance?: 'default' | 'gradient';\n  titlePlacement?: 'top' | 'bottom';\n  headerAlignItems?: 'flex-start' | 'center';\n  iconBackground?: string;\n  showPositiveTrendSign?: boolean;\n  subtitleVariant?: string;\n  /** Delta indicator shown with an up/down arrow. */\n  trend?: { value: number; label: string };\n  contentSx?: object;\n  iconSx?: object;\n  titleSx?: object;\n  valueSx?: object;\n  subtitleSx?: object;\n  /** Accepts all MUI CardProps (elevation, variant, onClick, sx, …) except title/color. */\n  [key: string]: unknown;",
+    "TabPanel": "children?: React.ReactNode;\n  /** This panel's index; content renders only when value === index. */\n  index: number;\n  /** The currently selected tab index. */\n  value: number;\n  /** Prefix for the generated a11y ids (pair with getTabA11yProps). */\n  idPrefix?: string;\n  className?: string;\n  sx?: object;\n  contentSx?: object;",
+    "ModernDatePicker": "/** Field label. */\n  label: string;\n  /** Controlled ISO date value (YYYY-MM-DD). */\n  value: string;\n  onChange: (value: string) => void;\n  required?: boolean;\n  disabled?: boolean;\n  /** ISO date string (YYYY-MM-DD). */\n  minDate?: string;\n  /** ISO date string (YYYY-MM-DD). */\n  maxDate?: string;\n  error?: boolean;\n  helperText?: string;\n  fullWidth?: boolean;\n  size?: 'small' | 'medium';\n  margin?: 'none' | 'dense' | 'normal';",
+    "HotelSpinner": "/** Diameter in px. Defaults to 120. */\n  size?: number;",
+    "LoadingSpinner": "/** Size in px. Defaults to 40. */\n  size?: number;\n  /** CSS color; defaults to the theme primary. */\n  color?: string;\n  variant?: 'circular' | 'dots';",
+    "DataTable": "/** Row data. */\n  data: Record<string, unknown>[];\n  /** TanStack Table column definitions (ColumnDef<TData, any>[]). */\n  columns: any[];\n  emptyMessage?: React.ReactNode;\n  /** Global text filter applied across columns. */\n  globalFilter?: string;\n  onRowClick?: (row: Record<string, unknown>) => void;\n  initialSorting?: { id: string; desc: boolean }[];\n  initialColumnFilters?: { id: string; value: unknown }[];\n  pageSize?: number;\n  enablePagination?: boolean;\n  getRowId?: (row: Record<string, unknown>, index: number) => string;"
+  }
+}
