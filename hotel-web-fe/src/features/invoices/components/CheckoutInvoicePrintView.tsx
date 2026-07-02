@@ -25,6 +25,7 @@ interface CheckoutInvoicePrintViewProps {
   calculateNights: () => number;
   getActualCheckoutDate: () => Date;
   isEarlyCheckout: () => boolean;
+  isLateCheckout: () => boolean;
   formatBookingStatus: (status?: string) => string;
   formatCurrency: (value: number) => string;
 }
@@ -53,6 +54,7 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
   calculateNights,
   getActualCheckoutDate,
   isEarlyCheckout,
+  isLateCheckout,
   formatBookingStatus,
   formatCurrency,
 }) => (
@@ -127,9 +129,10 @@ const CheckoutInvoicePrintView: React.FC<CheckoutInvoicePrintViewProps> = ({
           <span className="value">
             {getActualCheckoutDate().toLocaleDateString()}
             {isEarlyCheckout() && ' (Early Checkout)'}
+            {isLateCheckout() && ' (Late Checkout)'}
           </span>
         </p>
-        {isEarlyCheckout() && (
+        {(isEarlyCheckout() || isLateCheckout()) && (
           <p>
             <span className="label">Scheduled:</span>
             <span className="value">{new Date(booking.check_out_date).toLocaleDateString()}</span>

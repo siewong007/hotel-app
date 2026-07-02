@@ -628,14 +628,21 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
     return new Date(booking.check_out_date);
   };
 
-  // Check if this is an early checkout (today is before scheduled checkout)
-  const isEarlyCheckout = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  // Compare the actual checkout date against the scheduled checkout date
+  // (date-only). Drives the "Early"/"Late" badge and the "Scheduled" line so
+  // the invoice explains any divergence between the two dates instead of
+  // silently showing a range that doesn't match the nights charged.
+  const getCheckoutVariance = (): 'early' | 'late' | null => {
+    const actual = getActualCheckoutDate();
+    actual.setHours(0, 0, 0, 0);
     const scheduledCheckout = new Date(booking.check_out_date);
     scheduledCheckout.setHours(0, 0, 0, 0);
-    return today < scheduledCheckout;
+    if (actual.getTime() < scheduledCheckout.getTime()) return 'early';
+    if (actual.getTime() > scheduledCheckout.getTime()) return 'late';
+    return null;
   };
+  const isEarlyCheckout = () => getCheckoutVariance() === 'early';
+  const isLateCheckout = () => getCheckoutVariance() === 'late';
 
   const formatBookingStatus = (status?: string) => {
     if (!status) return 'Unknown';
@@ -790,9 +797,12 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                     {isEarlyCheckout() && (
                       <Chip label="Early" size="small" color="info" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
                     )}
+                    {isLateCheckout() && (
+                      <Chip label="Late" size="small" color="warning" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
+                    )}
                   </Box>
                 </Typography>
-                {isEarlyCheckout() && (
+                {getCheckoutVariance() && (
                   <Typography variant="body2" sx={{ mb: 0.5 }}>
                     <Box component="span" sx={{ color: '#666', display: 'inline-block', minWidth: '80px' }}>
                       Scheduled:
@@ -1679,8 +1689,25 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
                   {isEarlyCheckout() && (
                     <Chip label="Early" size="small" color="info" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
                   )}
+                  {isLateCheckout() && (
+                    <Chip label="Late" size="small" color="warning" sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} />
+                  )}
                 </Typography>
               </Grid>
+              {getCheckoutVariance() && (
+                <>
+                  <Grid size={6}>
+                    <Typography variant="body2" color="text.secondary">
+                      Scheduled:
+                    </Typography>
+                  </Grid>
+                  <Grid size={6}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+                      {new Date(booking.check_out_date).toLocaleDateString()}
+                    </Typography>
+                  </Grid>
+                </>
+              )}
               <Grid size={6}>
                 <Typography variant="body2" color="text.secondary">
                   Duration:
@@ -1960,6 +1987,7 @@ const CheckoutInvoiceModal: React.FC<CheckoutInvoiceModalProps> = ({
         calculateNights={calculateNights}
         getActualCheckoutDate={getActualCheckoutDate}
         isEarlyCheckout={isEarlyCheckout}
+        isLateCheckout={isLateCheckout}
         formatBookingStatus={formatBookingStatus}
         formatCurrency={formatCurrency}
       />
