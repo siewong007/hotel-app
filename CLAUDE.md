@@ -1,160 +1,122 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Index and routing for agents in this repo. Keep this file ≤150 lines — long
+content belongs in `.claude/refs/` (facts about the code, loaded on demand) or
+`.claude/rules/` (how agents work; NOTE: the harness auto-loads `.claude/rules/*.md`
+every session, so keep those lean). Do not add content here without removing something.
 
-## Repository Layout
+## Read-this-first routing
 
-This is a three-project monorepo; each subdirectory has its own build system and is worked on independently:
+| Situation | Read |
+|---|---|
+| Any non-trivial work | `.claude/rules/00-diagnosis.md` (top failure modes + mandatory checklists) |
+| Before delegating to a subagent | `.claude/rules/model-dispatch.md` + `.claude/rules/delegation-templates.md` |
+| Escalate / done / ask-user / change-approach decisions | `.claude/rules/judgment-rubrics.md` |
+| Changing `.claude/` files, or after any failure/correction | `.claude/rules/maintenance.md` (+ append `lessons.md`) |
+| Working on bookings | `.claude/refs/booking-workflow.md` |
+| Working on ledgers / city ledger / invoicing | `.claude/refs/ledger-workflow.md` |
+| Desktop/Tauri build, packaging, or roadmap | `.claude/refs/architecture-enhancements.md`, `hotel-desktop/BUILD_SPEED.md`, `hotel-desktop/UPDATER.md` |
+| Deployment / ADRs | `docs/guides/deployment.md`, `docs/architecture/ADRS.md` |
+| Onboarding context from the 2026-07-05 Fable session | `.claude/refs/letter-to-future-sessions.md` |
 
-- `hotel-app-be/` — Rust backend API (Axum + SQLx, dual PostgreSQL/SQLite via Cargo features)
-- `hotel-web-fe/` — React 19 + TypeScript web frontend (Vite, MUI v7, Zustand)
-- `hotel-desktop/` — Tauri 2 wrapper that embeds the backend binary and a database for offline desktop use
+Line anchors cited in refs rot as code moves — verify with Grep before relying on them.
+This volume path contains a trailing space ("…EXTERNAL SSD ") — always quote paths in shell.
 
-There is no root-level package manager or workspace; run commands from the relevant subdirectory.
+## Repository layout
 
-## Common Commands
+Three-project monorepo; no root workspace — run commands from the subdirectory:
 
-### Backend (`hotel-app-be/`)
+- `hotel-app-be/` — Rust backend API (Axum + SQLx; dual PostgreSQL/SQLite via cargo features)
+- `hotel-web-fe/` — React 19 + TypeScript (Vite, MUI v7, Zustand)
+- `hotel-desktop/` — Tauri 2 wrapper: backend as sidecar + embedded PostgreSQL under `src-tauri/pgsql/`
 
+`AGENTS.md` is the Codex-oriented rulebook (overlapping content) — owned by other tooling; ask before editing.
+
+## Common commands
+
+Backend (`hotel-app-be/`):
 ```bash
-cargo check --all-features                    # CI: fast typecheck
-cargo clippy --all-features -- -D warnings    # CI: lint (warnings are errors)
-cargo build --release                         # CI: release build
-cargo run                                     # Default: PostgreSQL, port 3030
-cargo run --features sqlite --no-default-features   # SQLite mode (requires DATABASE_PATH or defaults to ./hotel_data.db)
-psql "$DATABASE_URL" -f database/schema.sql -f database/data.sql   # Apply the PostgreSQL schema + seed/bootstrap data
-cargo test <name>                             # Run a single test by name substring
+cargo check --all-features                    # minimum bar before claiming done
+cargo clippy --all-features -- -D warnings    # what CI actually runs
+cargo run                                     # PostgreSQL mode, port 3030
+cargo run --features sqlite --no-default-features   # SQLite mode (DATABASE_PATH, default ./hotel_data.db)
+psql "$DATABASE_URL" -f database/schema.sql -f database/data.sql   # apply schema + seed
+cargo test <name>                             # single test by substring
+cargo run --bin hash_password -- <password>   # helper bins in src/bin/
 ```
 
-The `postgres` and `sqlite` features are mutually exclusive at runtime — `core::db::DbPool` resolves to a different concrete pool type depending on which feature is active. Code touching SQL must compile under both.
-
-Helper binaries live in `src/bin/` (`hash_password`, `fix_password`): run with `cargo run --bin hash_password -- <password>`.
-
-### Frontend (`hotel-web-fe/`)
-
+Frontend (`hotel-web-fe/`):
 ```bash
-npm install
-npm run start                  # Vite dev server on port 3000, proxies API to 127.0.0.1:3030
-npm run build                  # Production build
-npm run typecheck              # CI: typecheck (tsc --noEmit)
-npm run lint                   # CI: ESLint (eslint . --quiet; errors fail the build)
-npm run lint:strict            # ESLint with --max-warnings=0
-npm run test                   # CI: Vitest (vitest run)
+npm run start        # Vite dev on :3000, proxies API to 127.0.0.1:3030
+npm run typecheck && npm run lint && npm run test   # CI gates (lint errors fail build)
+npm run build
 ```
 
-The dev server proxy list in `vite.config.ts` is hand-maintained — when adding a new top-level API route on the backend, add its prefix there or the frontend dev server won't forward it.
-
-### Desktop (`hotel-desktop/`)
-
+Desktop (`hotel-desktop/`):
 ```bash
-npm install
-npm run dev                    # tauri dev — launches the Rust backend as a sidecar
-npm run build                  # tauri build — production installer
-npm run build:fast             # debug build + debug sidecar without installer packaging
-npm run build:no-bundle        # production binary without installer packaging
-npm run build:debug            # debug build
+npm run dev                    # tauri dev with backend sidecar
+npm run build                  # production installer
+npm run build:no-bundle       # production binary, no installer
 npm run desktop:prepare:force  # force resource/frontend/backend/sidecar refresh
 ```
 
-The desktop app ships an embedded PostgreSQL binary under `src-tauri/pgsql/` and its own `src-tauri/database/`. The backend detects desktop mode via the `HOTEL_DESKTOP_MODE` env var and, when set, binds to `127.0.0.1` on a dynamically-chosen free port starting at `BACKEND_PORT` (default 3030).
+CI (`.github/workflows/ci.yml`, push/PR to master): FE typecheck+lint+test+build;
+BE check/clippy/build `--all-features -D warnings` + tests on both DBs + schema
+smoke. The desktop job is only a `cargo check` with placeholder resources — a
+broken `tauri build` is NOT caught by CI.
 
-### CI
+## Architecture essentials
 
-`.github/workflows/ci.yml` runs on push/PR to `master`. Frontend job runs `npm run typecheck`, `npm run lint`, `npm run test`, then `npm run build` — lint errors (including the `no-restricted-syntax` ban on `toISOString().split(...)`/`.slice(...)` date extraction; use the local-date helpers in `src/utils/date.ts` instead) and failing Vitest tests fail the build. Backend jobs run `cargo check/clippy/build` with `--all-features` and `-D warnings`, plus `cargo test` (PostgreSQL and SQLite) and a schema/startup smoke. Keep `cargo clippy --all-features` and `npm run lint` clean.
+Backend request flow: `routes/<domain>.rs` → auth middleware → `handlers/<domain>.rs`
+→ `repositories/` or inline SQL → `models/`. Key modules:
+- `routes/mod.rs::create_router` — ALL domain routers must be `.merge()`d here; wires CORS, rate limits, security headers.
+- `core/auth.rs` + `core/middleware.rs` — `require_auth(&headers)`; `check_permission(pool, user_id, "<resource>:<action>")`; `<resource>:manage` implies all actions of that resource.
+- `core/db.rs` — pool creation; on PostgreSQL sets per-connection timezone from `system_settings.timezone`; cross-DB value helpers (`decimal_to_db`, `opt_decimal_to_db`, `generate_uuid`).
+- `core/sql_compat.rs` — `sql_query!(postgres: …, sqlite: …)`, `param!(N)`, `current_timestamp()`, `current_date()`.
+- `core/rate_limiter.rs` — in-memory rate limiting, injected as an Extension.
+- `services/audit.rs` — call from every mutating handler; `utils/sanitization.rs::Sanitizer` for free-text input; `utils/validation.rs` for shape validation.
 
-## Architecture
+Dual-database contract (full checklist: `.claude/rules/00-diagnosis.md` Leak #2):
+one DB per production build (default `postgres`); every SQL change must compile
+under `--all-features`. PostgreSQL schema = `database/schema.sql` + `data.sql`
+(idempotent; applied by docker-compose and desktop `run_migrations_if_needed`;
+no sqlx-migrate step). SQLite migrations = `database/sqlite_migrations/`
+(auto-run at startup by `create_pool`). Schema changes must touch BOTH.
+Note: `hotel-desktop` does NOT use the sqlite feature (it ships embedded PostgreSQL);
+sqlite serves the standalone lightweight server mode and CI. Keep-or-kill decision
+pending — see `.claude/refs/architecture-enhancements.md` item 3.
 
-### Backend layering
+Frontend:
+- `src/features/<domain>/` feature modules; `src/api/*.service.ts` one per backend domain.
+- ALL HTTP via `src/api/client.ts` (ky; bearer token from storage, idempotent-GET retries, 401 → `auth:unauthorized` event). Never call `fetch` directly.
+- `src/utils/storage.ts` for localStorage; `src/auth/AuthContext.tsx` for auth state + permission helpers.
+- `App.tsx`: pages are `React.lazy()` inside `Suspense` + `ErrorBoundary` — add new routes there.
+- Vite dev proxy list in `vite.config.ts` is hand-maintained — add new top-level API prefixes or dev 404s.
+- Dates: `toISOString().split/.slice` is lint-banned (CI fails); use `src/utils/date.ts` helpers.
+- `tsconfig.json` has `strict: false` — don't assume strict typing.
 
-Requests flow: `routes/<domain>.rs` → auth middleware → `handlers/<domain>.rs` → `repositories/<domain>.rs` (or inline SQL) → `models/<domain>.rs`.
-
-- `routes/mod.rs::create_router` composes all `routes::<domain>::routes()` routers, wires CORS, rate limiters, and security headers (HSTS, CSP, X-Frame-Options, etc.). All domain routes must be `.merge()`d in here to be live.
-- `core/auth.rs` + `core/middleware.rs` — JWT verification and RBAC. `require_auth(&headers)` extracts a user ID; `check_permission(pool, user_id, "<resource>:<action>")` enforces RBAC and auto-grants if the user has `<resource>:manage`.
-- `core/db.rs` — pool creation. On PostgreSQL, `after_connect` reads `system_settings.timezone` and runs `SET timezone = '<tz>'` per connection so `(ts AT TIME ZONE $tz)::date` comparisons are correct. Timezone values are validated against a safe character set before interpolation because `SET` doesn't accept bound parameters.
-- `core/rate_limiter.rs` — in-memory rate limiting (no external dependency); `RateLimiters` is injected as an `Extension`.
-- `core/sql_compat.rs` — `sql_query!(postgres: "...", sqlite: "...")` and `param!(N)` macros plus helpers (`current_timestamp()`, `current_date()`) for database-agnostic queries.
-- `services/audit.rs` — append-only audit log; call from handlers that mutate business data.
-- `utils/sanitization.rs` — `Sanitizer` for user-supplied strings (uses `ammonia`); `utils/validation.rs` for shape validation (uses `validator`).
-
-### Dual-database contract
-
-The backend compiles for exactly one database at a time in production (default feature `postgres`; CI builds with `--all-features` for checking). When writing SQL:
-
-- Use `param!(1)` / `param!(2)` for placeholders (`$1` vs `?1`).
-- Use `sql_compat::current_timestamp()` / `current_date()` instead of literal `NOW()` / `CURRENT_DATE`.
-- For values that differ between databases (e.g. `Decimal` → `String` on SQLite, UUID generation), use the helpers in `core/db.rs` (`decimal_to_db`, `opt_decimal_to_db`, `generate_uuid`, etc.).
-- The PostgreSQL schema is consolidated into `database/schema.sql` (structure) and `database/data.sql` (seed/bootstrap data). These are applied by `docker-compose` as init scripts and, in desktop mode, by `run_migrations_if_needed` via `psql -f` (both are written to be idempotent). There is no `sqlx migrate` step for PostgreSQL. SQLite migrations live in `database/sqlite_migrations/` and are run automatically at startup by `create_pool` via `sqlx::migrate!`. Keep `schema.sql` and the SQLite migrations in sync when changing schema.
-
-### Frontend structure
-
-- `src/features/<domain>/` — feature modules (bookings, rooms, guests, loyalty, admin/rbac, ekyc, reports, dashboard, invoices, auth, user). Each typically contains a `components/` folder; barrel exports at the feature root.
-- `src/api/*.service.ts` — one service per backend domain. All HTTP goes through `src/api/client.ts` (a configured `ky` instance). Never call `fetch` directly.
-- `src/api/client.ts` — attaches `Authorization: Bearer <token>` from `storage`, retries idempotent GETs, and dispatches a `window` `auth:unauthorized` event on 401s from protected endpoints so `AuthContext` can navigate to login without a hard redirect.
-- `src/utils/storage.ts` — always use this for localStorage (preserves language preferences on logout; typed getters).
-- `src/auth/AuthContext.tsx` — primary auth state, login/logout/passkey handling, and permission helpers.
-- `App.tsx` — all non-critical pages are `React.lazy()`-loaded; add new routes there and keep them inside the `Suspense` + `ErrorBoundary` wrappers.
-- `tsconfig.json` has `"strict": false` — don't assume strict-mode typing; types tighten gradually.
-
-### API surface
-
-Domain routers are listed in `src/routes/mod.rs`; see `README.md` for the full endpoint table. All protected routes use `require_auth` + `check_permission("<resource>:<action>")`. Uploads are served from the backend's `uploads/` directory via a `ServeDir` mounted at `/uploads`.
+Desktop mode: `HOTEL_DESKTOP_MODE` env → backend binds 127.0.0.1 on a dynamically
+probed free port starting at `BACKEND_PORT` (default 3030); the webview learns the
+port via Tauri IPC (`commands.rs` `get_status` / `backend-ready` event → FE
+`src/desktop/runtimeApi.ts`). Desktop launches the sidecar with a SPECIFIC
+`ALLOWED_ORIGINS` list (`tauri://localhost`, …) — not the wildcard; `*` exists in
+the backend as a permissive option but desktop does not use it.
 
 ## Conventions (from CONTRIBUTING.md)
 
-- **Backend:** parameterize all SQL (never interpolate user input); apply `Sanitizer` to free-text user input; guard protected routes with `require_auth`; use transactions for multi-step mutations; return generic errors to clients and log specifics server-side.
-- **Frontend:** always go through the `api` client in `src/api/client.ts` and the `storage` util; add request/response types in `src/types/`; prefer MUI components for UI.
-- **Cross-DB:** test backend query changes against both PostgreSQL and SQLite (or at minimum `cargo check --all-features`).
+- Parameterize all SQL; never interpolate user input. Sanitize free text. Transactions for multi-step mutations.
+- Generic errors to clients; log specifics server-side.
+- FE: prefer MUI components; request/response types in `src/types/`.
+- Test backend query changes against both DBs (minimum: `cargo check --all-features`).
 
 ## Environment
 
-Required env vars (see `hotel-app-be/.env.example`):
+Required (see `hotel-app-be/.env.example`): `DATABASE_URL` (postgres) /
+`DATABASE_PATH` (sqlite), `JWT_SECRET` (≥32 chars), `BACKEND_PORT` (3030),
+`ALLOWED_ORIGINS` (comma-separated; `*` = permissive), `HOTEL_DESKTOP_MODE`,
+`VITE_API_URL` (prod FE only; dev uses the Vite proxy). Optional pool/cache tuning
+vars are read in `core/db.rs::create_pool` and `core/rbac_cache.rs`.
 
-- `DATABASE_URL` — PostgreSQL DSN (postgres mode)
-- `DATABASE_PATH` — SQLite file path (sqlite mode; defaults to `./hotel_data.db`)
-- `JWT_SECRET` — ≥32 chars
-- `BACKEND_PORT` — default 3030
-- `ALLOWED_ORIGINS` — comma-separated; `*` switches CORS to permissive (used by desktop mode)
-- `HOTEL_DESKTOP_MODE` — any value enables desktop-mode behavior (localhost-only bind, dynamic port)
-- `VITE_API_URL` — frontend production API URL (dev uses the Vite proxy)
-
-Optional pool/cache tuning (all have defaults; read in `core/db.rs::create_pool` and `core/rbac_cache.rs`): `DATABASE_MAX_CONNECTIONS`, `DATABASE_MIN_CONNECTIONS`, `DATABASE_ACQUIRE_TIMEOUT_SECS`, `DATABASE_IDLE_TIMEOUT_SECS`, `DATABASE_MAX_LIFETIME_SECS`, `DATABASE_SLOW_STATEMENT_MS`, `DATABASE_BUSY_TIMEOUT_SECS` (SQLite), `RBAC_CACHE_TTL_SECS`.
-
-## MCP Servers
-
-`hotel-app-be/README.md` references two MCP servers under `hotel-app-be/mcp-server/` (analytics-server, hotel-search-server) that wrap the REST API for Claude Desktop / Cursor integration. They authenticate via JWT and read from the same backend; no separate database access.
-
-## Booking Workflow
-
-**Routes** (`hotel-app-be/src/routes/bookings.rs`) — gated by `bookings:<read|create|update|delete|manage>`, except `pre-checkin`, `my-bookings`, and code lookups (`/rate-codes`, `/market-codes`) which are public/auth-only. Lifecycle status: `pending` → `confirmed` → `checked_in` → `checked_out`/`completed`; off-paths `voided`, `late_checkout`.
-
-Key handlers in `handlers/bookings.rs`:
-
-- **`create_booking_handler`** (bookings.rs:537) — opens a tx, locks the room with `SELECT … FOR UPDATE`, checks for overlapping active bookings, derives `is_tourist` from the guest's `tourism_type` (does NOT trust the request), computes `subtotal` from `daily_rates` if present otherwise `room_rate × nights` (1 night for same-day "hourly" bookings), inserts with status `confirmed`, sets the room `occupied` (today) or `reserved` (future), and optionally records a deposit `payment` row. All inside the tx.
-- **`update_booking_handler`** (bookings.rs:915) — RBAC + ownership check, room/date conflict re-check; when only dates change, **rebuilds `daily_rates`** to span the new range, preserving existing per-night values and filling new nights with `room_rate` (without this, shrinking leaves orphan keys → over-charge; extending leaves missing keys → under-charge). On `checked_out`/`completed` transition: marks room `dirty`, then calls `post_checkout_accounting`, which opens **one transaction** so the checkout invoice (`ensure_invoice_for_booking_tx`) and (if company-billed) the city-ledger room charge (`auto_post_company_ledger`) commit atomically. The accounting step is best-effort at the outer level — a transient error is logged and never blocks the checkout. Also **syncs existing `customer_ledgers.amount` by delta** when the booking total changes (preserves user-added extras; skips paid/cancelled rows).
-- **`auto_post_company_ledger`** (bookings.rs) — runs inside the caller's checkout transaction. Idempotency is enforced **structurally** by the partial unique index `uq_customer_ledgers_booking_room_charge` (one non-reversal `room_charge` per booking) rather than a racy EXISTS check: the INSERT uses `ON CONFLICT DO NOTHING RETURNING id`, and on conflict it re-reads the existing row and warns if the stored amount diverges from the booking total. Reuses the booking's existing `invoices.invoice_number` if present so a single booking has one invoice number across `invoices` and `customer_ledgers`.
-- **`manual_checkin_handler`** (bookings.rs:1787) — verifies status is `confirmed`/`pending` and room not under maintenance, applies optional `guest_update`/`booking_update`, sets `checked_in` + `actual_check_in`, records optional `payment_record`, sets room `occupied`, back-fills night-audit postings (covers same-day walk-ins after their own audit ran).
-- **`delete_booking_handler`** (bookings.rs:1640) — soft-void: status → `voided`, frees the room, cancels linked payments (so they don't appear in night audit), and refunds complimentary nights into `guest_complimentary_credits`.
-
-**Frontend**: `hotel-web-fe/src/api/bookings.service.ts` (`BookingsService`) wraps the endpoints; `features/bookings/hooks/useBookings.ts` does server-side pagination/filter/sort with debounced text inputs (700 ms) and a request-id guard against stale responses; `features/bookings/components/BookingsPage.tsx` orchestrates UI. `handleConfirmCheckout` (BookingsPage.tsx:543) just sends `updateBooking({status:'checked_out'})` — the backend handles invoice creation and company-ledger auto-post.
-
-## Ledger Workflow
-
-**Routes** (`hotel-app-be/src/routes/ledgers.rs`) — gated by ledger-specific RBAC permissions: `ledgers:read` for list/detail/summary/payment reads, `ledgers:create` for ledger/payment creation, `ledgers:update` for edits/payment-date changes, `ledgers:void` for voids/reversals, and `ledgers:manage` for destructive deletes. As with other RBAC resources, `ledgers:manage` implies all ledger actions.
-
-**Data model** (`models/ledger.rs`):
-- `customer_ledgers` — company info, `description`, `expense_type`, `amount`, `paid_amount`, `balance_due` (DB-derived), `status` ∈ {pending, partial, paid, overdue, cancelled}, `due_date`, `invoice_number`, optional `booking_id`/`guest_id`, accounting fields (`folio_type`, `transaction_type`, `post_type`, `is_reversal`, `original_transaction_id`, `void_at/by/reason`).
-- `customer_ledger_payments` — running payment history per ledger.
-
-Key handlers in `handlers/ledgers.rs`:
-
-- **`create_customer_ledger_handler`** (ledgers.rs:479) — resolves `due_date` (caller → company `payment_terms_days` → 30-day fallback from posting date/today), allocates next `invoice_number` via `services::invoice_numbers::next_invoice_number`, inserts with status `pending`.
-- **`create_ledger_payment_handler`** (ledgers.rs:1188) — validates positive amount + non-cancelled ledger, inserts payment row, updates ledger's `paid_amount` + `payment_method`/`payment_reference`, recomputes status: `paid_amount ≥ amount` → `paid`, > 0 → `partial`, else `pending`.
-- **`update_ledger_payment_handler`** (ledgers.rs:1801) — patches payment date and re-syncs ledger's `payment_date` to `MAX(payments.payment_date)`.
-- **`void_ledger_handler`** (ledgers.rs:1479) — stamps `void_at/by/reason` + status `cancelled`. Refuses if already voided.
-- **`create_ledger_reversal_handler`** (ledgers.rs:1640) — inserts a sibling row with `is_reversal=TRUE`, `original_transaction_id` back-pointer, opposite `transaction_type` (debit↔credit), description prefixed `REVERSAL:`, status `paid`. Refuses to reverse a reversal.
-
-**Booking → Ledger integration**: When a company-billed booking transitions to `checked_out`/`completed`, the backend calls `auto_post_company_ledger` to insert a `room_charge` row with `folio_type='city_ledger'`, `transaction_type='debit'`, `due_date = today + payment_terms_days`. Subsequent edits to the booking total propagate as a *delta* to that ledger row's `amount` (bookings.rs:1531) — preserving extras, skipping cancelled/over-paid rows.
-
-**The backend is the sole authority for company ledger rows**: company room charges are created only by `auto_post_company_ledger` on the `checked_out`/`completed` transition. The frontend (`CustomerLedgerPage.handleConfirmCompanyCheckout`) just submits the checkout (`updateBooking({status:'checked_out'})`) and renders the result — it does **not** compute amounts, allocate invoice numbers, or insert ledger rows. Duplicate/concurrent postings are made impossible by the partial unique index `uq_customer_ledgers_booking_room_charge` (PostgreSQL: `database/schema.sql`; SQLite: migration 013), not by an application-level check.
-
-**Frontend**: `hotel-web-fe/src/api/ledger.service.ts` wraps endpoints; `features/admin/hooks/useLedgers.ts` mirrors `useBookings` (server pagination, debounced search, request-id guard); `features/admin/hooks/useLedgerData.ts` is the older non-paginated variant — `CustomerLedgerPage.tsx` uses `useLedgers`.
+MCP servers (analytics-server, hotel-search-server): described in
+`hotel-app-be/README.md` as `hotel-app-be/mcp-server/`, but that directory does
+NOT exist on disk (verified 2026-07-05) — treat as external or aspirational.

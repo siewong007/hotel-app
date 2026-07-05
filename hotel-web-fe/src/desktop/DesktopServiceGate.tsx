@@ -4,6 +4,11 @@ import {
   Box,
   Button,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   LinearProgress,
   Stack,
   Typography,
@@ -18,7 +23,16 @@ import {
   getTauriEventApi,
   setRuntimeApiBaseUrl,
   shouldUseDesktopRuntime,
+  upgradeDatabaseFromBackup,
 } from './runtimeApi';
+
+function formatLocalDateTime(rfc3339: string): string {
+  const parsed = new Date(rfc3339);
+  if (Number.isNaN(parsed.getTime())) {
+    return rfc3339;
+  }
+  return parsed.toLocaleString();
+}
 
 interface DesktopServiceGateProps {
   children: React.ReactNode;
@@ -29,6 +43,8 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
   const [status, setStatus] = useState<DesktopAppStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRestarting, setIsRestarting] = useState(false);
+  const [isUpgrading, setIsUpgrading] = useState(false);
+  const [upgradeError, setUpgradeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isDesktop) {
@@ -112,6 +128,23 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
     }
   };
 
+  const runUpgrade = async () => {
+    setIsUpgrading(true);
+    setUpgradeError(null);
+
+    try {
+      await upgradeDatabaseFromBackup();
+      // Resume normal boot: refresh status; the backend is started by the command.
+      const nextStatus = await getDesktopStatus();
+      setStatus(nextStatus);
+      setError(null);
+    } catch (err) {
+      setUpgradeError(err instanceof Error ? err.message : 'Database upgrade failed');
+    } finally {
+      setIsUpgrading(false);
+    }
+  };
+
   const openDataFolder = async () => {
     try {
       const { invoke } = await getTauriCoreApi();
@@ -123,6 +156,77 @@ export function DesktopServiceGate({ children }: DesktopServiceGateProps) {
 
   if (!isDesktop || status?.backend_running) {
     return <>{children}</>;
+  }
+
+  const pg = status?.postgres;
+  const needsUpgrade = Boolean(pg?.needs_upgrade);
+  const latestBackup = pg?.latest_backup ?? null;
+
+  if (needsUpgrade) {
+    const fromVersion = pg?.data_dir_major ?? 'an older version';
+    const toVersion = pg?.bundled_major ?? 'the current version';
+
+    return (
+      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', display: 'flex', alignItems: 'center', justifyContent: 'center', px: 3 }}>
+        <Dialog open disableEscapeKeyDown maxWidth="sm" fullWidth>
+          <DialogTitle>Database upgrade required</DialogTitle>
+          <DialogContent>
+            <DialogContentText component="div">
+              <Typography variant="body2" gutterBottom>
+                Your saved data was created with PostgreSQL {fromVersion}, but this
+                version of the app ships PostgreSQL {toVersion}. The app cannot open
+                the existing data directly and will not start until this is resolved.
+              </Typography>
+
+              {latestBackup ? (
+                <Typography variant="body2" sx={{ mt: 2 }}>
+                  Restore from backup taken {formatLocalDateTime(latestBackup.timestamp)}?
+                  Changes made after that date will be lost. Your existing data
+                  directory is kept (renamed aside), not deleted.
+                </Typography>
+              ) : (
+                <Typography variant="body2" sx={{ mt: 2 }}>
+                  No automatic backup is available, so the app cannot upgrade safely.
+                  To recover, install a desktop build matching PostgreSQL {fromVersion}
+                  to read the existing data, or migrate the data directory manually
+                  with pg_upgrade. Your existing data has been left untouched.
+                </Typography>
+              )}
+
+              {isUpgrading && (
+                <Box sx={{ mt: 2 }}>
+                  <LinearProgress />
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    Upgrading database. This may take a few minutes; do not close the app.
+                  </Typography>
+                </Box>
+              )}
+
+              {upgradeError && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  {upgradeError}
+                </Alert>
+              )}
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button startIcon={<FolderOpenIcon />} onClick={openDataFolder} disabled={isUpgrading}>
+              Open data folder
+            </Button>
+            {latestBackup && (
+              <>
+                <Button onClick={restartBackend} disabled={isUpgrading}>
+                  Retry without upgrading
+                </Button>
+                <Button variant="contained" onClick={runUpgrade} disabled={isUpgrading}>
+                  Restore from backup
+                </Button>
+              </>
+            )}
+          </DialogActions>
+        </Dialog>
+      </Box>
+    );
   }
 
   const serviceLabel = status?.backend_starting || isRestarting ? 'Starting desktop services' : 'Desktop services are unavailable';

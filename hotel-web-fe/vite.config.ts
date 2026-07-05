@@ -9,6 +9,11 @@ const BACKEND_TARGET = 'http://127.0.0.1:3030';
 // prefixes are forwarded so every other path falls through to the SPA (e.g.
 // deep-links like `/bookings/123`). `/uploads`, `/health`, and `/ws` stay at the
 // backend root for static assets + healthchecks.
+//
+// KEEP IN SYNC: the desktop sidecar CORS allow-list lives in
+// hotel-desktop/src-tauri/src/commands.rs (ALLOWED_ORIGINS env assembly). New
+// top-level API prefixes must also be merged in
+// hotel-app-be/src/routes/mod.rs::create_router. See .claude/rules/00-diagnosis.md Leak #3.
 const PROXY_PREFIXES = ['/api', '/uploads', '/health', '/ws'];
 
 export default defineConfig(({ mode }) => {

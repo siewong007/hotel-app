@@ -11,6 +11,8 @@
     "build:no-bundle": "node scripts/tauri-build.mjs --no-bundle",
     "build:msi": "node scripts/tauri-build.mjs --bundles msi",
     "build:nsis": "node scripts/tauri-build.mjs --bundles nsis",
+    "provision:pgsql": "node scripts/provision-pgsql.mjs",
+    "provision:pgsql:force": "node scripts/provision-pgsql.mjs --force",
     "sync:resources": "node scripts/sync-desktop-resources.mjs",
     "sync:resources:force": "node scripts/sync-desktop-resources.mjs --force",
     "build:frontend": "npm --prefix ../hotel-web-fe run build:tauri",

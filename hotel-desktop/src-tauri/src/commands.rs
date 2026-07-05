@@ -110,6 +110,8 @@ pub async fn start_backend_sidecar(app_handle: &AppHandle) -> Result<(), String>
         .env("BACKEND_PORT", backend_port.to_string())
         .env("JWT_SECRET", jwt_secret)
         .env("HOTEL_DESKTOP_MODE", "1")
+        // KEEP IN SYNC: dev proxy prefixes in hotel-web-fe/vite.config.ts;
+        // router merge in hotel-app-be/src/routes/mod.rs
         .env(
             "ALLOWED_ORIGINS",
             "tauri://localhost,http://tauri.localhost,http://localhost:3000,http://localhost:5173",
@@ -308,6 +310,37 @@ pub async fn backup_database(
         .await
         .map(|path| path.to_string_lossy().to_string())
         .map_err(|err| err.to_string())
+}
+
+/// Perform a guided major-version upgrade by restoring the latest backup into a
+/// fresh cluster built with the bundled PostgreSQL version.
+///
+/// This is only ever invoked after explicit user confirmation in the webview
+/// (see DesktopServiceGate). The old data directory is preserved (renamed aside),
+/// and any failure rolls back to the pre-upgrade state.
+#[tauri::command]
+pub async fn upgrade_database_from_backup(
+    app_handle: AppHandle,
+) -> Result<crate::postgres::UpgradeSummary, String> {
+    log::info!("Guided database upgrade from backup requested");
+    let summary = crate::postgres::upgrade_database_from_backup(&app_handle)
+        .await
+        .map_err(|err| err.to_string())?;
+
+    // Bring the backend sidecar up against the freshly-restored database so the
+    // app can resume normal operation without a full restart.
+    if let Err(err) = start_backend_sidecar(&app_handle).await {
+        log::warn!(
+            "Upgrade restore succeeded but starting the backend sidecar failed: {}",
+            err
+        );
+        return Err(format!(
+            "Database upgrade succeeded, but the backend failed to start: {}. Try restarting the app.",
+            err
+        ));
+    }
+
+    Ok(summary)
 }
 
 /// Get recent log entries

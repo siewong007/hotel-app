@@ -33,10 +33,17 @@ pub fn run() {
 
             // Start backend in background
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = start_services(app_handle.clone()).await {
-                    log::error!("Failed to start services: {}", e);
-                    if let Some(window) = app_handle.get_webview_window("main") {
-                        let _ = window.emit("desktop-services-error", e);
+                match start_services(app_handle.clone()).await {
+                    Ok(()) => {
+                        // Services are up; run automatic backups on a schedule.
+                        // Failures here must never crash or block the app.
+                        spawn_scheduled_backups(app_handle.clone());
+                    }
+                    Err(e) => {
+                        log::error!("Failed to start services: {}", e);
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            let _ = window.emit("desktop-services-error", e);
+                        }
                     }
                 }
             });
@@ -47,6 +54,7 @@ pub fn run() {
             commands::get_status,
             commands::restart_backend,
             commands::backup_database,
+            commands::upgrade_database_from_backup,
             commands::get_logs,
             commands::open_data_folder,
             commands::shutdown_app,
@@ -118,4 +126,28 @@ async fn start_services(app_handle: tauri::AppHandle) -> Result<(), String> {
 
     log::info!("All services started successfully");
     Ok(())
+}
+
+/// Delay before the first automatic backup after a successful startup.
+const FIRST_BACKUP_DELAY_SECS: u64 = 120;
+/// Interval between automatic backups thereafter.
+const BACKUP_INTERVAL_SECS: u64 = 24 * 60 * 60;
+
+/// Spawn a background task that runs a database backup shortly after startup and
+/// then every 24 hours. Backup failures are logged and never propagated, so this
+/// task can neither crash nor block the application.
+fn spawn_scheduled_backups(app_handle: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(FIRST_BACKUP_DELAY_SECS)).await;
+
+        loop {
+            log::info!("Running scheduled database backup...");
+            match postgres::run_scheduled_backup(&app_handle).await {
+                Ok(path) => log::info!("Scheduled backup written to {:?}", path),
+                Err(e) => log::error!("Scheduled backup failed (continuing): {}", e),
+            }
+
+            tokio::time::sleep(std::time::Duration::from_secs(BACKUP_INTERVAL_SECS)).await;
+        }
+    });
 }

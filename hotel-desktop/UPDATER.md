@@ -51,3 +51,16 @@ const info = await invoke('check_for_updates');
 ```
 Driving the actual download/install (`update.downloadAndInstall()` +
 `relaunch()`) can be added once endpoints and keys are live.
+
+## Frontend update UI (as of 2026-07-05)
+
+A grep of `hotel-web-fe/src` for `updater`, `check_for_update(s)`, `checkForUpdate`,
+`update-available`, `@tauri-apps/plugin-updater`, `relaunch`, and
+`downloadAndInstall` found **no matches** — the frontend does not currently call
+`check_for_updates` or render any update-check UI. There is nothing to gate today.
+
+If/when update-check UI or IPC calls are added to the frontend, they must be
+gated behind `import.meta.env.VITE_DESKTOP_UPDATER_ENABLED === 'true'` (default:
+absent → disabled → UI hidden and IPC never called). The FE update UI should
+stay hidden until `VITE_DESKTOP_UPDATER_ENABLED=true` is set at build time —
+flip it only after completing the arming steps above.

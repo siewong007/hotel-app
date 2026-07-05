@@ -27,6 +27,13 @@ type TauriWindow = Window & {
   __TAURI_INTERNALS__?: TauriInternals;
 };
 
+export interface DesktopLatestBackup {
+  path: string;
+  filename: string;
+  /** RFC3339 UTC timestamp; render in local time via `new Date(...)`. */
+  timestamp: string;
+}
+
 export interface DesktopAppStatus {
   backend_running: boolean;
   backend_starting: boolean;
@@ -39,7 +46,24 @@ export interface DesktopAppStatus {
     port?: number;
     database?: string;
     data_directory?: string;
+    version_compatible?: boolean;
+    needs_upgrade?: boolean;
+    data_dir_major?: string | null;
+    bundled_major?: string | null;
+    latest_backup?: DesktopLatestBackup | null;
   };
+}
+
+export interface DesktopUpgradeSummary {
+  restored_backup: string;
+  retired_data_dir: string;
+  from_version: string;
+  to_version: string;
+}
+
+export async function upgradeDatabaseFromBackup(): Promise<DesktopUpgradeSummary> {
+  const { invoke } = await getTauriCoreApi();
+  return invoke<DesktopUpgradeSummary>('upgrade_database_from_backup');
 }
 
 export function isTauriBuildTarget(): boolean {
