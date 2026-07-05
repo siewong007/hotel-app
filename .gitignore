@@ -86,3 +86,6 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+
+# Claude Code local (per-machine) settings
+.claude/settings.local.json
