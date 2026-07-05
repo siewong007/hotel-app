@@ -11,17 +11,38 @@ The desktop build has two stages:
 
 `npm run desktop:prepare` runs these steps in order and prints the duration for each one:
 
-1. Sync backend database resources into `src-tauri/database/`.
+1. Provision the embedded PostgreSQL tree into `src-tauri/pgsql/`.
+   - Skipped (fast path) when `pgsql/` already contains binaries matching the major version parsed from `CONFIGURED_POSTGRES_MAJOR_VERSION` in `src-tauri/src/postgres.rs`.
+   - This step is non-fatal in `desktop:prepare`: if provisioning fails but `pgsql/` already exists, the existing tree is used and the build continues.
+2. Sync backend database resources into `src-tauri/database/`.
    - `database/schema.sql` and `database/data.sql` are copied only when the content changed.
-2. Build the Tauri frontend bundle.
+3. Build the Tauri frontend bundle.
    - The Vite build is skipped when frontend source, public assets, build config, package files, and `VITE_`/`TAURI_ENV_` environment inputs are unchanged and `hotel-web-fe/dist/index.html` exists.
-3. Build the backend sidecar.
+4. Build the backend sidecar.
    - The release Cargo build is skipped when backend source, Cargo files, Rust toolchain metadata, and build command metadata are unchanged and the backend release binary exists.
    - `build:fast` and `build:debug` set `DESKTOP_BACKEND_PROFILE=debug`, so those local builds use the faster debug sidecar instead of forcing a release backend rebuild.
-4. Copy the backend sidecar into `src-tauri/binaries/`.
+5. Copy the backend sidecar into `src-tauri/binaries/`.
    - The sidecar copy is skipped when the target binary already matches the source binary.
 
 Cache stamps are stored under `src-tauri/target/desktop-build-cache/`, so they are local build artifacts and are not committed.
+
+## Embedded PostgreSQL Provisioning
+
+`npm run provision:pgsql` populates `src-tauri/pgsql/` (gitignored, ~44MB) with the
+subset of a Homebrew `postgresql@<major>` install (`bin`, `lib`, `share`) that the
+app needs at runtime. The major version comes from `CONFIGURED_POSTGRES_MAJOR_VERSION`
+in `src-tauri/src/postgres.rs` — it is not hardcoded in the script.
+
+- Fast path: if `pgsql/` exists, its `postgres`/`initdb`/`pg_ctl` report the expected
+  major version, and it exits 0 without copying anything.
+- On macOS, provisioning locates the source via `brew --prefix postgresql@<major>`
+  (install it with `brew install postgresql@<major>` if missing), copies it into a
+  `pgsql.tmp` staging directory, verifies the binaries, then atomically renames it
+  into place. A failed copy never touches the existing `pgsql/` tree.
+- Windows/Linux sources are not configured yet; the script exits 1 with a message
+  rather than guessing a download URL.
+- Force re-provisioning (e.g. after a version bump or a suspected bad copy):
+  `npm run provision:pgsql:force`, or `node scripts/provision-pgsql.mjs --force`.
 
 ## Commands
 

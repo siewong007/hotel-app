@@ -1,0 +1,93 @@
+name: Desktop Build
+
+# Deliberately NOT run on every PR/push: a real `tauri build` (embedded
+# PostgreSQL provisioning + sidecar + bundling) is far too slow for the normal
+# CI loop. This workflow exists to catch resource-glob/capability/sidecar
+# packaging regressions that `ci.yml`'s placeholder-resource `cargo check`
+# cannot — see .claude/refs/architecture-enhancements.md enhancement #1.
+on:
+  workflow_dispatch:
+    inputs:
+      full_bundle:
+        description: 'Produce a full signed-placeholder bundle (installers) instead of just the raw binary'
+        type: boolean
+        default: false
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  desktop-build:
+    name: Desktop — Real Tauri Build (macOS aarch64)
+    # Apple Silicon runner: matches the aarch64-apple-darwin sidecar triple
+    # this repo builds and embeds (see hotel-desktop/scripts/copy-backend-sidecar.mjs).
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    defaults:
+      run:
+        working-directory: hotel-desktop
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95.0
+
+      - name: Cache Cargo dependencies (backend)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: hotel-app-be
+
+      - name: Cache Cargo dependencies (desktop)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: hotel-desktop/src-tauri
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            hotel-web-fe/package-lock.json
+            hotel-desktop/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: hotel-web-fe
+        run: npm ci
+
+      - name: Install desktop dependencies
+        working-directory: hotel-desktop
+        run: npm ci
+
+      # The embedded PostgreSQL major version is parsed at runtime by
+      # provision-pgsql.mjs from CONFIGURED_POSTGRES_MAJOR_VERSION in
+      # hotel-desktop/src-tauri/src/postgres.rs (currently "18"). If that
+      # constant is bumped, update this brew formula name to match.
+      - name: Install Homebrew PostgreSQL (major version must match postgres.rs)
+        run: brew install postgresql@18
+
+      - name: Provision embedded PostgreSQL tree
+        run: npm run provision:pgsql
+
+      - name: Build desktop app (binary only)
+        if: ${{ github.event.inputs.full_bundle != 'true' }}
+        run: npm run build:no-bundle
+
+      - name: Build desktop app (full bundle)
+        if: ${{ github.event.inputs.full_bundle == 'true' }}
+        run: npm run build
+
+      # No code signing / notarization is configured for this build — see the
+      # unfilled certificateThumbprint/updater pubkey placeholders in
+      # hotel-desktop/src-tauri/tauri.conf.json. Artifacts here are unsigned.
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hotel-desktop-macos-aarch64
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            hotel-desktop/src-tauri/target/release/hotel-desktop
+            hotel-desktop/src-tauri/target/release/bundle/**

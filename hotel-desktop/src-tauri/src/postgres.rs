@@ -1061,6 +1061,313 @@ pub async fn backup_database(
     Ok(backup_path)
 }
 
+/// Prefix + suffix identifying a backup dump produced by this app.
+/// Filenames look like `hotel-backup-YYYYMMDD-HHMMSS.dump`.
+const BACKUP_FILE_PREFIX: &str = "hotel-backup-";
+const BACKUP_FILE_SUFFIX: &str = ".dump";
+
+/// Number of most-recent backups to retain when pruning.
+const BACKUP_RETENTION_COUNT: usize = 14;
+
+fn backups_directory() -> PathBuf {
+    get_data_directory().join("backups")
+}
+
+fn is_managed_backup_file(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    match path.file_name().and_then(|name| name.to_str()) {
+        Some(name) => name.starts_with(BACKUP_FILE_PREFIX) && name.ends_with(BACKUP_FILE_SUFFIX),
+        None => false,
+    }
+}
+
+/// List managed backup dumps in the backups directory, newest first (by mtime).
+fn list_managed_backups() -> Vec<PathBuf> {
+    let dir = backups_directory();
+    let mut entries: Vec<(PathBuf, std::time::SystemTime)> = match std::fs::read_dir(&dir) {
+        Ok(read_dir) => read_dir
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path())
+            .filter(|path| is_managed_backup_file(path))
+            .map(|path| {
+                let mtime = path
+                    .metadata()
+                    .and_then(|meta| meta.modified())
+                    .unwrap_or(std::time::UNIX_EPOCH);
+                (path, mtime)
+            })
+            .collect(),
+        Err(_) => Vec::new(),
+    };
+
+    // Newest first.
+    entries.sort_by(|a, b| b.1.cmp(&a.1));
+    entries.into_iter().map(|(path, _)| path).collect()
+}
+
+/// Metadata about the most recent managed backup, surfaced to the frontend.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LatestBackup {
+    pub path: String,
+    pub filename: String,
+    /// Backup timestamp as RFC3339 (from file mtime), local-agnostic; the FE
+    /// renders it in local time.
+    pub timestamp: String,
+}
+
+fn latest_managed_backup() -> Option<LatestBackup> {
+    let path = list_managed_backups().into_iter().next()?;
+    let filename = path.file_name()?.to_string_lossy().to_string();
+    let mtime = path.metadata().ok()?.modified().ok()?;
+    let timestamp: chrono::DateTime<chrono::Utc> = mtime.into();
+    Some(LatestBackup {
+        path: path.to_string_lossy().to_string(),
+        filename,
+        timestamp: timestamp.to_rfc3339(),
+    })
+}
+
+/// Delete all but the newest `BACKUP_RETENTION_COUNT` managed backup dumps.
+/// Only files matching the managed backup pattern are ever removed.
+fn prune_old_backups() {
+    let backups = list_managed_backups();
+    if backups.len() <= BACKUP_RETENTION_COUNT {
+        return;
+    }
+
+    for stale in backups.into_iter().skip(BACKUP_RETENTION_COUNT) {
+        // Extra safety: never remove anything that is not a managed dump.
+        if !is_managed_backup_file(&stale) {
+            continue;
+        }
+        match std::fs::remove_file(&stale) {
+            Ok(()) => log::info!("Pruned old database backup {:?}", stale),
+            Err(err) => log::warn!("Failed to prune old database backup {:?}: {}", stale, err),
+        }
+    }
+}
+
+/// Run a backup into the default backups directory and prune old dumps.
+/// Used by the scheduled backup task; failures are returned to the caller,
+/// which logs and continues without crashing the app.
+pub async fn run_scheduled_backup(app_handle: &AppHandle) -> Result<PathBuf, PostgresError> {
+    let path = backup_database(app_handle, None).await?;
+    prune_old_backups();
+    Ok(path)
+}
+
+/// Summary returned to the frontend after a successful guided upgrade.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct UpgradeSummary {
+    pub restored_backup: String,
+    pub retired_data_dir: String,
+    pub from_version: String,
+    pub to_version: String,
+}
+
+/// Restore a custom-format (`pg_dump -F c`) backup into the freshly-created
+/// database using the bundled `pg_restore`.
+async fn restore_backup_dump(
+    app_handle: &AppHandle,
+    backup_path: &Path,
+) -> Result<(), PostgresError> {
+    let pgsql_bin = get_pgsql_bin_dir(app_handle);
+    let pg_restore_path = pgsql_bin.join(format!("pg_restore{}", EXE_SUFFIX));
+
+    if !pg_restore_path.exists() {
+        return Err(PostgresError::BinaryNotFound(
+            pg_restore_path.to_string_lossy().to_string(),
+        ));
+    }
+
+    let current_path = std::env::var("PATH").unwrap_or_default();
+    let new_path = format!(
+        "{}{}{}",
+        pgsql_bin.to_string_lossy(),
+        PATH_SEP,
+        current_path
+    );
+    let port = POSTGRES_PORT.to_string();
+
+    let mut cmd = tokio::process::Command::new(&pg_restore_path);
+    cmd.args([
+        "-h",
+        "localhost",
+        "-p",
+        &port,
+        "-U",
+        POSTGRES_USER,
+        "-d",
+        POSTGRES_DB,
+        "--clean",
+        "--if-exists",
+        "--no-owner",
+        "--no-privileges",
+        &backup_path.to_string_lossy(),
+    ])
+    .env("PGPASSWORD", read_or_create_postgres_password()?)
+    .env("PATH", &new_path)
+    .current_dir(&pgsql_bin)
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped());
+
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().await?;
+    if !output.status.success() {
+        let details = command_output_details("pg_restore database restore", &output);
+        log::error!("Database restore failed: {}", details);
+        return Err(PostgresError::MigrationFailed(format!(
+            "Database restore failed: {}",
+            details
+        )));
+    }
+
+    Ok(())
+}
+
+/// Guided major-version upgrade: retire the incompatible data directory, create
+/// a fresh cluster with the bundled version, and restore the latest backup.
+///
+/// Safety guarantees:
+/// - The old data directory is NEVER deleted — it is renamed aside and left on disk.
+/// - If ANY step fails, PostgreSQL is stopped, the half-built new cluster is
+///   removed, the retired directory is renamed back to its original name, and a
+///   descriptive error is returned so the system ends in the pre-upgrade state.
+/// - If no backup exists, no destructive action is taken.
+pub async fn upgrade_database_from_backup(
+    app_handle: &AppHandle,
+) -> Result<UpgradeSummary, PostgresError> {
+    let bundled_major = detect_bundled_postgres_major_version(app_handle).await?;
+
+    // (a) Verify the mismatch state still holds.
+    let Some(found_major) = read_pgdata_version()? else {
+        return Err(PostgresError::MigrationFailed(
+            "No PostgreSQL data directory present; nothing to upgrade.".to_string(),
+        ));
+    };
+    if found_major == bundled_major {
+        return Err(PostgresError::MigrationFailed(format!(
+            "Data directory is already PostgreSQL {}; no upgrade needed.",
+            bundled_major
+        )));
+    }
+
+    // Require a backup before doing anything destructive.
+    let Some(latest) = latest_managed_backup() else {
+        return Err(PostgresError::MigrationFailed(format!(
+            "No backup available to restore. The existing PostgreSQL {} data directory has been left untouched. To recover, install a desktop build matching PostgreSQL {} to read the existing data, or migrate the data directory manually with pg_upgrade.",
+            found_major, found_major
+        )));
+    };
+    let backup_path = PathBuf::from(&latest.path);
+
+    let pgdata = get_pgdata_dir();
+    let retired_dir = pgdata.with_file_name(format!(
+        "pgdata-pg{}-retired-{}",
+        found_major,
+        chrono::Utc::now().format("%Y%m%dT%H%M%SZ")
+    ));
+
+    // Make sure nothing is holding the old cluster; ignore errors (it should not
+    // be running because we refuse to start on mismatch).
+    let _ = stop_postgres(app_handle).await;
+
+    // (b) Rename the old data dir aside — NEVER delete it.
+    log::info!(
+        "Retiring incompatible PostgreSQL {} data directory {:?} -> {:?}",
+        found_major,
+        pgdata,
+        retired_dir
+    );
+    std::fs::rename(&pgdata, &retired_dir).map_err(|err| {
+        PostgresError::MigrationFailed(format!(
+            "Failed to retire old data directory {:?}: {}. No changes were made.",
+            pgdata, err
+        ))
+    })?;
+
+    // From here on, any failure must roll back: remove the new cluster and
+    // rename the retired directory back to the original name.
+    let rollback = |context: String| -> PostgresError {
+        log::error!("Upgrade failed ({}); rolling back to pre-upgrade state", context);
+        // Best-effort: remove a half-built new cluster if one exists.
+        if pgdata.exists() {
+            if let Err(err) = std::fs::remove_dir_all(&pgdata) {
+                log::error!(
+                    "Rollback: failed to remove half-built data directory {:?}: {}",
+                    pgdata, err
+                );
+            }
+        }
+        // Restore the original data directory name.
+        if let Err(err) = std::fs::rename(&retired_dir, &pgdata) {
+            log::error!(
+                "Rollback: failed to restore data directory {:?} -> {:?}: {}. The pre-upgrade data is preserved at {:?}.",
+                retired_dir, pgdata, err, retired_dir
+            );
+            return PostgresError::MigrationFailed(format!(
+                "{}. Additionally, automatic rollback could not restore the data directory; your original data is preserved at {:?} and must be renamed back to {:?} manually.",
+                context, retired_dir, pgdata
+            ));
+        }
+        PostgresError::MigrationFailed(format!(
+            "{}. The system was rolled back to its pre-upgrade state; your original data is intact.",
+            context
+        ))
+    };
+
+    // (c) Create a fresh cluster with the bundled version.
+    if let Err(err) = init_postgres_data_dir(app_handle, &bundled_major).await {
+        return Err(rollback(format!("initdb of fresh cluster failed: {}", err)));
+    }
+
+    // (d) Start postgres.
+    if let Err(err) = start_postgres(app_handle, &bundled_major).await {
+        return Err(rollback(format!("starting fresh cluster failed: {}", err)));
+    }
+    if let Err(err) = ensure_postgres_password_auth(app_handle).await {
+        let _ = stop_postgres(app_handle).await;
+        return Err(rollback(format!("configuring role auth failed: {}", err)));
+    }
+
+    // Create the target database before restoring into it.
+    if let Err(err) = create_database_if_needed(app_handle).await {
+        let _ = stop_postgres(app_handle).await;
+        return Err(rollback(format!("creating database failed: {}", err)));
+    }
+
+    // (e) Restore the latest backup dump.
+    if let Err(err) = restore_backup_dump(app_handle, &backup_path).await {
+        let _ = stop_postgres(app_handle).await;
+        return Err(rollback(format!("restore of backup {:?} failed: {}", backup_path, err)));
+    }
+
+    // (f) Run the migrations / schema bootstrap step (idempotent).
+    if let Err(err) = run_database_setup(app_handle).await {
+        let _ = stop_postgres(app_handle).await;
+        return Err(rollback(format!("post-restore database setup failed: {}", err)));
+    }
+
+    // (g) Success.
+    log::info!(
+        "Guided upgrade complete: PostgreSQL {} -> {}, restored {:?}, retired old data at {:?}",
+        found_major,
+        bundled_major,
+        backup_path,
+        retired_dir
+    );
+    Ok(UpgradeSummary {
+        restored_backup: latest.filename,
+        retired_data_dir: retired_dir.to_string_lossy().to_string(),
+        from_version: found_major,
+        to_version: bundled_major,
+    })
+}
+
 fn bootstrap_password_file_path() -> PathBuf {
     get_data_directory().join("initial-login-password.txt")
 }
@@ -1320,6 +1627,16 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
         .as_deref()
         .map_or(true, |version| version == bundled_version.as_str());
 
+    // A major-version mismatch means we refuse to auto-start (see
+    // refuse_if_pgdata_version_mismatch). Surface this as a machine-readable
+    // state so the webview can offer a guided restore-from-backup upgrade.
+    let needs_upgrade = data_version.is_some() && !version_compatible;
+    let latest_backup = if needs_upgrade {
+        latest_managed_backup()
+    } else {
+        None
+    };
+
     serde_json::json!({
         "running": running,
         "initialized": initialized,
@@ -1327,6 +1644,10 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
         "bundled_version": bundled_version,
         "configured_bundled_version": CONFIGURED_POSTGRES_MAJOR_VERSION,
         "version_compatible": version_compatible,
+        "needs_upgrade": needs_upgrade,
+        "data_dir_major": data_version,
+        "bundled_major": bundled_version,
+        "latest_backup": latest_backup,
         "port": POSTGRES_PORT,
         "user": POSTGRES_USER,
         "database": POSTGRES_DB,
