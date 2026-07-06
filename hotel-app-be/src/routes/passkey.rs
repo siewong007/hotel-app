@@ -14,6 +14,7 @@ use axum::{
     response::Json,
     routing::post,
 };
+use axum_extra::extract::cookie::CookieJar;
 use std::net::SocketAddr;
 
 pub fn routes() -> Router<DbPool> {
@@ -96,8 +97,9 @@ async fn login_finish(
     Extension(limiters): Extension<RateLimiters>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
+    jar: CookieJar,
     Json(req): Json<models::PasskeyLoginFinish>,
-) -> Result<Json<models::AuthResponse>, ApiError> {
+) -> Result<(CookieJar, Json<models::AuthResponse>), ApiError> {
     let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
     if !allowed {
@@ -109,5 +111,5 @@ async fn login_finish(
             retry_after,
         ));
     }
-    handlers::passkey::passkey_login_finish_handler(State(pool), Json(req)).await
+    handlers::passkey::passkey_login_finish_handler(State(pool), jar, Json(req)).await
 }

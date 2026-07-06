@@ -1,6 +1,7 @@
 // Base API client configuration
 import ky from 'ky';
 import { storage } from '../utils/storage';
+import { getAccessToken, setAccessToken, clearAccessToken } from '../auth/tokenStore';
 import { apiUrl, getApiBaseUrl, resolveApiRequestUrl } from '../desktop/runtimeApi';
 import {
   emitApiNotification,
@@ -25,9 +26,10 @@ export class APIError extends Error {
 // Requests resolve the API base dynamically so Tauri can update it after boot.
 export const API_BASE_URL = getApiBaseUrl();
 
+// The refresh endpoint now returns only the access token in the body; the rotated
+// refresh token is delivered via the HttpOnly cookie and is not visible to JS.
 type RefreshTokenResponse = {
   access_token: string;
-  refresh_token: string;
 };
 
 let refreshPromise: Promise<RefreshTokenResponse | null> | null = null;
@@ -48,37 +50,30 @@ function isAuthEndpoint(url: string): boolean {
 }
 
 function clearStoredAuth(): void {
-  storage.removeItem('accessToken');
-  storage.removeItem('refreshToken');
+  clearAccessToken();
   storage.removeItem('user');
   storage.removeItem('roles');
   storage.removeItem('permissions');
   storage.removeItem('routePolicies');
 }
 
-async function refreshStoredAuthTokens(): Promise<RefreshTokenResponse | null> {
-  const refreshToken = storage.getItem<string>('refreshToken');
-  if (!refreshToken) {
-    return null;
-  }
-
+/**
+ * Silently re-mints an access token using the HttpOnly refresh cookie (sent
+ * automatically because the instance uses `credentials: 'include'`). No refresh
+ * token is read from or written to storage — the new access token is kept in the
+ * in-memory token store only. Concurrent callers share a single in-flight request.
+ */
+export async function refreshAccessToken(): Promise<RefreshTokenResponse | null> {
   if (!refreshPromise) {
     refreshPromise = ky.post(apiUrl('auth/refresh'), {
-      json: { refresh_token: refreshToken },
+      credentials: 'include',
       timeout: 30000,
     })
       .json<RefreshTokenResponse>()
       .then(tokens => {
-        storage.setItems({
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-        });
-        storage.invalidateCache();
+        setAccessToken(tokens.access_token);
         window.dispatchEvent(new CustomEvent('auth:tokens-refreshed', {
-          detail: {
-            accessToken: tokens.access_token,
-            refreshToken: tokens.refresh_token,
-          },
+          detail: { accessToken: tokens.access_token },
         }));
         return tokens;
       })
@@ -99,7 +94,7 @@ async function retryWithFreshAccessToken(
   options: Parameters<typeof ky>[1],
 ): Promise<Response> {
   const retryHeaders = new Headers(request.headers);
-  const accessToken = storage.getItem<string>('accessToken');
+  const accessToken = getAccessToken();
   if (accessToken) {
     retryHeaders.set('Authorization', `Bearer ${accessToken}`);
   }
@@ -139,6 +134,10 @@ async function createRequestWithUrl(request: Request, url: string): Promise<Requ
 // Create ky instance with hooks for auth and error handling
 export const api = ky.create({
   timeout: 30000, // 30 second timeout
+  // Send the HttpOnly refresh cookie on auth requests (same-origin in prod and
+  // through the Vite dev proxy). Regular API calls still authenticate via the
+  // in-memory bearer token injected in `beforeRequest`.
+  credentials: 'include',
   retry: {
     limit: 2,
     methods: ['get'],
@@ -149,7 +148,7 @@ export const api = ky.create({
       async request => {
         const nextUrl = resolveApiRequestUrl(request.url);
         const apiRequest = nextUrl === request.url ? request : await createRequestWithUrl(request, nextUrl);
-        const token = storage.getItem<string>('accessToken');
+        const token = getAccessToken();
         if (token) {
           apiRequest.headers.set('Authorization', `Bearer ${token}`);
         } else {
@@ -166,7 +165,7 @@ export const api = ky.create({
 
           // Only refresh/logout for 401s on protected endpoints, not auth endpoints.
           if (!isAuthEndpoint(request.url)) {
-            const refreshed = await refreshStoredAuthTokens();
+            const refreshed = await refreshAccessToken();
             if (refreshed) {
               return retryWithFreshAccessToken(request, options);
             }

@@ -4,6 +4,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{Company, CompanyCreateRequest, CompanyListQuery, CompanyUpdateRequest};
 use crate::repositories::company::CompanyRepository;
+use crate::services::audit::AuditLog;
 
 pub async fn list_companies(
     pool: &DbPool,
@@ -30,7 +31,21 @@ pub async fn create_company(
         )));
     }
 
-    CompanyRepository::insert(pool, &input, user_id).await
+    let company = CompanyRepository::insert(pool, &input, user_id).await?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "company_created",
+        "company",
+        Some(company.id),
+        Some(serde_json::json!({"name": &company.company_name})),
+        None,
+        None,
+    )
+    .await;
+
+    Ok(company)
 }
 
 pub async fn update_company(
@@ -52,7 +67,21 @@ pub async fn update_company(
     }
 
     CompanyRepository::update(pool, company_id, &input).await?;
-    get_company(pool, company_id).await
+    let company = get_company(pool, company_id).await?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        None,
+        "company_updated",
+        "company",
+        Some(company_id),
+        Some(serde_json::json!({"name": &company.company_name})),
+        None,
+        None,
+    )
+    .await;
+
+    Ok(company)
 }
 
 pub async fn delete_company(pool: &DbPool, company_id: i64) -> Result<(), ApiError> {
@@ -60,6 +89,18 @@ pub async fn delete_company(pool: &DbPool, company_id: i64) -> Result<(), ApiErr
     if rows_affected == 0 {
         return Err(ApiError::NotFound("Company not found".to_string()));
     }
+
+    let _ = AuditLog::log_event(
+        pool,
+        None,
+        "company_deleted",
+        "company",
+        Some(company_id),
+        None,
+        None,
+        None,
+    )
+    .await;
 
     Ok(())
 }

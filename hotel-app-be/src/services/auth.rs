@@ -15,7 +15,10 @@ use chrono::{Duration, Utc};
 use serde_json::json;
 use validator::Validate;
 
-pub async fn login(pool: &DbPool, req: LoginRequest) -> Result<AuthResponse, ApiError> {
+/// Authenticates a user. Returns the `AuthResponse` (access token + profile) plus
+/// the freshly minted refresh token as a separate `String`; the route handler
+/// sets that token on an `HttpOnly` cookie and never includes it in the JSON body.
+pub async fn login(pool: &DbPool, req: LoginRequest) -> Result<(AuthResponse, String), ApiError> {
     req.validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
@@ -172,15 +175,17 @@ pub async fn login(pool: &DbPool, req: LoginRequest) -> Result<AuthResponse, Api
     };
     let _ = AuditLog::log_login_success(pool, user.id, login_method, None, None).await;
 
-    Ok(AuthResponse {
-        access_token,
+    Ok((
+        AuthResponse {
+            access_token,
+            user: UserResponse::from(user),
+            roles,
+            permissions,
+            route_policies,
+            is_first_login,
+        },
         refresh_token,
-        user: UserResponse::from(user),
-        roles,
-        permissions,
-        route_policies,
-        is_first_login,
-    })
+    ))
 }
 
 pub async fn access_snapshot(pool: &DbPool, user_id: i64) -> Result<AccessSnapshot, ApiError> {

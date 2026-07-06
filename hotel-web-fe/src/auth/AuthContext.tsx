@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, HotelAPIService } from '../api';
+import { refreshAccessToken } from '../api/client';
 import { storage } from '../utils/storage';
+import { setAccessToken, clearAccessToken } from './tokenStore';
 import type { RouteAccessPolicy } from '../types';
 
 export interface User {
@@ -19,8 +21,9 @@ export interface AuthState {
   roles: string[];
   permissions: string[];
   routePolicies: RouteAccessPolicy[];
+  // Mirrors the in-memory access token (src/auth/tokenStore.ts) for React
+  // consumers. Never persisted; the refresh token lives in an HttpOnly cookie.
   accessToken: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   shouldPromptPasskey: boolean;
@@ -55,7 +58,6 @@ interface AuthProviderProps {
 
 type AuthLoginResponse = {
   access_token: string;
-  refresh_token: string;
   user: User;
   roles: string[];
   permissions: string[];
@@ -69,7 +71,6 @@ const EMPTY_AUTH_STATE: AuthState = {
   permissions: [],
   routePolicies: [],
   accessToken: null,
-  refreshToken: null,
   isAuthenticated: false,
   isLoading: true,
   shouldPromptPasskey: false,
@@ -84,8 +85,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   });
 
   const clearStoredAuth = useCallback(() => {
-    storage.removeItem('accessToken');
-    storage.removeItem('refreshToken');
+    clearAccessToken();
     storage.removeItem('user');
     storage.removeItem('roles');
     storage.removeItem('permissions');
@@ -101,48 +101,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const initializeAuth = async () => {
-      // Batch read all stored auth data
-      const { accessToken, user, refreshToken } = storage.getItems([
-        'accessToken',
-        'user',
-        'refreshToken',
-      ]);
-
-      if (accessToken && user) {
-        try {
-          // Verify token by making a profile request.
-          // Wait for it to succeed BEFORE setting isAuthenticated to true.
-          await HotelAPIService.getUserProfile();
-          const access = await HotelAPIService.getAccessSnapshot();
-
-          storage.setItems({
-            roles: access.roles,
-            permissions: access.permissions,
-            routePolicies: access.route_policies,
-          });
-
-          const latestAccessToken = storage.getItem<string>('accessToken') || accessToken;
-          const latestRefreshToken = storage.getItem<string>('refreshToken') || refreshToken;
-          
-          setAuthState({
-            user,
-            roles: access.roles,
-            permissions: access.permissions,
-            routePolicies: access.route_policies,
-            accessToken: latestAccessToken,
-            refreshToken: latestRefreshToken,
-            isAuthenticated: true,
-            isLoading: false,
-            shouldPromptPasskey: false,
-          });
-        } catch (error) {
-          // If it fails with 401, the api client's interceptor will also dispatch 
-          // 'auth:unauthorized', which clears storage and redirects to /login.
-          // We set state here just in case.
-          setAuthState(prev => ({ ...prev, isAuthenticated: false, isLoading: false }));
-        }
-      } else {
+      // No token survives a reload (it lives in memory only). Try to silently
+      // re-mint an access token from the HttpOnly refresh cookie; the browser
+      // sends it automatically. If there's no valid cookie, we're logged out.
+      const refreshed = await refreshAccessToken();
+      if (!refreshed) {
         setAuthState(prev => ({ ...prev, isLoading: false }));
+        return;
+      }
+
+      try {
+        // With the fresh access token in memory, confirm the session and load
+        // the current access snapshot before flipping isAuthenticated. The
+        // `user` object is restored from the (non-sensitive) storage cache set
+        // at login; the profile call doubles as a token-validity probe.
+        await HotelAPIService.getUserProfile();
+        const access = await HotelAPIService.getAccessSnapshot();
+        const user = storage.getItem<User>('user');
+
+        storage.setItems({
+          roles: access.roles,
+          permissions: access.permissions,
+          routePolicies: access.route_policies,
+        });
+
+        setAuthState({
+          user,
+          roles: access.roles,
+          permissions: access.permissions,
+          routePolicies: access.route_policies,
+          accessToken: refreshed.access_token,
+          isAuthenticated: true,
+          isLoading: false,
+          shouldPromptPasskey: false,
+        });
+      } catch (error) {
+        // If it fails with 401, the api client's interceptor will also dispatch
+        // 'auth:unauthorized', which clears storage and redirects to /login.
+        clearAccessToken();
+        setAuthState(prev => ({ ...prev, isAuthenticated: false, isLoading: false }));
       }
     };
 
@@ -167,15 +164,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const handleTokensRefreshed = (event: Event) => {
-      const detail = (event as CustomEvent<{ accessToken?: string; refreshToken?: string }>).detail;
-      if (!detail?.accessToken || !detail.refreshToken) {
+      const detail = (event as CustomEvent<{ accessToken?: string }>).detail;
+      if (!detail?.accessToken) {
         return;
       }
 
       setAuthState(prev => ({
         ...prev,
         accessToken: detail.accessToken || prev.accessToken,
-        refreshToken: detail.refreshToken || prev.refreshToken,
       }));
     };
 
@@ -224,12 +220,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         json: { username, password, totp_code: totpCode },
       }).json<AuthLoginResponse>();
 
-      const { access_token, refresh_token, user, roles, permissions, route_policies, is_first_login } = data;
+      const { access_token, user, roles, permissions, route_policies, is_first_login } = data;
 
-      // IMPORTANT: Store auth data BEFORE calling checkPasskeys so the API client can use the token
+      // Access token goes to the in-memory store (never persisted). The refresh
+      // token was set by the backend as an HttpOnly cookie and is invisible here.
+      setAccessToken(access_token);
+
+      // IMPORTANT: Set the token above BEFORE calling checkPasskeys so the API
+      // client can authenticate. Non-sensitive profile data is cached in storage.
       storage.setItems({
-        accessToken: access_token,
-        refreshToken: refresh_token,
         user,
         roles,
         permissions,
@@ -247,7 +246,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         permissions,
         routePolicies: route_policies,
         accessToken: access_token,
-        refreshToken: refresh_token,
         isAuthenticated: true,
         isLoading: false,
         shouldPromptPasskey: false, // Will update below if needed
@@ -289,6 +287,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [checkPasskeys, queryClient]);
 
   const logout = useCallback(() => {
+    // Best-effort server-side revoke + cookie clear. The refresh token rides the
+    // HttpOnly cookie (sent via `credentials: 'include'`), so no body is needed.
+    // We don't await it: local state is cleared immediately regardless of result.
+    void api.post('auth/logout').catch(() => {
+      // Ignore network/401 errors; the local session is being torn down anyway.
+    });
     resetAuthState();
     clearStoredAuth();
     queryClient.clear();
@@ -518,12 +522,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         },
       }).json<AuthLoginResponse>();
 
-      const { access_token, refresh_token, user, roles, permissions, route_policies, is_first_login } = finishResponse;
+      const { access_token, user, roles, permissions, route_policies, is_first_login } = finishResponse;
 
-      // Store auth data first
+      // Access token to memory only; refresh token arrives as an HttpOnly cookie.
+      setAccessToken(access_token);
+
+      // Cache non-sensitive profile data
       storage.setItems({
-        accessToken: access_token,
-        refreshToken: refresh_token,
         user,
         roles,
         permissions,
@@ -541,7 +546,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         permissions,
         routePolicies: route_policies,
         accessToken: access_token,
-        refreshToken: refresh_token,
         isAuthenticated: true,
         isLoading: false,
         shouldPromptPasskey: false,

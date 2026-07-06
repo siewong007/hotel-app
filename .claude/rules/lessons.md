@@ -41,3 +41,46 @@ in `maintenance.md`. Newest at the bottom. Consolidate at >30 entries / >300 lin
 - Rule: when two subagents build artifacts where one consumes the other's output,
   always run a final cross-check that greps the consumer for everything the
   producer must supply — self-verification of each half is not sufficient
+
+## 2026-07-06 — Token-storage migration: hidden session-minting path + stale plan facts
+- Trigger: P0 token-storage fix (localStorage → in-memory access token + HttpOnly
+  refresh cookie). `grep AuthResponse` found src/services/passkey.rs:314 also builds
+  a session (passkey login), not just password login in handlers/auth.rs.
+- Wrong: (a) plan said CORS List branch needed `.allow_credentials(true)` added —
+  it was ALREADY present at routes/mod.rs:112. (b) Scoping only the password login
+  path would have left passkey login putting refresh_token in the JSON body.
+- Right: any handler returning AuthResponse/RefreshTokenResponse mints a session and
+  must set the cookie — grep the RESPONSE type, not just the endpoint named in the
+  spec. `Secure` cookies are accepted by browsers over http://localhost (dev proxy
+  works, no cookieDomainRewrite needed since the Vite proxy is same-origin).
+- Rule: for any auth-transport change, grep for every construction site of the
+  session-response struct (here AuthResponse) and treat each as an entry point;
+  verify plan claims about existing code (CORS flags, config) against the file
+  before repeating them — they may already be done.
+
+## 2026-07-06 — SameSite=Strict cookie migration silently breaks the Tauri desktop build
+- Trigger: independent second-opinion review of the P0 cookie migration (fresh
+  general-purpose agent + commander read-through), required by
+  judgment-rubrics.md rubric #1 for auth-touching changes.
+- Wrong: the implementing (opus) agent verified the refresh-cookie flow with a
+  curl cookie-jar sequence against the plain HTTP server and declared it done.
+  That test can't catch cross-origin cookie behavior because curl doesn't
+  enforce SameSite/origin semantics the way a browser/webview does.
+- Right: `hotel-desktop`'s Tauri webview loads the frontend from
+  `tauri://localhost` (macOS/Linux) / `https://tauri.localhost` (Windows), but
+  the backend sidecar is `http://127.0.0.1:<dynamic port>` — a different origin,
+  so every request is cross-site. `SameSite=Strict` (and even `Lax`) cookies are
+  never sent on cross-site fetch/XHR, only `Lax` allows top-level GET
+  navigation. Since `AuthContext.tsx` calls the refresh endpoint on every app
+  mount, the desktop build will never restore a session after a full restart —
+  it degrades gracefully to the login screen (not a crash), but it is a real UX
+  change from the previous (insecure) localStorage-persisted-across-restarts
+  behavior. User decision: accepted as-is (desktop re-login on every restart is
+  a reasonable trade-off for removing the XSS-exfiltration risk); no
+  desktop-specific persistence path was built.
+- Rule: any cookie-based auth change must be checked against EVERY origin that
+  consumes the API, not just the browser-facing production/dev origin — grep
+  `tauri.conf.json` / equivalent embedding configs for the actual scheme+host
+  the frontend loads from, and compare against the backend's bind
+  address/port. A same-process curl test cannot substitute for this; state
+  explicitly in the report which origins were and weren't exercised.

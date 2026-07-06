@@ -4,12 +4,14 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
+use crate::handlers::auth::build_refresh_cookie;
 use crate::models::*;
 use crate::services::passkey as svc;
 use axum::{
     extract::{Extension, Path, State},
     response::Json,
 };
+use axum_extra::extract::cookie::CookieJar;
 
 pub async fn list_passkeys_handler(
     State(pool): State<DbPool>,
@@ -74,7 +76,10 @@ pub async fn passkey_login_start_handler(
 
 pub async fn passkey_login_finish_handler(
     State(pool): State<DbPool>,
+    jar: CookieJar,
     Json(req): Json<PasskeyLoginFinish>,
-) -> Result<Json<AuthResponse>, ApiError> {
-    Ok(Json(svc::login_finish(&pool, req).await?))
+) -> Result<(CookieJar, Json<AuthResponse>), ApiError> {
+    let (response, refresh_token) = svc::login_finish(&pool, req).await?;
+    let jar = jar.add(build_refresh_cookie(refresh_token));
+    Ok((jar, Json(response)))
 }

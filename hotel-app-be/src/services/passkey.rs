@@ -237,10 +237,13 @@ pub async fn login_start(
     }))
 }
 
+/// Completes a passkey login. Like the password `login`, returns the
+/// `AuthResponse` plus the refresh token as a separate `String` so the route
+/// handler can set it on an `HttpOnly` cookie instead of the JSON body.
 pub async fn login_finish(
     pool: &DbPool,
     req: PasskeyLoginFinish,
-) -> Result<AuthResponse, ApiError> {
+) -> Result<(AuthResponse, String), ApiError> {
     let user = PasskeyRepository::find_active_user_by_username(pool, &req.username)
         .await?
         .ok_or_else(|| ApiError::NotFound("User not found".to_string()))?;
@@ -311,15 +314,17 @@ pub async fn login_finish(
         .map_err(|e| ApiError::Database(format!("Failed to store refresh token: {}", e)))?;
     let _ = AuthRepository::update_last_login(pool, user.id).await;
 
-    Ok(AuthResponse {
-        access_token,
+    Ok((
+        AuthResponse {
+            access_token,
+            user: UserResponse::from(user),
+            roles,
+            permissions,
+            route_policies,
+            is_first_login,
+        },
         refresh_token,
-        user: UserResponse::from(user),
-        roles,
-        permissions,
-        route_policies,
-        is_first_login,
-    })
+    ))
 }
 
 fn decode_base64url(input: &str) -> Result<Vec<u8>, String> {

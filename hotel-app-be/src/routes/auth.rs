@@ -16,7 +16,23 @@ use axum::{
     response::Json,
     routing::{get, post},
 };
+use axum_extra::extract::cookie::CookieJar;
 use std::net::SocketAddr;
+
+use crate::handlers::auth::REFRESH_COOKIE;
+
+/// Extracts the refresh token from the `HttpOnly` cookie and wraps it in a
+/// `RefreshTokenRequest`. Returns `Unauthorized` when the cookie is absent so a
+/// missing session is treated as logged-out rather than a 500.
+fn refresh_request_from_cookie(jar: &CookieJar) -> Result<models::RefreshTokenRequest, ApiError> {
+    let token = jar
+        .get(REFRESH_COOKIE)
+        .map(|c| c.value().to_string())
+        .ok_or_else(|| ApiError::Unauthorized("Missing refresh token".to_string()))?;
+    Ok(models::RefreshTokenRequest {
+        refresh_token: token,
+    })
+}
 
 pub fn routes() -> Router<DbPool> {
     Router::new()
@@ -44,8 +60,9 @@ async fn login(
     Extension(limiters): Extension<RateLimiters>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
+    jar: CookieJar,
     Json(req): Json<models::LoginRequest>,
-) -> Result<Json<models::AuthResponse>, ApiError> {
+) -> Result<(CookieJar, Json<models::AuthResponse>), ApiError> {
     let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.auth.check_with_retry(ip).await;
     if !allowed {
@@ -57,7 +74,7 @@ async fn login(
             retry_after,
         ));
     }
-    handlers::auth::login_handler(State(pool), Json(req)).await
+    handlers::auth::login_handler(State(pool), jar, Json(req)).await
 }
 
 async fn refresh(
@@ -65,8 +82,8 @@ async fn refresh(
     Extension(limiters): Extension<RateLimiters>,
     ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
-    Json(req): Json<models::RefreshTokenRequest>,
-) -> Result<Json<models::RefreshTokenResponse>, ApiError> {
+    jar: CookieJar,
+) -> Result<(CookieJar, Json<models::RefreshTokenResponse>), ApiError> {
     let ip = extract_client_ip(&headers, peer_addr);
     let (allowed, retry_after) = limiters.sensitive.check_with_retry(ip).await;
     if !allowed {
@@ -78,14 +95,16 @@ async fn refresh(
             retry_after,
         ));
     }
-    handlers::auth::refresh_token_handler(State(pool), Json(req)).await
+    let req = refresh_request_from_cookie(&jar)?;
+    handlers::auth::refresh_token_handler(State(pool), jar, req).await
 }
 
 async fn logout(
     State(pool): State<DbPool>,
-    Json(req): Json<models::RefreshTokenRequest>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    handlers::auth::logout_handler(State(pool), Json(req)).await
+    jar: CookieJar,
+) -> Result<(CookieJar, Json<serde_json::Value>), ApiError> {
+    let req = refresh_request_from_cookie(&jar)?;
+    handlers::auth::logout_handler(State(pool), jar, req).await
 }
 
 async fn register(

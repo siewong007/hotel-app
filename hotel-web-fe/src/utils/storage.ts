@@ -2,9 +2,10 @@
  * Efficient localStorage wrapper with batching and caching
  */
 
+// NOTE: 'accessToken'/'refreshToken' are intentionally NOT storage keys.
+// The access token lives only in memory (src/auth/tokenStore.ts) and the refresh
+// token lives in an HttpOnly cookie, so neither is ever written to Web Storage.
 type StorageKey =
-  | 'accessToken'
-  | 'refreshToken'
   | 'user'
   | 'permissions'
   | 'roles'
