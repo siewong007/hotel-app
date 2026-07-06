@@ -128,6 +128,9 @@ fn row_to_channel(row: &DbRow) -> BookingChannel {
 }
 
 pub async fn list(pool: &DbPool) -> Result<Vec<BookingChannel>, ApiError> {
+    // Booking channels are hotel-configured reference data (a handful of rows
+    // in practice), not user-generated content — this LIMIT is a generous DoS
+    // backstop, not a pagination change. No caller expects more rows than this.
     let rows = sqlx::query(
         r#"
         SELECT id, name, channel_type, default_commission_type,
@@ -135,6 +138,7 @@ pub async fn list(pool: &DbPool) -> Result<Vec<BookingChannel>, ApiError> {
                created_at, updated_at
         FROM booking_channels
         ORDER BY is_active DESC, name ASC
+        LIMIT 1000
         "#,
     )
     .fetch_all(pool)

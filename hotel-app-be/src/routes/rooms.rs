@@ -72,8 +72,8 @@ async fn create_room(
     headers: HeaderMap,
     Json(input): Json<models::RoomCreateInput>,
 ) -> Result<Json<models::Room>, ApiError> {
-    require_permission_helper(&pool, &headers, "rooms:write").await?;
-    handlers::rooms::create_room_handler(State(pool), Json(input)).await
+    let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
+    handlers::rooms::create_room_handler(State(pool), user_id, Json(input)).await
 }
 
 async fn update_room(
@@ -82,8 +82,8 @@ async fn update_room(
     path: Path<i64>,
     Json(input): Json<models::RoomUpdateInput>,
 ) -> Result<Json<models::Room>, ApiError> {
-    require_permission_helper(&pool, &headers, "rooms:update").await?;
-    handlers::rooms::update_room_handler(State(pool), path, Json(input)).await
+    let user_id = require_permission_helper(&pool, &headers, "rooms:update").await?;
+    handlers::rooms::update_room_handler(State(pool), user_id, path, Json(input)).await
 }
 
 async fn delete_room_handler(
@@ -91,8 +91,8 @@ async fn delete_room_handler(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_permission_helper(&pool, &headers, "rooms:write").await?;
-    handlers::rooms::delete_room_handler(State(pool), path).await
+    let user_id = require_permission_helper(&pool, &headers, "rooms:write").await?;
+    handlers::rooms::delete_room_handler(State(pool), user_id, path).await
 }
 
 async fn get_room_types(

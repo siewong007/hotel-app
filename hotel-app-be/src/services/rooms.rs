@@ -228,6 +228,7 @@ pub async fn search_rooms_handler(
 
 pub async fn update_room_handler(
     State(pool): State<DbPool>,
+    user_id: i64,
     Path(room_id): Path<i64>,
     Json(input): Json<RoomUpdateInput>,
 ) -> Result<Json<Room>, ApiError> {
@@ -362,7 +363,7 @@ pub async fn update_room_handler(
     ))]
     let available: bool = row.get(4);
 
-    Ok(Json(Room {
+    let updated_room = Room {
         id: row.get(0),
         room_number: row.get(1),
         room_type: row.get(2),
@@ -375,11 +376,26 @@ pub async fn update_room_handler(
         updated_at: row.get(9),
         notes: row.get(10),
         is_smoking: get_bool_at(&row, 11),
-    }))
+    };
+
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "room_updated",
+        "room",
+        Some(updated_room.id),
+        Some(serde_json::json!({"room_number": &updated_room.room_number})),
+        None,
+        None,
+    )
+    .await;
+
+    Ok(Json(updated_room))
 }
 
 pub async fn create_room_handler(
     State(pool): State<DbPool>,
+    user_id: i64,
     Json(input): Json<RoomCreateInput>,
 ) -> Result<Json<Room>, ApiError> {
     let existing: Option<i64> = sqlx::query_scalar(CHECK_ROOM_NUMBER_EXISTS)
@@ -469,7 +485,7 @@ pub async fn create_room_handler(
     ))]
     let available: bool = row.get(4);
 
-    Ok(Json(Room {
+    let created_room = Room {
         id: row.get(0),
         room_number: row.get(1),
         room_type: row.get(2),
@@ -482,11 +498,26 @@ pub async fn create_room_handler(
         updated_at: row.get(9),
         notes: row.get(10),
         is_smoking: get_bool_at(&row, 11),
-    }))
+    };
+
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "room_created",
+        "room",
+        Some(created_room.id),
+        Some(serde_json::json!({"room_number": &created_room.room_number})),
+        None,
+        None,
+    )
+    .await;
+
+    Ok(Json(created_room))
 }
 
 pub async fn delete_room_handler(
     State(pool): State<DbPool>,
+    user_id: i64,
     Path(room_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let room_exists: Option<i64> = sqlx::query_scalar(CHECK_ROOM_EXISTS_BY_ID)
@@ -532,6 +563,18 @@ pub async fn delete_room_handler(
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "room_deleted",
+        "room",
+        Some(room_id),
+        None,
+        None,
+        None,
+    )
+    .await;
 
     Ok(Json(serde_json::json!({
         "success": true,

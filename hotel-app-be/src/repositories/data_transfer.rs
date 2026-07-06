@@ -9,6 +9,78 @@ use crate::core::error::ApiError;
 
 pub struct DataTransferRepository;
 
+/// Whitelist of tables the data-transfer subsystem is allowed to reference in
+/// dynamically-built SQL (`format!`-interpolated table names). Mirrors
+/// `services::data_transfer::TABLE_INSERT_ORDER` — the single source of truth
+/// for which tables are transferable. Every caller today only ever passes
+/// literal table names from that fixed list, so this check is a no-op in
+/// normal operation; it exists so a future caller that sources a table name
+/// from request data can't reopen SQL injection via table interpolation.
+const KNOWN_TABLES: &[&str] = &[
+    "amenities",
+    "booking_channels",
+    "companies",
+    "corporate_accounts",
+    "corporate_account_contacts",
+    "email_templates",
+    "guests",
+    "guest_documents",
+    "guest_notes",
+    "guest_preferences",
+    "loyalty_programs",
+    "loyalty_program_rules",
+    "loyalty_tiers",
+    "loyalty_memberships",
+    "loyalty_members",
+    "loyalty_accounts",
+    "loyalty_rewards",
+    "night_audit_runs",
+    "night_audit_details",
+    "points_transactions",
+    "rate_plans",
+    "reward_catalog",
+    "room_status_transitions",
+    "room_types",
+    "guest_complimentary_credits",
+    "room_rates",
+    "room_type_amenities",
+    "rooms",
+    "bookings",
+    "booking_guests",
+    "booking_history",
+    "booking_modifications",
+    "customer_ledgers",
+    "customer_ledger_payments",
+    "guest_reviews",
+    "housekeeping_tasks",
+    "invoices",
+    "maintenance_tickets",
+    "night_audit_posted_nights",
+    "payments",
+    "loyalty_transactions",
+    "reward_redemptions",
+    "loyalty_redemptions",
+    "room_changes",
+    "room_history",
+    "room_status_change_log",
+    "self_checkin_events",
+    "services",
+    "booking_services",
+    "system_settings",
+    "user_guests",
+];
+
+fn ensure_known_table(table: &str) -> Result<(), ApiError> {
+    if KNOWN_TABLES.contains(&table) {
+        Ok(())
+    } else {
+        Err(ApiError::BadRequest(format!(
+            "Unknown table '{}' is not permitted for data-transfer operations",
+            table
+        )))
+    }
+}
+
 pub struct ImportRowPolicy<'a> {
     pub skip_columns: &'a HashSet<String>,
     pub valid_columns: Option<&'a HashSet<String>>,
@@ -21,6 +93,7 @@ pub struct ImportRowPolicy<'a> {
 
 impl DataTransferRepository {
     pub async fn count_table(pool: &DbPool, table: &str) -> Result<i64, ApiError> {
+        ensure_known_table(table)?;
         let count = sqlx::query_scalar::<_, i64>(&format!("SELECT COUNT(*) FROM {}", table))
             .fetch_one(pool)
             .await
@@ -30,6 +103,7 @@ impl DataTransferRepository {
     }
 
     pub async fn export_table(pool: &DbPool, table: &str) -> Result<Vec<Value>, ApiError> {
+        ensure_known_table(table)?;
         // Most tables have a serial `id`; composite-keyed tables are ordered by
         // their primary-key columns instead so export stays deterministic.
         let order_by = match table {
@@ -45,6 +119,9 @@ impl DataTransferRepository {
     }
 
     pub async fn export_query(pool: &DbPool, query: &str) -> Result<Vec<Value>, ApiError> {
+        // `export_query` doesn't take a table name directly, but its only
+        // caller today (`export_table`) already validates the table before
+        // building the query string passed in here.
         let rows: Vec<(Value,)> =
             sqlx::query_as(&format!("SELECT row_to_json(t) FROM ({}) t", query))
                 .fetch_all(pool)
@@ -193,6 +270,7 @@ impl DataTransferRepository {
     ) -> Result<(), ApiError> {
         let action = if enabled { "ENABLE" } else { "DISABLE" };
         for table in tables {
+            ensure_known_table(table)?;
             sqlx::query(&format!("ALTER TABLE {} {} TRIGGER USER", table, action))
                 .execute(&mut **tx)
                 .await

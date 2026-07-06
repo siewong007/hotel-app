@@ -1523,6 +1523,7 @@ SELECT id, name, code, description, base_price, weekday_rate, weekend_rate,
        extra_bed_charge, is_active, sort_order, created_at, updated_at
 FROM room_types
 ORDER BY sort_order, name
+LIMIT 1000
 "#;
 
 /// Get all room types - SQLite version (same as PostgreSQL for this query)
@@ -1533,6 +1534,7 @@ SELECT id, name, code, description, base_price, weekday_rate, weekend_rate,
        extra_bed_charge, is_active, sort_order, created_at, updated_at
 FROM room_types
 ORDER BY sort_order, name
+LIMIT 1000
 "#;
 
 /// Get room type by ID - PostgreSQL version

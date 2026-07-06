@@ -13,7 +13,8 @@ export interface User {
 
 export interface AuthResponse {
   access_token: string;
-  refresh_token: string;
+  // refresh_token is intentionally omitted: it is delivered via an HttpOnly
+  // cookie, not the JSON body, and is never readable by JS.
   user: User;
   roles: string[];
   permissions: string[];

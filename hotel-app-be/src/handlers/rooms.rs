@@ -27,24 +27,27 @@ pub async fn search_rooms_handler(
 
 pub async fn update_room_handler(
     State(pool): State<DbPool>,
+    user_id: i64,
     Path(room_id): Path<i64>,
     Json(input): Json<RoomUpdateInput>,
 ) -> Result<Json<Room>, ApiError> {
-    room_service::update_room_handler(State(pool), Path(room_id), Json(input)).await
+    room_service::update_room_handler(State(pool), user_id, Path(room_id), Json(input)).await
 }
 
 pub async fn create_room_handler(
     State(pool): State<DbPool>,
+    user_id: i64,
     Json(input): Json<RoomCreateInput>,
 ) -> Result<Json<Room>, ApiError> {
-    room_service::create_room_handler(State(pool), Json(input)).await
+    room_service::create_room_handler(State(pool), user_id, Json(input)).await
 }
 
 pub async fn delete_room_handler(
     State(pool): State<DbPool>,
+    user_id: i64,
     Path(room_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    room_service::delete_room_handler(State(pool), Path(room_id)).await
+    room_service::delete_room_handler(State(pool), user_id, Path(room_id)).await
 }
 
 pub async fn get_room_types_handler(

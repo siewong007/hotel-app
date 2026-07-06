@@ -16,8 +16,9 @@ const BACKEND_TARGET = 'http://127.0.0.1:3030';
 // hotel-app-be/src/routes/mod.rs::create_router. See .claude/rules/00-diagnosis.md Leak #3.
 const PROXY_PREFIXES = ['/api', '/uploads', '/health', '/ws'];
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const isTauri = TAURI_MODES.has(mode);
+  const isProductionBuild = command === 'build' && mode !== 'development';
   const proxy = Object.fromEntries(PROXY_PREFIXES.map((path) => [path, BACKEND_TARGET]));
 
   return {
@@ -58,6 +59,20 @@ export default defineConfig(({ mode }) => {
       // package, so these externals are only a safety net against accidental imports.
       rolldownOptions: {
         external: (id: string) => id === '@tauri-apps/api' || id.startsWith('@tauri-apps/api/'),
+        // Strip console/debugger statements from production output only; dev
+        // server and dev builds keep them for debugging. This project's default
+        // minifier is Rolldown's built-in oxc-based minifier (not esbuild), so
+        // the drop config lives under output.minify.compress, not build.esbuild.
+        output: isProductionBuild
+          ? {
+              minify: {
+                compress: {
+                  dropConsole: true,
+                  dropDebugger: true,
+                },
+              },
+            }
+          : undefined,
       },
     },
   };

@@ -23,7 +23,6 @@ pub struct LoginRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AuthResponse {
     pub access_token: String,
-    pub refresh_token: String,
     pub user: UserResponse,
     pub roles: Vec<String>,
     pub permissions: Vec<String>,
@@ -39,17 +38,24 @@ pub struct AccessSnapshot {
     pub route_policies: Vec<RouteAccessPolicy>,
 }
 
-/// Refresh token request
+/// Refresh token request.
+///
+/// The refresh token is transported via an `HttpOnly` cookie, not the JSON body,
+/// so this struct is constructed server-side from the cookie value.
 #[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct RefreshTokenRequest {
     #[validate(length(min = 32, max = 512, message = "Invalid refresh token"))]
     pub refresh_token: String,
 }
 
-/// Refresh token response
+/// Refresh token response.
+///
+/// `access_token` is returned in the JSON body; `refresh_token` is set on an
+/// `HttpOnly` cookie by the route handler and is never serialized to the client.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RefreshTokenResponse {
     pub access_token: String,
+    #[serde(skip_serializing)]
     pub refresh_token: String,
 }
 

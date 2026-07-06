@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend-sqlite",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd \"/Volumes/APPLE EXTERNAL SSD /Personal Projects/hotel-app/hotel-app-be\" && cargo run --bin hotel-app-be --features sqlite --no-default-features"],
+      "port": 3030
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd \"/Volumes/APPLE EXTERNAL SSD /Personal Projects/hotel-app/hotel-web-fe\" && npm run start"],
+      "port": 3000
+    }
+  ]
+}

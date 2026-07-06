@@ -18,11 +18,13 @@ pub struct User {
     pub is_verified: bool,
     pub user_type: Option<UserType>,
     pub two_factor_enabled: Option<bool>,
+    #[serde(skip_serializing)]
     pub two_factor_secret: Option<String>,
     #[cfg_attr(
         all(feature = "sqlite", not(feature = "postgres")),
         sqlx(json(nullable))
     )]
+    #[serde(skip_serializing)]
     pub two_factor_recovery_codes: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
