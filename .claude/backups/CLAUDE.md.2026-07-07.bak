@@ -18,8 +18,6 @@ every session, so keep those lean). Do not add content here without removing som
 | Desktop/Tauri build, packaging, or roadmap | `.claude/refs/architecture-enhancements.md`, `hotel-desktop/BUILD_SPEED.md`, `hotel-desktop/UPDATER.md` |
 | Deployment / ADRs | `docs/guides/deployment.md`, `docs/architecture/ADRS.md` |
 | Onboarding context from the 2026-07-05 Fable session | `.claude/refs/letter-to-future-sessions.md` |
-| Using Codex (OpenAI) for second opinions / cross-vendor review | `.claude/refs/codex-collab.md` |
-| Picking the next improvement / tech-debt work | `.claude/refs/enhancement-backlog.md` |
 
 Line anchors cited in refs rot as code moves — verify with Grep before relying on them.
 This volume path contains a trailing space ("…EXTERNAL SSD ") — always quote paths in shell.
@@ -29,7 +27,7 @@ This volume path contains a trailing space ("…EXTERNAL SSD ") — always quote
 Three-project monorepo; no root workspace — run commands from the subdirectory:
 
 - `hotel-app-be/` — Rust backend API (Axum + SQLx; dual PostgreSQL/SQLite via cargo features)
-- `hotel-web-fe/` — React 19 + TypeScript (Vite, MUI v7, TanStack Query + Router)
+- `hotel-web-fe/` — React 19 + TypeScript (Vite, MUI v7, Zustand)
 - `hotel-desktop/` — Tauri 2 wrapper: backend as sidecar + embedded PostgreSQL under `src-tauri/pgsql/`
 
 `AGENTS.md` is the Codex-oriented rulebook (overlapping content) — owned by other tooling; ask before editing.
@@ -92,7 +90,7 @@ Frontend:
 - `src/features/<domain>/` feature modules; `src/api/*.service.ts` one per backend domain.
 - ALL HTTP via `src/api/client.ts` (ky; bearer token from storage, idempotent-GET retries, 401 → `auth:unauthorized` event). Never call `fetch` directly.
 - `src/utils/storage.ts` for localStorage; `src/auth/AuthContext.tsx` for auth state + permission helpers.
-- Routing: TanStack Router file-based routes in `src/routes/*.tsx` + lazy page registry `src/navigation/routeRegistry.tsx` — add new pages in BOTH (not App.tsx; verified 2026-07-07).
+- `App.tsx`: pages are `React.lazy()` inside `Suspense` + `ErrorBoundary` — add new routes there.
 - Vite dev proxy list in `vite.config.ts` is hand-maintained — add new top-level API prefixes or dev 404s.
 - Dates: `toISOString().split/.slice` is lint-banned (CI fails); use `src/utils/date.ts` helpers.
 - `tsconfig.json` has `strict: false` — don't assume strict typing.
