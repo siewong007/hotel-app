@@ -84,3 +84,9 @@ in `maintenance.md`. Newest at the bottom. Consolidate at >30 entries / >300 lin
   the frontend loads from, and compare against the backend's bind
   address/port. A same-process curl test cannot substitute for this; state
   explicitly in the report which origins were and weren't exercised.
+
+## 2026-07-07 — cargo check cannot catch runtime SQL column divergence; smoke-run new SQL on SQLite
+- Trigger: adversarial review + live SQLite smoke test of the new guest-portal endpoints. Three runtime-only breaks survived `cargo check/clippy --all-features` AND the implementing agent's self-verification: invoices.bill_to_guest_id (PG) vs invoices.guest_id (SQLite), payments.transaction_id (PG) vs payments.reference_number (SQLite), and a `SELECT * FROM guests` decode requiring guests.is_active which exists in NEITHER checked-in schema (pre-existing drift; live DBs have it from a manual ALTER).
+- Wrong: treating "compiles under --all-features + clippy clean" as sufficient for new runtime SQL strings; trusting column names from a mapping report instead of the DDL.
+- Right: for any new SQL, verify every column against BOTH database/schema.sql and the sqlite_migrations DDL (grep the CREATE TABLE), and run the endpoint once against a scratch SQLite DB (migrations auto-run at startup; seed via sqlite3, auth via a hand-inserted session row). The smoke test found in minutes what static review missed.
+- Rule: new runtime SQL is not "done" until each referenced column is confirmed in both DDLs; when feasible, curl the new endpoint against a scratch SQLite server before claiming complete. Never decode full model structs (`SELECT *`) in new code — select explicit columns.

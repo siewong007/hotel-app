@@ -159,6 +159,24 @@ export type {
 // Payment types
 export * from './payment.types';
 
+// Guest portal (customer self-service) types
+export type {
+  GuestPortalGuest,
+  GuestPortalLoginRequest,
+  GuestPortalLoginResponse,
+  GuestPortalMeResponse,
+  GuestPortalBookingSummary,
+  GuestPortalPagedResponse,
+  GuestPortalTransactionKind,
+  GuestPortalTransaction,
+  GuestPortalMembership,
+  GuestPortalMembershipActivity,
+  GuestPortalMembershipResponse,
+  GuestPortalTierBenefit,
+  GuestPortalReward,
+  GuestPortalBenefitsResponse,
+} from './guestPortal.types';
+
 // Ledger types
 export type {
   FolioType,

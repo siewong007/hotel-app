@@ -1,6 +1,5 @@
 import { HTTPError } from 'ky';
 import { api, APIError } from './client';
-import { getApiBaseUrl } from '../desktop/runtimeApi';
 import {
   Room,
   RoomType,
@@ -154,9 +153,6 @@ export class RoomsService {
 
   static async getRoomHistory(roomId: string | number): Promise<RoomHistory[]> {
     const url = `rooms/${roomId}/history`;
-    const apiBaseUrl = getApiBaseUrl();
-    const fullUrl = apiBaseUrl ? `${apiBaseUrl}/${url}` : `/${url}`;
-    console.log('[API] Fetching room history:', url, 'Full URL:', fullUrl, 'Env:', import.meta.env.MODE);
     try {
       const response = await api.get(url, {
         timeout: 60000,
@@ -167,7 +163,6 @@ export class RoomsService {
           backoffLimit: 3000
         }
       }).json<RoomHistory[]>();
-      console.log('[API] Room history loaded successfully:', response);
       return response;
     } catch (error) {
       console.error('[API] Room history failed:', error);

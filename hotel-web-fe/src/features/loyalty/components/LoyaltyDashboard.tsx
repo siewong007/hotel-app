@@ -232,9 +232,8 @@ const LoyaltyDashboard: React.FC = () => {
         try {
           membershipData = await HotelAPIService.getUserLoyaltyMembership();
         } catch (err: any) {
-          if (err instanceof HTTPError && err.response.status === 404) {
-            console.log('No loyalty membership found for user');
-          } else {
+          // 404 = no membership yet; leave membershipData null
+          if (!(err instanceof HTTPError && err.response.status === 404)) {
             throw err;
           }
         }

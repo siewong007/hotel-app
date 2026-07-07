@@ -92,7 +92,13 @@ pub struct Booking {
     pub rate_override_weekend: Option<Decimal>,
     pub pre_checkin_completed: Option<bool>,
     pub pre_checkin_completed_at: Option<DateTime<Utc>>,
+    /// Capability token for the unauthenticated guest portal. Never serialized
+    /// into API responses; guests obtain it only via POST /guest-portal/verify.
+    /// Kept on the struct (row-mapped but unread) so query mappings stay uniform.
+    #[allow(dead_code)]
+    #[serde(skip_serializing)]
     pub pre_checkin_token: Option<String>,
+    #[serde(skip_serializing)]
     pub pre_checkin_token_expires_at: Option<DateTime<Utc>>,
     pub created_by: Option<i64>,
     pub is_complimentary: Option<bool>,
@@ -704,5 +710,69 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for BookingWithDetails {
             cleaning_preference: row.try_get("cleaning_preference")?,
             ekyc_summary: GuestEkycStatusSummary::not_submitted(guest_id),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_booking() -> Booking {
+        Booking {
+            id: 1,
+            booking_number: "BK-0001".to_string(),
+            guest_id: 1,
+            room_id: 1,
+            check_in_date: NaiveDate::from_ymd_opt(2026, 7, 10).unwrap(),
+            check_out_date: NaiveDate::from_ymd_opt(2026, 7, 12).unwrap(),
+            room_rate: Decimal::ZERO,
+            subtotal: Decimal::ZERO,
+            tax_amount: None,
+            discount_amount: None,
+            total_amount: Decimal::ZERO,
+            status: "reserved".to_string(),
+            payment_status: None,
+            payment_method: None,
+            adults: Some(2),
+            children: None,
+            special_requests: None,
+            remarks: None,
+            source: None,
+            market_code: None,
+            discount_percentage: None,
+            rate_override_weekday: None,
+            rate_override_weekend: None,
+            pre_checkin_completed: None,
+            pre_checkin_completed_at: None,
+            pre_checkin_token: Some("secret-portal-token".to_string()),
+            pre_checkin_token_expires_at: Some(Utc::now()),
+            created_by: None,
+            is_complimentary: None,
+            complimentary_reason: None,
+            complimentary_start_date: None,
+            complimentary_end_date: None,
+            original_total_amount: None,
+            complimentary_nights: None,
+            deposit_paid: None,
+            deposit_amount: None,
+            deposit_paid_at: None,
+            company_id: None,
+            company_name: None,
+            payment_note: None,
+            daily_rates: None,
+            cleaning_preference: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
+    #[test]
+    fn booking_serialization_never_exposes_pre_checkin_token() {
+        let json = serde_json::to_value(sample_booking()).unwrap();
+        let obj = json.as_object().unwrap();
+        assert!(!obj.contains_key("pre_checkin_token"));
+        assert!(!obj.contains_key("pre_checkin_token_expires_at"));
+        // Sibling pre-check-in fields must still serialize.
+        assert!(obj.contains_key("pre_checkin_completed"));
     }
 }

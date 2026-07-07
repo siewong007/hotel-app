@@ -583,9 +583,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         errorMessage.toLowerCase().includes('not found') ||
         error.response?.status === 404;
 
-      if (isNormalFailure) {
-        console.log('Passkey not available, falling back to password login');
-      } else {
+      if (!isNormalFailure) {
         console.error('Passkey login error:', error);
         console.error('Error name:', error.name);
         console.error('Error message:', error.message);

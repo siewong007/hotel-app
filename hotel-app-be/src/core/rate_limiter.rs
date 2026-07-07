@@ -178,6 +178,10 @@ pub struct RateLimiters {
     pub guest_portal_verify: RateLimiter,
     /// Guest portal verification: 5 attempts per 15 minutes per booking number
     pub guest_portal_booking: KeyedRateLimiter,
+    /// Guest portal login: 10 attempts per 5 minutes per IP
+    pub guest_portal_login: RateLimiter,
+    /// Guest portal login: 5 attempts per 15 minutes per identifier (email)
+    pub guest_portal_login_id: KeyedRateLimiter,
     /// General API: 200 per minute per IP (lenient - normal usage)
     #[allow(dead_code)]
     pub api: RateLimiter,
@@ -197,6 +201,8 @@ impl RateLimiters {
             sensitive: RateLimiter::new(RateLimitConfig::new(10, 300)),
             guest_portal_verify: RateLimiter::new(RateLimitConfig::new(10, 300)),
             guest_portal_booking: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
+            guest_portal_login: RateLimiter::new(RateLimitConfig::new(10, 300)),
+            guest_portal_login_id: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             api: RateLimiter::new(RateLimitConfig::new(200, 60)),
         }
     }

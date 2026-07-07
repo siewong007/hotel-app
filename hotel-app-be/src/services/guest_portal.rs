@@ -1,17 +1,53 @@
 //! Guest portal workflows
 
+use axum::http::HeaderMap;
 use chrono::{Duration, Utc};
+use rand::Rng;
 use regex::Regex;
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
-    Booking, GuestPortalBookingResponse, GuestPortalVerifyRequest, GuestPortalVerifyResponse,
-    PreCheckInUpdateRequest,
+    Booking, GuestPortalBenefitsResponse, GuestPortalBookingResponse, GuestPortalBookingSummary,
+    GuestPortalLoginRequest, GuestPortalLoginResponse, GuestPortalMembershipResponse,
+    GuestPortalMeResponse, GuestPortalPage, GuestPortalTransaction, GuestPortalVerifyRequest,
+    GuestPortalVerifyResponse, PreCheckInUpdateRequest,
 };
 use crate::repositories::guest_portal::GuestPortalRepository;
+use crate::repositories::guest_portal_session::GuestPortalSessionRepository;
+use crate::services::audit::AuditLog;
 use crate::services::auto_checkin;
+
+/// Generic message returned for any guest-portal login failure. Never reveal
+/// whether the email, booking number, or member number exists.
+const LOGIN_FAILURE: &str = "Unable to sign in. Please check your details and try again.";
+
+fn login_failure() -> ApiError {
+    ApiError::Unauthorized(LOGIN_FAILURE.to_string())
+}
+
+/// Generate a 256-bit random token as a hex string.
+fn generate_session_token() -> String {
+    let mut rng = rand::rng();
+    let token_bytes: [u8; 32] = rng.random();
+    hex::encode(token_bytes)
+}
+
+/// SHA-256 hash of a token, hex-encoded (matches the refresh-token scheme).
+fn hash_session_token(token: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(token.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+fn non_empty(value: &Option<String>) -> Option<&str> {
+    value
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+}
 
 const VERIFY_BOOKING_FAILURE: &str =
     "Unable to verify booking details. Please check the booking number and email.";
@@ -142,14 +178,152 @@ async fn portal_response(
     pool: &DbPool,
     booking: Booking,
 ) -> Result<GuestPortalBookingResponse, ApiError> {
-    let mut guest = GuestPortalRepository::find_guest(pool, booking.guest_id).await?;
-    auto_checkin::attach_guest_ekyc_summary(pool, &mut guest).await?;
+    let guest = GuestPortalRepository::find_guest(pool, booking.guest_id).await?;
     let ekyc_summary = auto_checkin::auto_checkin_eligibility(pool, booking.id).await?;
 
     Ok(GuestPortalBookingResponse {
-        booking,
-        guest,
+        booking: booking.into(),
+        guest: guest.into(),
         ekyc_summary,
+    })
+}
+
+// ============================================================================
+// Guest portal session login + guest-scoped reads
+// ============================================================================
+
+const SESSION_TTL_HOURS: i64 = 24;
+
+/// Authenticate a guest by email + (booking number OR member number), issue a
+/// bearer session, and return the token (once) plus a guest-safe profile view.
+pub async fn guest_portal_login(
+    pool: &DbPool,
+    request: GuestPortalLoginRequest,
+    ip_address: Option<String>,
+    user_agent: Option<String>,
+) -> Result<GuestPortalLoginResponse, ApiError> {
+    let email = request.email.trim();
+    if email.is_empty() {
+        return Err(login_failure());
+    }
+    let booking_number = non_empty(&request.booking_number);
+    let member_number = non_empty(&request.member_number);
+    if booking_number.is_none() && member_number.is_none() {
+        return Err(login_failure());
+    }
+
+    let guest_id =
+        GuestPortalSessionRepository::find_login_guest_id(pool, email, booking_number, member_number)
+            .await?
+            .ok_or_else(login_failure)?;
+
+    let token = generate_session_token();
+    let token_hash = hash_session_token(&token);
+    let expires_at = Utc::now() + Duration::hours(SESSION_TTL_HOURS);
+    GuestPortalSessionRepository::create_session(pool, guest_id, &token_hash, expires_at).await?;
+
+    let guest = GuestPortalSessionRepository::find_guest_view(pool, guest_id).await?;
+
+    AuditLog::log_event(
+        pool,
+        None,
+        "guest_portal.login",
+        "guest",
+        Some(guest_id),
+        None,
+        ip_address,
+        user_agent,
+    )
+    .await?;
+
+    Ok(GuestPortalLoginResponse {
+        token,
+        expires_at,
+        guest,
+    })
+}
+
+/// Resolve the guest id for a request bearing a valid, unexpired portal session
+/// token in the `Authorization: Bearer <token>` header. Bumps last_used_at.
+pub async fn require_guest_session(headers: &HeaderMap, pool: &DbPool) -> Result<i64, ApiError> {
+    let token = headers
+        .get(axum::http::header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .ok_or_else(|| ApiError::Unauthorized("Missing guest session token".to_string()))?;
+
+    let token_hash = hash_session_token(token);
+    GuestPortalSessionRepository::touch_session_guest_id(pool, &token_hash)
+        .await?
+        .ok_or_else(|| ApiError::Unauthorized("Invalid or expired guest session".to_string()))
+}
+
+/// GET /guest-portal/me
+pub async fn get_me(pool: &DbPool, guest_id: i64) -> Result<GuestPortalMeResponse, ApiError> {
+    let guest = GuestPortalSessionRepository::find_guest_view(pool, guest_id).await?;
+    Ok(GuestPortalMeResponse { guest })
+}
+
+/// GET /guest-portal/me/bookings
+pub async fn get_my_bookings(
+    pool: &DbPool,
+    guest_id: i64,
+    limit: i64,
+    offset: i64,
+) -> Result<GuestPortalPage<GuestPortalBookingSummary>, ApiError> {
+    let (items, total) =
+        GuestPortalSessionRepository::list_bookings(pool, guest_id, limit, offset).await?;
+    Ok(GuestPortalPage { items, total })
+}
+
+/// GET /guest-portal/me/transactions
+pub async fn get_my_transactions(
+    pool: &DbPool,
+    guest_id: i64,
+    limit: i64,
+    offset: i64,
+) -> Result<GuestPortalPage<GuestPortalTransaction>, ApiError> {
+    let (items, total) =
+        GuestPortalSessionRepository::list_transactions(pool, guest_id, limit, offset).await?;
+    Ok(GuestPortalPage { items, total })
+}
+
+/// GET /guest-portal/me/membership
+pub async fn get_my_membership(
+    pool: &DbPool,
+    guest_id: i64,
+) -> Result<GuestPortalMembershipResponse, ApiError> {
+    let membership = GuestPortalSessionRepository::find_membership(pool, guest_id).await?;
+    let recent_activity = if membership.is_some() {
+        GuestPortalSessionRepository::recent_points_activity(pool, guest_id).await?
+    } else {
+        Vec::new()
+    };
+    Ok(GuestPortalMembershipResponse {
+        membership,
+        recent_activity,
+    })
+}
+
+/// GET /guest-portal/me/benefits
+pub async fn get_my_benefits(
+    pool: &DbPool,
+    guest_id: i64,
+) -> Result<GuestPortalBenefitsResponse, ApiError> {
+    let membership = GuestPortalSessionRepository::find_membership(pool, guest_id).await?;
+    let (tier_benefits, points_balance) = match &membership {
+        Some(m) => (
+            GuestPortalSessionRepository::tier_benefits(pool, guest_id).await?,
+            m.points_balance,
+        ),
+        None => (Vec::new(), 0),
+    };
+    let rewards = GuestPortalSessionRepository::rewards(pool, points_balance).await?;
+    Ok(GuestPortalBenefitsResponse {
+        tier_benefits,
+        rewards,
     })
 }
 
@@ -180,5 +354,64 @@ mod tests {
         assert!(
             matches!(err, ApiError::Unauthorized(message) if message == VERIFY_BOOKING_FAILURE)
         );
+    }
+
+    #[test]
+    fn session_token_hash_is_deterministic_and_hides_the_raw_token() {
+        let token = generate_session_token();
+        // 256-bit token -> 64 hex chars.
+        assert_eq!(token.len(), 64);
+
+        let hash_a = hash_session_token(&token);
+        let hash_b = hash_session_token(&token);
+        // Same input hashes identically (needed for lookup by hash)...
+        assert_eq!(hash_a, hash_b);
+        // ...but a different token yields a different hash...
+        assert_ne!(hash_a, hash_session_token(&generate_session_token()));
+        // ...and the hash never contains the raw token.
+        assert_eq!(hash_a.len(), 64);
+        assert_ne!(hash_a, token);
+    }
+
+    #[test]
+    fn login_failure_message_is_generic() {
+        assert!(matches!(login_failure(), ApiError::Unauthorized(m) if m == LOGIN_FAILURE));
+    }
+
+    #[test]
+    fn page_query_clamps_page_and_per_page() {
+        use crate::models::GuestPortalPageQuery;
+
+        // Defaults: per_page 20, page 1 -> offset 0.
+        let (limit, offset) = GuestPortalPageQuery {
+            page: None,
+            per_page: None,
+        }
+        .limit_offset();
+        assert_eq!((limit, offset), (20, 0));
+
+        // per_page capped at 100, page floored at 1.
+        let (limit, offset) = GuestPortalPageQuery {
+            page: Some(0),
+            per_page: Some(500),
+        }
+        .limit_offset();
+        assert_eq!((limit, offset), (100, 0));
+
+        // per_page floored at 1 when non-positive.
+        let (limit, _) = GuestPortalPageQuery {
+            page: Some(3),
+            per_page: Some(0),
+        }
+        .limit_offset();
+        assert_eq!(limit, 1);
+
+        // Offset is (page-1)*per_page.
+        let (_, offset) = GuestPortalPageQuery {
+            page: Some(3),
+            per_page: Some(20),
+        }
+        .limit_offset();
+        assert_eq!(offset, 40);
     }
 }

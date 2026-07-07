@@ -367,7 +367,6 @@ const BookingsPage: React.FC = () => {
       company_id: booking.company_id ?? null,
       company_name: booking.company_name || '',
     };
-    console.log('Opening edit with payment_method:', formData.payment_method, 'rate:', bookingRate);
     setEditFormData(formData);
 
     // Load room type config for extra bed settings

@@ -22,6 +22,7 @@ pub mod ekyc;
 #[allow(dead_code)]
 pub mod guest;
 pub mod guest_portal;
+pub mod guest_portal_session;
 pub mod invoice_numbers;
 #[allow(dead_code)]
 pub mod ledger;

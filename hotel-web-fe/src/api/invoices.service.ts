@@ -51,7 +51,6 @@ export class InvoicesService {
         booking_id: Number(data.booking_id),
         amount: typeof data.amount === 'string' ? parseFloat(data.amount) : data.amount
       };
-      console.log('Record payment request:', payload);
       return await api.post('payments/record-payment', { json: payload }).json<any>();
     } catch (error) {
       if (error instanceof HTTPError) {
@@ -102,7 +101,6 @@ export class InvoicesService {
     try {
       // Ensure amount is a valid number
       const numericAmount = typeof amount === 'string' ? parseFloat(amount) : (amount || 0);
-      console.log('Refund deposit request:', { bookingId, paymentMethod, amount, numericAmount });
       return await api.post(`payments/refund-deposit/${bookingId}`, {
         json: { payment_method: paymentMethod, amount: numericAmount }
       }).json<any>();
