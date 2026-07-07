@@ -7,7 +7,7 @@ use sqlx::FromRow;
 use validator::Validate;
 
 /// Core user entity
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Clone, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id: i64,
     pub username: String,
@@ -28,6 +28,33 @@ pub struct User {
     pub two_factor_recovery_codes: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+// Manual impl so 2FA secrets can never reach logs via `{:?}`.
+impl std::fmt::Debug for User {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("User")
+            .field("id", &self.id)
+            .field("username", &self.username)
+            .field("email", &self.email)
+            .field("full_name", &self.full_name)
+            .field("phone", &self.phone)
+            .field("is_active", &self.is_active)
+            .field("is_verified", &self.is_verified)
+            .field("user_type", &self.user_type)
+            .field("two_factor_enabled", &self.two_factor_enabled)
+            .field(
+                "two_factor_secret",
+                &self.two_factor_secret.as_ref().map(|_| "<redacted>"),
+            )
+            .field(
+                "two_factor_recovery_codes",
+                &self.two_factor_recovery_codes.as_ref().map(|_| "<redacted>"),
+            )
+            .field("created_at", &self.created_at)
+            .field("updated_at", &self.updated_at)
+            .finish()
+    }
 }
 
 /// User with their roles

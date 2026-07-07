@@ -889,15 +889,6 @@ const RoomManagementPage: React.FC = () => {
       const checkInDateToUse = onlineCheckInDate || today;
       const checkOutDateToUse = onlineCheckOutDate || tomorrow;
 
-      console.log('Date debug:', {
-        onlineCheckInDate,
-        onlineCheckOutDate,
-        checkInDateToUse,
-        checkOutDateToUse,
-        today,
-        tomorrow
-      });
-
       if (!checkInDateToUse || !checkOutDateToUse) {
         showSnackbar('Check-in and check-out dates are required', 'warning');
         setCreatingBooking(false);
@@ -926,8 +917,6 @@ const RoomManagementPage: React.FC = () => {
           ? `${onlineCheckInBookingChannel} - Ref: ${onlineReference}`
           : `${onlineCheckInBookingChannel} Booking`,
       };
-
-      console.log('Creating reservation with data:', bookingData);
 
       await HotelAPIService.createBooking(bookingData);
 

@@ -170,7 +170,6 @@ const LoginPage: React.FC = () => {
     try {
       // Check if WebAuthn is supported
       if (!window.PublicKeyCredential) {
-        console.log('WebAuthn not supported, showing password field');
         setShowPasswordField(true);
         setPasskeyAttempted(true);
         setPasskeyCheckInProgress(false);
@@ -178,7 +177,6 @@ const LoginPage: React.FC = () => {
       }
 
       // Attempt passkey login
-      console.log('Attempting passkey authentication for:', username);
       const isFirstLogin = await loginWithPasskey(username);
       setPasskeyAttempted(true);
 
@@ -189,7 +187,6 @@ const LoginPage: React.FC = () => {
       }
     } catch (err: any) {
       // Passkey failed or not available - show password field
-      console.log('Passkey authentication failed:', err.message);
       setPasskeyAttempted(true);
       setShowPasswordField(true);
 

@@ -17,13 +17,89 @@ use axum::{
 };
 use std::net::SocketAddr;
 
-/// Create guest portal routes (no authentication required)
+/// Create guest portal routes.
+///
+/// The pre-check-in routes are unauthenticated (path-token gated). The `/login`
+/// route is rate-limited and public; the `/me/*` routes require a valid guest
+/// bearer session (enforced inside their handlers).
 pub fn routes() -> Router<DbPool> {
     Router::new()
         .route("/guest-portal/verify", post(verify_booking))
         .route("/guest-portal/booking/{token}", get(get_booking))
         .route("/guest-portal/pre-checkin/{token}", post(submit_precheckin))
         .route("/guest-portal/auto-checkin/{token}", post(auto_checkin))
+        .route("/guest-portal/login", post(login))
+        .route("/guest-portal/me", get(handlers::guest_portal::get_me))
+        .route(
+            "/guest-portal/me/bookings",
+            get(handlers::guest_portal::get_my_bookings),
+        )
+        .route(
+            "/guest-portal/me/transactions",
+            get(handlers::guest_portal::get_my_transactions),
+        )
+        .route(
+            "/guest-portal/me/membership",
+            get(handlers::guest_portal::get_my_membership),
+        )
+        .route(
+            "/guest-portal/me/benefits",
+            get(handlers::guest_portal::get_my_benefits),
+        )
+}
+
+async fn login(
+    State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
+    ConnectInfo(peer_addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(input): Json<models::GuestPortalLoginRequest>,
+) -> Result<Json<models::GuestPortalLoginResponse>, ApiError> {
+    let ip = extract_client_ip(&headers, peer_addr);
+    let (allowed, retry_after) = limiters.guest_portal_login.check_with_retry(ip).await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many sign-in attempts. Please try again in {} seconds.",
+                retry_after
+            ),
+            retry_after,
+        ));
+    }
+
+    let identifier = input.email.trim().to_lowercase();
+    let identifier = if identifier.is_empty() {
+        "<empty>".to_string()
+    } else {
+        identifier
+    };
+    let (allowed, retry_after) = limiters
+        .guest_portal_login_id
+        .check_with_retry(identifier)
+        .await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many sign-in attempts for this account. Please try again in {} seconds.",
+                retry_after
+            ),
+            retry_after,
+        ));
+    }
+
+    let user_agent = headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+
+    let response = crate::services::guest_portal::guest_portal_login(
+        &pool,
+        input,
+        Some(ip.to_string()),
+        user_agent,
+    )
+    .await?;
+    Ok(Json(response))
 }
 
 async fn verify_booking(

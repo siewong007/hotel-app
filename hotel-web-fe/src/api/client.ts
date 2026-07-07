@@ -49,6 +49,18 @@ function isAuthEndpoint(url: string): boolean {
   ].some(endpoint => pathname.includes(endpoint));
 }
 
+// Guest-portal endpoints use their own bearer token (sessionStorage-backed,
+// see src/features/guestPortal/api/portalTokenStore.ts) — a 401 there says
+// nothing about the staff session.
+function isGuestPortalRequest(url: string): boolean {
+  const pathname = new URL(
+    url,
+    typeof window === 'undefined' ? 'http://localhost' : window.location.origin,
+  ).pathname;
+
+  return pathname.includes('/guest-portal/');
+}
+
 function clearStoredAuth(): void {
   clearAccessToken();
   storage.removeItem('user');
@@ -148,10 +160,15 @@ export const api = ky.create({
       async request => {
         const nextUrl = resolveApiRequestUrl(request.url);
         const apiRequest = nextUrl === request.url ? request : await createRequestWithUrl(request, nextUrl);
+        // Requests that set their own Authorization header (e.g. the guest
+        // portal's session token) must not be overwritten with the staff token.
+        if (apiRequest.headers.has('Authorization')) {
+          return apiRequest;
+        }
         const token = getAccessToken();
         if (token) {
           apiRequest.headers.set('Authorization', `Bearer ${token}`);
-        } else {
+        } else if (!isGuestPortalRequest(apiRequest.url)) {
           console.warn('API Request:', apiRequest.method, apiRequest.url, 'WITHOUT TOKEN');
         }
 
@@ -163,8 +180,10 @@ export const api = ky.create({
         if (response.status === 401) {
           console.error('401 Unauthorized response for:', request.method, request.url);
 
-          // Only refresh/logout for 401s on protected endpoints, not auth endpoints.
-          if (!isAuthEndpoint(request.url)) {
+          // Only refresh/logout for 401s on protected STAFF endpoints — auth
+          // endpoints and guest-portal requests (separate session, handled by
+          // the portal's own hooks) must not clear the staff session.
+          if (!isAuthEndpoint(request.url) && !isGuestPortalRequest(request.url)) {
             const refreshed = await refreshAccessToken();
             if (refreshed) {
               return retryWithFreshAccessToken(request, options);

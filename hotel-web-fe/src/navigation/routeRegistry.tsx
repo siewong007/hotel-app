@@ -66,6 +66,8 @@ const GuestCheckInLanding = lazyRoute(() => import('../features/bookings/compone
 const GuestCheckInVerify = lazyRoute(() => import('../features/bookings/components/GuestCheckInVerify'));
 const GuestCheckInForm = lazyRoute(() => import('../features/bookings/components/GuestCheckInForm'));
 const GuestCheckInConfirmation = lazyRoute(() => import('../features/bookings/components/GuestCheckInConfirmation'));
+const PortalLoginPage = lazyRoute(() => import('../features/guestPortal/components/PortalLoginPage'));
+const PortalDashboardPage = lazyRoute(() => import('../features/guestPortal/components/PortalDashboardPage'));
 const CustomerLedgerPage = lazyRoute(() => import('../features/admin/components/CustomerLedger'));
 const ComplimentaryManagementPage = lazyRoute(() => import('../features/admin/components/ComplimentaryManagementPage'));
 const AuditLogPage = lazyRoute(() => import('../features/admin/components/AuditLogPage'));
@@ -81,6 +83,8 @@ const routeDefinitions: AppRouteDefinition[] = [
   { id: 'guest-checkin-verify', path: '/guest-checkin/verify', component: GuestCheckInVerify, animationType: 'fade', visibility: 'unauth' },
   { id: 'guest-checkin-form', path: '/guest-checkin/form', component: GuestCheckInForm, animationType: 'fade', visibility: 'unauth' },
   { id: 'guest-checkin-confirm', path: '/guest-checkin/confirm', component: GuestCheckInConfirmation, animationType: 'fade', visibility: 'unauth' },
+  { id: 'portal-login', path: '/portal/login', component: PortalLoginPage, animationType: 'fade', visibility: 'unauth' },
+  { id: 'portal-dashboard', path: '/portal', component: PortalDashboardPage, animationType: 'fade', visibility: 'unauth' },
   { id: 'dashboard', path: '/', component: DashboardRouter, animationType: 'fade', visibility: 'auth' },
   {
     id: 'timeline',

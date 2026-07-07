@@ -159,15 +159,6 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       if (details.cleaning_end_date) setCleaningEndDate(details.cleaning_end_date);
       if (details.target_room_id) setTargetRoomId(details.target_room_id.toString());
       if (details.status_notes) setStatusNotes(details.status_notes);
-
-      console.log('Loaded room metadata:', {
-        reserved_start_date: details.reserved_start_date,
-        reserved_end_date: details.reserved_end_date,
-        maintenance_start_date: details.maintenance_start_date,
-        maintenance_end_date: details.maintenance_end_date,
-        cleaning_start_date: details.cleaning_start_date,
-        cleaning_end_date: details.cleaning_end_date,
-      });
     } catch (err: any) {
       console.error('Failed to load room details:', err);
     } finally {
@@ -177,18 +168,6 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
 
   const handleUpdateStatus = async () => {
     if (!roomId) return;
-
-    console.log('=== handleUpdateStatus called ===');
-    console.log('Current state:', {
-      newStatus,
-      maintenanceStartDate,
-      maintenanceEndDate,
-      cleaningStartDate,
-      cleaningEndDate,
-      reservedStartDate,
-      reservedEndDate,
-      targetRoomId
-    });
 
     // Validation: Cannot change from other status to available
     if (currentStatus && currentStatus !== 'available' && newStatus === 'available') {
@@ -232,9 +211,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
     }
 
     if (newStatus === 'maintenance') {
-      console.log('Validating maintenance:', { maintenanceStartDate, maintenanceEndDate });
       if (!maintenanceStartDate || maintenanceStartDate.trim() === '' || !maintenanceEndDate || maintenanceEndDate.trim() === '') {
-        console.error('Maintenance validation failed:', { maintenanceStartDate, maintenanceEndDate });
         setError('Maintenance status requires both start date and end date.');
         return;
       }
@@ -317,10 +294,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
   };
 
   const handleRoomChange = async () => {
-    console.log('handleRoomChange called', { roomId, targetRoomId });
-
     if (!roomId || !targetRoomId) {
-      console.log('Validation failed - missing roomId or targetRoomId');
       setError('Please select a target room.');
       return;
     }
@@ -329,9 +303,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       setLoading(true);
       setError(null);
 
-      console.log('Calling executeRoomChange API', { roomId, targetRoomId });
-      const result = await HotelAPIService.executeRoomChange(roomId, targetRoomId);
-      console.log('Room change result:', result);
+      await HotelAPIService.executeRoomChange(roomId, targetRoomId);
       invalidateRoomDependencies(queryClient);
 
       setRoomChangeMode(false);
@@ -357,19 +329,10 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
       setLoading(true);
       setError(null);
 
-      console.log('Checking in guest:', {
-        bookingId: booking.id,
-        guestName: booking.guest_name,
-        currentStatus: booking.status,
-        checkIn: booking.check_in_date,
-        checkOut: booking.check_out_date,
-      });
-
       // Call the dedicated check-in endpoint
       await HotelAPIService.checkInGuest(booking.id);
       invalidateBookingDependencies(queryClient);
 
-      console.log('Guest checked in successfully');
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -504,20 +467,13 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                 <Button
                   variant="contained"
                   color="primary"
-                  onClick={() => {
-                    console.log('Execute Room Change button clicked!', { roomId, targetRoomId, loading });
-                    handleRoomChange();
-                  }}
+                  onClick={handleRoomChange}
                   disabled={loading || !targetRoomId}
                   startIcon={loading ? <CircularProgress size={20} /> : null}
                 >
                   {loading ? 'Changing...' : 'Execute Room Change'}
                 </Button>
               </Box>
-              {/* Debug info */}
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                Debug: roomId={roomId}, targetRoomId={targetRoomId}, loading={String(loading)}, availableRooms={availableRooms.length}
-              </Typography>
             </Box>
           )}
 
@@ -765,7 +721,6 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                           value={maintenanceStartDate}
                           onChange={(e) => {
                             const newValue = e.target.value;
-                            console.log('Maintenance start date changed:', newValue);
                             setMaintenanceStartDate(newValue);
                             setError(null); // Clear error when user starts typing
                           }}
@@ -783,7 +738,6 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
                           value={maintenanceEndDate}
                           onChange={(e) => {
                             const newValue = e.target.value;
-                            console.log('Maintenance end date changed:', newValue);
                             setMaintenanceEndDate(newValue);
                             setError(null); // Clear error when user starts typing
                           }}
