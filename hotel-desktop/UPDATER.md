@@ -17,7 +17,7 @@ until you complete the steps below, because `bundle.createUpdaterArtifacts` is
 
 1. **Generate a signing keypair** (keep the private key secret, never commit it):
    ```bash
-   npx @tauri-apps/cli signer generate -w ~/.tauri/hotel-app.key
+   bunx @tauri-apps/cli signer generate -w ~/.tauri/hotel-app.key
    ```
    This prints a **public key**. Put it in `tauri.conf.json` →
    `plugins.updater.pubkey` (replacing `REPLACE_WITH_TAURI_SIGNER_PUBLIC_KEY`).
@@ -33,7 +33,7 @@ until you complete the steps below, because `bundle.createUpdaterArtifacts` is
    ```bash
    export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.tauri/hotel-app.key)"
    export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="<key password>"
-   npm run build
+   bun run build
    ```
    This emits `*.sig` files and a `latest.json` manifest to publish at your endpoint.
 

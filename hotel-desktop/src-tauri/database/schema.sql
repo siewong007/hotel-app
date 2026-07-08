@@ -670,6 +670,7 @@ CREATE TABLE IF NOT EXISTS guests (
     complimentary_nights_credit INTEGER DEFAULT 0,
     is_blacklisted BOOLEAN DEFAULT false,
     blacklist_reason TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
     guest_type guest_type NOT NULL DEFAULT 'non_member',
     discount_percentage INTEGER NOT NULL DEFAULT 0 CHECK (discount_percentage >= 0 AND discount_percentage <= 100),
     tourism_type tourism_type DEFAULT NULL,
@@ -680,6 +681,9 @@ CREATE TABLE IF NOT EXISTS guests (
     deleted_at TIMESTAMP WITH TIME ZONE,
     CONSTRAINT valid_email_format CHECK (email IS NULL OR email ~ '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
 );
+
+-- Databases created before is_active was added to the CREATE TABLE above
+ALTER TABLE guests ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true;
 
 -- Guest complimentary credits by room type
 CREATE TABLE IF NOT EXISTS guest_complimentary_credits (
@@ -726,6 +730,28 @@ CREATE TRIGGER update_user_guests_updated_at
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 COMMENT ON TABLE user_guests IS 'Links users to guests they can book/manage on behalf of';
+
+-- ============================================================================
+-- GUEST PORTAL SESSIONS
+-- ============================================================================
+-- Bearer-token sessions for the self-service guest portal. A guest logs in with
+-- their email plus a booking number or loyalty member number; on success we
+-- store only the SHA-256 hash of the issued token here. Distinct from the
+-- pre-check-in path tokens on the bookings table (those gate a single booking).
+
+CREATE TABLE IF NOT EXISTS guest_portal_sessions (
+    id BIGSERIAL PRIMARY KEY,
+    guest_id BIGINT NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+    token_hash TEXT UNIQUE NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX IF NOT EXISTS idx_guest_portal_sessions_guest_id ON guest_portal_sessions(guest_id);
+CREATE INDEX IF NOT EXISTS idx_guest_portal_sessions_expires_at ON guest_portal_sessions(expires_at);
+
+COMMENT ON TABLE guest_portal_sessions IS 'Bearer-token sessions for the self-service guest portal (stores token hashes only)';
 
 -- ============================================================================
 -- GUEST DOCUMENTS

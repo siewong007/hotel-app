@@ -1,6 +1,8 @@
 # Hotel App - Project Makefile
 # Provides common development commands across all three projects.
 
+BUN ?= $(shell command -v bun 2>/dev/null || printf '%s' "$$HOME/.bun/bin/bun")
+
 .PHONY: help setup-all setup-be setup-fe setup-desktop \
         dev-be dev-fe dev-desktop \
         build-be build-fe build-desktop \
@@ -25,10 +27,10 @@ setup-be: ## Install backend dependencies
 	cd hotel-app-be && cargo fetch
 
 setup-fe: ## Install frontend dependencies
-	cd hotel-web-fe && npm install
+	cd hotel-web-fe && $(BUN) install
 
 setup-desktop: ## Install desktop dependencies
-	cd hotel-desktop && npm install && cd src-tauri && cargo fetch
+	cd hotel-desktop && $(BUN) install && cd src-tauri && cargo fetch
 
 # ─── Development ──────────────────────────────────────────────────────────────
 
@@ -39,10 +41,10 @@ dev-be-sqlite: ## Start backend in SQLite development mode
 	cd hotel-app-be && DATABASE_PATH=./hotel_data.db cargo run --features sqlite --no-default-features
 
 dev-fe: ## Start frontend development server
-	cd hotel-web-fe && npm run start
+	cd hotel-web-fe && $(BUN) run start
 
 dev-desktop: ## Start desktop app in development mode
-	cd hotel-desktop && npm run dev
+	cd hotel-desktop && $(BUN) run dev
 
 # ─── Build ────────────────────────────────────────────────────────────────────
 
@@ -50,10 +52,10 @@ build-be: ## Build backend release
 	cd hotel-app-be && cargo build --release
 
 build-fe: ## Build frontend production
-	cd hotel-web-fe && npm run build
+	cd hotel-web-fe && $(BUN) run build
 
 build-desktop: ## Build desktop production
-	cd hotel-desktop && npm run build
+	cd hotel-desktop && $(BUN) run build
 
 # ─── Type Checking ────────────────────────────────────────────────────────────
 
@@ -64,7 +66,7 @@ check-be-sqlite: ## Check backend with SQLite feature only
 	cd hotel-app-be && cargo check --features sqlite --no-default-features
 
 check-fe: ## Typecheck frontend
-	cd hotel-web-fe && npx tsc --noEmit
+	cd hotel-web-fe && $(BUN) run typecheck
 
 check-desktop: ## Check desktop compilation
 	cd hotel-desktop/src-tauri && cargo check
@@ -77,7 +79,7 @@ lint-be: ## Lint backend
 	cd hotel-app-be && cargo clippy --all-features -- -D warnings
 
 lint-fe: ## Lint frontend
-	cd hotel-web-fe && npm run lint
+	cd hotel-web-fe && $(BUN) run lint
 
 lint-desktop: ## Lint desktop
 	cd hotel-desktop/src-tauri && cargo clippy -- -D warnings
@@ -106,7 +108,7 @@ test-be-pg: ## Run backend PostgreSQL tests (requires DATABASE_URL)
 	cd hotel-app-be && cargo test --features postgres --no-default-features
 
 test-fe: ## Run frontend tests
-	cd hotel-web-fe && npm run test -- --run
+	cd hotel-web-fe && $(BUN) run test -- --run
 
 test-all: test-be test-be-sqlite test-fe ## Test all projects
 
@@ -137,7 +139,7 @@ db-reset: ## Reset and re-create PostgreSQL database
 # ─── Desktop Preparation ──────────────────────────────────────────────────────
 
 prepare-desktop: ## Prepare desktop app resources
-	cd hotel-desktop && npm run desktop:prepare
+	cd hotel-desktop && $(BUN) run desktop:prepare
 
 # ─── Documentation ────────────────────────────────────────────────────────────
 

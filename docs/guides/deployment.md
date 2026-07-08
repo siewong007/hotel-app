@@ -140,7 +140,7 @@ WantedBy=multi-user.target
 cd hotel-web-fe
 
 # Build for production
-VITE_API_URL=https://your-api-domain.com npm run build
+VITE_API_URL=https://your-api-domain.com bun run build
 
 # Deploy the dist/ directory to your web server
 # Example with Nginx:
@@ -235,15 +235,15 @@ For Kubernetes, create the following resources:
 
 ```bash
 cd hotel-desktop
-npm install
-npm run desktop:prepare
+bun install
+bun run desktop:prepare
 ```
 
 ### Building for Distribution
 
 ```bash
 # Production build (creates .dmg on macOS, .msi on Windows, .AppImage on Linux)
-npm run build
+bun run build
 ```
 
 The built installer will be in `src-tauri/target/release/bundle/`.
@@ -252,24 +252,24 @@ The built installer will be in `src-tauri/target/release/bundle/`.
 
 ```bash
 # Fast local verification build, no installer packaging
-npm run build:fast
+bun run build:fast
 
 # Release binary build, no installer packaging
-npm run build:no-bundle
+bun run build:no-bundle
 
 # Debug build (faster, larger binary)
-npm run build:debug
+bun run build:debug
 
 # Windows-only single-installer builds
-npm run build:nsis
-npm run build:msi
+bun run build:nsis
+bun run build:msi
 
 # Platform-specific (run on target platform)
-npm run build  # macOS DMG
+bun run build  # macOS DMG
 # For Windows/Linux, cross-compile from CI
 ```
 
-`desktop:prepare` is cache-aware: it syncs database resources, builds the frontend bundle, builds the backend sidecar, and copies the sidecar in that order, skipping each artifact when its inputs are unchanged. Production builds use the release backend sidecar; `build:fast` and `build:debug` use the debug sidecar. Use `npm run desktop:prepare:force` to rebuild every prepared artifact.
+`desktop:prepare` is cache-aware: it syncs database resources, builds the frontend bundle, builds the backend sidecar, and copies the sidecar in that order, skipping each artifact when its inputs are unchanged. Production builds use the release backend sidecar; `build:fast` and `build:debug` use the debug sidecar. Use `bun run desktop:prepare:force` to rebuild every prepared artifact.
 
 ### Desktop Configuration
 
@@ -367,7 +367,7 @@ Default admin credentials after seed (from `database/data.sql`):
 - [ ] Verify rate limiting is configured appropriately
 - [ ] Ensure database firewall only allows backend IP access
 - [ ] Run `cargo audit` on backend dependencies
-- [ ] Run `npm audit` on frontend and desktop dependencies
+- [ ] Run `bun audit` on frontend and desktop dependencies
 
 ### Operational Security
 
@@ -506,7 +506,7 @@ docker exec hotel-db pg_dump -U hotel_admin hotel_management > backup.sql
 1. Check logs in app data directory (`~/Library/Application Support/HotelApp/logs/` on macOS)
 2. Verify no other process is using the backend port
 3. Ensure all system dependencies are installed
-4. Re-run `npm run desktop:prepare:force`
+4. Re-run `bun run desktop:prepare:force`
 
 ### Performance issues
 

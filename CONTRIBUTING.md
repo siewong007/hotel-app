@@ -24,8 +24,8 @@ By participating in this project, you agree to abide by the [Code of Conduct](CO
 | Tool | Version | Purpose |
 |------|---------|---------|
 | Rust | 1.95.0+ | Backend development (toolchain file included) |
-| Node.js | 22 LTS | Frontend and desktop development |
-| npm | Bundled | Package management |
+| Node.js | 22 LTS | Desktop helper scripts |
+| Bun | 1.3.14 | Frontend and desktop package management |
 | PostgreSQL | 16+ | Production database |
 | Docker | Latest | Containerized development |
 
@@ -41,8 +41,8 @@ make setup-all
 
 # Or install individually:
 make setup-be     # Backend only (cargo fetch)
-make setup-fe     # Frontend only (npm install)
-make setup-desktop # Desktop only (npm install + cargo fetch)
+make setup-fe     # Frontend only (bun install)
+make setup-desktop # Desktop only (bun install + cargo fetch)
 
 # Set up environment
 cp hotel-app-be/.env.example hotel-app-be/.env
@@ -101,10 +101,10 @@ make docker-up
 
    # Frontend
    cd hotel-web-fe
-   npx tsc --noEmit
-   npm run lint
-   npm run test -- --run
-   npm run build
+   bun run typecheck
+   bun run lint
+   bun run test -- --run
+   bun run build
    ```
 4. Submit a pull request
 
@@ -160,7 +160,7 @@ hotel-app/
 
 ### Frontend (TypeScript/React)
 
-- **TypeScript:** Prefer strict types; check with `npx tsc --noEmit`
+- **TypeScript:** Prefer strict types; check with `bun run typecheck`
 - **Naming:**
   - Components: `PascalCase` file and export names
   - Hooks: `useX` names in `useX.ts` files

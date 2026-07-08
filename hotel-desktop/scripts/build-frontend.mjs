@@ -18,17 +18,17 @@ const frontendRoot = join(repoRoot, 'hotel-web-fe');
 const cachePath = join(desktopRoot, 'src-tauri', 'target', 'desktop-build-cache', 'frontend-tauri.json');
 const distIndex = join(frontendRoot, 'dist', 'index.html');
 const requiredOutputs = [distIndex, join(frontendRoot, 'dist', 'assets')];
-const npmExecPath = process.env.npm_execpath;
-const buildCommand = npmExecPath
-  ? [process.execPath, npmExecPath, 'run', 'build:tauri']
-  : [process.platform === 'win32' ? 'npm.cmd' : 'npm', 'run', 'build:tauri'];
+const bunExecPath = process.env.npm_execpath && /bun(?:\.exe)?$/i.test(process.env.npm_execpath)
+  ? process.env.npm_execpath
+  : 'bun';
+const buildCommand = [bunExecPath, 'run', 'build:tauri'];
 
 const inputs = [
   join(frontendRoot, 'src'),
   join(frontendRoot, 'public'),
   join(frontendRoot, 'index.html'),
   join(frontendRoot, 'package.json'),
-  join(frontendRoot, 'package-lock.json'),
+  join(frontendRoot, 'bun.lock'),
   join(frontendRoot, 'tsconfig.json'),
   join(frontendRoot, 'vite.config.ts'),
   join(frontendRoot, '.env'),
@@ -55,7 +55,7 @@ if (!force && previous?.digest === cacheKey.digest && requiredOutputs.every((pat
 const startedAt = Date.now();
 const result = spawnSync(buildCommand[0], buildCommand.slice(1), {
   cwd: frontendRoot,
-  shell: !npmExecPath && process.platform === 'win32',
+  shell: process.platform === 'win32',
   stdio: 'inherit',
 });
 

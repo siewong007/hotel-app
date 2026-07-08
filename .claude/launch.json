@@ -2,16 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "backend-sqlite",
+      "name": "backend-postgres",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "cd \"/Volumes/APPLE EXTERNAL SSD /Personal Projects/hotel-app/hotel-app-be\" && cargo run --bin hotel-app-be --features sqlite --no-default-features"],
+      "runtimeArgs": ["-c", "cd \"/Volumes/APPLE EXTERNAL SSD /Personal Projects/hotel-app/hotel-app-be\" && cargo run --bin hotel-app-be"],
       "port": 3030
     },
     {
       "name": "frontend",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "cd \"/Volumes/APPLE EXTERNAL SSD /Personal Projects/hotel-app/hotel-web-fe\" && npm run start"],
-      "port": 3000
+      "runtimeArgs": ["-c", "cd \"/Volumes/APPLE EXTERNAL SSD /Personal Projects/hotel-app/hotel-web-fe\" && /Users/goaltosuceed/.bun/bin/bun run start -- --port 3001"],
+      "port": 3001
     }
   ]
 }
