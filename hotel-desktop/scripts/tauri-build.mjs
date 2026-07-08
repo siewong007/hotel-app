@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { envWithBunOnPath } from './lib/bun-path.mjs';
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, '..');
@@ -28,17 +29,16 @@ for (let index = 2; index < process.argv.length; index += 1) {
 }
 
 if (!existsSync(tauriCli)) {
-  throw new Error(`Tauri CLI not found at ${tauriCli}. Run npm install in hotel-desktop first.`);
+  throw new Error(`Tauri CLI not found at ${tauriCli}. Run bun install in hotel-desktop first.`);
 }
 
 const result = spawnSync(process.execPath, [tauriCli, 'build', ...tauriArgs], {
   cwd: desktopRoot,
-  env: {
+  env: envWithBunOnPath({
     ...process.env,
     ...(backendProfile ? { DESKTOP_BACKEND_PROFILE: backendProfile } : {}),
-  },
+  }),
   stdio: 'inherit',
 });
 
 process.exit(result.status ?? 1);
-

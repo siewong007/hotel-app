@@ -112,9 +112,9 @@ Run these commands from the repository root to rebuild the Tauri desktop applica
 
 ```bash
 cd hotel-desktop
-npm install
-npm run desktop:prepare
-npm run build
+bun install
+bun run desktop:prepare
+bun run build
 ```
 
 `desktop:prepare` refreshes the desktop bundle before Tauri builds it:
@@ -128,26 +128,26 @@ For a debug desktop build:
 
 ```bash
 cd hotel-desktop
-npm run desktop:prepare
-npm run build:debug
+bun run desktop:prepare
+bun run build:debug
 ```
 
 For the fastest local verification build:
 
 ```bash
 cd hotel-desktop
-npm run build:fast
+bun run build:fast
 ```
 
 For local desktop development:
 
 ```bash
 cd hotel-desktop
-npm run desktop:prepare
-npm run dev
+bun run desktop:prepare
+bun run dev
 ```
 
-`npm run build` already invokes `desktop:prepare` through Tauri's `beforeBuildCommand`, but running it manually first is useful when diagnosing build failures.
+`bun run build` already invokes `desktop:prepare` through Tauri's `beforeBuildCommand`, but running it manually first is useful when diagnosing build failures.
 
 ### 🛑 Stop Previous FE/BE Startup
 

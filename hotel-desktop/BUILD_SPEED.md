@@ -5,11 +5,11 @@ The desktop build has two stages:
 1. `desktop:prepare` refreshes the assets that Tauri packages.
 2. `tauri build` compiles and optionally bundles the Tauri application.
 
-`npm run build` still runs the production Tauri build, but the preparation step is now cache-aware so repeated builds skip unchanged work.
+`bun run build` still runs the production Tauri build, but the preparation step is now cache-aware so repeated builds skip unchanged work.
 
 ## Preparation Order
 
-`npm run desktop:prepare` runs these steps in order and prints the duration for each one:
+`bun run desktop:prepare` runs these steps in order and prints the duration for each one:
 
 1. Provision the embedded PostgreSQL tree into `src-tauri/pgsql/`.
    - Skipped (fast path) when `pgsql/` already contains binaries matching the major version parsed from `CONFIGURED_POSTGRES_MAJOR_VERSION` in `src-tauri/src/postgres.rs`.
@@ -28,7 +28,7 @@ Cache stamps are stored under `src-tauri/target/desktop-build-cache/`, so they a
 
 ## Embedded PostgreSQL Provisioning
 
-`npm run provision:pgsql` populates `src-tauri/pgsql/` (gitignored, ~44MB) with the
+`bun run provision:pgsql` populates `src-tauri/pgsql/` (gitignored, ~44MB) with the
 subset of a Homebrew `postgresql@<major>` install (`bin`, `lib`, `share`) that the
 app needs at runtime. The major version comes from `CONFIGURED_POSTGRES_MAJOR_VERSION`
 in `src-tauri/src/postgres.rs` — it is not hardcoded in the script.
@@ -42,26 +42,26 @@ in `src-tauri/src/postgres.rs` — it is not hardcoded in the script.
 - Windows/Linux sources are not configured yet; the script exits 1 with a message
   rather than guessing a download URL.
 - Force re-provisioning (e.g. after a version bump or a suspected bad copy):
-  `npm run provision:pgsql:force`, or `node scripts/provision-pgsql.mjs --force`.
+  `bun run provision:pgsql:force`, or `node scripts/provision-pgsql.mjs --force`.
 
 ## Commands
 
 Use these commands from `hotel-desktop/`:
 
 ```bash
-npm run desktop:prepare        # cache-aware resource, frontend, backend, and sidecar preparation
-npm run desktop:prepare:force  # rebuild and recopy all preparation outputs
+bun run desktop:prepare        # cache-aware resource, frontend, backend, and sidecar preparation
+bun run desktop:prepare:force  # rebuild and recopy all preparation outputs
 
-npm run build                  # production build with all configured bundle targets
-npm run build:no-bundle        # production binary build without installer packaging
-npm run build:fast             # debug app + debug sidecar without installer packaging
-npm run build:debug            # debug app + debug sidecar with Tauri's default debug bundling behavior
+bun run build                  # production build with all configured bundle targets
+bun run build:no-bundle        # production binary build without installer packaging
+bun run build:fast             # debug app + debug sidecar without installer packaging
+bun run build:debug            # debug app + debug sidecar with Tauri's default debug bundling behavior
 
-npm run build:msi              # Windows-only MSI package
-npm run build:nsis             # Windows-only NSIS package
+bun run build:msi              # Windows-only MSI package
+bun run build:nsis             # Windows-only NSIS package
 ```
 
-For day-to-day verification, prefer `npm run build:fast`. For release candidates, use `npm run build` or a single installer target such as `npm run build:nsis`.
+For day-to-day verification, prefer `bun run build:fast`. For release candidates, use `bun run build` or a single installer target such as `bun run build:nsis`.
 
 ## Rust Build Profiles
 
@@ -74,7 +74,7 @@ The default Tauri release profile remains optimized for distribution:
 
 Both the desktop and backend release profiles use Cargo `build-override` settings so build scripts and proc macros compile with cheaper settings while final runtime code remains optimized. This reduces release build time and avoids spending release-level optimization on host-only build artifacts.
 
-`src-tauri/Cargo.toml` and `../hotel-app-be/Cargo.toml` also define `release-fast` for local Rust compile experiments where a release-like optimized build is useful but final binary size is less important. Tauri's normal fast path is still `npm run build:fast`, which uses Tauri's debug build mode, prepares a debug backend sidecar, and skips installer packaging.
+`src-tauri/Cargo.toml` and `../hotel-app-be/Cargo.toml` also define `release-fast` for local Rust compile experiments where a release-like optimized build is useful but final binary size is less important. Tauri's normal fast path is still `bun run build:fast`, which uses Tauri's debug build mode, prepares a debug backend sidecar, and skips installer packaging.
 
 ## Optional Machine-Level Cache
 

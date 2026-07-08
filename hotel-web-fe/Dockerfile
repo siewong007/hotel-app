@@ -1,17 +1,17 @@
 # Multi-stage Dockerfile for React Frontend
 # Stage 1: Build the application
-FROM node:22-alpine AS builder
+FROM oven/bun:1.3.14-alpine AS builder
 
 # Set working directory
 WORKDIR /app
 
 # Copy package files
-COPY package.json package-lock.json ./
+COPY package.json bun.lock ./
 
 # Install dependencies from the lockfile for reproducible builds.
-# `npm ci` fails if package.json and package-lock.json are out of sync,
+# `bun ci` fails if package.json and bun.lock are out of sync,
 # which surfaces dependency drift at build time instead of silently resolving it.
-RUN npm ci --legacy-peer-deps
+RUN bun ci
 
 # Copy source code
 COPY . .
@@ -26,7 +26,7 @@ ENV VITE_ENVIRONMENT=$VITE_ENVIRONMENT
 ENV NODE_ENV=production
 
 # Build the application
-RUN npm run build
+RUN bun run build
 
 # Stage 2: Serve with Nginx
 FROM nginx:alpine
@@ -61,4 +61,3 @@ USER appuser
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]
-

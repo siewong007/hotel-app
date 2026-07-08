@@ -49,17 +49,17 @@ cargo run --bin hash_password -- <password>   # helper bins in src/bin/
 
 Frontend (`hotel-web-fe/`):
 ```bash
-npm run start        # Vite dev on :3000, proxies API to 127.0.0.1:3030
-npm run typecheck && npm run lint && npm run test   # CI gates (lint errors fail build)
-npm run build
+bun run start        # Vite dev on :3000, proxies API to 127.0.0.1:3030
+bun run typecheck && bun run lint && bun run test   # CI gates (lint errors fail build)
+bun run build
 ```
 
 Desktop (`hotel-desktop/`):
 ```bash
-npm run dev                    # tauri dev with backend sidecar
-npm run build                  # production installer
-npm run build:no-bundle       # production binary, no installer
-npm run desktop:prepare:force  # force resource/frontend/backend/sidecar refresh
+bun run dev                    # tauri dev with backend sidecar
+bun run build                  # production installer
+bun run build:no-bundle       # production binary, no installer
+bun run desktop:prepare:force  # force resource/frontend/backend/sidecar refresh
 ```
 
 CI (`.github/workflows/ci.yml`, push/PR to master): FE typecheck+lint+test+build;

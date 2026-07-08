@@ -150,8 +150,8 @@ hotel-app/
 | Tool | Recommended version | Notes |
 | --- | --- | --- |
 | Rust | 1.95.0 | The repository includes `rust-toolchain.toml`. |
-| Node.js | 22 LTS recommended | CI uses Node 22. |
-| npm | Bundled with Node.js | Each frontend/desktop project has its own lockfile. |
+| Node.js | 22 LTS recommended | Required by desktop helper scripts. |
+| Bun | 1.3.14 | Package manager for frontend and desktop projects. |
 | PostgreSQL | 18 recommended | Required for the default backend feature. |
 
 ### Clone
@@ -204,8 +204,8 @@ DATABASE_PATH=./hotel_data.db JWT_SECRET=change_me_to_a_32_character_secret carg
 
 ```bash
 cd hotel-web-fe
-npm install
-npm run start
+bun install
+bun run start
 ```
 
 The frontend runs at `http://localhost:3000`. In development, Vite proxies configured API prefixes to `http://127.0.0.1:3030`.
@@ -213,25 +213,25 @@ The frontend runs at `http://localhost:3000`. In development, Vite proxies confi
 For a production-style frontend build:
 
 ```bash
-npm run build
+bun run build
 ```
 
 ### Desktop App
 
 ```bash
 cd hotel-desktop
-npm install
-npm run desktop:prepare
-npm run dev
+bun install
+bun run desktop:prepare
+bun run dev
 ```
 
 For a desktop build:
 
 ```bash
-npm run build
+bun run build
 ```
 
-`desktop:prepare` is cache-aware and runs in this order: synchronize database resources, build the frontend bundle when inputs changed, build the backend sidecar when inputs changed, and copy the sidecar only when the binary changed. Production builds use the release backend sidecar; `npm run build:fast` and `npm run build:debug` use a debug backend sidecar for quicker local verification. Use `npm run build:no-bundle` to skip installer packaging, and `npm run desktop:prepare:force` when you need to rebuild every prepared artifact. See `hotel-desktop/BUILD_SPEED.md` for the full command matrix.
+`desktop:prepare` is cache-aware and runs in this order: synchronize database resources, build the frontend bundle when inputs changed, build the backend sidecar when inputs changed, and copy the sidecar only when the binary changed. Production builds use the release backend sidecar; `bun run build:fast` and `bun run build:debug` use a debug backend sidecar for quicker local verification. Use `bun run build:no-bundle` to skip installer packaging, and `bun run desktop:prepare:force` when you need to rebuild every prepared artifact. See `hotel-desktop/BUILD_SPEED.md` for the full command matrix.
 
 ## Environment Variables
 
@@ -436,10 +436,10 @@ cargo test --all-features
 
 ```bash
 cd hotel-web-fe
-npx tsc --noEmit
-npm run lint
-npm run test -- --run
-npm run build
+bun run typecheck
+bun run lint
+bun run test -- --run
+bun run build
 ```
 
 ```bash
