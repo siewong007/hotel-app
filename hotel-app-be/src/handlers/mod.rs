@@ -19,6 +19,7 @@ pub mod housekeeping;
 pub mod ledgers;
 #[allow(dead_code)]
 pub mod loyalty;
+pub mod maintenance;
 pub mod night_audit;
 pub mod passkey;
 pub mod payments;
