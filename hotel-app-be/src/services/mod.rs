@@ -20,6 +20,7 @@ pub mod housekeeping;
 pub mod invoice_numbers;
 pub mod ledgers;
 pub mod loyalty;
+pub mod maintenance;
 pub mod night_audit;
 pub mod night_audit_scheduler;
 pub mod passkey;

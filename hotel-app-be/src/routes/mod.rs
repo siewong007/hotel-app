@@ -21,6 +21,7 @@ pub mod ledgers;
 // migration but is no longer wired into the router.
 #[allow(dead_code)]
 pub mod loyalty;
+pub mod maintenance;
 pub mod night_audit;
 pub mod passkey;
 pub mod payments;
@@ -128,6 +129,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(rooms::routes())
         .merge(guests::routes())
         .merge(housekeeping::routes())
+        .merge(maintenance::routes())
         .merge(bookings::routes())
         .merge(rates::routes())
         .merge(payments::routes())

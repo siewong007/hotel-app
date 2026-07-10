@@ -29,6 +29,7 @@ pub mod invoice_numbers;
 pub mod ledger;
 #[allow(dead_code)]
 pub mod loyalty;
+pub mod maintenance;
 pub mod night_audit;
 pub mod passkey;
 #[allow(dead_code)]

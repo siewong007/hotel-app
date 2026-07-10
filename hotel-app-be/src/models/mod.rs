@@ -19,6 +19,7 @@ pub mod housekeeping;
 pub mod ledger;
 #[allow(dead_code)]
 pub mod loyalty;
+pub mod maintenance;
 pub mod night_audit;
 #[allow(dead_code)]
 pub mod payment;
@@ -49,6 +50,7 @@ pub use guest_portal::*;
 pub use housekeeping::*;
 pub use ledger::*;
 pub use loyalty::*;
+pub use maintenance::*;
 pub use night_audit::*;
 pub use payment::*;
 pub use rate::*;

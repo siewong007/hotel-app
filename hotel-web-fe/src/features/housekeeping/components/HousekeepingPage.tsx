@@ -9,6 +9,8 @@ import {
   MenuItem,
   Select,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material';
@@ -25,6 +27,7 @@ import {
   useHousekeepingBoard,
   useUpdateHousekeepingTask,
 } from '../hooks/useHousekeepingQueries';
+import MaintenanceTab from './MaintenanceTab';
 
 const ROOM_STATUS_ORDER = ['dirty', 'cleaning', 'reserved_dirty', 'maintenance', 'available', 'reserved', 'occupied'];
 const PRIORITIES: HousekeepingPriority[] = ['low', 'normal', 'high', 'urgent'];
@@ -192,6 +195,9 @@ function RoomTaskRow({
 
 export default function HousekeepingPage() {
   const { user, hasPermission } = useAuth();
+  const canViewMaintenance = hasPermission('maintenance:read');
+  const canWriteMaintenance = hasPermission('maintenance:write');
+  const [tab, setTab] = useState(0);
   const [floorFilter, setFloorFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const boardQuery = useHousekeepingBoard();
@@ -233,98 +239,111 @@ export default function HousekeepingPage() {
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1440, mx: 'auto' }}>
       <Stack spacing={2.5}>
-        <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={2}>
-          <Box>
-            <Typography variant="h4" component="h1">
-              Housekeeping
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {formatLocalDate()} · {filteredRooms.length} rooms
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap>
-            <FormControl size="small" sx={{ minWidth: 130 }}>
-              <InputLabel id="housekeeping-floor-filter">Floor</InputLabel>
-              <Select
-                labelId="housekeeping-floor-filter"
-                label="Floor"
-                value={floorFilter}
-                onChange={(event) => setFloorFilter(event.target.value)}
-              >
-                <MenuItem value="all">All floors</MenuItem>
-                {floors.map(floor => (
-                  <MenuItem key={floor} value={String(floor)}>Floor {floor}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl size="small" sx={{ minWidth: 130 }}>
-              <InputLabel id="housekeeping-priority-filter">Priority</InputLabel>
-              <Select
-                labelId="housekeeping-priority-filter"
-                label="Priority"
-                value={priorityFilter}
-                onChange={(event) => setPriorityFilter(event.target.value)}
-              >
-                <MenuItem value="all">All priorities</MenuItem>
-                {PRIORITIES.map(priority => (
-                  <MenuItem key={priority} value={priority}>{statusLabel(priority)}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Stack>
-        </Stack>
+        {canViewMaintenance ? (
+          <Tabs value={tab} onChange={(_event, value: number) => setTab(value)}>
+            <Tab label="Board" />
+            <Tab label="Maintenance" />
+          </Tabs>
+        ) : null}
 
-        {error ? <Alert severity="error">{error instanceof Error ? error.message : 'Housekeeping update failed'}</Alert> : null}
+        {tab === 0 ? (
+          <Stack spacing={2.5}>
+            <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" gap={2}>
+              <Box>
+                <Typography variant="h4" component="h1">
+                  Housekeeping
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {formatLocalDate()} · {filteredRooms.length} rooms
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={1.25} flexWrap="wrap" useFlexGap>
+                <FormControl size="small" sx={{ minWidth: 130 }}>
+                  <InputLabel id="housekeeping-floor-filter">Floor</InputLabel>
+                  <Select
+                    labelId="housekeeping-floor-filter"
+                    label="Floor"
+                    value={floorFilter}
+                    onChange={(event) => setFloorFilter(event.target.value)}
+                  >
+                    <MenuItem value="all">All floors</MenuItem>
+                    {floors.map(floor => (
+                      <MenuItem key={floor} value={String(floor)}>Floor {floor}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <FormControl size="small" sx={{ minWidth: 130 }}>
+                  <InputLabel id="housekeeping-priority-filter">Priority</InputLabel>
+                  <Select
+                    labelId="housekeeping-priority-filter"
+                    label="Priority"
+                    value={priorityFilter}
+                    onChange={(event) => setPriorityFilter(event.target.value)}
+                  >
+                    <MenuItem value="all">All priorities</MenuItem>
+                    {PRIORITIES.map(priority => (
+                      <MenuItem key={priority} value={priority}>{statusLabel(priority)}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Stack>
+            </Stack>
 
-        {boardQuery.isLoading ? (
-          <Stack alignItems="center" sx={{ py: 8 }}>
-            <CircularProgress />
-          </Stack>
-        ) : (
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: '1fr', lg: 'repeat(3, minmax(0, 1fr))' },
-              gap: 2,
-              alignItems: 'start',
-            }}
-          >
-            {groupedRooms.map(([status, statusRooms]) => (
+            {error ? <Alert severity="error">{error instanceof Error ? error.message : 'Housekeeping update failed'}</Alert> : null}
+
+            {boardQuery.isLoading ? (
+              <Stack alignItems="center" sx={{ py: 8 }}>
+                <CircularProgress />
+              </Stack>
+            ) : (
               <Box
-                key={status}
                 sx={{
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 1,
-                  p: 1.5,
-                  bgcolor: 'background.default',
-                  minHeight: 160,
+                  display: 'grid',
+                  gridTemplateColumns: { xs: '1fr', lg: 'repeat(3, minmax(0, 1fr))' },
+                  gap: 2,
+                  alignItems: 'start',
                 }}
               >
-                <Stack spacing={1.25}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center">
-                    <Typography variant="subtitle1">{statusLabel(status)}</Typography>
-                    <Chip size="small" label={statusRooms.length} />
-                  </Stack>
-                  {statusRooms.map(room => (
-                    <RoomTaskRow
-                      key={room.id}
-                      room={room}
-                      canUpdate={canUpdate}
-                      currentUserId={currentUserId}
-                      isBusy={isBusy}
-                      onCreate={(roomId, notes) => {
-                        if (!canCreate) return;
-                        createTask.mutate({ room_id: roomId, task_type: 'cleaning', priority: 'normal', notes });
-                      }}
-                      onUpdate={(taskId, input) => updateTask.mutate({ taskId, input })}
-                    />
-                  ))}
-                </Stack>
+                {groupedRooms.map(([status, statusRooms]) => (
+                  <Box
+                    key={status}
+                    sx={{
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 1,
+                      p: 1.5,
+                      bgcolor: 'background.default',
+                      minHeight: 160,
+                    }}
+                  >
+                    <Stack spacing={1.25}>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
+                        <Typography variant="subtitle1">{statusLabel(status)}</Typography>
+                        <Chip size="small" label={statusRooms.length} />
+                      </Stack>
+                      {statusRooms.map(room => (
+                        <RoomTaskRow
+                          key={room.id}
+                          room={room}
+                          canUpdate={canUpdate}
+                          currentUserId={currentUserId}
+                          isBusy={isBusy}
+                          onCreate={(roomId, notes) => {
+                            if (!canCreate) return;
+                            createTask.mutate({ room_id: roomId, task_type: 'cleaning', priority: 'normal', notes });
+                          }}
+                          onUpdate={(taskId, input) => updateTask.mutate({ taskId, input })}
+                        />
+                      ))}
+                    </Stack>
+                  </Box>
+                ))}
               </Box>
-            ))}
-          </Box>
-        )}
+            )}
+          </Stack>
+        ) : null}
+
+        {tab === 1 && canViewMaintenance ? <MaintenanceTab canWrite={canWriteMaintenance} /> : null}
       </Stack>
     </Box>
   );
