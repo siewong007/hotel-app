@@ -95,8 +95,10 @@ is kept as two rows.
    wanted: (a) design screens interactively in the Claude Design project (its intended
    workflow — the agent already has the synced theme + primitives); (b) expand the component
    sync's scope (`componentSrcMap` + `.ds-entry.tsx`) to include more presentational
-   components pages are built from; (c) add an app sitemap to the synced `guidelines/` via
-   the converter config so the design agent knows the app's page structure. All three are
-   scope decisions — not applied.
+   components pages are built from; (c) ~~add an app sitemap to the synced `guidelines/`~~ —
+   **DONE 2026-07-10**: `hotel-web-fe/design-guidelines/app-structure.md` (full sitemap,
+   surfaces/roles, per-feature component usage, screen conventions) is synced into the
+   project's `guidelines/` via `guidelinesGlob`; derived from the graphify code graph +
+   direct-import greps. Options (a)/(b) remain open scope decisions.
 2. **Git object corruption**: `git log` on some component paths fails (missing tree
    `c4528a11…`); flagged as a separate task 2026-07-10. Does not affect this reconciliation.
