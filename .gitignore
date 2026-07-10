@@ -92,3 +92,6 @@ ds-bundle/
 
 # Claude Code local (per-machine) settings
 .claude/settings.local.json
+
+# Local pre-edit backups of ask-first files (maintenance.md backup rule)
+.claude/backups/
