@@ -91,8 +91,51 @@ in `maintenance.md`. Newest at the bottom. Consolidate at >30 entries / >300 lin
 - Right: for any new SQL, verify every column against BOTH database/schema.sql and the sqlite_migrations DDL (grep the CREATE TABLE), and run the endpoint once against a scratch SQLite DB (migrations auto-run at startup; seed via sqlite3, auth via a hand-inserted session row). The smoke test found in minutes what static review missed.
 - Rule: new runtime SQL is not "done" until each referenced column is confirmed in both DDLs; when feasible, curl the new endpoint against a scratch SQLite server before claiming complete. Never decode full model structs (`SELECT *`) in new code — select explicit columns.
 
+## 2026-07-10b — room_events / room_history: tables referenced by SQL that were never migrated at all
+- Trigger: live 500 on PATCH /api/housekeeping/tasks/{id}, diagnosed from
+  hotel-app-be/logs/backend-*.log: "current transaction is aborted, commands
+  ignored until end of transaction block". Root query was `INSERT INTO
+  room_events` inside a `let _ = sqlx::query(...)` in
+  src/services/rooms.rs:216 — the error was swallowed, but Postgres had
+  already poisoned the transaction, so the NEXT statement (audit_logs insert)
+  failed instead and that unswallowed error is what surfaced as the 500.
+  Grepping confirmed `room_events` had ZERO CREATE TABLE in schema.sql or
+  sqlite_migrations/ despite being fully wired in
+  src/repositories/rooms_queries.rs (INSERT/SELECT). Follow-up grep found the
+  same pattern for `room_history`: it exists in schema.sql but SQLite only
+  ever got a differently-shaped `room_status_history` table — SQLite builds
+  hit "no such table: room_history" on every check-in/check-out.
+- Wrong: assuming a table exists because repository code queries it. Also:
+  `let _ = sqlx::query(...)` inside a Postgres transaction is not a safe way
+  to make a write "best-effort" — a failed statement aborts the whole
+  transaction regardless of whether Rust looks at the Result, so the failure
+  just resurfaces on the next statement with a confusing unrelated error.
+- Right: added `room_events` (schema.sql + new sqlite_migrations/017) and
+  `room_history` (new sqlite_migrations/018, schema.sql already had it) with
+  columns matched against the actual RoomEvent/RoomHistory struct field types
+  in src/models/room.rs (e.g. scheduled_date is TIMESTAMPTZ/DateTime<Utc>,
+  not DATE). Verified by: applying schema.sql to live Postgres, replaying all
+  18 sqlite_migrations in order against a scratch `sqlite3` DB, running the
+  exact INSERT+SELECT shapes the Rust queries use, and re-running the exact
+  failing multi-statement transaction directly in psql to confirm it no
+  longer aborts. `cargo check` passed on both feature sets throughout —
+  compile success never caught any of this.
+- Rule: when a 500 traces to "transaction is aborted" or "relation/no such
+  table X does not exist", grep schema.sql AND sqlite_migrations/ for the
+  table by name before assuming it's a data problem — if the CREATE TABLE
+  doesn't exist in one or both, that's the bug, not a stale-migration issue
+  (contrast with the ota_reference case). Never trust `let _ =` around a
+  `sqlx::query` inside a transaction as "safe to ignore" — in Postgres it
+  isn't; either propagate the error or wrap the statement in a SAVEPOINT.
+
 ## 2026-07-10 — cargo check --all-features does NOT cover the sqlite-only build
 - Trigger: maintenance-module delegation hit 6 compile errors in src/repositories/data_transfer.rs under `--features sqlite --no-default-features` (`= ANY($1)` slice binds, introduced in commit 0ef5435b) even though `cargo check --all-features` and clippy were clean on that same code
 - Wrong: treating "--all-features compiles" as proof of dual-DB compile safety; with BOTH features enabled the cfg gates resolve to the postgres branch, so sqlite-only code paths are never type-checked
 - Right: CI's backend-sqlite job builds `--features sqlite --no-default-features`; the sqlite-only build is a distinct compile target. Fix pattern for array filters: cfg-gated `= ANY($n)` (postgres) vs dynamically built `IN ($1, $2, ...)` with per-element binds (sqlite) — precedent in src/repositories/audit.rs:368-383 ($N placeholders are valid SQLite syntax)
 - Rule: before claiming done on any backend SQL change, run BOTH `cargo check --all-features` AND `cargo check --features sqlite --no-default-features` — the first alone cannot catch sqlite-only breaks
+
+## 2026-07-10 — TypeScript 7 blocked by Bun: side-by-side TS6 bridge is not expressible
+- Trigger: chore/ts7-upgrade branch. typescript@7.0.2 (native) passed typecheck (1.6s)/test/build/build:tauri, but lint hard-crashed — @typescript-eslint/typescript-estree needs the TS JS API, which TS 7.0 does not ship (returns in 7.1; typescript-eslint supports `>=4.8.4 <6.1.0`)
+- Wrong: assumed Microsoft's recommended @typescript/typescript6 side-by-side bridge could be wired up under bun. Attempt 1: nested `"overrides"` → `warn: Bun currently does not support nested "overrides"`. Attempt 2: alias flip (`typescript` → npm:@typescript/typescript6, `typescript-native` → npm:typescript@~7.0) → bun re-resolved the bare name `typescript` inside the second alias through the FIRST alias, installing the compat package under both names and leaving `.bin/tsc` a dangling symlink
+- Right: hold at typescript@~6.0 (all gates green; 6.0-clean code compiles identically under 7.0 by design). Adopt 7 when typescript-eslint ships TS 7.1 API support — no config tricks needed then
+- Rule: bun does not support nested overrides and mis-resolves self-referential `npm:` aliases (both verified 2026-07-10) — do not attempt npm/pnpm override recipes under bun; after any aliased install, verify by reading the installed package's package.json `name`/`version`, not by install success. Also: TS 6.0 hard-errors on `alwaysStrict` in tsconfig (TS5107), and browser code must use `ReturnType<typeof setTimeout>` not `NodeJS.Timeout`
