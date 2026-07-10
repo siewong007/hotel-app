@@ -23,6 +23,21 @@
 ## Design authorization on this Mac (fixed 2026-07-03)
 `DesignSync` initially failed: the claude.ai login in the Keychain lacked `user:design:read`/`user:design:write`, and `/design-login` is gated to interactive terminals (headless/desktop sessions and `-p` mode both refuse it). Fix that worked: run the REPL under a pseudo-TTY and fire the command — `expect` script doing `spawn claude "/design-login"` — which opens the browser authorization for the user to approve; the credential saves to the Keychain and all later sessions inherit it. If design auth ever breaks again (403 / "re-authorize"), repeat that, or just run `/design-login` in any interactive `claude` terminal.
 
+## Guidelines added (2026-07-10)
+- `guidelinesGlob: ["design-guidelines/**/*.md"]` in config; source file is
+  `hotel-web-fe/design-guidelines/app-structure.md` (app sitemap + where each DS
+  component is used, for the design agent). Anchored re-sync ran aux-only (no
+  component/bundle/render changes); validate clean; uploaded + fresh anchor pushed.
+- Content was derived from the repo's graphify graph (`graphify-out/graph.json`,
+  Codex-built) + direct-import greps. NOTE: graph BFS through barrel files
+  over-reports component usage (every page "reaches" all 6) — use direct
+  `import` greps per feature for usage claims, not graph reachability.
+- Playwright chromium had to be reinstalled (`cd .ds-sync && npx playwright
+  install chromium`) — the browser cache had been evicted/version-bumped
+  (chromium_headless_shell-1228). Expect this after Playwright updates.
+- If pages/nav change materially, update `app-structure.md` and re-run the
+  driver — it ships as an aux change without touching component verification.
+
 ## Page-level reconciliation (2026-07-10)
 A route-to-design reconciliation of all 33 app pages against the project was run; manifest
 at `docs/claude-design-page-sync.md`. Determination: page-type design artifacts are not a
