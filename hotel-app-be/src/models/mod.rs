@@ -15,6 +15,7 @@ pub mod ekyc;
 #[allow(dead_code)]
 pub mod guest;
 pub mod guest_portal;
+pub mod housekeeping;
 pub mod ledger;
 #[allow(dead_code)]
 pub mod loyalty;
@@ -45,6 +46,7 @@ pub use data_transfer::*;
 pub use ekyc::*;
 pub use guest::*;
 pub use guest_portal::*;
+pub use housekeeping::*;
 pub use ledger::*;
 pub use loyalty::*;
 pub use night_audit::*;

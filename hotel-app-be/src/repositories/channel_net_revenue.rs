@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sqlx::Row;
 
@@ -17,6 +17,7 @@ use crate::utils::report_labels::booking_channel_label;
 struct RawRevenueRow {
     booking_id: i64,
     booking_number: String,
+    ota_reference: Option<String>,
     guest_name: String,
     room_number: String,
     room_type: String,
@@ -52,6 +53,7 @@ struct ChannelRule {
 struct ComputedRevenueRow {
     booking_id: i64,
     booking_number: String,
+    ota_reference: Option<String>,
     guest_name: String,
     room_number: String,
     room_type: String,
@@ -82,6 +84,26 @@ struct ChannelAggregate {
     gross_revenue: Decimal,
     commission_amount: Decimal,
     net_revenue: Decimal,
+}
+
+#[derive(Debug)]
+struct StatementBookingAggregate {
+    booking_id: i64,
+    booking_number: String,
+    ref_no: String,
+    guest_name: String,
+    check_in_date: NaiveDate,
+    check_out_date: NaiveDate,
+    booking_channel_id: Option<i64>,
+    booking_channel: String,
+    channel_type: String,
+    platform_name: String,
+    commission_type: String,
+    commission_scope: String,
+    commission_value: Decimal,
+    amount: Decimal,
+    commission: Decimal,
+    tax: Decimal,
 }
 
 fn normalize_token(value: &str) -> String {
@@ -300,6 +322,7 @@ fn map_posted_row(row: &DbRow) -> RawRevenueRow {
     RawRevenueRow {
         booking_id: row.get("booking_id"),
         booking_number: row.get("booking_number"),
+        ota_reference: row.try_get("ota_reference").ok().flatten(),
         guest_name: row.get("guest_name"),
         room_number: row.get("room_number"),
         room_type: row
@@ -344,6 +367,7 @@ fn map_unposted_row(row: &DbRow, tax_rate: Decimal) -> RawRevenueRow {
     RawRevenueRow {
         booking_id: row.get("booking_id"),
         booking_number: row.get("booking_number"),
+        ota_reference: row.try_get("ota_reference").ok().flatten(),
         guest_name: row.get("guest_name"),
         room_number: row.get("room_number"),
         room_type: row
@@ -387,6 +411,7 @@ async fn fetch_posted_rows(
         SELECT
             b.id AS booking_id,
             b.booking_number,
+            b.ota_reference,
             COALESCE(NULLIF(TRIM(g.full_name), ''), NULLIF(TRIM(b.guest_name), ''), 'Guest') AS guest_name,
             r.room_number,
             COALESCE(rt.name, 'Unknown') AS room_type,
@@ -471,6 +496,7 @@ async fn fetch_unposted_rows(
         SELECT
             b.id AS booking_id,
             b.booking_number,
+            b.ota_reference,
             COALESCE(NULLIF(TRIM(g.full_name), ''), NULLIF(TRIM(b.guest_name), ''), 'Guest') AS guest_name,
             r.room_number,
             COALESCE(rt.name, 'Unknown') AS room_type,
@@ -560,6 +586,7 @@ async fn fetch_unposted_rows(
         SELECT
             b.id AS booking_id,
             COALESCE(b.booking_number, CAST(b.id AS TEXT)) AS booking_number,
+            b.ota_reference,
             COALESCE(NULLIF(TRIM(g.full_name), ''), NULLIF(TRIM(g.first_name || ' ' || g.last_name), ''), 'Guest') AS guest_name,
             r.room_number,
             COALESCE(rt.name, 'Unknown') AS room_type,
@@ -626,6 +653,7 @@ fn row_to_json(row: &ComputedRevenueRow) -> serde_json::Value {
     serde_json::json!({
         "booking_id": row.booking_id,
         "booking_number": row.booking_number,
+        "ota_reference": row.ota_reference,
         "guest_name": row.guest_name,
         "room_number": row.room_number,
         "room_type": row.room_type,
@@ -648,6 +676,467 @@ fn row_to_json(row: &ComputedRevenueRow) -> serde_json::Value {
         "booking_status": row.booking_status,
         "posted_status": row.posted_status
     })
+}
+
+fn month_year_label(date: NaiveDate) -> String {
+    const MONTHS: [&str; 12] = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ];
+    let month = MONTHS
+        .get(date.month0() as usize)
+        .copied()
+        .unwrap_or("Month");
+    format!("{} {}", month, date.year())
+}
+
+#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+async fn fetch_statement_posted_rows(
+    pool: &DbPool,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+) -> Result<Vec<RawRevenueRow>, ApiError> {
+    let rows = sqlx::query(
+        r#"
+        SELECT
+            b.id AS booking_id,
+            b.booking_number,
+            b.ota_reference,
+            COALESCE(NULLIF(TRIM(g.full_name), ''), NULLIF(TRIM(b.guest_name), ''), 'Guest') AS guest_name,
+            r.room_number,
+            COALESCE(rt.name, 'Unknown') AS room_type,
+            b.check_in_date,
+            b.check_out_date,
+            napn.audit_date AS business_date,
+            COALESCE(b.status, 'unknown') AS booking_status,
+            b.source,
+            b.remarks,
+            b.booking_channel_id,
+            b.commission_type_override,
+            b.commission_value_override,
+            b.commission_scope_override,
+            b.commission_rate AS legacy_commission_rate,
+            (COALESCE(napn.room_charge, 0) + COALESCE(napn.extra_bed_charge, 0)) AS gross_room_revenue,
+            (COALESCE(napn.service_tax, 0) + COALESCE(napn.extra_bed_tax, 0)) AS service_tax,
+            COALESCE(napn.tourism_tax, 0) AS tourism_tax,
+            GREATEST((b.check_out_date - b.check_in_date), 1) AS stay_nights
+        FROM night_audit_posted_nights napn
+        JOIN bookings b ON b.id = napn.booking_id
+        JOIN guests g ON g.id = b.guest_id
+        JOIN rooms r ON r.id = b.room_id
+        LEFT JOIN room_types rt ON rt.id = r.room_type_id
+        WHERE b.check_out_date >= $1
+          AND b.check_out_date <= $2
+          AND COALESCE(b.status, '') IN ('checked_out', 'completed')
+        ORDER BY b.check_out_date, b.booking_number, napn.audit_date
+        "#,
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(rows.iter().map(map_posted_row).collect())
+}
+
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+async fn fetch_statement_posted_rows(
+    _pool: &DbPool,
+    _start_date: NaiveDate,
+    _end_date: NaiveDate,
+) -> Result<Vec<RawRevenueRow>, ApiError> {
+    Ok(Vec::new())
+}
+
+#[cfg(any(feature = "postgres", not(feature = "sqlite")))]
+async fn fetch_statement_unposted_rows(
+    pool: &DbPool,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+    tax_rate: Decimal,
+) -> Result<Vec<RawRevenueRow>, ApiError> {
+    let rows = sqlx::query(
+        r#"
+        WITH booking_nights AS (
+            SELECT
+                b.*,
+                gs.business_date::date AS business_date
+            FROM bookings b
+            CROSS JOIN LATERAL generate_series(
+                b.check_in_date,
+                CASE
+                    WHEN b.check_out_date > b.check_in_date THEN b.check_out_date - 1
+                    ELSE b.check_in_date
+                END,
+                interval '1 day'
+            ) AS gs(business_date)
+            WHERE b.check_out_date >= $1
+              AND b.check_out_date <= $2
+              AND COALESCE(b.status, '') IN ('checked_out', 'completed')
+        )
+        SELECT
+            b.id AS booking_id,
+            b.booking_number,
+            b.ota_reference,
+            COALESCE(NULLIF(TRIM(g.full_name), ''), NULLIF(TRIM(b.guest_name), ''), 'Guest') AS guest_name,
+            r.room_number,
+            COALESCE(rt.name, 'Unknown') AS room_type,
+            b.check_in_date,
+            b.check_out_date,
+            b.business_date,
+            COALESCE(b.status, 'unknown') AS booking_status,
+            b.source,
+            b.remarks,
+            b.booking_channel_id,
+            b.commission_type_override,
+            b.commission_value_override,
+            b.commission_scope_override,
+            b.commission_rate AS legacy_commission_rate,
+            CASE
+                WHEN b.daily_rates IS NOT NULL AND b.daily_rates ? b.business_date::text
+                    THEN (b.daily_rates ->> b.business_date::text)::DECIMAL
+                ELSE b.room_rate
+            END AS nightly_rate,
+            COALESCE(b.extra_bed_charge, 0) AS extra_bed_charge,
+            CASE
+                WHEN COALESCE(b.is_tourist, false) AND COALESCE(b.tourism_tax_amount, 0) > 0
+                    THEN ROUND(COALESCE(b.tourism_tax_amount, 0) / GREATEST((b.check_out_date - b.check_in_date), 1), 2)
+                ELSE 0
+            END AS tourism_tax,
+            GREATEST((b.check_out_date - b.check_in_date), 1) AS stay_nights
+        FROM booking_nights b
+        JOIN guests g ON g.id = b.guest_id
+        JOIN rooms r ON r.id = b.room_id
+        LEFT JOIN room_types rt ON rt.id = r.room_type_id
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM night_audit_posted_nights napn
+            WHERE napn.booking_id = b.id
+              AND napn.audit_date = b.business_date
+        )
+        ORDER BY b.check_out_date, b.booking_number, b.business_date
+        "#,
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(rows
+        .iter()
+        .map(|row| map_unposted_row(row, tax_rate))
+        .collect())
+}
+
+#[cfg(all(feature = "sqlite", not(feature = "postgres")))]
+async fn fetch_statement_unposted_rows(
+    pool: &DbPool,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+    tax_rate: Decimal,
+) -> Result<Vec<RawRevenueRow>, ApiError> {
+    let rows = sqlx::query(
+        r#"
+        WITH RECURSIVE booking_nights AS (
+            SELECT
+                b.*,
+                b.check_in_date AS business_date,
+                CASE
+                    WHEN b.check_out_date > b.check_in_date THEN date(b.check_out_date, '-1 day')
+                    ELSE b.check_in_date
+                END AS last_night
+            FROM bookings b
+            WHERE b.check_out_date >= ?1
+              AND b.check_out_date <= ?2
+              AND COALESCE(b.status, '') IN ('checked_out', 'completed')
+            UNION ALL
+            SELECT
+                booking_nights.*,
+                date(booking_nights.business_date, '+1 day') AS business_date,
+                booking_nights.last_night
+            FROM booking_nights
+            WHERE booking_nights.business_date < booking_nights.last_night
+        )
+        SELECT
+            b.id AS booking_id,
+            COALESCE(b.booking_number, CAST(b.id AS TEXT)) AS booking_number,
+            b.ota_reference,
+            COALESCE(NULLIF(TRIM(g.full_name), ''), NULLIF(TRIM(g.first_name || ' ' || g.last_name), ''), 'Guest') AS guest_name,
+            r.room_number,
+            COALESCE(rt.name, 'Unknown') AS room_type,
+            b.check_in_date,
+            b.check_out_date,
+            b.business_date,
+            COALESCE(b.status, 'unknown') AS booking_status,
+            b.source,
+            b.booking_remarks AS remarks,
+            b.booking_channel_id,
+            b.commission_type_override,
+            b.commission_value_override,
+            b.commission_scope_override,
+            NULL AS legacy_commission_rate,
+            b.rate_per_night AS nightly_rate,
+            0 AS extra_bed_charge,
+            0 AS tourism_tax,
+            MAX(CAST(julianday(b.check_out_date) - julianday(b.check_in_date) AS INTEGER), 1) AS stay_nights
+        FROM booking_nights b
+        JOIN guests g ON g.id = b.guest_id
+        JOIN rooms r ON r.id = b.room_id
+        LEFT JOIN room_types rt ON rt.id = r.room_type_id
+        ORDER BY b.check_out_date, b.booking_number, b.business_date
+        "#,
+    )
+    .bind(start_date)
+    .bind(end_date)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    Ok(rows
+        .iter()
+        .map(|row| map_unposted_row(row, tax_rate))
+        .collect())
+}
+
+pub async fn generate_monthly_statement(
+    pool: &DbPool,
+    params: &ReportQuery,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+) -> Result<serde_json::Value, ApiError> {
+    let posted_status = params
+        .posted_status
+        .as_deref()
+        .unwrap_or("all")
+        .trim()
+        .to_ascii_lowercase();
+    let include_posted = posted_status != "unposted";
+    let include_unposted = posted_status != "posted";
+
+    let tax_rate_pct =
+        settings_cache::get_positive_decimal(pool, "service_tax_rate", Decimal::new(8, 0)).await;
+    let tax_rate = tax_rate_pct / Decimal::new(100, 0);
+
+    let channels = booking_channels::list(pool).await?;
+    let mut raw_rows = Vec::new();
+    if include_posted {
+        raw_rows.extend(fetch_statement_posted_rows(pool, start_date, end_date).await?);
+    }
+    if include_unposted {
+        raw_rows.extend(fetch_statement_unposted_rows(pool, start_date, end_date, tax_rate).await?);
+    }
+
+    let has_channel_filter = params.booking_channel_id.is_some()
+        || params
+            .booking_channel
+            .as_deref()
+            .map(|value| !value.trim().is_empty() && !value.eq_ignore_ascii_case("all"))
+            .unwrap_or(false)
+        || params
+            .platform_name
+            .as_deref()
+            .map(|value| !value.trim().is_empty() && !value.eq_ignore_ascii_case("all"))
+            .unwrap_or(false);
+
+    let computed_rows = raw_rows.into_iter().filter_map(|raw| {
+        let channel = resolve_channel(&raw, &channels);
+        let (commission_type, commission_scope, commission_value, commission_amount) =
+            commission_for_row(&raw, &channel);
+        let row = ComputedRevenueRow {
+            booking_id: raw.booking_id,
+            booking_number: raw.booking_number,
+            ota_reference: raw.ota_reference,
+            guest_name: raw.guest_name,
+            room_number: raw.room_number,
+            room_type: raw.room_type,
+            check_in_date: raw.check_in_date,
+            check_out_date: raw.check_out_date,
+            business_date: raw.business_date,
+            booking_channel_id: channel.id,
+            booking_channel: channel.name.clone(),
+            channel_type: channel.channel_type.clone(),
+            platform_name: channel.name,
+            gross_room_revenue: raw.gross_room_revenue,
+            commission_type,
+            commission_scope,
+            commission_value,
+            commission_amount,
+            net_hotel_revenue: (raw.gross_room_revenue - commission_amount).round_dp(2),
+            service_tax: raw.service_tax,
+            tourism_tax: raw.tourism_tax,
+            booking_status: raw.booking_status,
+            posted_status: raw.posted_status,
+        };
+
+        if !should_include(&row, params) {
+            return None;
+        }
+        if !has_channel_filter && row.channel_type != "ota" {
+            return None;
+        }
+        Some(row)
+    });
+
+    let mut bookings_by_id: HashMap<i64, StatementBookingAggregate> = HashMap::new();
+    for row in computed_rows {
+        let ref_no = row
+            .ota_reference
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(&row.booking_number)
+            .to_string();
+        let entry =
+            bookings_by_id
+                .entry(row.booking_id)
+                .or_insert_with(|| StatementBookingAggregate {
+                    booking_id: row.booking_id,
+                    booking_number: row.booking_number.clone(),
+                    ref_no,
+                    guest_name: row.guest_name.clone(),
+                    check_in_date: row.check_in_date,
+                    check_out_date: row.check_out_date,
+                    booking_channel_id: row.booking_channel_id,
+                    booking_channel: row.booking_channel.clone(),
+                    channel_type: row.channel_type.clone(),
+                    platform_name: row.platform_name.clone(),
+                    commission_type: row.commission_type.clone(),
+                    commission_scope: row.commission_scope.clone(),
+                    commission_value: row.commission_value,
+                    amount: Decimal::ZERO,
+                    commission: Decimal::ZERO,
+                    tax: Decimal::ZERO,
+                });
+        entry.amount += row.gross_room_revenue;
+        entry.commission += row.commission_amount;
+        entry.tax += row.service_tax + row.tourism_tax;
+    }
+
+    let mut by_channel: HashMap<String, Vec<StatementBookingAggregate>> = HashMap::new();
+    for booking in bookings_by_id.into_values() {
+        let key = booking
+            .booking_channel_id
+            .map(|id| format!("id:{id}"))
+            .unwrap_or_else(|| format!("name:{}", booking.platform_name));
+        by_channel.entry(key).or_default().push(booking);
+    }
+
+    let mut statements: Vec<serde_json::Value> = by_channel
+        .into_values()
+        .map(|mut rows| {
+            rows.sort_by(|a, b| {
+                a.check_in_date
+                    .cmp(&b.check_in_date)
+                    .then(a.ref_no.cmp(&b.ref_no))
+            });
+            let first = rows.first().expect("statement rows are non-empty");
+            let total_amount: Decimal = rows.iter().map(|row| row.amount).sum();
+            let total_commission: Decimal = rows.iter().map(|row| row.commission).sum();
+            let total_tax: Decimal = rows.iter().map(|row| row.tax).sum();
+            let total_amount_paid = total_amount - total_commission - total_tax;
+            let statement_rows: Vec<serde_json::Value> = rows
+                .iter()
+                .map(|row| {
+                    let amount_paid = row.amount - row.commission - row.tax;
+                    serde_json::json!({
+                        "booking_id": row.booking_id,
+                        "booking_number": row.booking_number,
+                        "ref_no": row.ref_no,
+                        "name": row.guest_name,
+                        "amount": decimal_to_f64(row.amount.round_dp(2)),
+                        "commission": decimal_to_f64(row.commission.round_dp(2)),
+                        "tax": decimal_to_f64(row.tax.round_dp(2)),
+                        "amount_paid": decimal_to_f64(amount_paid.round_dp(2)),
+                        "check_in_date": row.check_in_date.to_string(),
+                        "check_out_date": row.check_out_date.to_string(),
+                    })
+                })
+                .collect();
+
+            serde_json::json!({
+                "platform": first.platform_name,
+                "channel_id": first.booking_channel_id,
+                "channel_type": first.channel_type,
+                "booking_channel": first.booking_channel,
+                "commission_type": first.commission_type,
+                "commission_scope": first.commission_scope,
+                "commission_value": decimal_to_f64(first.commission_value),
+                "rows": statement_rows,
+                "totals": {
+                    "bookings": rows.len(),
+                    "amount": decimal_to_f64(total_amount.round_dp(2)),
+                    "commission": decimal_to_f64(total_commission.round_dp(2)),
+                    "tax": decimal_to_f64(total_tax.round_dp(2)),
+                    "amount_paid": decimal_to_f64(total_amount_paid.round_dp(2))
+                }
+            })
+        })
+        .collect();
+
+    statements.sort_by(|a, b| {
+        let a_type = a["channel_type"].as_str().unwrap_or_default();
+        let b_type = b["channel_type"].as_str().unwrap_or_default();
+        let a_gross = a["totals"]["amount"].as_f64().unwrap_or(0.0);
+        let b_gross = b["totals"]["amount"].as_f64().unwrap_or(0.0);
+        let type_order = match (a_type == "ota", b_type == "ota") {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => std::cmp::Ordering::Equal,
+        };
+        type_order.then_with(|| {
+            b_gross
+                .partial_cmp(&a_gross)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+    });
+
+    let total_amount: f64 = statements
+        .iter()
+        .map(|statement| statement["totals"]["amount"].as_f64().unwrap_or(0.0))
+        .sum();
+    let total_commission: f64 = statements
+        .iter()
+        .map(|statement| statement["totals"]["commission"].as_f64().unwrap_or(0.0))
+        .sum();
+    let total_tax: f64 = statements
+        .iter()
+        .map(|statement| statement["totals"]["tax"].as_f64().unwrap_or(0.0))
+        .sum();
+    let total_amount_paid: f64 = statements
+        .iter()
+        .map(|statement| statement["totals"]["amount_paid"].as_f64().unwrap_or(0.0))
+        .sum();
+
+    Ok(serde_json::json!({
+        "type": "ota_monthly_statement",
+        "period": {
+            "start": start_date.to_string(),
+            "end": end_date.to_string(),
+            "month_label": month_year_label(start_date)
+        },
+        "statement_date": Utc::now().date_naive().format("%d.%m.%Y").to_string(),
+        "statements": statements,
+        "summary": {
+            "statement_count": statements.len(),
+            "amount": total_amount,
+            "commission": total_commission,
+            "tax": total_tax,
+            "amount_paid": total_amount_paid
+        },
+        "channels": channels
+    }))
 }
 
 pub async fn generate(
@@ -689,6 +1178,7 @@ pub async fn generate(
             ComputedRevenueRow {
                 booking_id: raw.booking_id,
                 booking_number: raw.booking_number,
+                ota_reference: raw.ota_reference,
                 guest_name: raw.guest_name,
                 room_number: raw.room_number,
                 room_type: raw.room_type,

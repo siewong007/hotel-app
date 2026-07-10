@@ -7,6 +7,7 @@ import EventNoteIcon from '@mui/icons-material/EventNote';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import HistoryIcon from '@mui/icons-material/History';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
+import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import NightsStayIcon from '@mui/icons-material/NightsStay';
 import PeopleIcon from '@mui/icons-material/People';
@@ -73,6 +74,7 @@ const ComplimentaryManagementPage = lazyRoute(() => import('../features/admin/co
 const AuditLogPage = lazyRoute(() => import('../features/admin/components/AuditLogPage'));
 const NightAuditPage = lazyRoute(() => import('../features/admin/components/NightAuditPage'));
 const DataTransferPage = lazyRoute(() => import('../features/admin/components/DataTransferPage'));
+const HousekeepingPage = lazyRoute(() => import('../features/housekeeping'));
 
 const routeDefinitions: AppRouteDefinition[] = [
   { id: 'landing', path: '/', component: LandingPage, animationType: 'fade', visibility: 'unauth' },
@@ -155,6 +157,18 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: AssessmentIcon,
     breadcrumbLabel: 'Reports',
     navLabel: 'Reports',
+    navGroup: 'operations',
+    accessControlled: true,
+  },
+  {
+    id: 'housekeeping',
+    path: '/housekeeping',
+    component: HousekeepingPage,
+    animationType: 'slide',
+    visibility: 'auth',
+    icon: CleaningServicesIcon,
+    breadcrumbLabel: 'Housekeeping',
+    navLabel: 'Housekeeping',
     navGroup: 'operations',
     accessControlled: true,
   },

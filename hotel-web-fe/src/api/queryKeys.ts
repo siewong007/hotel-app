@@ -23,6 +23,7 @@ const reports = ['reports'] as const;
 const dashboard = ['dashboard'] as const;
 const ledgers = ['ledgers'] as const;
 const invoices = ['invoices'] as const;
+const housekeeping = ['housekeeping'] as const;
 
 const paramsOrEmpty = <T extends KeyParams | AuditLogQuery | undefined>(params: T) => params ?? {};
 
@@ -61,6 +62,11 @@ export const queryKeys = {
     occupancySummary: () => [...rooms, 'occupancy-summary'] as const,
     occupancyByType: () => [...rooms, 'occupancy-by-type'] as const,
     withOccupancy: () => [...rooms, 'with-occupancy'] as const,
+  },
+  housekeeping: {
+    all: housekeeping,
+    board: () => [...housekeeping, 'board'] as const,
+    tasks: (params?: KeyParams) => [...housekeeping, 'tasks', paramsOrEmpty(params)] as const,
   },
   roomTypes: {
     all: roomTypes,

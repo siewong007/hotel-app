@@ -28,6 +28,7 @@ VALUES
     ('admin'),
     ('manager'),
     ('receptionist'),
+    ('housekeeping'),
     ('staff'),
     ('guest'),
     ('compliance_admin'),
@@ -73,6 +74,10 @@ VALUES
     ('guests:manage'),
     ('guests:read'),
     ('guests:update'),
+    ('housekeeping:create'),
+    ('housekeeping:manage'),
+    ('housekeeping:read'),
+    ('housekeeping:update'),
     ('ledgers:create'),
     ('ledgers:manage'),
     ('ledgers:read'),
@@ -80,6 +85,9 @@ VALUES
     ('ledgers:void'),
     ('loyalty:manage'),
     ('loyalty:read'),
+    ('maintenance:manage'),
+    ('maintenance:read'),
+    ('maintenance:write'),
     ('navigation_audit_log:read'),
     ('navigation_bookings:read'),
     ('navigation_company_ledger:read'),
@@ -87,6 +95,7 @@ VALUES
     ('navigation_data_transfer:read'),
     ('navigation_ekyc_admin:read'),
     ('navigation_guest_config:read'),
+    ('navigation_housekeeping:read'),
     ('navigation_loyalty:read'),
     ('navigation_my_bookings:read'),
     ('navigation_my_rewards:read'),
@@ -232,6 +241,7 @@ VALUES
     ('ekyc-admin'),
     ('guest-config'),
     ('help'),
+    ('housekeeping'),
     ('loyalty'),
     ('my-bookings'),
     ('night-audit'),
@@ -402,6 +412,7 @@ INSERT INTO roles (name, display_name, description, is_system_role, priority) VA
 ('admin', 'Administrator', 'Full system access and administration', true, 100),
 ('manager', 'Manager', 'Hotel operations management', true, 80),
 ('receptionist', 'Receptionist', 'Front desk and booking management', true, 60),
+('housekeeping', 'Housekeeping', 'Room cleaning and maintenance operations', true, 45),
 ('staff', 'Staff', 'Basic hotel staff access', true, 40),
 ('guest', 'Guest', 'Guest user access', true, 20),
 ('compliance_admin', 'Compliance Administrator', 'Compliance administration and eKYC oversight', true, 90),
@@ -450,6 +461,14 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('rooms:update', 'rooms', 'update', 'Update room information', true),
 ('rooms:delete', 'rooms', 'delete', 'Delete rooms', true),
 ('rooms:manage', 'rooms', 'manage', 'Full room management', true),
+('housekeeping:read', 'housekeeping', 'read', 'View housekeeping tasks and board', true),
+('housekeeping:create', 'housekeeping', 'create', 'Create housekeeping tasks', true),
+('housekeeping:update', 'housekeeping', 'update', 'Update housekeeping task status and assignments', true),
+('housekeeping:manage', 'housekeeping', 'manage', 'Full housekeeping management', true),
+('maintenance:read', 'maintenance', 'read', 'View maintenance tickets', true),
+('maintenance:write', 'maintenance', 'write', 'Create and update maintenance tickets', true),
+('maintenance:manage', 'maintenance', 'manage', 'Full maintenance management', true),
+('navigation_housekeeping:read', 'navigation:housekeeping', 'read', 'Show Housekeeping navigation', true),
 ('bookings:create', 'bookings', 'create', 'Create new bookings', true),
 ('bookings:read', 'bookings', 'read', 'View bookings', true),
 ('bookings:update', 'bookings', 'update', 'Update bookings', true),
@@ -529,6 +548,8 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager' AND p.name IN (
     'users:read', 'users:create', 'users:update', 'rooms:manage', 'bookings:manage', 'guests:manage',
+    'housekeeping:read', 'housekeeping:create', 'housekeeping:update', 'housekeeping:manage',
+    'maintenance:read', 'maintenance:write', 'maintenance:manage', 'navigation_housekeeping:read',
     'payments:manage', 'ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage',
     'services:manage', 'reviews:manage', 'reports:read', 'reports:execute', 'analytics:read'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
@@ -537,9 +558,19 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager'
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'receptionist' AND p.name IN (
     'rooms:read', 'rooms:update', 'bookings:create', 'bookings:read', 'bookings:update',
+    'housekeeping:read', 'housekeeping:create', 'housekeeping:update', 'navigation_housekeeping:read',
     'guests:create', 'guests:read', 'guests:update', 'guests:manage', 'payments:create', 'payments:read',
     'ledgers:read', 'ledgers:create', 'services:read', 'services:create', 'reviews:read', 'settings:read',
     'analytics:read', 'reports:execute'
+) ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- Housekeeping permissions
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'housekeeping' AND p.name IN (
+    'rooms:read', 'rooms:update',
+    'housekeeping:read', 'housekeeping:create', 'housekeeping:update', 'housekeeping:manage',
+    'maintenance:read', 'maintenance:write',
+    'navigation_housekeeping:read', 'navigation_room_management:read'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- Staff permissions
@@ -587,6 +618,48 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'support_readonly' AND p.name IN (
     'ekyc:read', 'navigation_ekyc_admin:read'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO route_access_policies (
+    route_id,
+    path,
+    nav_label,
+    nav_group,
+    required_permissions,
+    required_roles,
+    excluded_roles,
+    nav_permissions,
+    nav_roles,
+    nav_excluded_roles,
+    is_navigation,
+    is_system_policy
+)
+VALUES (
+    'housekeeping',
+    '/housekeeping',
+    'Housekeeping',
+    'operations',
+    '["housekeeping:read"]'::jsonb,
+    '[]'::jsonb,
+    '[]'::jsonb,
+    '["navigation_housekeeping:read","housekeeping:read"]'::jsonb,
+    '[]'::jsonb,
+    '["guest"]'::jsonb,
+    true,
+    true
+)
+ON CONFLICT (route_id) DO UPDATE SET
+    path = EXCLUDED.path,
+    nav_label = EXCLUDED.nav_label,
+    nav_group = EXCLUDED.nav_group,
+    required_permissions = EXCLUDED.required_permissions,
+    required_roles = EXCLUDED.required_roles,
+    excluded_roles = EXCLUDED.excluded_roles,
+    nav_permissions = EXCLUDED.nav_permissions,
+    nav_roles = EXCLUDED.nav_roles,
+    nav_excluded_roles = EXCLUDED.nav_excluded_roles,
+    is_navigation = EXCLUDED.is_navigation,
+    is_system_policy = EXCLUDED.is_system_policy,
+    updated_at = CURRENT_TIMESTAMP;
 
 -- ============================================================================
 -- ADMIN USERS

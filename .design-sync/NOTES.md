@@ -23,6 +23,15 @@
 ## Design authorization on this Mac (fixed 2026-07-03)
 `DesignSync` initially failed: the claude.ai login in the Keychain lacked `user:design:read`/`user:design:write`, and `/design-login` is gated to interactive terminals (headless/desktop sessions and `-p` mode both refuse it). Fix that worked: run the REPL under a pseudo-TTY and fire the command — `expect` script doing `spawn claude "/design-login"` — which opens the browser authorization for the user to approve; the credential saves to the Keychain and all later sessions inherit it. If design auth ever breaks again (403 / "re-authorize"), repeat that, or just run `/design-login` in any interactive `claude` terminal.
 
+## Page-level reconciliation (2026-07-10)
+A route-to-design reconciliation of all 33 app pages against the project was run; manifest
+at `docs/claude-design-page-sync.md`. Determination: page-type design artifacts are not a
+synced artifact type in this integration — pages stay `intentionally_excluded` (consistent
+with the 2026-07-03 scope decision). No remote files were added, changed, or deleted; the
+6-component sync was verified current (no source drift since upload). If page-level design
+coverage is ever wanted, it's a scope decision — options listed in the manifest's
+"Unresolved" section.
+
 ## Re-sync risks / watch-list
 - `cfg.dtsPropsFor` bodies are hand-transcribed from source and can silently drift from the real component API.
 - The barrel entry + provider are hand-maintained. If scope changes, add a component to **both** `componentSrcMap` AND `.ds-entry.tsx`.

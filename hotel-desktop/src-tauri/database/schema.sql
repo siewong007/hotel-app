@@ -4975,6 +4975,13 @@ CREATE TRIGGER update_route_access_policies_updated_at
 INSERT INTO permissions (name, resource, action, description, is_system_permission)
 VALUES
     ('rooms:write', 'rooms', 'write', 'Create and modify rooms and room types', true),
+    ('housekeeping:read', 'housekeeping', 'read', 'View housekeeping tasks and board', true),
+    ('housekeeping:create', 'housekeeping', 'create', 'Create housekeeping tasks', true),
+    ('housekeeping:update', 'housekeeping', 'update', 'Update housekeeping task status and assignments', true),
+    ('housekeeping:manage', 'housekeeping', 'manage', 'Full housekeeping management', true),
+    ('maintenance:read', 'maintenance', 'read', 'View maintenance tickets', true),
+    ('maintenance:write', 'maintenance', 'write', 'Create and update maintenance tickets', true),
+    ('maintenance:manage', 'maintenance', 'manage', 'Full maintenance management', true),
     ('ekyc:manage', 'ekyc', 'manage', 'Manage eKYC verifications', true),
     ('ekyc:verify', 'ekyc', 'verify', 'Approve or reject eKYC verifications', true),
     ('rewards:read', 'rewards', 'read', 'View reward information', true),
@@ -4983,6 +4990,7 @@ VALUES
     ('navigation_bookings:read', 'navigation:bookings', 'read', 'Show Bookings navigation', true),
     ('navigation_my_bookings:read', 'navigation:my-bookings', 'read', 'Show My Bookings navigation', true),
     ('navigation_room_management:read', 'navigation:room-management', 'read', 'Show Room Management navigation', true),
+    ('navigation_housekeeping:read', 'navigation:housekeeping', 'read', 'Show Housekeeping navigation', true),
     ('navigation_reports:read', 'navigation:reports', 'read', 'Show Reports navigation', true),
     ('navigation_ekyc_admin:read', 'navigation:ekyc-admin', 'read', 'Show eKYC Admin navigation', true),
     ('navigation_room_config:read', 'navigation:room-config', 'read', 'Show Room Configuration navigation', true),
@@ -5006,6 +5014,13 @@ CROSS JOIN permissions p
 WHERE r.name IN ('admin', 'super_admin')
 AND p.name IN (
     'rooms:write',
+    'housekeeping:read',
+    'housekeeping:create',
+    'housekeeping:update',
+    'housekeeping:manage',
+    'maintenance:read',
+    'maintenance:write',
+    'maintenance:manage',
     'ekyc:manage',
     'ekyc:verify',
     'rewards:read',
@@ -5013,6 +5028,7 @@ AND p.name IN (
     'navigation_guest_config:read',
     'navigation_bookings:read',
     'navigation_room_management:read',
+    'navigation_housekeeping:read',
     'navigation_reports:read',
     'navigation_ekyc_admin:read',
     'navigation_room_config:read',
@@ -5023,6 +5039,55 @@ AND p.name IN (
     'navigation_audit_log:read',
     'navigation_complimentary:read',
     'navigation_data_transfer:read'
+)
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'manager'
+AND p.name IN (
+    'housekeeping:read',
+    'housekeeping:create',
+    'housekeeping:update',
+    'housekeeping:manage',
+    'maintenance:read',
+    'maintenance:write',
+    'maintenance:manage',
+    'navigation_housekeeping:read'
+)
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'receptionist'
+AND p.name IN (
+    'housekeeping:read',
+    'housekeeping:create',
+    'housekeeping:update',
+    'navigation_housekeeping:read'
+)
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name = 'housekeeping'
+AND p.name IN (
+    'rooms:read',
+    'rooms:update',
+    'housekeeping:read',
+    'housekeeping:create',
+    'housekeeping:update',
+    'housekeeping:manage',
+    'maintenance:read',
+    'maintenance:write',
+    'navigation_housekeeping:read',
+    'navigation_room_management:read'
 )
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
@@ -5054,6 +5119,7 @@ VALUES
     ('bookings', '/bookings', 'Bookings', 'main', '["bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_bookings:read","bookings:read","bookings:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true),
     ('my-bookings', '/my-bookings', 'My Bookings', 'main', '["bookings:read"]'::jsonb, '[]'::jsonb, '["super_admin","admin","manager","receptionist","staff"]'::jsonb, '["navigation_my_bookings:read","bookings:read"]'::jsonb, '[]'::jsonb, '["super_admin","admin","manager","receptionist","staff"]'::jsonb, true),
     ('room-management', '/room-management', 'Rooms', 'main', '["rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_room_management:read","rooms:read","rooms:manage"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true),
+    ('housekeeping', '/housekeeping', 'Housekeeping', 'operations', '["housekeeping:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_housekeeping:read","housekeeping:read"]'::jsonb, '[]'::jsonb, '["guest"]'::jsonb, true),
     ('reports', '/reports', 'Reports', 'operations', '["analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '["navigation_reports:read","analytics:read","reports:execute"]'::jsonb, '[]'::jsonb, '[]'::jsonb, true),
     ('loyalty', '/loyalty', NULL, NULL, '["loyalty:read","loyalty:manage","analytics:read"]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false),
     ('profile', '/profile', NULL, NULL, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, false),
@@ -5901,6 +5967,7 @@ CREATE INDEX IF NOT EXISTS idx_booking_channels_active ON booking_channels(is_ac
 CREATE INDEX IF NOT EXISTS idx_booking_channels_type ON booking_channels(channel_type);
 
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_channel_id BIGINT REFERENCES booking_channels(id);
+ALTER TABLE bookings ADD COLUMN IF NOT EXISTS ota_reference VARCHAR(100);
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS commission_type_override VARCHAR(30);
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS commission_value_override DECIMAL(10,2);
 ALTER TABLE bookings ADD COLUMN IF NOT EXISTS commission_scope_override VARCHAR(20);

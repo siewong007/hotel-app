@@ -824,6 +824,12 @@ pub async fn generate_report(
             crate::repositories::channel_net_revenue::generate(pool, &params, start_date, end_date)
                 .await?
         }
+        "ota_monthly_statement" => {
+            crate::repositories::channel_net_revenue::generate_monthly_statement(
+                pool, &params, start_date, end_date,
+            )
+            .await?
+        }
         "payment_status" => generate_payment_status_report(pool, start_date, end_date).await?,
         "complimentary" => generate_complimentary_report(pool, start_date, end_date).await?,
         "guest_statistics" => generate_guest_statistics_report(pool, start_date, end_date).await?,

@@ -3,9 +3,9 @@
 //! Query-heavy room workflows preserved behind the handler boundary while the
 //! room domain is migrated toward smaller repositories.
 
-use crate::core::db::{DbPool, DbRow, decimal_to_db, opt_decimal_to_db};
+use crate::core::db::{DbPool, DbRow, DbTransaction, decimal_to_db, opt_decimal_to_db};
 use crate::core::error::ApiError;
-use crate::core::middleware::{require_auth, require_permission_helper};
+use crate::core::middleware::{check_permission, require_auth, require_permission_helper};
 use crate::models::row_mappers::{get_decimal, get_opt_decimal};
 use crate::models::*;
 use crate::repositories::rooms_queries::*;
@@ -31,6 +31,196 @@ fn get_bool_at(row: &DbRow, index: usize) -> Option<bool> {
     {
         row.try_get::<bool, _>(index).ok()
     }
+}
+
+fn normalize_transition_permission(permission: &str) -> &str {
+    match permission {
+        "housekeeping" => "housekeeping:update",
+        value => value,
+    }
+}
+
+async fn required_transition_permission(
+    pool: &DbPool,
+    from_status: &str,
+    to_status: &str,
+) -> Result<Option<String>, ApiError> {
+    let query = crate::sql_query!(
+        postgres: r#"
+SELECT requires_permission
+FROM room_status_transitions
+WHERE from_status = $1 AND to_status = $2 AND is_allowed = true
+"#,
+        sqlite: r#"
+SELECT requires_permission
+FROM room_status_transitions
+WHERE from_status = ?1 AND to_status = ?2 AND is_allowed = 1
+"#
+    );
+
+    sqlx::query_scalar(query)
+        .bind(from_status)
+        .bind(to_status)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))
+}
+
+async fn enforce_transition_permission(
+    pool: &DbPool,
+    user_id: i64,
+    from_status: Option<&str>,
+    to_status: &str,
+) -> Result<(), ApiError> {
+    let Some(from_status) = from_status else {
+        return Ok(());
+    };
+
+    if from_status == to_status {
+        return Ok(());
+    }
+
+    if let Some(permission) = required_transition_permission(pool, from_status, to_status).await? {
+        check_permission(pool, user_id, normalize_transition_permission(&permission)).await?;
+    }
+
+    Ok(())
+}
+
+fn date_to_utc(d: NaiveDate) -> Option<DateTime<Utc>> {
+    d.and_hms_opt(0, 0, 0)
+        .map(|ndt| DateTime::<Utc>::from_naive_utc_and_offset(ndt, Utc))
+}
+
+pub async fn complete_housekeeping_cleaning_tx(
+    tx: &mut DbTransaction<'_>,
+    room_id: i64,
+    user_id: i64,
+    notes: Option<&str>,
+) -> Result<String, ApiError> {
+    let current_status: Option<String> = sqlx::query_scalar(GET_ROOM_STATUS)
+        .bind(room_id)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    let current_status =
+        current_status.ok_or_else(|| ApiError::NotFound("Room not found".to_string()))?;
+
+    if !matches!(
+        current_status.as_str(),
+        "dirty" | "cleaning" | "reserved_dirty"
+    ) {
+        return Err(ApiError::BadRequest(format!(
+            "Cannot complete cleaning while room is {}",
+            current_status
+        )));
+    }
+
+    let mut target_status = if current_status == "reserved_dirty" {
+        "reserved".to_string()
+    } else {
+        "available".to_string()
+    };
+    let mut auto_reserved_dates: Option<(NaiveDate, NaiveDate)> = None;
+
+    if target_status == "available" {
+        let active_booking: Option<i64> = sqlx::query_scalar(CHECK_ACTIVE_BOOKING)
+            .bind(room_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if active_booking.is_some() {
+            return Err(ApiError::BadRequest(
+                "Cannot mark room available while there is an active booking.".to_string(),
+            ));
+        }
+
+        let check_in_time: String = sqlx::query_scalar(crate::sql_query!(
+            postgres: "SELECT value FROM system_settings WHERE key = $1",
+            sqlite: "SELECT value FROM system_settings WHERE key = ?1"
+        ))
+        .bind("check_in_time")
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?
+        .unwrap_or_else(|| "15:00:00".to_string());
+
+        let reservation: Option<(i64, NaiveDate, NaiveDate)> =
+            sqlx::query_as(CHECK_RESERVATION_TODAY)
+                .bind(room_id)
+                .bind(&check_in_time)
+                .fetch_optional(&mut **tx)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if let Some((_booking_id, check_in, check_out)) = reservation {
+            target_status = "reserved".to_string();
+            auto_reserved_dates = Some((check_in, check_out));
+        }
+    } else {
+        let reservation: Option<(i64, NaiveDate, NaiveDate)> =
+            sqlx::query_as(CHECK_NEXT_RESERVATION)
+                .bind(room_id)
+                .fetch_optional(&mut **tx)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if let Some((_booking_id, check_in, check_out)) = reservation {
+            auto_reserved_dates = Some((check_in, check_out));
+        }
+    }
+
+    let (reserved_start, reserved_end) = match auto_reserved_dates {
+        Some((check_in, check_out)) => (date_to_utc(check_in), date_to_utc(check_out)),
+        None => (None, None),
+    };
+
+    let status_notes = if target_status == "available" {
+        Some(format!(
+            "{} [via update_room_status]",
+            notes.unwrap_or("Housekeeping completed")
+        ))
+    } else {
+        notes
+            .map(str::to_string)
+            .or_else(|| Some("Housekeeping completed".to_string()))
+    };
+
+    sqlx::query(UPDATE_ROOM_STATUS_WITH_DATES)
+        .bind(&target_status)
+        .bind(notes)
+        .bind(&status_notes)
+        .bind(reserved_start)
+        .bind(reserved_end)
+        .bind(None::<DateTime<Utc>>)
+        .bind(None::<DateTime<Utc>>)
+        .bind(None::<DateTime<Utc>>)
+        .bind(Some(Utc::now()))
+        .bind(room_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let last_cleaned_query = crate::sql_query!(
+        postgres: "UPDATE rooms SET last_cleaned_at = CURRENT_TIMESTAMP WHERE id = $1",
+        sqlite: "UPDATE rooms SET last_cleaned_at = datetime('now') WHERE id = ?1"
+    );
+    sqlx::query(last_cleaned_query)
+        .bind(room_id)
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+
+    let event_note = format!("Status changed to: {}", target_status);
+    let _ = sqlx::query(INSERT_ROOM_EVENT)
+        .bind(room_id)
+        .bind(event_note)
+        .bind(user_id)
+        .execute(&mut **tx)
+        .await;
+
+    Ok(target_status)
 }
 
 /// Helper function to map a database row to RoomType
@@ -1114,6 +1304,14 @@ pub async fn update_room_status_handler(
             ));
         }
     }
+
+    enforce_transition_permission(
+        &pool,
+        user_id,
+        current_status.as_deref(),
+        target_status.as_str(),
+    )
+    .await?;
 
     // Parse date strings to DateTime<Utc> for proper database binding
     let parse_datetime = |s: &Option<String>| -> Option<DateTime<Utc>> {

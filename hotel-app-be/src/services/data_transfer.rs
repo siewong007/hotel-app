@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use serde_json::Value;
 
 use crate::constants::ImportMode;
-use crate::core::db::DbPool;
+use crate::core::db::{DbPool, DbTransaction};
 use crate::core::error::ApiError;
 use crate::models::{BookingDataExport, ExportPreview, ImportRequest};
 use crate::repositories::data_transfer::{DataTransferRepository, ImportRowPolicy};
@@ -81,6 +81,15 @@ const TABLES_WITH_TRIGGERS: &[&str] = &[
     "guests",
     "customer_ledgers",
     "payments",
+];
+
+const ROOM_REFERENCE_COLUMNS: &[(&str, &[&str])] = &[
+    ("bookings", &["room_id"]),
+    ("room_history", &["room_id"]),
+    ("housekeeping_tasks", &["room_id"]),
+    ("maintenance_tickets", &["room_id"]),
+    ("room_changes", &["from_room_id", "to_room_id"]),
+    ("room_status_change_log", &["room_id"]),
 ];
 
 const AUDIT_USER_FK_COLUMNS: &[&str] = &[
@@ -354,6 +363,16 @@ pub async fn import_booking_data(
         );
     }
 
+    let room_references =
+        RoomReferenceResolver::build(&mut tx, &selected_tables, &data.rooms).await?;
+    validate_room_references(
+        &mut tx,
+        &selected_tables,
+        &tables_and_data,
+        &room_references,
+    )
+    .await?;
+
     DataTransferRepository::align_status_constraints(&mut tx).await?;
     DataTransferRepository::set_user_triggers(&mut tx, TABLES_WITH_TRIGGERS, false).await?;
 
@@ -377,6 +396,13 @@ pub async fn import_booking_data(
                 log::warn!("{}", message);
                 let _ = tx.rollback().await;
                 return Err(ApiError::BadRequest(message));
+            };
+            let remapped_row;
+            let obj = if room_reference_columns(table).is_some() {
+                remapped_row = remap_room_references(table, obj, &room_references)?;
+                &remapped_row
+            } else {
+                obj
             };
 
             match DataTransferRepository::insert_json_row(
@@ -489,6 +515,185 @@ fn format_reference_value(value: &Value) -> String {
     }
 }
 
+struct RoomReferenceResolver {
+    imported_room_ids: HashMap<i64, i64>,
+}
+
+impl RoomReferenceResolver {
+    async fn build(
+        tx: &mut DbTransaction<'_>,
+        selected_tables: &HashSet<String>,
+        imported_rooms: &[Value],
+    ) -> Result<Self, ApiError> {
+        let mut imported_room_ids = HashMap::new();
+        if !selected_tables.contains("rooms") {
+            return Ok(Self { imported_room_ids });
+        }
+
+        let room_refs = imported_room_refs(imported_rooms);
+        let room_numbers: Vec<String> = room_refs
+            .iter()
+            .filter_map(|(_, room_number)| room_number.clone())
+            .collect();
+        let existing_by_number =
+            DataTransferRepository::room_ids_by_number(tx, &room_numbers).await?;
+
+        for (imported_id, room_number) in room_refs {
+            let resolved_id = room_number
+                .as_ref()
+                .and_then(|number| existing_by_number.get(number))
+                .copied()
+                .unwrap_or(imported_id);
+            imported_room_ids.insert(imported_id, resolved_id);
+        }
+
+        Ok(Self { imported_room_ids })
+    }
+
+    fn resolve_room_id(&self, room_id: i64) -> i64 {
+        self.imported_room_ids
+            .get(&room_id)
+            .copied()
+            .unwrap_or(room_id)
+    }
+
+    fn contains_imported_room_id(&self, room_id: i64) -> bool {
+        self.imported_room_ids.contains_key(&room_id)
+    }
+}
+
+fn imported_room_refs(imported_rooms: &[Value]) -> Vec<(i64, Option<String>)> {
+    imported_rooms
+        .iter()
+        .filter_map(|row| {
+            let obj = row.as_object()?;
+            let id = obj.get("id").and_then(value_as_i64)?;
+            let room_number = obj
+                .get("room_number")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            Some((id, room_number))
+        })
+        .collect()
+}
+
+async fn validate_room_references(
+    tx: &mut DbTransaction<'_>,
+    selected_tables: &HashSet<String>,
+    tables_and_data: &[(&str, &[Value])],
+    room_references: &RoomReferenceResolver,
+) -> Result<(), ApiError> {
+    let mut room_ids = Vec::new();
+    let mut seen = HashSet::new();
+    for (table, rows) in tables_and_data {
+        if !selected_tables.contains(*table) {
+            continue;
+        }
+        let Some(columns) = room_reference_columns(table) else {
+            continue;
+        };
+
+        for row in *rows {
+            let Some(obj) = row.as_object() else {
+                continue;
+            };
+            for column in columns {
+                if let Some(room_id) = obj.get(*column).and_then(value_as_i64) {
+                    let resolved_room_id = room_references.resolve_room_id(room_id);
+                    if seen.insert(resolved_room_id) {
+                        room_ids.push(resolved_room_id);
+                    }
+                }
+            }
+        }
+    }
+
+    let existing_room_ids = DataTransferRepository::existing_ids(tx, "rooms", &room_ids).await?;
+    for (table, rows) in tables_and_data {
+        if !selected_tables.contains(*table) {
+            continue;
+        };
+        let Some(columns) = room_reference_columns(table) else {
+            continue;
+        };
+
+        for (row_index, row) in rows.iter().enumerate() {
+            let Some(obj) = row.as_object() else {
+                continue;
+            };
+            for column in columns {
+                let Some(room_id) = obj.get(*column).and_then(value_as_i64) else {
+                    continue;
+                };
+                let resolved_room_id = room_references.resolve_room_id(room_id);
+                if !room_references.contains_imported_room_id(room_id)
+                    && !existing_room_ids.contains(&resolved_room_id)
+                {
+                    return Err(ApiError::BadRequest(format!(
+                        "Import failed for table {} row {}{}: {} references room id {}, but that room is not present in the import file and does not exist in this database. Include Rooms in the import file, import a full backup, or create the missing room before retrying. No changes were saved.",
+                        table,
+                        row_index + 1,
+                        row_reference(obj),
+                        column,
+                        room_id
+                    )));
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn remap_room_references(
+    table: &str,
+    row: &serde_json::Map<String, Value>,
+    room_references: &RoomReferenceResolver,
+) -> Result<serde_json::Map<String, Value>, ApiError> {
+    let Some(columns) = room_reference_columns(table) else {
+        return Ok(row.clone());
+    };
+
+    let mut remapped = row.clone();
+    let mut changed = false;
+    for column in columns {
+        let Some(room_id_value) = row.get(*column) else {
+            continue;
+        };
+        let Some(room_id) = value_as_i64(room_id_value) else {
+            continue;
+        };
+        let resolved_room_id = room_references.resolve_room_id(room_id);
+        if resolved_room_id != room_id {
+            remapped.insert(
+                (*column).to_string(),
+                Value::Number(resolved_room_id.into()),
+            );
+            changed = true;
+        }
+    }
+
+    if changed {
+        Ok(remapped)
+    } else {
+        Ok(row.clone())
+    }
+}
+
+fn room_reference_columns(table: &str) -> Option<&'static [&'static str]> {
+    ROOM_REFERENCE_COLUMNS
+        .iter()
+        .find_map(|(candidate, columns)| (*candidate == table).then_some(*columns))
+}
+
+fn value_as_i64(value: &Value) -> Option<i64> {
+    match value {
+        Value::Number(number) => number.as_i64(),
+        Value::String(value) => value.parse().ok(),
+        _ => None,
+    }
+}
+
 fn import_error_detail(error: &ApiError) -> String {
     match error {
         ApiError::BadRequest(message)
@@ -542,11 +747,12 @@ fn expand_overwrite_clear_tables(selected_tables: &mut HashSet<String>) {
 #[cfg(test)]
 mod tests {
     use super::{
-        ALL_IMPORT_TABLES, COMPOSITE_PK_TABLES, TABLE_INSERT_ORDER, base_generated_columns,
-        expand_overwrite_clear_tables, selected_import_tables,
+        ALL_IMPORT_TABLES, COMPOSITE_PK_TABLES, RoomReferenceResolver, TABLE_INSERT_ORDER,
+        base_generated_columns, expand_overwrite_clear_tables, imported_room_refs,
+        remap_room_references, selected_import_tables,
     };
     use serde_json::{Value, json};
-    use std::collections::HashSet;
+    use std::collections::{HashMap, HashSet};
 
     #[test]
     fn table_insert_order_is_unique_and_covers_known_tables() {
@@ -642,5 +848,71 @@ mod tests {
         assert!(selected.contains("loyalty_memberships"));
         assert!(selected.contains("points_transactions"));
         assert!(!selected.contains("payments"));
+    }
+
+    #[test]
+    fn imported_room_refs_collect_ids_and_room_numbers() {
+        let rows = vec![
+            json!({"id": 1094, "room_number": "101"}),
+            json!({"id": "1095", "room_number": "102"}),
+            json!({"room_number": "missing-id"}),
+        ];
+
+        let refs = imported_room_refs(&rows);
+
+        assert_eq!(
+            refs,
+            vec![
+                (1094, Some("101".to_string())),
+                (1095, Some("102".to_string()))
+            ]
+        );
+    }
+
+    #[test]
+    fn remap_room_references_uses_resolved_room_id() {
+        let resolver = RoomReferenceResolver {
+            imported_room_ids: HashMap::from([(1094, 7)]),
+        };
+        let row = serde_json::Map::from_iter([
+            ("id".to_string(), json!(2)),
+            ("room_id".to_string(), json!(1094)),
+        ]);
+
+        let remapped =
+            remap_room_references("housekeeping_tasks", &row, &resolver).expect("row should remap");
+
+        assert_eq!(remapped.get("room_id"), Some(&json!(7)));
+        assert_eq!(remapped.get("id"), Some(&json!(2)));
+    }
+
+    #[test]
+    fn remap_room_references_remaps_multiple_room_columns() {
+        let resolver = RoomReferenceResolver {
+            imported_room_ids: HashMap::from([(1094, 7), (1095, 8)]),
+        };
+        let row = serde_json::Map::from_iter([
+            ("from_room_id".to_string(), json!(1094)),
+            ("to_room_id".to_string(), json!(1095)),
+        ]);
+
+        let remapped =
+            remap_room_references("room_changes", &row, &resolver).expect("row should remap");
+
+        assert_eq!(remapped.get("from_room_id"), Some(&json!(7)));
+        assert_eq!(remapped.get("to_room_id"), Some(&json!(8)));
+    }
+
+    #[test]
+    fn remap_room_references_leaves_unmapped_room_id() {
+        let resolver = RoomReferenceResolver {
+            imported_room_ids: HashMap::new(),
+        };
+        let row = serde_json::Map::from_iter([("room_id".to_string(), json!(1094))]);
+
+        let remapped =
+            remap_room_references("bookings", &row, &resolver).expect("row should remain valid");
+
+        assert_eq!(remapped.get("room_id"), Some(&json!(1094)));
     }
 }

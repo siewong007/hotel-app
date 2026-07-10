@@ -1944,12 +1944,13 @@ pub async fn update_ledger_payment(
                     "Payment amount must be positive".to_string(),
                 ));
             }
-            let total_amount: f64 =
-                sqlx::query_scalar("SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = ?1")
-                    .bind(ledger_id)
-                    .fetch_one(pool)
-                    .await
-                    .map_err(|e| ApiError::Database(e.to_string()))?;
+            let total_amount: f64 = sqlx::query_scalar(
+                "SELECT COALESCE(amount, 0) FROM customer_ledgers WHERE id = ?1",
+            )
+            .bind(ledger_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
             let others_paid: f64 = sqlx::query_scalar(
                 "SELECT COALESCE(SUM(payment_amount), 0) FROM customer_ledger_payments WHERE ledger_id = ?1 AND id <> ?2",
             )
@@ -1958,8 +1959,7 @@ pub async fn update_ledger_payment(
             .fetch_one(pool)
             .await
             .map_err(|e| ApiError::Database(e.to_string()))?;
-            let prospective =
-                Decimal::from_f64_retain(others_paid).unwrap_or(Decimal::ZERO) + dec;
+            let prospective = Decimal::from_f64_retain(others_paid).unwrap_or(Decimal::ZERO) + dec;
             if prospective > Decimal::from_f64_retain(total_amount).unwrap_or(Decimal::ZERO) {
                 return Err(ApiError::BadRequest(
                     "Payment amount cannot exceed outstanding balance".to_string(),

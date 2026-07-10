@@ -10,6 +10,7 @@ type ReportType =
   | 'occupancy'
   | 'revenue'
   | 'channel_net_revenue'
+  | 'ota_monthly_statement'
   | 'payment_status'
   | 'complimentary'
   | 'guest_statistics'

@@ -14,6 +14,7 @@ pub mod data_transfer;
 // (the old routes/ekyc.rs file is preserved for backward reference during migration)
 pub mod guest_portal;
 pub mod guests;
+pub mod housekeeping;
 pub mod ledgers;
 // Loyalty routes now live in modules::loyalty::routes (merged below); the old
 // routes/loyalty.rs file is preserved on disk for backward reference during
@@ -126,6 +127,7 @@ pub fn create_router(pool: DbPool) -> Router {
         .merge(booking_channels::routes())
         .merge(rooms::routes())
         .merge(guests::routes())
+        .merge(housekeeping::routes())
         .merge(bookings::routes())
         .merge(rates::routes())
         .merge(payments::routes())

@@ -308,9 +308,7 @@ fn like_operator() -> &'static str {
 /// `check_in_to` range. When a payment method is also filtered, that date is
 /// reinterpreted as the payment date: a single day collapses to an inclusive
 /// `[day, day]` window; a range is carried through as-is (either bound optional).
-fn payment_date_window(
-    params: &BookingPaginationParams,
-) -> (Option<NaiveDate>, Option<NaiveDate>) {
+fn payment_date_window(params: &BookingPaginationParams) -> (Option<NaiveDate>, Option<NaiveDate>) {
     if let Some(ds) = params.date_search {
         (Some(ds), Some(ds))
     } else {
@@ -479,11 +477,7 @@ mod tests {
                 .contains(&format!("{pay_date} <= {}", param_placeholder(3)))
         );
         // The stay-window date filter must NOT be applied.
-        assert!(
-            !query
-                .count_sql
-                .contains(&date_cast("b.check_in_date"))
-        );
+        assert!(!query.count_sql.contains(&date_cast("b.check_in_date")));
         assert_eq!(query.binds.payment_method.as_deref(), Some("Visa"));
         assert_eq!(query.binds.payment_date_from, params.date_search);
         assert_eq!(query.binds.payment_date_to, params.date_search);

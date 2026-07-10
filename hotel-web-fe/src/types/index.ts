@@ -62,6 +62,19 @@ export type { Company, CompanyCreateRequest, CompanyUpdateRequest } from './comp
 // Data transfer types
 export type { BookingDataExport, ExportPreview, ImportMode, ImportResult } from './dataTransfer.types';
 
+// Housekeeping types
+export type {
+  CreateHousekeepingTaskRequest,
+  HousekeepingBoardResponse,
+  HousekeepingBoardRoom,
+  HousekeepingPriority,
+  HousekeepingTask,
+  HousekeepingTaskListResponse,
+  HousekeepingTaskStatus,
+  ListHousekeepingTasksQuery,
+  UpdateHousekeepingTaskRequest,
+} from './housekeeping.types';
+
 // Night audit types
 export type {
   RoomSnapshot,

@@ -24,6 +24,18 @@ use chrono::{DateTime, Datelike, Duration, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sqlx::Row;
 
+fn sanitize_ota_reference(value: Option<&str>) -> Option<String> {
+    value.and_then(|raw| {
+        let sanitized = Sanitizer::sanitize_text(raw);
+        let trimmed = sanitized.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.chars().take(100).collect())
+        }
+    })
+}
+
 pub async fn record_booking_history(
     pool: &DbPool,
     booking_id: i64,
@@ -1349,6 +1361,7 @@ pub async fn create_booking_handler(
         .special_requests
         .as_deref()
         .map(Sanitizer::sanitize_notes);
+    let ota_reference = sanitize_ota_reference(input.ota_reference.as_deref());
 
     let deposit_paid = input.deposit_paid.unwrap_or(false);
     let deposit_amount_f64 = input.deposit_amount;
@@ -1370,9 +1383,9 @@ pub async fn create_booking_handler(
                 booking_number, guest_id, room_id, check_in_date, check_out_date,
                 room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
                 deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests, post_type, daily_rates, cleaning_preference,
-                company_id, company_name
+                company_id, company_name, booking_channel_id, ota_reference
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'confirmed', ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16, CASE WHEN ?15 THEN datetime('now') ELSE NULL END, ?17, ?17, ?18, ?19, ?20, ?21, ?22, ?23)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 'confirmed', ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16, CASE WHEN ?15 THEN datetime('now') ELSE NULL END, ?17, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)
             "#
         )
         .bind(&booking_number)
@@ -1398,6 +1411,8 @@ pub async fn create_booking_handler(
         .bind(input.cleaning_preference.map(|b| if b { 1i32 } else { 0i32 }))
         .bind(input.company_id)
         .bind(input.company_name.as_deref())
+        .bind(input.booking_channel_id)
+        .bind(ota_reference.as_deref())
         .execute(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -1425,11 +1440,11 @@ pub async fn create_booking_handler(
                 room_rate, subtotal, tax_amount, total_amount, status, payment_status, payment_method, remarks, created_by, adults, source,
                 deposit_paid, deposit_amount, deposit_paid_at, rate_override_weekday, rate_override_weekend, special_requests,
                 is_tourist, tourism_tax_amount, extra_bed_count, extra_bed_charge, post_type, daily_rates, cleaning_preference,
-                company_id, company_name
+                company_id, company_name, booking_channel_id, ota_reference
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'confirmed', $10, $11, $12, $13, 1, $14, $15, $16, CASE WHEN $15 THEN CURRENT_TIMESTAMP ELSE NULL END, $17, $17, $18,
-                $19, $20, $21, $22, $23, $24, $25, $26, $27)
-            RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type, cleaning_preference
+                $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+            RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, booking_channel_id, ota_reference, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type, cleaning_preference
             "#
         )
         .bind(&booking_number)
@@ -1459,6 +1474,8 @@ pub async fn create_booking_handler(
         .bind(input.cleaning_preference)
         .bind(input.company_id)
         .bind(input.company_name.as_deref())
+        .bind(input.booking_channel_id)
+        .bind(ota_reference.as_deref())
         .fetch_one(&mut *tx)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
@@ -1888,6 +1905,7 @@ pub async fn update_booking_handler(
         canonical_tourism_tax_for_guest(&pool, existing_booking.guest_id, check_in, check_out)
             .await?;
     let clear_company = input.clear_company.unwrap_or(false);
+    let ota_reference = sanitize_ota_reference(input.ota_reference.as_deref());
 
     ensure_checkout_balance_resolved(
         &pool,
@@ -1929,6 +1947,8 @@ pub async fn update_booking_handler(
                 daily_rates = COALESCE(?25, daily_rates),
                 cleaning_preference = COALESCE(?26, cleaning_preference),
                 actual_check_out = COALESCE(?28, CASE WHEN ?2 = 'checked_out' AND actual_check_out IS NULL THEN datetime('now') ELSE actual_check_out END),
+                booking_channel_id = COALESCE(?29, booking_channel_id),
+                ota_reference = COALESCE(?30, ota_reference),
                 updated_at = datetime('now')
             WHERE id = ?7"#
         )
@@ -1960,6 +1980,8 @@ pub async fn update_booking_handler(
         .bind(input.cleaning_preference.map(|b| if b { 1i32 } else { 0i32 }))
         .bind(if clear_company { 1i32 } else { 0i32 })
         .bind(actual_check_out_override.map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string()))
+        .bind(input.booking_channel_id)
+        .bind(ota_reference.as_deref())
         .execute(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -2005,9 +2027,11 @@ pub async fn update_booking_handler(
                 daily_rates = COALESCE($25, daily_rates),
                 cleaning_preference = COALESCE($26, cleaning_preference),
                 actual_check_out = COALESCE($28, CASE WHEN $2 = 'checked_out' AND actual_check_out IS NULL THEN CURRENT_TIMESTAMP ELSE actual_check_out END),
+                booking_channel_id = COALESCE($29, booking_channel_id),
+                ota_reference = COALESCE($30, ota_reference),
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $7
-            RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type, cleaning_preference"#
+            RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, booking_channel_id, ota_reference, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type, cleaning_preference"#
         )
         .bind(new_room_id)
         .bind(&new_status)
@@ -2038,6 +2062,8 @@ pub async fn update_booking_handler(
         .bind(clear_company)
         .bind(actual_check_out_override
             .map(|dt| chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(dt, chrono::Utc)))
+        .bind(input.booking_channel_id)
+        .bind(ota_reference.as_deref())
         .fetch_one(&pool)
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?
@@ -2232,6 +2258,22 @@ pub async fn update_booking_handler(
                         next_room_status,
                         e
                     ),
+                }
+
+                if let Err(e) =
+                    crate::services::housekeeping::ensure_checkout_cleaning_task_for_room(
+                        &pool,
+                        new_room_id,
+                        user_id,
+                    )
+                    .await
+                {
+                    log::warn!(
+                        "Failed to create housekeeping task for checked-out booking {} in room {}: {}",
+                        booking_id,
+                        new_room_id,
+                        e
+                    );
                 }
 
                 // Generate an invoice number for this checked-out booking. Best-effort:
@@ -2843,6 +2885,10 @@ pub async fn manual_checkin_handler(
             updates.push(format!("remarks = ${}", params.len() + 1));
             params.push(v.clone());
         }
+        if let Some(v) = sanitize_ota_reference(booking_update.ota_reference.as_deref()) {
+            updates.push(format!("ota_reference = ${}", params.len() + 1));
+            params.push(v);
+        }
         if let Some(ref v) = booking_update.company_name {
             updates.push(format!("company_name = ${}", params.len() + 1));
             params.push(v.clone());
@@ -2893,7 +2939,7 @@ pub async fn manual_checkin_handler(
             payment_note = COALESCE($4, payment_note),
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $1 AND status IN ('confirmed', 'pending')
-        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type, cleaning_preference
+        RETURNING id, booking_number, guest_id, room_id, check_in_date, check_out_date, room_rate, subtotal, tax_amount, discount_amount, total_amount, status, payment_status, payment_method, adults, children, special_requests, remarks, source, booking_channel_id, ota_reference, market_code, discount_percentage, rate_override_weekday, rate_override_weekend, pre_checkin_completed, pre_checkin_completed_at, pre_checkin_token, pre_checkin_token_expires_at, created_by, is_complimentary, complimentary_reason, complimentary_start_date, complimentary_end_date, original_total_amount, complimentary_nights, deposit_paid, deposit_amount, deposit_paid_at, company_id, company_name, payment_note, daily_rates, created_at, updated_at, post_type, cleaning_preference
         "#
     )
     .bind(booking_id)

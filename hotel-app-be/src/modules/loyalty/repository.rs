@@ -1054,7 +1054,10 @@ fn row_to_transaction(row: &DbRow) -> LoyaltyTransaction {
         points_delta: row.try_get("points_delta").unwrap_or_default(),
         available_delta: row.try_get("available_delta").unwrap_or_default(),
         balance_after: row.try_get("balance_after").unwrap_or_default(),
-        source_type: row.try_get::<Option<String>, _>("source_type").ok().flatten(),
+        source_type: row
+            .try_get::<Option<String>, _>("source_type")
+            .ok()
+            .flatten(),
         source_id: row.try_get::<Option<i64>, _>("source_id").ok().flatten(),
         booking_id: row.try_get::<Option<i64>, _>("booking_id").ok().flatten(),
         payment_id: row.try_get::<Option<i64>, _>("payment_id").ok().flatten(),
@@ -1063,13 +1066,19 @@ fn row_to_transaction(row: &DbRow) -> LoyaltyTransaction {
             .try_get::<Option<i64>, _>("related_transaction_id")
             .ok()
             .flatten(),
-        description: row.try_get::<Option<String>, _>("description").ok().flatten(),
+        description: row
+            .try_get::<Option<String>, _>("description")
+            .ok()
+            .flatten(),
         metadata: row
             .try_get::<Option<String>, _>("metadata")
             .ok()
             .flatten()
             .and_then(|raw| serde_json::from_str(&raw).ok()),
-        actor_user_id: row.try_get::<Option<i64>, _>("actor_user_id").ok().flatten(),
+        actor_user_id: row
+            .try_get::<Option<i64>, _>("actor_user_id")
+            .ok()
+            .flatten(),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
     }
 }
@@ -1119,11 +1128,17 @@ fn row_to_reward(row: &DbRow) -> LoyaltyReward {
         description: row.try_get("description").ok(),
         category: row.try_get("category").unwrap_or_default(),
         points_cost: row.try_get("points_cost").unwrap_or_default(),
-        minimum_tier_id: row.try_get::<Option<i64>, _>("minimum_tier_id").ok().flatten(),
+        minimum_tier_id: row
+            .try_get::<Option<i64>, _>("minimum_tier_id")
+            .ok()
+            .flatten(),
         minimum_tier_name: row.try_get("minimum_tier_name").ok(),
         requires_approval: row_mappers::get_bool(row, "requires_approval"),
         is_active: row_mappers::get_bool(row, "is_active"),
-        inventory_count: row.try_get::<Option<i32>, _>("inventory_count").ok().flatten(),
+        inventory_count: row
+            .try_get::<Option<i32>, _>("inventory_count")
+            .ok()
+            .flatten(),
         valid_from: row.try_get("valid_from").ok(),
         valid_to: row.try_get("valid_to").ok(),
         terms_conditions: row.try_get("terms_conditions").ok(),

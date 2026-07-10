@@ -49,7 +49,10 @@ impl std::fmt::Debug for User {
             )
             .field(
                 "two_factor_recovery_codes",
-                &self.two_factor_recovery_codes.as_ref().map(|_| "<redacted>"),
+                &self
+                    .two_factor_recovery_codes
+                    .as_ref()
+                    .map(|_| "<redacted>"),
             )
             .field("created_at", &self.created_at)
             .field("updated_at", &self.updated_at)

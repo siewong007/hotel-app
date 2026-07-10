@@ -64,6 +64,8 @@ export interface Booking {
   payment_note?: string;
   remarks?: string;
   source?: string;
+  booking_channel_id?: number | string | null;
+  ota_reference?: string | null;
   daily_rates?: Record<string, number>;
   // Guest daily-cleaning preference (true = wants it, false = declined, null/undefined = not set)
   cleaning_preference?: boolean | null;
@@ -139,6 +141,8 @@ export interface BookingCreateRequest {
   payment_status?: 'unpaid' | 'unpaid_deposit' | 'paid';
   amount_paid?: number;
   source?: string;
+  booking_channel_id?: number | string | null;
+  ota_reference?: string | null;
   booking_number?: string; // Optional - auto-generated for walk-in, manual for online
   deposit_paid?: boolean;
   deposit_amount?: number;
@@ -177,6 +181,8 @@ export interface BookingUpdateRequest {
   payment_note?: string;
   remarks?: string;
   source?: string;
+  booking_channel_id?: number | string | null;
+  ota_reference?: string | null;
   room_rate_override?: number;
   extra_bed_count?: number;
   extra_bed_charge?: number;

@@ -15,6 +15,7 @@ pub mod data_transfer;
 // preserved on disk for backward reference during migration but not compiled.
 pub mod guest_portal;
 pub mod guests;
+pub mod housekeeping;
 pub mod ledgers;
 #[allow(dead_code)]
 pub mod loyalty;

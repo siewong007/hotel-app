@@ -328,5 +328,9 @@ export const createReportPrintStyles = (typography: ReportTypography) => `
   }
   strong { font-size: inherit; }
   .header { text-align: center; margin-bottom: 20px; }
+  .ota-statement-page + .ota-statement-page {
+    break-before: page;
+    page-break-before: always;
+  }
   .MuiPaper-root { box-shadow: none !important; }
 `;
