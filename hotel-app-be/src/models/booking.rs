@@ -86,6 +86,8 @@ pub struct Booking {
     pub special_requests: Option<String>,
     pub remarks: Option<String>,
     pub source: Option<String>,
+    pub booking_channel_id: Option<i64>,
+    pub ota_reference: Option<String>,
     pub market_code: Option<String>,
     pub discount_percentage: Option<Decimal>,
     pub rate_override_weekday: Option<Decimal>,
@@ -138,7 +140,9 @@ pub struct BookingInput {
     pub payment_method: Option<String>,
     pub payment_status: Option<String>, // unpaid, unpaid_deposit, paid
     pub amount_paid: Option<f64>,
-    pub source: Option<String>,         // walk_in, online, phone, agent
+    pub source: Option<String>, // walk_in, online, phone, agent
+    pub booking_channel_id: Option<i64>,
+    pub ota_reference: Option<String>,
     pub booking_number: Option<String>, // Optional - if provided, use this instead of auto-generating
     pub deposit_paid: Option<bool>,
     pub deposit_amount: Option<f64>,
@@ -195,6 +199,8 @@ pub struct BookingUpdateInput {
     pub remarks: Option<String>,
     pub special_requests: Option<String>,
     pub source: Option<String>,
+    pub booking_channel_id: Option<i64>,
+    pub ota_reference: Option<String>,
     pub room_rate_override: Option<f64>,
     pub daily_rates: Option<serde_json::Value>,
     pub cleaning_preference: Option<bool>,
@@ -295,6 +301,8 @@ pub struct BookingWithDetails {
     pub payment_status: Option<String>,
     pub payment_method: Option<String>,
     pub source: Option<String>,
+    pub booking_channel_id: Option<i64>,
+    pub ota_reference: Option<String>,
     pub remarks: Option<String>,
     pub special_requests: Option<String>,
     pub is_complimentary: Option<bool>,
@@ -439,6 +447,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for Booking {
             special_requests: row.try_get("special_requests")?,
             remarks: row.try_get("remarks")?,
             source: row.try_get("source")?,
+            booking_channel_id: row.try_get("booking_channel_id").ok().flatten(),
+            ota_reference: row.try_get("ota_reference").ok().flatten(),
             market_code: row.try_get("market_code")?,
             discount_percentage: {
                 #[cfg(all(feature = "sqlite", not(feature = "postgres")))]
@@ -536,6 +546,8 @@ impl<'r> sqlx::FromRow<'r, crate::core::db::DbRow> for BookingWithDetails {
             guest_email: row.try_get("guest_email")?,
             guest_type: row.try_get("guest_type")?,
             guest_tourism_type: row.try_get("guest_tourism_type")?,
+            booking_channel_id: row.try_get("booking_channel_id").ok().flatten(),
+            ota_reference: row.try_get("ota_reference").ok().flatten(),
             room_id: row.try_get("room_id")?,
             room_number: row.try_get("room_number")?,
             room_type: row.try_get("room_type")?,
@@ -739,6 +751,8 @@ mod tests {
             remarks: None,
             source: None,
             market_code: None,
+            booking_channel_id: None,
+            ota_reference: None,
             discount_percentage: None,
             rate_override_weekday: None,
             rate_override_weekend: None,

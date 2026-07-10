@@ -80,6 +80,9 @@ Thumbs.db
 tmp/
 temp/
 
+# Graphify generated output
+/graphify-out/
+
 # design-sync (local build artifacts)
 .ds-sync/
 ds-bundle/

@@ -23,6 +23,7 @@ import { Route as MyRewardsRouteImport } from './routes/my-rewards'
 import { Route as MyBookingsRouteImport } from './routes/my-bookings'
 import { Route as LoyaltyRouteImport } from './routes/loyalty'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as HousekeepingRouteImport } from './routes/housekeeping'
 import { Route as HelpRouteImport } from './routes/help'
 import { Route as GuestConfigRouteImport } from './routes/guest-config'
 import { Route as EkycAdminRouteImport } from './routes/ekyc-admin'
@@ -107,6 +108,11 @@ const LoyaltyRoute = LoyaltyRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HousekeepingRoute = HousekeepingRouteImport.update({
+  id: '/housekeeping',
+  path: '/housekeeping',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HelpRoute = HelpRouteImport.update({
@@ -197,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/ekyc-admin': typeof EkycAdminRoute
   '/guest-config': typeof GuestConfigRoute
   '/help': typeof HelpRoute
+  '/housekeeping': typeof HousekeepingRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
   '/my-bookings': typeof MyBookingsRoute
@@ -228,6 +235,7 @@ export interface FileRoutesByTo {
   '/ekyc-admin': typeof EkycAdminRoute
   '/guest-config': typeof GuestConfigRoute
   '/help': typeof HelpRoute
+  '/housekeeping': typeof HousekeepingRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
   '/my-bookings': typeof MyBookingsRoute
@@ -260,6 +268,7 @@ export interface FileRoutesById {
   '/ekyc-admin': typeof EkycAdminRoute
   '/guest-config': typeof GuestConfigRoute
   '/help': typeof HelpRoute
+  '/housekeeping': typeof HousekeepingRoute
   '/login': typeof LoginRoute
   '/loyalty': typeof LoyaltyRoute
   '/my-bookings': typeof MyBookingsRoute
@@ -293,6 +302,7 @@ export interface FileRouteTypes {
     | '/ekyc-admin'
     | '/guest-config'
     | '/help'
+    | '/housekeeping'
     | '/login'
     | '/loyalty'
     | '/my-bookings'
@@ -324,6 +334,7 @@ export interface FileRouteTypes {
     | '/ekyc-admin'
     | '/guest-config'
     | '/help'
+    | '/housekeeping'
     | '/login'
     | '/loyalty'
     | '/my-bookings'
@@ -355,6 +366,7 @@ export interface FileRouteTypes {
     | '/ekyc-admin'
     | '/guest-config'
     | '/help'
+    | '/housekeeping'
     | '/login'
     | '/loyalty'
     | '/my-bookings'
@@ -387,6 +399,7 @@ export interface RootRouteChildren {
   EkycAdminRoute: typeof EkycAdminRoute
   GuestConfigRoute: typeof GuestConfigRoute
   HelpRoute: typeof HelpRoute
+  HousekeepingRoute: typeof HousekeepingRoute
   LoginRoute: typeof LoginRoute
   LoyaltyRoute: typeof LoyaltyRoute
   MyBookingsRoute: typeof MyBookingsRoute
@@ -505,6 +518,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/housekeeping': {
+      id: '/housekeeping'
+      path: '/housekeeping'
+      fullPath: '/housekeeping'
+      preLoaderRoute: typeof HousekeepingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/help': {
@@ -627,6 +647,7 @@ const rootRouteChildren: RootRouteChildren = {
   EkycAdminRoute: EkycAdminRoute,
   GuestConfigRoute: GuestConfigRoute,
   HelpRoute: HelpRoute,
+  HousekeepingRoute: HousekeepingRoute,
   LoginRoute: LoginRoute,
   LoyaltyRoute: LoyaltyRoute,
   MyBookingsRoute: MyBookingsRoute,

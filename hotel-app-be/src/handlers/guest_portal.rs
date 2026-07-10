@@ -12,7 +12,7 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
     AutoCheckinResponse, GuestPortalBenefitsResponse, GuestPortalBookingResponse,
-    GuestPortalBookingSummary, GuestPortalMembershipResponse, GuestPortalMeResponse,
+    GuestPortalBookingSummary, GuestPortalMeResponse, GuestPortalMembershipResponse,
     GuestPortalPage, GuestPortalPageQuery, GuestPortalTransaction, GuestPortalVerifyRequest,
     GuestPortalVerifyResponse, PreCheckInUpdateRequest,
 };

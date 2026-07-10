@@ -7,6 +7,7 @@
   "entry": "./hotel-web-fe/.ds-entry.tsx",
   "provider": { "component": "AppThemeProvider" },
   "readmeHeader": ".design-sync/conventions.md",
+  "guidelinesGlob": ["design-guidelines/**/*.md"],
   "componentSrcMap": {
     "StatCard": "src/components/common/StatCard.tsx",
     "DataTable": "src/components/data-table/DataTable.tsx",

@@ -295,18 +295,17 @@ async fn checkin_booking_flow_for_booking(
     // check-in, auto-post the outstanding balance so the folio reflects the
     // online payment. The repo call no-ops when nothing is owed, so it never
     // double-charges a booking that already has a payment.
-    let auto_online_payment_recorded = if !explicit_payment_captured
-        && is_online_source(booking.source.as_deref())
-    {
-        let recorded =
-            booking_repo::record_online_checkin_payment_tx(&mut tx, &booking, user_id).await?;
-        if recorded {
-            payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
-        }
-        recorded
-    } else {
-        false
-    };
+    let auto_online_payment_recorded =
+        if !explicit_payment_captured && is_online_source(booking.source.as_deref()) {
+            let recorded =
+                booking_repo::record_online_checkin_payment_tx(&mut tx, &booking, user_id).await?;
+            if recorded {
+                payments::recompute_payment_status_tx(&mut tx, booking_id).await?;
+            }
+            recorded
+        } else {
+            false
+        };
 
     // Only occupy the room for current/future stays (skip back-dated check-ins).
     let today = chrono::Local::now().date_naive();

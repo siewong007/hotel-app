@@ -528,10 +528,7 @@ impl PaymentRepository {
     /// deposit shows as not-yet-refunded again, drops out of the night-audit
     /// journal, and can be re-refunded if it was issued by mistake. Returns the
     /// id of the deleted refund payment. Errors if no such refund exists.
-    pub async fn revert_deposit_refund(
-        pool: &DbPool,
-        booking_id: i64,
-    ) -> Result<i64, ApiError> {
+    pub async fn revert_deposit_refund(pool: &DbPool, booking_id: i64) -> Result<i64, ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
 
         // The note/description column differs between databases, but the

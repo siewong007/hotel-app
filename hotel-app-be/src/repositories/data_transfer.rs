@@ -153,6 +153,49 @@ impl DataTransferRepository {
         Ok(user_ids)
     }
 
+    pub async fn existing_ids(
+        tx: &mut DbTransaction<'_>,
+        table: &str,
+        ids: &[i64],
+    ) -> Result<HashSet<i64>, ApiError> {
+        ensure_known_table(table)?;
+        if ids.is_empty() {
+            return Ok(HashSet::new());
+        }
+
+        let quoted_table = quote_identifier(table);
+        let existing_ids = sqlx::query_scalar::<_, i64>(&format!(
+            "SELECT id FROM {quoted_table} WHERE id = ANY($1)"
+        ))
+        .bind(ids)
+        .fetch_all(&mut **tx)
+        .await
+        .map_err(ApiError::from)?
+        .into_iter()
+        .collect();
+
+        Ok(existing_ids)
+    }
+
+    pub async fn room_ids_by_number(
+        tx: &mut DbTransaction<'_>,
+        room_numbers: &[String],
+    ) -> Result<HashMap<String, i64>, ApiError> {
+        if room_numbers.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let rows = sqlx::query_as::<_, (String, i64)>(
+            "SELECT room_number, id FROM rooms WHERE room_number = ANY($1)",
+        )
+        .bind(room_numbers)
+        .fetch_all(&mut **tx)
+        .await
+        .map_err(ApiError::from)?;
+
+        Ok(rows.into_iter().collect())
+    }
+
     pub async fn table_columns(
         pool: &DbPool,
         table_names: &[&str],

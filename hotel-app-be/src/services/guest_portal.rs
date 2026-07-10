@@ -11,9 +11,9 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{
     Booking, GuestPortalBenefitsResponse, GuestPortalBookingResponse, GuestPortalBookingSummary,
-    GuestPortalLoginRequest, GuestPortalLoginResponse, GuestPortalMembershipResponse,
-    GuestPortalMeResponse, GuestPortalPage, GuestPortalTransaction, GuestPortalVerifyRequest,
-    GuestPortalVerifyResponse, PreCheckInUpdateRequest,
+    GuestPortalLoginRequest, GuestPortalLoginResponse, GuestPortalMeResponse,
+    GuestPortalMembershipResponse, GuestPortalPage, GuestPortalTransaction,
+    GuestPortalVerifyRequest, GuestPortalVerifyResponse, PreCheckInUpdateRequest,
 };
 use crate::repositories::guest_portal::GuestPortalRepository;
 use crate::repositories::guest_portal_session::GuestPortalSessionRepository;
@@ -43,10 +43,7 @@ fn hash_session_token(token: &str) -> String {
 }
 
 fn non_empty(value: &Option<String>) -> Option<&str> {
-    value
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
+    value.as_deref().map(str::trim).filter(|s| !s.is_empty())
 }
 
 const VERIFY_BOOKING_FAILURE: &str =
@@ -212,10 +209,14 @@ pub async fn guest_portal_login(
         return Err(login_failure());
     }
 
-    let guest_id =
-        GuestPortalSessionRepository::find_login_guest_id(pool, email, booking_number, member_number)
-            .await?
-            .ok_or_else(login_failure)?;
+    let guest_id = GuestPortalSessionRepository::find_login_guest_id(
+        pool,
+        email,
+        booking_number,
+        member_number,
+    )
+    .await?
+    .ok_or_else(login_failure)?;
 
     let token = generate_session_token();
     let token_hash = hash_session_token(&token);

@@ -48,6 +48,7 @@ import {
 } from '@mui/icons-material';
 import { ReportsService, type BookingChannel } from '../../../api/reports.service';
 import { useCurrency } from '../../../hooks/useCurrency';
+import { formatLocalDate } from '../../../utils/date';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { useReportData } from '../hooks/useReportData';
 import {
@@ -62,6 +63,7 @@ type ReportType =
   | 'occupancy'
   | 'revenue'
   | 'channel_net_revenue'
+  | 'ota_monthly_statement'
   | 'payment_status'
   | 'complimentary'
   | 'guest_statistics'
@@ -145,6 +147,14 @@ const REPORT_CONFIGS = [
     description: 'OTA commission & hotel net revenue',
     icon: <TrendingIcon />,
     color: '#7b1fa2',
+    category: 'financial',
+  },
+  {
+    type: 'ota_monthly_statement' as ReportType,
+    label: 'OTA Monthly Statement',
+    description: 'Monthly remittance by platform',
+    icon: <ReceiptIcon />,
+    color: '#00695c',
     category: 'financial',
   },
   {
@@ -280,7 +290,7 @@ const ModernReportsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (selectedReport === 'channel_net_revenue') {
+    if (selectedReport === 'channel_net_revenue' || selectedReport === 'ota_monthly_statement') {
       loadBookingChannels();
     }
   }, [selectedReport]);
@@ -399,19 +409,27 @@ const ModernReportsPage: React.FC = () => {
   const handleReportTypeChange = (type: ReportType) =>
     handleReportTypeChangeHook(type, startDate, endDate);
 
+  const handleStatementMonthChange = (monthValue: string) => {
+    if (!monthValue) return;
+    const [year, month] = monthValue.split('-').map(Number);
+    if (!year || !month) return;
+    setStartDate(formatLocalDate(new Date(year, month - 1, 1)));
+    setEndDate(formatLocalDate(new Date(year, month, 0)));
+  };
+
   const handleGenerateReport = () =>
     handleGenerateReportHook(
       selectedReport,
       startDate,
       endDate,
       selectedCompany,
-      selectedReport === 'channel_net_revenue'
+      selectedReport === 'channel_net_revenue' || selectedReport === 'ota_monthly_statement'
         ? {
             bookingChannelId: channelFilterId || undefined,
             platformName: platformFilter.trim() || undefined,
-            bookingStatus: bookingStatusFilter !== 'all' ? bookingStatusFilter : undefined,
+            bookingStatus: selectedReport === 'channel_net_revenue' && bookingStatusFilter !== 'all' ? bookingStatusFilter : undefined,
             postedStatus: postedStatusFilter !== 'all' ? postedStatusFilter : undefined,
-            roomType: roomTypeFilter.trim() || undefined,
+            roomType: selectedReport === 'channel_net_revenue' ? roomTypeFilter.trim() || undefined : undefined,
           }
         : {}
     );
@@ -1579,6 +1597,78 @@ const ModernReportsPage: React.FC = () => {
     );
   };
 
+  const renderOtaMonthlyStatement = () => {
+    if (!reportData) return <Typography>No data available</Typography>;
+
+    const statements = reportData.statements || [];
+
+    return (
+      <Box>
+        {statements.length > 0 ? statements.map((statement: any) => {
+          const commissionLabel = statement.commission_type === 'percentage'
+            ? `Comm(${Number(statement.commission_value || 0).toFixed(2)}%)`
+            : 'Comm';
+
+          return (
+            <Box key={`${statement.channel_id || statement.platform}`} className="ota-statement-page" sx={{ mb: 4 }}>
+              <Box className="header" sx={{ textAlign: 'center', mb: 2 }}>
+                <Typography variant="h5" fontWeight="bold">{hotelSettings.hotel_name}</Typography>
+                <Typography variant="subtitle1">Statement Date: {reportData.statement_date}</Typography>
+                <Typography variant="h6">{statement.platform} - {reportData.period?.month_label}</Typography>
+              </Box>
+
+              <TableContainer component={Paper} variant="outlined">
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'grey.100' }}>
+                      <TableCell>Ref No</TableCell>
+                      <TableCell>Name</TableCell>
+                      <TableCell align="right">Amount</TableCell>
+                      <TableCell align="right">{commissionLabel}</TableCell>
+                      <TableCell align="right">Tax</TableCell>
+                      <TableCell align="right">Amount Paid</TableCell>
+                      <TableCell>Check in date</TableCell>
+                      <TableCell>Check out date</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {statement.rows.map((row: any) => (
+                      <TableRow key={`${statement.platform}-${row.booking_id}`}>
+                        <TableCell>{row.ref_no}</TableCell>
+                        <TableCell>{row.name}</TableCell>
+                        <TableCell align="right">{formatMoney(row.amount)}</TableCell>
+                        <TableCell align="right">{formatMoney(row.commission)}</TableCell>
+                        <TableCell align="right">{formatMoney(row.tax)}</TableCell>
+                        <TableCell align="right">{formatMoney(row.amount_paid)}</TableCell>
+                        <TableCell>{row.check_in_date}</TableCell>
+                        <TableCell>{row.check_out_date}</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow sx={{ bgcolor: 'grey.50' }}>
+                      <TableCell colSpan={2} sx={{ fontWeight: 700 }}>Total</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>{formatMoney(statement.totals?.amount)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>{formatMoney(statement.totals?.commission)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>{formatMoney(statement.totals?.tax)}</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>{formatMoney(statement.totals?.amount_paid)}</TableCell>
+                      <TableCell colSpan={2} />
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Box>
+          );
+        }) : (
+          <Box className="header" sx={{ textAlign: 'center', py: 4 }}>
+            <Typography variant="h5" fontWeight="bold">OTA Monthly Statement</Typography>
+            <Typography variant="body2" color="text.secondary">
+              No statement rows found for {reportData.period?.month_label || 'this month'}.
+            </Typography>
+          </Box>
+        )}
+      </Box>
+    );
+  };
+
   // Payment Status Report
   const renderPaymentStatus = () => {
     if (!reportData) return <Typography>No data available</Typography>;
@@ -1978,6 +2068,7 @@ const ModernReportsPage: React.FC = () => {
       case 'occupancy': return renderOccupancy();
       case 'revenue': return renderRevenue();
       case 'channel_net_revenue': return renderChannelNetRevenue();
+      case 'ota_monthly_statement': return renderOtaMonthlyStatement();
       case 'payment_status': return renderPaymentStatus();
       case 'complimentary': return renderComplimentary();
       case 'guest_statistics': return renderGuestStatistics();
@@ -2033,26 +2124,41 @@ const ModernReportsPage: React.FC = () => {
           <CardContent>
             <Typography variant="h6" gutterBottom>Report Parameters</Typography>
             <Grid container spacing={2} alignItems="center">
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <TextField
-                  fullWidth
-                  label="Start Date"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <TextField
-                  fullWidth
-                  label="End Date"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
+              {selectedReport === 'ota_monthly_statement' ? (
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <TextField
+                    fullWidth
+                    label="Statement Month"
+                    type="month"
+                    value={startDate.slice(0, 7)}
+                    onChange={(e) => handleStatementMonthChange(e.target.value)}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+              ) : (
+                <>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <TextField
+                      fullWidth
+                      label="Start Date"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <TextField
+                      fullWidth
+                      label="End Date"
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                </>
+              )}
 
 
               {selectedReport === 'company_ledger_statement' && (
@@ -2075,7 +2181,7 @@ const ModernReportsPage: React.FC = () => {
                 </Grid>
               )}
 
-              {selectedReport === 'channel_net_revenue' && (
+              {(selectedReport === 'channel_net_revenue' || selectedReport === 'ota_monthly_statement') && (
                 <>
                   <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                     <TextField
@@ -2102,23 +2208,25 @@ const ModernReportsPage: React.FC = () => {
                       onChange={(e) => setPlatformFilter(e.target.value)}
                     />
                   </Grid>
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <TextField
-                      select
-                      fullWidth
-                      label="Booking Status"
-                      value={bookingStatusFilter}
-                      onChange={(e) => setBookingStatusFilter(e.target.value)}
-                    >
-                      <MenuItem value="all">All Statuses</MenuItem>
-                      <MenuItem value="pending">Pending</MenuItem>
-                      <MenuItem value="confirmed">Confirmed</MenuItem>
-                      <MenuItem value="checked_in">Checked In</MenuItem>
-                      <MenuItem value="auto_checked_in">Auto Checked In</MenuItem>
-                      <MenuItem value="checked_out">Checked Out</MenuItem>
-                      <MenuItem value="completed">Completed</MenuItem>
-                    </TextField>
-                  </Grid>
+                  {selectedReport === 'channel_net_revenue' && (
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                      <TextField
+                        select
+                        fullWidth
+                        label="Booking Status"
+                        value={bookingStatusFilter}
+                        onChange={(e) => setBookingStatusFilter(e.target.value)}
+                      >
+                        <MenuItem value="all">All Statuses</MenuItem>
+                        <MenuItem value="pending">Pending</MenuItem>
+                        <MenuItem value="confirmed">Confirmed</MenuItem>
+                        <MenuItem value="checked_in">Checked In</MenuItem>
+                        <MenuItem value="auto_checked_in">Auto Checked In</MenuItem>
+                        <MenuItem value="checked_out">Checked Out</MenuItem>
+                        <MenuItem value="completed">Completed</MenuItem>
+                      </TextField>
+                    </Grid>
+                  )}
                   <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                     <TextField
                       select
@@ -2132,14 +2240,16 @@ const ModernReportsPage: React.FC = () => {
                       <MenuItem value="unposted">Unposted</MenuItem>
                     </TextField>
                   </Grid>
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <TextField
-                      fullWidth
-                      label="Room Type"
-                      value={roomTypeFilter}
-                      onChange={(e) => setRoomTypeFilter(e.target.value)}
-                    />
-                  </Grid>
+                  {selectedReport === 'channel_net_revenue' && (
+                    <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                      <TextField
+                        fullWidth
+                        label="Room Type"
+                        value={roomTypeFilter}
+                        onChange={(e) => setRoomTypeFilter(e.target.value)}
+                      />
+                    </Grid>
+                  )}
                   <Grid size={12}>
                     {renderChannelCommissionEditor()}
                   </Grid>

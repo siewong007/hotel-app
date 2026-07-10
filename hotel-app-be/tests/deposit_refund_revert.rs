@@ -26,11 +26,13 @@ mod sqlite_tests {
         .await
         .unwrap();
 
-        sqlx::query("INSERT INTO guests (id, first_name, last_name) VALUES (?1, 'Revert', 'Guest')")
-            .bind(id)
-            .execute(pool)
-            .await
-            .unwrap();
+        sqlx::query(
+            "INSERT INTO guests (id, first_name, last_name) VALUES (?1, 'Revert', 'Guest')",
+        )
+        .bind(id)
+        .execute(pool)
+        .await
+        .unwrap();
 
         // total_amount fully covered by a booking payment so the post-revert
         // status recompute lands on 'paid' (refund rows are excluded anyway).

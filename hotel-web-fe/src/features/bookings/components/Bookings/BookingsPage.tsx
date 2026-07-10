@@ -68,6 +68,7 @@ import {
 } from '@mui/icons-material';
 import { Tooltip } from '@mui/material';
 import { HotelAPIService } from '../../../../api';
+import { ReportsService, type BookingChannel } from '../../../../api/reports.service';
 import { queryStaleTime } from '../../../../api/queryConfig';
 import { queryKeys } from '../../../../api/queryKeys';
 
@@ -261,6 +262,7 @@ const BookingsPage: React.FC = () => {
   const [editFormData, setEditFormData] = useState<any>({});
   const [editRoomTypeConfig, setEditRoomTypeConfig] = useState<RoomType | null>(null);
   const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
+  const [bookingChannels, setBookingChannels] = useState<BookingChannel[]>([]);
   const [updating, setUpdating] = useState(false);
   const activeCompaniesQuery = useActiveCompanies(isAdmin && editDialogOpen);
   const activeCompanies: BookingCompanyOption[] = activeCompaniesQuery.data ?? [];
@@ -279,6 +281,23 @@ const BookingsPage: React.FC = () => {
 
     return matchedCompany || { id: companyId ?? undefined, company_name: companyName };
   }, [activeCompanies, editFormData.company_id, editFormData.company_name]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    ReportsService.listBookingChannels()
+      .then((channels) => setBookingChannels(channels.filter((channel) => channel.is_active)))
+      .catch(() => setBookingChannels([]));
+  }, [isAdmin]);
+
+  const selectedEditBookingChannel = useMemo(() => {
+    const channelId = editFormData.booking_channel_id == null || editFormData.booking_channel_id === ''
+      ? null
+      : Number(editFormData.booking_channel_id);
+    return bookingChannels.find((channel) => channel.id === channelId) || null;
+  }, [bookingChannels, editFormData.booking_channel_id]);
+
+  const editBookingUsesOta = selectedEditBookingChannel?.channel_type === 'ota'
+    || String(editFormData.source || '').toLowerCase() === 'online';
 
 
 
@@ -348,6 +367,8 @@ const BookingsPage: React.FC = () => {
         ? booking.payment_method.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
         : '',
       source: booking.source || 'walk_in',
+      booking_channel_id: booking.booking_channel_id ?? '',
+      ota_reference: booking.ota_reference || '',
       check_in_date: booking.check_in_date.split('T')[0],
       check_out_date: booking.check_out_date.split('T')[0],
       // Actual checkout date (date portion only) — editable so staff can correct
@@ -451,6 +472,12 @@ const BookingsPage: React.FC = () => {
       // Remove fields that are not valid backend fields
       delete updateData.price_per_night;
       delete updateData.has_override;
+      if (!editFormData.booking_channel_id) {
+        delete updateData.booking_channel_id;
+      }
+      if (!String(editFormData.ota_reference || '').trim()) {
+        delete updateData.ota_reference;
+      }
       // Only send actual_check_out when a value is set; an empty string would
       // fail backend date parsing and must not clobber the stored timestamp.
       if (!editFormData.actual_check_out) {
@@ -2010,6 +2037,39 @@ const BookingsPage: React.FC = () => {
                 <MenuItem value="corporate">Corporate</MenuItem>
               </TextField>
             </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                select
+                fullWidth
+                label="Booking Platform"
+                value={editFormData.booking_channel_id || ''}
+                onChange={(e) => {
+                  const channel = bookingChannels.find((item) => String(item.id) === e.target.value);
+                  setEditFormData((prev: any) => ({
+                    ...prev,
+                    booking_channel_id: e.target.value ? Number(e.target.value) : '',
+                    source: channel?.channel_type === 'ota' ? 'online' : prev.source,
+                  }));
+                }}
+              >
+                <MenuItem value="">None</MenuItem>
+                {bookingChannels.map((channel) => (
+                  <MenuItem key={channel.id} value={channel.id}>
+                    {channel.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            {editBookingUsesOta && (
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField
+                  fullWidth
+                  label="OTA Ref No"
+                  value={editFormData.ota_reference || ''}
+                  onChange={(e) => setEditFormData((prev: any) => ({ ...prev, ota_reference: e.target.value }))}
+                />
+              </Grid>
+            )}
             <Grid size={{ xs: 12, sm: 6 }}>
               <Autocomplete<BookingCompanyOption>
                 options={activeCompanies}

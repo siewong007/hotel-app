@@ -15,10 +15,7 @@ use crate::models::{
     GuestPortalPointsActivity, GuestPortalReward, GuestPortalTierBenefit, GuestPortalTransaction,
 };
 use crate::sql_query;
-use crate::{
-    core::sql_compat::current_timestamp,
-    param,
-};
+use crate::{core::sql_compat::current_timestamp, param};
 
 pub struct GuestPortalSessionRepository;
 
@@ -130,7 +127,10 @@ impl GuestPortalSessionRepository {
             param!(1)
         );
         // Best-effort last_used bookkeeping; a failure here must not block reads.
-        let _ = sqlx::query(&update_sql).bind(token_hash).execute(pool).await;
+        let _ = sqlx::query(&update_sql)
+            .bind(token_hash)
+            .execute(pool)
+            .await;
 
         Ok(Some(guest_id))
     }
@@ -174,12 +174,12 @@ impl GuestPortalSessionRepository {
             .iter()
             .map(|row| GuestPortalBookingSummary {
                 booking_number: row.try_get("booking_number").unwrap_or_default(),
-                check_in_date: row.try_get("check_in_date").unwrap_or_else(|_| {
-                    chrono::NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()
-                }),
-                check_out_date: row.try_get("check_out_date").unwrap_or_else(|_| {
-                    chrono::NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()
-                }),
+                check_in_date: row
+                    .try_get("check_in_date")
+                    .unwrap_or_else(|_| chrono::NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
+                check_out_date: row
+                    .try_get("check_out_date")
+                    .unwrap_or_else(|_| chrono::NaiveDate::from_ymd_opt(2000, 1, 1).unwrap()),
                 status: row.try_get("status").unwrap_or_default(),
                 total_amount: row_mappers::get_decimal(row, "total_amount"),
             })

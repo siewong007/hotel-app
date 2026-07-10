@@ -353,3 +353,16 @@ Never commit real secrets or local `.env` files.
 ## MCP Servers
 
 `hotel-app-be/README.md` references MCP servers under `hotel-app-be/mcp-server/`. They wrap the REST API and authenticate through JWT. They should not bypass the backend authorization/database access patterns.
+
+## graphify
+
+This project's knowledge graph is generated in `graphify-out/`. That directory is intentionally Git-ignored and remains local.
+
+When the user types `/graphify`, use the installed Graphify skill or instructions before doing anything else. In Codex, the installed skill can also be invoked as `$graphify`.
+
+Rules:
+- Before repository-wide analysis, dependency tracing, architectural changes, or impact analysis, consult the graph with `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"`.
+- Treat the graph as an index, not the source of truth. Verify critical findings against the current source code.
+- The graph may be stale after code changes. Regenerate the local code-only graph with exactly `graphify extract . --code-only`, and refresh changed code with `graphify update .`.
+- The graph indexes only allowlisted backend source, tests, schema, and SQLite migrations; frontend source and configuration except `routeTree.gen.ts`; and desktop source, scripts, and configuration.
+- Everything else is excluded, including secrets, environment files, keys, dependencies, build outputs, logs, uploads, `data.sql` and other database data, bundled PostgreSQL, the copied desktop database, documentation, media, caches, design artifacts, and Claude artifacts.

@@ -19,6 +19,7 @@ import { CompaniesService } from './companies.service';
 import { AuditService } from './audit.service';
 import { NightAuditService } from './nightAudit.service';
 import { DataTransferService } from './dataTransfer.service';
+import { HousekeepingService } from './housekeeping.service';
 
 // Core
 export { api, APIError, API_BASE_URL, parseAPIError } from './client';
@@ -41,6 +42,7 @@ export { CompaniesService } from './companies.service';
 export { AuditService } from './audit.service';
 export { NightAuditService } from './nightAudit.service';
 export { DataTransferService } from './dataTransfer.service';
+export { HousekeepingService } from './housekeeping.service';
 export type { Company, CompanyCreateRequest, CompanyUpdateRequest } from '../types';
 export type { BookingDataExport, ExportPreview, ImportResult } from '../types';
 export type {
