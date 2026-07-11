@@ -120,6 +120,19 @@ function locateBrewPrefix(major) {
   }
 }
 
+function locatePostgresPrefix(major) {
+  const configuredPrefix = process.env.POSTGRES_PREFIX?.trim();
+  if (configuredPrefix) {
+    const resolvedPrefix = resolve(configuredPrefix);
+    if (!existsSync(resolvedPrefix)) {
+      throw new Error(`POSTGRES_PREFIX does not exist: ${resolvedPrefix}`);
+    }
+    return resolvedPrefix;
+  }
+
+  return locateBrewPrefix(major);
+}
+
 function computeTreeStats(rootDir) {
   const files = collectInputFiles([rootDir], { baseDir: rootDir });
   let totalBytes = 0;
@@ -129,17 +142,17 @@ function computeTreeStats(rootDir) {
   return { fileCount: files.length, totalBytes };
 }
 
-function provisionFromBrew(major) {
-  const brewPrefix = locateBrewPrefix(major);
-  if (!brewPrefix) {
+function provisionFromPrefix(major) {
+  const postgresPrefix = locatePostgresPrefix(major);
+  if (!postgresPrefix) {
     console.error(
       `Could not locate a Homebrew postgresql@${major} installation via 'brew --prefix postgresql@${major}'.\n` +
-        `Fix: install it with 'brew install postgresql@${major}' and re-run this script.`,
+        `Fix: install it with 'brew install postgresql@${major}', or set POSTGRES_PREFIX to a PostgreSQL ${major} installation, and re-run this script.`,
     );
     process.exit(1);
   }
 
-  console.log(`Provisioning embedded PostgreSQL ${major} from ${brewPrefix}`);
+  console.log(`Provisioning embedded PostgreSQL ${major} from ${postgresPrefix}`);
 
   if (existsSync(pgsqlTmpDir)) {
     rmSync(pgsqlTmpDir, { recursive: true, force: true });
@@ -148,7 +161,7 @@ function provisionFromBrew(major) {
   try {
     // bin/: copy only the executables the app actually shells out to.
     for (const binName of REQUIRED_BIN_NAMES) {
-      const sourceBin = join(brewPrefix, 'bin', binName);
+      const sourceBin = join(postgresPrefix, 'bin', binName);
       if (!existsSync(sourceBin)) {
         throw new Error(`Expected Homebrew binary not found: ${sourceBin}`);
       }
@@ -160,7 +173,7 @@ function provisionFromBrew(major) {
     // renames them to lib/postgresql@<major> and share/postgresql@<major> to
     // match Postgres's own versioned pkglibdir/share naming convention, and
     // omits share/locale (not needed at runtime). Replicate that exactly.
-    const sourceLibPostgresql = join(brewPrefix, 'lib', 'postgresql');
+    const sourceLibPostgresql = join(postgresPrefix, 'lib', 'postgresql');
     if (!existsSync(sourceLibPostgresql)) {
       throw new Error(`Expected Homebrew directory not found: ${sourceLibPostgresql}`);
     }
@@ -169,7 +182,7 @@ function provisionFromBrew(major) {
       preserveTimestamps: true,
     });
 
-    const sourceSharePostgresql = join(brewPrefix, 'share', 'postgresql');
+    const sourceSharePostgresql = join(postgresPrefix, 'share', 'postgresql');
     if (!existsSync(sourceSharePostgresql)) {
       throw new Error(`Expected Homebrew directory not found: ${sourceSharePostgresql}`);
     }
@@ -179,7 +192,7 @@ function provisionFromBrew(major) {
     });
 
     for (const shareSubdir of ['doc', 'man']) {
-      const sourceShareSubdir = join(brewPrefix, 'share', shareSubdir);
+      const sourceShareSubdir = join(postgresPrefix, 'share', shareSubdir);
       if (existsSync(sourceShareSubdir)) {
         cpSync(sourceShareSubdir, join(pgsqlTmpDir, 'share', shareSubdir), {
           recursive: true,
@@ -225,7 +238,7 @@ function provisionFromBrew(major) {
 
   const stats = computeTreeStats(pgsqlDir);
   writeJson(manifestPath, {
-    sourcePath: brewPrefix,
+    sourcePath: postgresPrefix,
     version: foundMajor,
     date: new Date().toISOString(),
     fileCount: stats.fileCount,
@@ -233,7 +246,7 @@ function provisionFromBrew(major) {
   });
 
   console.log(
-    `Provisioned pgsql/ from ${brewPrefix} (PostgreSQL ${foundMajor}, ${stats.fileCount} files, ${stats.totalBytes} bytes).`,
+    `Provisioned pgsql/ from ${postgresPrefix} (PostgreSQL ${foundMajor}, ${stats.fileCount} files, ${stats.totalBytes} bytes).`,
   );
 }
 
@@ -253,7 +266,7 @@ if (!force) {
 }
 
 if (process.platform === 'darwin') {
-  provisionFromBrew(expectedMajor);
+  provisionFromPrefix(expectedMajor);
 } else {
   console.error(
     'Windows/Linux pgsql provisioning source not configured — to be filled in by user.',

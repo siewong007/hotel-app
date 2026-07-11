@@ -75,6 +75,16 @@ impl BookingRepository {
                 } else {
                     q
                 };
+                let q = if let Some(ref v) = binds.month_search_last_day {
+                    q.bind(*v)
+                } else {
+                    q
+                };
+                let q = if let Some(ref v) = binds.month_search_first_day {
+                    q.bind(*v)
+                } else {
+                    q
+                };
                 q
             }};
         }

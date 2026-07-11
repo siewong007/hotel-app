@@ -1511,24 +1511,23 @@ pub async fn create_booking_handler(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
-    // Record payment if deposit was paid during booking creation
+    // Record a deposit payment as part of the same transaction as the booking.
+    // `record_checkin_payment_tx` handles both database schemas despite its
+    // historical name, so a failed payment cannot leave a successful booking
+    // with its deposit silently missing.
     if let Some(amount_paid) = input.amount_paid
         && amount_paid > 0.0
     {
-        let payment_amount = Decimal::from_f64_retain(amount_paid).unwrap_or(Decimal::ZERO);
-        let payment_method_str = input.payment_method.as_deref().unwrap_or("Cash");
-        let _ = sqlx::query(
-                r#"
-                INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
-                VALUES (gen_random_uuid(), $1, $2, $3, 'deposit', 'completed', 'Deposit paid at booking', $4)
-                "#,
-            )
-            .bind(booking.id)
-            .bind(crate::core::db::decimal_to_db(payment_amount))
-            .bind(payment_method_str)
-            .bind(user_id)
-            .execute(&mut *tx)
-            .await;
+        let deposit_payment = CheckInPaymentRecord {
+            amount: amount_paid,
+            payment_method: input
+                .payment_method
+                .clone()
+                .unwrap_or_else(|| "Cash".to_string()),
+            payment_type: Some("deposit".to_string()),
+            notes: Some("Deposit paid at booking".to_string()),
+        };
+        record_checkin_payment_tx(&mut tx, booking.id, &deposit_payment, user_id).await?;
     }
 
     // Commit the transaction - all conflict check + insert + room update are now atomic
@@ -2965,21 +2964,7 @@ pub async fn manual_checkin_handler(
         && let Some(ref payment) = checkin.payment_record
         && payment.amount > 0.0
     {
-        let pay_amount = Decimal::from_f64_retain(payment.amount).unwrap_or(Decimal::ZERO);
-        let pay_type = payment.payment_type.as_deref().unwrap_or("booking");
-        sqlx::query(
-                    r#"INSERT INTO payments (uuid, booking_id, amount, payment_method, payment_type, status, notes, created_by)
-                       VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6)"#
-                )
-                .bind(booking_id)
-                .bind(crate::core::db::decimal_to_db(pay_amount))
-                .bind(&payment.payment_method)
-                .bind(pay_type)
-                .bind(&payment.notes)
-                .bind(user_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| ApiError::Database(e.to_string()))?;
+        record_checkin_payment_tx(&mut tx, booking_id, payment, user_id).await?;
         payment_recorded = true;
     }
 

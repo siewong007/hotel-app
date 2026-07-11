@@ -127,7 +127,10 @@ where
     Ok(format!("{}{:04}", prefix, next))
 }
 
-pub async fn find_ticket(pool: &DbPool, ticket_id: i64) -> Result<Option<MaintenanceTicket>, ApiError> {
+pub async fn find_ticket(
+    pool: &DbPool,
+    ticket_id: i64,
+) -> Result<Option<MaintenanceTicket>, ApiError> {
     let query = format!("{} WHERE t.id = {}", TICKET_SELECT, crate::param!(1));
 
     let row = sqlx::query(&query)
@@ -166,7 +169,10 @@ WHERE (?1 IS NULL OR t.status = ?1)
   AND (?5 IS NULL OR t.priority = ?5)
 "#
     );
-    let count_query = format!("SELECT COUNT(*) FROM maintenance_tickets t {}", where_clause);
+    let count_query = format!(
+        "SELECT COUNT(*) FROM maintenance_tickets t {}",
+        where_clause
+    );
     let list_query = format!(
         "{} {} ORDER BY t.created_at DESC LIMIT {} OFFSET {}",
         TICKET_SELECT,

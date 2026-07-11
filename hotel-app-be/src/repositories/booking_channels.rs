@@ -99,7 +99,9 @@ fn validate_commission(
             }
             Ok((commission_type, value, scope))
         }
-        _ => unreachable!("commission type was validated"),
+        _ => Err(ApiError::BadRequest(
+            "Invalid default_commission_type".to_string(),
+        )),
     }
 }
 

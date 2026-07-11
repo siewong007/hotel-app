@@ -229,10 +229,7 @@ impl DataTransferRepository {
             for room_number in room_numbers {
                 query = query.bind(room_number);
             }
-            query
-                .fetch_all(&mut **tx)
-                .await
-                .map_err(ApiError::from)?
+            query.fetch_all(&mut **tx).await.map_err(ApiError::from)?
         };
 
         Ok(rows.into_iter().collect())

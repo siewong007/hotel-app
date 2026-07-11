@@ -9,7 +9,7 @@ import { useRooms } from '../../rooms/hooks/useRoomQueries';
 
 export type SortField = 'check_in_date' | 'check_out_date' | 'guest_name' | 'room_number' | 'status' | 'folio_number' | 'invoice_number';
 export type SortOrder = 'asc' | 'desc';
-export type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom' | 'date_search';
+export type DateFilter = 'all' | 'today' | 'week' | 'month' | 'custom' | 'date_search' | 'calendar_month';
 
 export const PAGE_SIZE = 50;
 
@@ -36,6 +36,7 @@ export function useBookings() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [searchDate, setSearchDate] = useState('');
+  const [monthSearch, setMonthSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 700);
   const debouncedRoomNumberFilter = useDebouncedValue(roomNumberFilter, 700);
@@ -60,9 +61,10 @@ export function useBookings() {
     else if (dateFilter === 'month') { params.check_in_from = today; params.check_in_to = addDays(today, 30); }
     else if (dateFilter === 'custom' && customStartDate && customEndDate) { params.check_in_from = customStartDate; params.check_in_to = customEndDate; }
     else if (dateFilter === 'date_search' && searchDate) { params.date_search = searchDate; }
+    else if (dateFilter === 'calendar_month' && monthSearch) { params.month_search = `${monthSearch}-01`; }
 
     return params;
-  }, [currentPage, sortField, sortOrder, debouncedSearchQuery, debouncedRoomNumberFilter, paymentMethodFilter, onlineChannelFilter, statusFilter, dateFilter, customStartDate, customEndDate, searchDate]);
+  }, [currentPage, sortField, sortOrder, debouncedSearchQuery, debouncedRoomNumberFilter, paymentMethodFilter, onlineChannelFilter, statusFilter, dateFilter, customStartDate, customEndDate, searchDate, monthSearch]);
 
   const bookingsQuery = useBookingsPage(apiParams);
   const roomsQuery = useRooms();
@@ -118,6 +120,7 @@ export function useBookings() {
     setCustomStartDate('');
     setCustomEndDate('');
     setSearchDate('');
+    setMonthSearch('');
     setSortField('check_in_date');
     setSortOrder('desc');
     setCurrentPage(1);
@@ -173,6 +176,8 @@ export function useBookings() {
     setCustomEndDate,
     searchDate,
     setSearchDate,
+    monthSearch,
+    setMonthSearch,
     currentPage,
     setCurrentPage,
     loadRooms,

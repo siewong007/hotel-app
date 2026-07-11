@@ -10,13 +10,9 @@ pub async fn extract_claims(headers: &HeaderMap) -> Result<Claims, ApiError> {
         .and_then(|h| h.to_str().ok())
         .ok_or_else(|| ApiError::Unauthorized("Missing authorization header".to_string()))?;
 
-    if !auth_header.starts_with("Bearer ") {
-        return Err(ApiError::Unauthorized(
-            "Invalid authorization header format".to_string(),
-        ));
-    }
-
-    let token = auth_header.strip_prefix("Bearer ").unwrap();
+    let token = auth_header
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| ApiError::Unauthorized("Invalid authorization header format".to_string()))?;
     AuthService::verify_jwt(token)
         .map_err(|_| ApiError::Unauthorized("Invalid or expired token".to_string()))
 }

@@ -4,7 +4,6 @@
 //! Handlers are organized by feature area for better maintainability.
 
 pub mod analytics;
-#[allow(dead_code)]
 pub mod audit;
 pub mod auth;
 pub mod booking_channels;

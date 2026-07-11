@@ -668,7 +668,7 @@ ON CONFLICT (route_id) DO UPDATE SET
 -- ============================================================================
 
 INSERT INTO users (id, username, email, password_hash, full_name, is_active, is_verified, is_super_admin, created_at, updated_at)
-VALUES (1000, 'admin', 'admin@hotel.com', '$2b$12$Fq3zPzZ.mr/wuYrbUPUItOqoC9YvsFfW.mcq4B6U5e3nWsPr4JQdK',
+VALUES (1000, 'admin', 'admin@hotel.com', '$2b$12$YP3zIgLP0ClHE6BmGXRfOO5x6PqgBgeAUEPw7m6GIXKh0GyIPZKfa',
     'System Administrator', true, true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 ON CONFLICT (username) DO UPDATE SET
     email = EXCLUDED.email,
@@ -687,7 +687,7 @@ WHERE users.email IS DISTINCT FROM EXCLUDED.email
 SELECT setval('users_id_seq', GREATEST((SELECT MAX(id) FROM users), 1000) + 1, false);
 
 INSERT INTO users (username, email, password_hash, full_name, is_active, is_verified, is_super_admin, created_at)
-VALUES ('superadmin', 'superadmin@hotel.local', '$2b$12$Fq3zPzZ.mr/wuYrbUPUItOqoC9YvsFfW.mcq4B6U5e3nWsPr4JQdK',
+VALUES ('superadmin', 'superadmin@hotel.local', '$2b$12$YP3zIgLP0ClHE6BmGXRfOO5x6PqgBgeAUEPw7m6GIXKh0GyIPZKfa',
     'Super Administrator', true, true, true, CURRENT_TIMESTAMP)
 ON CONFLICT (username) DO UPDATE SET
     email = EXCLUDED.email,

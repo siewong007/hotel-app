@@ -35,14 +35,15 @@ in `src-tauri/src/postgres.rs` — it is not hardcoded in the script.
 
 - Fast path: if `pgsql/` exists, its `postgres`/`initdb`/`pg_ctl` report the expected
   major version, and it exits 0 without copying anything.
-- On macOS, provisioning locates the source via `brew --prefix postgresql@<major>`
-  (install it with `brew install postgresql@<major>` if missing), copies it into a
+- On macOS, provisioning uses `POSTGRES_PREFIX` when set, otherwise it locates the
+  source via `brew --prefix postgresql@<major>` (install it with
+  `brew install postgresql@<major>` if available), then copies it into a
   `pgsql.tmp` staging directory, verifies the binaries, then atomically renames it
   into place. A failed copy never touches the existing `pgsql/` tree.
 - Windows/Linux sources are not configured yet; the script exits 1 with a message
   rather than guessing a download URL.
 - Force re-provisioning (e.g. after a version bump or a suspected bad copy):
-  `bun run provision:pgsql:force`, or `node scripts/provision-pgsql.mjs --force`.
+  `bun run provision:pgsql:force`, or `bun scripts/provision-pgsql.mjs --force`.
 
 ## Commands
 

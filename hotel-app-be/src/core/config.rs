@@ -32,8 +32,10 @@ pub struct DatabaseConfig {
     pub acquire_timeout_secs: u64,
     #[allow(dead_code)]
     pub busy_timeout_secs: u64,
+    #[cfg_attr(all(feature = "sqlite", not(feature = "postgres")), allow(dead_code))]
     pub idle_timeout_secs: u64,
     pub max_connections: u32,
+    #[cfg_attr(all(feature = "sqlite", not(feature = "postgres")), allow(dead_code))]
     pub max_lifetime_secs: u64,
     pub min_connections: u32,
     pub slow_statement_ms: u64,

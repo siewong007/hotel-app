@@ -183,6 +183,8 @@ const BookingsPage: React.FC = () => {
     setCustomEndDate,
     searchDate,
     setSearchDate,
+    monthSearch,
+    setMonthSearch,
     currentPage,
     setCurrentPage,
     loadRooms,
@@ -990,6 +992,24 @@ const BookingsPage: React.FC = () => {
     return new Date(value).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   };
 
+  const formatShortMonth = (value?: string) => {
+    if (!value) return '-';
+    const [year, month] = value.split('-').map(Number);
+    if (!year || !month) return '-';
+    return new Date(year, month - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  };
+
+  const monthOptions = useMemo(() => {
+    const now = new Date();
+    const options: { value: string; label: string }[] = [];
+    for (let offset = -12; offset <= 12; offset++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      options.push({ value, label: d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) });
+    }
+    return options;
+  }, []);
+
   const formatOperationalDate = () => {
     return new Date().toLocaleDateString(undefined, {
       weekday: 'long',
@@ -1366,7 +1386,7 @@ const BookingsPage: React.FC = () => {
         <Grid size={{ xs: 12, lg: selectedBooking ? 8 : 12 }}>
           <Card elevation={0} sx={{ overflow: 'hidden', height: '100%' }}>
             <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 200px 200px 200px' }, gap: 1.25 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 200px 200px 200px 200px' }, gap: 1.25 }}>
                 <TextField
                   fullWidth
                   size="medium"
@@ -1423,6 +1443,25 @@ const BookingsPage: React.FC = () => {
                   }}
                   InputLabelProps={{ shrink: true }}
                 />
+                <FormControl fullWidth size="medium">
+                  <Select
+                    aria-label="Search month"
+                    value={monthSearch}
+                    displayEmpty
+                    onChange={(e) => {
+                      const value = e.target.value as string;
+                      setMonthSearch(value);
+                      setDateFilter(value ? 'calendar_month' : 'all');
+                      setBookingView('all');
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <MenuItem value="">Any month</MenuItem>
+                    {monthOptions.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </Box>
               <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 1.5 }}>
                 {[
@@ -1464,6 +1503,17 @@ const BookingsPage: React.FC = () => {
                     label={`Date ${formatShortDate(searchDate)}`}
                     onDelete={() => {
                       setSearchDate('');
+                      setDateFilter('all');
+                      setCurrentPage(1);
+                    }}
+                    sx={{ height: 34, fontWeight: 800 }}
+                  />
+                )}
+                {monthSearch && (
+                  <Chip
+                    label={`Month ${formatShortMonth(monthSearch)}`}
+                    onDelete={() => {
+                      setMonthSearch('');
                       setDateFilter('all');
                       setCurrentPage(1);
                     }}

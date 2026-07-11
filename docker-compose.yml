@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   postgres:
-    image: postgres:18
+    image: postgres:19beta1
     container_name: hotel-db
     restart: unless-stopped
     ports:
@@ -12,7 +12,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_TO_STRONG_PASSWORD_MIN_16_CHARS}
       POSTGRES_DB: ${POSTGRES_DB:-hotel_management}
     volumes:
-      - postgres18_data:/var/lib/postgresql
+      - postgres19_data:/var/lib/postgresql
       - ./hotel-app-be/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./hotel-app-be/database/data.sql:/docker-entrypoint-initdb.d/02-data.sql
     healthcheck:
@@ -60,7 +60,7 @@ services:
       - hotel-network
 
 volumes:
-  postgres18_data:
+  postgres19_data:
     driver: local
 
 networks:

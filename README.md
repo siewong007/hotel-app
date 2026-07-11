@@ -18,7 +18,7 @@
   <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white">
   <img alt="Tauri" src="https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=111">
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-19%20Beta%201-4169E1?logo=postgresql&logoColor=white">
 </p>
 
 ## 📌 Overview
@@ -152,7 +152,7 @@ hotel-app/
 | Rust | 1.95.0 | The repository includes `rust-toolchain.toml`. |
 | Node.js | 22 LTS recommended | Required by desktop helper scripts. |
 | Bun | 1.3.14 | Package manager for frontend and desktop projects. |
-| PostgreSQL | 18 recommended | Required for the default backend feature. |
+| PostgreSQL | 19 Beta 1 | Required for the default backend feature. PostgreSQL 19 is pre-release and intended for testing until general availability. |
 
 ### Clone
 

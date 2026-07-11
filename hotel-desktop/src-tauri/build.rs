@@ -1,6 +1,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
 fn target_dir_from_out_dir() -> Option<PathBuf> {
     let out_dir = PathBuf::from(std::env::var_os("OUT_DIR")?);
     out_dir
@@ -15,7 +18,14 @@ fn make_writable(path: &Path) -> std::io::Result<()> {
     let mut permissions = metadata.permissions();
 
     if permissions.readonly() {
+        // Preserve directory execute bits and all existing group/other policy.
+        // `set_readonly(false)` would make Unix paths world-writable.
+        #[cfg(unix)]
+        permissions.set_mode(permissions.mode() | 0o200);
+
+        #[cfg(not(unix))]
         permissions.set_readonly(false);
+
         fs::set_permissions(path, permissions)?;
     }
 
