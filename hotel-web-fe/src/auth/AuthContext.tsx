@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api, HotelAPIService } from '../api';
-import { refreshAccessToken } from '../api/client';
+import { api, refreshAccessToken } from '../api/client';
+import { AuthService } from '../api/auth.service';
 import { storage } from '../utils/storage';
 import { setAccessToken, clearAccessToken } from './tokenStore';
 import type { RouteAccessPolicy } from '../types';
@@ -115,8 +115,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // the current access snapshot before flipping isAuthenticated. The
         // `user` object is restored from the (non-sensitive) storage cache set
         // at login; the profile call doubles as a token-validity probe.
-        await HotelAPIService.getUserProfile();
-        const access = await HotelAPIService.getAccessSnapshot();
+        await AuthService.getUserProfile();
+        const access = await AuthService.getAccessSnapshot();
         const user = storage.getItem<User>('user');
 
         storage.setItems({
@@ -181,7 +181,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const register = useCallback(async (data: { username: string; email: string; password: string; first_name: string; last_name: string; phone?: string }) => {
     try {
-      await HotelAPIService.register(data);
+      await AuthService.register(data);
     } catch (error: any) {
       console.error('Registration error:', error);
 
@@ -206,7 +206,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkPasskeys = useCallback(async (): Promise<boolean> => {
     try {
-      const passkeys = await HotelAPIService.listPasskeys();
+      const passkeys = await AuthService.listPasskeys();
       return passkeys.length > 0;
     } catch (error) {
       console.error('Failed to check passkeys:', error);

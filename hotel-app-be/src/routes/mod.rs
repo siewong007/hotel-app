@@ -62,9 +62,31 @@ pub(crate) fn extract_client_ip(headers: &axum::http::HeaderMap, peer_addr: Sock
         .unwrap_or_else(|| peer_addr.ip())
 }
 
-/// Health check handler
-async fn health_handler() -> axum::response::Json<serde_json::Value> {
-    axum::response::Json(serde_json::json!({"status": "ok"}))
+/// Health check handler.
+///
+/// Verifies the database connection pool can actually serve a query rather
+/// than returning a hardcoded 200. The pool (not the HTTP listener) is what
+/// is most likely to fail in production (DB restart, network partition,
+/// exhausted connections), so a naive /health would falsely report healthy
+/// while every real request 500s.
+async fn health_handler(
+    axum::extract::State(pool): axum::extract::State<DbPool>,
+) -> impl axum::response::IntoResponse {
+    match sqlx::query("SELECT 1").execute(&pool).await {
+        Ok(_) => (
+            axum::http::StatusCode::OK,
+            axum::response::Json(serde_json::json!({"status": "ok"})),
+        ),
+        Err(err) => {
+            log::error!("Health check failed: database unreachable: {err}");
+            (
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                axum::response::Json(
+                    serde_json::json!({"status": "error", "message": "database unreachable"}),
+                ),
+            )
+        }
+    }
 }
 
 /// WebSocket status handler

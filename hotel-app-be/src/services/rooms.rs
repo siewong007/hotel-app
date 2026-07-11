@@ -212,13 +212,45 @@ pub async fn complete_housekeeping_cleaning_tx(
         .await
         .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    // Record the status-change event. This is best-effort audit bookkeeping and
+    // must not fail the cleaning-completion transaction. We are inside an OPEN
+    // transaction, so on Postgres a failed statement poisons the WHOLE
+    // transaction even though we discard the Result — the failure would then
+    // resurface as a confusing "transaction is aborted" error on the next
+    // statement (see lessons.md 2026-07-10b). Wrap the insert in a SAVEPOINT so
+    // any failure is isolated: roll back to the savepoint instead of poisoning
+    // the parent tx. SAVEPOINT / RELEASE SAVEPOINT / ROLLBACK TO SAVEPOINT is
+    // accepted by both PostgreSQL and SQLite.
     let event_note = format!("Status changed to: {}", target_status);
-    let _ = sqlx::query(INSERT_ROOM_EVENT)
+    sqlx::query("SAVEPOINT sp_room_event")
+        .execute(&mut **tx)
+        .await
+        .map_err(|e| ApiError::Database(e.to_string()))?;
+    match sqlx::query(INSERT_ROOM_EVENT)
         .bind(room_id)
         .bind(event_note)
         .bind(user_id)
         .execute(&mut **tx)
-        .await;
+        .await
+    {
+        Ok(_) => {
+            sqlx::query("RELEASE SAVEPOINT sp_room_event")
+                .execute(&mut **tx)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+        }
+        Err(e) => {
+            log::warn!(
+                "Best-effort room_events insert failed for room {}: {}",
+                room_id,
+                e
+            );
+            sqlx::query("ROLLBACK TO SAVEPOINT sp_room_event")
+                .execute(&mut **tx)
+                .await
+                .map_err(|e| ApiError::Database(e.to_string()))?;
+        }
+    }
 
     Ok(target_status)
 }

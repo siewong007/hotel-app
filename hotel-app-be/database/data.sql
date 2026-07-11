@@ -52,6 +52,11 @@ VALUES
     ('bookings:manage'),
     ('bookings:read'),
     ('bookings:update'),
+    ('companies:create'),
+    ('companies:delete'),
+    ('companies:manage'),
+    ('companies:read'),
+    ('companies:update'),
     ('ekyc:approve'),
     ('ekyc:assign'),
     ('ekyc:download_documents'),
@@ -474,6 +479,11 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('bookings:update', 'bookings', 'update', 'Update bookings', true),
 ('bookings:delete', 'bookings', 'delete', 'Cancel bookings', true),
 ('bookings:manage', 'bookings', 'manage', 'Full booking management', true),
+('companies:read', 'companies', 'read', 'View corporate billing accounts', true),
+('companies:create', 'companies', 'create', 'Create corporate billing accounts', true),
+('companies:update', 'companies', 'update', 'Update corporate billing accounts', true),
+('companies:delete', 'companies', 'delete', 'Delete corporate billing accounts', true),
+('companies:manage', 'companies', 'manage', 'Full corporate billing account management', true),
 ('guests:create', 'guests', 'create', 'Create guest profiles', true),
 ('guests:read', 'guests', 'read', 'View guest information', true),
 ('guests:update', 'guests', 'update', 'Update guest information', true),
@@ -551,6 +561,7 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'manager'
     'housekeeping:read', 'housekeeping:create', 'housekeeping:update', 'housekeeping:manage',
     'maintenance:read', 'maintenance:write', 'maintenance:manage', 'navigation_housekeeping:read',
     'payments:manage', 'ledgers:read', 'ledgers:create', 'ledgers:update', 'ledgers:void', 'ledgers:manage',
+    'companies:read', 'companies:create', 'companies:update', 'companies:delete', 'companies:manage',
     'services:manage', 'reviews:manage', 'reports:read', 'reports:execute', 'analytics:read'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
@@ -560,7 +571,8 @@ SELECT r.id, p.id FROM roles r CROSS JOIN permissions p WHERE r.name = 'receptio
     'rooms:read', 'rooms:update', 'bookings:create', 'bookings:read', 'bookings:update',
     'housekeeping:read', 'housekeeping:create', 'housekeeping:update', 'navigation_housekeeping:read',
     'guests:create', 'guests:read', 'guests:update', 'guests:manage', 'payments:create', 'payments:read',
-    'ledgers:read', 'ledgers:create', 'services:read', 'services:create', 'reviews:read', 'settings:read',
+    'ledgers:read', 'ledgers:create', 'companies:read', 'companies:create',
+    'services:read', 'services:create', 'reviews:read', 'settings:read',
     'analytics:read', 'reports:execute'
 ) ON CONFLICT (role_id, permission_id) DO NOTHING;
 
