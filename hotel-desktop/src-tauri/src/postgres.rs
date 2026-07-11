@@ -35,7 +35,7 @@ const POSTGRES_PORT: u16 = 5433; // Use non-standard port to avoid conflicts
 const POSTGRES_USER: &str = "hotel_admin";
 const POSTGRES_DB: &str = "hotel_management";
 const POSTGRES_PASSWORD_FILE: &str = "postgres-password.txt";
-const CONFIGURED_POSTGRES_MAJOR_VERSION: &str = "18";
+const CONFIGURED_POSTGRES_MAJOR_VERSION: &str = "19";
 const MAX_STARTUP_WAIT_SECS: u64 = 30;
 const SEED_PLACEHOLDER_PASSWORD_HASH: &str =
     "$2b$12$Fq3zPzZ.mr/wuYrbUPUItOqoC9YvsFfW.mcq4B6U5e3nWsPr4JQdK";
@@ -81,8 +81,8 @@ fn get_pgsql_bin_dir(app_handle: &AppHandle) -> PathBuf {
 
     // Strip the \\?\ extended-length path prefix on Windows as PostgreSQL can't handle it
     let path_str = resource_dir.to_string_lossy();
-    let clean_path = if path_str.starts_with(r"\\?\") {
-        PathBuf::from(&path_str[4..])
+    let clean_path = if let Some(stripped) = path_str.strip_prefix(r"\\?\") {
+        PathBuf::from(stripped)
     } else {
         resource_dir
     };
@@ -467,7 +467,7 @@ pub async fn init_postgres_data_dir(
 }
 
 /// Configure PostgreSQL for desktop use (localhost-only, password-authenticated).
-fn configure_postgres_for_desktop(pgdata: &PathBuf) -> Result<(), std::io::Error> {
+fn configure_postgres_for_desktop(pgdata: &Path) -> Result<(), std::io::Error> {
     // Modify postgresql.conf
     let conf_path = pgdata.join("postgresql.conf");
     let mut conf_content = std::fs::read_to_string(&conf_path)?;
@@ -1103,7 +1103,7 @@ fn list_managed_backups() -> Vec<PathBuf> {
     };
 
     // Newest first.
-    entries.sort_by(|a, b| b.1.cmp(&a.1));
+    entries.sort_by_key(|entry| std::cmp::Reverse(entry.1));
     entries.into_iter().map(|(path, _)| path).collect()
 }
 
@@ -1293,13 +1293,17 @@ pub async fn upgrade_database_from_backup(
     // From here on, any failure must roll back: remove the new cluster and
     // rename the retired directory back to the original name.
     let rollback = |context: String| -> PostgresError {
-        log::error!("Upgrade failed ({}); rolling back to pre-upgrade state", context);
+        log::error!(
+            "Upgrade failed ({}); rolling back to pre-upgrade state",
+            context
+        );
         // Best-effort: remove a half-built new cluster if one exists.
         if pgdata.exists() {
             if let Err(err) = std::fs::remove_dir_all(&pgdata) {
                 log::error!(
                     "Rollback: failed to remove half-built data directory {:?}: {}",
-                    pgdata, err
+                    pgdata,
+                    err
                 );
             }
         }
@@ -1343,13 +1347,19 @@ pub async fn upgrade_database_from_backup(
     // (e) Restore the latest backup dump.
     if let Err(err) = restore_backup_dump(app_handle, &backup_path).await {
         let _ = stop_postgres(app_handle).await;
-        return Err(rollback(format!("restore of backup {:?} failed: {}", backup_path, err)));
+        return Err(rollback(format!(
+            "restore of backup {:?} failed: {}",
+            backup_path, err
+        )));
     }
 
     // (f) Run the migrations / schema bootstrap step (idempotent).
     if let Err(err) = run_database_setup(app_handle).await {
         let _ = stop_postgres(app_handle).await;
-        return Err(rollback(format!("post-restore database setup failed: {}", err)));
+        return Err(rollback(format!(
+            "post-restore database setup failed: {}",
+            err
+        )));
     }
 
     // (g) Success.
@@ -1538,8 +1548,8 @@ fn clean_resource_dir(app_handle: &AppHandle) -> PathBuf {
 
     // Strip the \\?\ extended-length path prefix on Windows
     let path_str = resource_dir.to_string_lossy();
-    if path_str.starts_with(r"\\?\") {
-        PathBuf::from(&path_str[4..])
+    if let Some(stripped) = path_str.strip_prefix(r"\\?\") {
+        PathBuf::from(stripped)
     } else {
         resource_dir
     }
@@ -1625,7 +1635,7 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
         .flatten();
     let version_compatible = data_version
         .as_deref()
-        .map_or(true, |version| version == bundled_version.as_str());
+        .is_none_or(|version| version == bundled_version.as_str());
 
     // A major-version mismatch means we refuse to auto-start (see
     // refuse_if_pgdata_version_mismatch). Surface this as a machine-readable

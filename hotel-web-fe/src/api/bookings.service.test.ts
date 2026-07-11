@@ -85,3 +85,34 @@ describe('BookingsService.getBookingsPage online_channel filter', () => {
     expect(lastSearchParams()).not.toHaveProperty('online_channel');
   });
 });
+
+describe('BookingsService.getBookingsPage month_search filter', () => {
+  beforeEach(() => {
+    get.mockReset();
+  });
+
+  it('forwards month_search as a search param when provided', async () => {
+    mockEmptyPage();
+
+    await BookingsService.getBookingsPage({ month_search: '2026-02-01' });
+
+    expect(get).toHaveBeenCalledWith('bookings', expect.anything());
+    expect(lastSearchParams()).toMatchObject({ month_search: '2026-02-01' });
+  });
+
+  it('omits month_search when not provided', async () => {
+    mockEmptyPage();
+
+    await BookingsService.getBookingsPage({});
+
+    expect(lastSearchParams()).not.toHaveProperty('month_search');
+  });
+
+  it('omits month_search when an empty string is passed', async () => {
+    mockEmptyPage();
+
+    await BookingsService.getBookingsPage({ month_search: '' });
+
+    expect(lastSearchParams()).not.toHaveProperty('month_search');
+  });
+});

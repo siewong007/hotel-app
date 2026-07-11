@@ -63,14 +63,25 @@ jobs:
         working-directory: hotel-desktop
         run: bun ci
 
-      # The embedded PostgreSQL major version is parsed at runtime by
-      # provision-pgsql.mjs from CONFIGURED_POSTGRES_MAJOR_VERSION in
-      # hotel-desktop/src-tauri/src/postgres.rs (currently "18"). If that
-      # constant is bumped, update this brew formula name to match.
-      - name: Install Homebrew PostgreSQL (major version must match postgres.rs)
-        run: brew install postgresql@18
+      # PostgreSQL 19 is still pre-release, so Homebrew does not provide a
+      # versioned formula yet. Build the official beta source and pass its
+      # installation prefix to the resource provisioning script.
+      - name: Build PostgreSQL 19 Beta 1
+        env:
+          POSTGRES_VERSION: 19beta1
+        run: |
+          curl --fail --location --remote-name "https://ftp.postgresql.org/pub/source/v${POSTGRES_VERSION}/postgresql-${POSTGRES_VERSION}.tar.bz2"
+          curl --fail --location --remote-name "https://ftp.postgresql.org/pub/source/v${POSTGRES_VERSION}/postgresql-${POSTGRES_VERSION}.tar.bz2.sha256"
+          shasum --algorithm 256 --check "postgresql-${POSTGRES_VERSION}.tar.bz2.sha256"
+          tar -xjf "postgresql-${POSTGRES_VERSION}.tar.bz2"
+          cd "postgresql-${POSTGRES_VERSION}"
+          ./configure --prefix="${RUNNER_TEMP}/postgresql-${POSTGRES_VERSION}" --with-openssl
+          make -j"$(sysctl -n hw.ncpu)" world-bin
+          make install-world-bin
 
       - name: Provision embedded PostgreSQL tree
+        env:
+          POSTGRES_PREFIX: ${{ runner.temp }}/postgresql-19beta1
         run: bun run provision:pgsql
 
       - name: Build desktop app (binary only)

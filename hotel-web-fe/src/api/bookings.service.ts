@@ -298,6 +298,7 @@ export class BookingsService {
     date_search?: string;
     check_in_from?: string;
     check_in_to?: string;
+    month_search?: string;
     sort_by?: string;
     sort_order?: string;
   } = {}): Promise<{ data: BookingWithDetails[]; total: number; page: number; page_size: number }> {
@@ -314,6 +315,7 @@ export class BookingsService {
       if (params.date_search) searchParams.date_search = params.date_search;
       if (params.check_in_from) searchParams.check_in_from = params.check_in_from;
       if (params.check_in_to) searchParams.check_in_to = params.check_in_to;
+      if (params.month_search) searchParams.month_search = params.month_search;
       if (params.sort_by) searchParams.sort_by = params.sort_by;
       if (params.sort_order) searchParams.sort_order = params.sort_order;
 

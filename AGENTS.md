@@ -203,8 +203,8 @@ For desktop packaging/resource changes, run or inspect:
 
 ```bash
 cd hotel-desktop
-npm run sync:resources
-npm run desktop:prepare
+bun run sync:resources
+bun run desktop:prepare
 ```
 
 If a command cannot be run because of local tooling, sandboxing, or network limits, report that clearly.
@@ -325,12 +325,12 @@ The Vite dev server proxy list in `vite.config.ts` is hand-maintained. When addi
 ### Desktop (`hotel-desktop/`)
 
 ```bash
-npm install
-npm run dev
-npm run build
-npm run build:debug
-npm run sync:resources
-npm run desktop:prepare
+bun install
+bun run dev
+bun run build
+bun run build:debug
+bun run sync:resources
+bun run desktop:prepare
 ```
 
 The desktop app ships embedded PostgreSQL resources under `src-tauri/pgsql/` and copied database resources under `src-tauri/database/`. The backend detects desktop mode with `HOTEL_DESKTOP_MODE` and binds to localhost on a dynamically chosen port starting at `BACKEND_PORT`.

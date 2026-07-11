@@ -11,7 +11,9 @@ mod sqlite_tests {
     use hotel_app_be::models::{
         CreateMaintenanceTicketRequest, ListMaintenanceTicketsQuery, UpdateMaintenanceTicketRequest,
     };
-    use hotel_app_be::services::maintenance::{create_ticket, get_ticket, list_tickets, update_ticket};
+    use hotel_app_be::services::maintenance::{
+        create_ticket, get_ticket, list_tickets, update_ticket,
+    };
 
     /// admin user id=1 is seeded by the SQLite migrations (001_initial_schema.sql).
     const USER_ID: i64 = 1;
@@ -279,7 +281,10 @@ mod sqlite_tests {
         let result = get_ticket(&pool, 999_999).await;
 
         assert!(
-            matches!(result, Err(hotel_app_be::core::error::ApiError::NotFound(_))),
+            matches!(
+                result,
+                Err(hotel_app_be::core::error::ApiError::NotFound(_))
+            ),
             "expected NotFound, got: {result:?}"
         );
     }

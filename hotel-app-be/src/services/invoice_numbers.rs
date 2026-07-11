@@ -35,7 +35,6 @@ where
 /// run repeatedly — it only inserts where no invoice row exists.
 ///
 /// Returns the number of invoices created.
-#[allow(dead_code)]
 pub async fn backfill_missing_booking_invoices(pool: &DbPool) -> Result<usize, ApiError> {
     let rows = repo::bookings_missing_invoices(pool).await?;
     if rows.is_empty() {
@@ -89,7 +88,6 @@ pub async fn backfill_missing_booking_invoices(pool: &DbPool) -> Result<usize, A
 /// `default_payment_terms_days`) and adds it to the row's
 /// `posting_date`/`invoice_date`/`created_at` (in that order of preference).
 /// Idempotent — only touches rows where `due_date IS NULL`.
-#[allow(dead_code)]
 pub async fn backfill_missing_ledger_due_dates(pool: &DbPool) -> Result<usize, ApiError> {
     repo::backfill_ledger_due_dates(pool).await
 }

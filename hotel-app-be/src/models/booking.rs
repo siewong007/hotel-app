@@ -29,6 +29,8 @@ pub struct BookingPaginationParams {
     pub check_in_from: Option<NaiveDate>,
     /// Bookings with check-in <= this date.
     pub check_in_to: Option<NaiveDate>,
+    /// Filter by calendar month (bookings overlapping this month). Pass a date in YYYY-MM-01 format.
+    pub month_search: Option<NaiveDate>,
     /// Column to sort by.
     pub sort_by: Option<String>,
     /// Sort direction: asc | desc.

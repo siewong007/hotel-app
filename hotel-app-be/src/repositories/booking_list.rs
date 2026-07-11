@@ -2,7 +2,7 @@
 //!
 //! Keeps filter and sort SQL construction separate from handler orchestration.
 
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate};
 
 use crate::models::BookingPaginationParams;
 use crate::utils::pagination::Pagination;
@@ -30,6 +30,8 @@ pub struct BookingListBinds {
     pub date_search: Option<NaiveDate>,
     pub check_in_from: Option<NaiveDate>,
     pub check_in_to: Option<NaiveDate>,
+    pub month_search_first_day: Option<NaiveDate>,
+    pub month_search_last_day: Option<NaiveDate>,
 }
 
 /// Build the SQL query text and ordered bind values for booking lists.
@@ -190,11 +192,37 @@ pub fn build_booking_list_query(
         conditions.push("b.company_id IS NOT NULL".to_string());
     }
 
-    // date_search intentionally overrides range filters, matching existing behavior.
-    // Skipped entirely when the date has been redirected to the payment date above.
+    // Month filter: skipped when the date has been redirected to the payment date above.
+    // Month filter: find bookings overlapping the specified month.
     if payment_date_active {
         // Stay-window filtering is intentionally suppressed: the selected date is
         // applied to the payment, not the stay.
+    } else if let Some(ms) = params.month_search {
+        // Month filter: find bookings overlapping the specified month.
+        // ms is a date in YYYY-MM-01 format (first day of the month).
+        // We compute the last day of the month for the range check.
+        let year = ms.year();
+        let month = ms.month();
+        let last_day = if month == 12 {
+            chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1)
+                .unwrap()
+                .pred_opt()
+                .unwrap()
+        } else {
+            chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+                .unwrap()
+                .pred_opt()
+                .unwrap()
+        };
+        param_idx += 1;
+        let last_p = param_placeholder(param_idx);
+        param_idx += 1;
+        let first_p = param_placeholder(param_idx);
+        let col_in = date_cast("b.check_in_date");
+        let col_out = date_cast("b.check_out_date");
+        conditions.push(format!("({col_in} <= {last_p} AND {col_out} > {first_p})"));
+        binds.month_search_first_day = Some(ms);
+        binds.month_search_last_day = Some(last_day);
     } else if let Some(ds) = params.date_search {
         param_idx += 1;
         let p = param_placeholder(param_idx);
@@ -340,6 +368,7 @@ mod tests {
             date_search: None,
             check_in_from: None,
             check_in_to: None,
+            month_search: None,
             sort_by: None,
             sort_order: None,
         }
@@ -603,6 +632,67 @@ mod tests {
             param_placeholder(1)
         )));
         assert_eq!(query.binds.date_search, params.date_search);
+        assert_eq!(query.binds.check_in_from, None);
+        assert_eq!(query.binds.check_in_to, None);
+    }
+
+    #[test]
+    fn month_search_filters_bookings_overlapping_the_month() {
+        let mut params = params();
+        params.month_search = NaiveDate::from_ymd_opt(2026, 2, 1);
+
+        let query = build_booking_list_query(&params, "SELECT * FROM bookings b ", pagination());
+        let col_in = date_cast("b.check_in_date");
+        let col_out = date_cast("b.check_out_date");
+
+        assert!(query.count_sql.contains(&format!(
+            "({col_in} <= {} AND {col_out} > {})",
+            param_placeholder(1),
+            param_placeholder(2)
+        )));
+        assert_eq!(
+            query.binds.month_search_first_day,
+            NaiveDate::from_ymd_opt(2026, 2, 1)
+        );
+        // 2026 is not a leap year, so February's last day is the 28th.
+        assert_eq!(
+            query.binds.month_search_last_day,
+            NaiveDate::from_ymd_opt(2026, 2, 28)
+        );
+    }
+
+    #[test]
+    fn month_search_handles_december_year_rollover() {
+        let mut params = params();
+        params.month_search = NaiveDate::from_ymd_opt(2026, 12, 1);
+
+        let query = build_booking_list_query(&params, "SELECT * FROM bookings b ", pagination());
+
+        assert_eq!(
+            query.binds.month_search_first_day,
+            NaiveDate::from_ymd_opt(2026, 12, 1)
+        );
+        assert_eq!(
+            query.binds.month_search_last_day,
+            NaiveDate::from_ymd_opt(2026, 12, 31)
+        );
+    }
+
+    #[test]
+    fn month_search_overrides_date_search_and_range_filters() {
+        let mut params = params();
+        params.month_search = NaiveDate::from_ymd_opt(2026, 3, 1);
+        params.date_search = NaiveDate::from_ymd_opt(2026, 5, 26);
+        params.check_in_from = NaiveDate::from_ymd_opt(2026, 5, 1);
+        params.check_in_to = NaiveDate::from_ymd_opt(2026, 5, 31);
+
+        let query = build_booking_list_query(&params, "SELECT * FROM bookings b ", pagination());
+
+        assert_eq!(
+            query.binds.month_search_first_day,
+            NaiveDate::from_ymd_opt(2026, 3, 1)
+        );
+        assert_eq!(query.binds.date_search, None);
         assert_eq!(query.binds.check_in_from, None);
         assert_eq!(query.binds.check_in_to, None);
     }

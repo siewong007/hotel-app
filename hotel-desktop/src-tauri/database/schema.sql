@@ -1132,6 +1132,7 @@ CREATE SEQUENCE IF NOT EXISTS room_types_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS amenities_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS rooms_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS room_history_id_seq START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS room_events_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS housekeeping_tasks_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS maintenance_tickets_id_seq START WITH 1;
 CREATE SEQUENCE IF NOT EXISTS room_changes_id_seq START WITH 1;
@@ -1240,6 +1241,23 @@ CREATE TABLE IF NOT EXISTS room_history (
     changed_by BIGINT REFERENCES users(id),
     is_auto_generated BOOLEAN DEFAULT false,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================================================
+-- ROOM EVENTS (generic room event log: status changes, scheduled events)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS room_events (
+    id BIGINT PRIMARY KEY DEFAULT nextval('room_events_id_seq'),
+    room_id BIGINT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+    event_type VARCHAR(50) NOT NULL DEFAULT 'status_change',
+    status VARCHAR(20),
+    priority VARCHAR(20) DEFAULT 'normal',
+    notes TEXT,
+    scheduled_date TIMESTAMP WITH TIME ZONE,
+    created_by BIGINT REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ============================================================================
@@ -1484,6 +1502,8 @@ CREATE INDEX IF NOT EXISTS idx_rooms_active ON rooms(is_active) WHERE is_active 
 CREATE INDEX IF NOT EXISTS idx_rooms_status_active ON rooms(status, is_active) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_room_history_room ON room_history(room_id);
 CREATE INDEX IF NOT EXISTS idx_room_history_created ON room_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_room_events_room ON room_events(room_id);
+CREATE INDEX IF NOT EXISTS idx_room_events_created ON room_events(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_room_status_log_room_created ON room_status_change_log(room_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_housekeeping_room ON housekeeping_tasks(room_id);
 CREATE INDEX IF NOT EXISTS idx_housekeeping_status ON housekeeping_tasks(status);
