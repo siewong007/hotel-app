@@ -4,7 +4,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::{require_any_permission_helper, require_auth};
+use crate::core::middleware::require_any_permission_helper;
 use crate::handlers;
 use crate::models;
 use axum::{
@@ -96,7 +96,7 @@ async fn get_route_policies(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::RouteAccessPolicy>>, ApiError> {
-    require_auth(&headers).await?;
+    require_any_permission_helper(&pool, &headers, RBAC_SNAPSHOT_PERMISSIONS).await?;
     handlers::rbac::get_route_policies_handler(State(pool)).await
 }
 

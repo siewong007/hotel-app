@@ -146,22 +146,67 @@ async fn verify_booking(
 
 async fn get_booking(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     path: Path<String>,
 ) -> Result<Json<models::GuestPortalBookingResponse>, ApiError> {
+    let (allowed, retry_after) = limiters
+        .guest_portal_token
+        .check_with_retry(path.0.clone())
+        .await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many requests for this booking link. Please try again in {} seconds.",
+                retry_after
+            ),
+            retry_after,
+        ));
+    }
+
     handlers::guest_portal::get_booking_by_token(State(pool), path).await
 }
 
 async fn submit_precheckin(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     path: Path<String>,
     Json(input): Json<models::PreCheckInUpdateRequest>,
 ) -> Result<Json<models::GuestPortalBookingResponse>, ApiError> {
+    let (allowed, retry_after) = limiters
+        .guest_portal_token
+        .check_with_retry(path.0.clone())
+        .await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many pre-check-in attempts for this booking. Please try again in {} seconds.",
+                retry_after
+            ),
+            retry_after,
+        ));
+    }
+
     handlers::guest_portal::submit_precheckin_update(State(pool), path, Json(input)).await
 }
 
 async fn auto_checkin(
     State(pool): State<DbPool>,
+    Extension(limiters): Extension<RateLimiters>,
     path: Path<String>,
 ) -> Result<Json<models::AutoCheckinResponse>, ApiError> {
+    let (allowed, retry_after) = limiters
+        .guest_portal_token
+        .check_with_retry(path.0.clone())
+        .await;
+    if !allowed {
+        return Err(ApiError::TooManyRequestsRetryAfter(
+            format!(
+                "Too many check-in attempts for this booking. Please try again in {} seconds.",
+                retry_after
+            ),
+            retry_after,
+        ));
+    }
+
     handlers::guest_portal::auto_checkin_by_token(State(pool), path).await
 }

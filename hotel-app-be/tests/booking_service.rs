@@ -864,8 +864,16 @@ mod sqlite_tests {
 
     /// Seed a confirmed/pending booking ready for check-in. Future dates keep
     /// the room-occupied path active and `created_by = 1` (the seeded admin).
+    /// Also stamps the guest with an IC/passport number: check-in now refuses
+    /// to complete without one on file (see `checkin_booking_flow_for_booking`).
     async fn seed_checkin_booking(pool: &sqlx::SqlitePool, id: i64, status: &str) {
         seed_room_guest_booking(pool, id, id, id, status, "2030-12-10", "2030-12-12").await;
+        sqlx::query("UPDATE guests SET ic_number = ?1 WHERE id = ?2")
+            .bind(format!("IC-{id}"))
+            .bind(id)
+            .execute(pool)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -1033,6 +1041,35 @@ mod sqlite_tests {
             .await
             .unwrap();
         assert_eq!(status, "confirmed");
+    }
+
+    #[tokio::test]
+    async fn checkin_rejects_when_identity_document_missing() {
+        let pool = common::setup_test_db().await;
+        // Deliberately use the raw seeder (not `seed_checkin_booking`) so the
+        // guest is left without an ic_number on file.
+        seed_room_guest_booking(&pool, 8065, 8065, 8065, "confirmed", "2030-12-10", "2030-12-12")
+            .await;
+
+        let result = bookings::manual_checkin(&pool, 1, 8065, None).await;
+        assert!(
+            matches!(result, Err(ApiError::BadRequest(ref m)) if m.contains("IC / passport")),
+            "expected missing-identity-document rejection, got: {result:?}"
+        );
+
+        let status: String = sqlx::query_scalar("SELECT status FROM bookings WHERE id = ?1")
+            .bind(8065_i64)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let history_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM booking_history WHERE booking_id = ?1")
+                .bind(8065_i64)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        assert_eq!(status, "confirmed");
+        assert_eq!(history_count, 0);
     }
 
     #[tokio::test]
@@ -2067,6 +2104,14 @@ mod postgres_tests {
             false,
         )
         .await;
+        // Check-in now requires an IC/passport on file (see
+        // `checkin_booking_flow_for_booking`); `seed_pg_booking` doesn't set one.
+        sqlx::query("UPDATE guests SET ic_number = $1 WHERE id = $2")
+            .bind(format!("PG-IC-{guest_id}"))
+            .bind(guest_id)
+            .execute(&pool)
+            .await
+            .unwrap();
 
         let checkin: hotel_app_be::models::CheckInRequest =
             serde_json::from_value(serde_json::json!({
@@ -2150,6 +2195,12 @@ mod postgres_tests {
             false,
         )
         .await;
+        sqlx::query("UPDATE guests SET ic_number = $1 WHERE id = $2")
+            .bind(format!("PG-IC-{guest_id}"))
+            .bind(guest_id)
+            .execute(&pool)
+            .await
+            .unwrap();
 
         let pool_a = pool.clone();
         let pool_b = pool.clone();
@@ -2215,6 +2266,12 @@ mod postgres_tests {
             false,
         )
         .await;
+        sqlx::query("UPDATE guests SET ic_number = $1 WHERE id = $2")
+            .bind(format!("PG-IC-{guest_id}"))
+            .bind(guest_id)
+            .execute(&pool)
+            .await
+            .unwrap();
         install_checkin_audit_failure_trigger(&pool, booking_id).await;
 
         let checkin: hotel_app_be::models::CheckInRequest =

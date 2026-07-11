@@ -68,6 +68,9 @@ pub enum PostgresError {
     #[error("Failed to detect bundled PostgreSQL version: {0}")]
     VersionDetectionFailed(String),
 
+    #[error("Backup destination is outside the allowed data directory: {0}")]
+    InvalidBackupDestination(String),
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -979,6 +982,65 @@ async fn run_psql_scalar_sql_in_database(
     Ok(output)
 }
 
+/// Ensure a requested backup destination stays inside the app's data directory.
+///
+/// The backup command is exposed over Tauri IPC and reachable from any script
+/// running in the webview, so `candidate` is untrusted. This resolves symlinks
+/// in the existing portion of the path and rejects `..` traversal or any
+/// absolute path that escapes the data directory, so a full pg_dump (guest PII
+/// and payment data) can never be written outside the app's own storage.
+fn ensure_within_data_dir(candidate: &Path) -> Result<PathBuf, PostgresError> {
+    use std::path::Component;
+
+    let reject = || PostgresError::InvalidBackupDestination(candidate.to_string_lossy().to_string());
+
+    // Any `..` component is a traversal attempt; refuse outright.
+    if candidate
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err(reject());
+    }
+
+    let data_dir = get_data_directory();
+    // Creating the app's own data directory is always safe and lets us
+    // canonicalize the allow-list root even on a first run.
+    std::fs::create_dir_all(&data_dir)?;
+    let root = std::fs::canonicalize(&data_dir)?;
+
+    // Canonicalize the longest existing prefix of `candidate` (resolving any
+    // symlinks in it), then re-append the not-yet-created trailing components.
+    let mut existing: &Path = candidate;
+    let mut tail: Vec<std::ffi::OsString> = Vec::new();
+    let base = loop {
+        match std::fs::canonicalize(existing) {
+            Ok(base) => break base,
+            Err(_) => match existing.parent() {
+                Some(parent) => {
+                    if let Some(name) = existing.file_name() {
+                        tail.push(name.to_os_string());
+                    }
+                    existing = parent;
+                }
+                // Walked to the top without finding an existing ancestor (e.g. a
+                // relative path against an unknown CWD): treat as outside root.
+                None => return Err(reject()),
+            },
+        }
+    };
+
+    let mut resolved = base;
+    for name in tail.iter().rev() {
+        resolved.push(name);
+    }
+
+    if !resolved.starts_with(&root) {
+        return Err(reject());
+    }
+
+    Ok(resolved)
+}
+
 pub async fn backup_database(
     app_handle: &AppHandle,
     destination: Option<String>,
@@ -1004,11 +1066,15 @@ pub async fn backup_database(
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
         .unwrap_or_else(|| get_data_directory().join("backups").join(&backup_file_name));
-    let backup_path = if destination_path.exists() && destination_path.is_dir() {
+    let requested_path = if destination_path.exists() && destination_path.is_dir() {
         destination_path.join(&backup_file_name)
     } else {
         destination_path
     };
+
+    // `destination` is untrusted (the command is reachable from any webview
+    // script); keep the dump inside the app's data directory.
+    let backup_path = ensure_within_data_dir(&requested_path)?;
 
     if let Some(parent) = backup_path.parent() {
         std::fs::create_dir_all(parent)?;

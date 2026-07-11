@@ -4,7 +4,7 @@
 
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
-use crate::core::middleware::require_auth;
+use crate::core::middleware::require_permission_helper;
 use crate::handlers;
 use crate::models;
 use axum::{
@@ -14,6 +14,12 @@ use axum::{
     response::Json,
     routing::{delete, get, patch, post},
 };
+
+const PAYMENTS_READ: &str = "payments:read";
+const PAYMENTS_CREATE: &str = "payments:create";
+const PAYMENTS_UPDATE: &str = "payments:update";
+const PAYMENTS_DELETE: &str = "payments:delete";
+const PAYMENTS_MANAGE: &str = "payments:manage";
 
 /// Create payment routes
 pub fn routes() -> Router<DbPool> {
@@ -49,7 +55,7 @@ async fn calculate_payment(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::PaymentSummary>, ApiError> {
-    require_auth(&headers).await?;
+    require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
     handlers::payments::calculate_payment_summary_handler(State(pool), path).await
 }
 
@@ -58,7 +64,7 @@ async fn create_payment(
     headers: HeaderMap,
     Json(input): Json<models::PaymentRequest>,
 ) -> Result<Json<models::Payment>, ApiError> {
-    let user_id = require_auth(&headers).await?;
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_CREATE).await?;
     handlers::payments::create_payment_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
@@ -67,7 +73,7 @@ async fn get_payment(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<Option<models::Payment>>, ApiError> {
-    require_auth(&headers).await?;
+    require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
     handlers::payments::get_payment_handler(State(pool), path).await
 }
 
@@ -76,7 +82,7 @@ async fn record_payment(
     headers: HeaderMap,
     Json(input): Json<models::RecordPaymentRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let user_id = require_auth(&headers).await?;
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_CREATE).await?;
     handlers::payments::record_payment_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
@@ -85,7 +91,7 @@ async fn get_all_payments(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
-    require_auth(&headers).await?;
+    require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
     handlers::payments::get_all_payments_handler(State(pool), path).await
 }
 
@@ -94,7 +100,7 @@ async fn get_payment_workflow_summary(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::PaymentWorkflowSummary>, ApiError> {
-    require_auth(&headers).await?;
+    require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
     handlers::payments::get_payment_workflow_summary_handler(State(pool), path).await
 }
 
@@ -104,7 +110,7 @@ async fn refund_deposit(
     path: Path<i64>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let user_id = require_auth(&headers).await?;
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_MANAGE).await?;
     handlers::payments::refund_deposit_handler(State(pool), Extension(user_id), path, Json(body))
         .await
 }
@@ -114,7 +120,7 @@ async fn revert_deposit_refund(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_auth(&headers).await?;
+    require_permission_helper(&pool, &headers, PAYMENTS_MANAGE).await?;
     handlers::payments::revert_deposit_refund_handler(State(pool), path).await
 }
 
@@ -123,7 +129,7 @@ async fn get_invoice_preview(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::InvoicePreview>, ApiError> {
-    let user_id = require_auth(&headers).await?;
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
     handlers::payments::get_invoice_preview_handler(State(pool), Extension(user_id), path).await
 }
 
@@ -132,7 +138,7 @@ async fn generate_invoice(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<models::Invoice>, ApiError> {
-    let user_id = require_auth(&headers).await?;
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_CREATE).await?;
     handlers::payments::generate_invoice_handler(State(pool), Extension(user_id), path).await
 }
 
@@ -140,7 +146,7 @@ async fn get_user_invoices(
     State(pool): State<DbPool>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<models::Invoice>>, ApiError> {
-    let user_id = require_auth(&headers).await?;
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_READ).await?;
     handlers::payments::get_user_invoices_handler(State(pool), Extension(user_id)).await
 }
 
@@ -150,7 +156,7 @@ async fn update_payment(
     path: Path<i64>,
     Json(input): Json<models::UpdatePaymentRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_auth(&headers).await?;
+    require_permission_helper(&pool, &headers, PAYMENTS_UPDATE).await?;
     handlers::payments::update_payment_handler(State(pool), path, Json(input)).await
 }
 
@@ -159,6 +165,6 @@ async fn delete_payment(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_auth(&headers).await?;
+    require_permission_helper(&pool, &headers, PAYMENTS_DELETE).await?;
     handlers::payments::delete_payment_handler(State(pool), path).await
 }
