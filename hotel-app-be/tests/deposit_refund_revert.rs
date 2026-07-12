@@ -87,7 +87,7 @@ mod sqlite_tests {
 
         assert_eq!(count_refund_rows(&pool, 9810).await, 1);
 
-        let result = payments::revert_deposit_refund(&pool, 9810)
+        let result = payments::revert_deposit_refund(&pool, 1, 9810)
             .await
             .expect("revert should succeed when a deposit refund exists");
 
@@ -114,12 +114,12 @@ mod sqlite_tests {
         seed_booking_with_refund(&pool, 9811).await;
 
         // First revert removes the only refund.
-        payments::revert_deposit_refund(&pool, 9811)
+        payments::revert_deposit_refund(&pool, 1, 9811)
             .await
             .expect("first revert should succeed");
 
         // Second revert has nothing to undo and must fail.
-        let err = payments::revert_deposit_refund(&pool, 9811)
+        let err = payments::revert_deposit_refund(&pool, 1, 9811)
             .await
             .expect_err("revert with no refund should error");
 

@@ -75,6 +75,7 @@ mod sqlite_tests {
             .expect("payment id should be numeric");
         let updated = payments::update_payment(
             &pool,
+            1,
             payment_id,
             UpdatePaymentRequest {
                 amount: Some(75.0),

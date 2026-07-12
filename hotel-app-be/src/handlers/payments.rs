@@ -75,10 +75,11 @@ pub async fn refund_deposit_handler(
 /// Revert a keycard deposit refund recorded by mistake
 pub async fn revert_deposit_refund_handler(
     State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
     Path(booking_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        payments::revert_deposit_refund(&pool, booking_id).await?,
+        payments::revert_deposit_refund(&pool, user_id, booking_id).await?,
     ))
 }
 
@@ -133,18 +134,22 @@ pub async fn get_user_invoices_handler(
 /// Update a payment record
 pub async fn update_payment_handler(
     State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
     Path(payment_id): Path<i64>,
     Json(request): Json<UpdatePaymentRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        payments::update_payment(&pool, payment_id, request).await?,
+        payments::update_payment(&pool, user_id, payment_id, request).await?,
     ))
 }
 
 /// Delete a payment record
 pub async fn delete_payment_handler(
     State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
     Path(payment_id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    Ok(Json(payments::delete_payment(&pool, payment_id).await?))
+    Ok(Json(
+        payments::delete_payment(&pool, user_id, payment_id).await?,
+    ))
 }
