@@ -100,7 +100,7 @@ const OverviewTab: React.FC = () => {
   const membersQuery = useLoyaltyMembers();
   const pendingQuery = useLoyaltyRedemptions({ status: 'pending' });
 
-  const members = membersQuery.data ?? [];
+  const members = useMemo(() => membersQuery.data ?? [], [membersQuery.data]);
   const stats = useMemo(() => {
     const active = members.filter((m) => m.status === 'active').length;
     const availablePoints = members.reduce((sum, m) => sum + (m.available_points || 0), 0);

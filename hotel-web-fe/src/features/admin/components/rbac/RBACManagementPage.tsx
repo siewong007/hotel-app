@@ -194,11 +194,17 @@ const RBACManagementPage: React.FC = () => {
     const q = roleSearch.trim().toLowerCase();
     return rolesWithStats.filter((r) => !q || r.name.toLowerCase().includes(q));
   }, [roleSearch, rolesWithStats]);
-  const draftSet = selectedId != null ? draft[selectedId] || new Set<number>() : new Set<number>();
-  const currentSet =
-    selectedId != null && rolePermissionMap[selectedId]
-      ? rolePermissionMap[selectedId]
-      : new Set<number>();
+  const draftSet = useMemo(
+    () => (selectedId != null ? draft[selectedId] || new Set<number>() : new Set<number>()),
+    [selectedId, draft]
+  );
+  const currentSet = useMemo(
+    () =>
+      selectedId != null && rolePermissionMap[selectedId]
+        ? rolePermissionMap[selectedId]
+        : new Set<number>(),
+    [selectedId, rolePermissionMap]
+  );
 
   const locked = !!selectedRole && totalPerms > 0 && currentSet.size === totalPerms && isBuiltin(selectedRole);
   const enabledCount = draftSet.size;

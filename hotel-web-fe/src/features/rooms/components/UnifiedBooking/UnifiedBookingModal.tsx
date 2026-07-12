@@ -223,7 +223,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     if (room?.room_type && open) {
       loadRoomTypeConfig(room.room_type);
     }
-  }, [room?.room_type, open]);
+  }, [room?.room_type, open, loadRoomTypeConfig]);
 
   // Reset form when modal opens/closes - use proper transition detection
   // IMPORTANT: Only depends on `open` to prevent unexpected resets
@@ -296,7 +296,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
       setSelectedRooms([]);
       setAvailableRooms([]);
     }
-  }, [open]);
+  }, [open, initialGuest, setAvailableRooms, setRoomTypeConfig]);
 
   // Sort rooms by room number ascending
   const sortRoomsByNumber = (roomList: Room[]) => {
@@ -314,7 +314,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
   useEffect(() => {
     if (!needsRoomSelection || !checkInDate || !checkOutDate) return;
     loadAvailableRooms(checkInDate, checkOutDate, sortRoomsByNumber);
-  }, [needsRoomSelection, checkInDate, checkOutDate]);
+  }, [needsRoomSelection, checkInDate, checkOutDate, loadAvailableRooms]);
 
   useEffect(() => {
     if (!needsRoomSelection || loadingAvailableRooms || !checkInDate || !checkOutDate) return;
@@ -332,7 +332,7 @@ const UnifiedBookingModal: React.FC<UnifiedBookingModalProps> = ({
     if (reservationType === 'complimentary' && open) {
       loadGuestsWithCredits();
     }
-  }, [reservationType, open]);
+  }, [reservationType, open, loadGuestsWithCredits]);
 
   // Calculate nights when dates change
   const handleDateChange = (field: 'checkIn' | 'checkOut', value: string) => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from '../../../router';
 import {
   Container,
@@ -25,17 +25,7 @@ export const GuestCheckInVerify: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!token) {
-      setError('Invalid or missing verification token');
-      setLoading(false);
-      return;
-    }
-
-    loadBookingData();
-  }, [token]);
-
-  const loadBookingData = async () => {
+  const loadBookingData = useCallback(async () => {
     try {
       const response = await HotelAPIService.guestPortalGetBooking(token!);
       setBooking(response.booking);
@@ -45,7 +35,17 @@ export const GuestCheckInVerify: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) {
+      setError('Invalid or missing verification token');
+      setLoading(false);
+      return;
+    }
+
+    loadBookingData();
+  }, [token, loadBookingData]);
 
   const handleContinue = () => {
     navigate(`/guest-checkin/form?token=${token}`);

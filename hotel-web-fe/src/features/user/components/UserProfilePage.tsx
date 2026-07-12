@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from '../../../router';
 import {
   Box,
@@ -255,21 +255,11 @@ const UserProfilePage: React.FC = () => {
 
   const { registerPasskey } = useAuth();
 
-  useEffect(() => {
-    loadProfile();
-    loadPasskeys();
-
-    // Check if we should auto-enter edit mode
-    const editParam = searchParams.get('edit');
-    if (editParam === 'true') {
-      setEditing(true);
-      // Remove the edit parameter from URL after reading it
-      searchParams.delete('edit');
-      setSearchParams(searchParams, { replace: true });
-    }
+  const showSnackbar = useCallback((message: string, severity: ApiNotificationSeverity) => {
+    emitApiNotification({ message, severity });
   }, []);
 
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     try {
       const data = await HotelAPIService.getUserProfile();
       setProfile(data);
@@ -285,16 +275,38 @@ const UserProfilePage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showSnackbar]);
 
-  const loadPasskeys = async () => {
+  const loadPasskeys = useCallback(async () => {
     try {
       const data = await HotelAPIService.listPasskeys();
       setPasskeys(data);
     } catch (error: any) {
       console.error('Failed to load passkeys:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadProfile();
+    loadPasskeys();
+  }, [loadProfile, loadPasskeys]);
+
+  // Auto-enter edit mode from a one-time `?edit=true` URL param, then strip it.
+  // Guarded so it only acts once (setSearchParams below would otherwise
+  // re-trigger this effect via the new searchParams identity).
+  const hasCheckedEditParamRef = useRef(false);
+  useEffect(() => {
+    if (hasCheckedEditParamRef.current) return;
+    hasCheckedEditParamRef.current = true;
+
+    const editParam = searchParams.get('edit');
+    if (editParam === 'true') {
+      setEditing(true);
+      // Remove the edit parameter from URL after reading it
+      searchParams.delete('edit');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleUpdateProfile = async () => {
     // Validate email
@@ -423,10 +435,6 @@ const UserProfilePage: React.FC = () => {
   const handleCancelEditPasskey = () => {
     setEditingPasskey(null);
     setPasskeyName('');
-  };
-
-  const showSnackbar = (message: string, severity: ApiNotificationSeverity) => {
-    emitApiNotification({ message, severity });
   };
 
   if (loading) {

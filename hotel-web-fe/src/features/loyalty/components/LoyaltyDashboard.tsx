@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -175,14 +175,7 @@ const LoyaltyDashboard: React.FC = () => {
   const [ekycStatus, setEkycStatus] = useState<string | null>(null);
   const [ekycRequired, setEkycRequired] = useState(false);
 
-  useEffect(() => {
-    if (!loadingRef.current) {
-      loadingRef.current = true;
-      loadLoyaltyData();
-    }
-  }, []);
-
-  const loadLoyaltyData = async () => {
+  const loadLoyaltyData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -255,7 +248,14 @@ const LoyaltyDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!loadingRef.current) {
+      loadingRef.current = true;
+      loadLoyaltyData();
+    }
+  }, [loadLoyaltyData]);
 
   const handleRedeemClick = (reward: LoyaltyReward) => {
     setSelectedReward(reward);

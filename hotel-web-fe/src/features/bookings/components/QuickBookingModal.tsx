@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -119,6 +119,66 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
   // Track previous open state to detect true open/close transitions
   const wasOpenRef = useRef(false);
 
+  const resetForm = useCallback(() => {
+    setSelectedGuest(null);
+    setShowNewGuestForm(false);
+    setNewGuestFirstName('');
+    setNewGuestLastName('');
+    setNewGuestEmail('');
+    setNewGuestPhone('');
+    setNewGuestIcNumber('');
+    setNewGuestTourismType('local');
+    setCheckInDate('');
+    setCheckInTime(defaultCheckInTime);
+    setCheckOutDate('');
+    setCheckOutTime(defaultCheckOutTime);
+    setRemarks('');
+    setPostType('normal_stay');
+    setRateCode('RACK');
+    setIsTourist(false);
+    setTourismTax(0);
+    setExtraBedCount(0);
+    setExtraBedCharge(0);
+
+    setUseCustomRate(false);
+    setCustomRate(0);
+    setDailyRates({});
+    setError(null);
+  }, [defaultCheckInTime, defaultCheckOutTime]);
+
+  const calculateNights = useCallback(() => {
+    if (!checkInDate || !checkOutDate) return 0;
+    const checkIn = new Date(checkInDate);
+    const checkOut = new Date(checkOutDate);
+    return Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+  }, [checkInDate, checkOutDate]);
+
+  // Generate array of date strings between check-in and check-out
+  const getStayDates = useCallback((): string[] => {
+    if (!checkInDate || !checkOutDate) return [];
+    const dates: string[] = [];
+    const start = parseLocalDate(checkInDate);
+    const end = parseLocalDate(checkOutDate);
+    const current = new Date(start);
+    while (current < end) {
+      dates.push(formatLocalDate(current));
+      current.setDate(current.getDate() + 1);
+    }
+    return dates;
+  }, [checkInDate, checkOutDate]);
+
+  // Initialize daily rates when custom rate is toggled on or dates change
+  const initializeDailyRates = useCallback((baseRate: number) => {
+    const dates = getStayDates();
+    setDailyRates(prev => {
+      const newRates: Record<string, number> = {};
+      dates.forEach(date => {
+        newRates[date] = prev[date] ?? baseRate;
+      });
+      return newRates;
+    });
+  }, [getStayDates]);
+
   // Load guests when modal opens - use proper transition detection
   useEffect(() => {
     const wasOpen = wasOpenRef.current;
@@ -146,7 +206,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     if (!open && wasOpen) {
       resetForm();
     }
-  }, [open, defaultCheckInTime, defaultCheckOutTime, guestMode, user]);
+  }, [open, defaultCheckInTime, defaultCheckOutTime, guestMode, user, resetForm]);
 
   // Reinitialize daily rates when dates change while custom rate is active
   useEffect(() => {
@@ -154,7 +214,7 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
       const price = toMoneyNumber(room.price_per_night);
       initializeDailyRates(customRate || price);
     }
-  }, [checkInDate, checkOutDate]);
+  }, [checkInDate, checkOutDate, useCustomRate, room, customRate, initializeDailyRates]);
 
   // Auto-calculate tourism tax when tourist status or dates change
   useEffect(() => {
@@ -165,40 +225,13 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     } else {
       setTourismTax(0);
     }
-  }, [isTourist, checkInDate, checkOutDate]);
+  }, [isTourist, checkInDate, checkOutDate, calculateNights]);
 
 
   // Derived extra bed config from room type
   const allowsExtraBed = roomTypeConfig?.allows_extra_bed ?? false;
   const maxExtraBeds = roomTypeConfig?.max_extra_beds ?? 0;
   const extraBedChargePerBed = roomTypeConfig ? toMoneyNumber(roomTypeConfig.extra_bed_charge) : 0;
-
-  const resetForm = () => {
-    setSelectedGuest(null);
-    setShowNewGuestForm(false);
-    setNewGuestFirstName('');
-    setNewGuestLastName('');
-    setNewGuestEmail('');
-    setNewGuestPhone('');
-    setNewGuestIcNumber('');
-    setNewGuestTourismType('local');
-    setCheckInDate('');
-    setCheckInTime(defaultCheckInTime);
-    setCheckOutDate('');
-    setCheckOutTime(defaultCheckOutTime);
-    setRemarks('');
-    setPostType('normal_stay');
-    setRateCode('RACK');
-    setIsTourist(false);
-    setTourismTax(0);
-    setExtraBedCount(0);
-    setExtraBedCharge(0);
-
-    setUseCustomRate(false);
-    setCustomRate(0);
-    setDailyRates({});
-    setError(null);
-  };
 
   const handleGuestInputChange = (value: string) => {
     // Show new guest form if no match found and user has typed something
@@ -337,37 +370,6 @@ const QuickBookingModal: React.FC<QuickBookingModalProps> = ({
     } finally {
       setLoading(false);
     }
-  };
-
-  const calculateNights = () => {
-    if (!checkInDate || !checkOutDate) return 0;
-    const checkIn = new Date(checkInDate);
-    const checkOut = new Date(checkOutDate);
-    return Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-  };
-
-  // Generate array of date strings between check-in and check-out
-  const getStayDates = (): string[] => {
-    if (!checkInDate || !checkOutDate) return [];
-    const dates: string[] = [];
-    const start = parseLocalDate(checkInDate);
-    const end = parseLocalDate(checkOutDate);
-    const current = new Date(start);
-    while (current < end) {
-      dates.push(formatLocalDate(current));
-      current.setDate(current.getDate() + 1);
-    }
-    return dates;
-  };
-
-  // Initialize daily rates when custom rate is toggled on or dates change
-  const initializeDailyRates = (baseRate: number) => {
-    const dates = getStayDates();
-    const newRates: Record<string, number> = {};
-    dates.forEach(date => {
-      newRates[date] = dailyRates[date] ?? baseRate;
-    });
-    setDailyRates(newRates);
   };
 
   const calculateRoomTotal = () => {
