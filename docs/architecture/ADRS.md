@@ -90,7 +90,11 @@ Long-term goal: migrate to domain modules under `modules/<domain>/`.
 - ✅ Fine-grained permission model
 - ✅ Auto-grant via `manage` permission reduces boilerplate
 - ❌ In-memory caches limit multi-instance deployment
-- ❌ No token revocation (rely on short expiry + refresh)
+- ✅ Refresh tokens ARE revocable: `refresh_tokens` table (`is_revoked`,
+  `revoked_at`, `revoked_by`) backs `AuthService::revoke_refresh_token` /
+  `revoke_all_user_tokens`, called on logout and password-change. Short-lived
+  access tokens themselves are not individually revocable before expiry
+  (standard JWT tradeoff), but the refresh chain that mints new ones is.
 
 ---
 

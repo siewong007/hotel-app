@@ -24,9 +24,10 @@ const TABLE_CONSTRAINT_KEYWORDS =
 // string literals or nested expressions don't confuse the splitter).
 // ---------------------------------------------------------------------------
 
-/** Strip `--` line comments, `/* */` block comments, and Postgres `DO $$ ... $$;`
- * anonymous blocks. Respects single-quoted strings (with '' escaping) and
- * dollar-quoted strings ($tag$...$tag$) so we never strip inside a literal. */
+/** Strip "--" line comments, slash-star block comments, and Postgres
+ * "DO $$ ... $$;" anonymous blocks. Respects single-quoted strings (with ''
+ * escaping) and dollar-quoted strings ($tag$...$tag$) so we never strip
+ * inside a literal. */
 function stripCommentsAndDoBlocks(sql) {
   let out = '';
   let i = 0;
@@ -70,7 +71,8 @@ function stripCommentsAndDoBlocks(sql) {
       const m = /^\$([a-zA-Z_][a-zA-Z0-9_]*)?\$/.exec(sql.slice(i));
       if (m) {
         const tag = m[0];
-        const precedingWord = /([a-zA-Z_][a-zA-Z0-9_]*)\s*$/.exec(out)?.[1] ?? '';
+        const precedingMatch = /([a-zA-Z_][a-zA-Z0-9_]*)\s*$/.exec(out);
+        const precedingWord = precedingMatch?.[1] ?? '';
         const isDoBlock = precedingWord.toUpperCase() === 'DO';
         const closeIdx = sql.indexOf(tag, i + tag.length);
         const blockEnd = closeIdx === -1 ? n : closeIdx + tag.length;
@@ -81,13 +83,25 @@ function stripCommentsAndDoBlocks(sql) {
           // real CREATE TABLE / ALTER TABLE ADD COLUMN statements in this
           // repo live inside one (verified by inspection); dropping them
           // avoids phantom tables from dynamic EXECUTE'd DDL strings.
-          out = out.slice(0, out.length - precedingWord.length);
+          //
+          // Slice at the regex MATCH INDEX (start of the "DO" word), not
+          // `length - word.length`: `out` usually ends with whitespace after
+          // the DO, so a length-based slice removed "O\n" and left an orphan
+          // "D" glued to the next statement — which then failed the anchored
+          // ^CREATE match and silently dropped real tables from the diff.
+          out = out.slice(0, precedingMatch.index);
           i = blockEnd;
           while (i < n && /\s/.test(sql[i])) i++;
           if (sql[i] === ';') i++;
           continue;
         }
-        out += sql.slice(i, blockEnd);
+        // Non-DO dollar-quoted string (CREATE FUNCTION ... AS $$body$$ etc):
+        // replace the body with an empty literal instead of keeping it.
+        // Function bodies contain semicolons, apostrophes, and unbalanced
+        // parens that corrupt the downstream statement splitter — keeping
+        // one verbatim once caused every statement after it (including the
+        // real `CREATE TABLE guests`) to be mis-split and silently skipped.
+        out += "''";
         i = blockEnd;
         continue;
       }
@@ -201,6 +215,13 @@ function lastSegment(qualifiedName) {
 function parseDdl(rawSql) {
   const cleaned = stripCommentsAndDoBlocks(rawSql);
   const statements = splitTopLevel(cleaned, ';');
+  if (process.env.DRIFT_DEBUG_FIND) {
+    statements.forEach((s, idx) => {
+      if (s.includes(process.env.DRIFT_DEBUG_FIND)) {
+        console.error(`[debug] fragment #${idx} (${s.length} chars) starts: ${JSON.stringify(s.slice(0, 160))}`);
+      }
+    });
+  }
   const tables = new Map();
 
   const createRe =
@@ -228,6 +249,10 @@ function parseDdl(rawSql) {
       // also correctly models a preceding DROP TABLE IF EXISTS / RENAME TO
       // for the same name (the table's final shape is whatever the last
       // CREATE TABLE for that name says).
+      if (process.env.DRIFT_DEBUG_TABLE === tableName) {
+        console.error(`[debug] CREATE for "${tableName}" -> ${columns.size} cols`);
+        console.error(`[debug] stmt head: ${stmt.slice(0, 300)}`);
+      }
       tables.set(tableName, columns);
       continue;
     }
@@ -343,6 +368,11 @@ function diffAndReport(pgTables, sqliteTables) {
 function main() {
   const pgTables = parseDdl(loadPostgresDdl());
   const sqliteTables = parseDdl(loadSqliteDdl());
+  if (process.env.DRIFT_DEBUG_TABLE) {
+    const t = process.env.DRIFT_DEBUG_TABLE;
+    console.error(`[debug] pg["${t}"]: ${[...(pgTables.get(t) ?? [])].sort().join(',')}`);
+    console.error(`[debug] sqlite["${t}"]: ${[...(sqliteTables.get(t) ?? [])].sort().join(',')}`);
+  }
   const exitCode = diffAndReport(pgTables, sqliteTables);
   process.exit(exitCode);
 }

@@ -122,9 +122,9 @@ hotel-app/
 │   │   ├── services/             # Business workflow logic
 │   │   └── utils/                # Sanitization and validation helpers
 │   ├── database/
-│   │   ├── migrations/           # PostgreSQL migrations
-│   │   ├── sqlite_migrations/    # SQLite migration path
-│   │   └── seed-data/            # Seed/bootstrap resources
+│   │   ├── schema.sql            # PostgreSQL schema (idempotent, applied directly - no sqlx-migrate step)
+│   │   ├── data.sql              # PostgreSQL seed/system data (idempotent, rerunnable)
+│   │   └── sqlite_migrations/    # SQLite migration path (sqlx::migrate!, auto-run at startup)
 │   └── tests/                    # Focused backend tests
 ├── hotel-web-fe/                 # React frontend
 │   ├── src/

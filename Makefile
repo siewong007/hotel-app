@@ -96,6 +96,8 @@ fmt-desktop: ## Format desktop code
 
 fmt-all: fmt-be fmt-desktop ## Format all Rust code
 
+fmt: fmt-all ## Alias for fmt-all
+
 # ─── Testing ──────────────────────────────────────────────────────────────────
 
 test-be: ## Run all backend tests
@@ -158,3 +160,5 @@ clean-desktop: ## Clean desktop build artifacts
 	cd hotel-desktop && rm -rf node_modules src-tauri/target
 
 clean-all: clean-be clean-fe clean-desktop ## Clean all build artifacts
+
+clean: clean-all ## Alias for clean-all
