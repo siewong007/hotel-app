@@ -98,9 +98,12 @@ mod sqlite_tests {
     #[tokio::test]
     async fn authenticated_request_with_insufficient_permission_returns_403() {
         let pool = common::setup_test_db().await;
-        // Housekeeping (role_id 4) is seeded by 001_initial_schema.sql with
-        // zero rows in role_permissions, so this user holds no permissions
-        // at all - including rooms:read, which /api/rooms requires.
+        // Housekeeping (role_id 4) is granted rooms:read/update plus its own
+        // domain permissions by 015_housekeeping_maintenance.sql (housekeeping
+        // staff need to see room status to know what to clean) - so /api/rooms
+        // is NOT a permission this role lacks. It has zero payments/ledgers/
+        // companies/rbac permissions, so use a payments:read-gated route
+        // instead to exercise a genuine 403.
         let user_id = 920_002;
         insert_user_with_role(&pool, user_id, "router_test_housekeeper", 4).await;
         let base_url = spawn_app(pool).await;
@@ -113,7 +116,7 @@ mod sqlite_tests {
         .expect("jwt should generate");
 
         let response = reqwest::Client::new()
-            .get(format!("{base_url}/api/rooms"))
+            .get(format!("{base_url}/api/payments/booking/1"))
             .bearer_auth(token)
             .send()
             .await

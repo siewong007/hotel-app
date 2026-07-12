@@ -341,6 +341,7 @@ pub async fn refund_deposit(
 /// so the deposit is presented as not-yet-refunded again.
 pub async fn revert_deposit_refund(
     pool: &DbPool,
+    user_id: i64,
     booking_id: i64,
 ) -> Result<serde_json::Value, ApiError> {
     let reverted_payment_id = PaymentRepository::revert_deposit_refund(pool, booking_id).await?;
@@ -349,7 +350,7 @@ pub async fn revert_deposit_refund(
 
     let _ = AuditLog::log_event(
         pool,
-        None,
+        Some(user_id),
         "payment_refund_reverted",
         "payment",
         Some(reverted_payment_id),
@@ -436,6 +437,7 @@ pub async fn get_user_invoices(pool: &DbPool, user_id: i64) -> Result<Vec<Invoic
 
 pub async fn update_payment(
     pool: &DbPool,
+    user_id: i64,
     payment_id: i64,
     request: UpdatePaymentRequest,
 ) -> Result<serde_json::Value, ApiError> {
@@ -458,7 +460,7 @@ pub async fn update_payment(
 
     let _ = AuditLog::log_event(
         pool,
-        None,
+        Some(user_id),
         "payment_updated",
         "payment",
         Some(row.id),
@@ -473,7 +475,11 @@ pub async fn update_payment(
     Ok(row.into_response())
 }
 
-pub async fn delete_payment(pool: &DbPool, payment_id: i64) -> Result<serde_json::Value, ApiError> {
+pub async fn delete_payment(
+    pool: &DbPool,
+    user_id: i64,
+    payment_id: i64,
+) -> Result<serde_json::Value, ApiError> {
     let affected_booking_id = PaymentRepository::delete_payment(pool, payment_id).await?;
 
     if let Some(booking_id) = affected_booking_id {
@@ -482,7 +488,7 @@ pub async fn delete_payment(pool: &DbPool, payment_id: i64) -> Result<serde_json
 
     let _ = AuditLog::log_event(
         pool,
-        None,
+        Some(user_id),
         "payment_deleted",
         "payment",
         Some(payment_id),

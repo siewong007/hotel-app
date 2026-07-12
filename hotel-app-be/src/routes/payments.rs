@@ -19,7 +19,10 @@ const PAYMENTS_READ: &str = "payments:read";
 const PAYMENTS_CREATE: &str = "payments:create";
 const PAYMENTS_UPDATE: &str = "payments:update";
 const PAYMENTS_DELETE: &str = "payments:delete";
-const PAYMENTS_MANAGE: &str = "payments:manage";
+// Deposit refunds/reverts are part of routine front-desk checkout, so they
+// gate on a dedicated payments:refund (held by receptionist + manager) rather
+// than payments:manage; payments:manage still implies it via rbac_cache.
+const PAYMENTS_REFUND: &str = "payments:refund";
 
 /// Create payment routes
 pub fn routes() -> Router<DbPool> {
@@ -110,7 +113,7 @@ async fn refund_deposit(
     path: Path<i64>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_MANAGE).await?;
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_REFUND).await?;
     handlers::payments::refund_deposit_handler(State(pool), Extension(user_id), path, Json(body))
         .await
 }
@@ -120,8 +123,8 @@ async fn revert_deposit_refund(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_permission_helper(&pool, &headers, PAYMENTS_MANAGE).await?;
-    handlers::payments::revert_deposit_refund_handler(State(pool), path).await
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_REFUND).await?;
+    handlers::payments::revert_deposit_refund_handler(State(pool), Extension(user_id), path).await
 }
 
 async fn get_invoice_preview(
@@ -156,8 +159,9 @@ async fn update_payment(
     path: Path<i64>,
     Json(input): Json<models::UpdatePaymentRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_permission_helper(&pool, &headers, PAYMENTS_UPDATE).await?;
-    handlers::payments::update_payment_handler(State(pool), path, Json(input)).await
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_UPDATE).await?;
+    handlers::payments::update_payment_handler(State(pool), Extension(user_id), path, Json(input))
+        .await
 }
 
 async fn delete_payment(
@@ -165,6 +169,6 @@ async fn delete_payment(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_permission_helper(&pool, &headers, PAYMENTS_DELETE).await?;
-    handlers::payments::delete_payment_handler(State(pool), path).await
+    let user_id = require_permission_helper(&pool, &headers, PAYMENTS_DELETE).await?;
+    handlers::payments::delete_payment_handler(State(pool), Extension(user_id), path).await
 }

@@ -95,8 +95,8 @@ async fn delete_ledger(
     headers: HeaderMap,
     path: Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_permission_helper(&pool, &headers, LEDGERS_MANAGE).await?;
-    handlers::ledgers::delete_customer_ledger_handler(State(pool), path).await
+    let user_id = require_permission_helper(&pool, &headers, LEDGERS_MANAGE).await?;
+    handlers::ledgers::delete_customer_ledger_handler(State(pool), path, user_id).await
 }
 
 async fn get_ledger_with_payments(
@@ -133,8 +133,8 @@ async fn update_ledger_payment(
     path: Path<(i64, i64)>,
     Json(input): Json<models::UpdateLedgerPaymentRequest>,
 ) -> Result<Json<models::CustomerLedgerPayment>, ApiError> {
-    require_permission_helper(&pool, &headers, LEDGERS_UPDATE).await?;
-    handlers::ledgers::update_ledger_payment_handler(State(pool), path, Json(input)).await
+    let user_id = require_permission_helper(&pool, &headers, LEDGERS_UPDATE).await?;
+    handlers::ledgers::update_ledger_payment_handler(State(pool), path, Json(input), user_id).await
 }
 
 async fn delete_ledger_payment(
@@ -142,8 +142,8 @@ async fn delete_ledger_payment(
     headers: HeaderMap,
     path: Path<(i64, i64)>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_permission_helper(&pool, &headers, LEDGERS_MANAGE).await?;
-    handlers::ledgers::delete_ledger_payment_handler(State(pool), path).await
+    let user_id = require_permission_helper(&pool, &headers, LEDGERS_MANAGE).await?;
+    handlers::ledgers::delete_ledger_payment_handler(State(pool), path, user_id).await
 }
 
 async fn void_ledger(

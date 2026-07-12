@@ -75,8 +75,26 @@ pub async fn update_customer_ledger(
     pool: &DbPool,
     ledger_id: i64,
     user_id: i64,
-    request: CustomerLedgerUpdateRequest,
+    mut request: CustomerLedgerUpdateRequest,
 ) -> Result<CustomerLedger, ApiError> {
+    // Mirror the create path: free-text fields are sanitized before they
+    // reach the repository layer (CONTRIBUTING.md "Sanitize free text").
+    request.company_name = request.company_name.as_deref().map(Sanitizer::sanitize_text);
+    request.contact_person = request
+        .contact_person
+        .as_deref()
+        .map(Sanitizer::sanitize_text);
+    request.billing_address_line1 = request
+        .billing_address_line1
+        .as_deref()
+        .map(Sanitizer::sanitize_text);
+    request.description = request.description.as_deref().map(Sanitizer::sanitize_text);
+    request.notes = request.notes.as_deref().map(Sanitizer::sanitize_notes);
+    request.internal_notes = request
+        .internal_notes
+        .as_deref()
+        .map(Sanitizer::sanitize_notes);
+
     let ledger = repo::update_customer_ledger(pool, ledger_id, user_id, request).await?;
 
     let _ = AuditLog::log_event(
@@ -101,13 +119,13 @@ pub async fn update_customer_ledger(
 pub async fn delete_customer_ledger(
     pool: &DbPool,
     ledger_id: i64,
+    user_id: i64,
 ) -> Result<serde_json::Value, ApiError> {
     let result = repo::delete_customer_ledger(pool, ledger_id).await?;
 
-    // No user_id is threaded through this handler path; actor is unknown.
     let _ = AuditLog::log_event(
         pool,
-        None,
+        Some(user_id),
         "customer_ledger_deleted",
         "customer_ledger",
         Some(ledger_id),
@@ -213,14 +231,14 @@ pub async fn update_ledger_payment(
     pool: &DbPool,
     ledger_id: i64,
     payment_id: i64,
+    user_id: i64,
     request: UpdateLedgerPaymentRequest,
 ) -> Result<CustomerLedgerPayment, ApiError> {
     let payment = repo::update_ledger_payment(pool, ledger_id, payment_id, request).await?;
 
-    // No user_id is threaded through this handler path; actor is unknown.
     let _ = AuditLog::log_event(
         pool,
-        None,
+        Some(user_id),
         "ledger_payment_updated",
         "customer_ledger",
         Some(ledger_id),
@@ -237,13 +255,13 @@ pub async fn delete_ledger_payment(
     pool: &DbPool,
     ledger_id: i64,
     payment_id: i64,
+    user_id: i64,
 ) -> Result<serde_json::Value, ApiError> {
     let result = repo::delete_ledger_payment(pool, ledger_id, payment_id).await?;
 
-    // No user_id is threaded through this handler path; actor is unknown.
     let _ = AuditLog::log_event(
         pool,
-        None,
+        Some(user_id),
         "ledger_payment_deleted",
         "customer_ledger",
         Some(ledger_id),

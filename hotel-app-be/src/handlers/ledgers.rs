@@ -59,8 +59,11 @@ pub async fn update_customer_ledger_handler(
 pub async fn delete_customer_ledger_handler(
     State(pool): State<DbPool>,
     Path(ledger_id): Path<i64>,
+    user_id: i64,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    Ok(Json(svc::delete_customer_ledger(&pool, ledger_id).await?))
+    Ok(Json(
+        svc::delete_customer_ledger(&pool, ledger_id, user_id).await?,
+    ))
 }
 
 pub async fn create_ledger_payment_handler(
@@ -113,17 +116,19 @@ pub async fn update_ledger_payment_handler(
     State(pool): State<DbPool>,
     Path((ledger_id, payment_id)): Path<(i64, i64)>,
     Json(request): Json<UpdateLedgerPaymentRequest>,
+    user_id: i64,
 ) -> Result<Json<CustomerLedgerPayment>, ApiError> {
     Ok(Json(
-        svc::update_ledger_payment(&pool, ledger_id, payment_id, request).await?,
+        svc::update_ledger_payment(&pool, ledger_id, payment_id, user_id, request).await?,
     ))
 }
 
 pub async fn delete_ledger_payment_handler(
     State(pool): State<DbPool>,
     Path((ledger_id, payment_id)): Path<(i64, i64)>,
+    user_id: i64,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     Ok(Json(
-        svc::delete_ledger_payment(&pool, ledger_id, payment_id).await?,
+        svc::delete_ledger_payment(&pool, ledger_id, payment_id, user_id).await?,
     ))
 }
