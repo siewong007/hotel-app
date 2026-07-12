@@ -182,9 +182,15 @@ pub struct RateLimiters {
     pub guest_portal_login: RateLimiter,
     /// Guest portal login: 5 attempts per 15 minutes per identifier (email)
     pub guest_portal_login_id: KeyedRateLimiter,
-    /// Guest portal token-gated endpoints (get booking, pre-checkin, auto-checkin):
+    /// Guest portal token-gated MUTATIONS (pre-checkin submit, auto-checkin):
     /// 5 attempts per 15 minutes per token (mirrors guest_portal_booking's keying)
     pub guest_portal_token: KeyedRateLimiter,
+    /// Guest portal token-gated READS (get booking): 30 per 15 minutes per
+    /// token. The portal page fetches the booking on every load/refetch, so a
+    /// legitimate guest revisiting their link would exhaust a 5/15min budget
+    /// mid pre-check-in; reads are not a brute-force surface (the token is
+    /// already known), so throttle only scripted hammering.
+    pub guest_portal_token_read: KeyedRateLimiter,
     /// General API: 200 per minute per IP (lenient - normal usage)
     #[allow(dead_code)]
     pub api: RateLimiter,
@@ -207,6 +213,7 @@ impl RateLimiters {
             guest_portal_login: RateLimiter::new(RateLimitConfig::new(10, 300)),
             guest_portal_login_id: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             guest_portal_token: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
+            guest_portal_token_read: KeyedRateLimiter::new(RateLimitConfig::new(30, 900)),
             api: RateLimiter::new(RateLimitConfig::new(200, 60)),
         }
     }
