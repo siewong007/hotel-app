@@ -31,7 +31,7 @@ contains a trailing space after "SSD". Always double-quote paths in shell comman
 > checklists apply), plus {specific files with line anchors}.
 > SPEC: {exact behavior, inputs/outputs, edge cases. If SQL is involved: must use
 > param!/sql_compat helpers and update BOTH database/schema.sql and
-> database/sqlite_migrations/}.
+> database/sqlite_schema.sql (plus sqlite_data.sql for seeds/backfills)}.
 > DO NOT: {out-of-scope things, e.g. "refactor surrounding code, touch CI config"}.
 > ACCEPTANCE CRITERIA: (1) {behavioral check, e.g. "POST /x returns 201 and row
 > appears"}; (2) `cargo check --all-features` exits 0 [backend] and/or

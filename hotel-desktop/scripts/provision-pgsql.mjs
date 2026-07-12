@@ -35,23 +35,23 @@ const REQUIRED_BIN_NAMES = [
   'psql',
 ];
 
-function readExpectedMajorVersion() {
+function readExpectedVersion() {
   const postgresRsPath = join(srcTauriRoot, 'src', 'postgres.rs');
   if (!existsSync(postgresRsPath)) {
-    throw new Error(`Cannot locate ${postgresRsPath} to determine the expected PostgreSQL major version.`);
+    throw new Error(`Cannot locate ${postgresRsPath} to determine the expected PostgreSQL build.`);
   }
 
   const source = readFileSync(postgresRsPath, 'utf8');
-  const match = source.match(/CONFIGURED_POSTGRES_MAJOR_VERSION\s*:\s*&str\s*=\s*"(\d+)"/);
-  if (!match) {
+  const majorMatch = source.match(/CONFIGURED_POSTGRES_MAJOR_VERSION\s*:\s*&str\s*=\s*"(\d+)"/);
+  const buildMatch = source.match(/CONFIGURED_POSTGRES_BUILD_IDENTITY\s*:\s*&str\s*=\s*"([^"]+)"/);
+  if (!majorMatch || !buildMatch) {
     throw new Error(
-      `Could not find CONFIGURED_POSTGRES_MAJOR_VERSION in ${postgresRsPath}. ` +
-        'This script derives the required PostgreSQL major version from that constant ' +
-        'and refuses to guess a fallback version.',
+      `Could not find the configured PostgreSQL major/build identity in ${postgresRsPath}. ` +
+        'This script derives the required PostgreSQL build from those constants and refuses to guess.',
     );
   }
 
-  return match[1];
+  return { major: majorMatch[1], buildIdentity: buildMatch[1].toLowerCase() };
 }
 
 function runVersionCommand(binaryPath, args) {
@@ -70,7 +70,24 @@ function extractMajorVersion(versionOutput) {
   return match ? match[1] : undefined;
 }
 
-function checkExistingInstall(expectedMajor) {
+function extractBuildIdentity(versionOutput) {
+  if (!versionOutput) {
+    return undefined;
+  }
+
+  const match = versionOutput.match(/\)\s*(\d+(?:\.\d+)*(?:(?:beta|rc)\d+|devel)?)/i);
+  if (!match) {
+    return undefined;
+  }
+
+  const versionToken = match[1].toLowerCase();
+  if (versionToken.includes('beta') || versionToken.includes('rc') || versionToken.includes('devel')) {
+    return versionToken;
+  }
+  return extractMajorVersion(versionOutput);
+}
+
+function checkExistingInstall(expected) {
   const postgresBin = join(pgsqlDir, 'bin', 'postgres');
   const initdbBin = join(pgsqlDir, 'bin', 'initdb');
   const pgCtlBin = join(pgsqlDir, 'bin', 'pg_ctl');
@@ -87,24 +104,43 @@ function checkExistingInstall(expectedMajor) {
   const initdbVersion = runVersionCommand(initdbBin, ['--version']);
   const pgCtlVersion = runVersionCommand(pgCtlBin, ['--version']);
   const foundMajor = extractMajorVersion(postgresVersion);
+  const foundBuildIdentity = extractBuildIdentity(postgresVersion);
+  const initdbBuildIdentity = extractBuildIdentity(initdbVersion);
+  const pgCtlBuildIdentity = extractBuildIdentity(pgCtlVersion);
 
-  if (!foundMajor) {
+  if (!foundMajor || !foundBuildIdentity) {
     return { ok: false, reason: 'could not determine bundled PostgreSQL version' };
   }
 
-  if (foundMajor !== expectedMajor) {
+  if (foundMajor !== expected.major || foundBuildIdentity !== expected.buildIdentity) {
     return {
       ok: false,
-      reason: `bundled PostgreSQL major version ${foundMajor} does not match expected ${expectedMajor}`,
+      reason: `bundled PostgreSQL build ${foundBuildIdentity} (major ${foundMajor}) does not match expected ${expected.buildIdentity} (major ${expected.major})`,
     };
   }
 
-  if (!initdbVersion || !pgCtlVersion) {
+  if (!initdbBuildIdentity || !pgCtlBuildIdentity) {
     return { ok: false, reason: 'initdb/pg_ctl --version failed to run' };
+  }
+  if (initdbBuildIdentity !== foundBuildIdentity || pgCtlBuildIdentity !== foundBuildIdentity) {
+    return {
+      ok: false,
+      reason: `bundled binaries report inconsistent builds (postgres ${foundBuildIdentity}, initdb ${initdbBuildIdentity}, pg_ctl ${pgCtlBuildIdentity})`,
+    };
   }
 
   const manifest = readJson(manifestPath);
-  return { ok: true, foundMajor, hasManifest: Boolean(manifest), manifest };
+  if (!manifest) {
+    return { ok: false, reason: 'full-build provision manifest is missing' };
+  }
+  if (manifest.majorVersion !== expected.major || manifest.buildIdentity !== expected.buildIdentity) {
+    return {
+      ok: false,
+      reason: `provision manifest build ${manifest.buildIdentity ?? '<missing>'} (major ${manifest.majorVersion ?? '<missing>'}) does not match expected ${expected.buildIdentity} (major ${expected.major})`,
+    };
+  }
+
+  return { ok: true, foundMajor, foundBuildIdentity, manifest };
 }
 
 function locateBrewPrefix(major) {
@@ -142,17 +178,17 @@ function computeTreeStats(rootDir) {
   return { fileCount: files.length, totalBytes };
 }
 
-function provisionFromPrefix(major) {
-  const postgresPrefix = locatePostgresPrefix(major);
+function provisionFromPrefix(expected) {
+  const postgresPrefix = locatePostgresPrefix(expected.major);
   if (!postgresPrefix) {
     console.error(
-      `Could not locate a Homebrew postgresql@${major} installation via 'brew --prefix postgresql@${major}'.\n` +
-        `Fix: install it with 'brew install postgresql@${major}', or set POSTGRES_PREFIX to a PostgreSQL ${major} installation, and re-run this script.`,
+      `Could not locate a Homebrew postgresql@${expected.major} installation via 'brew --prefix postgresql@${expected.major}'.\n` +
+        `Fix: install it with 'brew install postgresql@${expected.major}', or set POSTGRES_PREFIX to a PostgreSQL ${expected.buildIdentity} installation, and re-run this script.`,
     );
     process.exit(1);
   }
 
-  console.log(`Provisioning embedded PostgreSQL ${major} from ${postgresPrefix}`);
+  console.log(`Provisioning embedded PostgreSQL ${expected.buildIdentity} from ${postgresPrefix}`);
 
   if (existsSync(pgsqlTmpDir)) {
     rmSync(pgsqlTmpDir, { recursive: true, force: true });
@@ -177,7 +213,7 @@ function provisionFromPrefix(major) {
     if (!existsSync(sourceLibPostgresql)) {
       throw new Error(`Expected Homebrew directory not found: ${sourceLibPostgresql}`);
     }
-    cpSync(sourceLibPostgresql, join(pgsqlTmpDir, 'lib', `postgresql@${major}`), {
+    cpSync(sourceLibPostgresql, join(pgsqlTmpDir, 'lib', `postgresql@${expected.major}`), {
       recursive: true,
       preserveTimestamps: true,
     });
@@ -186,7 +222,7 @@ function provisionFromPrefix(major) {
     if (!existsSync(sourceSharePostgresql)) {
       throw new Error(`Expected Homebrew directory not found: ${sourceSharePostgresql}`);
     }
-    cpSync(sourceSharePostgresql, join(pgsqlTmpDir, 'share', `postgresql@${major}`), {
+    cpSync(sourceSharePostgresql, join(pgsqlTmpDir, 'share', `postgresql@${expected.major}`), {
       recursive: true,
       preserveTimestamps: true,
     });
@@ -215,17 +251,25 @@ function provisionFromPrefix(major) {
   const pgCtlVersion = runVersionCommand(verifyPgCtlBin, ['--version']);
   const postgresVersion = runVersionCommand(verifyPostgresBin, ['--version']);
   const foundMajor = extractMajorVersion(postgresVersion);
+  const foundBuildIdentity = extractBuildIdentity(postgresVersion);
+  const initdbBuildIdentity = extractBuildIdentity(initdbVersion);
+  const pgCtlBuildIdentity = extractBuildIdentity(pgCtlVersion);
 
-  if (!initdbVersion || !pgCtlVersion || !foundMajor) {
+  if (!initdbBuildIdentity || !pgCtlBuildIdentity || !foundMajor || !foundBuildIdentity) {
     rmSync(pgsqlTmpDir, { recursive: true, force: true });
     console.error('Verification failed: initdb/pg_ctl/postgres --version did not run correctly in the copied tree.');
     process.exit(1);
   }
 
-  if (foundMajor !== major) {
+  if (
+    foundMajor !== expected.major ||
+    foundBuildIdentity !== expected.buildIdentity ||
+    initdbBuildIdentity !== foundBuildIdentity ||
+    pgCtlBuildIdentity !== foundBuildIdentity
+  ) {
     rmSync(pgsqlTmpDir, { recursive: true, force: true });
     console.error(
-      `Verification failed: copied tree reports PostgreSQL major version ${foundMajor}, expected ${major}.`,
+      `Verification failed: copied tree reports postgres ${foundBuildIdentity}, initdb ${initdbBuildIdentity}, pg_ctl ${pgCtlBuildIdentity}; expected ${expected.buildIdentity}.`,
     );
     process.exit(1);
   }
@@ -239,24 +283,26 @@ function provisionFromPrefix(major) {
   const stats = computeTreeStats(pgsqlDir);
   writeJson(manifestPath, {
     sourcePath: postgresPrefix,
-    version: foundMajor,
+    version: foundBuildIdentity,
+    majorVersion: foundMajor,
+    buildIdentity: foundBuildIdentity,
     date: new Date().toISOString(),
     fileCount: stats.fileCount,
     totalBytes: stats.totalBytes,
   });
 
   console.log(
-    `Provisioned pgsql/ from ${postgresPrefix} (PostgreSQL ${foundMajor}, ${stats.fileCount} files, ${stats.totalBytes} bytes).`,
+    `Provisioned pgsql/ from ${postgresPrefix} (PostgreSQL ${foundBuildIdentity}, ${stats.fileCount} files, ${stats.totalBytes} bytes).`,
   );
 }
 
-const expectedMajor = readExpectedMajorVersion();
+const expected = readExpectedVersion();
 
 if (!force) {
-  const existing = checkExistingInstall(expectedMajor);
+  const existing = checkExistingInstall(expected);
   if (existing.ok) {
     console.log(
-      `pgsql/ up to date (PostgreSQL ${existing.foundMajor}${existing.hasManifest ? ', manifest verified' : ', no manifest'}).`,
+      `pgsql/ up to date (PostgreSQL ${existing.foundBuildIdentity}, full-build manifest verified).`,
     );
     process.exit(0);
   }
@@ -266,7 +312,7 @@ if (!force) {
 }
 
 if (process.platform === 'darwin') {
-  provisionFromPrefix(expectedMajor);
+  provisionFromPrefix(expected);
 } else {
   console.error(
     'Windows/Linux pgsql provisioning source not configured — to be filled in by user.',

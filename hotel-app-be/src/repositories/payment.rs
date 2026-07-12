@@ -344,7 +344,7 @@ impl PaymentRepository {
                 uuid, booking_id, amount, payment_method, payment_type,
                 status, transaction_id, notes, created_by, created_at
             )
-            VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6, $7, $8::timestamptz)
+            VALUES (gen_uuidv7(), $1, $2, $3, $4, 'completed', $5, $6, $7, $8::timestamptz)
             RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type,
                       status AS payment_status, transaction_id AS transaction_reference, notes,
                       created_at::date::text AS payment_date, created_at
@@ -355,7 +355,7 @@ impl PaymentRepository {
                 uuid, booking_id, amount, payment_method, payment_type,
                 status, transaction_id, notes, created_by, created_at
             )
-            VALUES (gen_random_uuid(), $1, $2, $3, $4, 'completed', $5, $6, $7, CURRENT_TIMESTAMP)
+            VALUES (gen_uuidv7(), $1, $2, $3, $4, 'completed', $5, $6, $7, CURRENT_TIMESTAMP)
             RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type,
                       status AS payment_status, transaction_id AS transaction_reference, notes,
                       created_at::date::text AS payment_date, created_at
@@ -503,7 +503,7 @@ impl PaymentRepository {
                 uuid, booking_id, amount, payment_method, payment_type,
                 status, notes, created_by
             )
-            VALUES (gen_random_uuid(), $1, $2, $3, 'refund', 'refunded', 'Keycard deposit refund', $4)
+            VALUES (gen_uuidv7(), $1, $2, $3, 'refund', 'refunded', 'Keycard deposit refund', $4)
             RETURNING id, booking_id, amount::text AS total_amount, payment_method, payment_type,
                       status AS payment_status, NULL::text AS transaction_reference, notes,
                       created_at::date::text AS payment_date, created_at

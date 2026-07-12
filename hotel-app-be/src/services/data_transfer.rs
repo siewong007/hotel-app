@@ -788,7 +788,7 @@ mod tests {
     }
 
     #[test]
-    fn base_generated_columns_include_pg18_booking_virtual_column() {
+    fn base_generated_columns_include_pg19_booking_virtual_column() {
         let generated_columns = base_generated_columns();
         let booking_columns = generated_columns
             .get("bookings")

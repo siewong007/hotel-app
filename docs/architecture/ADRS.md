@@ -41,7 +41,7 @@ Each has its own build system, dependency management, and CI jobs. There is no r
 **Consequences:**
 - ✅ Offline/desktop mode works without PostgreSQL
 - ✅ Full PostgreSQL features in production deployment
-- ❌ Must maintain both `database/schema.sql` and `database/sqlite_migrations/`
+- ❌ Must maintain both PostgreSQL resources and `database/sqlite_schema.sql` / `sqlite_data.sql`
 - ❌ Some SQL must be duplicated in the `sql_query!` macro
 - ❌ SQLite has limitations (no `FOR UPDATE`, different UUID handling)
 
@@ -199,14 +199,15 @@ Long-term goal: migrate to domain modules under `modules/<domain>/`.
 
 **Context:** The PostgreSQL schema was maintained differently from typical sqlx migration patterns, using raw SQL files.
 
-**Decision:** Use `database/schema.sql` and `database/data.sql` as the authoritative PostgreSQL schema source. These are applied idempotently via direct `psql -f` execution, not through sqlx migrations. SQLite uses separate migrations under `database/sqlite_migrations/` run at startup via `sqlx::migrate!`.
+**Decision:** Use `database/schema.sql` and `database/data.sql` as the authoritative PostgreSQL source, applied via direct `psql -f` execution. Use `database/sqlite_schema.sql` and `database/sqlite_data.sql` as the authoritative SQLite source. At startup, SQLite imports successful legacy SQLx versions, transactionally applies pending numbered schema sections, then executes rerunnable seed and backfill data.
 
 **Consequences:**
 - ✅ Single source of truth for PostgreSQL schema
 - ✅ Idempotent application via IF NOT EXISTS / OR REPLACE
 - ✅ Compatible with Docker init scripts
+- ✅ Existing SQLite databases retain their applied-version history without replaying destructive legacy sections
 - ❌ Different from typical sqlx migration workflow
-- ❌ Must manually keep SQLite migrations in sync with schema.sql
+- ❌ Must manually keep SQLite resources in sync with the PostgreSQL resources
 - ❌ No automated rollback path
 
 ---

@@ -149,7 +149,7 @@ mod sqlite_tests {
     ///
     /// Root cause: `customer_ledgers.balance_due` is declared
     /// `DECIMAL(10,2) GENERATED ALWAYS AS (amount - paid_amount) STORED`
-    /// (database/sqlite_migrations/021_customer_ledgers_balance_due.sql).
+    /// (database/sqlite_schema.sql section 21).
     /// Under SQLite type-affinity rules a `DECIMAL(...)` declared type gets
     /// NUMERIC affinity, not REAL affinity (REAL affinity requires the
     /// declared type to contain "REAL"/"FLOA"/"DOUB"). NUMERIC affinity
@@ -182,13 +182,12 @@ mod sqlite_tests {
 
         // The generated column stores the lossless whole-number value under
         // SQLite's INTEGER storage class (NUMERIC affinity).
-        let raw_balance: i64 = sqlx::query_scalar(
-            "SELECT balance_due FROM customer_ledgers WHERE id = ?1",
-        )
-        .bind(ledger.id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let raw_balance: i64 =
+            sqlx::query_scalar("SELECT balance_due FROM customer_ledgers WHERE id = ?1")
+                .bind(ledger.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(
             raw_balance, 200,
             "the generated column itself computes amount - paid_amount correctly"
@@ -318,7 +317,10 @@ mod sqlite_tests {
         .expect("void should succeed");
 
         let result = ledgers::create_ledger_payment(&pool, ledger.id, 1, payment_req(50.0)).await;
-        assert!(result.is_err(), "cannot record a payment against a voided ledger");
+        assert!(
+            result.is_err(),
+            "cannot record a payment against a voided ledger"
+        );
     }
 
     // ---- Voiding ---------------------------------------------------------
@@ -449,17 +451,19 @@ mod sqlite_tests {
             Decimal::ZERO,
             "the model-level read reports zero for a voided ledger regardless of amount/paid_amount"
         );
-        assert_eq!(voided.amount, ledger.amount, "amount itself is untouched by voiding");
+        assert_eq!(
+            voided.amount, ledger.amount,
+            "amount itself is untouched by voiding"
+        );
 
         // The raw stored generated-column value is unchanged by the void --
         // only the higher-level row_to_customer_ledger mapping zeroes it.
-        let raw_balance: f64 = sqlx::query_scalar(
-            "SELECT balance_due FROM customer_ledgers WHERE id = ?1",
-        )
-        .bind(ledger.id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let raw_balance: f64 =
+            sqlx::query_scalar("SELECT balance_due FROM customer_ledgers WHERE id = ?1")
+                .bind(ledger.id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(
             raw_balance, 200.75,
             "voiding does not mutate amount/paid_amount, so the generated column is unchanged"
@@ -520,8 +524,12 @@ mod sqlite_tests {
         let mut req2 = base_req(999.0);
         req2.booking_id = Some(502);
 
-        let first = ledgers::create_customer_ledger(&pool, 1, req1).await.unwrap();
-        let second = ledgers::create_customer_ledger(&pool, 1, req2).await.unwrap();
+        let first = ledgers::create_customer_ledger(&pool, 1, req1)
+            .await
+            .unwrap();
+        let second = ledgers::create_customer_ledger(&pool, 1, req2)
+            .await
+            .unwrap();
 
         assert_ne!(
             first.id, second.id,
@@ -559,6 +567,9 @@ mod sqlite_tests {
         .fetch_one(&pool)
         .await
         .unwrap();
-        assert_eq!(count, 2, "two rows exist -- this is current behavior, not a guarantee");
+        assert_eq!(
+            count, 2,
+            "two rows exist -- this is current behavior, not a guarantee"
+        );
     }
 }

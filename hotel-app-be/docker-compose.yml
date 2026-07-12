@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:19beta1-alpine
@@ -11,7 +9,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      # postgres:18+ images require the mount at /var/lib/postgresql (data lives
+      # postgres:19 images require the mount at /var/lib/postgresql (data lives
       # in a version subdir) — mounting at .../data makes the container refuse to start
       - postgres_data:/var/lib/postgresql
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro

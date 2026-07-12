@@ -1,0 +1,211 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+
+exec > >(tee -a /var/log/hotel-app-bootstrap.log | logger -t hotel-app-bootstrap) 2>&1
+
+REPOSITORY_URL=$(printf '%s' '${repository_url_b64}' | base64 --decode)
+REPOSITORY_REF=$(printf '%s' '${repository_ref_b64}' | base64 --decode)
+POSTGRES_PASSWORD_SECRET_OCID=$(printf '%s' '${postgres_password_secret_ocid_b64}' | base64 --decode)
+JWT_SECRET_OCID=$(printf '%s' '${jwt_secret_ocid_b64}' | base64 --decode)
+FRONTEND_ORIGIN=$(printf '%s' '${frontend_origin_b64}' | base64 --decode)
+API_URL=$(printf '%s' '${api_url_b64}' | base64 --decode)
+ALLOWED_ORIGINS=$(printf '%s' '${allowed_origins_b64}' | base64 --decode)
+PASSKEY_RP_ID=$(printf '%s' '${passkey_rp_id_b64}' | base64 --decode)
+TRUST_PROXY_HEADERS='${trust_proxy_headers}'
+ENABLE_PG19_TUNING='${enable_pg19_beta_tuning}'
+CREATE_DATA_VOLUME='${create_data_volume}'
+DATA_VOLUME_DEVICE=$(printf '%s' '${data_volume_device_b64}' | base64 --decode)
+DATA_VOLUME_MOUNT_PATH=$(printf '%s' '${data_volume_mount_path_b64}' | base64 --decode)
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y ca-certificates curl git gnupg jq python3 python3-venv e2fsprogs
+
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+. /etc/os-release
+printf '%s\n' "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $VERSION_CODENAME stable" > /etc/apt/sources.list.d/docker.list
+apt-get update
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+if [[ "$CREATE_DATA_VOLUME" == "true" ]]; then
+  echo "Waiting for the optional OCI data volume"
+  for _ in $(seq 1 120); do
+    [[ -b "$DATA_VOLUME_DEVICE" ]] && break
+    sleep 5
+  done
+
+  if [[ ! -b "$DATA_VOLUME_DEVICE" ]]; then
+    echo "The requested data volume did not appear at $DATA_VOLUME_DEVICE" >&2
+    exit 1
+  fi
+
+  systemctl stop docker.service docker.socket || true
+  if ! blkid "$DATA_VOLUME_DEVICE" >/dev/null 2>&1; then
+    mkfs.ext4 -F "$DATA_VOLUME_DEVICE"
+  fi
+
+  install -d -m 0755 "$DATA_VOLUME_MOUNT_PATH"
+  DATA_VOLUME_UUID=$(blkid -s UUID -o value "$DATA_VOLUME_DEVICE")
+  if ! grep -q "UUID=$DATA_VOLUME_UUID" /etc/fstab; then
+    printf 'UUID=%s %s ext4 defaults,nofail 0 2\n' "$DATA_VOLUME_UUID" "$DATA_VOLUME_MOUNT_PATH" >> /etc/fstab
+  fi
+  mount "$DATA_VOLUME_MOUNT_PATH"
+  install -d -m 0711 "$DATA_VOLUME_MOUNT_PATH/docker"
+  install -d -m 0755 /etc/docker
+  printf '{"data-root":"%s/docker"}\n' "$DATA_VOLUME_MOUNT_PATH" > /etc/docker/daemon.json
+fi
+
+systemctl enable --now docker.service
+
+python3 -m venv /opt/oci-cli
+/opt/oci-cli/bin/pip install --disable-pip-version-check --no-cache-dir oci-cli
+OCI_CLI=/opt/oci-cli/bin/oci
+
+install -d -m 0700 /etc/hotel-app/secrets
+
+fetch_vault_secret() {
+  local secret_ocid="$1"
+  local destination="$2"
+  local encoded=""
+
+  for _ in $(seq 1 180); do
+    if encoded=$("$OCI_CLI" --auth instance_principal secrets secret-bundle get \
+      --secret-id "$secret_ocid" \
+      --stage CURRENT \
+      --query 'data."secret-bundle-content".content' \
+      --raw-output 2>/dev/null) && [[ -n "$encoded" && "$encoded" != "null" ]]; then
+      printf '%s' "$encoded" | base64 --decode > "$destination"
+      chmod 0600 "$destination"
+      [[ -s "$destination" ]] && return 0
+    fi
+    sleep 10
+  done
+
+  echo "Unable to read OCI Vault secret bundle after waiting for instance-principal policy propagation" >&2
+  return 1
+}
+
+fetch_vault_secret "$POSTGRES_PASSWORD_SECRET_OCID" /etc/hotel-app/secrets/postgres-password
+fetch_vault_secret "$JWT_SECRET_OCID" /etc/hotel-app/secrets/jwt-secret
+
+if [[ -z "$FRONTEND_ORIGIN" ]]; then
+  PUBLIC_IP=""
+  for _ in $(seq 1 240); do
+    PUBLIC_IP=$(curl -fsS -H 'Authorization: Bearer Oracle' http://169.254.169.254/opc/v2/vnics/ 2>/dev/null | jq -r '.[0].publicIp // empty')
+    [[ -n "$PUBLIC_IP" ]] && break
+    sleep 5
+  done
+
+  if [[ -z "$PUBLIC_IP" ]]; then
+    echo "No public IP was visible through OCI instance metadata" >&2
+    exit 1
+  fi
+
+  FRONTEND_ORIGIN="http://$PUBLIC_IP"
+fi
+
+if [[ -z "$API_URL" ]]; then
+  API_URL="$FRONTEND_ORIGIN:3030"
+fi
+
+if [[ -z "$ALLOWED_ORIGINS" ]]; then
+  ALLOWED_ORIGINS="$FRONTEND_ORIGIN"
+fi
+
+if [[ -z "$PASSKEY_RP_ID" ]]; then
+  PASSKEY_RP_ID=$(python3 -c 'import sys; from urllib.parse import urlparse; print(urlparse(sys.argv[1]).hostname or "localhost")' "$FRONTEND_ORIGIN")
+fi
+
+export FRONTEND_ORIGIN API_URL ALLOWED_ORIGINS PASSKEY_RP_ID TRUST_PROXY_HEADERS
+python3 <<'PY'
+from pathlib import Path
+from urllib.parse import quote
+import os
+
+postgres_password = Path('/etc/hotel-app/secrets/postgres-password').read_text(encoding='utf-8').strip()
+jwt_secret = Path('/etc/hotel-app/secrets/jwt-secret').read_text(encoding='utf-8').strip()
+if not postgres_password or '\n' in postgres_password:
+    raise SystemExit('PostgreSQL password must be non-empty and single-line')
+if len(jwt_secret) < 32 or '\n' in jwt_secret:
+    raise SystemExit('JWT secret must be single-line and at least 32 characters')
+
+def dotenv(value: str) -> str:
+    return "'" + value.replace('\\', '\\\\').replace("'", "\\'") + "'"
+
+database_url = 'postgres://hotel_admin:' + quote(postgres_password, safe='') + '@postgres:5432/hotel_management'
+values = {
+    'POSTGRES_USER': 'hotel_admin',
+    'POSTGRES_PASSWORD': postgres_password,
+    'POSTGRES_DB': 'hotel_management',
+    'DATABASE_URL': database_url,
+    'JWT_SECRET': jwt_secret,
+    'BACKEND_PORT': '3030',
+    'FRONTEND_PORT': '80',
+    'ALLOWED_ORIGINS': os.environ['ALLOWED_ORIGINS'],
+    'VITE_API_URL': os.environ['API_URL'],
+    'PASSKEY_RP_ID': os.environ['PASSKEY_RP_ID'],
+    'TRUST_PROXY_HEADERS': os.environ['TRUST_PROXY_HEADERS'],
+    'RUST_LOG': 'info',
+    'ENVIRONMENT': 'development',
+}
+Path('/etc/hotel-app/runtime.env').write_text(
+    ''.join(f'{key}={dotenv(value)}\n' for key, value in values.items()),
+    encoding='utf-8',
+)
+Path('/etc/hotel-app/runtime.env').chmod(0o600)
+PY
+
+if [[ -e /opt/hotel-app ]]; then
+  echo "/opt/hotel-app already exists; refusing to overwrite it" >&2
+  exit 1
+fi
+
+git clone "$REPOSITORY_URL" /opt/hotel-app
+git -C /opt/hotel-app checkout "$REPOSITORY_REF"
+
+printf '%s' '${infrastructure_override_b64}' | base64 --decode > /opt/hotel-app/docker-compose.infrastructure.yml
+COMPOSE_FILE_ARGS="-f docker-compose.yml -f docker-compose.infrastructure.yml"
+
+docker volume create hotel-app-private-uploads >/dev/null
+docker volume create hotel-app-public-uploads >/dev/null
+docker run --rm -v hotel-app-private-uploads:/data alpine:3.22 sh -c 'chown 1000:1000 /data && chmod 0750 /data'
+docker run --rm -v hotel-app-public-uploads:/data alpine:3.22 sh -c 'chown 1000:1000 /data && chmod 0755 /data'
+
+if [[ "$ENABLE_PG19_TUNING" == "true" ]]; then
+  printf '%s' '${pg19_tuning_override_b64}' | base64 --decode > /opt/hotel-app/docker-compose.pg19-tuning.yml
+  COMPOSE_FILE_ARGS="$COMPOSE_FILE_ARGS -f docker-compose.pg19-tuned.yml -f docker-compose.pg19-tuning.yml"
+fi
+
+printf '%s' '${pre_compose_script_b64}' | base64 --decode > /usr/local/sbin/hotel-app-pre-compose
+printf '%s' '${post_compose_script_b64}' | base64 --decode > /usr/local/sbin/hotel-app-post-compose
+chmod 0700 /usr/local/sbin/hotel-app-pre-compose /usr/local/sbin/hotel-app-post-compose
+
+cat > /etc/systemd/system/hotel-app-compose.service <<EOF
+[Unit]
+Description=Hotel App Docker Compose development stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/hotel-app
+ExecStartPre=/usr/local/sbin/hotel-app-pre-compose
+ExecStart=/usr/bin/docker compose --env-file /etc/hotel-app/runtime.env $COMPOSE_FILE_ARGS up -d --build
+ExecStartPost=/usr/local/sbin/hotel-app-post-compose
+ExecStop=/usr/bin/docker compose --env-file /etc/hotel-app/runtime.env $COMPOSE_FILE_ARGS down
+TimeoutStartSec=infinity
+TimeoutStopSec=180
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now hotel-app-compose.service
+
+echo "Hotel app bootstrap completed"

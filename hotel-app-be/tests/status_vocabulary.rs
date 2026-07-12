@@ -1,8 +1,7 @@
 //! Regression tests for the persisted status vocabulary.
 
 const POSTGRES_SCHEMA: &str = include_str!("../database/schema.sql");
-const SQLITE_VOID_MIGRATION: &str =
-    include_str!("../database/sqlite_migrations/001_initial_schema.sql");
+const SQLITE_DATA: &str = include_str!("../database/sqlite_data.sql");
 
 fn status_check_blocks(sql: &str) -> Vec<String> {
     let mut blocks = Vec::new();
@@ -61,8 +60,68 @@ fn legacy_cancelled_values_are_migrated_to_void_names() {
         "UPDATE ekyc_verifications SET status = 'void' WHERE status = 'cancelled'",
     ] {
         assert!(
-            POSTGRES_SCHEMA.contains(expected) || SQLITE_VOID_MIGRATION.contains(expected),
+            POSTGRES_SCHEMA.contains(expected) || SQLITE_DATA.contains(expected),
             "missing legacy status normalization: {expected}"
+        );
+    }
+}
+
+#[test]
+fn postgres_schema_requires_pg19_and_uses_native_uuidv7() {
+    assert!(
+        POSTGRES_SCHEMA.contains("server_version_num < 190000"),
+        "schema must reject PostgreSQL versions older than 19"
+    );
+    assert!(
+        POSTGRES_SCHEMA.contains("AS 'SELECT pg_catalog.uuidv7()';"),
+        "gen_uuidv7() must delegate to PostgreSQL 19's native UUIDv7 function"
+    );
+    assert!(
+        POSTGRES_SCHEMA.contains("ALTER COLUMN id SET DEFAULT gen_uuidv7()")
+            && POSTGRES_SCHEMA.contains("ALTER COLUMN uuid       SET DEFAULT gen_uuidv7()"),
+        "UUID defaults must use the project's native UUIDv7 wrapper"
+    );
+}
+
+#[test]
+fn postgres_schema_uses_pg19_partition_split_and_drops_redundant_indexes() {
+    assert!(
+        POSTGRES_SCHEMA.contains("SPLIT PARTITION audit_logs_default"),
+        "late audit partitions must use PostgreSQL 19 SPLIT PARTITION"
+    );
+    assert!(
+        POSTGRES_SCHEMA.contains("CREATE INDEX IF NOT EXISTS idx_audit_logs_details_trgm")
+            && POSTGRES_SCHEMA.contains("ON audit_logs USING gin ((details::text) gin_trgm_ops)"),
+        "audit detail substring search needs a matching trigram expression index"
+    );
+
+    for index_name in [
+        "idx_users_uuid",
+        "idx_passkeys_credential_id",
+        "idx_user_sessions_session_id",
+        "idx_system_settings_key",
+        "idx_email_templates_code",
+        "idx_night_audit_runs_audit_date",
+        "idx_guests_uuid",
+        "idx_corporate_accounts_registration",
+        "idx_loyalty_memberships_member_number",
+        "idx_bookings_number",
+        "idx_bookings_uuid",
+        "idx_invoices_number",
+        "idx_customer_ledgers_invoice",
+        "idx_loyalty_members_guest",
+        "idx_loyalty_members_number",
+    ] {
+        assert!(
+            POSTGRES_SCHEMA.contains(&format!("DROP INDEX IF EXISTS {index_name};")),
+            "schema must remove redundant index {index_name}"
+        );
+        assert!(
+            !POSTGRES_SCHEMA.lines().any(|line| {
+                let line = line.trim();
+                line.starts_with("CREATE") && line.contains("INDEX") && line.contains(index_name)
+            }),
+            "schema must not recreate redundant index {index_name}"
         );
     }
 }
@@ -155,6 +214,15 @@ mod postgres_smoke {
 
         let result = async {
             let pool = PgPool::connect(&temp_url).await?;
+            let server_version_num: i32 =
+                sqlx::query_scalar("SELECT current_setting('server_version_num')::integer")
+                    .fetch_one(&pool)
+                    .await?;
+            assert!(
+                server_version_num >= 190000,
+                "schema smoke requires PostgreSQL 19+, got server_version_num={server_version_num}"
+            );
+
             // `sqlx::raw_sql` runs the script over the simple-query protocol, which
             // (unlike `psql -f`) does not understand psql meta-commands such as
             // `\set ON_ERROR_STOP on`. Strip backslash-command lines before sending.
@@ -208,6 +276,84 @@ mod postgres_smoke {
             .await?
             .get("count");
             assert_eq!(cancelled_constraints, 0);
+
+            let redundant_indexes: i64 = sqlx::query_scalar(
+                r#"
+                SELECT COUNT(*)
+                FROM pg_indexes
+                WHERE schemaname = 'public'
+                  AND indexname IN (
+                      'idx_users_uuid',
+                      'idx_passkeys_credential_id',
+                      'idx_user_sessions_session_id',
+                      'idx_system_settings_key',
+                      'idx_email_templates_code',
+                      'idx_night_audit_runs_audit_date',
+                      'idx_guests_uuid',
+                      'idx_corporate_accounts_registration',
+                      'idx_loyalty_memberships_member_number',
+                      'idx_bookings_number',
+                      'idx_bookings_uuid',
+                      'idx_invoices_number',
+                      'idx_customer_ledgers_invoice',
+                      'idx_loyalty_members_guest',
+                      'idx_loyalty_members_number'
+                  )
+                "#,
+            )
+            .fetch_one(&pool)
+            .await?;
+            assert_eq!(redundant_indexes, 0);
+
+            let audit_details_trgm_exists: bool = sqlx::query_scalar(
+                "SELECT to_regclass('public.idx_audit_logs_details_trgm') IS NOT NULL",
+            )
+            .fetch_one(&pool)
+            .await?;
+            assert!(
+                audit_details_trgm_exists,
+                "pg_trgm-backed audit detail index should exist in the PostgreSQL smoke image"
+            );
+
+            sqlx::query(
+                r#"
+                INSERT INTO audit_logs (action, resource_type, details, created_at)
+                VALUES ('pg19_partition_test', 'schema_smoke', '{"source":"default"}', '2099-07-15T12:00:00Z')
+                "#,
+            )
+            .execute(&pool)
+            .await?;
+
+            let before_split: String = sqlx::query_scalar(
+                r#"
+                SELECT tableoid::regclass::text
+                FROM audit_logs
+                WHERE action = 'pg19_partition_test'
+                "#,
+            )
+            .fetch_one(&pool)
+            .await?;
+            assert_eq!(before_split, "audit_logs_default");
+
+            sqlx::query("SELECT ensure_audit_logs_partition(DATE '2099-07-01')")
+                .execute(&pool)
+                .await?;
+            // A second call verifies that the helper remains idempotent after
+            // PostgreSQL 19 has split and recreated the DEFAULT partition.
+            sqlx::query("SELECT ensure_audit_logs_partition(DATE '2099-07-01')")
+                .execute(&pool)
+                .await?;
+
+            let after_split: String = sqlx::query_scalar(
+                r#"
+                SELECT tableoid::regclass::text
+                FROM audit_logs
+                WHERE action = 'pg19_partition_test'
+                "#,
+            )
+            .fetch_one(&pool)
+            .await?;
+            assert_eq!(after_split, "audit_logs_2099_07");
 
             pool.close().await;
             Ok::<(), sqlx::Error>(())

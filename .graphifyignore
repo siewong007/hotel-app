@@ -6,8 +6,8 @@
 !/hotel-app-be/tests/**
 !/hotel-app-be/database/
 !/hotel-app-be/database/schema.sql
-!/hotel-app-be/database/sqlite_migrations/
-!/hotel-app-be/database/sqlite_migrations/**
+!/hotel-app-be/database/sqlite_schema.sql
+!/hotel-app-be/database/sqlite_data.sql
 !/hotel-app-be/Cargo.toml
 !/hotel-web-fe/
 !/hotel-web-fe/src/

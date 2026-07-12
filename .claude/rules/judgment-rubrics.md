@@ -31,7 +31,7 @@ A task is complete ONLY when all of these hold:
 2. Backend touched → `cargo check --all-features` passes (clippy for CI-ready).
    Frontend touched → `npm run typecheck && npm run lint && npm run test` pass.
 3. Cross-cutting checklist from `00-diagnosis.md` Leak #3 walked item-by-item.
-4. Schema touched → BOTH `database/schema.sql` and `database/sqlite_migrations/` updated.
+4. Schema touched → BOTH `database/schema.sql` and `database/sqlite_schema.sql` updated; matching rerunnable SQLite data goes in `database/sqlite_data.sql`.
 5. The user-visible summary states what was verified and HOW ("clippy clean, 42
    tests pass"), not "should be fine".
 

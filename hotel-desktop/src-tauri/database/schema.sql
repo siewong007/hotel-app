@@ -7,6 +7,22 @@
 
 \set ON_ERROR_STOP on
 
+-- PostgreSQL 19 is the minimum supported server for the hosted and bundled
+-- PostgreSQL paths. Keeping this guard in the authoritative schema prevents a
+-- partially-applied install on an older major that lacks the physical-design
+-- and maintenance features used below.
+DO $$
+DECLARE
+    server_version_num integer := current_setting('server_version_num')::integer;
+BEGIN
+    IF server_version_num < 190000 THEN
+        RAISE EXCEPTION
+            'Hotel App requires PostgreSQL 19 or newer; connected server_version_num is %',
+            server_version_num;
+    END IF;
+END;
+$$;
+
 
 -- ============================================================================
 -- 001_core_extensions_functions.sql
@@ -17,25 +33,6 @@
 -- ============================================================================
 -- Description: PostgreSQL extensions and core utility functions
 -- ============================================================================
-
--- Enable PostgreSQL extensions (some may not be available in embedded PostgreSQL)
-DO $$
-BEGIN
-    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-EXCEPTION
-    WHEN OTHERS THEN
-        RAISE NOTICE 'uuid-ossp extension not available, UUIDs will use gen_random_uuid() instead';
-END
-$$;
-
-DO $$
-BEGIN
-    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-EXCEPTION
-    WHEN OTHERS THEN
-        RAISE NOTICE 'pgcrypto extension not available, skipping';
-END
-$$;
 
 -- ============================================================================
 -- CORE UTILITY FUNCTIONS
@@ -171,7 +168,7 @@ CREATE TABLE IF NOT EXISTS role_permissions (
 
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT PRIMARY KEY DEFAULT nextval('users_id_seq'),
-    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    uuid UUID UNIQUE NOT NULL DEFAULT uuidv7(),
     username VARCHAR(100) UNIQUE NOT NULL CHECK (username = LOWER(username)),
     email VARCHAR(255) UNIQUE NOT NULL CHECK (email = LOWER(email)),
     password_hash VARCHAR(255),
@@ -225,7 +222,7 @@ CREATE TABLE IF NOT EXISTS user_permissions (
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash VARCHAR(255) NOT NULL UNIQUE,
     device_info JSONB,
@@ -240,7 +237,7 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 );
 
 CREATE TABLE IF NOT EXISTS passkeys (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     credential_id BYTEA NOT NULL UNIQUE,
     public_key BYTEA NOT NULL,
@@ -257,7 +254,7 @@ CREATE TABLE IF NOT EXISTS passkeys (
 );
 
 CREATE TABLE IF NOT EXISTS passkey_challenges (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     user_id BIGINT REFERENCES users(id) ON DELETE CASCADE,
     challenge BYTEA NOT NULL,
     challenge_type VARCHAR(20) NOT NULL CHECK (challenge_type IN ('registration', 'authentication')),
@@ -268,7 +265,7 @@ CREATE TABLE IF NOT EXISTS passkey_challenges (
 
 CREATE TABLE IF NOT EXISTS user_sessions (
     id BIGINT PRIMARY KEY DEFAULT nextval('user_sessions_id_seq'),
-    session_id UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    session_id UUID UNIQUE NOT NULL DEFAULT uuidv7(),
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     ip_address INET,
     user_agent TEXT,
@@ -285,7 +282,6 @@ CREATE TABLE IF NOT EXISTS user_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_users_uuid ON users(uuid);
 CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_users_user_type ON users(user_type);
 CREATE INDEX IF NOT EXISTS idx_users_guest_id ON users(guest_id) WHERE guest_id IS NOT NULL;
@@ -298,10 +294,8 @@ CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id)
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash) WHERE is_revoked = false;
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires ON refresh_tokens(expires_at) WHERE is_revoked = false;
 CREATE INDEX IF NOT EXISTS idx_passkeys_user_id ON passkeys(user_id) WHERE is_active = true;
-CREATE INDEX IF NOT EXISTS idx_passkeys_credential_id ON passkeys(credential_id);
 CREATE INDEX IF NOT EXISTS idx_passkey_challenges_expires ON passkey_challenges(expires_at);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id) WHERE is_active = true;
-CREATE INDEX IF NOT EXISTS idx_user_sessions_session_id ON user_sessions(session_id);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at);
 
 -- ============================================================================
@@ -467,9 +461,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON audit_logs(resource_type, resource_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_system_settings_category ON system_settings(category);
-CREATE INDEX IF NOT EXISTS idx_system_settings_key ON system_settings(key);
 CREATE INDEX IF NOT EXISTS idx_system_settings_public ON system_settings(is_public) WHERE is_public = true;
-CREATE INDEX IF NOT EXISTS idx_email_templates_code ON email_templates(code);
 
 -- ============================================================================
 -- TRIGGERS
@@ -570,7 +562,6 @@ CREATE TABLE IF NOT EXISTS night_audit_details (
 );
 
 -- Indexes for night audit tables
-CREATE INDEX IF NOT EXISTS idx_night_audit_runs_audit_date ON night_audit_runs(audit_date DESC);
 CREATE INDEX IF NOT EXISTS idx_night_audit_details_audit_run_id ON night_audit_details(audit_run_id);
 CREATE INDEX IF NOT EXISTS idx_night_audit_details_booking_id ON night_audit_details(booking_id);
 
@@ -634,7 +625,7 @@ DO $$ BEGIN CREATE TYPE tourism_type AS ENUM ('local', 'foreign'); EXCEPTION WHE
 
 CREATE TABLE IF NOT EXISTS guests (
     id BIGINT PRIMARY KEY DEFAULT nextval('guests_id_seq'),
-    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    uuid UUID UNIQUE NOT NULL DEFAULT uuidv7(),
     full_name VARCHAR(255) NOT NULL,
     first_name VARCHAR(100),
     last_name VARCHAR(100),
@@ -832,7 +823,7 @@ CREATE TABLE IF NOT EXISTS guest_reviews (
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS corporate_accounts (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     name VARCHAR(255) NOT NULL,
     company_registration VARCHAR(100) UNIQUE,
     tax_id VARCHAR(100),
@@ -871,7 +862,6 @@ CREATE TABLE IF NOT EXISTS corporate_account_contacts (
 CREATE INDEX IF NOT EXISTS idx_guests_email ON guests(email) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_guests_phone ON guests(phone) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_guests_full_name ON guests(full_name);
-CREATE INDEX IF NOT EXISTS idx_guests_uuid ON guests(uuid);
 CREATE INDEX IF NOT EXISTS idx_guests_vip ON guests(vip_status) WHERE vip_status IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_guests_company ON guests(company_name) WHERE company_name IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_guests_blacklist ON guests(is_blacklisted) WHERE is_blacklisted = true;
@@ -891,7 +881,6 @@ CREATE INDEX IF NOT EXISTS idx_guest_reviews_guest_id ON guest_reviews(guest_id)
 CREATE INDEX IF NOT EXISTS idx_guest_reviews_rating ON guest_reviews(overall_rating);
 CREATE INDEX IF NOT EXISTS idx_guest_reviews_published ON guest_reviews(is_published) WHERE is_published = true;
 CREATE INDEX IF NOT EXISTS idx_corporate_accounts_name ON corporate_accounts(name);
-CREATE INDEX IF NOT EXISTS idx_corporate_accounts_registration ON corporate_accounts(company_registration);
 CREATE INDEX IF NOT EXISTS idx_corporate_account_contacts_corp ON corporate_account_contacts(corporate_account_id);
 
 -- ============================================================================
@@ -1077,7 +1066,6 @@ CREATE TABLE IF NOT EXISTS reward_redemptions (
 CREATE INDEX IF NOT EXISTS idx_loyalty_tiers_program ON loyalty_tiers(program_id);
 CREATE INDEX IF NOT EXISTS idx_loyalty_memberships_guest ON loyalty_memberships(guest_id);
 CREATE INDEX IF NOT EXISTS idx_loyalty_memberships_program ON loyalty_memberships(program_id);
-CREATE INDEX IF NOT EXISTS idx_loyalty_memberships_member_number ON loyalty_memberships(member_number);
 CREATE INDEX IF NOT EXISTS idx_points_transactions_membership ON points_transactions(membership_id);
 CREATE INDEX IF NOT EXISTS idx_points_transactions_type ON points_transactions(transaction_type);
 CREATE INDEX IF NOT EXISTS idx_points_transactions_created ON points_transactions(created_at DESC);
@@ -1383,7 +1371,7 @@ CREATE TABLE IF NOT EXISTS room_changes (
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS room_status_change_log (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     room_id BIGINT NOT NULL REFERENCES rooms(id),
     from_status VARCHAR(20),
     to_status VARCHAR(20),
@@ -1692,7 +1680,7 @@ CREATE INDEX IF NOT EXISTS idx_companies_active ON companies(is_active) WHERE is
 
 CREATE TABLE IF NOT EXISTS bookings (
     id BIGINT PRIMARY KEY DEFAULT nextval('bookings_id_seq'),
-    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    uuid UUID UNIQUE NOT NULL DEFAULT uuidv7(),
     booking_number VARCHAR(50) UNIQUE NOT NULL,
     folio_number VARCHAR(50),
 
@@ -1868,7 +1856,7 @@ CREATE TABLE IF NOT EXISTS booking_guests (
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS booking_modifications (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     booking_id BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
     modification_type VARCHAR(50) NOT NULL,
     old_value JSONB,
@@ -1884,7 +1872,7 @@ CREATE TABLE IF NOT EXISTS booking_modifications (
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS booking_history (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     booking_id BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
     previous_status VARCHAR(50),
     new_status VARCHAR(50) NOT NULL,
@@ -2091,19 +2079,14 @@ GROUP BY date_trunc('month', b.check_in_date) ORDER BY month DESC;
 CREATE INDEX IF NOT EXISTS idx_bookings_guest ON bookings(guest_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_room ON bookings(room_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_dates ON bookings(check_in_date, check_out_date);
-CREATE INDEX IF NOT EXISTS idx_bookings_check_in ON bookings(check_in_date);
-CREATE INDEX IF NOT EXISTS idx_bookings_check_out ON bookings(check_out_date);
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
 CREATE INDEX IF NOT EXISTS idx_bookings_payment_status ON bookings(payment_status);
-CREATE INDEX IF NOT EXISTS idx_bookings_number ON bookings(booking_number);
-CREATE INDEX IF NOT EXISTS idx_bookings_uuid ON bookings(uuid);
 CREATE INDEX IF NOT EXISTS idx_bookings_source ON bookings(source);
 CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookings_corporate ON bookings(corporate_account_id) WHERE corporate_account_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_bookings_pre_checkin_token ON bookings(pre_checkin_token) WHERE pre_checkin_token IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_bookings_market_code ON bookings(market_code) WHERE market_code IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_bookings_room_status_dates ON bookings(room_id, status, check_in_date, check_out_date);
-CREATE INDEX IF NOT EXISTS idx_bookings_occupancy_lookup ON bookings(room_id, status, check_in_date, check_out_date) WHERE status = 'checked_in';
 CREATE INDEX IF NOT EXISTS idx_booking_guests_booking ON booking_guests(booking_id);
 CREATE INDEX IF NOT EXISTS idx_booking_guests_guest ON booking_guests(guest_id);
 CREATE INDEX IF NOT EXISTS idx_booking_mods_booking ON booking_modifications(booking_id);
@@ -2661,7 +2644,7 @@ CREATE SEQUENCE IF NOT EXISTS self_checkin_events_id_seq START WITH 1;
 
 CREATE TABLE IF NOT EXISTS ekyc_verifications (
     id BIGINT PRIMARY KEY DEFAULT nextval('ekyc_verifications_id_seq'),
-    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    uuid UUID UNIQUE NOT NULL DEFAULT uuidv7(),
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     guest_id BIGINT REFERENCES guests(id) ON DELETE SET NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'submitted',
@@ -2956,7 +2939,7 @@ CREATE SEQUENCE IF NOT EXISTS services_id_seq START WITH 1;
 
 CREATE TABLE IF NOT EXISTS payments (
     id BIGINT PRIMARY KEY DEFAULT nextval('payments_id_seq'),
-    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    uuid UUID UNIQUE NOT NULL DEFAULT uuidv7(),
     booking_id BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
     amount DECIMAL(12,2) NOT NULL,
     currency VARCHAR(3) DEFAULT 'USD',
@@ -2990,7 +2973,7 @@ CREATE TABLE IF NOT EXISTS payments (
 
 CREATE TABLE IF NOT EXISTS invoices (
     id BIGINT PRIMARY KEY DEFAULT nextval('invoices_id_seq'),
-    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    uuid UUID UNIQUE NOT NULL DEFAULT uuidv7(),
     invoice_number VARCHAR(50) UNIQUE NOT NULL,
     booking_id BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
     bill_to_guest_id BIGINT REFERENCES guests(id) ON DELETE SET NULL,
@@ -3049,7 +3032,7 @@ CREATE TABLE IF NOT EXISTS services (
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS booking_services (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     booking_id BIGINT NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
     service_id BIGINT NOT NULL REFERENCES services(id),
     quantity INTEGER NOT NULL DEFAULT 1,
@@ -3073,7 +3056,6 @@ CREATE INDEX IF NOT EXISTS idx_payments_created_at ON payments(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_payments_transaction ON payments(transaction_id) WHERE transaction_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_payments_gateway_payment_intent ON payments(gateway_payment_intent_id) WHERE gateway_payment_intent_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_invoices_booking ON invoices(booking_id);
-CREATE INDEX IF NOT EXISTS idx_invoices_number ON invoices(invoice_number);
 CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
 CREATE INDEX IF NOT EXISTS idx_invoices_due_date ON invoices(due_date);
 CREATE INDEX IF NOT EXISTS idx_invoices_issue_date ON invoices(issue_date DESC);
@@ -3373,7 +3355,6 @@ CREATE INDEX IF NOT EXISTS idx_customer_ledgers_status ON customer_ledgers(statu
 CREATE INDEX IF NOT EXISTS idx_customer_ledgers_booking ON customer_ledgers(booking_id);
 CREATE INDEX IF NOT EXISTS idx_customer_ledgers_guest ON customer_ledgers(guest_id);
 CREATE INDEX IF NOT EXISTS idx_customer_ledgers_due_date ON customer_ledgers(due_date);
-CREATE INDEX IF NOT EXISTS idx_customer_ledgers_invoice ON customer_ledgers(invoice_number);
 CREATE INDEX IF NOT EXISTS idx_customer_ledgers_folio_number ON customer_ledgers(folio_number);
 CREATE INDEX IF NOT EXISTS idx_customer_ledgers_folio_type ON customer_ledgers(folio_type);
 CREATE INDEX IF NOT EXISTS idx_customer_ledgers_room_number ON customer_ledgers(room_number);
@@ -3809,18 +3790,17 @@ ON customer_ledger_payments (LOWER(TRIM(receipt_number)))
 WHERE receipt_number IS NOT NULL AND TRIM(receipt_number) <> '';
 
 -- ============================================================================
--- 015_pg18_extensions_uuidv7.sql
+-- 015_pg19_extensions_uuidv7.sql
 -- ============================================================================
 
 -- ============================================================================
--- MIGRATION 015: PG 18 EXTENSIONS, uuidv7(), HARDENING
+-- MIGRATION 015: POSTGRESQL 19 EXTENSIONS, uuidv7(), HARDENING
 -- ============================================================================
 -- Description:
 --   * Enables observability + text-search extensions (defensive — bundled
 --     desktop PostgreSQL may not have them; each CREATE is wrapped).
---   * Adds gen_uuidv7() helper that prefers PostgreSQL 18's native uuidv7()
---     and falls back to gen_random_uuid() on older clusters. New tables
---     should default UUID columns to gen_uuidv7().
+--   * Adds a stable gen_uuidv7() wrapper over PostgreSQL 19's native uuidv7().
+--     New tables should default UUID columns to gen_uuidv7().
 --   * Hardens update_updated_at_column() with a pinned search_path.
 --
 -- Postgres-only. SQLite migrations are unaffected.
@@ -3846,35 +3826,17 @@ EXCEPTION WHEN OTHERS THEN
 END
 $$;
 
-DO $$
-BEGIN
-    CREATE EXTENSION IF NOT EXISTS "btree_gin";
-EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'btree_gin not available — mixed-type GIN indexes will not be created';
-END
-$$;
-
 -- ----------------------------------------------------------------------------
--- gen_uuidv7() — prefers PG 18 native uuidv7(), falls back to v4
+-- gen_uuidv7() — stable project wrapper over PostgreSQL 19 native uuidv7()
 -- ----------------------------------------------------------------------------
--- New code should reference gen_uuidv7() so existing rows continue to use
--- whatever default they had, and new inserts pick up the better algorithm
--- whenever uuidv7() exists in the server.
+-- New code should reference gen_uuidv7() so SQL and application-generated IDs
+-- use the same time-ordered UUID layout.
 CREATE OR REPLACE FUNCTION gen_uuidv7()
 RETURNS uuid
-LANGUAGE plpgsql
+LANGUAGE sql
 VOLATILE
 SET search_path = pg_catalog, public
-AS $$
-BEGIN
-    -- PG 18+: prefer native uuidv7()
-    RETURN uuidv7();
-EXCEPTION
-    WHEN undefined_function THEN
-        -- Fallback for older servers (older bundled desktop builds, dev VMs)
-        RETURN gen_random_uuid();
-END;
-$$;
+AS 'SELECT pg_catalog.uuidv7()';
 
 -- Normalize legacy "cancelled" status values to "void" and keep generated
 -- check constraints aligned for existing PostgreSQL databases.
@@ -3945,8 +3907,8 @@ ALTER TABLE customer_ledgers
     CHECK (status IN ('pending', 'partial', 'paid', 'overdue', 'void'));
 
 COMMENT ON FUNCTION gen_uuidv7() IS
-    'Time-ordered UUIDv7 (PostgreSQL 18+) with a v4 fallback for older clusters. '
-    'Prefer this for new UUID column defaults so writes land sequentially in btree pages.';
+    'Time-ordered native UUIDv7 for the PostgreSQL 19 baseline. Prefer this '
+    'for new UUID defaults so writes land sequentially in btree pages.';
 
 -- ----------------------------------------------------------------------------
 -- Harden update_updated_at_column() with a pinned search_path
@@ -3965,23 +3927,22 @@ END;
 $$;
 
 -- ============================================================================
--- 016_pg18_indexes.sql
+-- 016_pg19_indexes.sql
 -- ============================================================================
 
 -- ============================================================================
--- MIGRATION 016: PG 18 INDEX IMPROVEMENTS
+-- MIGRATION 016: POSTGRESQL 19 INDEX IMPROVEMENTS
 -- ============================================================================
 -- Description:
 --   * Adds GIN trigram indexes for the columns that the app searches with
 --     `ILIKE '%…%'` (guests, companies, bookings, users).
---   * Adds GIN(jsonb_path_ops) index on audit_logs.details so containment
---     and the existing `details::text ILIKE` path can be planned.
+--   * Adds trigram indexes for the substring-search predicates used by the API.
 --   * Adds BRIN indexes on the append-only time-series tables
 --     (audit_logs.created_at, night_audit_posted_nights.audit_date).
 --   * Adds a covering btree on bookings for the room/status occupancy
 --     lookup, using INCLUDE so range checks come from the index alone.
 --   * Drops three indexes that are strict subsets of others — wins write
---     amplification with no read regression because PG 18's improved
+--     amplification with no read regression because PostgreSQL 19's
 --     multicolumn btree skip scan covers the dropped single-column forms.
 --
 -- All trigram/GIN indexes are guarded by extension existence checks so the
@@ -4020,15 +3981,6 @@ END
 $$;
 
 -- ----------------------------------------------------------------------------
--- JSONB GIN — audit_logs.details
--- ----------------------------------------------------------------------------
--- jsonb_path_ops is smaller and faster than the default jsonb_ops for the
--- containment-only queries we run; the existing `details::text ILIKE` path
--- still benefits because the planner can prefilter rows via the GIN index.
-CREATE INDEX IF NOT EXISTS idx_audit_logs_details_gin
-    ON audit_logs USING gin (details jsonb_path_ops);
-
--- ----------------------------------------------------------------------------
 -- BRIN — append-only time-series
 -- ----------------------------------------------------------------------------
 -- BRIN keeps a tiny per-block summary that is ideal for monotonically growing
@@ -4059,7 +4011,7 @@ CREATE INDEX IF NOT EXISTS idx_bookings_room_status_covering
 -- Drop redundant indexes
 -- ----------------------------------------------------------------------------
 -- idx_bookings_dates (check_in_date, check_out_date) already serves any
--- query that filters on check_in_date alone; PG 18's improved multicolumn
+-- query that filters on check_in_date alone; PostgreSQL 19's multicolumn
 -- btree skip scan further reduces value of the single-column siblings.
 DROP INDEX IF EXISTS idx_bookings_check_in;
 DROP INDEX IF EXISTS idx_bookings_check_out;
@@ -4071,7 +4023,7 @@ DROP INDEX IF EXISTS idx_bookings_check_out;
 DROP INDEX IF EXISTS idx_bookings_occupancy_lookup;
 
 -- ============================================================================
--- 017_pg18_booking_overlap_exclude.sql
+-- 017_pg19_booking_overlap_exclude.sql
 -- ============================================================================
 
 -- ============================================================================
@@ -4172,17 +4124,16 @@ END
 $$;
 
 -- ============================================================================
--- 018_pg18_uuidv7_defaults.sql
+-- 018_pg19_uuidv7_defaults.sql
 -- ============================================================================
 
 -- ============================================================================
 -- MIGRATION 018: SWITCH UUID DEFAULTS TO gen_uuidv7()
 -- ============================================================================
 -- Description:
---   Updates every UUID column that defaults to uuid_generate_v4() so that
---   new inserts use gen_uuidv7() instead. gen_uuidv7() prefers PostgreSQL
---   18's native uuidv7() and falls back to gen_random_uuid() on older
---   clusters (see migration 015).
+--   Normalizes every UUID default to the project's gen_uuidv7() wrapper over
+--   PostgreSQL 19's native uuidv7(). Fresh schemas already start with native
+--   UUIDv7 defaults; rerunning this section also upgrades older installations.
 --
 --   Existing rows keep their random v4 UUIDs — only future inserts get the
 --   time-ordered v7 IDs. Mixed v4/v7 values in one column is harmless: both
@@ -4215,7 +4166,7 @@ ALTER TABLE payments      ALTER COLUMN uuid       SET DEFAULT gen_uuidv7();
 ALTER TABLE invoices      ALTER COLUMN uuid       SET DEFAULT gen_uuidv7();
 
 -- ============================================================================
--- 019_pg18_virtual_generated_columns.sql
+-- 019_pg19_virtual_generated_columns.sql
 -- ============================================================================
 
 -- ============================================================================
@@ -4226,8 +4177,8 @@ ALTER TABLE invoices      ALTER COLUMN uuid       SET DEFAULT gen_uuidv7();
 --   exposes the *billable* tourism tax in one place instead of forcing every
 --   report to write `CASE WHEN is_tourist THEN tourism_tax_amount ELSE 0 END`.
 --
---   PostgreSQL 18 added VIRTUAL generated columns; this is exactly the case
---   they target: a deterministic expression over other columns where the
+--   VIRTUAL generated columns, introduced in PostgreSQL 18 and retained in the
+--   PostgreSQL 19 baseline, target deterministic expressions where the
 --   value isn't searched often enough to justify storing it. Reports compute
 --   it on read; writes pay zero overhead.
 --
@@ -4245,22 +4196,22 @@ ALTER TABLE bookings
     ) VIRTUAL;
 
 COMMENT ON COLUMN bookings.tourism_billable_amount IS
-    'Virtual generated column (PG 18): tourism_tax_amount when is_tourist, else 0. '
+    'Virtual generated column (PostgreSQL 19 baseline): tourism_tax_amount when is_tourist, else 0. '
     'Computed on read; no storage overhead. Replaces repeated CASE expressions '
     'in reporting queries.';
 
 -- ============================================================================
--- 020_pg18_audit_logs_partitioning.sql
+-- 020_pg19_audit_logs_partitioning.sql
 -- ============================================================================
 
 -- ============================================================================
--- MIGRATION 020: PARTITION audit_logs BY MONTH (PG 18)
+-- MIGRATION 020: PARTITION audit_logs BY MONTH (POSTGRESQL 19)
 -- ============================================================================
 -- Description:
 --   Converts the append-only `audit_logs` table into a RANGE-partitioned table
 --   (one partition per calendar month on `created_at`). This was the deferred
---   "partition audit_logs once row count crosses ~10M" follow-up from
---   PG18_UPGRADE_NOTES.md. Doing it now — while the table is small — makes the
+--   deferred "partition audit_logs once row count crosses ~10M" follow-up.
+--   Doing it now — while the table is small — makes the
 --   rewrite cheap; doing it after it grows large is the painful path.
 --
 --   Why partition:
@@ -4270,9 +4221,8 @@ COMMENT ON COLUMN bookings.tourism_billable_amount IS
 --     * Per-partition BRIN/GIN/btree indexes stay small.
 --
 --   Design choices:
---     * `id` switches to `GENERATED ALWAYS AS IDENTITY` (PG 18-era style; this
---       is the go-forward standard for new tables — see follow-up #3 in
---       PG18_UPGRADE_NOTES.md). The old `audit_logs_id_seq` is dropped.
+--     * `id` switches to `GENERATED ALWAYS AS IDENTITY`, the go-forward
+--       standard for new tables. The old `audit_logs_id_seq` is dropped.
 --     * The partition key must be part of every unique constraint, so the PK
 --       becomes `(id, created_at)`. `id` alone is still globally unique because
 --       the identity sequence never repeats; the composite PK is purely a
@@ -4281,9 +4231,9 @@ COMMENT ON COLUMN bookings.tourism_billable_amount IS
 --     * A DEFAULT partition catches any row outside the pre-created monthly
 --       window (including historical rows), so an INSERT is never rejected.
 --     * `ensure_audit_logs_partition(date)` lets a maintenance job (or the next
---       deploy) pre-create future months. New months MUST be created before
---       rows for them arrive — you cannot attach a monthly partition once the
---       DEFAULT partition already holds rows in that range.
+--       deploy) pre-create future months. PostgreSQL 19 can split a late month
+--       out of the DEFAULT partition, but doing so takes exclusive locks and
+--       moves data, so proactive creation remains the normal path.
 --
 --   This is an atomic rewrite (rename → recreate → copy → drop) wrapped in the
 --   migration transaction: it either fully succeeds or fully rolls back. On a
@@ -4367,19 +4317,35 @@ BEGIN
         SELECT 1 FROM pg_class
         WHERE relname = part_name AND relnamespace = 'public'::regnamespace
     ) THEN
-        EXECUTE format(
-            'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
-            part_name, start_date, end_date
-        );
+        IF EXISTS (
+            SELECT 1
+            FROM public.audit_logs_default
+            WHERE created_at >= start_date::timestamptz
+              AND created_at < end_date::timestamptz
+            LIMIT 1
+        ) THEN
+            -- PostgreSQL 19 can split the DEFAULT partition in place. Unlike a
+            -- late CREATE/ATTACH, this moves already-arrived rows into the new
+            -- month while copying the parent's indexes and triggers.
+            EXECUTE format(
+                'ALTER TABLE public.audit_logs SPLIT PARTITION audit_logs_default INTO (PARTITION %I FOR VALUES FROM (%L) TO (%L), PARTITION audit_logs_default DEFAULT)',
+                part_name, start_date, end_date
+            );
+        ELSE
+            EXECUTE format(
+                'CREATE TABLE public.%I PARTITION OF public.audit_logs FOR VALUES FROM (%L) TO (%L)',
+                part_name, start_date, end_date
+            );
+        END IF;
     END IF;
 END;
 $$;
 
 COMMENT ON FUNCTION ensure_audit_logs_partition(date) IS
     'Idempotently creates the monthly audit_logs partition covering the given '
-    'month. Call ahead of time (maintenance job / deploy) so future months '
-    'exist before rows arrive — overlapping rows in the DEFAULT partition '
-    'block late attachment.';
+    'month. PostgreSQL 19 SPLIT PARTITION moves matching rows out of the '
+    'DEFAULT partition when a month is created late. Pre-create months during '
+    'maintenance because splitting takes exclusive locks and can move data.';
 
 -- Pre-create the current month plus the next 11 months.
 DO $$
@@ -4434,8 +4400,6 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id    ON audit_logs (user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_action     ON audit_logs (action);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_resource   ON audit_logs (resource_type, resource_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
--- jsonb_path_ops GIN for containment queries on details (migration 016).
-CREATE INDEX IF NOT EXISTS idx_audit_logs_details_gin ON audit_logs USING gin (details jsonb_path_ops);
 -- BRIN for wide time-range scans (migration 016). Tiny per partition.
 CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at_brin ON audit_logs USING brin (created_at);
 
@@ -5329,8 +5293,6 @@ CREATE TABLE IF NOT EXISTS loyalty_program_rules (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_loyalty_members_guest ON loyalty_members(guest_id);
-CREATE INDEX IF NOT EXISTS idx_loyalty_members_number ON loyalty_members(member_number);
 CREATE INDEX IF NOT EXISTS idx_loyalty_members_status ON loyalty_members(status);
 CREATE INDEX IF NOT EXISTS idx_loyalty_transactions_member_created ON loyalty_transactions(member_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_loyalty_transactions_source ON loyalty_transactions(source_type, source_id);
@@ -6095,3 +6057,38 @@ VALUES
         false
     )
 ON CONFLICT (key) DO NOTHING;
+
+-- ============================================================================
+-- 038_pg19_index_cleanup.sql
+-- ============================================================================
+-- Remove physical indexes duplicated by UNIQUE constraints and replace the
+-- audit-details containment index with an expression index that matches the
+-- application's actual `details::text ILIKE` predicate.
+
+DROP INDEX IF EXISTS idx_users_uuid;
+DROP INDEX IF EXISTS idx_passkeys_credential_id;
+DROP INDEX IF EXISTS idx_user_sessions_session_id;
+DROP INDEX IF EXISTS idx_system_settings_key;
+DROP INDEX IF EXISTS idx_email_templates_code;
+DROP INDEX IF EXISTS idx_night_audit_runs_audit_date;
+DROP INDEX IF EXISTS idx_guests_uuid;
+DROP INDEX IF EXISTS idx_corporate_accounts_registration;
+DROP INDEX IF EXISTS idx_loyalty_memberships_member_number;
+DROP INDEX IF EXISTS idx_bookings_number;
+DROP INDEX IF EXISTS idx_bookings_uuid;
+DROP INDEX IF EXISTS idx_invoices_number;
+DROP INDEX IF EXISTS idx_customer_ledgers_invoice;
+DROP INDEX IF EXISTS idx_loyalty_members_guest;
+DROP INDEX IF EXISTS idx_loyalty_members_number;
+
+DROP INDEX IF EXISTS idx_audit_logs_details_gin;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm') THEN
+        CREATE INDEX IF NOT EXISTS idx_audit_logs_details_trgm
+            ON audit_logs USING gin ((details::text) gin_trgm_ops);
+    ELSE
+        RAISE NOTICE 'pg_trgm not installed — audit detail substring search will use a scan';
+    END IF;
+END
+$$;

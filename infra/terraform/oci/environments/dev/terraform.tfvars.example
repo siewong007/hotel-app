@@ -1,0 +1,48 @@
+tenancy_ocid     = "ocid1.tenancy.oc1..replace-me"
+compartment_ocid = "ocid1.compartment.oc1..replace-me"
+
+# Provider API-key metadata can instead come from OCI environment variables.
+user_ocid        = "ocid1.user.oc1..replace-me"
+fingerprint      = "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+private_key_path = "/absolute/path/to/oci_api_key.pem"
+region           = "ap-singapore-1"
+
+# Never place private keys or secret values in this file.
+postgres_password_secret_ocid = "ocid1.vaultsecret.oc1.ap-singapore-1.replace-me"
+jwt_secret_ocid               = "ocid1.vaultsecret.oc1.ap-singapore-1.replace-me"
+
+ssh_public_keys = [
+  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIReplaceWithYourPublicKey hotel-dev"
+]
+ssh_ingress_cidrs = ["203.0.113.10/32"]
+web_ingress_cidrs = ["0.0.0.0/0"]
+
+# One free-tier-shaped Ampere A1 Flex VM. Capacity is not guaranteed.
+shape         = "VM.Standard.A1.Flex"
+ocpus         = 2
+memory_in_gbs = 12
+
+# The common Always Free tenancy allowance is 200 GB total across boot and
+# block volumes. Defaults use only a 50 GB boot volume.
+boot_volume_size_in_gbs = 50
+create_data_volume      = false
+data_volume_size_in_gbs = 100
+
+# A reserved IP consumes quota but keeps the address across instance replacement.
+use_reserved_public_ip = false
+
+# Cloud-init derives these from the public IP when empty. Set both when adding a
+# domain or reverse proxy so the frontend is built with the correct API origin.
+frontend_origin = ""
+api_url         = ""
+allowed_origins = ""
+passkey_rp_id   = ""
+
+# The root Compose stack uses PostgreSQL 19 Beta. Extra tuning is opt-in and
+# development-only; benchmark it against the selected A1 memory allocation.
+enable_pg19_beta_tuning = false
+
+freeform_tags = {
+  Owner      = "hotel-platform"
+  CostCenter = "development"
+}
