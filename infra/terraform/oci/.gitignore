@@ -1,0 +1,14 @@
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+terraform.tfvars
+terraform.tfvars.json
+backend.*.hcl
+backend.tf
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

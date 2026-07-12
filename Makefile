@@ -9,8 +9,8 @@ BUN ?= $(shell command -v bun 2>/dev/null || printf '%s' "$$HOME/.bun/bin/bun")
         check-be check-fe check-desktop check-all \
         lint-be lint-fe lint-desktop lint-all \
         test-be test-fe \
-        docker-up docker-down docker-build \
-        db-setup db-reset \
+        docker-up docker-up-pg19-tuned docker-down docker-build \
+        db-setup db-reset db-pg19-tune db-pg19-tune-rollback db-pg19-benchmark \
         prepare-desktop docs \
         fmt fmt-all \
         clean clean-all
@@ -119,6 +119,9 @@ test-all: test-be test-be-sqlite test-fe ## Test all projects
 docker-up: ## Start all Docker services
 	docker compose up -d
 
+docker-up-pg19-tuned: ## Start the PG19 experimental profile and apply speculative tuning
+	docker compose -f docker-compose.yml -f docker-compose.pg19-tuned.yml up -d
+
 docker-down: ## Stop all Docker services
 	docker compose down
 
@@ -137,6 +140,15 @@ db-setup: ## Set up PostgreSQL database (requires DATABASE_URL)
 db-reset: ## Reset and re-create PostgreSQL database
 	psql "$(DATABASE_URL)" -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
 	$(MAKE) db-setup
+
+db-pg19-tune: ## Apply opt-in PostgreSQL 19 physical/planner tuning
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/pg19_speculative_tuning.sql
+
+db-pg19-tune-rollback: ## Revert the opt-in PostgreSQL 19 schema tuning
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/pg19_speculative_tuning_rollback.sql
+
+db-pg19-benchmark: ## Collect PostgreSQL 19 settings and representative query plans
+	psql "$(DATABASE_URL)" -f hotel-app-be/database/pg19_benchmark.sql
 
 # ─── Desktop Preparation ──────────────────────────────────────────────────────
 

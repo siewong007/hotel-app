@@ -1,0 +1,16 @@
+bucket = "replace-with-your-oci-object-storage-bucket"
+key    = "hotel-app/dev/terraform.tfstate"
+region = "ap-singapore-1"
+
+# OCI Object Storage namespace, region, and S3 compatibility endpoint.
+endpoint = "https://replace-namespace.compat.objectstorage.ap-singapore-1.oraclecloud.com"
+
+force_path_style            = true
+skip_credentials_validation = true
+skip_region_validation      = true
+skip_metadata_api_check     = true
+skip_requesting_account_id  = true
+
+# Supply the OCI Customer Secret Key pair through AWS_ACCESS_KEY_ID and
+# AWS_SECRET_ACCESS_KEY. Never put those values in this file.
+

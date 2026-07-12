@@ -82,8 +82,9 @@ Dual-database contract (full checklist: `.claude/rules/00-diagnosis.md` Leak #2)
 one DB per production build (default `postgres`); every SQL change must compile
 under `--all-features`. PostgreSQL schema = `database/schema.sql` + `data.sql`
 (idempotent; applied by docker-compose and desktop `run_migrations_if_needed`;
-no sqlx-migrate step). SQLite migrations = `database/sqlite_migrations/`
-(auto-run at startup by `create_pool`). Schema changes must touch BOTH.
+no sqlx-migrate step). SQLite resources = `database/sqlite_schema.sql` +
+`sqlite_data.sql` (ordered schema sections plus rerunnable data, auto-run at
+startup by `create_pool`). Schema changes must touch BOTH database paths.
 Note: `hotel-desktop` does NOT use the sqlite feature (it ships embedded PostgreSQL);
 sqlite serves the standalone lightweight server mode and CI. Keep-or-kill decision
 pending — see `.claude/refs/architecture-enhancements.md` item 3.

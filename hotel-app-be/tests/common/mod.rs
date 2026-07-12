@@ -1,6 +1,6 @@
 //! Shared test helpers
 
-/// Create a fresh in-memory SQLite pool with all migrations applied.
+/// Create a fresh in-memory SQLite pool with both authoritative resources applied.
 ///
 /// Only available under the `sqlite` feature. Tests that call this must be
 /// gated with `#[cfg(all(feature = "sqlite", not(feature = "postgres")))]`.
@@ -15,10 +15,9 @@ pub async fn setup_test_db() -> sqlx::SqlitePool {
         .await
         .expect("Failed to create in-memory SQLite pool");
 
-    sqlx::migrate!("./database/sqlite_migrations")
-        .run(&pool)
+    hotel_app_be::core::db::apply_sqlite_resources(&pool)
         .await
-        .expect("Failed to run SQLite migrations on in-memory database");
+        .expect("Failed to apply SQLite resources to in-memory database");
 
     pool
 }

@@ -4,14 +4,15 @@ This guide covers deploying the hotel management system in various environments.
 
 ## Table of Contents
 1. [Quick Start (Docker Compose)](#quick-start-docker-compose)
-2. [Production Deployment](#production-deployment)
-3. [Desktop App Distribution](#desktop-app-distribution)
-4. [Environment Configuration](#environment-configuration)
-5. [Database Setup](#database-setup)
-6. [Security Checklist](#security-checklist)
-7. [Monitoring](#monitoring)
-8. [Backup and Recovery](#backup-and-recovery)
-9. [Troubleshooting](#troubleshooting)
+2. [Oracle Cloud Always Free Development](#oracle-cloud-always-free-development)
+3. [Production Deployment](#production-deployment)
+4. [Desktop App Distribution](#desktop-app-distribution)
+5. [Environment Configuration](#environment-configuration)
+6. [Database Setup](#database-setup)
+7. [Security Checklist](#security-checklist)
+8. [Monitoring](#monitoring)
+9. [Backup and Recovery](#backup-and-recovery)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -43,7 +44,47 @@ The services will be available at:
 
 ---
 
+## Oracle Cloud Always Free Development
+
+The Terraform configuration in `infra/terraform/oci/environments/dev` provisions a low-cost
+development environment on one Oracle Ampere A1 Flex VM. The VM runs the
+existing Docker Compose stack, so there is no paid managed PostgreSQL service.
+Its defaults use a conservative 2 OCPU and 12 GB of memory; check the limits
+shown in your tenancy before increasing either value.
+
+This design is intentionally a development/preview topology:
+
+- The VM, database, and application share one failure domain.
+- Always Free capacity can be unavailable in a selected availability domain.
+- Always Free services have no production SLA, and idle instances can be reclaimed.
+- PostgreSQL 19 Beta 1 is not supported for production data.
+
+Create an OCI Vault secret for each required application secret, configure the
+example variable file, and then preview the infrastructure before applying it:
+
+```bash
+cd infra/terraform/oci/environments/dev
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform plan
+terraform apply
+```
+
+Do not put OCI API keys, database passwords, JWT secrets, or Terraform state in
+Git. The directory includes an Object Storage backend example for teams that
+need remote state; use the backend approach compatible with the Terraform
+version installed in your environment.
+
+Oracle references: [Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm), [Terraform provider](https://docs.oracle.com/en-us/iaas/Content/dev/terraform/home.htm), and [Object Storage state](https://docs.oracle.com/en-us/iaas/Content/dev/terraform/object-storage-state.htm).
+
+---
+
 ## Production Deployment
+
+> **PostgreSQL 19 status:** the repository currently targets PostgreSQL 19
+> Beta 1 for development. PostgreSQL identifies version 19 as a development
+> release. Do not use this deployment path for production hotel data until 19
+> reaches general availability and backup/restore plus load tests pass.
 
 ### Prerequisites
 
@@ -52,7 +93,7 @@ The services will be available at:
 | CPU | 2 cores | 4+ cores |
 | RAM | 4 GB | 8+ GB |
 | Disk | 20 GB | 50+ GB (SSD) |
-| PostgreSQL | 16 | 18 |
+| PostgreSQL | 19 Beta 1 | 19 GA after validation |
 | Reverse Proxy | — | Nginx or Caddy |
 | TLS Certificate | — | Let's Encrypt |
 

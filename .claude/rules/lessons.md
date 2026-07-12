@@ -88,7 +88,7 @@ in `maintenance.md`. Newest at the bottom. Consolidate at >30 entries / >300 lin
 ## 2026-07-07 — cargo check cannot catch runtime SQL column divergence; smoke-run new SQL on SQLite
 - Trigger: adversarial review + live SQLite smoke test of the new guest-portal endpoints. Three runtime-only breaks survived `cargo check/clippy --all-features` AND the implementing agent's self-verification: invoices.bill_to_guest_id (PG) vs invoices.guest_id (SQLite), payments.transaction_id (PG) vs payments.reference_number (SQLite), and a `SELECT * FROM guests` decode requiring guests.is_active which exists in NEITHER checked-in schema (pre-existing drift; live DBs have it from a manual ALTER).
 - Wrong: treating "compiles under --all-features + clippy clean" as sufficient for new runtime SQL strings; trusting column names from a mapping report instead of the DDL.
-- Right: for any new SQL, verify every column against BOTH database/schema.sql and the sqlite_migrations DDL (grep the CREATE TABLE), and run the endpoint once against a scratch SQLite DB (migrations auto-run at startup; seed via sqlite3, auth via a hand-inserted session row). The smoke test found in minutes what static review missed.
+- Right: for any new SQL, verify every column against BOTH database/schema.sql and database/sqlite_schema.sql (grep the CREATE TABLE), and run the endpoint once against a scratch SQLite DB (resources auto-run at startup; seed via sqlite3, auth via a hand-inserted session row). The smoke test found in minutes what static review missed.
 - Rule: new runtime SQL is not "done" until each referenced column is confirmed in both DDLs; when feasible, curl the new endpoint against a scratch SQLite server before claiming complete. Never decode full model structs (`SELECT *`) in new code — select explicit columns.
 
 ## 2026-07-10b — room_events / room_history: tables referenced by SQL that were never migrated at all
@@ -100,7 +100,7 @@ in `maintenance.md`. Newest at the bottom. Consolidate at >30 entries / >300 lin
   already poisoned the transaction, so the NEXT statement (audit_logs insert)
   failed instead and that unswallowed error is what surfaced as the 500.
   Grepping confirmed `room_events` had ZERO CREATE TABLE in schema.sql or
-  sqlite_migrations/ despite being fully wired in
+  the then-current SQLite migrations (now consolidated in sqlite_schema.sql) despite being fully wired in
   src/repositories/rooms_queries.rs (INSERT/SELECT). Follow-up grep found the
   same pattern for `room_history`: it exists in schema.sql but SQLite only
   ever got a differently-shaped `room_status_history` table — SQLite builds
@@ -110,18 +110,18 @@ in `maintenance.md`. Newest at the bottom. Consolidate at >30 entries / >300 lin
   to make a write "best-effort" — a failed statement aborts the whole
   transaction regardless of whether Rust looks at the Result, so the failure
   just resurfaces on the next statement with a confusing unrelated error.
-- Right: added `room_events` (schema.sql + new sqlite_migrations/017) and
-  `room_history` (new sqlite_migrations/018, schema.sql already had it) with
+- Right: added `room_events` (schema.sql + SQLite schema section 17) and
+  `room_history` (SQLite schema section 18, schema.sql already had it) with
   columns matched against the actual RoomEvent/RoomHistory struct field types
   in src/models/room.rs (e.g. scheduled_date is TIMESTAMPTZ/DateTime<Utc>,
   not DATE). Verified by: applying schema.sql to live Postgres, replaying all
-  18 sqlite_migrations in order against a scratch `sqlite3` DB, running the
+  the 18 then-current SQLite sections in order against a scratch `sqlite3` DB, running the
   exact INSERT+SELECT shapes the Rust queries use, and re-running the exact
   failing multi-statement transaction directly in psql to confirm it no
   longer aborts. `cargo check` passed on both feature sets throughout —
   compile success never caught any of this.
 - Rule: when a 500 traces to "transaction is aborted" or "relation/no such
-  table X does not exist", grep schema.sql AND sqlite_migrations/ for the
+  table X does not exist", grep schema.sql AND sqlite_schema.sql for the
   table by name before assuming it's a data problem — if the CREATE TABLE
   doesn't exist in one or both, that's the bug, not a stale-migration issue
   (contrast with the ota_reference case). Never trust `let _ =` around a

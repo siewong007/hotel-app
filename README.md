@@ -124,7 +124,8 @@ hotel-app/
 │   ├── database/
 │   │   ├── schema.sql            # PostgreSQL schema (idempotent, applied directly - no sqlx-migrate step)
 │   │   ├── data.sql              # PostgreSQL seed/system data (idempotent, rerunnable)
-│   │   └── sqlite_migrations/    # SQLite migration path (sqlx::migrate!, auto-run at startup)
+│   │   ├── sqlite_schema.sql     # SQLite ordered schema sections (auto-run at startup)
+│   │   └── sqlite_data.sql       # SQLite seed/backfill data (idempotent, rerunnable)
 │   └── tests/                    # Focused backend tests
 ├── hotel-web-fe/                 # React frontend
 │   ├── src/
@@ -139,6 +140,7 @@ hotel-app/
 ├── hotel-desktop/                # Tauri desktop application
 │   ├── scripts/                  # Desktop resource sync and sidecar copy scripts
 │   └── src-tauri/                # Tauri Rust commands, PostgreSQL lifecycle, config
+├── infra/terraform/oci/          # Oracle Cloud Always Free development infrastructure
 ├── .github/workflows/            # CI and Docker workflows
 └── README.md
 ```
@@ -177,7 +179,11 @@ psql "$DATABASE_URL" -f database/schema.sql
 psql "$DATABASE_URL" -f database/data.sql
 ```
 
-The SQLite feature keeps a separate migration path under `database/sqlite_migrations/` and runs those migrations at backend startup. SQLx migrations are not part of the current PostgreSQL setup flow.
+The SQLite feature applies `database/sqlite_schema.sql` and then
+`database/sqlite_data.sql` at backend startup. The schema runner imports
+successful versions from legacy SQLx migration ledgers, applies only pending
+numbered sections transactionally, and reruns the guarded data resource.
+SQLx migrations are not part of either current database setup flow.
 
 Start the API:
 
@@ -384,6 +390,9 @@ Logo/banner idea:
 ### Completed ✓
 
 - ✅ **Docker Compose full-stack setup** — One-command startup with PostgreSQL + backend + frontend
+- ✅ **OCI Always Free Terraform** — Ampere A1 development VM, networking, Vault access, and Compose bootstrap
+- ✅ **PostgreSQL 19 experiment profile** — Reversible server/schema tuning and benchmark scripts
+- ✅ **Two-file SQLite resources** — One ordered schema and one rerunnable data file
 - ✅ **Project Makefile** — Convenience commands for all development workflows
 - ✅ **Frontend test suite** — Vitest + Testing Library component and utility tests
 - ✅ **Backend service tests** — Rate limiter, booking service, and core utility tests
@@ -461,10 +470,35 @@ make docker-logs
 make docker-down
 ```
 
+Use the opt-in PostgreSQL 19 development profile when collecting benchmark
+plans or testing the speculative tuning:
+
+```bash
+make docker-up-pg19-tuned
+```
+
+### Oracle Cloud Always Free
+
+The development Terraform environment uses one Oracle Ampere A1 Flex VM for
+the Compose stack and PostgreSQL. It defaults to 2 OCPU, 12 GB RAM, and a 50 GB
+boot volume, with OCI Vault secret references and no paid managed database.
+
+```bash
+cd infra/terraform/oci/environments/dev
+cp terraform.tfvars.example terraform.tfvars
+terraform init
+terraform plan
+```
+
+Review [the OCI Terraform guide](infra/terraform/oci/README.md) before applying.
+PostgreSQL 19 is still beta and OCI Always Free has no production SLA, so this
+environment is for development and benchmarking only.
+
 ## Additional Documentation
 
 - [Architecture Decision Records](docs/architecture/ADRS.md) — Documented architectural decisions
 - [Deployment Guide](docs/guides/deployment.md) — Production deployment instructions
+- [OCI Always Free Terraform](infra/terraform/oci/README.md) — Free-tier-shaped development environment
 - [Screenshots](docs/screenshots/README.md) — Application screenshots (placeholder)
 
 ## License

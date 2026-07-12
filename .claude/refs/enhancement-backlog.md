@@ -31,7 +31,7 @@ follows `.claude/rules/model-dispatch.md`.
    of the 84 service-layer `sqlx::query` calls, none through `sql_query!` — the
    exact class the 2026-07-07 lesson says static checks can't catch. First step
    is an AUDIT ONLY (S): grep every column it references against both
-   `database/schema.sql` and `sqlite_migrations/` DDL; file findings before any
+   `database/schema.sql` and `database/sqlite_schema.sql` DDL; file findings before any
    refactor. Full migration to repositories + sql_compat is L and only worth it
    if the audit finds divergence or the file needs feature work. Dispatch:
    audit = haiku with exact spec; refactor = sonnet.

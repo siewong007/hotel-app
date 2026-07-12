@@ -85,9 +85,10 @@ Keep these existing global areas:
 - `core/` for infrastructure shared by all domains.
 - `services/audit.rs` for append-only audit logging.
 - `database/migrations/` for PostgreSQL migrations.
-- `database/sqlite_migrations/` for SQLite migrations.
+- `database/sqlite_schema.sql` for ordered SQLite schema sections.
+- `database/sqlite_data.sql` for rerunnable SQLite seed and backfill data.
 
-When schema changes are made, keep PostgreSQL and SQLite migrations aligned or clearly document why they intentionally differ.
+When schema changes are made, keep PostgreSQL and SQLite resources aligned or clearly document why they intentionally differ. Append a new numbered section to `sqlite_schema.sql`; do not renumber historical sections.
 
 ### Frontend
 
@@ -300,7 +301,8 @@ cargo clippy --all-features -- -D warnings
 cargo build --release
 cargo run
 cargo run --features sqlite --no-default-features
-sqlx migrate run
+psql "$DATABASE_URL" -f database/schema.sql
+psql "$DATABASE_URL" -f database/data.sql
 cargo test <name>
 ```
 
@@ -364,5 +366,5 @@ Rules:
 - Before repository-wide analysis, dependency tracing, architectural changes, or impact analysis, consult the graph with `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"`.
 - Treat the graph as an index, not the source of truth. Verify critical findings against the current source code.
 - The graph may be stale after code changes. Regenerate the local code-only graph with exactly `graphify extract . --code-only`, and refresh changed code with `graphify update .`.
-- The graph indexes only allowlisted backend source, tests, schema, and SQLite migrations; frontend source and configuration except `routeTree.gen.ts`; and desktop source, scripts, and configuration.
+- The graph indexes only allowlisted backend source, tests, PostgreSQL schema, and SQLite schema/data resources; frontend source and configuration except `routeTree.gen.ts`; and desktop source, scripts, and configuration.
 - Everything else is excluded, including secrets, environment files, keys, dependencies, build outputs, logs, uploads, `data.sql` and other database data, bundled PostgreSQL, the copied desktop database, documentation, media, caches, design artifacts, and Claude artifacts.

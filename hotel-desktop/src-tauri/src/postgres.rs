@@ -36,11 +36,30 @@ const POSTGRES_USER: &str = "hotel_admin";
 const POSTGRES_DB: &str = "hotel_management";
 const POSTGRES_PASSWORD_FILE: &str = "postgres-password.txt";
 const CONFIGURED_POSTGRES_MAJOR_VERSION: &str = "19";
+const CONFIGURED_POSTGRES_BUILD_IDENTITY: &str = "19beta1";
+const POSTGRES_BUILD_IDENTITY_FILE: &str = ".hotel-postgres-build-identity";
+// Desktop builds released before the marker was introduced bundled 19beta1.
+// This one-time inference preserves those clusters while ensuring a later
+// 19 beta, RC, or GA build cannot reuse them based on PG_VERSION alone.
+const LEGACY_UNMARKED_POSTGRES_BUILD_IDENTITY: &str = "19beta1";
 const MAX_STARTUP_WAIT_SECS: u64 = 30;
 const SEED_PLACEHOLDER_PASSWORD_HASH: &str =
     "$2b$12$Fq3zPzZ.mr/wuYrbUPUItOqoC9YvsFfW.mcq4B6U5e3nWsPr4JQdK";
 
-static BUNDLED_POSTGRES_MAJOR_VERSION: OnceLock<String> = OnceLock::new();
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct PostgresBuildVersion {
+    major: String,
+    build_identity: String,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum DataDirectoryCompatibility {
+    Compatible,
+    CompatibleLegacyMarkerMissing,
+    Incompatible { found: String },
+}
+
+static BUNDLED_POSTGRES_VERSION: OnceLock<PostgresBuildVersion> = OnceLock::new();
 
 /// Error types for PostgreSQL operations
 #[derive(Debug, thiserror::Error)]
@@ -61,7 +80,7 @@ pub enum PostgresError {
     BinaryNotFound(String),
 
     #[error(
-        "PostgreSQL data directory at this app's data location was created by PostgreSQL {found}, but this build of the app ships PostgreSQL {expected}. Refusing to start so your data is not lost. Recover by either (1) installing a desktop build matching PostgreSQL {found} to read the existing data, (2) running pg_upgrade manually to migrate the data directory from {found} to {expected}, or (3) renaming the data directory aside and letting the app initialize a fresh empty one."
+        "PostgreSQL data directory at this app's data location was created by PostgreSQL {found}, but this build of the app ships PostgreSQL {expected}. Refusing to start so your data is not lost. Recover by either (1) installing a desktop build matching PostgreSQL {found} to read the existing data, (2) using a logical backup and restore to migrate from {found} to {expected}, or (3) renaming the data directory aside and letting the app initialize a fresh empty one."
     )]
     IncompatibleDataDirectory { found: String, expected: String },
 
@@ -114,22 +133,113 @@ fn read_pgdata_version() -> Result<Option<String>, std::io::Error> {
     ))
 }
 
-fn extract_postgres_major_version(version_text: &str) -> Option<String> {
+fn pgdata_build_identity_path() -> PathBuf {
+    get_pgdata_dir().join(POSTGRES_BUILD_IDENTITY_FILE)
+}
+
+fn read_pgdata_build_identity() -> Result<Option<String>, std::io::Error> {
+    let marker_path = pgdata_build_identity_path();
+    if !marker_path.exists() {
+        return Ok(None);
+    }
+
+    Ok(Some(
+        std::fs::read_to_string(marker_path)?
+            .trim()
+            .to_ascii_lowercase(),
+    ))
+}
+
+fn write_pgdata_build_identity(build_identity: &str) -> Result<(), std::io::Error> {
+    std::fs::write(
+        pgdata_build_identity_path(),
+        format!("{}\n", build_identity.to_ascii_lowercase()),
+    )
+}
+
+fn extract_postgres_build_version(version_text: &str) -> Option<PostgresBuildVersion> {
     version_text.split_whitespace().find_map(|part| {
-        let major: String = part.chars().take_while(|ch| ch.is_ascii_digit()).collect();
+        let version_token = part
+            .trim_matches(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '.'))
+            .to_ascii_lowercase();
+        let major: String = version_token
+            .chars()
+            .take_while(|ch| ch.is_ascii_digit())
+            .collect();
 
         if major.is_empty() {
-            None
-        } else {
-            Some(major)
+            return None;
         }
+
+        // PostgreSQL 10+ GA minor releases are data-directory compatible, so
+        // 19.1 normalizes to 19. Pre-release builds are not guaranteed to be
+        // compatible and therefore retain their exact beta/RC/devel identity.
+        let build_identity = if version_token.contains("beta")
+            || version_token.contains("rc")
+            || version_token.contains("devel")
+        {
+            version_token
+        } else {
+            major.clone()
+        };
+
+        Some(PostgresBuildVersion {
+            major,
+            build_identity,
+        })
     })
+}
+
+fn classify_pgdata_compatibility(
+    data_major: Option<&str>,
+    data_build_identity: Option<&str>,
+    expected: &PostgresBuildVersion,
+) -> DataDirectoryCompatibility {
+    let Some(data_major) = data_major else {
+        return DataDirectoryCompatibility::Compatible;
+    };
+
+    if data_major != expected.major {
+        return DataDirectoryCompatibility::Incompatible {
+            found: data_major.to_string(),
+        };
+    }
+
+    if let Some(data_build_identity) = data_build_identity {
+        if data_build_identity.eq_ignore_ascii_case(&expected.build_identity) {
+            return DataDirectoryCompatibility::Compatible;
+        }
+
+        let found = if data_build_identity.is_empty() {
+            format!("{} (empty desktop build marker)", data_major)
+        } else {
+            data_build_identity.to_string()
+        };
+        return DataDirectoryCompatibility::Incompatible { found };
+    }
+
+    if data_major == CONFIGURED_POSTGRES_MAJOR_VERSION {
+        if expected.build_identity == LEGACY_UNMARKED_POSTGRES_BUILD_IDENTITY {
+            return DataDirectoryCompatibility::CompatibleLegacyMarkerMissing;
+        }
+
+        return DataDirectoryCompatibility::Incompatible {
+            found: format!(
+                "{} (legacy unmarked desktop cluster, inferred {})",
+                data_major, LEGACY_UNMARKED_POSTGRES_BUILD_IDENTITY
+            ),
+        };
+    }
+
+    DataDirectoryCompatibility::Incompatible {
+        found: format!("{} (desktop build identity unknown)", data_major),
+    }
 }
 
 async fn bundled_binary_version(
     app_handle: &AppHandle,
     binary_name: &str,
-) -> Result<(String, String, PathBuf), PostgresError> {
+) -> Result<(PostgresBuildVersion, String, PathBuf), PostgresError> {
     let pgsql_bin = get_pgsql_bin_dir(app_handle);
     let binary_path = pgsql_bin.join(format!("{}{}", binary_name, EXE_SUFFIX));
 
@@ -172,25 +282,27 @@ async fn bundled_binary_version(
     let stdout = trimmed_lossy(&output.stdout);
     let stderr = trimmed_lossy(&output.stderr);
     let version_text = if stdout == "<empty>" { stderr } else { stdout };
-    let Some(major_version) = extract_postgres_major_version(&version_text) else {
+    let Some(version) = extract_postgres_build_version(&version_text) else {
         let details = format!(
-            "could not parse major version from {:?} output: {}",
+            "could not parse build version from {:?} output: {}",
             binary_path, version_text
         );
         log::error!("{}", details);
         return Err(PostgresError::VersionDetectionFailed(details));
     };
 
-    Ok((major_version, version_text, binary_path))
+    Ok((version, version_text, binary_path))
 }
 
-async fn detect_bundled_postgres_major_version(
+async fn detect_bundled_postgres_version(
     app_handle: &AppHandle,
-) -> Result<String, PostgresError> {
-    let (postgres_major, postgres_version, postgres_path) =
+) -> Result<PostgresBuildVersion, PostgresError> {
+    let (postgres_build, postgres_version, postgres_path) =
         bundled_binary_version(app_handle, "postgres").await?;
-    let (initdb_major, initdb_version, initdb_path) =
+    let (initdb_build, initdb_version, initdb_path) =
         bundled_binary_version(app_handle, "initdb").await?;
+    let (pg_ctl_build, pg_ctl_version, pg_ctl_path) =
+        bundled_binary_version(app_handle, "pg_ctl").await?;
 
     log::info!(
         "Bundled PostgreSQL binary {:?} reports: {}",
@@ -202,73 +314,92 @@ async fn detect_bundled_postgres_major_version(
         initdb_path,
         initdb_version
     );
+    log::info!(
+        "Bundled pg_ctl binary {:?} reports: {}",
+        pg_ctl_path,
+        pg_ctl_version
+    );
 
-    if postgres_major != initdb_major {
+    if postgres_build != initdb_build || postgres_build != pg_ctl_build {
         let details = format!(
-            "bundled PostgreSQL binaries are inconsistent: {:?} reports major {}, but {:?} reports major {}",
-            postgres_path, postgres_major, initdb_path, initdb_major
+            "bundled PostgreSQL binaries are inconsistent: {:?} reports {}, {:?} reports {}, and {:?} reports {}",
+            postgres_path,
+            postgres_build.build_identity,
+            initdb_path,
+            initdb_build.build_identity,
+            pg_ctl_path,
+            pg_ctl_build.build_identity
         );
         log::error!("{}", details);
         return Err(PostgresError::VersionDetectionFailed(details));
     }
 
-    if postgres_major != CONFIGURED_POSTGRES_MAJOR_VERSION {
-        log::warn!(
-            "Bundled PostgreSQL binary major version {} does not match configured resource major version {}. Using the actual bundled binary version for data-directory compatibility.",
-            postgres_major,
+    if postgres_build.major != CONFIGURED_POSTGRES_MAJOR_VERSION
+        || postgres_build.build_identity != CONFIGURED_POSTGRES_BUILD_IDENTITY
+    {
+        let details = format!(
+            "bundled PostgreSQL build {} (major {}) does not match configured resource build {} (major {})",
+            postgres_build.build_identity,
+            postgres_build.major,
+            CONFIGURED_POSTGRES_BUILD_IDENTITY,
             CONFIGURED_POSTGRES_MAJOR_VERSION
         );
+        log::error!("{}", details);
+        return Err(PostgresError::VersionDetectionFailed(details));
     }
 
-    let _ = BUNDLED_POSTGRES_MAJOR_VERSION.set(postgres_major.clone());
-    Ok(postgres_major)
+    let _ = BUNDLED_POSTGRES_VERSION.set(postgres_build.clone());
+    Ok(postgres_build)
 }
 
-fn cached_bundled_postgres_major_version() -> String {
-    BUNDLED_POSTGRES_MAJOR_VERSION
+fn cached_bundled_postgres_version() -> PostgresBuildVersion {
+    BUNDLED_POSTGRES_VERSION
         .get()
         .cloned()
-        .unwrap_or_else(|| CONFIGURED_POSTGRES_MAJOR_VERSION.to_string())
+        .unwrap_or_else(|| PostgresBuildVersion {
+            major: CONFIGURED_POSTGRES_MAJOR_VERSION.to_string(),
+            build_identity: CONFIGURED_POSTGRES_BUILD_IDENTITY.to_string(),
+        })
 }
 
-fn ensure_pgdata_version_compatible(expected_version: &str) -> Result<(), PostgresError> {
-    if let Some(found) = read_pgdata_version()? {
-        if found != expected_version {
-            log::error!(
-                "PostgreSQL data directory version {} is incompatible with bundled PostgreSQL {} at {:?}",
-                found,
-                expected_version,
+fn ensure_pgdata_version_compatible(expected: &PostgresBuildVersion) -> Result<(), PostgresError> {
+    let data_major = read_pgdata_version()?;
+    let data_build_identity = read_pgdata_build_identity()?;
+
+    match classify_pgdata_compatibility(
+        data_major.as_deref(),
+        data_build_identity.as_deref(),
+        expected,
+    ) {
+        DataDirectoryCompatibility::Compatible => Ok(()),
+        DataDirectoryCompatibility::CompatibleLegacyMarkerMissing => {
+            write_pgdata_build_identity(&expected.build_identity)?;
+            log::info!(
+                "Recorded PostgreSQL desktop build identity {} for legacy unmarked data directory {:?}",
+                expected.build_identity,
                 get_pgdata_dir()
             );
-            return Err(PostgresError::IncompatibleDataDirectory {
+            Ok(())
+        }
+        DataDirectoryCompatibility::Incompatible { found } => {
+            log::error!(
+                "PostgreSQL data directory build {} is incompatible with bundled PostgreSQL {} at {:?}",
                 found,
-                expected: expected_version.to_string(),
-            });
+                expected.build_identity,
+                get_pgdata_dir()
+            );
+            Err(PostgresError::IncompatibleDataDirectory {
+                found,
+                expected: expected.build_identity.clone(),
+            })
         }
     }
-
-    Ok(())
 }
 
-async fn refuse_if_pgdata_version_mismatch(expected_version: &str) -> Result<(), PostgresError> {
-    let Some(found_version) = read_pgdata_version()? else {
-        return Ok(());
-    };
-
-    if found_version == expected_version {
-        return Ok(());
-    }
-
-    log::error!(
-        "PostgreSQL data directory at {:?} was created by PostgreSQL {} but bundled PostgreSQL is {}. Refusing to auto-initialize or archive the data directory; the existing data is left untouched on disk.",
-        get_pgdata_dir(),
-        found_version,
-        expected_version
-    );
-    Err(PostgresError::IncompatibleDataDirectory {
-        found: found_version,
-        expected: expected_version.to_string(),
-    })
+async fn refuse_if_pgdata_version_mismatch(
+    expected: &PostgresBuildVersion,
+) -> Result<(), PostgresError> {
+    ensure_pgdata_version_compatible(expected)
 }
 
 fn trimmed_lossy(bytes: &[u8]) -> String {
@@ -395,9 +526,9 @@ fn read_or_create_postgres_password() -> Result<String, PostgresError> {
 }
 
 /// Initialize PostgreSQL data directory using initdb
-pub async fn init_postgres_data_dir(
+async fn init_postgres_data_dir(
     app_handle: &AppHandle,
-    expected_version: &str,
+    expected_version: &PostgresBuildVersion,
 ) -> Result<(), PostgresError> {
     if is_pgdata_initialized() {
         ensure_pgdata_version_compatible(expected_version)?;
@@ -464,8 +595,12 @@ pub async fn init_postgres_data_dir(
 
     // Configure PostgreSQL for local-only access
     configure_postgres_for_desktop(&pgdata)?;
+    write_pgdata_build_identity(&expected_version.build_identity)?;
 
-    log::info!("PostgreSQL data directory initialized successfully");
+    log::info!(
+        "PostgreSQL data directory initialized successfully for build {}",
+        expected_version.build_identity
+    );
     Ok(())
 }
 
@@ -513,9 +648,9 @@ host    all             all             ::1/128                 scram-sha-256
 }
 
 /// Start the PostgreSQL server
-pub async fn start_postgres(
+async fn start_postgres(
     app_handle: &AppHandle,
-    expected_version: &str,
+    expected_version: &PostgresBuildVersion,
 ) -> Result<(), PostgresError> {
     log::info!("Starting PostgreSQL server...");
 
@@ -749,9 +884,9 @@ pub async fn is_postgres_running(app_handle: &AppHandle) -> bool {
 
 /// Ensure PostgreSQL is running, starting it if necessary
 pub async fn ensure_postgres_running(app_handle: &AppHandle) -> Result<(), PostgresError> {
-    let bundled_postgres_major_version = detect_bundled_postgres_major_version(app_handle).await?;
+    let bundled_postgres_version = detect_bundled_postgres_version(app_handle).await?;
 
-    refuse_if_pgdata_version_mismatch(&bundled_postgres_major_version).await?;
+    refuse_if_pgdata_version_mismatch(&bundled_postgres_version).await?;
 
     // Check if already running
     if is_postgres_running(app_handle).await {
@@ -761,10 +896,10 @@ pub async fn ensure_postgres_running(app_handle: &AppHandle) -> Result<(), Postg
     }
 
     // Initialize if needed
-    init_postgres_data_dir(app_handle, &bundled_postgres_major_version).await?;
+    init_postgres_data_dir(app_handle, &bundled_postgres_version).await?;
 
     // Start the server (this now includes waiting for ready)
-    start_postgres(app_handle, &bundled_postgres_major_version).await?;
+    start_postgres(app_handle, &bundled_postgres_version).await?;
     ensure_postgres_password_auth(app_handle).await
 }
 
@@ -992,7 +1127,8 @@ async fn run_psql_scalar_sql_in_database(
 fn ensure_within_data_dir(candidate: &Path) -> Result<PathBuf, PostgresError> {
     use std::path::Component;
 
-    let reject = || PostgresError::InvalidBackupDestination(candidate.to_string_lossy().to_string());
+    let reject =
+        || PostgresError::InvalidBackupDestination(candidate.to_string_lossy().to_string());
 
     // Any `..` component is a traversal attempt; refuse outright.
     if candidate
@@ -1295,7 +1431,7 @@ async fn restore_backup_dump(
     Ok(())
 }
 
-/// Guided major-version upgrade: retire the incompatible data directory, create
+/// Guided PostgreSQL build upgrade: retire the incompatible data directory, create
 /// a fresh cluster with the bundled version, and restore the latest backup.
 ///
 /// Safety guarantees:
@@ -1307,7 +1443,7 @@ async fn restore_backup_dump(
 pub async fn upgrade_database_from_backup(
     app_handle: &AppHandle,
 ) -> Result<UpgradeSummary, PostgresError> {
-    let bundled_major = detect_bundled_postgres_major_version(app_handle).await?;
+    let bundled_version = detect_bundled_postgres_version(app_handle).await?;
 
     // (a) Verify the mismatch state still holds.
     let Some(found_major) = read_pgdata_version()? else {
@@ -1315,26 +1451,39 @@ pub async fn upgrade_database_from_backup(
             "No PostgreSQL data directory present; nothing to upgrade.".to_string(),
         ));
     };
-    if found_major == bundled_major {
-        return Err(PostgresError::MigrationFailed(format!(
-            "Data directory is already PostgreSQL {}; no upgrade needed.",
-            bundled_major
-        )));
-    }
+    let found_build_marker = read_pgdata_build_identity()?;
+    let found_version = match classify_pgdata_compatibility(
+        Some(&found_major),
+        found_build_marker.as_deref(),
+        &bundled_version,
+    ) {
+        DataDirectoryCompatibility::Incompatible { found } => found,
+        DataDirectoryCompatibility::Compatible
+        | DataDirectoryCompatibility::CompatibleLegacyMarkerMissing => {
+            return Err(PostgresError::MigrationFailed(format!(
+                "Data directory is already compatible with PostgreSQL {}; no upgrade needed.",
+                bundled_version.build_identity
+            )));
+        }
+    };
 
     // Require a backup before doing anything destructive.
     let Some(latest) = latest_managed_backup() else {
         return Err(PostgresError::MigrationFailed(format!(
-            "No backup available to restore. The existing PostgreSQL {} data directory has been left untouched. To recover, install a desktop build matching PostgreSQL {} to read the existing data, or migrate the data directory manually with pg_upgrade.",
-            found_major, found_major
+            "No backup available to restore. The existing PostgreSQL {} data directory has been left untouched. To recover, install a desktop build matching PostgreSQL {} to read the existing data and create a logical backup before upgrading.",
+            found_version, found_version
         )));
     };
     let backup_path = PathBuf::from(&latest.path);
 
     let pgdata = get_pgdata_dir();
+    let retired_version_label: String = found_version
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
+        .collect();
     let retired_dir = pgdata.with_file_name(format!(
         "pgdata-pg{}-retired-{}",
-        found_major,
+        retired_version_label,
         chrono::Utc::now().format("%Y%m%dT%H%M%SZ")
     ));
 
@@ -1345,7 +1494,7 @@ pub async fn upgrade_database_from_backup(
     // (b) Rename the old data dir aside — NEVER delete it.
     log::info!(
         "Retiring incompatible PostgreSQL {} data directory {:?} -> {:?}",
-        found_major,
+        found_version,
         pgdata,
         retired_dir
     );
@@ -1391,12 +1540,12 @@ pub async fn upgrade_database_from_backup(
     };
 
     // (c) Create a fresh cluster with the bundled version.
-    if let Err(err) = init_postgres_data_dir(app_handle, &bundled_major).await {
+    if let Err(err) = init_postgres_data_dir(app_handle, &bundled_version).await {
         return Err(rollback(format!("initdb of fresh cluster failed: {}", err)));
     }
 
     // (d) Start postgres.
-    if let Err(err) = start_postgres(app_handle, &bundled_major).await {
+    if let Err(err) = start_postgres(app_handle, &bundled_version).await {
         return Err(rollback(format!("starting fresh cluster failed: {}", err)));
     }
     if let Err(err) = ensure_postgres_password_auth(app_handle).await {
@@ -1431,16 +1580,16 @@ pub async fn upgrade_database_from_backup(
     // (g) Success.
     log::info!(
         "Guided upgrade complete: PostgreSQL {} -> {}, restored {:?}, retired old data at {:?}",
-        found_major,
-        bundled_major,
+        found_version,
+        bundled_version.build_identity,
         backup_path,
         retired_dir
     );
     Ok(UpgradeSummary {
         restored_backup: latest.filename,
         retired_data_dir: retired_dir.to_string_lossy().to_string(),
-        from_version: found_major,
-        to_version: bundled_major,
+        from_version: found_version,
+        to_version: bundled_version.build_identity,
     })
 }
 
@@ -1691,7 +1840,7 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
     let running = is_postgres_running(app_handle).await;
     let pgdata = get_pgdata_dir();
     let initialized = is_pgdata_initialized();
-    let bundled_version = cached_bundled_postgres_major_version();
+    let bundled_version = cached_bundled_postgres_version();
     let data_version = read_pgdata_version()
         .map_err(|err| {
             log::warn!("Failed to read PostgreSQL data directory version: {}", err);
@@ -1699,11 +1848,43 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
         })
         .ok()
         .flatten();
-    let version_compatible = data_version
-        .as_deref()
-        .is_none_or(|version| version == bundled_version.as_str());
+    let (data_build_marker, marker_read_failed) = match read_pgdata_build_identity() {
+        Ok(marker) => (marker, false),
+        Err(err) => {
+            log::warn!(
+                "Failed to read PostgreSQL desktop build identity marker: {}",
+                err
+            );
+            (None, true)
+        }
+    };
+    let compatibility = if marker_read_failed && initialized {
+        DataDirectoryCompatibility::Incompatible {
+            found: format!(
+                "{} (unreadable desktop build marker)",
+                data_version.as_deref().unwrap_or("unknown")
+            ),
+        }
+    } else {
+        classify_pgdata_compatibility(
+            data_version.as_deref(),
+            data_build_marker.as_deref(),
+            &bundled_version,
+        )
+    };
+    let version_compatible = matches!(
+        compatibility,
+        DataDirectoryCompatibility::Compatible
+            | DataDirectoryCompatibility::CompatibleLegacyMarkerMissing
+    );
+    let data_build_version = data_build_marker.clone().or_else(|| {
+        data_version
+            .as_deref()
+            .filter(|major| *major == CONFIGURED_POSTGRES_MAJOR_VERSION)
+            .map(|_| LEGACY_UNMARKED_POSTGRES_BUILD_IDENTITY.to_string())
+    });
 
-    // A major-version mismatch means we refuse to auto-start (see
+    // A major or pre-release build mismatch means we refuse to auto-start (see
     // refuse_if_pgdata_version_mismatch). Surface this as a machine-readable
     // state so the webview can offer a guided restore-from-backup upgrade.
     let needs_upgrade = data_version.is_some() && !version_compatible;
@@ -1717,12 +1898,15 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
         "running": running,
         "initialized": initialized,
         "data_version": data_version,
-        "bundled_version": bundled_version,
+        "bundled_version": bundled_version.major,
         "configured_bundled_version": CONFIGURED_POSTGRES_MAJOR_VERSION,
+        "data_build_version": data_build_version,
+        "bundled_build_version": bundled_version.build_identity,
+        "configured_bundled_build_version": CONFIGURED_POSTGRES_BUILD_IDENTITY,
         "version_compatible": version_compatible,
         "needs_upgrade": needs_upgrade,
         "data_dir_major": data_version,
-        "bundled_major": bundled_version,
+        "bundled_major": bundled_version.major,
         "latest_backup": latest_backup,
         "port": POSTGRES_PORT,
         "user": POSTGRES_USER,
@@ -1730,4 +1914,72 @@ pub async fn get_postgres_status(app_handle: &AppHandle) -> serde_json::Value {
         "password_auth": true,
         "data_directory": pgdata.to_string_lossy(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn build(major: &str, identity: &str) -> PostgresBuildVersion {
+        PostgresBuildVersion {
+            major: major.to_string(),
+            build_identity: identity.to_string(),
+        }
+    }
+
+    #[test]
+    fn parses_prerelease_build_identity_exactly() {
+        assert_eq!(
+            extract_postgres_build_version("postgres (PostgreSQL) 19beta1"),
+            Some(build("19", "19beta1"))
+        );
+        assert_eq!(
+            extract_postgres_build_version("initdb (PostgreSQL) 19rc2"),
+            Some(build("19", "19rc2"))
+        );
+    }
+
+    #[test]
+    fn normalizes_ga_patch_versions_to_the_compatible_major() {
+        assert_eq!(
+            extract_postgres_build_version("postgres (PostgreSQL) 19.3"),
+            Some(build("19", "19"))
+        );
+    }
+
+    #[test]
+    fn accepts_matching_marked_cluster() {
+        let expected = build("19", "19beta1");
+        assert_eq!(
+            classify_pgdata_compatibility(Some("19"), Some("19beta1"), &expected),
+            DataDirectoryCompatibility::Compatible
+        );
+    }
+
+    #[test]
+    fn adopts_only_the_known_legacy_beta1_cluster_without_a_marker() {
+        let beta = build("19", "19beta1");
+        assert_eq!(
+            classify_pgdata_compatibility(Some("19"), None, &beta),
+            DataDirectoryCompatibility::CompatibleLegacyMarkerMissing
+        );
+
+        let rc = build("19", "19rc1");
+        assert!(matches!(
+            classify_pgdata_compatibility(Some("19"), None, &rc),
+            DataDirectoryCompatibility::Incompatible { found }
+                if found.contains("inferred 19beta1")
+        ));
+    }
+
+    #[test]
+    fn rejects_same_major_different_prerelease_builds() {
+        let expected = build("19", "19rc1");
+        assert_eq!(
+            classify_pgdata_compatibility(Some("19"), Some("19beta1"), &expected),
+            DataDirectoryCompatibility::Incompatible {
+                found: "19beta1".to_string()
+            }
+        );
+    }
 }

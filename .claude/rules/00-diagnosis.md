@@ -34,8 +34,9 @@ behaves differently (e.g. `NOW()`, `$1` vs `?1`, Decimal handling) ships silentl
 1. Placeholders: use `param!(1)`, `param!(2)` — never literal `$1` or `?1`.
 2. Time: use `sql_compat::current_timestamp()` / `current_date()` — never `NOW()` / `CURRENT_DATE`.
 3. DB-divergent values: use `core/db.rs` helpers (`decimal_to_db`, `opt_decimal_to_db`, `generate_uuid`).
-4. Schema changes: edit `database/schema.sql` (Postgres, idempotent) AND add a matching
-   migration in `database/sqlite_migrations/`. One without the other = incomplete task.
+4. Schema changes: edit `database/schema.sql` (Postgres, idempotent) AND append a
+   matching numbered section to `database/sqlite_schema.sql`; put rerunnable
+   SQLite seeds/backfills in `database/sqlite_data.sql`. One path without the other = incomplete task.
 5. Before claiming done: `cargo check --all-features` MUST pass. This is the minimum
    bar; `cargo clippy --all-features -- -D warnings` is what CI actually runs.
 
