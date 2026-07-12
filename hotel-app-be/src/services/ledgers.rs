@@ -79,7 +79,10 @@ pub async fn update_customer_ledger(
 ) -> Result<CustomerLedger, ApiError> {
     // Mirror the create path: free-text fields are sanitized before they
     // reach the repository layer (CONTRIBUTING.md "Sanitize free text").
-    request.company_name = request.company_name.as_deref().map(Sanitizer::sanitize_text);
+    request.company_name = request
+        .company_name
+        .as_deref()
+        .map(Sanitizer::sanitize_text);
     request.contact_person = request
         .contact_person
         .as_deref()

@@ -43,6 +43,14 @@ pub fn get_decimal(row: &DbRow, col: &str) -> Decimal {
                 .ok()
                 .and_then(Decimal::from_f64_retain)
         })
+        .or_else(|| {
+            // NUMERIC-affinity columns (e.g. DECIMAL(10,2) like the
+            // customer_ledgers.balance_due generated column) store whole
+            // numbers under SQLite's INTEGER storage class, which sqlx
+            // refuses to decode as String or f64 — without this branch a
+            // round-number balance silently reads as zero.
+            row.try_get::<i64, _>(col).ok().map(Decimal::from)
+        })
         .unwrap_or_default()
 }
 
@@ -79,6 +87,14 @@ pub fn get_opt_decimal(row: &DbRow, col: &str) -> Option<Decimal> {
                 .ok()
                 .flatten()
                 .and_then(Decimal::from_f64_retain)
+        })
+        .or_else(|| {
+            // See get_decimal: INTEGER storage class for whole-number
+            // NUMERIC values needs an explicit i64 branch.
+            row.try_get::<Option<i64>, _>(col)
+                .ok()
+                .flatten()
+                .map(Decimal::from)
         })
 }
 

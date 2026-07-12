@@ -70,8 +70,8 @@ impl LoyaltyRepository {
 
     pub async fn get_rules(pool: &DbPool) -> Result<LoyaltyProgramRules, ApiError> {
         let row = sqlx::query(sql_query!(
-            postgres: "SELECT * FROM loyalty_program_rules WHERE id = 1",
-            sqlite: "SELECT * FROM loyalty_program_rules WHERE id = 1"
+            postgres: "SELECT id, points_per_currency_unit, tier_qualification_metric, point_expiry_months, redemption_approval_required, earning_enabled, min_eligible_amount, updated_at FROM loyalty_program_rules WHERE id = 1",
+            sqlite: "SELECT id, points_per_currency_unit, tier_qualification_metric, point_expiry_months, redemption_approval_required, earning_enabled, min_eligible_amount, updated_at FROM loyalty_program_rules WHERE id = 1"
         ))
         .fetch_one(pool)
         .await
@@ -123,11 +123,12 @@ impl LoyaltyRepository {
 
     #[allow(dead_code)] // part of the loyalty module API; not yet wired to a caller
     pub async fn list_tiers(pool: &DbPool) -> Result<Vec<LoyaltyTier>, ApiError> {
-        let rows =
-            sqlx::query("SELECT * FROM loyalty_tiers WHERE is_active = true ORDER BY sort_order")
-                .fetch_all(pool)
-                .await
-                .map_err(ApiError::from)?;
+        let rows = sqlx::query(
+            "SELECT id, code, name, sort_order, min_points, min_nights, min_spend, benefits, is_active FROM loyalty_tiers WHERE is_active = true ORDER BY sort_order",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(ApiError::from)?;
         Ok(rows.iter().map(row_to_tier).collect())
     }
 
@@ -141,7 +142,9 @@ impl LoyaltyRepository {
     }
 
     pub async fn tier_by_id(pool: &DbPool, tier_id: i64) -> Result<Option<LoyaltyTier>, ApiError> {
-        let row = sqlx::query("SELECT * FROM loyalty_tiers WHERE id = $1")
+        let row = sqlx::query(
+            "SELECT id, code, name, sort_order, min_points, min_nights, min_spend, benefits, is_active FROM loyalty_tiers WHERE id = $1",
+        )
             .bind(tier_id)
             .fetch_optional(pool)
             .await
@@ -160,7 +163,7 @@ impl LoyaltyRepository {
             _ => "min_points",
         };
         let sql = format!(
-            "SELECT * FROM loyalty_tiers WHERE is_active = true AND {order_column} <= $1 ORDER BY {order_column} DESC, sort_order DESC LIMIT 1"
+            "SELECT id, code, name, sort_order, min_points, min_nights, min_spend, benefits, is_active FROM loyalty_tiers WHERE is_active = true AND {order_column} <= $1 ORDER BY {order_column} DESC, sort_order DESC LIMIT 1"
         );
         let row = sqlx::query(&sql)
             .bind(value)
@@ -181,7 +184,7 @@ impl LoyaltyRepository {
             _ => "min_points",
         };
         let sql = format!(
-            "SELECT * FROM loyalty_tiers WHERE is_active = true AND {order_column} > $1 ORDER BY {order_column}, sort_order LIMIT 1"
+            "SELECT id, code, name, sort_order, min_points, min_nights, min_spend, benefits, is_active FROM loyalty_tiers WHERE is_active = true AND {order_column} > $1 ORDER BY {order_column}, sort_order LIMIT 1"
         );
         let row = sqlx::query(&sql)
             .bind(value)
@@ -377,7 +380,9 @@ impl LoyaltyRepository {
     ) -> Result<Vec<LoyaltyTransaction>, ApiError> {
         let rows = sqlx::query(
             r#"
-            SELECT *
+            SELECT id, member_id, account_id, transaction_type, points_delta, available_delta,
+                   balance_after, source_type, source_id, booking_id, payment_id, invoice_id,
+                   related_transaction_id, description, metadata, actor_user_id, created_at
             FROM loyalty_transactions
             WHERE member_id = $1
             ORDER BY created_at DESC, id DESC
@@ -583,7 +588,10 @@ impl LoyaltyRepository {
     ) -> Result<Vec<LoyaltyTransaction>, ApiError> {
         let rows = sqlx::query(
             r#"
-            SELECT t.*
+            SELECT t.id, t.member_id, t.account_id, t.transaction_type, t.points_delta,
+                   t.available_delta, t.balance_after, t.source_type, t.source_id,
+                   t.booking_id, t.payment_id, t.invoice_id, t.related_transaction_id,
+                   t.description, t.metadata, t.actor_user_id, t.created_at
             FROM loyalty_transactions t
             WHERE t.booking_id = $1
               AND t.transaction_type = 'earned'
