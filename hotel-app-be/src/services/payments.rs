@@ -6,6 +6,7 @@ use crate::models::{
     RecordPaymentRequest, UpdatePaymentRequest,
 };
 use crate::repositories::payment::PaymentRepository;
+use crate::services::audit::AuditLog;
 use rust_decimal::Decimal;
 
 pub async fn recompute_payment_status(pool: &DbPool, booking_id: i64) -> Result<(), ApiError> {
@@ -81,6 +82,21 @@ pub async fn create_payment(
             err
         );
     }
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "payment_created",
+        "payment",
+        Some(payment.id),
+        Some(serde_json::json!({
+            "booking_id": payment.booking_id,
+            "amount": payment.total_amount,
+        })),
+        None,
+        None,
+    )
+    .await;
 
     Ok(payment)
 }
@@ -166,6 +182,21 @@ pub async fn record_payment(
             err
         );
     }
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "payment_recorded",
+        "payment",
+        Some(payment_id),
+        Some(serde_json::json!({
+            "booking_id": booking_id,
+            "amount": request.amount,
+        })),
+        None,
+        None,
+    )
+    .await;
 
     Ok(row.into_response())
 }
@@ -276,6 +307,22 @@ pub async fn refund_deposit(
 
     recompute_payment_status(pool, booking_id).await?;
 
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "payment_refunded",
+        "payment",
+        Some(row.id),
+        Some(serde_json::json!({
+            "booking_id": booking_id,
+            "amount": deposit_amount_f64,
+            "payment_method": payment_method,
+        })),
+        None,
+        None,
+    )
+    .await;
+
     Ok(serde_json::json!({
         "id": row.id,
         "booking_id": row.booking_id,
@@ -300,6 +347,20 @@ pub async fn revert_deposit_refund(
 
     recompute_payment_status(pool, booking_id).await?;
 
+    let _ = AuditLog::log_event(
+        pool,
+        None,
+        "payment_refund_reverted",
+        "payment",
+        Some(reverted_payment_id),
+        Some(serde_json::json!({
+            "booking_id": booking_id,
+        })),
+        None,
+        None,
+    )
+    .await;
+
     Ok(serde_json::json!({
         "booking_id": booking_id,
         "reverted_payment_id": reverted_payment_id,
@@ -321,7 +382,26 @@ pub async fn generate_invoice(
     }
 
     let invoice_number = crate::services::invoice_numbers::next_invoice_number(pool).await?;
-    PaymentRepository::create_generated_invoice(pool, user_id, booking_id, &invoice_number).await
+    let invoice =
+        PaymentRepository::create_generated_invoice(pool, user_id, booking_id, &invoice_number)
+            .await?;
+
+    let _ = AuditLog::log_event(
+        pool,
+        Some(user_id),
+        "invoice_generated",
+        "invoice",
+        Some(invoice.id),
+        Some(serde_json::json!({
+            "booking_id": booking_id,
+            "invoice_number": invoice_number,
+        })),
+        None,
+        None,
+    )
+    .await;
+
+    Ok(invoice)
 }
 
 pub async fn get_invoice_preview(
@@ -375,6 +455,21 @@ pub async fn update_payment(
             err
         );
     }
+
+    let _ = AuditLog::log_event(
+        pool,
+        None,
+        "payment_updated",
+        "payment",
+        Some(row.id),
+        Some(serde_json::json!({
+            "booking_id": row.booking_id,
+        })),
+        None,
+        None,
+    )
+    .await;
+
     Ok(row.into_response())
 }
 
@@ -384,6 +479,20 @@ pub async fn delete_payment(pool: &DbPool, payment_id: i64) -> Result<serde_json
     if let Some(booking_id) = affected_booking_id {
         recompute_payment_status(pool, booking_id).await?;
     }
+
+    let _ = AuditLog::log_event(
+        pool,
+        None,
+        "payment_deleted",
+        "payment",
+        Some(payment_id),
+        Some(serde_json::json!({
+            "booking_id": affected_booking_id,
+        })),
+        None,
+        None,
+    )
+    .await;
 
     Ok(serde_json::json!({
         "success": true,
