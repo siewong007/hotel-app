@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
@@ -75,37 +75,7 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
   const [availableRooms, setAvailableRooms] = useState<any[]>([]);
   const [roomChangeMode, setRoomChangeMode] = useState(false);
 
-  useEffect(() => {
-    if (open && roomId && loadedRoomIdRef.current !== roomId) {
-      loadedRoomIdRef.current = roomId;
-      loadRoomDetails();
-      // Reset form - default to 'maintenance'
-      setNewStatus('maintenance');
-      setStatusNotes('');
-      setReservedStartDate('');
-      setReservedEndDate('');
-      setMaintenanceStartDate('');
-      setMaintenanceEndDate('');
-      setCleaningStartDate('');
-      setCleaningEndDate('');
-      setTargetRoomId('');
-      setError(null);
-    }
-
-    // Reset ref when dialog closes
-    if (!open) {
-      loadedRoomIdRef.current = null;
-    }
-  }, [open, roomId]);
-
-  // Load available rooms when room change mode is activated
-  useEffect(() => {
-    if (roomChangeMode) {
-      loadAvailableRooms();
-    }
-  }, [roomChangeMode]);
-
-  const loadAvailableRooms = async () => {
+  const loadAvailableRooms = useCallback(async () => {
     try {
       const rooms = await queryClient.ensureQueryData({
         queryKey: queryKeys.rooms.all,
@@ -136,9 +106,9 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
     } catch (err: any) {
       console.error('Failed to load available rooms:', err);
     }
-  };
+  }, [queryClient, roomId]);
 
-  const loadRoomDetails = async () => {
+  const loadRoomDetails = useCallback(async () => {
     if (!roomId) return;
 
     try {
@@ -164,7 +134,37 @@ const RoomEventDialog: React.FC<RoomEventDialogProps> = ({
     } finally {
       setLoadingDetails(false);
     }
-  };
+  }, [queryClient, roomId]);
+
+  useEffect(() => {
+    if (open && roomId && loadedRoomIdRef.current !== roomId) {
+      loadedRoomIdRef.current = roomId;
+      loadRoomDetails();
+      // Reset form - default to 'maintenance'
+      setNewStatus('maintenance');
+      setStatusNotes('');
+      setReservedStartDate('');
+      setReservedEndDate('');
+      setMaintenanceStartDate('');
+      setMaintenanceEndDate('');
+      setCleaningStartDate('');
+      setCleaningEndDate('');
+      setTargetRoomId('');
+      setError(null);
+    }
+
+    // Reset ref when dialog closes
+    if (!open) {
+      loadedRoomIdRef.current = null;
+    }
+  }, [open, roomId, loadRoomDetails]);
+
+  // Load available rooms when room change mode is activated
+  useEffect(() => {
+    if (roomChangeMode) {
+      loadAvailableRooms();
+    }
+  }, [roomChangeMode, loadAvailableRooms]);
 
   const handleUpdateStatus = async () => {
     if (!roomId) return;

@@ -274,98 +274,7 @@ export default function EnhancedCheckInModal({
   const maxExtraBeds = roomTypeConfig?.max_extra_beds ?? 0;
   const extraBedChargePerBed = roomTypeConfig ? toMoneyNumber(roomTypeConfig.extra_bed_charge) : 0;
 
-  // Reset form when modal closes - use proper transition detection
-  useEffect(() => {
-    const wasOpen = wasOpenRef.current;
-    wasOpenRef.current = open;
-
-    // Only reset when transitioning from open to closed
-    if (!open && wasOpen) {
-      initializedRef.current = { bookingId: null, guestId: null };
-      setValidationErrors({});
-      setTouched({});
-      setActiveTab(0);
-      setError(null);
-      setAdvisory(null);
-    }
-  }, [open]);
-
-  // Load rate and market codes and initialize form data
-  // Only reinitialize if booking/guest IDs change (not on every re-render)
-  useEffect(() => {
-    if (open && booking && guest) {
-      const needsInit =
-        initializedRef.current.bookingId !== booking.id ||
-        initializedRef.current.guestId !== guest.id;
-
-      if (needsInit) {
-        loadDropdownData();
-        loadCompanies();
-        initializeFormData();
-        // Load room type config for extra bed settings
-        loadRoomTypeConfig(booking as any);
-        // Fetch the pre-check-in advisory (non-blocking; failures are silent).
-        setAdvisory(null);
-        HotelAPIService.getCheckInAdvisory(String(booking.id))
-          .then(setAdvisory)
-          .catch(() => setAdvisory(null));
-        initializedRef.current = { bookingId: booking.id, guestId: guest.id };
-      }
-    }
-  }, [open, booking?.id, guest?.id]);
-
-  // Handle registering a new company
-  const handleRegisterNewCompany = async () => {
-    try {
-      // Save to database
-      const createdCompany = await HotelAPIService.createCompany({
-        company_name: newCompanyData.company_name,
-        registration_number: newCompanyData.company_registration_number,
-        contact_person: newCompanyData.contact_person,
-        contact_email: newCompanyData.contact_email,
-        contact_phone: newCompanyData.contact_phone,
-        billing_address: newCompanyData.billing_address,
-      });
-
-      const newCompany: CompanyOption = {
-        company_name: createdCompany.company_name,
-        company_registration_number: createdCompany.registration_number,
-        contact_person: createdCompany.contact_person,
-        contact_email: createdCompany.contact_email,
-        contact_phone: createdCompany.contact_phone,
-        billing_address: createdCompany.billing_address,
-      };
-
-      // Add to company options
-      setCompanyOptions([...companyOptions, newCompany]);
-      setSelectedCompany(newCompany);
-      setDirectBillCompany(newCompany.company_name);
-
-      setNewCompanyDialogOpen(false);
-      emitApiNotification({
-        message: `Company "${newCompany.company_name}" registered successfully!`,
-        severity: 'success',
-      });
-
-      // Reset new company form
-      setNewCompanyData({
-        company_name: '',
-        company_registration_number: '',
-        contact_person: '',
-        contact_email: '',
-        contact_phone: '',
-        billing_address: '',
-      });
-    } catch (err: any) {
-      console.error('Failed to register company:', err);
-      emitApiNotification({
-        message: err?.message || 'Failed to register company',
-        severity: 'error',
-      });
-    }
-  };
-
-  const initializeFormData = () => {
+  const initializeFormData = useCallback(() => {
     if (!guest || !booking) return;
 
     // Parse full_name into first and last name
@@ -422,6 +331,97 @@ export default function EnhancedCheckInModal({
     // Initialize extra bed from booking
     setExtraBedCount(booking.extra_bed_count || 0);
     setExtraBedCharge(toMoneyNumber(booking.extra_bed_charge));
+  }, [guest, booking]);
+
+  // Reset form when modal closes - use proper transition detection
+  useEffect(() => {
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = open;
+
+    // Only reset when transitioning from open to closed
+    if (!open && wasOpen) {
+      initializedRef.current = { bookingId: null, guestId: null };
+      setValidationErrors({});
+      setTouched({});
+      setActiveTab(0);
+      setError(null);
+      setAdvisory(null);
+    }
+  }, [open]);
+
+  // Load rate and market codes and initialize form data
+  // Only reinitialize if booking/guest IDs change (not on every re-render)
+  useEffect(() => {
+    if (open && booking && guest) {
+      const needsInit =
+        initializedRef.current.bookingId !== booking.id ||
+        initializedRef.current.guestId !== guest.id;
+
+      if (needsInit) {
+        loadDropdownData();
+        loadCompanies();
+        initializeFormData();
+        // Load room type config for extra bed settings
+        loadRoomTypeConfig(booking as any);
+        // Fetch the pre-check-in advisory (non-blocking; failures are silent).
+        setAdvisory(null);
+        HotelAPIService.getCheckInAdvisory(String(booking.id))
+          .then(setAdvisory)
+          .catch(() => setAdvisory(null));
+        initializedRef.current = { bookingId: booking.id, guestId: guest.id };
+      }
+    }
+  }, [open, booking, guest, loadDropdownData, loadCompanies, initializeFormData, loadRoomTypeConfig]);
+
+  // Handle registering a new company
+  const handleRegisterNewCompany = async () => {
+    try {
+      // Save to database
+      const createdCompany = await HotelAPIService.createCompany({
+        company_name: newCompanyData.company_name,
+        registration_number: newCompanyData.company_registration_number,
+        contact_person: newCompanyData.contact_person,
+        contact_email: newCompanyData.contact_email,
+        contact_phone: newCompanyData.contact_phone,
+        billing_address: newCompanyData.billing_address,
+      });
+
+      const newCompany: CompanyOption = {
+        company_name: createdCompany.company_name,
+        company_registration_number: createdCompany.registration_number,
+        contact_person: createdCompany.contact_person,
+        contact_email: createdCompany.contact_email,
+        contact_phone: createdCompany.contact_phone,
+        billing_address: createdCompany.billing_address,
+      };
+
+      // Add to company options
+      setCompanyOptions([...companyOptions, newCompany]);
+      setSelectedCompany(newCompany);
+      setDirectBillCompany(newCompany.company_name);
+
+      setNewCompanyDialogOpen(false);
+      emitApiNotification({
+        message: `Company "${newCompany.company_name}" registered successfully!`,
+        severity: 'success',
+      });
+
+      // Reset new company form
+      setNewCompanyData({
+        company_name: '',
+        company_registration_number: '',
+        contact_person: '',
+        contact_email: '',
+        contact_phone: '',
+        billing_address: '',
+      });
+    } catch (err: any) {
+      console.error('Failed to register company:', err);
+      emitApiNotification({
+        message: err?.message || 'Failed to register company',
+        severity: 'error',
+      });
+    }
   };
 
   // Validate a single field
@@ -483,7 +483,7 @@ export default function EnhancedCheckInModal({
     }
 
     return errors;
-  }, [guestData, paymentType, cardNumber, cardExpiry, validateField]);
+  }, [guestData, paymentType, cardNumber, cardExpiry, validateField, paymentChoice]);
 
   const handleGuestChange = (field: keyof GuestUpdateRequest, value: string) => {
     setGuestData(prev => ({ ...prev, [field]: value }));

@@ -5,6 +5,14 @@ import tsParser from "@typescript-eslint/parser";
 
 export default [
   {
+    // TanStack Router auto-generated route tree — do not hand-edit, and don't
+    // lint it (it ships its own `/* eslint-disable */` + `// @ts-nocheck`,
+    // which trips "unused eslint-disable directive" under --max-warnings=0).
+    // Same story for build/coverage output: vendored reporter assets (e.g.
+    // coverage/block-navigation.js) ship their own eslint-disable directives.
+    ignores: ["src/routeTree.gen.ts", "coverage/**", "dist/**"]
+  },
+  {
     files: ["src/**/*.{js,mjs,cjs,jsx,ts,tsx}"],
     languageOptions: {
       parser: tsParser,

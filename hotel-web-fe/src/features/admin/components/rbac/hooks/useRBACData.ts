@@ -52,9 +52,9 @@ export function useRBACData(): UseRBACDataReturn {
   const snapshot = snapshotQuery.data;
   const { refetch } = snapshotQuery;
 
-  const roles = snapshot?.roles || [];
-  const permissions = snapshot?.permissions || [];
-  const routePolicies = snapshot?.route_policies || [];
+  const roles = useMemo(() => snapshot?.roles || [], [snapshot?.roles]);
+  const permissions = useMemo(() => snapshot?.permissions || [], [snapshot?.permissions]);
+  const routePolicies = useMemo(() => snapshot?.route_policies || [], [snapshot?.route_policies]);
 
   const rolePermissions = useMemo<Record<number, Permission[]>>(() => {
     const permissionsById = new Map(permissions.map((permission) => [permission.id, permission]));

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box,
   Typography,
@@ -156,12 +156,7 @@ const AnalyticsDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Load analytics data from backend API (which uses MCP-compatible analytics logic)
-    loadAnalyticsData();
-  }, []);
-
-  const loadAnalyticsData = async () => {
+  const loadAnalyticsData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -235,7 +230,12 @@ const AnalyticsDashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currencySymbol]);
+
+  useEffect(() => {
+    // Load analytics data from backend API (which uses MCP-compatible analytics logic)
+    loadAnalyticsData();
+  }, [loadAnalyticsData]);
 
   if (loading) {
     return (

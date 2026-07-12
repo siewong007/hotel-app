@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -364,7 +364,7 @@ const CustomerLedgerPage: React.FC = () => {
     const handleSettingsChange = () => setHotelSettings(getHotelSettings());
     window.addEventListener('hotelSettingsChange', handleSettingsChange);
     return () => window.removeEventListener('hotelSettingsChange', handleSettingsChange);
-  }, []);
+  }, [loadData]);
 
   useEffect(() => {
     const hasLedgerTarget = Boolean(
@@ -911,9 +911,17 @@ const CustomerLedgerPage: React.FC = () => {
     setSelectedLedgersForPayment([]);
   };
 
-  const isInvoiceEligible = (ledger: CustomerLedger) => {
+  const isVoidedLedger = useCallback((ledger: CustomerLedger) => {
+    return Boolean(ledger.void_at) || ledger.status === 'void';
+  }, []);
+
+  const getLedgerBalanceDue = useCallback((ledger: CustomerLedger) => {
+    return isVoidedLedger(ledger) ? 0 : toMoneyNumber(ledger.balance_due);
+  }, [isVoidedLedger]);
+
+  const isInvoiceEligible = useCallback((ledger: CustomerLedger) => {
     return !ledger.invoice_number && !isVoidedLedger(ledger) && isPositiveMoney(getLedgerBalanceDue(ledger));
-  };
+  }, [isVoidedLedger, getLedgerBalanceDue]);
 
   const getSelectedInvoiceLedgers = () =>
     invoiceLedgerEntries.filter(l => selectedInvoiceLedgers.includes(l.id) && (showInvoicePreview || isInvoiceEligible(l)));
@@ -1429,14 +1437,6 @@ const CustomerLedgerPage: React.FC = () => {
     }
   };
 
-  const isVoidedLedger = (ledger: CustomerLedger) => {
-    return Boolean(ledger.void_at) || ledger.status === 'void';
-  };
-
-  const getLedgerBalanceDue = (ledger: CustomerLedger) => {
-    return isVoidedLedger(ledger) ? 0 : toMoneyNumber(ledger.balance_due);
-  };
-
 
   const handleVoidLedger = (ledger: CustomerLedger) => {
     setVoidingLedger(ledger);
@@ -1568,7 +1568,7 @@ const CustomerLedgerPage: React.FC = () => {
       if (invoiceListFilter === 'invoiced') return Boolean(ledger.invoice_number);
       return true; // 'all' shows everything non-voided
     });
-  }, [invoiceLedgerEntries, invoiceListFilter]);
+  }, [invoiceLedgerEntries, invoiceListFilter, isVoidedLedger, isInvoiceEligible]);
 
   const invoiceFilterCounts = useMemo(() => {
     const nonVoid = invoiceLedgerEntries.filter(l => !isVoidedLedger(l));
@@ -1577,11 +1577,11 @@ const CustomerLedgerPage: React.FC = () => {
       all: nonVoid.length,
       invoiced: nonVoid.filter(l => Boolean(l.invoice_number)).length,
     };
-  }, [invoiceLedgerEntries]);
+  }, [invoiceLedgerEntries, isVoidedLedger, isInvoiceEligible]);
 
   const eligibleInvoiceCount = useMemo(
     () => invoiceLedgerEntries.filter(isInvoiceEligible).length,
-    [invoiceLedgerEntries],
+    [invoiceLedgerEntries, isInvoiceEligible],
   );
 
 

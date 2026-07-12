@@ -207,7 +207,7 @@ const RoomConfigurationPage: React.FC = () => {
     }
   };
 
-  const rooms = roomsQuery.data ?? [];
+  const rooms = useMemo(() => roomsQuery.data ?? [], [roomsQuery.data]);
   const roomTypes = useMemo(
     () => [...(roomTypesQuery.data ?? [])].sort((a, b) => a.sort_order - b.sort_order),
     [roomTypesQuery.data]

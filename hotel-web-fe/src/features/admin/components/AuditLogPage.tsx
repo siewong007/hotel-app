@@ -316,7 +316,7 @@ const AuditLogPage: React.FC = () => {
   const countsQuery = useAuditCategoryCounts(countQuery);
   const exportCsvMutation = useExportAuditCsv();
   const exportPdfMutation = useExportAuditPdf();
-  const logs = auditLogsQuery.data?.data ?? [];
+  const logs = useMemo(() => auditLogsQuery.data?.data ?? [], [auditLogsQuery.data]);
   const total = auditLogsQuery.data?.total ?? 0;
   const counts = countsQuery.data ?? null;
   const loading = auditLogsQuery.isPending;

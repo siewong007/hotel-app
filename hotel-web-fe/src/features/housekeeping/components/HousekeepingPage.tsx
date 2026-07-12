@@ -208,7 +208,7 @@ export default function HousekeepingPage() {
   const currentUserId = user?.id ? Number(user.id) : undefined;
   const isBusy = createTask.isPending || updateTask.isPending;
 
-  const rooms = boardQuery.data?.rooms ?? [];
+  const rooms = useMemo(() => boardQuery.data?.rooms ?? [], [boardQuery.data]);
   const floors = useMemo(
     () => Array.from(new Set(rooms.map(room => room.floor).filter((floor): floor is number => floor != null))).sort((a, b) => a - b),
     [rooms],

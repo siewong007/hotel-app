@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Box,
@@ -248,6 +248,7 @@ const BookingsPage: React.FC = () => {
     setSearchQuery,
     setRoomNumberFilter,
     setPaymentMethodFilter,
+    setStatusFilter,
     setDateFilter,
     setCustomStartDate,
     setCustomEndDate,
@@ -267,7 +268,10 @@ const BookingsPage: React.FC = () => {
   const [bookingChannels, setBookingChannels] = useState<BookingChannel[]>([]);
   const [updating, setUpdating] = useState(false);
   const activeCompaniesQuery = useActiveCompanies(isAdmin && editDialogOpen);
-  const activeCompanies: BookingCompanyOption[] = activeCompaniesQuery.data ?? [];
+  const activeCompanies: BookingCompanyOption[] = useMemo(
+    () => activeCompaniesQuery.data ?? [],
+    [activeCompaniesQuery.data]
+  );
   const selectedEditCompany = useMemo<BookingCompanyOption | null>(() => {
     const companyName = String(editFormData.company_name || '').trim();
     const companyId = editFormData.company_id == null || editFormData.company_id === ''
@@ -1034,7 +1038,10 @@ const BookingsPage: React.FC = () => {
     if (!booking.guest_type) return null;
     return booking.guest_type === 'non_member' ? 'Non-member' : 'Member';
   };
-  const hasOutstandingBalance = (booking: BookingWithDetails) => booking.status !== 'voided' && isPositiveMoney(getBookingBalance(booking));
+  const hasOutstandingBalance = useCallback(
+    (booking: BookingWithDetails) => booking.status !== 'voided' && isPositiveMoney(getBookingBalance(booking)),
+    []
+  );
   const getKnownNightAuditDates = (booking: BookingWithDetails | null) => {
     if (!booking) return [];
     const dates = new Set<string>();
@@ -1043,16 +1050,16 @@ const BookingsPage: React.FC = () => {
   };
   const isNightAuditInvolved = (booking: BookingWithDetails | null) =>
     Boolean(booking?.is_posted || getKnownNightAuditDates(booking).length > 0);
-  const isPastCheckoutWithBalance = (booking: BookingWithDetails) => {
+  const isPastCheckoutWithBalance = useCallback((booking: BookingWithDetails) => {
     const checkOutDate = getDateOnly(booking.check_out_date);
     return Boolean(checkOutDate) && checkOutDate < todayIso && hasOutstandingBalance(booking);
-  };
-  const isCompanyPastTermsWithBalance = (booking: BookingWithDetails) => {
+  }, [todayIso, hasOutstandingBalance]);
+  const isCompanyPastTermsWithBalance = useCallback((booking: BookingWithDetails) => {
     const checkOutDate = getDateOnly(booking.check_out_date);
     if (!checkOutDate || !hasOutstandingBalance(booking)) return false;
 
     return addMonthsToDateOnly(checkOutDate, COMPANY_OUTSTANDING_MONTHS_AFTER_CHECKOUT) <= todayIso;
-  };
+  }, [todayIso, hasOutstandingBalance]);
   const operationsBookings = summaryLoaded ? summaryBookings : bookings;
   const bookingPagination = useMemo(
     () => getPaginationState({ page: currentPage, pageSize: PAGE_SIZE, totalItems: totalBookings }),
@@ -1061,11 +1068,11 @@ const BookingsPage: React.FC = () => {
 
   const normalDueBookings = useMemo(
     () => operationsBookings.filter((booking) => !isCompanyBooking(booking) && isPastCheckoutWithBalance(booking)),
-    [operationsBookings, todayIso]
+    [operationsBookings, isPastCheckoutWithBalance]
   );
   const companyDueBookings = useMemo(
     () => operationsBookings.filter((booking) => isCompanyBooking(booking) && isCompanyPastTermsWithBalance(booking)),
-    [operationsBookings, todayIso]
+    [operationsBookings, isCompanyPastTermsWithBalance]
   );
   const dueBookings = useMemo(
     () => operationsBookings.filter((booking) =>
@@ -1073,7 +1080,7 @@ const BookingsPage: React.FC = () => {
         ? isCompanyPastTermsWithBalance(booking)
         : isPastCheckoutWithBalance(booking)
     ),
-    [operationsBookings, todayIso]
+    [operationsBookings, isCompanyPastTermsWithBalance, isPastCheckoutWithBalance]
   );
   const arrivingBookings = useMemo(
     () => operationsBookings.filter((booking) => getDateOnly(booking.check_in_date) === todayIso && !['checked_in', 'checked_out', 'completed', 'voided'].includes(booking.status)),

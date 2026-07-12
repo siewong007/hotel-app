@@ -47,7 +47,10 @@ export function useRoomData() {
     await Promise.all([loadRooms(true), loadGuests(), loadBookings()]);
   }, [loadRooms, loadGuests, loadBookings]);
 
-  const allBookingsData = (bookingsQuery.data ?? []) as BookingWithDetails[];
+  const allBookingsData = useMemo(
+    () => (bookingsQuery.data ?? []) as BookingWithDetails[],
+    [bookingsQuery.data]
+  );
   const rooms = roomOverrides ?? (roomsQuery.data ?? []);
   const guests = guestOverrides ?? (guestsQuery.data ?? []);
   const queryError = roomsQuery.error || guestsQuery.error || bookingsQuery.error;

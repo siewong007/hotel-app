@@ -244,6 +244,10 @@ const RoomManagementPage: React.FC = () => {
     reload: loadData,
     showSnackbar,
   });
+  // Stable reference for use in memoized callback deps below (the reservedCheckIn
+  // object itself is a fresh literal every render; openWithBooking is the useCallback
+  // inside the hook and is what actually needs to be tracked).
+  const { openWithBooking: openReservedCheckIn } = reservedCheckIn;
   const guestCreditsWorkflow = useGuestCreditsWorkflow({
     guests,
     rooms,
@@ -376,12 +380,12 @@ const RoomManagementPage: React.FC = () => {
     // Refresh room status every 30 seconds
     const interval = setInterval(() => loadRooms(), 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loadData, loadRooms]);
 
   // Show data loading errors in snackbar
   useEffect(() => {
     if (dataError) showSnackbar(dataError, 'error');
-  }, [dataError]);
+  }, [dataError, showSnackbar]);
 
   // Memoized callbacks for UnifiedBookingModal to prevent re-renders during periodic refresh
   const handleUnifiedBookingClose = useCallback(() => {
@@ -391,11 +395,11 @@ const RoomManagementPage: React.FC = () => {
 
   const handleUnifiedBookingSuccess = useCallback((message: string) => {
     showSnackbar(message, 'success');
-  }, []);
+  }, [showSnackbar]);
 
   const handleUnifiedBookingError = useCallback((message: string) => {
     showSnackbar(message, 'error');
-  }, []);
+  }, [showSnackbar]);
 
   const handleUnifiedBookingCreated = useCallback((booking: any, guest: any) => {
     // Convert to BookingWithDetails for the reserved check-in dialog
@@ -408,8 +412,8 @@ const RoomManagementPage: React.FC = () => {
       room_type: booking.room_type || '',
       booking_number: booking.folio_number || booking.booking_number || '',
     };
-    reservedCheckIn.openWithBooking(bwd, booking.payment_method || 'Cash');
-  }, [reservedCheckIn.openWithBooking]);
+    openReservedCheckIn(bwd, booking.payment_method || 'Cash');
+  }, [openReservedCheckIn]);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, room: Room) => {
     event.preventDefault();

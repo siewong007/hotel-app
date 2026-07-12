@@ -111,7 +111,10 @@ export default function ComplimentaryManagementPage() {
     staleTime: queryStaleTime.short,
   });
 
-  const bookings = complimentaryQuery.data?.bookings ?? [];
+  const bookings = useMemo(
+    () => complimentaryQuery.data?.bookings ?? [],
+    [complimentaryQuery.data]
+  );
   const guestCredits = complimentaryQuery.data?.guestCredits ?? [];
   const summary = complimentaryQuery.data?.summary ?? null;
   const loading = complimentaryQuery.isLoading;

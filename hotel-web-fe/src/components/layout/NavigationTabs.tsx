@@ -46,8 +46,12 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   const navigate = useNavigate();
   const { hasPermission, hasRole, getRoutePolicy, logout, user } = useAuth();
 
-  const visibleItems = navigationRouteDefinitions.filter((item) =>
-    canAccessNavigationRoute(item, { hasPermission, hasRole, getRoutePolicy })
+  const visibleItems = React.useMemo(
+    () =>
+      navigationRouteDefinitions.filter((item) =>
+        canAccessNavigationRoute(item, { hasPermission, hasRole, getRoutePolicy })
+      ),
+    [hasPermission, hasRole, getRoutePolicy]
   );
 
   // Option D: destinations split into visual groups (no "More" dropdown)
@@ -57,8 +61,6 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   const adminItems = visibleItems.filter((i) => i.navGroup === 'admin');
   const configItems = visibleItems.filter((i) => i.navGroup === 'config');
   const pillGroups = [opsItems, adminItems, configItems].filter((g) => g.length > 0);
-
-  const preloadSignature = visibleItems.map((item) => item.path).join('|');
 
   React.useEffect(() => {
     if (visibleItems.length === 0) return;
@@ -70,7 +72,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
       visibleItems.slice(0, 4).forEach((item) => preloadRoute(item.path));
     }, 300);
     return () => window.clearTimeout(t);
-  }, [preloadSignature]);
+  }, [visibleItems]);
 
   const getUserInitials = () => {
     if (user?.full_name) {
@@ -95,10 +97,13 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
     navigate('/login');
   };
 
-  const renderNavIcon = (item: (typeof visibleItems)[number], size: number) => {
-    const Icon = item.icon;
-    return Icon ? <Icon sx={{ fontSize: size }} /> : null;
-  };
+  const renderNavIcon = React.useCallback(
+    (item: (typeof visibleItems)[number], size: number) => {
+      const Icon = item.icon;
+      return Icon ? <Icon sx={{ fontSize: size }} /> : null;
+    },
+    []
+  );
 
   /* ---------------- Command palette ---------------- */
   const bookingsRoute = visibleItems.find((i) => i.path === '/bookings');
@@ -136,8 +141,9 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   };
   type Group = { key: string; label: string; items: SelectItem[] };
 
-  const dot = (
-    <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'text.disabled' }} />
+  const dot = React.useMemo(
+    () => <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'text.disabled' }} />,
+    []
   );
 
   const persistRecent = (r: Recent) => {
@@ -261,7 +267,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
     }
 
     return out;
-  }, [term, lowTerm, scope, recents, serverGroups, visibleItems, bookingsRoute]);
+  }, [term, lowTerm, scope, recents, serverGroups, visibleItems, bookingsRoute, dot, renderNavIcon]);
 
   const flatItems = React.useMemo(() => groups.flatMap((g) => g.items), [groups]);
 

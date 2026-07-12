@@ -197,7 +197,7 @@ const GuestConfigurationPage: React.FC = () => {
   const updateGuestMutation = useUpdateGuest();
   const applyGuestTourismMutation = useApplyGuestTourismFromLastCheckIn();
   const deleteGuestMutation = useDeleteGuest();
-  const guests = guestsQuery.data?.data ?? [];
+  const guests = React.useMemo(() => guestsQuery.data?.data ?? [], [guestsQuery.data]);
   const rooms = roomsQuery.data ?? [];
   const totalGuests = guestsQuery.data?.total ?? 0;
   const statsTotal = statsTotalQuery.data?.total ?? 0;
@@ -286,7 +286,10 @@ const GuestConfigurationPage: React.FC = () => {
   const [dialogError, setDialogError] = useState<string | null>(null);
   const guestBookingsQuery = useGuestBookings(viewingGuest?.id, bookingsDialogOpen && !!viewingGuest);
   const guestCreditsQuery = useGuestCredits(viewingGuest?.id, creditsDialogOpen && !!viewingGuest);
-  const guestBookings = (guestBookingsQuery.data ?? []) as GuestBookingHistoryRow[];
+  const guestBookings = React.useMemo(
+    () => (guestBookingsQuery.data ?? []) as GuestBookingHistoryRow[],
+    [guestBookingsQuery.data]
+  );
   const bookingsLoading = guestBookingsQuery.isPending && bookingsDialogOpen;
   const guestCredits = (guestCreditsQuery.data ?? null) as GuestCredits | null;
   const creditsLoading = guestCreditsQuery.isPending && creditsDialogOpen;

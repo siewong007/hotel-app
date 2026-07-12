@@ -141,7 +141,7 @@ const EkycCreateDialog: React.FC<EkycCreateDialogProps> = ({
     setGuestOptions([initialGuest]);
     setForm(formFromGuest(initialGuest));
     setError(null);
-  }, [initialGuest?.id, open]);
+  }, [initialGuest, open]);
 
   useEffect(() => {
     if (!open || lockGuest) return;

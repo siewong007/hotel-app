@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from '../../../router';
 import {
   Container,
@@ -57,17 +57,7 @@ export const GuestCheckInForm: React.FC = () => {
   const [marketCode, setMarketCode] = useState('WKII');
   const [specialRequests, setSpecialRequests] = useState('');
 
-  useEffect(() => {
-    if (!token) {
-      setError('Invalid or missing token');
-      setLoading(false);
-      return;
-    }
-
-    loadBookingData();
-  }, [token]);
-
-  const loadBookingData = async () => {
+  const loadBookingData = useCallback(async () => {
     try {
       const response = await HotelAPIService.guestPortalGetBooking(token!);
       setBooking(response.booking);
@@ -98,7 +88,17 @@ export const GuestCheckInForm: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) {
+      setError('Invalid or missing token');
+      setLoading(false);
+      return;
+    }
+
+    loadBookingData();
+  }, [token, loadBookingData]);
 
   const handleChange = (field: keyof GuestUpdateRequest, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
