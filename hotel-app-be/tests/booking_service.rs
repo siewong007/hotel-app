@@ -1048,8 +1048,16 @@ mod sqlite_tests {
         let pool = common::setup_test_db().await;
         // Deliberately use the raw seeder (not `seed_checkin_booking`) so the
         // guest is left without an ic_number on file.
-        seed_room_guest_booking(&pool, 8065, 8065, 8065, "confirmed", "2030-12-10", "2030-12-12")
-            .await;
+        seed_room_guest_booking(
+            &pool,
+            8065,
+            8065,
+            8065,
+            "confirmed",
+            "2030-12-10",
+            "2030-12-12",
+        )
+        .await;
 
         let result = bookings::manual_checkin(&pool, 1, 8065, None).await;
         assert!(

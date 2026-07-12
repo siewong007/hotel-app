@@ -34,7 +34,8 @@ impl LoyaltyRepository {
 
     pub async fn list_active_programs(pool: &DbPool) -> Result<Vec<LoyaltyProgram>, ApiError> {
         let rows = sqlx::query(
-            "SELECT * FROM loyalty_programs WHERE is_active = true ORDER BY tier_level",
+            "SELECT id, name, description, tier_level, points_multiplier, minimum_points_required, is_active, created_at, updated_at \
+             FROM loyalty_programs WHERE is_active = true ORDER BY tier_level",
         )
         .fetch_all(pool)
         .await
@@ -245,7 +246,9 @@ impl LoyaltyRepository {
         guest_id: i64,
     ) -> Result<Option<LoyaltyMembership>, ApiError> {
         let row = sqlx::query(
-            "SELECT * FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active'",
+            "SELECT id, guest_id, program_id, membership_number, points_balance, lifetime_points, \
+             tier_level, status, enrolled_date, expiry_date, created_at, updated_at \
+             FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active'",
         )
         .bind(guest_id)
         .fetch_optional(pool)
@@ -258,7 +261,10 @@ impl LoyaltyRepository {
         pool: &DbPool,
         program_id: i64,
     ) -> Result<LoyaltyProgram, ApiError> {
-        let row = sqlx::query("SELECT * FROM loyalty_programs WHERE id = $1")
+        let row = sqlx::query(
+            "SELECT id, name, description, tier_level, points_multiplier, minimum_points_required, is_active, created_at, updated_at \
+             FROM loyalty_programs WHERE id = $1",
+        )
             .bind(program_id)
             .fetch_one(pool)
             .await
@@ -271,7 +277,8 @@ impl LoyaltyRepository {
         tier_level: i32,
     ) -> Result<Option<LoyaltyProgram>, ApiError> {
         let row = sqlx::query(
-            "SELECT * FROM loyalty_programs WHERE tier_level = $1 AND is_active = true ORDER BY tier_level LIMIT 1",
+            "SELECT id, name, description, tier_level, points_multiplier, minimum_points_required, is_active, created_at, updated_at \
+             FROM loyalty_programs WHERE tier_level = $1 AND is_active = true ORDER BY tier_level LIMIT 1",
         )
         .bind(tier_level)
         .fetch_optional(pool)
@@ -331,7 +338,9 @@ impl LoyaltyRepository {
     ) -> Result<Vec<LoyaltyReward>, ApiError> {
         let rows = sqlx::query(
             r#"
-            SELECT * FROM loyalty_rewards
+            SELECT id, name, description, category, points_cost, monetary_value, minimum_tier_level,
+                   is_active, stock_quantity, image_url, terms_conditions, created_at, updated_at
+            FROM loyalty_rewards
             WHERE is_active = true
             AND minimum_tier_level <= $1
             AND (stock_quantity IS NULL OR stock_quantity > 0)
@@ -354,7 +363,9 @@ impl LoyaltyRepository {
     ) -> Result<Vec<LoyaltyReward>, ApiError> {
         if let Some(category) = category {
             let rows = sqlx::query(
-                "SELECT * FROM loyalty_rewards WHERE category = $1 AND is_active = true ORDER BY category, points_cost",
+                "SELECT id, name, description, category, points_cost, monetary_value, minimum_tier_level, \
+                 is_active, stock_quantity, image_url, terms_conditions, created_at, updated_at \
+                 FROM loyalty_rewards WHERE category = $1 AND is_active = true ORDER BY category, points_cost",
             )
             .bind(category)
             .fetch_all(pool)
@@ -366,7 +377,9 @@ impl LoyaltyRepository {
                 .collect())
         } else {
             let rows = sqlx::query(
-                "SELECT * FROM loyalty_rewards WHERE is_active = true ORDER BY category, points_cost",
+                "SELECT id, name, description, category, points_cost, monetary_value, minimum_tier_level, \
+                 is_active, stock_quantity, image_url, terms_conditions, created_at, updated_at \
+                 FROM loyalty_rewards WHERE is_active = true ORDER BY category, points_cost",
             )
             .fetch_all(pool)
             .await
@@ -382,7 +395,11 @@ impl LoyaltyRepository {
         pool: &DbPool,
         reward_id: i64,
     ) -> Result<Option<LoyaltyReward>, ApiError> {
-        let row = sqlx::query("SELECT * FROM loyalty_rewards WHERE id = $1")
+        let row = sqlx::query(
+            "SELECT id, name, description, category, points_cost, monetary_value, minimum_tier_level, \
+             is_active, stock_quantity, image_url, terms_conditions, created_at, updated_at \
+             FROM loyalty_rewards WHERE id = $1",
+        )
             .bind(reward_id)
             .fetch_optional(pool)
             .await
@@ -595,7 +612,9 @@ impl LoyaltyRepository {
             .map_err(|e| ApiError::Database(e.to_string()))?;
 
         let membership_row = sqlx::query(
-            "SELECT * FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active' FOR UPDATE",
+            "SELECT id, guest_id, program_id, membership_number, points_balance, lifetime_points, \
+             tier_level, status, enrolled_date, expiry_date, created_at, updated_at \
+             FROM loyalty_memberships WHERE guest_id = $1 AND status = 'active' FOR UPDATE",
         )
         .bind(guest_id)
         .fetch_optional(&mut *tx)
@@ -605,7 +624,9 @@ impl LoyaltyRepository {
         let membership = row_mappers::row_to_loyalty_membership(&membership_row);
 
         let reward_row = sqlx::query(
-            "SELECT * FROM loyalty_rewards WHERE id = $1 AND is_active = true FOR UPDATE",
+            "SELECT id, name, description, category, points_cost, monetary_value, minimum_tier_level, \
+             is_active, stock_quantity, image_url, terms_conditions, created_at, updated_at \
+             FROM loyalty_rewards WHERE id = $1 AND is_active = true FOR UPDATE",
         )
         .bind(reward_id)
         .fetch_optional(&mut *tx)

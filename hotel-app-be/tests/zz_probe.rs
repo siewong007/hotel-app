@@ -52,7 +52,15 @@ mod sqlite_tests {
         }
         let ledger = created.expect("create should succeed");
 
-        let voided = repo::void_ledger(&pool, ledger.id, 1, LedgerVoidRequest { reason: "test".into() }).await;
+        let voided = repo::void_ledger(
+            &pool,
+            ledger.id,
+            1,
+            LedgerVoidRequest {
+                reason: "test".into(),
+            },
+        )
+        .await;
         match &voided {
             Ok(l) => println!("void ok, status={}", l.status),
             Err(e) => println!("void ERR: {}", e),
