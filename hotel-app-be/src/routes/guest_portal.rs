@@ -150,7 +150,7 @@ async fn get_booking(
     path: Path<String>,
 ) -> Result<Json<models::GuestPortalBookingResponse>, ApiError> {
     let (allowed, retry_after) = limiters
-        .guest_portal_token
+        .guest_portal_token_read
         .check_with_retry(path.0.clone())
         .await;
     if !allowed {
