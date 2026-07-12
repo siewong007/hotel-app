@@ -459,13 +459,33 @@ cp ./hotel_data.db ./backups/hotel_data_$(date +%Y%m%d).db
 cp -r /path/to/pgsql/data /backups/pgsql_data_$(date +%Y%m%d)
 ```
 
-### Automated Backup via Docker
+### Backup via Docker
 
-The `docker-compose.yml` includes a configurable backup schedule:
+`docker-compose.yml` does not include a scheduled/automated backup service today — backups are manual only. Run `pg_dump` on demand, or schedule the same command externally (e.g. host cron):
 
 ```bash
 # Manual backup
 docker exec hotel-db pg_dump -U hotel_admin hotel_management > backup.sql
+```
+
+```bash
+# Example: schedule it yourself with host cron (daily at 02:00)
+0 2 * * * docker exec hotel-db pg_dump -U hotel_admin hotel_management > /backups/hotel_$(date +\%Y\%m\%d).sql
+```
+
+### Log Rotation
+
+The backend writes one append-only file per calendar day (`backend-YYYY-MM-DD.log` under `HOTEL_LOG_DIR`) with no built-in size cap or cleanup. Rotate/prune it with `logrotate(8)` on Linux hosts:
+
+```
+# /etc/logrotate.d/hotel-app-be
+/path/to/HOTEL_LOG_DIR/*.log {
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+}
 ```
 
 ---
