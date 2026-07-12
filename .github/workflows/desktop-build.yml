@@ -70,6 +70,12 @@ jobs:
         env:
           POSTGRES_VERSION: 19beta1
         run: |
+          # PostgreSQL 16+ enables ICU by default, but Homebrew's icu4c is
+          # keg-only and not on the default PKG_CONFIG_PATH — configure fails
+          # with "Package 'icu-uc' not found" (first real run, 2026-07-12).
+          brew install icu4c pkg-config
+          ICU_PREFIX="$(brew --prefix icu4c)"
+          export PKG_CONFIG_PATH="${ICU_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
           curl --fail --location --remote-name "https://ftp.postgresql.org/pub/source/v${POSTGRES_VERSION}/postgresql-${POSTGRES_VERSION}.tar.bz2"
           curl --fail --location --remote-name "https://ftp.postgresql.org/pub/source/v${POSTGRES_VERSION}/postgresql-${POSTGRES_VERSION}.tar.bz2.sha256"
           shasum --algorithm 256 --check "postgresql-${POSTGRES_VERSION}.tar.bz2.sha256"
