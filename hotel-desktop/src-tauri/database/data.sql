@@ -313,7 +313,7 @@ SELECT
         CASE WHEN p.name IS NULL OR p.name !~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$' THEN 'Invalid permission name' END,
         CASE WHEN p.resource IS NULL OR length(trim(p.resource)) = 0 THEN 'Missing resource' END,
         CASE WHEN p.action IS NULL OR p.action NOT IN (
-            'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+            'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
             'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
             'override', 'export', 'download', 'reveal', 'request_resubmission',
             'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
@@ -329,7 +329,7 @@ WHERE p.is_system_permission IS TRUE
       OR length(trim(p.resource)) = 0
       OR p.action IS NULL
       OR p.action NOT IN (
-          'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+          'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
           'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
           'override', 'export', 'download', 'reveal', 'request_resubmission',
           'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
@@ -345,7 +345,7 @@ WHERE p.is_system_permission IS TRUE
       OR length(trim(p.resource)) = 0
       OR p.action IS NULL
       OR p.action NOT IN (
-          'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+          'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
           'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
           'override', 'export', 'download', 'reveal', 'request_resubmission',
           'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
@@ -1158,7 +1158,7 @@ BEGIN
               p.name !~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$'
               OR length(trim(p.resource)) = 0
               OR p.action NOT IN (
-                  'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+                  'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
                   'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
                   'override', 'export', 'download', 'reveal', 'request_resubmission',
                   'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
