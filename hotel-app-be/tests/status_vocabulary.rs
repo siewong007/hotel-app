@@ -1,6 +1,7 @@
 //! Regression tests for the persisted status vocabulary.
 
 const POSTGRES_SCHEMA: &str = include_str!("../database/schema.sql");
+const POSTGRES_DATA: &str = include_str!("../database/data.sql");
 const SQLITE_DATA: &str = include_str!("../database/sqlite_data.sql");
 
 fn status_check_blocks(sql: &str) -> Vec<String> {
@@ -90,6 +91,12 @@ fn postgres_schema_uses_pg19_partition_split_and_drops_redundant_indexes() {
         "late audit partitions must use PostgreSQL 19 SPLIT PARTITION"
     );
     assert!(
+        POSTGRES_SCHEMA.contains(
+            "INTO (PARTITION public.%I FOR VALUES FROM (%L) TO (%L), PARTITION public.audit_logs_default DEFAULT)"
+        ),
+        "partition split targets must remain in public when the function pins pg_catalog first"
+    );
+    assert!(
         POSTGRES_SCHEMA.contains("CREATE INDEX IF NOT EXISTS idx_audit_logs_details_trgm")
             && POSTGRES_SCHEMA.contains("ON audit_logs USING gin ((details::text) gin_trgm_ops)"),
         "audit detail substring search needs a matching trigram expression index"
@@ -124,6 +131,14 @@ fn postgres_schema_uses_pg19_partition_split_and_drops_redundant_indexes() {
             "schema must not recreate redundant index {index_name}"
         );
     }
+}
+
+#[test]
+fn postgres_permission_constraint_accepts_seeded_refund_action() {
+    assert!(
+        POSTGRES_DATA.contains("'void', 'refund',"),
+        "seed data action constraint must accept the payments:refund permission"
+    );
 }
 
 #[cfg(all(feature = "postgres", not(feature = "sqlite")))]

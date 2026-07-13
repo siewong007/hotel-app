@@ -147,7 +147,7 @@ CREATE TABLE IF NOT EXISTS permissions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT valid_permission_format CHECK (name ~ '^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$'),
     CONSTRAINT valid_action CHECK (action IN (
-        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
         'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
         'override', 'export', 'download', 'reveal', 'request_resubmission',
         'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
@@ -2529,7 +2529,7 @@ ALTER TABLE permissions ADD CONSTRAINT valid_permission_format
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS valid_action;
 ALTER TABLE permissions ADD CONSTRAINT valid_action
     CHECK (action IN (
-        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
         'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
         'override', 'export', 'download', 'reveal', 'request_resubmission',
         'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
@@ -4328,7 +4328,7 @@ BEGIN
             -- late CREATE/ATTACH, this moves already-arrived rows into the new
             -- month while copying the parent's indexes and triggers.
             EXECUTE format(
-                'ALTER TABLE public.audit_logs SPLIT PARTITION audit_logs_default INTO (PARTITION %I FOR VALUES FROM (%L) TO (%L), PARTITION audit_logs_default DEFAULT)',
+                'ALTER TABLE public.audit_logs SPLIT PARTITION audit_logs_default INTO (PARTITION public.%I FOR VALUES FROM (%L) TO (%L), PARTITION public.audit_logs_default DEFAULT)',
                 part_name, start_date, end_date
             );
         ELSE
@@ -4421,7 +4421,7 @@ COMMENT ON TABLE audit_logs IS
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS valid_action;
 ALTER TABLE permissions ADD CONSTRAINT valid_action
     CHECK (action IN (
-        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
         'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
         'override', 'export', 'download', 'reveal', 'request_resubmission',
         'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
@@ -4919,7 +4919,7 @@ ON CONFLICT (role_id, permission_id) DO NOTHING;
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS valid_action;
 ALTER TABLE permissions ADD CONSTRAINT valid_action
     CHECK (action IN (
-        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
         'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
         'override', 'export', 'download', 'reveal', 'request_resubmission',
         'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'

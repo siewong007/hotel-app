@@ -444,7 +444,7 @@ WHERE roles.display_name IS DISTINCT FROM EXCLUDED.display_name
 ALTER TABLE permissions DROP CONSTRAINT IF EXISTS valid_action;
 ALTER TABLE permissions ADD CONSTRAINT valid_action
     CHECK (action IN (
-        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void',
+        'create', 'read', 'update', 'delete', 'manage', 'execute', 'void', 'refund',
         'write', 'verify', 'review', 'assign', 'approve', 'reject', 'escalate',
         'override', 'export', 'download', 'reveal', 'request_resubmission',
         'view_provider_raw', 'manage_reason_codes', 'manage_risk_rules'
