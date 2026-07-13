@@ -139,6 +139,22 @@ fn postgres_permission_constraint_accepts_seeded_refund_action() {
         POSTGRES_DATA.contains("'void', 'refund',"),
         "seed data action constraint must accept the payments:refund permission"
     );
+
+    let validation_blocks = POSTGRES_DATA
+        .split("p.action NOT IN (")
+        .skip(1)
+        .map(|sql| sql.split(')').next().expect("action allowlist must close"))
+        .collect::<Vec<_>>();
+    assert!(
+        !validation_blocks.is_empty(),
+        "seed data must validate system permission actions"
+    );
+    for block in validation_blocks {
+        assert!(
+            block.contains("'refund'"),
+            "system permission validation must accept the seeded refund action: {block}"
+        );
+    }
 }
 
 #[cfg(all(feature = "postgres", not(feature = "sqlite")))]
