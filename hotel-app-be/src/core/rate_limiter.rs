@@ -170,7 +170,7 @@ impl KeyedRateLimiter {
 pub struct RateLimiters {
     /// Login attempts: 5 per minute per IP (strict - brute force protection)
     pub auth: RateLimiter,
-    /// Registration: 3 per 10 minutes per IP (strict - spam prevention)
+    /// Registration: 10 per 10 minutes per IP (strict - spam prevention)
     pub register: RateLimiter,
     /// Sensitive operations: 10 per 5 minutes per IP (password change, 2FA, refresh)
     pub sensitive: RateLimiter,
@@ -206,7 +206,7 @@ impl RateLimiters {
     pub fn new() -> Self {
         Self {
             auth: RateLimiter::new(RateLimitConfig::new(5, 60)),
-            register: RateLimiter::new(RateLimitConfig::new(3, 600)),
+            register: RateLimiter::new(RateLimitConfig::new(10, 600)),
             sensitive: RateLimiter::new(RateLimitConfig::new(10, 300)),
             guest_portal_verify: RateLimiter::new(RateLimitConfig::new(10, 300)),
             guest_portal_booking: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
@@ -287,5 +287,18 @@ mod tests {
         assert_eq!(limiter.check_with_retry("booking-a").await, (true, 0));
         assert!(!limiter.check_with_retry("booking-a").await.0);
         assert_eq!(limiter.check_with_retry("booking-b").await, (true, 0));
+    }
+
+    #[tokio::test]
+    async fn registration_limiter_allows_ten_attempts_per_window() {
+        let limiters = RateLimiters::new();
+
+        for _ in 0..10 {
+            assert_eq!(limiters.register.check_with_retry(ip(1)).await, (true, 0));
+        }
+
+        let (allowed, retry_after) = limiters.register.check_with_retry(ip(1)).await;
+        assert!(!allowed);
+        assert!(retry_after > 0);
     }
 }

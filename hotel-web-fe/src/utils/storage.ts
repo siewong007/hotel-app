@@ -12,6 +12,7 @@ type StorageKey =
   | 'routePolicies'
   | 'themeMode'
   | 'cmdRecents'
+  | 'notificationHistory'
   | 'ekycAdminFilters'
   | 'dataTransferHistory';
 

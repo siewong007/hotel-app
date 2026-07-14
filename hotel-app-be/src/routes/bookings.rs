@@ -314,8 +314,9 @@ async fn add_guest_credits(
     headers: HeaderMap,
     Json(input): Json<models::AddGuestCreditsRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    require_permission_helper(&pool, &headers, "guests:manage").await?;
-    handlers::bookings::add_guest_credits_handler(State(pool), Json(input)).await
+    let user_id = require_permission_helper(&pool, &headers, "guests:manage").await?;
+    handlers::bookings::add_guest_credits_handler(State(pool), Extension(user_id), Json(input))
+        .await
 }
 
 async fn update_guest_credits(

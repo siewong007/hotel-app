@@ -21,6 +21,7 @@ import {
   removeNotification,
   useNotifications,
 } from '../../utils/notificationStore';
+import { useAuth } from '../../auth/AuthContext';
 
 const SEVERITY_META: Record<
   ApiNotificationSeverity,
@@ -49,14 +50,16 @@ interface NotificationCenterProps {
 }
 
 export const NotificationCenter: React.FC<NotificationCenterProps> = ({ darkBg = false }) => {
-  const { items, unreadCount } = useNotifications();
+  const { user } = useAuth();
+  const userId = user?.id;
+  const { items, unreadCount } = useNotifications(userId);
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
 
   const handleOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
     // Opening the center acknowledges the unread notifications.
-    markAllRead();
+    markAllRead(userId);
   };
   const handleClose = () => setAnchorEl(null);
 
@@ -107,7 +110,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ darkBg =
         >
           <Typography sx={{ fontSize: '0.9rem', fontWeight: 700 }}>Notifications</Typography>
           {items.length > 0 && (
-            <Button size="small" onClick={clearAll} sx={{ textTransform: 'none', fontSize: '0.75rem' }}>
+            <Button size="small" onClick={() => clearAll(userId)} sx={{ textTransform: 'none', fontSize: '0.75rem' }}>
               Clear all
             </Button>
           )}
@@ -152,7 +155,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ darkBg =
                   <IconButton
                     className="notification-dismiss"
                     size="small"
-                    onClick={() => removeNotification(item.id)}
+                    onClick={() => removeNotification(item.id, userId)}
                     aria-label="Dismiss notification"
                     sx={{ opacity: 0, transition: 'opacity 0.15s', flexShrink: 0 }}
                   >

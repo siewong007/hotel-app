@@ -30,6 +30,20 @@ export function getPortalTokenExpiresAt(): string | null {
   }
 }
 
+export function isPortalTokenExpired(expiresAt = getPortalTokenExpiresAt()): boolean {
+  if (!expiresAt) return true;
+  const timestamp = Date.parse(expiresAt);
+  return Number.isNaN(timestamp) || timestamp <= Date.now();
+}
+
+export function getValidPortalToken(): string | null {
+  const token = getPortalToken();
+  if (!token) return null;
+  if (!isPortalTokenExpired()) return token;
+  clearPortalToken();
+  return null;
+}
+
 export function setPortalToken(token: string, expiresAt: string): void {
   try {
     window.sessionStorage.setItem(GUEST_PORTAL_TOKEN_KEY, token);

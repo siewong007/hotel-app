@@ -28,6 +28,7 @@ import {
 } from '@mui/material';
 import { GuestPortalDashboardService } from '../api/guestPortalDashboard.service';
 import { usePortalSession } from '../api/usePortalSession';
+import { PortalSupportTab } from './PortalSupportTab';
 import { parseLocalDate } from '../../../utils/date';
 import type {
   GuestPortalBenefitsResponse,
@@ -99,11 +100,19 @@ export const PortalDashboardPage: React.FC = () => {
           </Button>
         </Box>
 
-        <Tabs value={activeTab} onChange={(_, next) => setActiveTab(next)} sx={{ mb: 2 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, next) => setActiveTab(next)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          sx={{ mb: 2 }}
+        >
           <Tab label="Bookings" id="portal-tab-0" aria-controls="portal-tabpanel-0" />
           <Tab label="Transactions" id="portal-tab-1" aria-controls="portal-tabpanel-1" />
           <Tab label="Membership" id="portal-tab-2" aria-controls="portal-tabpanel-2" />
           <Tab label="Benefits" id="portal-tab-3" aria-controls="portal-tabpanel-3" />
+          <Tab label="Support & Help" id="portal-tab-4" aria-controls="portal-tabpanel-4" />
         </Tabs>
 
         <TabPanel value={activeTab} index={0}>
@@ -117,6 +126,9 @@ export const PortalDashboardPage: React.FC = () => {
         </TabPanel>
         <TabPanel value={activeTab} index={3}>
           <BenefitsTab token={token} />
+        </TabPanel>
+        <TabPanel value={activeTab} index={4}>
+          <PortalSupportTab token={token} />
         </TabPanel>
       </Paper>
     </Container>

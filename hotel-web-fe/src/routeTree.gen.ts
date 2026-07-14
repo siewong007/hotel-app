@@ -35,7 +35,9 @@ import { Route as BookingsRouteImport } from './routes/bookings'
 import { Route as AuditLogRouteImport } from './routes/audit-log'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PortalIndexRouteImport } from './routes/portal/index'
 import { Route as GuestCheckinIndexRouteImport } from './routes/guest-checkin/index'
+import { Route as PortalLoginRouteImport } from './routes/portal/login'
 import { Route as GuestCheckinVerifyRouteImport } from './routes/guest-checkin/verify'
 import { Route as GuestCheckinFormRouteImport } from './routes/guest-checkin/form'
 import { Route as GuestCheckinConfirmRouteImport } from './routes/guest-checkin/confirm'
@@ -170,9 +172,19 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PortalIndexRoute = PortalIndexRouteImport.update({
+  id: '/portal/',
+  path: '/portal/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GuestCheckinIndexRoute = GuestCheckinIndexRouteImport.update({
   id: '/guest-checkin/',
   path: '/guest-checkin/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalLoginRoute = PortalLoginRouteImport.update({
+  id: '/portal/login',
+  path: '/portal/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GuestCheckinVerifyRoute = GuestCheckinVerifyRouteImport.update({
@@ -221,7 +233,9 @@ export interface FileRoutesByFullPath {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/portal/login': typeof PortalLoginRoute
   '/guest-checkin/': typeof GuestCheckinIndexRoute
+  '/portal/': typeof PortalIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -253,7 +267,9 @@ export interface FileRoutesByTo {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/portal/login': typeof PortalLoginRoute
   '/guest-checkin': typeof GuestCheckinIndexRoute
+  '/portal': typeof PortalIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -286,7 +302,9 @@ export interface FileRoutesById {
   '/guest-checkin/confirm': typeof GuestCheckinConfirmRoute
   '/guest-checkin/form': typeof GuestCheckinFormRoute
   '/guest-checkin/verify': typeof GuestCheckinVerifyRoute
+  '/portal/login': typeof PortalLoginRoute
   '/guest-checkin/': typeof GuestCheckinIndexRoute
+  '/portal/': typeof PortalIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -320,7 +338,9 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/portal/login'
     | '/guest-checkin/'
+    | '/portal/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -352,7 +372,9 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/portal/login'
     | '/guest-checkin'
+    | '/portal'
   id:
     | '__root__'
     | '/'
@@ -384,7 +406,9 @@ export interface FileRouteTypes {
     | '/guest-checkin/confirm'
     | '/guest-checkin/form'
     | '/guest-checkin/verify'
+    | '/portal/login'
     | '/guest-checkin/'
+    | '/portal/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -417,7 +441,9 @@ export interface RootRouteChildren {
   GuestCheckinConfirmRoute: typeof GuestCheckinConfirmRoute
   GuestCheckinFormRoute: typeof GuestCheckinFormRoute
   GuestCheckinVerifyRoute: typeof GuestCheckinVerifyRoute
+  PortalLoginRoute: typeof PortalLoginRoute
   GuestCheckinIndexRoute: typeof GuestCheckinIndexRoute
+  PortalIndexRoute: typeof PortalIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -604,11 +630,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/portal/': {
+      id: '/portal/'
+      path: '/portal'
+      fullPath: '/portal/'
+      preLoaderRoute: typeof PortalIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/guest-checkin/': {
       id: '/guest-checkin/'
       path: '/guest-checkin'
       fullPath: '/guest-checkin/'
       preLoaderRoute: typeof GuestCheckinIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal/login': {
+      id: '/portal/login'
+      path: '/portal/login'
+      fullPath: '/portal/login'
+      preLoaderRoute: typeof PortalLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/guest-checkin/verify': {
@@ -665,7 +705,9 @@ const rootRouteChildren: RootRouteChildren = {
   GuestCheckinConfirmRoute: GuestCheckinConfirmRoute,
   GuestCheckinFormRoute: GuestCheckinFormRoute,
   GuestCheckinVerifyRoute: GuestCheckinVerifyRoute,
+  PortalLoginRoute: PortalLoginRoute,
   GuestCheckinIndexRoute: GuestCheckinIndexRoute,
+  PortalIndexRoute: PortalIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

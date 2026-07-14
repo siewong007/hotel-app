@@ -35,9 +35,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={activeTheme}>
         <CssBaseline />
-        <ApiNotificationHost />
         <DesktopServiceGate>
           <AuthProvider>
+            <ApiNotificationHost />
             <ThemeModeContext.Provider value={themeModeContextValue}>
               <RouterProvider router={router} />
             </ThemeModeContext.Provider>

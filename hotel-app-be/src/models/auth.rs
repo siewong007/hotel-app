@@ -69,7 +69,7 @@ pub struct RegisterRequest {
     ))]
     pub username: String,
     #[validate(email(message = "Invalid email format"))]
-    pub email: String,
+    pub email: Option<String>,
     #[validate(length(
         min = 8,
         max = 100,
@@ -81,7 +81,14 @@ pub struct RegisterRequest {
     pub first_name: String,
     #[validate(length(min = 1, max = 50, message = "Last name is required"))]
     pub last_name: String,
-    pub phone: Option<String>,
+    #[validate(length(
+        min = 8,
+        max = 16,
+        message = "Phone number must contain between 8 and 15 digits"
+    ))]
+    pub phone: String,
+    #[validate(length(max = 255, message = "Address is too long"))]
+    pub address_line1: Option<String>,
 }
 
 /// Email verification confirmation

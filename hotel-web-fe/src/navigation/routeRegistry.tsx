@@ -34,7 +34,12 @@ export interface AppRouteDefinition {
   path: string;
   component: PreloadableRouteComponent;
   animationType: RouteAnimation;
-  visibility: 'auth' | 'unauth';
+  /**
+   * `public` routes do not participate in the staff authentication flow.
+   * The guest portal owns a separate short-lived guest session, so it must
+   * remain reachable even when a staff session is active in the same browser.
+   */
+  visibility: 'auth' | 'unauth' | 'public';
   icon?: React.ElementType;
   breadcrumbLabel?: string;
   navLabel?: string;
@@ -85,8 +90,8 @@ const routeDefinitions: AppRouteDefinition[] = [
   { id: 'guest-checkin-verify', path: '/guest-checkin/verify', component: GuestCheckInVerify, animationType: 'fade', visibility: 'unauth' },
   { id: 'guest-checkin-form', path: '/guest-checkin/form', component: GuestCheckInForm, animationType: 'fade', visibility: 'unauth' },
   { id: 'guest-checkin-confirm', path: '/guest-checkin/confirm', component: GuestCheckInConfirmation, animationType: 'fade', visibility: 'unauth' },
-  { id: 'portal-login', path: '/portal/login', component: PortalLoginPage, animationType: 'fade', visibility: 'unauth' },
-  { id: 'portal-dashboard', path: '/portal', component: PortalDashboardPage, animationType: 'fade', visibility: 'unauth' },
+  { id: 'portal-login', path: '/portal/login', component: PortalLoginPage, animationType: 'fade', visibility: 'public' },
+  { id: 'portal-dashboard', path: '/portal', component: PortalDashboardPage, animationType: 'fade', visibility: 'public' },
   { id: 'dashboard', path: '/', component: DashboardRouter, animationType: 'fade', visibility: 'auth' },
   {
     id: 'timeline',
@@ -223,8 +228,8 @@ const routeDefinitions: AppRouteDefinition[] = [
     animationType: 'fade',
     visibility: 'auth',
     icon: SettingsIcon,
-    breadcrumbLabel: 'Settings',
-    navLabel: 'Settings',
+    breadcrumbLabel: 'Hotel Settings',
+    navLabel: 'Hotel Settings',
     navGroup: 'config',
     accessControlled: true,
   },
@@ -328,6 +333,7 @@ const routeDefinitions: AppRouteDefinition[] = [
 
 export const unauthRouteDefinitions = routeDefinitions.filter((route) => route.visibility === 'unauth');
 export const authRouteDefinitions = routeDefinitions.filter((route) => route.visibility === 'auth');
+export const publicRouteDefinitions = routeDefinitions.filter((route) => route.visibility === 'public');
 export const navigationRouteDefinitions = authRouteDefinitions.filter((route) => route.navGroup);
 export { FirstLoginPasskeyPrompt };
 

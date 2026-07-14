@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   authRouteDefinitions,
+  publicRouteDefinitions,
   unauthRouteDefinitions,
   type AppRouteDefinition,
 } from '../navigation/routeRegistry';
@@ -9,7 +10,7 @@ import { AnimatedRoute, ComponentErrorBoundary } from '../components';
 import { UnauthOnlyRoute } from './RouteGuards';
 
 const byId: Map<string, AppRouteDefinition> = new Map();
-[...authRouteDefinitions, ...unauthRouteDefinitions].forEach((r) => {
+[...authRouteDefinitions, ...unauthRouteDefinitions, ...publicRouteDefinitions].forEach((r) => {
   if (!byId.has(r.id)) byId.set(r.id, r);
 });
 
@@ -25,6 +26,10 @@ export function renderRouteContent(route: AppRouteDefinition) {
 
   if (route.visibility === 'unauth') {
     return <UnauthOnlyRoute>{content}</UnauthOnlyRoute>;
+  }
+
+  if (route.visibility === 'public') {
+    return content;
   }
 
   if (route.accessControlled) {

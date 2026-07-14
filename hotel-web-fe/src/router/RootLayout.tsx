@@ -11,6 +11,7 @@ export const RootLayout: React.FC = () => {
   const { isAuthenticated, isLoading, shouldPromptPasskey, user, dismissPasskeyPrompt } = useAuth();
   const location = useLocation();
   const pathname = location.pathname;
+  const isGuestPortal = pathname === '/portal' || pathname.startsWith('/portal/');
   const isTimelinePage = pathname.startsWith('/timeline');
   const boardSkinActive = isAuthenticated && !isTimelinePage;
   const appBarSkinActive = isAuthenticated;
@@ -22,9 +23,20 @@ export const RootLayout: React.FC = () => {
     };
   }, [boardSkinActive]);
 
-  if (isLoading) {
-    return <LoadingFallback />;
+  // The guest portal uses its own short-lived guest token. It must neither
+  // wait for nor inherit the staff account shell when both sessions happen to
+  // exist in the same browser.
+  if (isGuestPortal) {
+    return (
+      <ErrorBoundary title="Guest Portal Error">
+        <Suspense fallback={<LoadingFallback />}>
+          <Outlet />
+        </Suspense>
+      </ErrorBoundary>
+    );
   }
+
+  if (isLoading) return <LoadingFallback />;
 
   if (!isAuthenticated) {
     return (

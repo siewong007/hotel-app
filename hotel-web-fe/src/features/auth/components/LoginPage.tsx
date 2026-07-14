@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from '../../../router';
+import { useNavigate, useSearchParams } from '../../../router';
 import {
   Box,
   Container,
@@ -34,7 +34,12 @@ type LoginMethod = 'password' | 'passkey' | null;
 
 const LoginPage: React.FC = () => {
   const hotelSettings = getHotelSettings();
-  const [userType, setUserType] = useState<UserType>(null);
+  const [searchParams] = useSearchParams();
+  const isGuestPasswordLogin = searchParams.get('account') === 'guest'
+    && searchParams.get('method') === 'password';
+  const [userType, setUserType] = useState<UserType>(() =>
+    searchParams.get('account') === 'guest' ? 'guest' : null
+  );
   const [loginMethod, setLoginMethod] = useState<LoginMethod>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -153,6 +158,11 @@ const LoginPage: React.FC = () => {
 
     setUsernameSubmitted(true);
     setError('');
+
+    if (isGuestPasswordLogin) {
+      setShowPasswordField(true);
+      return;
+    }
 
     // Attempt passkey authentication first
     await attemptPasskeyAuth();
@@ -748,7 +758,9 @@ const LoginPage: React.FC = () => {
 
                             <Box sx={{ textAlign: 'center' }}>
                               <Typography variant="caption" color="text.secondary">
-                                Passkey not available. Using password instead.
+                                {isGuestPasswordLogin
+                                  ? 'Sign in with your registered username and password.'
+                                  : 'Passkey not available. Using password instead.'}
                               </Typography>
                             </Box>
                           </form>
