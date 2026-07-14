@@ -26,6 +26,8 @@ pub mod night_audit_scheduler;
 pub mod passkey;
 pub mod payments;
 pub mod profile;
+#[allow(dead_code)]
+pub mod promotion_pricing;
 pub mod rates;
 pub mod rbac;
 pub mod rooms;

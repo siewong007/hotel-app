@@ -6204,3 +6204,188 @@ CREATE TABLE IF NOT EXISTS support_guest_request_idempotency_keys (
 
 CREATE INDEX IF NOT EXISTS idx_support_guest_request_idempotency_conversation
     ON support_guest_request_idempotency_keys (conversation_id);
+
+-- ============================================================================
+-- 041_promotions_vouchers.sql
+-- ============================================================================
+-- Promotions define immutable-at-redemption campaign terms. Vouchers are
+-- guest-bound entitlements, while redemptions and nightly allocations preserve
+-- the financial snapshot used by booking, invoice, and night-audit workflows.
+
+CREATE TABLE IF NOT EXISTS promotions (
+    id BIGSERIAL PRIMARY KEY,
+    slug VARCHAR(120) NOT NULL UNIQUE,
+    name VARCHAR(160) NOT NULL,
+    description TEXT,
+    terms TEXT,
+    status VARCHAR(16) NOT NULL DEFAULT 'draft' CHECK (
+        status IN ('draft', 'published', 'paused', 'archived')
+    ),
+    promotion_kind VARCHAR(16) NOT NULL DEFAULT 'voucher' CHECK (
+        promotion_kind IN ('deal', 'voucher')
+    ),
+    discount_type VARCHAR(24) NOT NULL CHECK (
+        discount_type IN ('percentage', 'fixed_amount')
+    ),
+    discount_value DECIMAL(12, 2) NOT NULL,
+    max_discount_amount DECIMAL(12, 2),
+    currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+    claim_starts_at TIMESTAMP WITH TIME ZONE,
+    claim_ends_at TIMESTAMP WITH TIME ZONE,
+    stay_starts_on DATE,
+    stay_ends_on DATE,
+    min_nights INTEGER NOT NULL DEFAULT 1,
+    max_nights INTEGER,
+    min_subtotal DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    claim_limit INTEGER,
+    claimed_count INTEGER NOT NULL DEFAULT 0,
+    per_guest_limit INTEGER NOT NULL DEFAULT 1,
+    is_public BOOLEAN NOT NULL DEFAULT true,
+    version INTEGER NOT NULL DEFAULT 1,
+    created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    updated_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT promotions_slug_not_blank CHECK (length(trim(slug)) > 0),
+    CONSTRAINT promotions_name_not_blank CHECK (length(trim(name)) > 0),
+    CONSTRAINT promotions_discount_value_valid CHECK (
+        discount_value >= 0
+        AND (discount_type <> 'percentage' OR discount_value <= 100)
+    ),
+    CONSTRAINT promotions_max_discount_valid CHECK (
+        max_discount_amount IS NULL OR max_discount_amount >= 0
+    ),
+    CONSTRAINT promotions_currency_valid CHECK (
+        length(currency) = 3 AND currency = upper(currency)
+    ),
+    CONSTRAINT promotions_claim_window_valid CHECK (
+        claim_starts_at IS NULL
+        OR claim_ends_at IS NULL
+        OR claim_ends_at > claim_starts_at
+    ),
+    CONSTRAINT promotions_stay_window_valid CHECK (
+        stay_starts_on IS NULL
+        OR stay_ends_on IS NULL
+        OR stay_ends_on >= stay_starts_on
+    ),
+    CONSTRAINT promotions_nights_valid CHECK (
+        min_nights >= 1 AND (max_nights IS NULL OR max_nights >= min_nights)
+    ),
+    CONSTRAINT promotions_min_subtotal_valid CHECK (min_subtotal >= 0),
+    CONSTRAINT promotions_claim_limit_valid CHECK (claim_limit IS NULL OR claim_limit >= 0),
+    CONSTRAINT promotions_claimed_count_valid CHECK (
+        claimed_count >= 0 AND (claim_limit IS NULL OR claimed_count <= claim_limit)
+    ),
+    CONSTRAINT promotions_per_guest_limit_valid CHECK (per_guest_limit >= 1),
+    CONSTRAINT promotions_version_valid CHECK (version >= 1)
+);
+
+CREATE TABLE IF NOT EXISTS promotion_room_types (
+    promotion_id BIGINT NOT NULL REFERENCES promotions(id) ON DELETE CASCADE,
+    room_type_id BIGINT NOT NULL REFERENCES room_types(id) ON DELETE RESTRICT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (promotion_id, room_type_id)
+);
+
+CREATE TABLE IF NOT EXISTS vouchers (
+    id BIGSERIAL PRIMARY KEY,
+    promotion_id BIGINT NOT NULL REFERENCES promotions(id) ON DELETE RESTRICT,
+    guest_id BIGINT NOT NULL REFERENCES guests(id) ON DELETE RESTRICT,
+    code VARCHAR(64) NOT NULL UNIQUE,
+    status VARCHAR(16) NOT NULL DEFAULT 'available' CHECK (
+        status IN ('available', 'redeemed', 'revoked')
+    ),
+    source VARCHAR(16) NOT NULL CHECK (source IN ('guest_claim', 'admin_issue')),
+    expires_at TIMESTAMP WITH TIME ZONE,
+    redeemed_at TIMESTAMP WITH TIME ZONE,
+    revoked_at TIMESTAMP WITH TIME ZONE,
+    revoked_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    revocation_reason TEXT,
+    issued_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    claimed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT vouchers_code_not_blank CHECK (length(trim(code)) > 0)
+);
+
+CREATE TABLE IF NOT EXISTS voucher_redemptions (
+    id BIGSERIAL PRIMARY KEY,
+    voucher_id BIGINT NOT NULL REFERENCES vouchers(id) ON DELETE RESTRICT,
+    promotion_id BIGINT NOT NULL REFERENCES promotions(id) ON DELETE RESTRICT,
+    booking_id BIGINT NOT NULL REFERENCES bookings(id) ON DELETE RESTRICT,
+    guest_id BIGINT NOT NULL REFERENCES guests(id) ON DELETE RESTRICT,
+    status VARCHAR(16) NOT NULL DEFAULT 'applied' CHECK (
+        status IN ('applied', 'reversed')
+    ),
+    gross_subtotal DECIMAL(12, 2) NOT NULL CHECK (gross_subtotal >= 0),
+    discount_type VARCHAR(24) NOT NULL CHECK (
+        discount_type IN ('percentage', 'fixed_amount')
+    ),
+    discount_value DECIMAL(12, 2) NOT NULL CHECK (
+        discount_value >= 0
+        AND (discount_type <> 'percentage' OR discount_value <= 100)
+    ),
+    discount_amount DECIMAL(12, 2) NOT NULL CHECK (
+        discount_amount >= 0 AND discount_amount <= gross_subtotal
+    ),
+    net_total DECIMAL(12, 2) NOT NULL CHECK (
+        net_total >= 0 AND net_total = gross_subtotal - discount_amount
+    ),
+    applied_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    applied_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reversed_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    reversed_at TIMESTAMP WITH TIME ZONE,
+    reversal_reason TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS voucher_redemption_allocations (
+    id BIGSERIAL PRIMARY KEY,
+    redemption_id BIGINT NOT NULL REFERENCES voucher_redemptions(id) ON DELETE CASCADE,
+    booking_id BIGINT NOT NULL REFERENCES bookings(id) ON DELETE RESTRICT,
+    stay_date DATE NOT NULL,
+    gross_amount DECIMAL(12, 2) NOT NULL CHECK (gross_amount >= 0),
+    discount_amount DECIMAL(12, 2) NOT NULL CHECK (
+        discount_amount >= 0 AND discount_amount <= gross_amount
+    ),
+    net_amount DECIMAL(12, 2) NOT NULL CHECK (
+        net_amount >= 0 AND net_amount = gross_amount - discount_amount
+    ),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (redemption_id, stay_date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_promotions_public_window
+    ON promotions (status, is_public, claim_starts_at, claim_ends_at);
+CREATE INDEX IF NOT EXISTS idx_promotion_room_types_room_type
+    ON promotion_room_types (room_type_id, promotion_id);
+CREATE INDEX IF NOT EXISTS idx_vouchers_guest_status
+    ON vouchers (guest_id, status, expires_at);
+CREATE INDEX IF NOT EXISTS idx_vouchers_promotion_guest
+    ON vouchers (promotion_id, guest_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_voucher_redemptions_active_voucher
+    ON voucher_redemptions (voucher_id)
+    WHERE status = 'applied';
+CREATE UNIQUE INDEX IF NOT EXISTS uq_voucher_redemptions_active_booking
+    ON voucher_redemptions (booking_id)
+    WHERE status = 'applied';
+CREATE INDEX IF NOT EXISTS idx_voucher_redemptions_guest_applied
+    ON voucher_redemptions (guest_id, applied_at DESC);
+CREATE INDEX IF NOT EXISTS idx_voucher_redemption_allocations_booking_date
+    ON voucher_redemption_allocations (booking_id, stay_date);
+
+DROP TRIGGER IF EXISTS update_promotions_updated_at ON promotions;
+CREATE TRIGGER update_promotions_updated_at
+    BEFORE UPDATE ON promotions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_vouchers_updated_at ON vouchers;
+CREATE TRIGGER update_vouchers_updated_at
+    BEFORE UPDATE ON vouchers
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_voucher_redemptions_updated_at ON voucher_redemptions;
+CREATE TRIGGER update_voucher_redemptions_updated_at
+    BEFORE UPDATE ON voucher_redemptions
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

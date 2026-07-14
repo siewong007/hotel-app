@@ -29,7 +29,7 @@ import {
   RestartAlt as ReopenIcon,
   StickyNote2Outlined as InternalNoteIcon,
 } from '@mui/icons-material';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { newSupportClientId } from '../api';
 import type {
   SupportActionPayload,
@@ -47,6 +47,7 @@ import {
   SupportSlaChip,
   SupportStatusChip,
 } from './SupportStatusChip';
+import { getSupportConversationAccess } from '../utils';
 
 type ComposerMode = 'reply' | 'note';
 type DialogMode = 'assign' | 'resolve' | 'escalate' | 'close' | 'reopen' | null;
@@ -107,6 +108,8 @@ export default function SupportConversationDetail({
   const [resolutionCode, setResolutionCode] = useState('');
   const [resolutionSummary, setResolutionSummary] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
+  const pendingActionClientIds = useRef(new Map<string, string>());
+  const pendingMessageClientIds = useRef(new Map<string, string>());
 
   const conversation = detail?.conversation;
   const timeline = useMemo(() => detail ? getTimelineItems(detail) : [], [detail]);
@@ -123,12 +126,20 @@ export default function SupportConversationDetail({
     if (!conversation) return;
 
     setLocalError(null);
+    const actionPayload = {
+      ...payload,
+      expected_version: conversation.version,
+    };
+    const retryKey = JSON.stringify({ conversationId: conversation.id, payload: actionPayload });
+    const clientActionId = pendingActionClientIds.current.get(retryKey) ?? newSupportClientId();
+    pendingActionClientIds.current.set(retryKey, clientActionId);
+
     try {
       await onAction({
-        ...payload,
-        expected_version: conversation.version,
-        client_action_id: newSupportClientId(),
+        ...actionPayload,
+        client_action_id: clientActionId,
       });
+      pendingActionClientIds.current.delete(retryKey);
       resetDialog();
       if (payload.action === 'add_internal_note') setDraft('');
     } catch (error) {
@@ -146,11 +157,21 @@ export default function SupportConversationDetail({
         return;
       }
 
+      const message = draft.trim();
+      const retryKey = JSON.stringify({
+        conversationId: conversation.id,
+        expectedVersion: conversation.version,
+        message,
+      });
+      const clientMessageId = pendingMessageClientIds.current.get(retryKey) ?? newSupportClientId();
+      pendingMessageClientIds.current.set(retryKey, clientMessageId);
+
       await onSendMessage({
-        message: draft.trim(),
-        client_message_id: newSupportClientId(),
+        message,
+        client_message_id: clientMessageId,
         expected_version: conversation.version,
       });
+      pendingMessageClientIds.current.delete(retryKey);
       setDraft('');
     } catch (error) {
       setLocalError(error instanceof Error ? error.message : 'Unable to send the reply');
@@ -206,22 +227,14 @@ export default function SupportConversationDetail({
     );
   }
 
-  const isAssignedToCurrentUser = conversation.assigned_to_user_id === currentUserId;
-  const isActive = ['waiting_for_staff', 'waiting_for_guest'].includes(conversation.status);
-  const canWorkOnConversation = canManage || isAssignedToCurrentUser
-    || (!conversation.assigned_to_user_id && canAssign);
-  const canReply = canWrite
-    && canWorkOnConversation
-    && isActive;
-  const canAddInternalNote = canWrite && (canManage || isAssignedToCurrentUser);
-  const activeComposerMode = composerMode === 'note' && !canAddInternalNote ? 'reply' : composerMode;
-  const canResolve = canWrite
-    && (canManage || isAssignedToCurrentUser)
-    && isActive;
-  const canReopen = canManage && ['resolved', 'closed'].includes(conversation.status);
-  const canClose = canManage && conversation.status === 'resolved';
-  const canRelease = canAssign && Boolean(conversation.assigned_to_user_id)
-    && (canManage || isAssignedToCurrentUser);
+  const access = getSupportConversationAccess(conversation, {
+    currentUserId,
+    canWrite,
+    canAssign,
+    canEscalate,
+    canManage,
+  });
+  const activeComposerMode = composerMode === 'note' && !access.canAddInternalNote ? 'reply' : composerMode;
 
   return (
     <Stack height="100%" minHeight={0}>
@@ -261,22 +274,22 @@ export default function SupportConversationDetail({
           </Stack>
 
           <Stack direction="row" gap={0.75} flexWrap="wrap" useFlexGap alignItems="center">
-            {canAssign && !conversation.assigned_to_user_id && conversation.status !== 'closed' ? (
+            {access.canClaim ? (
               <Button size="small" variant="outlined" startIcon={<ClaimIcon />} disabled={isBusy} onClick={() => void performAction({ action: 'claim' })}>
                 Claim
               </Button>
             ) : null}
-            {canAssign && isActive ? (
+            {access.canAssign ? (
               <Button size="small" variant="outlined" startIcon={<AssignIcon />} disabled={isBusy} onClick={() => setDialogMode('assign')}>
                 Assign
               </Button>
             ) : null}
-            {canRelease && conversation.status !== 'closed' ? (
+            {access.canRelease ? (
               <Button size="small" variant="text" disabled={isBusy} onClick={() => void performAction({ action: 'release' })}>
                 Return to queue
               </Button>
             ) : null}
-            {canManage && isActive ? (
+            {canManage && access.isActive ? (
               <FormControl size="small" sx={{ minWidth: 132 }}>
                 <InputLabel id="support-priority-label">Priority</InputLabel>
                 <Select
@@ -292,22 +305,22 @@ export default function SupportConversationDetail({
                 </Select>
               </FormControl>
             ) : null}
-            {canEscalate && isActive ? (
+            {access.canEscalate ? (
               <Button size="small" color="warning" variant="outlined" startIcon={<EscalateIcon />} disabled={isBusy} onClick={() => setDialogMode('escalate')}>
                 Escalate
               </Button>
             ) : null}
-            {canResolve ? (
+            {access.canResolve ? (
               <Button size="small" color="success" variant="contained" startIcon={<ResolveIcon />} disabled={isBusy} onClick={() => setDialogMode('resolve')}>
                 Resolve
               </Button>
             ) : null}
-            {canClose ? (
+            {access.canClose ? (
               <Button size="small" variant="outlined" startIcon={<CloseIcon />} disabled={isBusy} onClick={() => setDialogMode('close')}>
                 Close
               </Button>
             ) : null}
-            {canReopen ? (
+            {access.canReopen ? (
               <Button size="small" variant="outlined" startIcon={<ReopenIcon />} disabled={isBusy} onClick={() => setDialogMode('reopen')}>
                 Reopen
               </Button>
@@ -379,11 +392,9 @@ export default function SupportConversationDetail({
       <Divider />
       <Box sx={{ p: 2 }}>
         {localError ? <Alert severity="error" sx={{ mb: 1.25 }} onClose={() => setLocalError(null)}>{localError}</Alert> : null}
-        {!canReply ? (
+        {!access.canReply ? (
           <Alert severity="info">
-            {!conversation.assigned_to_user_id && canWrite && !canAssign
-              ? 'A support coordinator must claim this conversation before you can reply.'
-              : 'This conversation must be reopened before another reply or internal note can be added.'}
+            {access.blockedReplyMessage}
           </Alert>
         ) : (
           <Stack spacing={1}>
@@ -394,7 +405,7 @@ export default function SupportConversationDetail({
               sx={{ minHeight: 36 }}
             >
               <Tab value="reply" icon={<ReplyIcon fontSize="small" />} iconPosition="start" label="Reply to guest" sx={{ minHeight: 36 }} />
-              {canAddInternalNote ? (
+              {access.canAddInternalNote ? (
                 <Tab value="note" icon={<InternalNoteIcon fontSize="small" />} iconPosition="start" label="Internal note" sx={{ minHeight: 36 }} />
               ) : null}
             </Tabs>

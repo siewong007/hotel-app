@@ -105,6 +105,7 @@ VALUES
     ('navigation_my_bookings:read'),
     ('navigation_my_rewards:read'),
     ('navigation_night_audit:read'),
+    ('navigation_promotions:read'),
     ('navigation_rbac:read'),
     ('navigation_reports:read'),
     ('navigation_room_config:read'),
@@ -124,6 +125,8 @@ VALUES
     ('permissions:manage'),
     ('permissions:read'),
     ('permissions:update'),
+    ('promotions:manage'),
+    ('promotions:read'),
     ('reports:execute'),
     ('reports:read'),
     ('reviews:create'),
@@ -161,7 +164,9 @@ VALUES
     ('users:delete'),
     ('users:manage'),
     ('users:read'),
-    ('users:update');
+    ('users:update'),
+    ('vouchers:manage'),
+    ('vouchers:read');
 
 CREATE TEMP TABLE expected_system_settings (
     key TEXT PRIMARY KEY
@@ -269,6 +274,7 @@ VALUES
     ('my-bookings'),
     ('night-audit'),
     ('profile'),
+    ('promotions'),
     ('rbac'),
     ('reports'),
     ('room-config'),
@@ -499,6 +505,11 @@ INSERT INTO permissions (name, resource, action, description, is_system_permissi
 ('support:escalate', 'support', 'escalate', 'Escalate guest support conversations', true),
 ('support:manage', 'support', 'manage', 'Full guest support management', true),
 ('navigation_support:read', 'navigation:support', 'read', 'Show Support navigation', true),
+('promotions:read', 'promotions', 'read', 'View promotions and promotion performance', true),
+('promotions:manage', 'promotions', 'manage', 'Create and manage promotions', true),
+('vouchers:read', 'vouchers', 'read', 'View issued vouchers and redemptions', true),
+('vouchers:manage', 'vouchers', 'manage', 'Issue, revoke, and manage vouchers', true),
+('navigation_promotions:read', 'navigation:promotions', 'read', 'Show Promotions navigation', true),
 ('bookings:create', 'bookings', 'create', 'Create new bookings', true),
 ('bookings:read', 'bookings', 'read', 'View bookings', true),
 ('bookings:update', 'bookings', 'update', 'Update bookings', true),
@@ -727,6 +738,48 @@ VALUES (
     '[]'::jsonb,
     '[]'::jsonb,
     '["navigation_support:read","support:read"]'::jsonb,
+    '[]'::jsonb,
+    '["guest"]'::jsonb,
+    true,
+    true
+)
+ON CONFLICT (route_id) DO UPDATE SET
+    path = EXCLUDED.path,
+    nav_label = EXCLUDED.nav_label,
+    nav_group = EXCLUDED.nav_group,
+    required_permissions = EXCLUDED.required_permissions,
+    required_roles = EXCLUDED.required_roles,
+    excluded_roles = EXCLUDED.excluded_roles,
+    nav_permissions = EXCLUDED.nav_permissions,
+    nav_roles = EXCLUDED.nav_roles,
+    nav_excluded_roles = EXCLUDED.nav_excluded_roles,
+    is_navigation = EXCLUDED.is_navigation,
+    is_system_policy = EXCLUDED.is_system_policy,
+    updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO route_access_policies (
+    route_id,
+    path,
+    nav_label,
+    nav_group,
+    required_permissions,
+    required_roles,
+    excluded_roles,
+    nav_permissions,
+    nav_roles,
+    nav_excluded_roles,
+    is_navigation,
+    is_system_policy
+)
+VALUES (
+    'promotions',
+    '/promotions',
+    'Promotions',
+    'admin',
+    '["promotions:read"]'::jsonb,
+    '[]'::jsonb,
+    '[]'::jsonb,
+    '["navigation_promotions:read","promotions:read"]'::jsonb,
     '[]'::jsonb,
     '["guest"]'::jsonb,
     true,

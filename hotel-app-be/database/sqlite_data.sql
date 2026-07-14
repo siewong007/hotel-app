@@ -1151,3 +1151,56 @@ ON CONFLICT(key) DO UPDATE SET
     description = excluded.description,
     is_sensitive = excluded.is_sensitive,
     updated_at = datetime('now');
+
+
+-- Source migration 026: promotions_vouchers
+-- Promotions and vouchers use read/manage actions already accepted by the
+-- shared RBAC validator. Guest discovery and claims are session-scoped and do
+-- not require granting these administrative permissions to the guest role.
+
+INSERT INTO permissions (name, resource, action, description, is_system_permission)
+VALUES
+    ('promotions:read', 'promotions', 'read', 'View promotions and promotion performance', 1),
+    ('promotions:manage', 'promotions', 'manage', 'Create and manage promotions', 1),
+    ('vouchers:read', 'vouchers', 'read', 'View issued vouchers and redemptions', 1),
+    ('vouchers:manage', 'vouchers', 'manage', 'Issue, revoke, and manage vouchers', 1),
+    ('navigation_promotions:read', 'navigation:promotions', 'read', 'Show Promotions navigation', 1)
+ON CONFLICT(name) DO UPDATE SET
+    resource = excluded.resource,
+    action = excluded.action,
+    description = excluded.description,
+    is_system_permission = excluded.is_system_permission;
+
+INSERT OR IGNORE INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.name IN ('super_admin', 'admin')
+  AND p.name IN (
+      'promotions:read', 'promotions:manage',
+      'vouchers:read', 'vouchers:manage',
+      'navigation_promotions:read'
+  );
+
+INSERT INTO route_access_policies (
+    route_id, path, nav_label, nav_group, required_permissions, required_roles,
+    excluded_roles, nav_permissions, nav_roles, nav_excluded_roles, is_navigation,
+    is_system_policy
+)
+VALUES (
+    'promotions', '/promotions', 'Promotions', 'admin', '["promotions:read"]', '[]', '[]',
+    '["navigation_promotions:read","promotions:read"]', '[]', '["guest"]', 1, 1
+)
+ON CONFLICT(route_id) DO UPDATE SET
+    path = excluded.path,
+    nav_label = excluded.nav_label,
+    nav_group = excluded.nav_group,
+    required_permissions = excluded.required_permissions,
+    required_roles = excluded.required_roles,
+    excluded_roles = excluded.excluded_roles,
+    nav_permissions = excluded.nav_permissions,
+    nav_roles = excluded.nav_roles,
+    nav_excluded_roles = excluded.nav_excluded_roles,
+    is_navigation = excluded.is_navigation,
+    is_system_policy = excluded.is_system_policy,
+    updated_at = datetime('now');
