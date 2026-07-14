@@ -43,7 +43,9 @@ pub fn validate_status(value: &str) -> Result<String, ApiError> {
     if PROMOTION_STATUSES.contains(&value.as_str()) {
         Ok(value)
     } else {
-        Err(ApiError::BadRequest("Unsupported promotion status".to_string()))
+        Err(ApiError::BadRequest(
+            "Unsupported promotion status".to_string(),
+        ))
     }
 }
 
@@ -52,11 +54,18 @@ pub fn validate_voucher_status(value: &str) -> Result<String, ApiError> {
     if VOUCHER_STATUSES.contains(&value.as_str()) {
         Ok(value)
     } else {
-        Err(ApiError::BadRequest("Unsupported voucher status".to_string()))
+        Err(ApiError::BadRequest(
+            "Unsupported voucher status".to_string(),
+        ))
     }
 }
 
-fn sanitize_required_text(value: &str, field: &str, min: usize, max: usize) -> Result<String, ApiError> {
+fn sanitize_required_text(
+    value: &str,
+    field: &str,
+    min: usize,
+    max: usize,
+) -> Result<String, ApiError> {
     let value = Sanitizer::sanitize_notes(value).trim().to_string();
     let len = value.chars().count();
     if len < min || len > max {
@@ -67,7 +76,11 @@ fn sanitize_required_text(value: &str, field: &str, min: usize, max: usize) -> R
     Ok(value)
 }
 
-fn sanitize_optional_text(value: Option<String>, field: &str, max: usize) -> Result<Option<String>, ApiError> {
+fn sanitize_optional_text(
+    value: Option<String>,
+    field: &str,
+    max: usize,
+) -> Result<Option<String>, ApiError> {
     let Some(value) = value else {
         return Ok(None);
     };
@@ -88,9 +101,9 @@ pub fn normalize_slug(value: &str) -> Result<String, ApiError> {
     let value = value.trim_matches('-');
     if value.len() < 3
         || value.len() > 80
-        || !value
-            .chars()
-            .all(|character| character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-')
+        || !value.chars().all(|character| {
+            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+        })
     {
         return Err(ApiError::BadRequest(
             "Promotion slug must use 3-80 lowercase letters, numbers, or hyphens".to_string(),
@@ -103,7 +116,9 @@ pub fn normalize_voucher_code(value: &str) -> Result<String, ApiError> {
     let value = value.trim().to_ascii_uppercase().replace([' ', '-'], "");
     if value.len() < 8
         || value.len() > 64
-        || !value.chars().all(|character| character.is_ascii_alphanumeric())
+        || !value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric())
     {
         return Err(ApiError::BadRequest(
             "Voucher code must use 8-64 letters or numbers".to_string(),
@@ -114,7 +129,9 @@ pub fn normalize_voucher_code(value: &str) -> Result<String, ApiError> {
 
 fn decimal_from_f64(value: f64, field: &str) -> Result<Decimal, ApiError> {
     if !value.is_finite() {
-        return Err(ApiError::BadRequest(format!("{field} must be a finite number")));
+        return Err(ApiError::BadRequest(format!(
+            "{field} must be a finite number"
+        )));
     }
     value
         .to_string()
@@ -125,11 +142,15 @@ fn decimal_from_f64(value: f64, field: &str) -> Result<Decimal, ApiError> {
 pub fn validate_promotion_input(input: PromotionInput) -> Result<PromotionDraft, ApiError> {
     let promotion_kind = normalized_choice(&input.promotion_kind);
     if !PROMOTION_KINDS.contains(&promotion_kind.as_str()) {
-        return Err(ApiError::BadRequest("Unsupported promotion kind".to_string()));
+        return Err(ApiError::BadRequest(
+            "Unsupported promotion kind".to_string(),
+        ));
     }
     let discount_type = normalized_choice(&input.discount_type);
     if !DISCOUNT_TYPES.contains(&discount_type.as_str()) {
-        return Err(ApiError::BadRequest("Unsupported discount type".to_string()));
+        return Err(ApiError::BadRequest(
+            "Unsupported discount type".to_string(),
+        ));
     }
     let discount_value = decimal_from_f64(input.discount_value, "discount value")?;
     if discount_value <= Decimal::ZERO {
@@ -202,7 +223,11 @@ pub fn validate_promotion_input(input: PromotionInput) -> Result<PromotionDraft,
     }
     let currency = input.currency.unwrap_or_else(|| "USD".to_string());
     let currency = currency.trim().to_ascii_uppercase();
-    if currency.len() != 3 || !currency.chars().all(|character| character.is_ascii_uppercase()) {
+    if currency.len() != 3
+        || !currency
+            .chars()
+            .all(|character| character.is_ascii_uppercase())
+    {
         return Err(ApiError::BadRequest(
             "Currency must be a three-letter ISO code".to_string(),
         ));
@@ -248,7 +273,10 @@ mod tests {
 
     #[test]
     fn normalizes_voucher_codes_without_preserving_separators() {
-        assert_eq!(normalize_voucher_code(" vch-ab12 34cd ").unwrap(), "VCHAB1234CD");
+        assert_eq!(
+            normalize_voucher_code(" vch-ab12 34cd ").unwrap(),
+            "VCHAB1234CD"
+        );
     }
 
     #[test]

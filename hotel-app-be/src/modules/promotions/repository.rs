@@ -71,11 +71,25 @@ fn promotion_from_row(row: &DbRow, room_type_ids: Vec<i64>) -> Promotion {
         discount_type: row.try_get("discount_type").unwrap_or_default(),
         discount_value: decimal_to_f64(get_decimal(row, "discount_value")),
         max_discount_amount: get_opt_decimal(row, "max_discount_amount").map(decimal_to_f64),
-        currency: row.try_get("currency").unwrap_or_else(|_| "USD".to_string()),
-        claim_starts_at: row.try_get::<Option<DateTime<Utc>>, _>("claim_starts_at").ok().flatten(),
-        claim_ends_at: row.try_get::<Option<DateTime<Utc>>, _>("claim_ends_at").ok().flatten(),
-        stay_starts_on: row.try_get::<Option<NaiveDate>, _>("stay_starts_on").ok().flatten(),
-        stay_ends_on: row.try_get::<Option<NaiveDate>, _>("stay_ends_on").ok().flatten(),
+        currency: row
+            .try_get("currency")
+            .unwrap_or_else(|_| "USD".to_string()),
+        claim_starts_at: row
+            .try_get::<Option<DateTime<Utc>>, _>("claim_starts_at")
+            .ok()
+            .flatten(),
+        claim_ends_at: row
+            .try_get::<Option<DateTime<Utc>>, _>("claim_ends_at")
+            .ok()
+            .flatten(),
+        stay_starts_on: row
+            .try_get::<Option<NaiveDate>, _>("stay_starts_on")
+            .ok()
+            .flatten(),
+        stay_ends_on: row
+            .try_get::<Option<NaiveDate>, _>("stay_ends_on")
+            .ok()
+            .flatten(),
         min_nights: row.try_get("min_nights").ok(),
         max_nights: row.try_get("max_nights").ok(),
         min_subtotal: get_opt_decimal(row, "min_subtotal").map(decimal_to_f64),
@@ -114,10 +128,22 @@ fn voucher_from_row(row: &DbRow, include_code: bool) -> Voucher {
         code_masked: mask_voucher_code(&raw_code),
         status: row.try_get("status").unwrap_or_default(),
         source: row.try_get("source").unwrap_or_default(),
-        expires_at: row.try_get::<Option<DateTime<Utc>>, _>("expires_at").ok().flatten(),
-        claimed_at: row.try_get::<Option<DateTime<Utc>>, _>("claimed_at").ok().flatten(),
-        redeemed_at: row.try_get::<Option<DateTime<Utc>>, _>("redeemed_at").ok().flatten(),
-        revoked_at: row.try_get::<Option<DateTime<Utc>>, _>("revoked_at").ok().flatten(),
+        expires_at: row
+            .try_get::<Option<DateTime<Utc>>, _>("expires_at")
+            .ok()
+            .flatten(),
+        claimed_at: row
+            .try_get::<Option<DateTime<Utc>>, _>("claimed_at")
+            .ok()
+            .flatten(),
+        redeemed_at: row
+            .try_get::<Option<DateTime<Utc>>, _>("redeemed_at")
+            .ok()
+            .flatten(),
+        revoked_at: row
+            .try_get::<Option<DateTime<Utc>>, _>("revoked_at")
+            .ok()
+            .flatten(),
         created_at: row.try_get("created_at").unwrap_or_else(|_| Utc::now()),
     }
 }
@@ -136,7 +162,10 @@ impl PromotionRepository {
         .map_err(ApiError::from)
     }
 
-    async fn promotions_from_rows(pool: &DbPool, rows: Vec<DbRow>) -> Result<Vec<Promotion>, ApiError> {
+    async fn promotions_from_rows(
+        pool: &DbPool,
+        rows: Vec<DbRow>,
+    ) -> Result<Vec<Promotion>, ApiError> {
         let mut promotions = Vec::with_capacity(rows.len());
         for row in rows {
             let promotion_id = row.try_get("id").map_err(ApiError::from)?;
@@ -177,9 +206,8 @@ impl PromotionRepository {
             .fetch_one(pool)
             .await
             .map_err(ApiError::from)?;
-        let sql = format!(
-            crate::sql_query!(
-                postgres: r#"
+        let sql = crate::sql_query!(
+            postgres: r#"
                     SELECT {PROMOTION_COLUMNS}
                     FROM promotions p
                     WHERE p.status = 'published'
@@ -190,7 +218,7 @@ impl PromotionRepository {
                     ORDER BY p.claim_ends_at NULLS LAST, p.created_at DESC
                     LIMIT $1 OFFSET $2
                 "#,
-                sqlite: r#"
+            sqlite: r#"
                     SELECT {PROMOTION_COLUMNS}
                     FROM promotions p
                     WHERE p.status = 'published'
@@ -201,9 +229,8 @@ impl PromotionRepository {
                     ORDER BY (p.claim_ends_at IS NULL), p.claim_ends_at, p.created_at DESC
                     LIMIT ?1 OFFSET ?2
                 "#
-            ),
-            PROMOTION_COLUMNS = PROMOTION_COLUMNS,
-        );
+        )
+        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
         let rows = query(&sql)
             .bind(page_size)
             .bind(offset)
@@ -240,8 +267,7 @@ impl PromotionRepository {
             .fetch_one(pool)
             .await
             .map_err(ApiError::from)?;
-        let sql = format!(
-            crate::sql_query!(
+        let sql = crate::sql_query!(
                 postgres: r#"
                     SELECT {PROMOTION_COLUMNS}
                     FROM promotions p
@@ -258,9 +284,8 @@ impl PromotionRepository {
                     ORDER BY p.updated_at DESC
                     LIMIT ?3 OFFSET ?4
                 "#
-            ),
-            PROMOTION_COLUMNS = PROMOTION_COLUMNS,
-        );
+            )
+        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
         let rows = query(&sql)
             .bind(status)
             .bind(search)
@@ -272,14 +297,15 @@ impl PromotionRepository {
         Ok((total, Self::promotions_from_rows(pool, rows).await?))
     }
 
-    pub async fn find_by_id(pool: &DbPool, promotion_id: i64) -> Result<Option<Promotion>, ApiError> {
-        let sql = format!(
-            crate::sql_query!(
-                postgres: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = $1",
-                sqlite: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = ?1"
-            ),
-            PROMOTION_COLUMNS = PROMOTION_COLUMNS,
-        );
+    pub async fn find_by_id(
+        pool: &DbPool,
+        promotion_id: i64,
+    ) -> Result<Option<Promotion>, ApiError> {
+        let sql = crate::sql_query!(
+            postgres: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = $1",
+            sqlite: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = ?1"
+        )
+        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
         let row = query(&sql)
             .bind(promotion_id)
             .fetch_optional(pool)
@@ -295,10 +321,12 @@ impl PromotionRepository {
         )))
     }
 
-    pub async fn find_public_by_slug(pool: &DbPool, slug: &str) -> Result<Option<Promotion>, ApiError> {
-        let sql = format!(
-            crate::sql_query!(
-                postgres: r#"
+    pub async fn find_public_by_slug(
+        pool: &DbPool,
+        slug: &str,
+    ) -> Result<Option<Promotion>, ApiError> {
+        let sql = crate::sql_query!(
+            postgres: r#"
                     SELECT {PROMOTION_COLUMNS}
                     FROM promotions p
                     WHERE p.slug = $1
@@ -307,7 +335,7 @@ impl PromotionRepository {
                       AND (p.claim_starts_at IS NULL OR p.claim_starts_at <= CURRENT_TIMESTAMP)
                       AND (p.claim_ends_at IS NULL OR p.claim_ends_at >= CURRENT_TIMESTAMP)
                 "#,
-                sqlite: r#"
+            sqlite: r#"
                     SELECT {PROMOTION_COLUMNS}
                     FROM promotions p
                     WHERE p.slug = ?1
@@ -316,9 +344,8 @@ impl PromotionRepository {
                       AND (p.claim_starts_at IS NULL OR p.claim_starts_at <= datetime('now'))
                       AND (p.claim_ends_at IS NULL OR p.claim_ends_at >= datetime('now'))
                 "#
-            ),
-            PROMOTION_COLUMNS = PROMOTION_COLUMNS,
-        );
+        )
+        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
         let row = query(&sql)
             .bind(slug)
             .fetch_optional(pool)
@@ -338,13 +365,11 @@ impl PromotionRepository {
         tx: &mut DbTransaction<'_>,
         promotion_id: i64,
     ) -> Result<Option<Promotion>, ApiError> {
-        let sql = format!(
-            crate::sql_query!(
-                postgres: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = $1",
-                sqlite: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = ?1"
-            ),
-            PROMOTION_COLUMNS = PROMOTION_COLUMNS,
-        );
+        let sql = crate::sql_query!(
+            postgres: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = $1",
+            sqlite: "SELECT {PROMOTION_COLUMNS} FROM promotions p WHERE p.id = ?1"
+        )
+        .replace("{PROMOTION_COLUMNS}", PROMOTION_COLUMNS);
         let row = query(&sql)
             .bind(promotion_id)
             .fetch_optional(&mut **tx)
@@ -559,8 +584,7 @@ impl PromotionRepository {
         .fetch_one(pool)
         .await
         .map_err(ApiError::from)?;
-        let sql = format!(
-            crate::sql_query!(
+        let sql = crate::sql_query!(
                 postgres: r#"
                     SELECT {VOUCHER_COLUMNS}
                     FROM vouchers v JOIN promotions p ON p.id = v.promotion_id
@@ -577,9 +601,8 @@ impl PromotionRepository {
                              (v.expires_at IS NULL), v.expires_at, v.created_at DESC
                     LIMIT ?2 OFFSET ?3
                 "#
-            ),
-            VOUCHER_COLUMNS = VOUCHER_COLUMNS,
-        );
+            )
+        .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
         let rows = query(&sql)
             .bind(guest_id)
             .bind(page_size)
@@ -587,7 +610,10 @@ impl PromotionRepository {
             .fetch_all(pool)
             .await
             .map_err(ApiError::from)?;
-        Ok((total, rows.iter().map(|row| voucher_from_row(row, true)).collect()))
+        Ok((
+            total,
+            rows.iter().map(|row| voucher_from_row(row, true)).collect(),
+        ))
     }
 
     pub async fn list_admin_vouchers(
@@ -617,8 +643,7 @@ impl PromotionRepository {
             .fetch_one(pool)
             .await
             .map_err(ApiError::from)?;
-        let sql = format!(
-            crate::sql_query!(
+        let sql = crate::sql_query!(
                 postgres: r#"
                     SELECT {VOUCHER_COLUMNS}
                     FROM vouchers v JOIN promotions p ON p.id = v.promotion_id
@@ -633,9 +658,8 @@ impl PromotionRepository {
                       AND (?2 IS NULL OR LOWER(p.name) LIKE '%' || LOWER(?2) || '%' OR LOWER(v.code) LIKE '%' || LOWER(?2) || '%')
                     ORDER BY v.created_at DESC LIMIT ?3 OFFSET ?4
                 "#
-            ),
-            VOUCHER_COLUMNS = VOUCHER_COLUMNS,
-        );
+            )
+        .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
         let rows = query(&sql)
             .bind(status)
             .bind(search)
@@ -644,7 +668,12 @@ impl PromotionRepository {
             .fetch_all(pool)
             .await
             .map_err(ApiError::from)?;
-        Ok((total, rows.iter().map(|row| voucher_from_row(row, false)).collect()))
+        Ok((
+            total,
+            rows.iter()
+                .map(|row| voucher_from_row(row, false))
+                .collect(),
+        ))
     }
 
     pub async fn find_voucher_for_guest(
@@ -652,13 +681,11 @@ impl PromotionRepository {
         voucher_id: i64,
         guest_id: i64,
     ) -> Result<Option<Voucher>, ApiError> {
-        let sql = format!(
-            crate::sql_query!(
+        let sql = crate::sql_query!(
                 postgres: "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.id = $1 AND v.guest_id = $2",
                 sqlite: "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.id = ?1 AND v.guest_id = ?2"
-            ),
-            VOUCHER_COLUMNS = VOUCHER_COLUMNS,
-        );
+            )
+        .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
         let row = query(&sql)
             .bind(voucher_id)
             .bind(guest_id)
@@ -674,13 +701,11 @@ impl PromotionRepository {
         guest_id: i64,
         include_code: bool,
     ) -> Result<Option<Voucher>, ApiError> {
-        let sql = format!(
-            crate::sql_query!(
+        let sql = crate::sql_query!(
                 postgres: "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.promotion_id = $1 AND v.guest_id = $2",
                 sqlite: "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.promotion_id = ?1 AND v.guest_id = ?2"
-            ),
-            VOUCHER_COLUMNS = VOUCHER_COLUMNS,
-        );
+            )
+        .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
         let row = query(&sql)
             .bind(promotion_id)
             .bind(guest_id)
@@ -690,14 +715,15 @@ impl PromotionRepository {
         Ok(row.as_ref().map(|row| voucher_from_row(row, include_code)))
     }
 
-    pub async fn find_voucher_admin(pool: &DbPool, voucher_id: i64) -> Result<Option<Voucher>, ApiError> {
-        let sql = format!(
-            crate::sql_query!(
+    pub async fn find_voucher_admin(
+        pool: &DbPool,
+        voucher_id: i64,
+    ) -> Result<Option<Voucher>, ApiError> {
+        let sql = crate::sql_query!(
                 postgres: "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.id = $1",
                 sqlite: "SELECT {VOUCHER_COLUMNS} FROM vouchers v JOIN promotions p ON p.id = v.promotion_id WHERE v.id = ?1"
-            ),
-            VOUCHER_COLUMNS = VOUCHER_COLUMNS,
-        );
+            )
+        .replace("{VOUCHER_COLUMNS}", VOUCHER_COLUMNS);
         let row = query(&sql)
             .bind(voucher_id)
             .fetch_optional(pool)

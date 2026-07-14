@@ -1,6 +1,6 @@
 use axum::{
     Router,
-    routing::{get, post, put},
+    routing::{get, post},
 };
 
 use super::handlers;
@@ -49,8 +49,7 @@ pub fn routes() -> Router<DbPool> {
         )
         .route(
             "/admin/vouchers",
-            get(handlers::list_admin_vouchers_handler)
-                .post(handlers::issue_admin_voucher_handler),
+            get(handlers::list_admin_vouchers_handler).post(handlers::issue_admin_voucher_handler),
         )
         .route(
             "/admin/vouchers/{id}/revoke",
