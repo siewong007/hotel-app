@@ -1,6 +1,9 @@
 //! Route registration for guest support.
 
-use axum::{Router, routing::{get, post}};
+use axum::{
+    Router,
+    routing::{get, post},
+};
 
 use super::handlers;
 use crate::core::db::DbPool;
@@ -11,7 +14,10 @@ pub fn routes() -> Router<DbPool> {
             "/support/conversations",
             get(handlers::list_staff_conversations_handler),
         )
-        .route("/support/agents", get(handlers::list_support_agents_handler))
+        .route(
+            "/support/agents",
+            get(handlers::list_support_agents_handler),
+        )
         .route(
             "/support/conversations/{id}",
             get(handlers::get_staff_conversation_handler),

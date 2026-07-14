@@ -142,6 +142,7 @@ pub struct CreateGuestSupportConversationRequest {
     pub category: String,
     pub message: String,
     pub booking_id: Option<i64>,
+    pub client_request_id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -165,6 +166,7 @@ pub struct GuestSupportConversation {
     pub first_response_at: Option<DateTime<Utc>>,
     pub resolved_at: Option<DateTime<Utc>>,
     pub closed_at: Option<DateTime<Utc>>,
+    pub resolution_summary: Option<String>,
     pub can_reopen: bool,
     pub version: i64,
 }
@@ -178,6 +180,8 @@ pub struct GuestSupportConversationDetail {
 #[derive(Debug, Serialize)]
 pub struct GuestSupportConversationListResponse {
     pub items: Vec<GuestSupportConversation>,
+    pub categories: Vec<String>,
+    pub enabled: bool,
     pub total: i64,
     pub page: i64,
     pub page_size: i64,

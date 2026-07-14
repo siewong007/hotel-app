@@ -1567,3 +1567,16 @@ BEGIN
     SET updated_at = datetime('now')
     WHERE id = NEW.id;
 END;
+
+
+-- @migration 25 support_guest_request_idempotency
+CREATE TABLE IF NOT EXISTS support_guest_request_idempotency_keys (
+    guest_id INTEGER NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+    idempotency_key TEXT NOT NULL,
+    conversation_id INTEGER NOT NULL REFERENCES support_conversations(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (guest_id, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_guest_request_idempotency_conversation
+    ON support_guest_request_idempotency_keys (conversation_id);

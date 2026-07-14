@@ -49,6 +49,7 @@ export interface HotelSettings {
   totp_issuer_name: string; // Issuer shown in authenticator apps
   passkey_relying_party_name: string; // Display name shown by passkey authenticators
   support_enabled: boolean; // Whether guests can start support conversations in the portal
+  support_categories: string[]; // Guest-selectable support intake categories
   support_first_response_low_minutes: number;
   support_first_response_normal_minutes: number;
   support_first_response_high_minutes: number;
@@ -90,6 +91,7 @@ const DEFAULT_SETTINGS: HotelSettings = {
   totp_issuer_name: 'Hotel Management System',
   passkey_relying_party_name: 'Hotel Management System',
   support_enabled: true,
+  support_categories: ['booking', 'stay', 'billing', 'loyalty', 'technical', 'other'],
   support_first_response_low_minutes: 240,
   support_first_response_normal_minutes: 60,
   support_first_response_high_minutes: 15,
@@ -229,6 +231,10 @@ export const getHotelSettings = (): HotelSettings => {
         ),
         max_login_attempts: Number(merged.max_login_attempts) || DEFAULT_SETTINGS.max_login_attempts,
         support_enabled: normalizeBoolean(merged.support_enabled, DEFAULT_SETTINGS.support_enabled),
+        support_categories: normalizeStringList(
+          merged.support_categories,
+          DEFAULT_SETTINGS.support_categories
+        ),
         support_first_response_low_minutes: normalizePositiveInteger(
           merged.support_first_response_low_minutes,
           DEFAULT_SETTINGS.support_first_response_low_minutes

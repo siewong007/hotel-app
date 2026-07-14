@@ -30,7 +30,7 @@ pub const SUPPORT_ACTIONS: &[&str] = &[
 
 pub const MAX_MESSAGE_CHARS: usize = 4_000;
 pub const MAX_REASON_CHARS: usize = 2_000;
-pub const MAX_RESOLUTION_CODE_CHARS: usize = 100;
+pub const MAX_RESOLUTION_CODE_CHARS: usize = 64;
 
 pub fn normalized_choice(value: &str) -> String {
     value.trim().to_ascii_lowercase().replace([' ', '-'], "_")
@@ -41,7 +41,9 @@ pub fn validate_category(value: &str) -> Result<String, ApiError> {
     if SUPPORT_CATEGORIES.contains(&normalized.as_str()) {
         Ok(normalized)
     } else {
-        Err(ApiError::BadRequest("Unsupported support category".to_string()))
+        Err(ApiError::BadRequest(
+            "Unsupported support category".to_string(),
+        ))
     }
 }
 
@@ -50,7 +52,9 @@ pub fn validate_priority(value: &str) -> Result<String, ApiError> {
     if SUPPORT_PRIORITIES.contains(&normalized.as_str()) {
         Ok(normalized)
     } else {
-        Err(ApiError::BadRequest("Unsupported support priority".to_string()))
+        Err(ApiError::BadRequest(
+            "Unsupported support priority".to_string(),
+        ))
     }
 }
 
@@ -59,7 +63,9 @@ pub fn validate_status(value: &str) -> Result<String, ApiError> {
     if SUPPORT_STATUSES.contains(&normalized.as_str()) {
         Ok(normalized)
     } else {
-        Err(ApiError::BadRequest("Unsupported support status".to_string()))
+        Err(ApiError::BadRequest(
+            "Unsupported support status".to_string(),
+        ))
     }
 }
 
@@ -68,14 +74,18 @@ pub fn validate_action(value: &str) -> Result<String, ApiError> {
     if SUPPORT_ACTIONS.contains(&normalized.as_str()) {
         Ok(normalized)
     } else {
-        Err(ApiError::BadRequest("Unsupported support action".to_string()))
+        Err(ApiError::BadRequest(
+            "Unsupported support action".to_string(),
+        ))
     }
 }
 
 pub fn sanitize_required_message(value: &str) -> Result<String, ApiError> {
     let sanitized = Sanitizer::sanitize_notes(value).trim().to_string();
     if sanitized.is_empty() {
-        return Err(ApiError::BadRequest("A support message is required".to_string()));
+        return Err(ApiError::BadRequest(
+            "A support message is required".to_string(),
+        ));
     }
     if sanitized.chars().count() > MAX_MESSAGE_CHARS {
         return Err(ApiError::BadRequest(format!(
@@ -110,7 +120,9 @@ pub fn sanitize_resolution_code(value: Option<String>) -> Result<Option<String>,
         return Ok(None);
     }
     if normalized.chars().count() > MAX_RESOLUTION_CODE_CHARS
-        || !normalized.chars().all(|character| character.is_ascii_alphanumeric() || character == '_')
+        || !normalized
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || character == '_')
     {
         return Err(ApiError::BadRequest("Invalid resolution code".to_string()));
     }
@@ -129,7 +141,10 @@ mod tests {
 
     #[test]
     fn strips_control_content_from_messages() {
-        assert_eq!(sanitize_required_message(" Hello\u{0000} guest ").unwrap(), "Hello guest");
+        assert_eq!(
+            sanitize_required_message(" Hello\u{0000} guest ").unwrap(),
+            "Hello guest"
+        );
     }
 
     #[test]

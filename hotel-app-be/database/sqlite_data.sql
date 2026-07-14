@@ -1144,8 +1144,7 @@ VALUES
     ('support_resolution_normal_minutes', '480', 'number', 'support', 'Resolution SLA for normal priority support conversations in minutes', 0),
     ('support_resolution_high_minutes', '120', 'number', 'support', 'Resolution SLA for high priority support conversations in minutes', 0),
     ('support_resolution_urgent_minutes', '30', 'number', 'support', 'Resolution SLA for urgent priority support conversations in minutes', 0),
-    ('support_reopen_window_days', '7', 'number', 'support', 'Days a resolved guest support conversation can be reopened by its guest', 0),
-    ('support_auto_close_resolved_days', '7', 'number', 'support', 'Days after resolution before support conversations may be automatically closed', 0)
+    ('support_reopen_window_days', '7', 'number', 'support', 'Days a resolved guest support conversation can be reopened by its guest', 0)
 ON CONFLICT(key) DO UPDATE SET
     value_type = excluded.value_type,
     category = excluded.category,

@@ -191,6 +191,11 @@ pub struct RateLimiters {
     /// mid pre-check-in; reads are not a brute-force surface (the token is
     /// already known), so throttle only scripted hammering.
     pub guest_portal_token_read: KeyedRateLimiter,
+    /// Authenticated guest support mutations: enough headroom for a real chat
+    /// while preventing a compromised portal session from flooding the queue.
+    pub guest_portal_support_mutation: KeyedRateLimiter,
+    /// Shared ceiling for guest support mutations from one origin IP.
+    pub guest_portal_support_mutation_ip: RateLimiter,
     /// General API: 200 per minute per IP (lenient - normal usage)
     #[allow(dead_code)]
     pub api: RateLimiter,
@@ -214,6 +219,8 @@ impl RateLimiters {
             guest_portal_login_id: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             guest_portal_token: KeyedRateLimiter::new(RateLimitConfig::new(5, 900)),
             guest_portal_token_read: KeyedRateLimiter::new(RateLimitConfig::new(30, 900)),
+            guest_portal_support_mutation: KeyedRateLimiter::new(RateLimitConfig::new(30, 900)),
+            guest_portal_support_mutation_ip: RateLimiter::new(RateLimitConfig::new(120, 900)),
             api: RateLimiter::new(RateLimitConfig::new(200, 60)),
         }
     }

@@ -136,7 +136,7 @@ export interface SupportAgent {
 export interface SupportMessagePayload {
   message: string;
   client_message_id?: string;
-  expected_version?: number;
+  expected_version: number;
 }
 
 export interface SupportActionPayload {
