@@ -29,6 +29,7 @@ import {
   usePortalSupportConversations,
   useReopenPortalSupportConversation,
   useSendPortalSupportMessage,
+  newPortalSupportClientId,
 } from '../hooks/usePortalSupport';
 import {
   PORTAL_SUPPORT_CATEGORIES,
@@ -101,14 +102,22 @@ function sameConversationId(
 interface NewConversationDialogProps {
   open: boolean;
   isSubmitting: boolean;
+  categories: PortalSupportCategory[];
   onClose: () => void;
   onSubmit: (request: CreatePortalSupportConversationRequest) => Promise<void>;
 }
 
-function NewConversationDialog({ open, isSubmitting, onClose, onSubmit }: NewConversationDialogProps) {
+function NewConversationDialog({ open, isSubmitting, categories, onClose, onSubmit }: NewConversationDialogProps) {
   const [category, setCategory] = useState<PortalSupportCategory>('booking');
   const [message, setMessage] = useState('');
+  const [clientRequestId, setClientRequestId] = useState(() => newPortalSupportClientId());
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!categories.includes(category)) {
+      setCategory(categories[0] ?? 'other');
+    }
+  }, [categories, category]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -121,9 +130,10 @@ function NewConversationDialog({ open, isSubmitting, onClose, onSubmit }: NewCon
 
     try {
       setError(null);
-      await onSubmit({ category, message: trimmedMessage });
+      await onSubmit({ category, message: trimmedMessage, client_request_id: clientRequestId });
       setCategory('booking');
       setMessage('');
+      setClientRequestId(newPortalSupportClientId());
     } catch (submitError) {
       setError(getErrorMessage(submitError, 'We could not start this conversation. Please try again.'));
     }
@@ -132,6 +142,7 @@ function NewConversationDialog({ open, isSubmitting, onClose, onSubmit }: NewCon
   const handleClose = () => {
     if (!isSubmitting) {
       setError(null);
+      setClientRequestId(newPortalSupportClientId());
       onClose();
     }
   };
@@ -157,7 +168,7 @@ function NewConversationDialog({ open, isSubmitting, onClose, onSubmit }: NewCon
             disabled={isSubmitting}
             sx={{ mb: 2 }}
           >
-            {PORTAL_SUPPORT_CATEGORIES.map(option => (
+            {PORTAL_SUPPORT_CATEGORIES.filter(option => categories.includes(option.value)).map(option => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -363,6 +374,12 @@ function ConversationDetail({
       </Box>
 
       <Box role="log" aria-live="polite" sx={{ flex: 1, overflowY: 'auto', p: { xs: 2, md: 3 }, bgcolor: 'background.default' }}>
+        {conversation.resolution_summary ? (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            <Typography variant="subtitle2">Resolution</Typography>
+            {conversation.resolution_summary}
+          </Alert>
+        ) : null}
         {messages.map(messageItem => <MessageBubble key={String(messageItem.id)} message={messageItem} />)}
       </Box>
 
@@ -424,6 +441,14 @@ export function PortalSupportTab({ token }: { token: string }) {
   const createConversation = useCreatePortalSupportConversation(token);
   const reopenConversation = useReopenPortalSupportConversation(token);
   const items = useMemo(() => conversationsQuery.data?.items ?? [], [conversationsQuery.data?.items]);
+  const availableCategories = useMemo(() => {
+    const configured = conversationsQuery.data?.categories;
+    if (!configured?.length) return PORTAL_SUPPORT_CATEGORIES.map(option => option.value);
+    return PORTAL_SUPPORT_CATEGORIES
+      .map(option => option.value)
+      .filter(category => configured.includes(category));
+  }, [conversationsQuery.data?.categories]);
+  const isSupportEnabled = conversationsQuery.data?.enabled ?? true;
 
   useEffect(() => {
     if (items.length === 0) {
@@ -455,10 +480,21 @@ export function PortalSupportTab({ token }: { token: string }) {
           <Typography variant="h5">Support &amp; Help</Typography>
           <Typography variant="body2" color="text.secondary">Message the hotel team about your stay or account.</Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddCommentOutlinedIcon />} onClick={() => setNewConversationOpen(true)}>
+        <Button
+          variant="contained"
+          startIcon={<AddCommentOutlinedIcon />}
+          onClick={() => setNewConversationOpen(true)}
+          disabled={!isSupportEnabled}
+        >
           New conversation
         </Button>
       </Stack>
+
+      {!isSupportEnabled ? (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          The hotel is not accepting new support conversations right now. You can still read existing conversations below.
+        </Alert>
+      ) : null}
 
       <Alert severity="warning" sx={{ mb: 2 }}>
         For an emergency, contact local emergency services or the hotel front desk. Support chat is not monitored for emergencies.
@@ -475,7 +511,7 @@ export function PortalSupportTab({ token }: { token: string }) {
           <SupportAgentOutlinedIcon color="primary" sx={{ fontSize: 48, mb: 1 }} />
           <Typography variant="h6" gutterBottom>No support conversations yet</Typography>
           <Typography color="text.secondary" sx={{ mb: 2 }}>Start a conversation and the hotel team will get back to you here.</Typography>
-          <Button variant="contained" onClick={() => setNewConversationOpen(true)}>Contact support</Button>
+          <Button variant="contained" onClick={() => setNewConversationOpen(true)} disabled={!isSupportEnabled}>Contact support</Button>
         </Paper>
       ) : (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'minmax(260px, 34%) 1fr' }, gap: 2, alignItems: 'stretch' }}>
@@ -518,6 +554,7 @@ export function PortalSupportTab({ token }: { token: string }) {
       <NewConversationDialog
         open={newConversationOpen}
         isSubmitting={createConversation.isPending}
+        categories={availableCategories}
         onClose={() => setNewConversationOpen(false)}
         onSubmit={handleCreate}
       />

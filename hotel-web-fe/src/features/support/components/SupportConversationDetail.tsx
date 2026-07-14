@@ -207,15 +207,17 @@ export default function SupportConversationDetail({
   }
 
   const isAssignedToCurrentUser = conversation.assigned_to_user_id === currentUserId;
-  const canWorkOnConversation = canManage || !conversation.assigned_to_user_id || isAssignedToCurrentUser;
+  const isActive = ['waiting_for_staff', 'waiting_for_guest'].includes(conversation.status);
+  const canWorkOnConversation = canManage || isAssignedToCurrentUser
+    || (!conversation.assigned_to_user_id && canAssign);
   const canReply = canWrite
     && canWorkOnConversation
-    && ['waiting_for_staff', 'waiting_for_guest'].includes(conversation.status);
+    && isActive;
   const canAddInternalNote = canWrite && (canManage || isAssignedToCurrentUser);
   const activeComposerMode = composerMode === 'note' && !canAddInternalNote ? 'reply' : composerMode;
   const canResolve = canWrite
     && (canManage || isAssignedToCurrentUser)
-    && ['waiting_for_staff', 'waiting_for_guest'].includes(conversation.status);
+    && isActive;
   const canReopen = canManage && ['resolved', 'closed'].includes(conversation.status);
   const canClose = canManage && conversation.status === 'resolved';
   const canRelease = canAssign && Boolean(conversation.assigned_to_user_id)
@@ -264,7 +266,7 @@ export default function SupportConversationDetail({
                 Claim
               </Button>
             ) : null}
-            {canAssign ? (
+            {canAssign && isActive ? (
               <Button size="small" variant="outlined" startIcon={<AssignIcon />} disabled={isBusy} onClick={() => setDialogMode('assign')}>
                 Assign
               </Button>
@@ -274,7 +276,7 @@ export default function SupportConversationDetail({
                 Return to queue
               </Button>
             ) : null}
-            {canManage ? (
+            {canManage && isActive ? (
               <FormControl size="small" sx={{ minWidth: 132 }}>
                 <InputLabel id="support-priority-label">Priority</InputLabel>
                 <Select
@@ -290,7 +292,7 @@ export default function SupportConversationDetail({
                 </Select>
               </FormControl>
             ) : null}
-            {canEscalate && conversation.status !== 'closed' ? (
+            {canEscalate && isActive ? (
               <Button size="small" color="warning" variant="outlined" startIcon={<EscalateIcon />} disabled={isBusy} onClick={() => setDialogMode('escalate')}>
                 Escalate
               </Button>
@@ -378,7 +380,11 @@ export default function SupportConversationDetail({
       <Box sx={{ p: 2 }}>
         {localError ? <Alert severity="error" sx={{ mb: 1.25 }} onClose={() => setLocalError(null)}>{localError}</Alert> : null}
         {!canReply ? (
-          <Alert severity="info">This conversation must be reopened before another reply or internal note can be added.</Alert>
+          <Alert severity="info">
+            {!conversation.assigned_to_user_id && canWrite && !canAssign
+              ? 'A support coordinator must claim this conversation before you can reply.'
+              : 'This conversation must be reopened before another reply or internal note can be added.'}
+          </Alert>
         ) : (
           <Stack spacing={1}>
             <Tabs

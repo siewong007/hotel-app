@@ -5,9 +5,10 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::models::{
-    CreateGuestSupportConversationRequest, GuestSupportConversation, GuestSupportConversationDetail,
-    GuestSupportConversationListResponse, GuestSupportMessageRequest, SupportActionInput,
-    SupportConversationDetail, SupportConversationListResponse, SupportListQuery, SupportMessageRequest,
+    CreateGuestSupportConversationRequest, GuestSupportConversation,
+    GuestSupportConversationDetail, GuestSupportConversationListResponse,
+    GuestSupportMessageRequest, SupportActionInput, SupportConversationDetail,
+    SupportConversationListResponse, SupportListQuery, SupportMessageRequest,
 };
 use super::repository::{ConversationMutation, NewConversation, SupportRepository};
 use super::validation;
@@ -19,10 +20,20 @@ use crate::services::audit::AuditLog;
 use crate::utils::pagination::normalize_pagination;
 
 const DEFAULT_REOPEN_WINDOW_DAYS: i64 = 7;
+const DEFAULT_SUPPORT_CATEGORIES: &[&str] = &[
+    "booking",
+    "stay",
+    "billing",
+    "loyalty",
+    "technical",
+    "other",
+];
 
 fn request_id_is_valid(value: Option<&str>) -> Result<(), ApiError> {
     if value.is_some_and(|value| value.trim().is_empty() || value.chars().count() > 128) {
-        return Err(ApiError::BadRequest("Invalid client request identifier".to_string()));
+        return Err(ApiError::BadRequest(
+            "Invalid client request identifier".to_string(),
+        ));
     }
     Ok(())
 }
@@ -46,7 +57,11 @@ fn subject_for_category(category: &str) -> String {
 
 fn conversation_number() -> String {
     let suffix = Uuid::new_v4().simple().to_string();
-    format!("SUP-{}-{}", Utc::now().format("%Y%m%d"), &suffix[..8].to_ascii_uppercase())
+    format!(
+        "SUP-{}-{}",
+        Utc::now().format("%Y%m%d"),
+        &suffix[..8].to_ascii_uppercase()
+    )
 }
 
 async fn support_enabled(pool: &DbPool) -> bool {
@@ -58,6 +73,45 @@ async fn support_enabled(pool: &DbPool) -> bool {
             .as_str(),
         "true" | "1" | "yes" | "on"
     )
+}
+
+async fn enabled_support_categories(pool: &DbPool) -> Vec<String> {
+    let raw = settings_cache::get_string(
+        pool,
+        "support_categories",
+        r#"["booking","stay","billing","loyalty","technical","other"]"#,
+    )
+    .await;
+    let mut categories = serde_json::from_str::<Vec<String>>(&raw)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|value| validation::validate_category(&value).ok())
+        .collect::<Vec<_>>();
+    categories.sort();
+    categories.dedup();
+    if categories.is_empty() {
+        DEFAULT_SUPPORT_CATEGORIES
+            .iter()
+            .map(|category| (*category).to_string())
+            .collect()
+    } else {
+        categories
+    }
+}
+
+async fn validate_enabled_support_category(pool: &DbPool, value: &str) -> Result<String, ApiError> {
+    let category = validation::validate_category(value)?;
+    if enabled_support_categories(pool)
+        .await
+        .iter()
+        .any(|enabled| enabled == &category)
+    {
+        Ok(category)
+    } else {
+        Err(ApiError::BadRequest(
+            "This support category is currently unavailable".to_string(),
+        ))
+    }
 }
 
 async fn reopen_window_days(pool: &DbPool) -> i64 {
@@ -88,7 +142,22 @@ async fn priority_sla(pool: &DbPool, priority: &str) -> (Duration, Duration) {
         resolution_default,
     )
     .await;
-    (Duration::minutes(i64::from(first)), Duration::minutes(i64::from(resolution)))
+    (
+        Duration::minutes(i64::from(first)),
+        Duration::minutes(i64::from(resolution)),
+    )
+}
+
+fn rebase_sla_due_at(
+    due_at: Option<chrono::DateTime<Utc>>,
+    previous_sla: Duration,
+    next_sla: Duration,
+) -> Option<chrono::DateTime<Utc>> {
+    due_at.map(|due_at| due_at - previous_sla + next_sla)
+}
+
+fn is_active_status(status: &str) -> bool {
+    matches!(status, "waiting_for_staff" | "waiting_for_guest")
 }
 
 async fn can_manage(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
@@ -99,13 +168,21 @@ async fn can_manage(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
     }
 }
 
-async fn require_action_permission(pool: &DbPool, user_id: i64, action: &str) -> Result<(), ApiError> {
+async fn require_action_permission(
+    pool: &DbPool,
+    user_id: i64,
+    action: &str,
+) -> Result<(), ApiError> {
     let permission = match action {
         "claim" | "assign" | "release" => "support:assign",
         "escalate" => "support:escalate",
         "set_priority" | "close" | "reopen" => "support:manage",
         "resolve" | "add_internal_note" => "support:write",
-        _ => return Err(ApiError::BadRequest("Unsupported support action".to_string())),
+        _ => {
+            return Err(ApiError::BadRequest(
+                "Unsupported support action".to_string(),
+            ));
+        }
     };
     check_permission(pool, user_id, permission).await
 }
@@ -150,12 +227,17 @@ fn guest_view(
         first_response_at: summary.first_response_at,
         resolved_at: summary.resolved_at,
         closed_at: summary.closed_at,
-        can_reopen: summary.status == "resolved" && reopen_allowed(summary.resolved_at, window_days),
+        resolution_summary: conversation.resolution_summary.clone(),
+        can_reopen: summary.status == "resolved"
+            && reopen_allowed(summary.resolved_at, window_days),
         version: summary.version,
     }
 }
 
-async fn staff_detail(pool: &DbPool, conversation_id: i64) -> Result<SupportConversationDetail, ApiError> {
+async fn staff_detail(
+    pool: &DbPool,
+    conversation_id: i64,
+) -> Result<SupportConversationDetail, ApiError> {
     let conversation = SupportRepository::find_conversation(pool, conversation_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Support conversation not found".to_string()))?;
@@ -193,7 +275,9 @@ pub async fn list_staff_conversations(
         ]
         .contains(&queue.as_str())
         {
-            return Err(ApiError::BadRequest("Unsupported support queue".to_string()));
+            return Err(ApiError::BadRequest(
+                "Unsupported support queue".to_string(),
+            ));
         }
     }
 
@@ -230,7 +314,9 @@ pub async fn get_staff_conversation(
     staff_detail(pool, conversation_id).await
 }
 
-pub async fn list_support_agents(pool: &DbPool) -> Result<Vec<super::models::SupportAgent>, ApiError> {
+pub async fn list_support_agents(
+    pool: &DbPool,
+) -> Result<Vec<super::models::SupportAgent>, ApiError> {
     SupportRepository::list_agents(pool).await
 }
 
@@ -244,12 +330,21 @@ pub async fn send_staff_message(
 ) -> Result<SupportConversationDetail, ApiError> {
     check_permission(pool, actor_id, "support:write").await?;
     request_id_is_valid(request.client_message_id.as_deref())?;
+    let expected_version = request.expected_version.ok_or_else(|| {
+        ApiError::BadRequest("A conversation version is required for support replies".to_string())
+    })?;
     let body = validation::sanitize_required_message(&request.message)?;
     let current = SupportRepository::find_conversation(pool, conversation_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Support conversation not found".to_string()))?;
     if let Some(client_message_id) = request.client_message_id.as_deref()
-        && SupportRepository::client_message_exists(pool, conversation_id, "staff", client_message_id).await?
+        && SupportRepository::client_message_exists(
+            pool,
+            conversation_id,
+            "staff",
+            client_message_id,
+        )
+        .await?
     {
         return staff_detail(pool, conversation_id).await;
     }
@@ -262,9 +357,7 @@ pub async fn send_staff_message(
     if let Some(assignee) = current.summary.assigned_to_user_id {
         ensure_owner_or_manager(Some(assignee), actor_id, is_manager)?;
     }
-    if let Some(expected_version) = request.expected_version
-        && expected_version != current.summary.version
-    {
+    if expected_version != current.summary.version {
         return Err(ApiError::Conflict(
             "This conversation changed. Refresh it before replying".to_string(),
         ));
@@ -273,15 +366,18 @@ pub async fn send_staff_message(
     let mut mutation = ConversationMutation::from(&current);
     mutation.status = "waiting_for_guest".to_string();
     if mutation.assigned_to_user_id.is_none() {
+        check_permission(pool, actor_id, "support:assign").await?;
         mutation.assigned_to_user_id = Some(actor_id);
     }
     if mutation.first_response_at.is_none() {
         mutation.first_response_at = Some(Utc::now());
     }
-    mutation.expected_version = request.expected_version;
+    mutation.expected_version = Some(expected_version);
 
     let mut transaction = pool.begin().await.map_err(ApiError::from)?;
-    if !SupportRepository::update_conversation(&mut *transaction, conversation_id, &mutation).await? {
+    if !SupportRepository::update_conversation(&mut *transaction, conversation_id, &mutation)
+        .await?
+    {
         return Err(ApiError::Conflict(
             "This conversation changed. Refresh it before replying".to_string(),
         ));
@@ -360,8 +456,10 @@ pub async fn apply_staff_action(
 
     match action.as_str() {
         "claim" => {
-            if current.summary.status == "closed" {
-                return Err(ApiError::Conflict("Closed conversations cannot be claimed".to_string()));
+            if !is_active_status(&current.summary.status) {
+                return Err(ApiError::Conflict(
+                    "Only active conversations can be claimed".to_string(),
+                ));
             }
             if let Some(assignee) = current.summary.assigned_to_user_id {
                 if assignee == actor_id {
@@ -375,10 +473,17 @@ pub async fn apply_staff_action(
             event_type = "claimed".to_string();
         }
         "assign" => {
+            if !is_active_status(&current.summary.status) {
+                return Err(ApiError::Conflict(
+                    "Only active conversations can be assigned".to_string(),
+                ));
+            }
             if let Some(assignee_id) = input.assignee_id
-                && !SupportRepository::user_exists(pool, assignee_id).await?
+                && !SupportRepository::is_active_support_agent(pool, assignee_id).await?
             {
-                return Err(ApiError::BadRequest("Selected support staff member is unavailable".to_string()));
+                return Err(ApiError::BadRequest(
+                    "Selected user is not an active support agent".to_string(),
+                ));
             }
             mutation.assigned_to_user_id = input.assignee_id;
             event_type = if input.assignee_id.is_some() {
@@ -389,16 +494,48 @@ pub async fn apply_staff_action(
             event_details = json!({"assignee_id": input.assignee_id, "reason": reason});
         }
         "release" => {
+            if !is_active_status(&current.summary.status) {
+                return Err(ApiError::Conflict(
+                    "Only active conversations can be returned to the queue".to_string(),
+                ));
+            }
             ensure_owner_or_manager(current.summary.assigned_to_user_id, actor_id, is_manager)?;
             mutation.assigned_to_user_id = None;
             event_type = "returned_to_queue".to_string();
             event_details = json!({"reason": reason});
         }
         "set_priority" => {
+            if !is_active_status(&current.summary.status) {
+                return Err(ApiError::Conflict(
+                    "Only active conversations can be reprioritized".to_string(),
+                ));
+            }
             let priority = input.priority.as_deref().ok_or_else(|| {
                 ApiError::BadRequest("A support priority is required".to_string())
             })?;
-            mutation.priority = validation::validate_priority(priority)?;
+            let next_priority = validation::validate_priority(priority)?;
+            let (previous_first_sla, previous_resolution_sla) =
+                priority_sla(pool, &current.summary.priority).await;
+            let (next_first_sla, next_resolution_sla) = priority_sla(pool, &next_priority).await;
+            mutation.priority = next_priority;
+            if current.summary.first_response_at.is_none()
+                && current.summary.status == "waiting_for_staff"
+            {
+                mutation.first_response_due_at = rebase_sla_due_at(
+                    current.summary.first_response_due_at,
+                    previous_first_sla,
+                    next_first_sla,
+                )
+                .or(Some(Utc::now() + next_first_sla));
+            }
+            if current.summary.resolved_at.is_none() {
+                mutation.resolution_due_at = rebase_sla_due_at(
+                    current.summary.resolution_due_at,
+                    previous_resolution_sla,
+                    next_resolution_sla,
+                )
+                .or(Some(Utc::now() + next_resolution_sla));
+            }
             event_type = "priority_changed".to_string();
             event_details = json!({"from": current.summary.priority, "to": mutation.priority, "reason": reason});
         }
@@ -406,8 +543,10 @@ pub async fn apply_staff_action(
             let reason = reason.ok_or_else(|| {
                 ApiError::BadRequest("An escalation reason is required".to_string())
             })?;
-            if current.summary.status == "closed" {
-                return Err(ApiError::Conflict("Closed conversations cannot be escalated".to_string()));
+            if !is_active_status(&current.summary.status) {
+                return Err(ApiError::Conflict(
+                    "Only active conversations can be escalated".to_string(),
+                ));
             }
             mutation.assigned_team = "duty_manager".to_string();
             mutation.assigned_to_user_id = None;
@@ -418,16 +557,25 @@ pub async fn apply_staff_action(
         }
         "resolve" => {
             ensure_owner_or_manager(current.summary.assigned_to_user_id, actor_id, is_manager)?;
-            if !["waiting_for_staff", "waiting_for_guest"].contains(&current.summary.status.as_str()) {
-                return Err(ApiError::Conflict("Only active conversations can be resolved".to_string()));
+            if !["waiting_for_staff", "waiting_for_guest"]
+                .contains(&current.summary.status.as_str())
+            {
+                return Err(ApiError::Conflict(
+                    "Only active conversations can be resolved".to_string(),
+                ));
             }
             let resolution_code = validation::sanitize_resolution_code(input.resolution_code)?
                 .ok_or_else(|| ApiError::BadRequest("A resolution code is required".to_string()))?;
-            let resolution_summary = validation::sanitize_optional_reason(input.resolution_summary)?
-                .ok_or_else(|| ApiError::BadRequest("A public resolution summary is required".to_string()))?;
+            let resolution_summary =
+                validation::sanitize_optional_reason(input.resolution_summary)?.ok_or_else(
+                    || ApiError::BadRequest("A public resolution summary is required".to_string()),
+                )?;
             mutation.status = "resolved".to_string();
             mutation.resolved_at = Some(Utc::now());
             mutation.closed_at = None;
+            if mutation.first_response_at.is_none() {
+                mutation.first_response_at = Some(Utc::now());
+            }
             mutation.resolution_code = Some(resolution_code);
             mutation.resolution_summary = Some(resolution_summary);
             event_type = "resolved".to_string();
@@ -435,11 +583,12 @@ pub async fn apply_staff_action(
         }
         "close" => {
             if current.summary.status != "resolved" {
-                return Err(ApiError::Conflict("Resolve this conversation before closing it".to_string()));
+                return Err(ApiError::Conflict(
+                    "Resolve this conversation before closing it".to_string(),
+                ));
             }
-            let reason = reason.ok_or_else(|| {
-                ApiError::BadRequest("A closure reason is required".to_string())
-            })?;
+            let reason = reason
+                .ok_or_else(|| ApiError::BadRequest("A closure reason is required".to_string()))?;
             mutation.status = "closed".to_string();
             mutation.closed_at = Some(Utc::now());
             event_type = "closed".to_string();
@@ -447,7 +596,9 @@ pub async fn apply_staff_action(
         }
         "reopen" => {
             if !["resolved", "closed"].contains(&current.summary.status.as_str()) {
-                return Err(ApiError::Conflict("Only resolved or closed conversations can be reopened".to_string()));
+                return Err(ApiError::Conflict(
+                    "Only resolved or closed conversations can be reopened".to_string(),
+                ));
             }
             let (_, resolution_sla) = priority_sla(pool, &current.summary.priority).await;
             mutation.status = "waiting_for_staff".to_string();
@@ -461,18 +612,28 @@ pub async fn apply_staff_action(
             event_details = json!({"reason": reason});
         }
         "add_internal_note" => {
+            if !is_active_status(&current.summary.status) {
+                return Err(ApiError::Conflict(
+                    "Only active conversations can receive internal notes".to_string(),
+                ));
+            }
             ensure_owner_or_manager(current.summary.assigned_to_user_id, actor_id, is_manager)?;
-            let note = reason.ok_or_else(|| {
-                ApiError::BadRequest("An internal note is required".to_string())
-            })?;
+            let note = reason
+                .ok_or_else(|| ApiError::BadRequest("An internal note is required".to_string()))?;
             event_type = "internal_note".to_string();
             event_details = json!({"body": note});
         }
-        _ => return Err(ApiError::BadRequest("Unsupported support action".to_string())),
+        _ => {
+            return Err(ApiError::BadRequest(
+                "Unsupported support action".to_string(),
+            ));
+        }
     }
 
     let mut transaction = pool.begin().await.map_err(ApiError::from)?;
-    if !SupportRepository::update_conversation(&mut *transaction, conversation_id, &mutation).await? {
+    if !SupportRepository::update_conversation(&mut *transaction, conversation_id, &mutation)
+        .await?
+    {
         return Err(ApiError::Conflict(
             "This conversation changed. Refresh it before taking another action".to_string(),
         ));
@@ -485,12 +646,21 @@ pub async fn apply_staff_action(
         &event_type,
         Some(&current.summary.status),
         Some(&mutation.status),
-        (!event_details.as_object().is_some_and(|object| object.is_empty())).then_some(event_details),
+        (!event_details
+            .as_object()
+            .is_some_and(|object| object.is_empty()))
+        .then_some(event_details),
     )
     .await?;
     if let Some(key) = input.client_action_id.as_deref() {
-        SupportRepository::insert_action_key(&mut *transaction, conversation_id, actor_id, key, &action)
-            .await?;
+        SupportRepository::insert_action_key(
+            &mut *transaction,
+            conversation_id,
+            actor_id,
+            key,
+            &action,
+        )
+        .await?;
     }
     transaction.commit().await.map_err(ApiError::from)?;
 
@@ -526,6 +696,8 @@ pub async fn list_guest_conversations(
     .await?;
     Ok(GuestSupportConversationListResponse {
         items,
+        categories: enabled_support_categories(pool).await,
+        enabled: support_enabled(pool).await,
         total,
         page: pagination.page,
         page_size: pagination.page_size,
@@ -555,10 +727,22 @@ pub async fn create_guest_conversation(
     ip_address: Option<String>,
     user_agent: Option<String>,
 ) -> Result<GuestSupportConversationDetail, ApiError> {
-    if !support_enabled(pool).await {
-        return Err(ApiError::Forbidden("Guest support is currently unavailable".to_string()));
+    request_id_is_valid(Some(&request.client_request_id))?;
+    if let Some(conversation_id) = SupportRepository::find_guest_request_conversation(
+        pool,
+        guest_id,
+        &request.client_request_id,
+    )
+    .await?
+    {
+        return get_guest_conversation(pool, guest_id, conversation_id).await;
     }
-    let category = validation::validate_category(&request.category)?;
+    if !support_enabled(pool).await {
+        return Err(ApiError::Forbidden(
+            "Guest support is currently unavailable".to_string(),
+        ));
+    }
+    let category = validate_enabled_support_category(pool, &request.category).await?;
     let message = validation::sanitize_required_message(&request.message)?;
     if let Some(booking_id) = request.booking_id
         && !SupportRepository::booking_belongs_to_guest(pool, booking_id, guest_id).await?
@@ -581,7 +765,28 @@ pub async fn create_guest_conversation(
         resolution_due_at: now + resolution_sla,
     };
     let mut transaction = pool.begin().await.map_err(ApiError::from)?;
-    let conversation_id = SupportRepository::insert_conversation(&mut *transaction, &new_conversation).await?;
+    let conversation_id =
+        SupportRepository::insert_conversation(&mut *transaction, &new_conversation).await?;
+    if !SupportRepository::insert_guest_request_key(
+        &mut *transaction,
+        guest_id,
+        &request.client_request_id,
+        conversation_id,
+    )
+    .await?
+    {
+        transaction.rollback().await.map_err(ApiError::from)?;
+        let existing_conversation_id = SupportRepository::find_guest_request_conversation(
+            pool,
+            guest_id,
+            &request.client_request_id,
+        )
+        .await?
+        .ok_or_else(|| {
+            ApiError::Conflict("This support request is already being processed".to_string())
+        })?;
+        return get_guest_conversation(pool, guest_id, existing_conversation_id).await;
+    }
     SupportRepository::insert_message(
         &mut *transaction,
         conversation_id,
@@ -589,7 +794,7 @@ pub async fn create_guest_conversation(
         Some(guest_id),
         None,
         &message,
-        None,
+        Some(&request.client_request_id),
     )
     .await?;
     SupportRepository::insert_event(
@@ -628,12 +833,21 @@ pub async fn send_guest_message(
     user_agent: Option<String>,
 ) -> Result<GuestSupportConversationDetail, ApiError> {
     request_id_is_valid(request.client_message_id.as_deref())?;
+    let expected_version = request.expected_version.ok_or_else(|| {
+        ApiError::BadRequest("A conversation version is required for support messages".to_string())
+    })?;
     let body = validation::sanitize_required_message(&request.message)?;
     let current = SupportRepository::find_guest_conversation(pool, guest_id, conversation_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Support conversation not found".to_string()))?;
     if let Some(client_message_id) = request.client_message_id.as_deref()
-        && SupportRepository::client_message_exists(pool, conversation_id, "guest", client_message_id).await?
+        && SupportRepository::client_message_exists(
+            pool,
+            conversation_id,
+            "guest",
+            client_message_id,
+        )
+        .await?
     {
         return get_guest_conversation(pool, guest_id, conversation_id).await;
     }
@@ -642,16 +856,14 @@ pub async fn send_guest_message(
             "This conversation is closed. Please start a new conversation".to_string(),
         ));
     }
-    if let Some(expected_version) = request.expected_version
-        && expected_version != current.summary.version
-    {
+    if expected_version != current.summary.version {
         return Err(ApiError::Conflict(
             "This conversation changed. Refresh it before sending another message".to_string(),
         ));
     }
 
     let mut mutation = ConversationMutation::from(&current);
-    mutation.expected_version = request.expected_version;
+    mutation.expected_version = Some(expected_version);
     let mut event_type = "guest_replied";
     let from_status = current.summary.status.clone();
     if current.summary.status == "resolved" {
@@ -672,16 +884,18 @@ pub async fn send_guest_message(
         event_type = "reopened_by_guest";
     } else {
         mutation.status = "waiting_for_staff".to_string();
-        if current.summary.status == "waiting_for_guest" {
-            if let Some(resolution_due_at) = current.summary.resolution_due_at {
-                let paused_for = Utc::now() - current.summary.last_activity_at;
-                mutation.resolution_due_at = Some(resolution_due_at + paused_for.max(Duration::zero()));
-            }
+        if current.summary.status == "waiting_for_guest"
+            && let Some(resolution_due_at) = current.summary.resolution_due_at
+        {
+            let paused_for = Utc::now() - current.summary.last_activity_at;
+            mutation.resolution_due_at = Some(resolution_due_at + paused_for.max(Duration::zero()));
         }
     }
 
     let mut transaction = pool.begin().await.map_err(ApiError::from)?;
-    if !SupportRepository::update_conversation(&mut *transaction, conversation_id, &mutation).await? {
+    if !SupportRepository::update_conversation(&mut *transaction, conversation_id, &mutation)
+        .await?
+    {
         return Err(ApiError::Conflict(
             "This conversation changed. Refresh it before sending another message".to_string(),
         ));
@@ -737,7 +951,9 @@ pub async fn reopen_guest_conversation(
         return get_guest_conversation(pool, guest_id, conversation_id).await;
     }
     let window_days = reopen_window_days(pool).await;
-    if current.summary.status != "resolved" || !reopen_allowed(current.summary.resolved_at, window_days) {
+    if current.summary.status != "resolved"
+        || !reopen_allowed(current.summary.resolved_at, window_days)
+    {
         return Err(ApiError::Conflict(
             "This conversation can no longer be reopened. Please start a new one".to_string(),
         ));
@@ -754,7 +970,9 @@ pub async fn reopen_guest_conversation(
     mutation.expected_version = Some(current.summary.version);
 
     let mut transaction = pool.begin().await.map_err(ApiError::from)?;
-    if !SupportRepository::update_conversation(&mut *transaction, conversation_id, &mutation).await? {
+    if !SupportRepository::update_conversation(&mut *transaction, conversation_id, &mutation)
+        .await?
+    {
         return Err(ApiError::Conflict(
             "This conversation changed. Refresh it before reopening it".to_string(),
         ));

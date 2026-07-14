@@ -283,8 +283,8 @@ WHERE (
         OR ($1 = 'unassigned' AND c.assigned_to_user_id IS NULL AND c.status <> 'closed')
         OR ($1 = 'mine' AND c.assigned_to_user_id = $2 AND c.status <> 'closed')
         OR ($1 = 'at_risk' AND (
-            (c.first_response_at IS NULL AND c.status = 'waiting_for_staff' AND c.first_response_due_at <= CURRENT_TIMESTAMP)
-            OR (c.resolved_at IS NULL AND c.status NOT IN ('waiting_for_guest', 'closed') AND c.resolution_due_at <= CURRENT_TIMESTAMP)
+            (c.first_response_at IS NULL AND c.status = 'waiting_for_staff' AND c.first_response_due_at <= CURRENT_TIMESTAMP + INTERVAL '30 minutes')
+            OR (c.resolved_at IS NULL AND c.status NOT IN ('waiting_for_guest', 'closed') AND c.resolution_due_at <= CURRENT_TIMESTAMP + INTERVAL '30 minutes')
         ))
         OR ($1 IN ('waiting_for_staff', 'waiting_for_guest', 'resolved', 'closed') AND c.status = $1)
     )
@@ -303,8 +303,8 @@ WHERE (
         OR (?1 = 'unassigned' AND c.assigned_to_user_id IS NULL AND c.status <> 'closed')
         OR (?1 = 'mine' AND c.assigned_to_user_id = ?2 AND c.status <> 'closed')
         OR (?1 = 'at_risk' AND (
-            (c.first_response_at IS NULL AND c.status = 'waiting_for_staff' AND c.first_response_due_at <= CURRENT_TIMESTAMP)
-            OR (c.resolved_at IS NULL AND c.status NOT IN ('waiting_for_guest', 'closed') AND c.resolution_due_at <= CURRENT_TIMESTAMP)
+            (c.first_response_at IS NULL AND c.status = 'waiting_for_staff' AND c.first_response_due_at <= datetime('now', '+30 minutes'))
+            OR (c.resolved_at IS NULL AND c.status NOT IN ('waiting_for_guest', 'closed') AND c.resolution_due_at <= datetime('now', '+30 minutes'))
         ))
         OR (?1 IN ('waiting_for_staff', 'waiting_for_guest', 'resolved', 'closed') AND c.status = ?1)
     )
@@ -397,12 +397,36 @@ FROM support_conversations
         .map_err(ApiError::from)?;
 
         Ok(SupportQueueMetrics {
-            total_open: row.try_get::<Option<i64>, _>("total_open").ok().flatten().unwrap_or(0),
-            unassigned: row.try_get::<Option<i64>, _>("unassigned").ok().flatten().unwrap_or(0),
-            waiting_for_staff: row.try_get::<Option<i64>, _>("waiting_for_staff").ok().flatten().unwrap_or(0),
-            waiting_for_guest: row.try_get::<Option<i64>, _>("waiting_for_guest").ok().flatten().unwrap_or(0),
-            at_risk: row.try_get::<Option<i64>, _>("at_risk").ok().flatten().unwrap_or(0),
-            breached: row.try_get::<Option<i64>, _>("breached").ok().flatten().unwrap_or(0),
+            total_open: row
+                .try_get::<Option<i64>, _>("total_open")
+                .ok()
+                .flatten()
+                .unwrap_or(0),
+            unassigned: row
+                .try_get::<Option<i64>, _>("unassigned")
+                .ok()
+                .flatten()
+                .unwrap_or(0),
+            waiting_for_staff: row
+                .try_get::<Option<i64>, _>("waiting_for_staff")
+                .ok()
+                .flatten()
+                .unwrap_or(0),
+            waiting_for_guest: row
+                .try_get::<Option<i64>, _>("waiting_for_guest")
+                .ok()
+                .flatten()
+                .unwrap_or(0),
+            at_risk: row
+                .try_get::<Option<i64>, _>("at_risk")
+                .ok()
+                .flatten()
+                .unwrap_or(0),
+            breached: row
+                .try_get::<Option<i64>, _>("breached")
+                .ok()
+                .flatten()
+                .unwrap_or(0),
         })
     }
 
@@ -418,7 +442,7 @@ FROM support_conversations
             crate::param!(1)
         );
         let list_sql = format!(
-            "SELECT id, category, status, assigned_team, booking_id, subject, created_at, updated_at, last_activity_at, first_response_at, resolved_at, closed_at, version, CASE WHEN status = 'resolved' AND resolved_at >= {} THEN {} ELSE {} END AS can_reopen FROM support_conversations WHERE guest_id = {} ORDER BY last_activity_at DESC, id DESC LIMIT {} OFFSET {}",
+            "SELECT id, category, status, assigned_team, booking_id, subject, created_at, updated_at, last_activity_at, first_response_at, resolved_at, closed_at, resolution_summary, version, CASE WHEN status = 'resolved' AND resolved_at >= {} THEN {} ELSE {} END AS can_reopen FROM support_conversations WHERE guest_id = {} ORDER BY last_activity_at DESC, id DESC LIMIT {} OFFSET {}",
             crate::sql_query!(postgres: "CURRENT_TIMESTAMP - ($1 * INTERVAL '1 day')", sqlite: "datetime('now', '-' || ?1 || ' days')"),
             crate::sql_query!(postgres: "true", sqlite: "1"),
             crate::sql_query!(postgres: "false", sqlite: "0"),
@@ -456,6 +480,7 @@ FROM support_conversations
                     first_response_at: optional(row, "first_response_at"),
                     resolved_at: optional(row, "resolved_at"),
                     closed_at: optional(row, "closed_at"),
+                    resolution_summary: optional(row, "resolution_summary"),
                     can_reopen: row.get("can_reopen"),
                     version: row.get("version"),
                 })
@@ -516,19 +541,41 @@ ORDER BY se.created_at ASC, se.id ASC
             postgres: r#"
 SELECT DISTINCT u.id, COALESCE(u.full_name, u.username) AS name, u.email
 FROM users u
-JOIN user_roles ur ON ur.user_id = u.id
-JOIN roles r ON r.id = ur.role_id
 WHERE COALESCE(u.is_active, true) = true
-  AND r.name IN ('super_admin', 'admin', 'manager', 'receptionist', 'staff')
+  AND EXISTS (
+      SELECT 1
+      FROM user_roles ur
+      JOIN role_permissions rp ON rp.role_id = ur.role_id
+      JOIN permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = u.id AND p.name IN ('support:read', 'support:manage')
+  )
+  AND EXISTS (
+      SELECT 1
+      FROM user_roles ur
+      JOIN role_permissions rp ON rp.role_id = ur.role_id
+      JOIN permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = u.id AND p.name IN ('support:write', 'support:manage')
+  )
 ORDER BY name ASC
 "#,
             sqlite: r#"
 SELECT DISTINCT u.id, COALESCE(u.full_name, u.username) AS name, u.email
 FROM users u
-JOIN user_roles ur ON ur.user_id = u.id
-JOIN roles r ON r.id = ur.role_id
 WHERE COALESCE(u.is_active, 1) = 1
-  AND r.name IN ('super_admin', 'admin', 'manager', 'receptionist', 'staff')
+  AND EXISTS (
+      SELECT 1
+      FROM user_roles ur
+      JOIN role_permissions rp ON rp.role_id = ur.role_id
+      JOIN permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = u.id AND p.name IN ('support:read', 'support:manage')
+  )
+  AND EXISTS (
+      SELECT 1
+      FROM user_roles ur
+      JOIN role_permissions rp ON rp.role_id = ur.role_id
+      JOIN permissions p ON p.id = rp.permission_id
+      WHERE ur.user_id = u.id AND p.name IN ('support:write', 'support:manage')
+  )
 ORDER BY name ASC
 "#
         ))
@@ -657,6 +704,63 @@ RETURNING id
             .map_err(ApiError::from)
     }
 
+    pub async fn find_guest_request_conversation(
+        pool: &DbPool,
+        guest_id: i64,
+        client_request_id: &str,
+    ) -> Result<Option<i64>, ApiError> {
+        let sql = sql_query!(
+            postgres: r#"
+SELECT conversation_id
+FROM support_guest_request_idempotency_keys
+WHERE guest_id = $1 AND idempotency_key = $2
+"#,
+            sqlite: r#"
+SELECT conversation_id
+FROM support_guest_request_idempotency_keys
+WHERE guest_id = ?1 AND idempotency_key = ?2
+"#
+        );
+        sqlx::query_scalar(sql)
+            .bind(guest_id)
+            .bind(client_request_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(ApiError::from)
+    }
+
+    pub async fn insert_guest_request_key<'e, E>(
+        executor: E,
+        guest_id: i64,
+        client_request_id: &str,
+        conversation_id: i64,
+    ) -> Result<bool, ApiError>
+    where
+        E: Executor<'e, Database = DbDatabase>,
+    {
+        let sql = sql_query!(
+            postgres: r#"
+INSERT INTO support_guest_request_idempotency_keys (guest_id, idempotency_key, conversation_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (guest_id, idempotency_key) DO NOTHING
+"#,
+            sqlite: r#"
+INSERT INTO support_guest_request_idempotency_keys (guest_id, idempotency_key, conversation_id)
+VALUES (?1, ?2, ?3)
+ON CONFLICT (guest_id, idempotency_key) DO NOTHING
+"#
+        );
+        let result = sqlx::query(sql)
+            .bind(guest_id)
+            .bind(client_request_id)
+            .bind(conversation_id)
+            .execute(executor)
+            .await
+            .map_err(ApiError::from)?;
+        Ok(result.rows_affected() == 1)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub async fn insert_event<'e, E>(
         executor: E,
         conversation_id: i64,
@@ -823,10 +927,52 @@ ON CONFLICT (conversation_id, actor_user_id, idempotency_key) DO NOTHING
         Ok(())
     }
 
-    pub async fn user_exists(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
+    pub async fn is_active_support_agent(pool: &DbPool, user_id: i64) -> Result<bool, ApiError> {
         let sql = sql_query!(
-            postgres: "SELECT EXISTS (SELECT 1 FROM users WHERE id = $1 AND COALESCE(is_active, true) = true)",
-            sqlite: "SELECT EXISTS (SELECT 1 FROM users WHERE id = ?1 AND COALESCE(is_active, 1) = 1)"
+            postgres: r#"
+SELECT EXISTS (
+    SELECT 1
+    FROM users u
+    WHERE u.id = $1
+      AND COALESCE(u.is_active, true) = true
+      AND EXISTS (
+          SELECT 1
+          FROM user_roles ur
+          JOIN role_permissions rp ON rp.role_id = ur.role_id
+          JOIN permissions p ON p.id = rp.permission_id
+          WHERE ur.user_id = u.id AND p.name IN ('support:read', 'support:manage')
+      )
+      AND EXISTS (
+          SELECT 1
+          FROM user_roles ur
+          JOIN role_permissions rp ON rp.role_id = ur.role_id
+          JOIN permissions p ON p.id = rp.permission_id
+          WHERE ur.user_id = u.id AND p.name IN ('support:write', 'support:manage')
+      )
+)
+"#,
+            sqlite: r#"
+SELECT EXISTS (
+    SELECT 1
+    FROM users u
+    WHERE u.id = ?1
+      AND COALESCE(u.is_active, 1) = 1
+      AND EXISTS (
+          SELECT 1
+          FROM user_roles ur
+          JOIN role_permissions rp ON rp.role_id = ur.role_id
+          JOIN permissions p ON p.id = rp.permission_id
+          WHERE ur.user_id = u.id AND p.name IN ('support:read', 'support:manage')
+      )
+      AND EXISTS (
+          SELECT 1
+          FROM user_roles ur
+          JOIN role_permissions rp ON rp.role_id = ur.role_id
+          JOIN permissions p ON p.id = rp.permission_id
+          WHERE ur.user_id = u.id AND p.name IN ('support:write', 'support:manage')
+      )
+)
+"#
         );
         sqlx::query_scalar(sql)
             .bind(user_id)

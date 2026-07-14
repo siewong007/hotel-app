@@ -6189,3 +6189,18 @@ DROP TRIGGER IF EXISTS update_support_conversations_updated_at ON support_conver
 CREATE TRIGGER update_support_conversations_updated_at
     BEFORE UPDATE ON support_conversations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+-- 040_support_guest_request_idempotency.sql
+-- Ensure a retried guest request creates one conversation even when the first
+-- request succeeds after the client loses its response.
+CREATE TABLE IF NOT EXISTS support_guest_request_idempotency_keys (
+    guest_id BIGINT NOT NULL REFERENCES guests(id) ON DELETE CASCADE,
+    idempotency_key VARCHAR(128) NOT NULL,
+    conversation_id BIGINT NOT NULL REFERENCES support_conversations(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (guest_id, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_guest_request_idempotency_conversation
+    ON support_guest_request_idempotency_keys (conversation_id);

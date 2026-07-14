@@ -86,6 +86,15 @@ const SUPPORT_PRIORITY_LABELS: Record<SupportPriority, string> = {
 
 const SUPPORT_PRIORITIES = Object.keys(SUPPORT_PRIORITY_LABELS) as SupportPriority[];
 
+const SUPPORT_CATEGORY_LABELS: Record<string, string> = {
+  booking: 'Booking or check-in',
+  stay: 'Stay or room',
+  billing: 'Billing or payment',
+  loyalty: 'Membership or rewards',
+  technical: 'Portal or technical issue',
+  other: 'Something else',
+};
+
 const SettingsPage: React.FC = () => {
   const { hasPermission } = useAuth();
   const { themeMode, onThemeModeChange } = useThemeMode();
@@ -134,6 +143,9 @@ const SettingsPage: React.FC = () => {
 
   // Guest support workflow settings
   const [supportEnabled, setSupportEnabled] = useState(true);
+  const [supportCategories, setSupportCategories] = useState<string[]>([
+    'booking', 'stay', 'billing', 'loyalty', 'technical', 'other',
+  ]);
   const [supportFirstResponseMinutes, setSupportFirstResponseMinutes] = useState<Record<SupportPriority, number>>({
     low: 240,
     normal: 60,
@@ -206,6 +218,7 @@ const SettingsPage: React.FC = () => {
     setTotpIssuerName(settings.totp_issuer_name);
     setPasskeyRelyingPartyName(settings.passkey_relying_party_name);
     setSupportEnabled(settings.support_enabled);
+    setSupportCategories(settings.support_categories);
     setSupportFirstResponseMinutes({
       low: settings.support_first_response_low_minutes,
       normal: settings.support_first_response_normal_minutes,
@@ -287,6 +300,7 @@ const SettingsPage: React.FC = () => {
         totp_issuer_name: totpIssuerName,
         passkey_relying_party_name: passkeyRelyingPartyName,
         support_enabled: supportEnabled,
+        support_categories: supportCategories,
         support_first_response_low_minutes: supportFirstResponseMinutes.low,
         support_first_response_normal_minutes: supportFirstResponseMinutes.normal,
         support_first_response_high_minutes: supportFirstResponseMinutes.high,
@@ -861,6 +875,33 @@ const SettingsPage: React.FC = () => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
             Existing conversations remain visible to staff when new guest requests are paused.
           </Typography>
+
+          <Typography variant="subtitle1" fontWeight="medium" gutterBottom>
+            Guest support topics
+          </Typography>
+          <Stack direction="row" flexWrap="wrap" useFlexGap sx={{ mb: 3, columnGap: 1, rowGap: 0 }}>
+            {Object.entries(SUPPORT_CATEGORY_LABELS).map(([category, label]) => {
+              const isEnabled = supportCategories.includes(category);
+              return (
+                <FormControlLabel
+                  key={category}
+                  label={label}
+                  control={(
+                    <Switch
+                      size="small"
+                      checked={isEnabled}
+                      disabled={!isAdmin || (isEnabled && supportCategories.length === 1)}
+                      onChange={(event) => setSupportCategories(current => (
+                        event.target.checked
+                          ? [...new Set([...current, category])]
+                          : current.filter(value => value !== category)
+                      ))}
+                    />
+                  )}
+                />
+              );
+            })}
+          </Stack>
 
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, md: 6 }}>

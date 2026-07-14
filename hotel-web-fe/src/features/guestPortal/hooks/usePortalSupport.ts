@@ -15,7 +15,7 @@ const supportQueryKeys = {
     [...supportKeyPrefix, 'detail', token, String(conversationId)] as const,
 };
 
-function newClientMessageId(): string {
+export function newPortalSupportClientId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
@@ -80,13 +80,13 @@ export function useSendPortalSupportMessage(token: string) {
     }: {
       conversationId: PortalSupportConversationId;
       message: string;
-      expectedVersion?: number;
+      expectedVersion: number;
     }) =>
       GuestPortalSupportService.sendMessage(
         conversationId,
         {
           message,
-          client_message_id: newClientMessageId(),
+          client_message_id: newPortalSupportClientId(),
           expected_version: expectedVersion,
         },
         token,

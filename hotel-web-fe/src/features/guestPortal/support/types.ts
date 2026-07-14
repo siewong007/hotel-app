@@ -36,6 +36,7 @@ export interface PortalSupportConversation {
   first_response_at: string | null;
   resolved_at: string | null;
   closed_at: string | null;
+  resolution_summary: string | null;
   can_reopen: boolean;
   version: number;
 }
@@ -56,16 +57,19 @@ export interface CreatePortalSupportConversationRequest {
   category: PortalSupportCategory;
   message: string;
   booking_id?: number;
+  client_request_id: string;
 }
 
 export interface CreatePortalSupportMessageRequest {
   message: string;
   client_message_id?: string;
-  expected_version?: number;
+  expected_version: number;
 }
 
 export interface PortalSupportConversationListResponse {
   items: PortalSupportConversation[];
+  categories: PortalSupportCategory[];
+  enabled: boolean;
   total: number;
   page: number;
   page_size: number;

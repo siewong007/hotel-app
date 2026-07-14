@@ -198,7 +198,6 @@ VALUES
     ('report_table_font_size'),
     ('service_tax_rate'),
     ('session_timeout'),
-    ('support_auto_close_resolved_days'),
     ('support_categories'),
     ('support_enabled'),
     ('support_first_response_high_minutes'),
@@ -838,7 +837,6 @@ INSERT INTO system_settings (key, value, value_type, category, description, is_p
 ('support_resolution_high_minutes', '120', 'number', 'support', 'Resolution SLA for high priority support conversations in minutes', false),
 ('support_resolution_urgent_minutes', '30', 'number', 'support', 'Resolution SLA for urgent priority support conversations in minutes', false),
 ('support_reopen_window_days', '7', 'number', 'support', 'Days a resolved guest support conversation can be reopened by its guest', false),
-('support_auto_close_resolved_days', '7', 'number', 'support', 'Days after resolution before support conversations may be automatically closed', false),
 ('guest_titles', '["Mr","Mrs","Ms","Miss","Dr","Prof","Rev"]', 'json', 'guests', 'Guest title options', true)
 -- NOTE: `value` is intentionally NOT updated here. This seed re-runs on every
 -- desktop restart (see hotel-desktop/src-tauri/src/postgres.rs::run_database_setup),
