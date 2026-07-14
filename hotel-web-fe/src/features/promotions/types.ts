@@ -94,7 +94,7 @@ export interface PromotionLifecycleInput {
   expected_version?: number;
 }
 
-export type VoucherStatus = 'available' | 'redeemed' | 'expired' | 'revoked';
+export type VoucherStatus = 'available' | 'redeemed' | 'revoked';
 
 export interface Voucher {
   id: number;

@@ -7,6 +7,7 @@ import EventNoteIcon from '@mui/icons-material/EventNote';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import HistoryIcon from '@mui/icons-material/History';
 import HomeWorkIcon from '@mui/icons-material/HomeWork';
+import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import CleaningServicesIcon from '@mui/icons-material/CleaningServices';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import NightsStayIcon from '@mui/icons-material/NightsStay';
@@ -82,6 +83,8 @@ const NightAuditPage = lazyRoute(() => import('../features/admin/components/Nigh
 const DataTransferPage = lazyRoute(() => import('../features/admin/components/DataTransferPage'));
 const HousekeepingPage = lazyRoute(() => import('../features/housekeeping'));
 const SupportManagementPage = lazyRoute(() => import('../features/support'));
+const OffersPage = lazyRoute(() => import('../features/promotions/pages/OffersPage'));
+const PromotionManagementPage = lazyRoute(() => import('../features/promotions/pages/PromotionManagementPage'));
 
 const routeDefinitions: AppRouteDefinition[] = [
   { id: 'landing', path: '/', component: LandingPage, animationType: 'fade', visibility: 'unauth' },
@@ -94,6 +97,7 @@ const routeDefinitions: AppRouteDefinition[] = [
   { id: 'guest-checkin-confirm', path: '/guest-checkin/confirm', component: GuestCheckInConfirmation, animationType: 'fade', visibility: 'unauth' },
   { id: 'portal-login', path: '/portal/login', component: PortalLoginPage, animationType: 'fade', visibility: 'public' },
   { id: 'portal-dashboard', path: '/portal', component: PortalDashboardPage, animationType: 'fade', visibility: 'public' },
+  { id: 'offers', path: '/offers', component: OffersPage, animationType: 'fade', visibility: 'public' },
   { id: 'dashboard', path: '/', component: DashboardRouter, animationType: 'fade', visibility: 'auth' },
   {
     id: 'timeline',
@@ -316,6 +320,18 @@ const routeDefinitions: AppRouteDefinition[] = [
     icon: StarIcon,
     breadcrumbLabel: 'Loyalty',
     navLabel: 'Loyalty',
+    navGroup: 'admin',
+    accessControlled: true,
+  },
+  {
+    id: 'promotions',
+    path: '/promotions',
+    component: PromotionManagementPage,
+    animationType: 'fade',
+    visibility: 'auth',
+    icon: LocalOfferIcon,
+    breadcrumbLabel: 'Promotions & Vouchers',
+    navLabel: 'Promotions',
     navGroup: 'admin',
     accessControlled: true,
   },

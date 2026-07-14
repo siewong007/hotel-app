@@ -85,7 +85,7 @@ export default function SupportManagementPage() {
   const isBusy = actionMutation.isPending || messageMutation.isPending;
 
   const listData = queueQuery.data;
-  const conversations = listData?.items ?? [];
+  const conversations = useMemo(() => listData?.items ?? [], [listData]);
   const queryError = queueQuery.error || detailQuery.error || agentsQuery.error;
 
   useEffect(() => {

@@ -18,7 +18,9 @@ import { Route as RoomConfigRouteImport } from './routes/room-config'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as RbacRouteImport } from './routes/rbac'
+import { Route as PromotionsRouteImport } from './routes/promotions'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as OffersRouteImport } from './routes/offers'
 import { Route as NightAuditRouteImport } from './routes/night-audit'
 import { Route as MyRewardsRouteImport } from './routes/my-rewards'
 import { Route as MyBookingsRouteImport } from './routes/my-bookings'
@@ -88,9 +90,19 @@ const RbacRoute = RbacRouteImport.update({
   path: '/rbac',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PromotionsRoute = PromotionsRouteImport.update({
+  id: '/promotions',
+  path: '/promotions',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OffersRoute = OffersRouteImport.update({
+  id: '/offers',
+  path: '/offers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const NightAuditRoute = NightAuditRouteImport.update({
@@ -227,7 +239,9 @@ export interface FileRoutesByFullPath {
   '/my-bookings': typeof MyBookingsRoute
   '/my-rewards': typeof MyRewardsRoute
   '/night-audit': typeof NightAuditRoute
+  '/offers': typeof OffersRoute
   '/profile': typeof ProfileRoute
+  '/promotions': typeof PromotionsRoute
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
@@ -262,7 +276,9 @@ export interface FileRoutesByTo {
   '/my-bookings': typeof MyBookingsRoute
   '/my-rewards': typeof MyRewardsRoute
   '/night-audit': typeof NightAuditRoute
+  '/offers': typeof OffersRoute
   '/profile': typeof ProfileRoute
+  '/promotions': typeof PromotionsRoute
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
@@ -298,7 +314,9 @@ export interface FileRoutesById {
   '/my-bookings': typeof MyBookingsRoute
   '/my-rewards': typeof MyRewardsRoute
   '/night-audit': typeof NightAuditRoute
+  '/offers': typeof OffersRoute
   '/profile': typeof ProfileRoute
+  '/promotions': typeof PromotionsRoute
   '/rbac': typeof RbacRoute
   '/register': typeof RegisterRoute
   '/reports': typeof ReportsRoute
@@ -335,7 +353,9 @@ export interface FileRouteTypes {
     | '/my-bookings'
     | '/my-rewards'
     | '/night-audit'
+    | '/offers'
     | '/profile'
+    | '/promotions'
     | '/rbac'
     | '/register'
     | '/reports'
@@ -370,7 +390,9 @@ export interface FileRouteTypes {
     | '/my-bookings'
     | '/my-rewards'
     | '/night-audit'
+    | '/offers'
     | '/profile'
+    | '/promotions'
     | '/rbac'
     | '/register'
     | '/reports'
@@ -405,7 +427,9 @@ export interface FileRouteTypes {
     | '/my-bookings'
     | '/my-rewards'
     | '/night-audit'
+    | '/offers'
     | '/profile'
+    | '/promotions'
     | '/rbac'
     | '/register'
     | '/reports'
@@ -441,7 +465,9 @@ export interface RootRouteChildren {
   MyBookingsRoute: typeof MyBookingsRoute
   MyRewardsRoute: typeof MyRewardsRoute
   NightAuditRoute: typeof NightAuditRoute
+  OffersRoute: typeof OffersRoute
   ProfileRoute: typeof ProfileRoute
+  PromotionsRoute: typeof PromotionsRoute
   RbacRoute: typeof RbacRoute
   RegisterRoute: typeof RegisterRoute
   ReportsRoute: typeof ReportsRoute
@@ -524,11 +550,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RbacRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/promotions': {
+      id: '/promotions'
+      path: '/promotions'
+      fullPath: '/promotions'
+      preLoaderRoute: typeof PromotionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/profile': {
       id: '/profile'
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/offers': {
+      id: '/offers'
+      path: '/offers'
+      fullPath: '/offers'
+      preLoaderRoute: typeof OffersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/night-audit': {
@@ -713,7 +753,9 @@ const rootRouteChildren: RootRouteChildren = {
   MyBookingsRoute: MyBookingsRoute,
   MyRewardsRoute: MyRewardsRoute,
   NightAuditRoute: NightAuditRoute,
+  OffersRoute: OffersRoute,
   ProfileRoute: ProfileRoute,
+  PromotionsRoute: PromotionsRoute,
   RbacRoute: RbacRoute,
   RegisterRoute: RegisterRoute,
   ReportsRoute: ReportsRoute,

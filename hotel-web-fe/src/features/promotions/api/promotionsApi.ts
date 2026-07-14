@@ -46,7 +46,7 @@ export const PromotionsApi = {
 
   update(promotionId: number, input: PromotionUpdateInput): Promise<Promotion> {
     return api
-      .patch(`admin/promotions/${promotionId}`, { json: input })
+      .put(`admin/promotions/${promotionId}`, { json: input })
       .json<Promotion>();
   },
 

@@ -12,10 +12,11 @@ import type {
   VoucherRevokeInput,
 } from '../types';
 
-export function useAdminPromotions(params: PromotionListParams) {
+export function useAdminPromotions(params: PromotionListParams, enabled = true) {
   return useQuery({
     queryKey: queryKeys.promotions.adminList(params),
     queryFn: () => PromotionsApi.listAdmin(params),
+    enabled,
     staleTime: queryStaleTime.short,
   });
 }
@@ -67,10 +68,11 @@ export function usePromotionTransition() {
   });
 }
 
-export function useAdminVouchers(params: VoucherListParams) {
+export function useAdminVouchers(params: VoucherListParams, enabled = true) {
   return useQuery({
     queryKey: queryKeys.promotions.adminVouchers(params),
     queryFn: () => PromotionsApi.listVouchers(params),
+    enabled,
     staleTime: queryStaleTime.short,
   });
 }
