@@ -8,6 +8,7 @@ use crate::models::{
     RefreshTokenResponse, RegisterRequest, ResendVerificationRequest, UserResponse,
 };
 use crate::repositories::auth::AuthRepository;
+use crate::repositories::guest::GuestRepository;
 use crate::repositories::rbac::RbacRepository;
 use crate::services::audit::AuditLog;
 use crate::utils::sanitization::Sanitizer;
@@ -287,20 +288,39 @@ pub async fn register(
     pool: &DbPool,
     mut req: RegisterRequest,
 ) -> Result<serde_json::Value, ApiError> {
+    req.email = req
+        .email
+        .take()
+        .map(|email| Sanitizer::sanitize_email(&email))
+        .filter(|email| !email.is_empty());
+    req.phone = Sanitizer::sanitize_phone(&req.phone);
+    req.address_line1 = req
+        .address_line1
+        .take()
+        .map(|address| Sanitizer::sanitize_text(address.trim()))
+        .filter(|address| !address.is_empty());
+
     req.validate()
         .map_err(|e| ApiError::BadRequest(e.to_string()))?;
 
     req.first_name = Sanitizer::sanitize_guest_name(&req.first_name);
     req.last_name = Sanitizer::sanitize_guest_name(&req.last_name);
-    if let Some(phone) = &req.phone {
-        req.phone = Some(Sanitizer::sanitize_phone(phone));
-    }
-
     AuthService::validate_password(&req.password).map_err(ApiError::BadRequest)?;
 
-    if AuthRepository::username_or_email_exists(pool, &req.username, &req.email).await? {
+    if AuthRepository::username_or_email_exists(pool, &req.username, req.email.as_deref()).await? {
         return Err(ApiError::BadRequest(
             "Username or email already exists".to_string(),
+        ));
+    }
+
+    let full_name = format!("{} {}", req.first_name, req.last_name);
+    if GuestRepository::full_name_conflict_id(pool, &full_name, None)
+        .await?
+        .is_some()
+    {
+        return Err(ApiError::Conflict(
+            "A guest profile with this name already exists. Please sign in with your existing account or contact the hotel for help."
+                .to_string(),
         ));
     }
 
@@ -310,16 +330,24 @@ pub async fn register(
 
     let (guest, user) = AuthRepository::register_guest_user(pool, &req, &password_hash).await?;
 
-    AuthService::create_email_verification_token(pool, user.id)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))?;
+    if req.email.is_some() {
+        AuthService::create_email_verification_token(pool, user.id)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+    }
+
+    let message = if req.email.is_some() {
+        "Registration successful! Please check your email to verify your account."
+    } else {
+        "Registration successful! You can now log in with your username."
+    };
 
     Ok(json!({
-        "message": "Registration successful! Please check your email to verify your account.",
+        "message": message,
         "user": {
             "id": user.id,
             "username": user.username,
-            "email": user.email,
+            "email": req.email,
             "full_name": user.full_name,
             "user_type": user.user_type,
             "is_verified": user.is_verified,

@@ -11,6 +11,12 @@ pub async fn global_search(
     user_id: i64,
     params: GlobalSearchQuery,
 ) -> Result<SearchResponse, ApiError> {
+    if AuthService::check_role(pool, user_id, "guest").await? {
+        return Err(ApiError::Forbidden(
+            "Global search is not available to guest accounts".to_string(),
+        ));
+    }
+
     let query = params.q.unwrap_or_default().trim().to_string();
     if query.len() < 2 {
         return Ok(SearchResponse {

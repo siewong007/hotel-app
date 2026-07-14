@@ -8,6 +8,9 @@ export function useRoomData() {
   const roomsQuery = useRooms();
   const guestsQuery = useGuests();
   const bookingsQuery = useAllBookings();
+  const { refetch: refetchRooms } = roomsQuery;
+  const { refetch: refetchGuests } = guestsQuery;
+  const { refetch: refetchBookings } = bookingsQuery;
   const [roomOverrides, setRooms] = useState<Room[] | null>(null);
   const [guestOverrides, setGuests] = useState<Guest[] | null>(null);
   const [manualLoading, setManualLoading] = useState(false);
@@ -16,7 +19,7 @@ export function useRoomData() {
   const loadRooms = useCallback(async (showLoader = false) => {
     if (showLoader) setManualLoading(true);
     try {
-      const result = await roomsQuery.refetch();
+      const result = await refetchRooms();
       if (result.data) setRooms(null);
       setError(null);
     } catch (err: any) {
@@ -24,24 +27,24 @@ export function useRoomData() {
     } finally {
       if (showLoader) setManualLoading(false);
     }
-  }, [roomsQuery]);
+  }, [refetchRooms]);
 
   const loadBookings = useCallback(async () => {
     try {
-      await bookingsQuery.refetch();
+      await refetchBookings();
     } catch (err: any) {
       console.error('Failed to load bookings:', err);
     }
-  }, [bookingsQuery]);
+  }, [refetchBookings]);
 
   const loadGuests = useCallback(async () => {
     try {
-      const result = await guestsQuery.refetch();
+      const result = await refetchGuests();
       if (result.data) setGuests(null);
     } catch (err: any) {
       setError(err.message || 'Failed to load guests');
     }
-  }, [guestsQuery]);
+  }, [refetchGuests]);
 
   const reload = useCallback(async () => {
     await Promise.all([loadRooms(true), loadGuests(), loadBookings()]);

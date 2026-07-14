@@ -228,9 +228,10 @@ pub async fn get_guests_with_credits_handler(
 
 pub async fn add_guest_credits_handler(
     State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
     Json(input): Json<AddGuestCreditsRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    booking_service::add_guest_credits_handler(State(pool), Json(input)).await
+    booking_service::add_guest_credits_handler(State(pool), Extension(user_id), Json(input)).await
 }
 
 pub async fn update_guest_credits_handler(

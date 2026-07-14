@@ -7,7 +7,7 @@ import { setAccessToken, clearAccessToken } from './tokenStore';
 import type { RouteAccessPolicy } from '../types';
 
 export interface User {
-  id: string;
+  id: string | number;
   username: string;
   email: string;
   full_name?: string;
@@ -31,7 +31,7 @@ export interface AuthState {
 
 interface AuthContextType extends AuthState {
   login: (username: string, password: string, totpCode?: string) => Promise<boolean>;
-  register: (data: { username: string; email: string; password: string; first_name: string; last_name: string; phone?: string }) => Promise<void>;
+  register: (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string }) => Promise<void>;
   logout: () => void;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
@@ -90,6 +90,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     storage.removeItem('roles');
     storage.removeItem('permissions');
     storage.removeItem('routePolicies');
+    storage.removeItem('cmdRecents');
   }, []);
 
   const resetAuthState = useCallback(() => {
@@ -179,7 +180,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => window.removeEventListener('auth:tokens-refreshed', handleTokensRefreshed);
   }, []);
 
-  const register = useCallback(async (data: { username: string; email: string; password: string; first_name: string; last_name: string; phone?: string }) => {
+  const register = useCallback(async (data: { username: string; email?: string; password: string; first_name: string; last_name: string; phone: string; address_line1?: string }) => {
     try {
       await AuthService.register(data);
     } catch (error: any) {
@@ -228,6 +229,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // IMPORTANT: Set the token above BEFORE calling checkPasskeys so the API
       // client can authenticate. Non-sensitive profile data is cached in storage.
+      // Command-palette results can contain internal record details and must
+      // never carry over from the previously signed-in account.
+      storage.removeItem('cmdRecents');
       storage.setItems({
         user,
         roles,

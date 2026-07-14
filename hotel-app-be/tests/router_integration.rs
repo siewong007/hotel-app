@@ -145,4 +145,28 @@ mod sqlite_tests {
 
         assert_eq!(response.status(), reqwest::StatusCode::OK);
     }
+
+    #[tokio::test]
+    async fn guest_request_to_global_search_returns_403() {
+        let pool = common::setup_test_db().await;
+        let user_id = 920_003;
+        insert_user_with_role(&pool, user_id, "router_test_guest", 6).await;
+        let base_url = spawn_app(pool).await;
+
+        let token = AuthService::generate_jwt(
+            user_id,
+            "router_test_guest".to_string(),
+            vec!["guest".to_string()],
+        )
+        .expect("jwt should generate");
+
+        let response = reqwest::Client::new()
+            .get(format!("{base_url}/api/search?q=room"))
+            .bearer_auth(token)
+            .send()
+            .await
+            .expect("request should complete");
+
+        assert_eq!(response.status(), reqwest::StatusCode::FORBIDDEN);
+    }
 }

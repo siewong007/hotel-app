@@ -591,7 +591,7 @@ export class BookingsService {
     guest_id: number;
     room_type_id: number;
     nights: number;
-    notes?: string;
+    reason: string;
   }): Promise<{
     success: boolean;
     message: string;
@@ -601,6 +601,7 @@ export class BookingsService {
       room_type_id: number;
       room_type_name: string;
       nights_available: number;
+      reason: string;
       notes: string | null;
     };
   }> {

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from '../../../router';
-import { clearPortalToken, getPortalToken } from './portalTokenStore';
+import { clearPortalToken, getValidPortalToken } from './portalTokenStore';
 
 /**
  * Minimal guest-portal session state. Deliberately not a React Context: the
@@ -10,7 +10,7 @@ import { clearPortalToken, getPortalToken } from './portalTokenStore';
  */
 export function usePortalSession() {
   const navigate = useNavigate();
-  const [token] = useState<string | null>(() => getPortalToken());
+  const [token] = useState<string | null>(() => getValidPortalToken());
 
   const logout = useCallback(() => {
     clearPortalToken();

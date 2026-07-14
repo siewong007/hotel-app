@@ -8,6 +8,24 @@ use chrono::{DateTime, Utc};
 
 pub struct AuthRepository;
 
+fn is_guest_name_unique_violation(error: &sqlx::Error) -> bool {
+    let Some(database_error) = error.as_database_error() else {
+        return false;
+    };
+
+    let is_unique_violation = database_error.code().as_deref() == Some("23505")
+        || database_error
+            .message()
+            .contains("UNIQUE constraint failed");
+    let is_guest_name_constraint = database_error.constraint()
+        == Some("idx_guests_full_name_unique")
+        || database_error
+            .message()
+            .contains("idx_guests_full_name_unique");
+
+    is_unique_violation && is_guest_name_constraint
+}
+
 impl AuthRepository {
     pub async fn find_user_by_login(
         pool: &DbPool,
@@ -148,10 +166,10 @@ impl AuthRepository {
     pub async fn username_or_email_exists(
         pool: &DbPool,
         username: &str,
-        email: &str,
+        email: Option<&str>,
     ) -> Result<bool, ApiError> {
         let existing = sqlx::query_scalar::<_, i64>(
-            "SELECT id FROM users WHERE username = $1 OR email = $2 LIMIT 1",
+            "SELECT id FROM users WHERE username = $1 OR ($2 IS NOT NULL AND email = $2) LIMIT 1",
         )
         .bind(username)
         .bind(email)
@@ -169,44 +187,106 @@ impl AuthRepository {
     ) -> Result<(Guest, User), ApiError> {
         let mut tx = pool.begin().await.map_err(ApiError::from)?;
         let full_name = format!("{} {}", req.first_name, req.last_name);
-
-        let guest: Guest = sqlx::query_as(
-            r#"
-            INSERT INTO guests (
-                first_name, last_name, full_name, email, phone, is_active, created_at
-            )
-            VALUES ($1, $2, $3, $4, $5, true, CURRENT_TIMESTAMP)
-            RETURNING *
+        let guest_query = crate::sql_query!(
+            postgres: r#"
+                INSERT INTO guests (
+                    first_name, last_name, full_name, email, phone, address_line_1,
+                    is_active, guest_type, created_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, true, 'non_member', CURRENT_TIMESTAMP)
+                RETURNING id, full_name, email, phone, ic_number, nationality,
+                          address_line_1 AS address_line1, city, state AS state_province,
+                          postal_code, country, title, alt_phone, is_active, guest_type,
+                          tourism_type, COALESCE(discount_percentage, 0) AS discount_percentage,
+                          company_name,
+                          COALESCE(complimentary_nights_credit, 0) AS complimentary_nights_credit,
+                          created_at, updated_at,
+                          NULL::BIGINT AS bookings_count,
+                          NULL::DATE AS last_stay_date
             "#,
-        )
-        .bind(&req.first_name)
-        .bind(&req.last_name)
-        .bind(&full_name)
-        .bind(&req.email)
-        .bind(&req.phone)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(ApiError::from)?;
+            sqlite: r#"
+                INSERT INTO guests (
+                    first_name, last_name, full_name, email, phone, address_line1,
+                    is_active, guest_type, created_at
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 'non_member', datetime('now'))
+                RETURNING id, full_name, email, phone, ic_number, nationality,
+                          address_line1, city, state_province, postal_code, country,
+                          title, alt_phone, is_active,
+                          CASE WHEN guest_type = 'member' THEN 'member' ELSE 'non_member' END AS guest_type,
+                          tourism_type, COALESCE(discount_percentage, 0) AS discount_percentage,
+                          company_name,
+                          COALESCE(complimentary_nights_credit, 0) AS complimentary_nights_credit,
+                          created_at, updated_at,
+                          NULL AS bookings_count,
+                          NULL AS last_stay_date
+            "#
+        );
 
-        let user = sqlx::query_as::<_, User>(
-            r#"
-            INSERT INTO users (
-                username, email, password_hash, full_name, phone,
-                user_type, guest_id, is_active, is_verified, created_at
-            )
-            VALUES ($1, $2, $3, $4, $5, 'guest', $6, true, false, CURRENT_TIMESTAMP)
-            RETURNING id, username, email, full_name, phone, is_active, is_verified, user_type, two_factor_enabled, two_factor_secret, two_factor_recovery_codes, created_at, updated_at
+        let guest: Guest = sqlx::query_as(guest_query)
+            .bind(&req.first_name)
+            .bind(&req.last_name)
+            .bind(&full_name)
+            .bind(&req.email)
+            .bind(&req.phone)
+            .bind(&req.address_line1)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|error| {
+                if is_guest_name_unique_violation(&error) {
+                    ApiError::Conflict(
+                        "A guest profile with this name already exists. Please sign in with your existing account or contact the hotel for help."
+                            .to_string(),
+                    )
+                } else {
+                    ApiError::from(error)
+                }
+            })?;
+
+        // The users table historically requires an email. Keep that internal
+        // contract without exposing a fake address or triggering verification
+        // by using a reserved, non-deliverable domain when email is omitted.
+        let account_email = req
+            .email
+            .clone()
+            .unwrap_or_else(|| format!("{}@no-email.invalid", req.username));
+        let is_verified = req.email.is_none();
+        let user_uuid = crate::core::db::generate_uuid();
+        let user_query = crate::sql_query!(
+            postgres: r#"
+                INSERT INTO users (
+                    uuid, username, email, password_hash, full_name, phone,
+                    user_type, guest_id, is_active, is_verified, created_at
+                )
+                VALUES ($8::uuid, $1, $2, $3, $4, $5, 'guest', $6, true, $7, CURRENT_TIMESTAMP)
+                RETURNING id, username, email, full_name, phone, is_active, is_verified,
+                          user_type, two_factor_enabled, two_factor_secret,
+                          two_factor_recovery_codes, created_at, updated_at
             "#,
-        )
-        .bind(&req.username)
-        .bind(&req.email)
-        .bind(password_hash)
-        .bind(&full_name)
-        .bind(&req.phone)
-        .bind(guest.id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(ApiError::from)?;
+            sqlite: r#"
+                INSERT INTO users (
+                    uuid, username, email, password_hash, full_name, phone,
+                    user_type, guest_id, is_active, is_verified, created_at
+                )
+                VALUES (?8, ?1, ?2, ?3, ?4, ?5, 'guest', ?6, 1, ?7, datetime('now'))
+                RETURNING id, username, email, full_name, phone, is_active, is_verified,
+                          user_type, two_factor_enabled, two_factor_secret,
+                          two_factor_recovery_codes, created_at, updated_at
+            "#
+        );
+
+        let user = sqlx::query_as::<_, User>(user_query)
+            .bind(&req.username)
+            .bind(account_email)
+            .bind(password_hash)
+            .bind(&full_name)
+            .bind(&req.phone)
+            .bind(guest.id)
+            .bind(is_verified)
+            .bind(user_uuid)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(ApiError::from)?;
 
         let guest_role_id: i64 =
             sqlx::query_scalar("SELECT id FROM roles WHERE name = 'guest' LIMIT 1")

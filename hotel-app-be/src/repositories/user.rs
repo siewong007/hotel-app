@@ -1,8 +1,13 @@
 //! User repository for database operations
 
+use chrono::{DateTime, Utc};
+
 use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::models::{User, UserProfile};
+use crate::{param, sql_query};
+
+const UNCONFIGURED_EMAIL_PATTERN: &str = "%@no-email.invalid";
 
 pub struct UserRepository;
 
@@ -46,18 +51,100 @@ impl UserRepository {
 
     /// Get user profile
     pub async fn get_profile(pool: &DbPool, user_id: i64) -> Result<Option<UserProfile>, ApiError> {
-        sqlx::query_as::<_, UserProfile>(
-            r#"
-            SELECT id, username, email, full_name, phone, avatar_url,
-                   created_at, updated_at, last_login_at
-            FROM users
-            WHERE id = $1 AND is_active = true AND deleted_at IS NULL
+        let query = sql_query!(
+            postgres: r#"
+                SELECT id, username,
+                       CASE WHEN email LIKE '%@no-email.invalid' THEN '' ELSE email END AS email,
+                       CASE WHEN email LIKE '%@no-email.invalid' THEN false ELSE true END AS email_configured,
+                       is_verified, user_type, full_name, phone, avatar_url,
+                       created_at, updated_at, last_login_at
+                FROM users
+                WHERE id = $1 AND is_active = true AND deleted_at IS NULL
             "#,
-        )
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(|e| ApiError::Database(e.to_string()))
+            sqlite: r#"
+                SELECT id, username,
+                       CASE WHEN email LIKE '%@no-email.invalid' THEN '' ELSE email END AS email,
+                       CASE WHEN email LIKE '%@no-email.invalid' THEN 0 ELSE 1 END AS email_configured,
+                       is_verified, user_type, full_name, phone, avatar_url,
+                       created_at, updated_at, last_login_at
+                FROM users
+                WHERE id = ?1 AND is_active = 1 AND deleted_at IS NULL
+            "#
+        );
+        sqlx::query_as::<_, UserProfile>(query)
+            .bind(user_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    pub async fn email_exists_for_other_user(
+        pool: &DbPool,
+        user_id: i64,
+        email: &str,
+    ) -> Result<bool, ApiError> {
+        let query = format!(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE LOWER(email) = LOWER({}) AND id <> {})",
+            param!(1),
+            param!(2)
+        );
+        sqlx::query_scalar(&query)
+            .bind(email)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))
+    }
+
+    /// Configure a guest account's first real email and mirror it to the linked
+    /// guest record. The placeholder guard makes this a one-time transition.
+    pub async fn configure_guest_email(
+        pool: &DbPool,
+        user_id: i64,
+        email: &str,
+        verification_token: &str,
+        token_expires_at: DateTime<Utc>,
+    ) -> Result<bool, ApiError> {
+        let mut tx = pool.begin().await.map_err(ApiError::from)?;
+        let update_user = format!(
+            "UPDATE users SET email = {}, is_verified = false, email_verification_token = {}, \
+             email_token_expires_at = {}, updated_at = CURRENT_TIMESTAMP \
+             WHERE id = {} AND user_type = 'guest' AND email LIKE {}",
+            param!(1),
+            param!(2),
+            param!(3),
+            param!(4),
+            param!(5)
+        );
+        let result = sqlx::query(&update_user)
+            .bind(email)
+            .bind(verification_token)
+            .bind(token_expires_at)
+            .bind(user_id)
+            .bind(UNCONFIGURED_EMAIL_PATTERN)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        if result.rows_affected() == 0 {
+            return Ok(false);
+        }
+
+        let update_guest = format!(
+            "UPDATE guests SET email = {}, updated_at = CURRENT_TIMESTAMP \
+             WHERE id = (SELECT guest_id FROM users WHERE id = {})",
+            param!(1),
+            param!(2)
+        );
+        sqlx::query(&update_guest)
+            .bind(email)
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| ApiError::Database(e.to_string()))?;
+
+        tx.commit().await.map_err(ApiError::from)?;
+        Ok(true)
     }
 
     /// Get password hash for a user

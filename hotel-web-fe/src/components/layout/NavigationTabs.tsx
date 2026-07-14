@@ -45,6 +45,8 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
   const location = useLocation();
   const navigate = useNavigate();
   const { hasPermission, hasRole, getRoutePolicy, logout, user } = useAuth();
+  const isGuest = hasRole('guest') || user?.user_type === 'guest';
+  const displayEmail = user?.email?.endsWith('@no-email.invalid') ? '' : user?.email;
 
   const visibleItems = React.useMemo(
     () =>
@@ -116,15 +118,21 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
 
   type Recent = { title: string; subtitle?: string; route: string; kind: string };
   const [recents, setRecents] = React.useState<Recent[]>(
-    () => storage.getItem<Recent[]>('cmdRecents') || []
+    () => (isGuest ? [] : storage.getItem<Recent[]>('cmdRecents') || [])
   );
+
+  React.useEffect(() => {
+    if (!isGuest) return;
+    setRecents([]);
+    storage.removeItem('cmdRecents');
+  }, [isGuest]);
 
   const term = cmdQuery.trim();
   const slash = term.startsWith('/');
   const lowTerm = (slash ? term.slice(1) : term).toLowerCase();
 
   // Server-side federated search (skipped for /commands or the Pages scope)
-  const serverEnabled = cmdOpen && !slash && scope !== 'pages';
+  const serverEnabled = !isGuest && cmdOpen && !slash && scope !== 'pages';
   const serverTypes =
     scope === 'bookings' || scope === 'guests' || scope === 'ledgers' || scope === 'rooms' ? [scope] : undefined;
   const { groups: serverGroups, loading: serverLoading } = useGlobalSearch(
@@ -194,7 +202,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
     const showClient = scope === 'all' || scope === 'pages';
     const out: Group[] = [];
 
-    if (!term && recents.length > 0 && scope === 'all') {
+    if (!isGuest && !term && recents.length > 0 && scope === 'all') {
       out.push({
         key: 'recents',
         label: 'Recent',
@@ -267,7 +275,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
     }
 
     return out;
-  }, [term, lowTerm, scope, recents, serverGroups, visibleItems, bookingsRoute, dot, renderNavIcon]);
+  }, [term, lowTerm, scope, recents, serverGroups, visibleItems, bookingsRoute, dot, renderNavIcon, isGuest]);
 
   const flatItems = React.useMemo(() => groups.flatMap((g) => g.items), [groups]);
 
@@ -277,7 +285,9 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
 
   const select = (item: SelectItem) => {
     const route = routeForSelection(item);
-    persistRecent({ title: item.title, subtitle: item.subtitle, route, kind: 'nav' });
+    if (!isGuest) {
+      persistRecent({ title: item.title, subtitle: item.subtitle, route, kind: 'nav' });
+    }
     closeCmd();
     navigate(route);
   };
@@ -390,7 +400,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
               value={cmdQuery}
               onChange={(e) => setCmdQuery(e.target.value)}
               onKeyDown={onPaletteKeyDown}
-              placeholder="Search bookings, guests, rooms, pages…"
+              placeholder={isGuest ? 'Search pages…' : 'Search bookings, guests, rooms, pages…'}
               sx={{ flex: 1, fontSize: '0.9rem' }}
             />
             {serverLoading && <CircularProgress size={14} />}
@@ -399,35 +409,36 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
             </Box>
           </Box>
 
-          {/* Scope chips */}
-          <Box sx={{ display: 'flex', gap: 0.75, px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', flexWrap: 'wrap' }}>
-            {([
-              ['all', 'All'],
-              ['bookings', 'Bookings'],
-              ['guests', 'Guests'],
-              ['ledgers', 'Ledger'],
-              ['rooms', 'Rooms'],
-              ['pages', 'Pages'],
-            ] as const).map(([k, lb]) => {
-              const on = scope === k;
-              return (
-                <Box
-                  key={k}
-                  component="button"
-                  onClick={() => setScope(k)}
-                  sx={{
-                    px: 1.25, py: 0.5, borderRadius: 999, border: '1px solid',
-                    borderColor: on ? 'text.primary' : 'divider', cursor: 'pointer',
-                    fontSize: '0.72rem', fontWeight: 600,
-                    color: on ? 'background.paper' : 'text.secondary',
-                    bgcolor: on ? 'text.primary' : 'transparent',
-                  }}
-                >
-                  {lb}
-                </Box>
-              );
-            })}
-          </Box>
+          {!isGuest && (
+            <Box sx={{ display: 'flex', gap: 0.75, px: 1.5, py: 1, borderBottom: '1px solid', borderColor: 'divider', flexWrap: 'wrap' }}>
+              {([
+                ['all', 'All'],
+                ['bookings', 'Bookings'],
+                ['guests', 'Guests'],
+                ['ledgers', 'Ledger'],
+                ['rooms', 'Rooms'],
+                ['pages', 'Pages'],
+              ] as const).map(([k, lb]) => {
+                const on = scope === k;
+                return (
+                  <Box
+                    key={k}
+                    component="button"
+                    onClick={() => setScope(k)}
+                    sx={{
+                      px: 1.25, py: 0.5, borderRadius: 999, border: '1px solid',
+                      borderColor: on ? 'text.primary' : 'divider', cursor: 'pointer',
+                      fontSize: '0.72rem', fontWeight: 600,
+                      color: on ? 'background.paper' : 'text.secondary',
+                      bgcolor: on ? 'text.primary' : 'transparent',
+                    }}
+                  >
+                    {lb}
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
 
           <Box sx={{ maxHeight: 380, overflowY: 'auto', py: 0.5 }}>
             {flatItems.length === 0 && (
@@ -546,16 +557,18 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = React.memo(function
         >
           <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{user?.full_name || user?.username}</Typography>
-            <Typography variant="caption" color="text.secondary">{user?.email || user?.username}</Typography>
+            <Typography variant="caption" color="text.secondary">{displayEmail || user?.username}</Typography>
           </Box>
           <MenuItem onClick={() => handleMenuItemClick('/profile?edit=true')} sx={{ py: 1.25 }} onMouseEnter={() => preloadRoute('/profile')}>
             <ListItemIcon><PersonIcon fontSize="small" /></ListItemIcon>
             <ListItemText>My Profile</ListItemText>
           </MenuItem>
-          <MenuItem onClick={() => handleMenuItemClick('/settings')} sx={{ py: 1.25 }} onMouseEnter={() => preloadRoute('/settings')}>
-            <ListItemIcon><ManageAccountsIcon fontSize="small" /></ListItemIcon>
-            <ListItemText>Account Settings</ListItemText>
-          </MenuItem>
+          {!isGuest && (
+            <MenuItem onClick={() => handleMenuItemClick('/settings')} sx={{ py: 1.25 }} onMouseEnter={() => preloadRoute('/settings')}>
+              <ListItemIcon><ManageAccountsIcon fontSize="small" /></ListItemIcon>
+              <ListItemText>Hotel Settings</ListItemText>
+            </MenuItem>
+          )}
           <MenuItem onClick={() => handleMenuItemClick('/help')} sx={{ py: 1.25 }} onMouseEnter={() => preloadRoute('/help')}>
             <ListItemIcon><HelpOutlineIcon fontSize="small" /></ListItemIcon>
             <ListItemText>Help &amp; Support</ListItemText>

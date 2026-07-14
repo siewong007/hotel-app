@@ -309,8 +309,9 @@ const UserProfilePage: React.FC = () => {
   }, [searchParams, setSearchParams]);
 
   const handleUpdateProfile = async () => {
-    // Validate email
-    const emailValidation = validateEmail(formData.email);
+    const canEditEmail = profile?.user_type !== 'guest' || !profile.email_configured;
+    const nextEmail = formData.email.trim();
+    const emailValidation = canEditEmail && nextEmail ? validateEmail(nextEmail) : '';
     if (emailValidation) {
       setEmailError(emailValidation);
       showSnackbar(emailValidation, 'warning');
@@ -318,10 +319,21 @@ const UserProfilePage: React.FC = () => {
     }
 
     try {
-      await HotelAPIService.updateUserProfile(formData);
+      const isAddingGuestEmail = profile?.user_type === 'guest'
+        && !profile.email_configured
+        && Boolean(nextEmail);
+      await HotelAPIService.updateUserProfile({
+        ...formData,
+        email: canEditEmail && nextEmail ? nextEmail : undefined,
+      });
       setEditing(false);
       await loadProfile();
-      showSnackbar('Profile updated successfully', 'success');
+      showSnackbar(
+        isAddingGuestEmail
+          ? 'Email added. Verification is now pending.'
+          : 'Profile updated successfully',
+        'success'
+      );
     } catch (error: any) {
       console.error('Failed to update profile:', error);
       showSnackbar(error.message || 'Failed to update profile', 'error');
@@ -475,6 +487,20 @@ const UserProfilePage: React.FC = () => {
           <EkycStatusCard />
         </Box>
 
+        {profile.user_type === 'guest' && !profile.email_configured && (
+          <Alert
+            severity="info"
+            sx={{ mb: 3 }}
+            action={
+              <Button color="inherit" size="small" onClick={() => setEditing(true)}>
+                Add Email
+              </Button>
+            }
+          >
+            Add an email address to receive account and booking updates.
+          </Alert>
+        )}
+
         <Card>
           <CardContent>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
@@ -549,24 +575,45 @@ const UserProfilePage: React.FC = () => {
                 />
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
-                <TextField
-                  fullWidth
-                  label="Email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => {
-                    setFormData({ ...formData, email: e.target.value });
-                    setEmailError('');
-                  }}
-                  onBlur={() => {
-                    if (editing) {
-                      setEmailError(validateEmail(formData.email));
-                    }
-                  }}
-                  error={!!emailError}
-                  helperText={emailError}
-                  disabled={!editing}
-                />
+                <Box>
+                  <TextField
+                    fullWidth
+                    label="Email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => {
+                      setFormData({ ...formData, email: e.target.value });
+                      setEmailError('');
+                    }}
+                    onBlur={() => {
+                      if (editing && formData.email.trim()) {
+                        setEmailError(validateEmail(formData.email));
+                      }
+                    }}
+                    error={!!emailError}
+                    helperText={emailError || (
+                      profile.user_type === 'guest' && profile.email_configured
+                        ? 'Contact support if you need to change this email.'
+                        : 'Used for account verification and booking updates.'
+                    )}
+                    disabled={!editing || (profile.user_type === 'guest' && profile.email_configured)}
+                  />
+                  {profile.user_type === 'guest' && (
+                    <Chip
+                      size="small"
+                      sx={{ mt: 1 }}
+                      color={profile.email_configured && profile.is_verified ? 'success' : 'default'}
+                      icon={profile.email_configured && profile.is_verified ? <CheckIcon /> : undefined}
+                      label={
+                        !profile.email_configured
+                          ? 'Email not configured'
+                          : profile.is_verified
+                            ? 'Email verified'
+                            : 'Verification pending'
+                      }
+                    />
+                  )}
+                </Box>
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
                 <TextField

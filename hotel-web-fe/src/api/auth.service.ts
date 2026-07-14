@@ -13,11 +13,12 @@ export class AuthService {
   // Registration & Verification
   static async register(data: {
     username: string;
-    email: string;
+    email?: string;
     password: string;
     first_name: string;
     last_name: string;
-    phone?: string
+    phone: string;
+    address_line1?: string;
   }): Promise<void> {
     try {
       await api.post('auth/register', { json: data });

@@ -5,6 +5,7 @@ import {
   ApiNotificationDetail,
 } from '../../utils/apiNotifications';
 import { recordNotification } from '../../utils/notificationStore';
+import { useAuth } from '../../auth/AuthContext';
 
 interface QueuedNotification extends ApiNotificationDetail {
   id: number;
@@ -13,6 +14,7 @@ interface QueuedNotification extends ApiNotificationDetail {
 const DEDUPE_WINDOW_MS = 1500;
 
 export function ApiNotificationHost() {
+  const { user } = useAuth();
   const [queue, setQueue] = useState<QueuedNotification[]>([]);
   const [activeNotification, setActiveNotification] = useState<QueuedNotification | null>(null);
   const nextIdRef = useRef(1);
@@ -35,7 +37,7 @@ export function ApiNotificationHost() {
       if (lastSeenAt && now - lastSeenAt < DEDUPE_WINDOW_MS) return;
 
       recentNotificationsRef.current.set(dedupeKey, now);
-      recordNotification(detail);
+      recordNotification(detail, user?.id);
       setQueue((current) => [
         ...current,
         {
@@ -47,7 +49,7 @@ export function ApiNotificationHost() {
 
     window.addEventListener(API_NOTIFICATION_EVENT, handleNotification);
     return () => window.removeEventListener(API_NOTIFICATION_EVENT, handleNotification);
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (activeNotification || queue.length === 0) return;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from '../../../router';
 import {
   Box,
@@ -11,12 +11,15 @@ import {
   Grid,
   Fade,
   Collapse,
+  CircularProgress,
 } from '@mui/material';
 import { PersonAdd as RegisterIcon } from '@mui/icons-material';
 import { useAuth } from '../../../auth/AuthContext';
 import { validateEmail, validatePhone } from '../../../utils/validation';
 import { getHotelSettings } from '../../../utils/hotelSettings';
 import { LoadingSpinner } from '../../../components';
+
+const GUEST_LOGIN_REDIRECT_SECONDS = 5;
 
 const RegisterPage: React.FC = () => {
   const hotelSettings = getHotelSettings();
@@ -28,14 +31,33 @@ const RegisterPage: React.FC = () => {
     firstName: '',
     lastName: '',
     phone: '',
+    addressLine1: '',
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
   const [emailError, setEmailError] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (redirectCountdown === null) {
+      return;
+    }
+
+    if (redirectCountdown === 0) {
+      navigate('/login?account=guest&method=password', { replace: true });
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setRedirectCountdown(current => current === null ? null : current - 1);
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [navigate, redirectCountdown]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -54,28 +76,37 @@ const RegisterPage: React.FC = () => {
 
   const handleBlur = (field: string) => {
     if (field === 'email') {
-      setEmailError(validateEmail(formData.email));
+      setEmailError(formData.email.trim() ? validateEmail(formData.email) : '');
+    } else if (field === 'phone') {
+      setPhoneError(validatePhone(formData.phone));
     }
   };
 
   const validateForm = () => {
-    if (!formData.username || !formData.email || !formData.password || !formData.confirmPassword) {
-      return 'All fields are required';
+    if (!formData.username || !formData.firstName || !formData.lastName || !formData.phone || !formData.password || !formData.confirmPassword) {
+      return 'Username, name, phone, and password are required';
     }
 
-    // Validate email
-    const emailValidation = validateEmail(formData.email);
-    if (emailValidation) {
-      setEmailError(emailValidation);
-      return emailValidation;
+    if (formData.email.trim()) {
+      const emailValidation = validateEmail(formData.email);
+      if (emailValidation) {
+        setEmailError(emailValidation);
+        return emailValidation;
+      }
+    }
+
+    const phoneValidation = validatePhone(formData.phone);
+    if (phoneValidation) {
+      setPhoneError(phoneValidation);
+      return phoneValidation;
     }
 
     if (formData.password !== formData.confirmPassword) {
       return 'Passwords do not match';
     }
 
-    if (formData.password.length < 6) {
-      return 'Password must be at least 6 characters long';
+    if (formData.password.length < 8) {
+      return 'Password must be at least 8 characters long';
     }
 
     return null;
@@ -85,6 +116,7 @@ const RegisterPage: React.FC = () => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setRedirectCountdown(null);
 
     const validationError = validateForm();
     if (validationError) {
@@ -97,14 +129,22 @@ const RegisterPage: React.FC = () => {
     try {
       await register({
         username: formData.username,
-        email: formData.email,
+        email: formData.email.trim() || undefined,
         password: formData.password,
         first_name: formData.firstName,
         last_name: formData.lastName,
         phone: formData.phone,
+        address_line1: formData.addressLine1.trim() || undefined,
       });
 
-      setSuccess('Registration successful! Please check your email to verify your account before logging in.');
+      const requiresEmailVerification = Boolean(formData.email.trim());
+      setSuccess(requiresEmailVerification
+        ? 'Registration successful! Please check your email to verify your account before logging in.'
+        : 'Registration successful! You can now log in with your username.');
+
+      if (!requiresEmailVerification) {
+        setRedirectCountdown(GUEST_LOGIN_REDIRECT_SECONDS);
+      }
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     } finally {
@@ -213,8 +253,56 @@ const RegisterPage: React.FC = () => {
 
             {/* Success Alert */}
             <Collapse in={!!success}>
-              <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
-                {success}
+              <Alert
+                severity="success"
+                sx={{
+                  mb: 2,
+                  alignItems: 'center',
+                  '& .MuiAlert-message': { width: '100%' },
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2" fontWeight={600}>
+                      {success}
+                    </Typography>
+                    {redirectCountdown !== null && (
+                      <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
+                        Redirecting to the Guest portal in {redirectCountdown}{' '}
+                        {redirectCountdown === 1 ? 'second' : 'seconds'}…
+                      </Typography>
+                    )}
+                  </Box>
+                  {redirectCountdown !== null && (
+                    <Box sx={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+                      <CircularProgress
+                        variant="determinate"
+                        value={((GUEST_LOGIN_REDIRECT_SECONDS - redirectCountdown) / GUEST_LOGIN_REDIRECT_SECONDS) * 100}
+                        size={48}
+                        thickness={4}
+                        sx={{
+                          color: 'success.main',
+                          '& .MuiCircularProgress-circle': {
+                            transition: 'stroke-dashoffset 1s linear',
+                          },
+                        }}
+                      />
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          inset: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Typography variant="caption" fontWeight={700} color="success.main">
+                          {redirectCountdown}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  )}
+                </Box>
               </Alert>
             </Collapse>
 
@@ -243,7 +331,7 @@ const RegisterPage: React.FC = () => {
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Email"
+                  label="Email (optional)"
                   name="email"
                   type="email"
                   value={formData.email}
@@ -251,7 +339,6 @@ const RegisterPage: React.FC = () => {
                   onBlur={() => handleBlur('email')}
                   error={!!emailError}
                   helperText={emailError}
-                  required
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       transition: 'all 0.3s',
@@ -311,6 +398,28 @@ const RegisterPage: React.FC = () => {
                   onBlur={() => handleBlur('phone')}
                   error={!!phoneError}
                   helperText={phoneError}
+                  required
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      transition: 'all 0.3s',
+                      '&:hover': {
+                        transform: 'translateY(-2px)',
+                      },
+                    },
+                  }}
+                />
+              </Grid>
+
+              <Grid size={12}>
+                <TextField
+                  fullWidth
+                  label="Address (optional)"
+                  name="addressLine1"
+                  value={formData.addressLine1}
+                  onChange={handleInputChange}
+                  multiline
+                  minRows={2}
+                  inputProps={{ maxLength: 255 }}
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       transition: 'all 0.3s',
@@ -385,7 +494,7 @@ const RegisterPage: React.FC = () => {
                   transform: 'translateY(0)',
                 },
               }}
-              disabled={loading}
+              disabled={loading || redirectCountdown !== null}
             >
               {loading ? <LoadingSpinner size={24} /> : 'Create Account'}
             </Button>

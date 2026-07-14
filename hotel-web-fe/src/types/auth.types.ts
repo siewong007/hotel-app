@@ -32,6 +32,9 @@ export interface UserProfile {
   id: number;
   username: string;
   email: string;
+  email_configured: boolean;
+  is_verified: boolean;
+  user_type?: 'staff' | 'guest';
   full_name?: string;
   phone?: string;
   avatar_url?: string;

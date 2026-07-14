@@ -4,8 +4,10 @@ use crate::core::db::DbPool;
 use crate::core::error::ApiError;
 use crate::core::middleware::require_auth;
 use crate::models::*;
+use crate::services::audit::AuditLog;
+use crate::utils::sanitization::Sanitizer;
 use axum::{
-    extract::{Path, State},
+    extract::{Extension, Path, State},
     http::HeaderMap,
     response::Json,
 };
@@ -21,15 +23,9 @@ pub async fn book_with_credits_handler(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let user_id = require_auth(&headers).await?;
 
-    // Verify user has access to this guest
-    let has_access: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM user_guests WHERE user_id = $1 AND guest_id = $2)",
-    )
-    .bind(user_id)
-    .bind(input.guest_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| ApiError::Database(e.to_string()))?;
+    let has_access =
+        crate::services::bookings::can_book_with_credits_for_guest(&pool, user_id, input.guest_id)
+            .await?;
 
     if !has_access {
         return Err(ApiError::Unauthorized(
@@ -290,8 +286,11 @@ pub async fn get_guests_with_credits_handler(
 /// Add complimentary credits to a guest
 pub async fn add_guest_credits_handler(
     State(pool): State<DbPool>,
+    Extension(user_id): Extension<i64>,
     Json(input): Json<AddGuestCreditsRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let reason = normalize_credit_reason(input.reason.as_deref())?;
+
     // Validate guest exists
     let guest_exists: bool =
         sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM guests WHERE id = $1)")
@@ -335,14 +334,14 @@ pub async fn add_guest_credits_handler(
         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT (guest_id, room_type_id)
         DO UPDATE SET nights_available = guest_complimentary_credits.nights_available + $3,
-                      notes = COALESCE($4, guest_complimentary_credits.notes),
+                      notes = $4,
                       updated_at = CURRENT_TIMESTAMP
         "#
     )
     .bind(input.guest_id)
     .bind(input.room_type_id)
     .bind(input.nights)
-    .bind(&input.notes)
+    .bind(&reason)
     .execute(&pool)
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
@@ -364,6 +363,28 @@ pub async fn add_guest_credits_handler(
     .await
     .map_err(|e| ApiError::Database(e.to_string()))?;
 
+    let nights_available = credit.get::<i32, _>("nights_available");
+    let room_type_name = credit.get::<String, _>("room_type_name");
+
+    let _ = AuditLog::log_event(
+        &pool,
+        Some(user_id),
+        "guest_complimentary_credits_granted",
+        "guest",
+        Some(input.guest_id),
+        Some(serde_json::json!({
+            "guest_id": input.guest_id,
+            "room_type_id": input.room_type_id,
+            "room_type_name": room_type_name,
+            "nights_added": input.nights,
+            "nights_available": nights_available,
+            "reason": reason,
+        })),
+        None,
+        None,
+    )
+    .await;
+
     Ok(Json(serde_json::json!({
         "success": true,
         "message": format!("Added {} nights to guest credits", input.nights),
@@ -371,11 +392,57 @@ pub async fn add_guest_credits_handler(
             "guest_id": credit.get::<i64, _>("guest_id"),
             "guest_name": credit.get::<String, _>("guest_name"),
             "room_type_id": credit.get::<i64, _>("room_type_id"),
-            "room_type_name": credit.get::<String, _>("room_type_name"),
-            "nights_available": credit.get::<i32, _>("nights_available"),
-            "notes": credit.get::<Option<String>, _>("notes")
+            "room_type_name": room_type_name,
+            "nights_available": nights_available,
+            "reason": reason,
+            "notes": reason
         }
     })))
+}
+
+fn normalize_credit_reason(reason: Option<&str>) -> Result<String, ApiError> {
+    let reason = reason
+        .map(Sanitizer::sanitize_notes)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    if reason.is_empty() {
+        return Err(ApiError::BadRequest(
+            "A reason is required when granting complimentary credits".to_string(),
+        ));
+    }
+
+    if reason.chars().count() > 500 {
+        return Err(ApiError::BadRequest(
+            "Complimentary credit reason must be 500 characters or fewer".to_string(),
+        ));
+    }
+
+    Ok(reason)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_credit_reason;
+
+    #[test]
+    fn complimentary_credit_reason_is_required() {
+        assert!(normalize_credit_reason(None).is_err());
+        assert!(normalize_credit_reason(Some("   ")).is_err());
+    }
+
+    #[test]
+    fn complimentary_credit_reason_is_sanitized_and_trimmed() {
+        let reason = normalize_credit_reason(Some("  Loyalty reward\u{0007}  ")).unwrap();
+        assert_eq!(reason, "Loyalty reward");
+    }
+
+    #[test]
+    fn complimentary_credit_reason_is_limited_to_five_hundred_characters() {
+        assert!(normalize_credit_reason(Some(&"a".repeat(500))).is_ok());
+        assert!(normalize_credit_reason(Some(&"a".repeat(501))).is_err());
+    }
 }
 
 /// Update guest complimentary credits

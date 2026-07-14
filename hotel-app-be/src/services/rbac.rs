@@ -218,7 +218,7 @@ pub async fn create_user(
 
     AuthService::validate_password(&input.password).map_err(ApiError::BadRequest)?;
 
-    if AuthRepository::username_or_email_exists(pool, &input.username, &input.email).await? {
+    if AuthRepository::username_or_email_exists(pool, &input.username, Some(&input.email)).await? {
         return Err(ApiError::BadRequest(
             "Username or email already exists".to_string(),
         ));

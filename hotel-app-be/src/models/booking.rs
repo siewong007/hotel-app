@@ -269,7 +269,10 @@ pub struct AddGuestCreditsRequest {
     pub guest_id: i64,
     pub room_type_id: i64,
     pub nights: i32,
-    pub notes: Option<String>,
+    /// Required business reason for granting the credits. `notes` remains an
+    /// accepted input alias for older API clients.
+    #[serde(default, alias = "notes")]
+    pub reason: Option<String>,
 }
 
 /// Request to update guest credits.

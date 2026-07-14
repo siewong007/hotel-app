@@ -29,6 +29,29 @@ pub struct CheckinSourceContext {
     pub self_checkin_event: Option<SelfCheckinEventInsert>,
 }
 
+/// Allow complimentary-credit bookings for either a user linked to the guest
+/// or staff who can both create bookings and read guest records.
+pub async fn can_book_with_credits_for_guest(
+    pool: &DbPool,
+    user_id: i64,
+    guest_id: i64,
+) -> Result<bool, ApiError> {
+    if booking_repo::user_owns_booking(pool, user_id, guest_id).await? {
+        return Ok(true);
+    }
+
+    let can_create_bookings = AuthService::check_permission(pool, user_id, "bookings:create")
+        .await
+        .map_err(ApiError::from)?;
+    if !can_create_bookings {
+        return Ok(false);
+    }
+
+    AuthService::check_permission(pool, user_id, "guests:read")
+        .await
+        .map_err(ApiError::from)
+}
+
 impl CheckinSourceContext {
     fn manual() -> Self {
         Self {

@@ -73,6 +73,7 @@ interface GuestCredit {
   room_type_name: string;
   room_type_code: string | null;
   nights_available: number;
+  reason?: string | null;
   notes: string | null;
 }
 
@@ -153,8 +154,8 @@ export default function ComplimentaryManagementPage() {
     },
     {
       id: 'notes',
-      header: 'Notes',
-      accessorFn: (c) => c.notes || '',
+      header: 'Reason',
+      accessorFn: (c) => c.reason || c.notes || '',
       cell: (info) => (
         <Typography variant="caption" color="text.secondary">
           {(info.getValue() as string) || '-'}
@@ -228,7 +229,7 @@ export default function ComplimentaryManagementPage() {
     guest_id: 0,
     room_type_id: 0,
     nights: 1,
-    notes: '',
+    reason: '',
   });
   const [editCreditFormData, setEditCreditFormData] = useState({
     nights_available: 0,
@@ -238,7 +239,7 @@ export default function ComplimentaryManagementPage() {
 
   // Credit CRUD handlers
   const handleAddCreditClick = () => {
-    setCreditFormData({ guest_id: 0, room_type_id: 0, nights: 1, notes: '' });
+    setCreditFormData({ guest_id: 0, room_type_id: 0, nights: 1, reason: '' });
     setAddCreditDialogOpen(true);
   };
 
@@ -257,8 +258,9 @@ export default function ComplimentaryManagementPage() {
   };
 
   const handleAddCredit = async () => {
-    if (!creditFormData.guest_id || !creditFormData.room_type_id || creditFormData.nights <= 0) {
-      showSnackbar('Please fill in all required fields', 'error');
+    const reason = creditFormData.reason.trim();
+    if (!creditFormData.guest_id || !creditFormData.room_type_id || creditFormData.nights <= 0 || !reason) {
+      showSnackbar('Please select a guest and room type, enter the number of nights, and provide a reason', 'error');
       return;
     }
     try {
@@ -267,7 +269,7 @@ export default function ComplimentaryManagementPage() {
         guest_id: creditFormData.guest_id,
         room_type_id: creditFormData.room_type_id,
         nights: creditFormData.nights,
-        notes: creditFormData.notes || undefined,
+        reason,
       });
       showSnackbar('Credits added successfully');
       setAddCreditDialogOpen(false);
@@ -893,12 +895,15 @@ export default function ComplimentaryManagementPage() {
               <Grid size={12}>
                 <TextField
                   fullWidth
-                  label="Notes"
+                  required
+                  label="Reason"
                   multiline
                   rows={2}
-                  value={creditFormData.notes}
-                  onChange={(e) => setCreditFormData({ ...creditFormData, notes: e.target.value })}
-                  placeholder="e.g., Loyalty reward, Compensation, etc."
+                  value={creditFormData.reason}
+                  onChange={(e) => setCreditFormData({ ...creditFormData, reason: e.target.value })}
+                  placeholder="e.g., Loyalty reward or service recovery"
+                  helperText={`${creditFormData.reason.length}/500 characters`}
+                  slotProps={{ htmlInput: { maxLength: 500 } }}
                 />
               </Grid>
             </Grid>
@@ -906,7 +911,12 @@ export default function ComplimentaryManagementPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAddCreditDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleAddCredit} variant="contained" color="secondary" disabled={processing}>
+          <Button
+            onClick={handleAddCredit}
+            variant="contained"
+            color="secondary"
+            disabled={processing || !creditFormData.reason.trim()}
+          >
             {processing ? 'Adding...' : 'Add Credits'}
           </Button>
         </DialogActions>
